@@ -64,6 +64,7 @@ const OnlineBeatmaps = {
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
       rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
+      genreId: raw.genre_id ?? raw.genre?.id ?? null, languageId: raw.language_id ?? raw.language?.id ?? null,
     };
   },
   /** Average rating from vote counts (index = score), for sources that don't send the average. */
@@ -200,6 +201,12 @@ function statusMatches(set, status) {
   if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
   if (status === 'ranked') return set.status === 'ranked' || set.status === 'approved';
   return set.status === status;
+}
+/** "Anime · Japanese" from osu!'s genre / language ids (sources that don't send them give ''). */
+function genreLanguage(set) {
+  const g = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
+  const l = set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null;
+  return [g, l].filter(Boolean).join(' · ');
 }
 /** Order loaded results by the chosen criterion (stable), so pages from any source line up the same way. */
 function sortOnlineSets(list, sort, dir) {
@@ -443,6 +450,7 @@ const ExplorerScreen = {
           h('div.ex-badges', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.ex-badge', icon('film'), 'Video') : null),
           h('div.ex-set-t', title), h('div.ex-set-a', artist),
           h('div.ex-set-m', 'mapped by ', h('b', set.creator), set.source ? h('span.muted', ` · ${set.source}`) : null),
+          genreLanguage(set) ? h('div.ex-set-tags', genreLanguage(set)) : null,
           h('div.ex-set-actions',
             h('button.btn.sm', { onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play'), playing ? 'Stop preview' : 'Preview'),
             this.actionFor(set, d),

@@ -662,6 +662,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── Beatmap set overlay */
 .dialog.ex-set { width: min(860px, calc(100vw - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
+.ex-set-tags { margin-top: 4px; font-size: .8rem; font-weight: 600; color: rgba(255, 255, 255, .72); letter-spacing: .02em; }
 .ex-set-head { position: relative; min-height: 250px; aspect-ratio: 18 / 5; display: flex; align-items: flex-end; overflow: hidden; }
 .ex-set-cover { position: absolute; inset: 0; background: #3b3744 center / cover no-repeat; transition: background-image 300ms; }
 .ex-set-head .ex-cover-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, 0) 35%, rgba(20, 18, 26, .55) 72%, rgba(38, 36, 44, .97) 100%); }
