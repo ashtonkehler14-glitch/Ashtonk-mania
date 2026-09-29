@@ -56,7 +56,8 @@ test('map selection is host-only, strips Auto and resets ready', () => {
   const r = room();
   assert.equal(r.message('b', { t: 'map', map: MAP }).length, 0);
   ready(r);
-  assert.deepEqual(r.mods, ['HD']);
+  assert.deepEqual(r.mods, []);
+  assert.deepEqual(r.get('a').mods, ['HD']); // the host's own mod, not the room's
   assert.ok(r.players.every(p => p.ready));
   r.message('a', { t: 'map', map: { ...MAP, hash: 'zzz' } });
   assert.ok(r.players.every(p => !p.ready));
@@ -171,4 +172,48 @@ test('equal pp (e.g. two fails at 0pp) falls back to score, then accuracy', () =
   assert.equal(res.winner, 'b');
   const live = r.message('a', { t: 'score', score: 1, acc: 1, combo: 1, hp: 1, pp: 5 });
   assert.equal(live.length, 0, 'no live scores outside a match');
+});
+
+test('speed mods (DT…) need every player to accept; other mods are per player', () => {
+  const r = room();
+  r.message('a', { t: 'map', map: MAP, mods: ['DT', 'HD'] });
+  assert.deepEqual(r.mods, []);
+  assert.deepEqual(r.vote.mods, ['DT']);
+  r.message('b', { t: 'hasMap', has: true });
+  r.message('b', { t: 'mods', mods: ['MR', 'DT', 'AT'] });
+  assert.deepEqual(r.get('b').mods, ['MR']);
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1); // vote still open
+  r.message('b', { t: 'vote', yes: true });
+  assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  const st = msgs(r.message('a', { t: 'start' }), 'start')[0].msg;
+  assert.deepEqual(st.mods, ['DT']);
+  assert.deepEqual(st.playerMods, { a: ['HD'], b: ['MR'] });
+  r.checkFinished(); r.state = 'lobby';
+  r.message('a', { t: 'map', map: { ...MAP, hash: 'next' }, mods: ['HD'] }); // a new map without DT keeps the room's DT
+  assert.deepEqual(r.mods, ['DT']);
+  assert.equal(r.vote, null);
+});
+
+test('declining a speed mod cancels it', () => {
+  const r = room();
+  r.message('a', { t: 'map', map: MAP });
+  r.message('b', { t: 'rate', mods: ['HT'] });
+  assert.deepEqual(r.vote.mods, ['HT']);
+  r.message('a', { t: 'vote', yes: false });
+  assert.equal(r.vote, null);
+  assert.deepEqual(r.mods, []);
+});
+
+test('the intro is skipped only when every player votes', () => {
+  const r = room();
+  ready(r);
+  r.message('a', { t: 'start' });
+  const one = r.message('a', { t: 'skip' });
+  assert.deepEqual(one[0].msg, { t: 'skipvote', votes: 1, total: 2 });
+  assert.deepEqual(r.message('a', { t: 'skip' }), []);
+  assert.equal(r.message('b', { t: 'skip' })[0].msg.t, 'skip');
+  assert.deepEqual(r.message('b', { t: 'skip' }), []);
 });

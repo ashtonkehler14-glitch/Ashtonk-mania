@@ -134,11 +134,26 @@ check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra
 check('results panel leads with pp', await alice.evaluate(() => /pp$/.test(document.querySelector('.mp-res-score').textContent)));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
 
+// mods: Alice wants DT (+ her own Hidden) — Bob has to accept DT; Bob picks Mirror for himself
+await alice.evaluate(() => AshtonkMania.Multiplayer.setMods(['DT', 'HD']));
+await bob.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
+await shot(bob, 'mp-vote');
+check('a speed mod (DT) needs the other player to accept', await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return !r.mods.length && r.vote && r.vote.mods[0] === 'DT' && /Waiting for everyone/.test(document.querySelector('.mp-vote').textContent); }));
+await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR']));
+await bob.click('.mp-vote .mp-accept');
+await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
+await bob.waitForTimeout(300);
+const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; const m = id => r.players.find(p => p.id === id).mods.join(); return { host: m(r.host), me: m(AshtonkMania.Multiplayer.me), banner: !!document.querySelector('.mp-vote') }; });
+check('after both accept, DT applies to the room; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner, JSON.stringify(afterVote));
+
 // rematch: forfeit by quitting
 await alice.click('.mp-ready'); await bob.click('.mp-ready');
 await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
 await alice.click('.mp-start');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.Music.playing, null, { timeout: 15000 })));
+const modsA = await alice.evaluate(() => AshtonkMania.GameplayScreen.s.mods.join());
+const modsB = await bob.evaluate(() => AshtonkMania.GameplayScreen.s.mods.join());
+check('in the match: DT for everyone plus each player\'s own mods', /DT/.test(modsA) && /HD/.test(modsA) && !/MR/.test(modsA) && /DT/.test(modsB) && /MR/.test(modsB) && !/HD/.test(modsB), `${modsA} / ${modsB}`);
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog');
 await bob.click('.dialog .btn.danger');

@@ -652,6 +652,31 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (!s || !s.running) return;
     const now = this.gameTime();
     if (now >= s.skipTarget - 1000 * s.rate) return;
+    if (s.mp) {
+      // multiplayer: everyone has to vote before the intro is skipped
+      if (s.skipVoted) return;
+      s.skipVoted = true;
+      UISounds.click();
+      Multiplayer.send({ t: 'skip' });
+      this.mpSkipVotes({ votes: 1, total: Math.max(2, (Multiplayer.room && Multiplayer.room.players.length) || 2) });
+      return;
+    }
+    UISounds.click();
+    Music.play(s.skipTarget + this.offsetMs() * s.rate);
+  },
+  /** Multiplayer: show how many players want to skip. */
+  mpSkipVotes(m) {
+    if (!this.s || !this.s.mp || !this.skipBtn) return;
+    const label = this.skipBtn.querySelector('.skip-votes') || this.skipBtn.appendChild(h('span.skip-votes'));
+    label.textContent = ` ${m.votes}/${m.total}`;
+    this.skipBtn.classList.toggle('voted', !!this.s.skipVoted);
+  },
+  /** Multiplayer: everyone voted — skip the intro now. */
+  mpSkip() {
+    const s = this.s;
+    if (!s || !s.mp || !s.running) return;
+    const now = this.gameTime();
+    if (now >= s.skipTarget - 1000 * s.rate) return;
     UISounds.click();
     Music.play(s.skipTarget + this.offsetMs() * s.rate);
   },

@@ -1,6 +1,9 @@
 /* Online 1v1 multiplayer (osu!lazer-style room). Talks to the Worker's Durable Objects over a
  * WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and room rules. */
 
+/** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
+const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
+
 const Multiplayer = {
   ws: null, room: null, me: null, code: null, quick: false,
   chat: [], opp: null, lastResults: null, rtt: 80, _keep: 0,
@@ -97,6 +100,8 @@ const Multiplayer = {
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
       case 'opp': this.opp = m; break;
       case 'start': this.launch(m); break;
+      case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
+      case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
       case 'results':
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
@@ -171,6 +176,16 @@ const Multiplayer = {
     const has = !!this.localMap();
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
+  /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
+  setMods(list) {
+    const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
+    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && x !== 'AT') });
+    const r = this.room, cur = r ? r.mods || [] : [];
+    const pending = r && r.vote ? r.vote.mods : null;
+    const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+    if (!same(speed, cur) && !(pending && same(speed, pending))) this.send({ t: 'rate', mods: speed, modConfig: ModSystem.config() });
+  },
+  vote(yes) { this.send({ t: 'vote', yes }); },
   selectMap(m, mods) {
     const set = BeatmapManager.setById.get(m.setId);
     this.send({ t: 'map', map: { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
@@ -181,7 +196,9 @@ const Multiplayer = {
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
     this.opp = null;
     const startAt = performance.now() + m.delay - this.rtt / 2;
-    Game.launch({ mapId: local.id, mods: m.mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt } });
+    // the room's speed mod (everyone accepted it) plus this player's own mods
+    const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
+    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt } });
   },
   /** Invite link for the current room: opening it joins the room directly. */
   inviteLink() {
@@ -422,7 +439,26 @@ const MultiplayerScreen = {
       sel.addEventListener('keydown', e => e.stopPropagation());
       diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
     }
-    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, diffPick, mapActions, status.childNodes.length ? status : null)));
+    // mods: the room's speed (DT, HT… — everyone must accept) and this player's own mods
+    const myMods = (me && me.mods) || [];
+    const badges = (list, none) => list.length ? list.map(m => ModSystem.badge(m, true)) : [h('span.mp-none', none)];
+    const modsRow = h('div.mp-mods',
+      h('div.mp-modline', h('span.mp-modlabel', 'Speed'), ...badges(r.mods || [], 'Normal')),
+      h('div.mp-modline', h('span.mp-modlabel', 'Your mods'), ...badges(myMods, 'None')),
+      h('span.grow'),
+      h('button.btn.sm.mp-mods-btn', { onclick: () => this.openMods() }, icon('mods'), 'Mods'));
+    let voteEl = null;
+    if (r.vote) {
+      const by = r.players.find(p => p.id === r.vote.by), what = r.vote.mods.length ? r.vote.mods.join('') : 'no speed mods';
+      const mine = r.vote.yes.includes(Multiplayer.me);
+      voteEl = h('div.mp-vote', icon('mods'),
+        mine ? h('span', `Waiting for everyone to accept ${what} (${r.vote.yes.length}/${r.players.length})`)
+          : h('span', h('b', by ? by.name : 'Someone'), ` wants to play with ${what}`),
+        h('span.grow'),
+        mine ? null : h('button.btn.sm.primary.mp-accept', { onclick: () => { UISounds.click(); Multiplayer.vote(true); } }, 'Accept'),
+        mine ? null : h('button.btn.sm.mp-decline', { onclick: () => { UISounds.click(); Multiplayer.vote(false); } }, 'Decline'));
+    }
+    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, diffPick, modsRow, voteEl, mapActions, status.childNodes.length ? status : null)));
 
     // players
     const slot = p => {
@@ -432,7 +468,8 @@ const MultiplayerScreen = {
       return h(`div.mp-player${p.ready ? '.ready' : ''}`,
         isMe ? ProfileManager.avatarEl(44) : h('div.avatar.avatar-mono', { style: { width: '44px', height: '44px', fontSize: '20px' } }, (p.name || '?').slice(0, 1).toUpperCase()),
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
-          r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null),
+          r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
+            ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
         h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
     clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), slot(me), slot(opp)));
@@ -445,10 +482,18 @@ const MultiplayerScreen = {
       disabled: !r.map || !me || !me.hasMap,
       onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
     }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady, title: allReady ? '' : 'Both players must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
+    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Both players must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
     clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
   },
 
+  /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
+  openMods() {
+    const r = Multiplayer.room, me = Multiplayer.self();
+    if (!r) return;
+    Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
+    const off = Bus.on('mods:changed', () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); });
+    ModSelect.open();
+  },
   updateFetch() {
     const f = Multiplayer.fetch;
     if (this.fetchEl && f) this.fetchEl.textContent = ` Downloading the beatmap for this room… ${f.progress != null ? Math.round(f.progress * 100) + '%' : ''}`;

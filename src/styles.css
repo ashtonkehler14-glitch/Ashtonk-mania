@@ -1021,6 +1021,15 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-map-status { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: .85rem; color: var(--text-2); flex-wrap: wrap; }
 .mp-temp { color: var(--blue); }
 .mp-diff { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+.mp-mods { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: .8rem; }
+.mp-modline { display: flex; align-items: center; gap: 5px; }
+.mp-modlabel { color: var(--muted); margin-right: 3px; }
+.mp-none { color: var(--text-2); font-weight: 600; }
+.mp-vote { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(var(--accent-rgb), .18); font-size: .85rem; animation: wedgeIn var(--t-med) var(--ease-out); }
+.mp-vote .i { color: var(--accent); }
+.mp-pdiff .mod-badge, .mp-pdiff > span:not(:first-child) { margin-left: 4px; }
+.hud-skip.voted { opacity: .75; }
+.skip-votes { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: .85; }
 .mp-diff .select { height: 32px; max-width: 320px; font-size: .85rem; }
 .mp-pdiff { font-size: .75rem; color: var(--muted); margin-top: 1px; }
 .ex-mp { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border-radius: 8px; background: rgba(var(--accent-rgb), .15); color: var(--text); font-size: .9rem; }

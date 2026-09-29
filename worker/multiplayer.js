@@ -4,9 +4,14 @@
 //  - RoomLogic holds all room rules and is plain JS so it can be unit-tested in Node.
 //
 // Protocol (client → server): hello {name, create}, chat {text}, suggest {map}, diff {diff}, map {map, mods, modConfig} (host),
-// hasMap {has}, ready {ready}, start (host), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
-// Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig},
-// opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s}.
+// mods {mods} (your own mods), rate {mods, modConfig} (propose a room speed mod), vote {yes}, hasMap {has}, ready {ready},
+// start (host), skip (vote to skip the intro), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
+// Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig, playerMods},
+// skipvote {votes, total}, skip, opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s}.
+//
+// Mods: everyone picks their own mods (Hidden, Hard Rock, Mirror…). Mods that change the song's speed (DT, NC, HT, DC,
+// Rate) apply to the whole room, so they only take effect once every player accepts. Skipping the intro also needs
+// every player's vote.
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const START_DELAY = 5000;
@@ -17,6 +22,14 @@ export function makeCode(len = 6, rnd = Math.random) {
   for (let i = 0; i < len; i++) s += CODE_ALPHABET[Math.floor(rnd() * CODE_ALPHABET.length)];
   return s;
 }
+export const RATE_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
+/** Valid mod ids, deduplicated; Auto is never allowed in a match. */
+export function cleanMods(list) {
+  return Array.isArray(list) ? [...new Set(list.filter(x => typeof x === 'string' && /^[A-Z]{2,3}$/.test(x) && x !== 'AT'))].slice(0, 12) : [];
+}
+const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x));
+const speedMods = list => cleanMods(list).filter(x => RATE_MODS.includes(x)).slice(0, 1);
+const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.entries(c).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
 export const validCode = c => typeof c === 'string' && /^[A-Z0-9]{4,8}$/.test(c);
 
 const str = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
@@ -52,14 +65,15 @@ export class RoomLogic {
   constructor(code, now = () => Date.now()) {
     this.code = code; this.now = now;
     this.players = []; this.hostId = null; this.created = false;
-    this.map = null; this.mods = []; this.modConfig = null;
-    this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = [];
+    this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
+    this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = []; this.skipped = false;
   }
   get(id) { return this.players.find(p => p.id === id); }
   snapshot() {
     return {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
-      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff })),
+      vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
+      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods })),
     };
   }
   roomMsg() { return { to: 'all', msg: { t: 'room', room: this.snapshot() } }; }
@@ -70,7 +84,7 @@ export class RoomLogic {
     if (this.players.length >= MAX_PLAYERS) return { ok: false, error: 'This room is full.' };
     if (this.state !== 'lobby') return { ok: false, error: 'A match is in progress in this room.' };
     this.created = true;
-    const p = { id, name: str(name, 24) || 'Player', ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null };
+    const p = { id, name: str(name, 24) || 'Player', ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     return { ok: true, out: [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot() } }, this.roomMsg(), this.system(`${p.name} joined the room`)] };
@@ -89,11 +103,12 @@ export class RoomLogic {
     if (!this.players.length) { this.reset(); return out; }
     if (this.hostId === id) this.hostId = this.players[0].id;
     for (const x of this.players) x.ready = false;
+    if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
     out.push(this.roomMsg(), this.system(`${p.name} left the room`));
     return out;
   }
   reset() {
-    this.created = false; this.hostId = null; this.map = null; this.mods = []; this.modConfig = null;
+    this.created = false; this.hostId = null; this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
     this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = [];
   }
 
@@ -117,11 +132,31 @@ export class RoomLogic {
         const map = cleanMap(m.map);
         if (!map) return [{ to: id, msg: { t: 'error', msg: 'Invalid beatmap' } }];
         this.map = map;
-        this.mods = Array.isArray(m.mods) ? m.mods.filter(x => typeof x === 'string' && /^[A-Z]{2,3}$/.test(x) && x !== 'AT').slice(0, 12) : [];
-        this.modConfig = m.modConfig && typeof m.modConfig === 'object' ? Object.fromEntries(Object.entries(m.modConfig).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
         for (const x of this.players) { x.ready = false; x.diff = null; if (x.id !== id) x.hasMap = false; }
         p.hasMap = true;
-        return [this.roomMsg(), this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
+        const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
+        if (Array.isArray(m.mods)) {
+          p.mods = personalMods(m.mods);
+          // the host's speed mod (DT…) is only a proposal: everyone has to accept it. Picking a map without one keeps
+          // the room's current speed (removing it goes through the Mods button — and a vote)
+          const sp = speedMods(m.mods);
+          if (sp.length) out.push(...this.propose(p, sp, cleanConfig(m.modConfig)));
+        }
+        return [this.roomMsg(), ...out];
+      }
+      case 'mods':
+        if (this.state !== 'lobby') return [];
+        p.mods = personalMods(m.mods);
+        return [this.roomMsg()];
+      case 'rate':
+        if (this.state !== 'lobby') return [];
+        return [...this.propose(p, speedMods(m.mods), cleanConfig(m.modConfig)), this.roomMsg()];
+      case 'vote': {
+        if (this.state !== 'lobby' || !this.vote || this.vote.yes.includes(id)) return [];
+        const label = this.vote.mods.join('') || 'no speed mod';
+        if (!m.yes) { this.vote = null; return [this.system(`${p.name} declined ${label}`), this.roomMsg()]; }
+        this.vote.yes.push(id);
+        return [...this.settleVote(), this.roomMsg()];
       }
       case 'diff': {
         // each player may play any difficulty of the room's beatmap set
@@ -139,11 +174,23 @@ export class RoomLogic {
         if (!host || this.state !== 'lobby') return [];
         if (this.players.length < 2) return [{ to: id, msg: { t: 'error', msg: 'Wait for an opponent to join.' } }];
         if (!this.map || !this.players.every(x => x.ready && x.hasMap)) return [{ to: id, msg: { t: 'error', msg: 'Both players need to be ready.' } }];
-        this.state = 'playing';
+        if (this.vote) return [{ to: id, msg: { t: 'error', msg: 'Everyone has to accept (or decline) the speed mod first.' } }];
+        this.state = 'playing'; this.skipped = false;
         this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
-        for (const x of this.players) { x.playing = true; x.finished = null; x.live = null; }
+        for (const x of this.players) { x.playing = true; x.finished = null; x.live = null; x.skip = false; }
         this.departed = [];
-        return [{ to: 'all', msg: { t: 'start', delay: START_DELAY, map: this.map, mods: this.mods, modConfig: this.modConfig } }, this.roomMsg()];
+        const playerMods = Object.fromEntries(this.players.map(x => [x.id, x.mods]));
+        return [{ to: 'all', msg: { t: 'start', delay: START_DELAY, map: this.map, mods: this.mods, modConfig: this.modConfig, playerMods } }, this.roomMsg()];
+      }
+      case 'skip': {
+        // the intro is only skipped once every player still playing has asked to
+        if (this.state !== 'playing' || !p.playing || p.finished || this.skipped || p.skip) return [];
+        p.skip = true;
+        const active = this.players.filter(x => x.playing && !x.finished);
+        const votes = active.filter(x => x.skip).length;
+        if (votes < active.length) return [{ to: 'all', msg: { t: 'skipvote', votes, total: active.length } }];
+        this.skipped = true;
+        return [{ to: 'all', msg: { t: 'skip' } }];
       }
       case 'score':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
@@ -161,6 +208,24 @@ export class RoomLogic {
     return [];
   }
 
+  /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
+  propose(p, mods, modConfig) {
+    const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+    if (!this.vote && same(mods, this.mods)) return [];
+    if (this.vote && same(mods, this.vote.mods)) return [];
+    this.vote = { mods, modConfig, by: p.id, yes: [p.id] };
+    const settled = this.settleVote();
+    if (settled.length) return settled;
+    return [this.system(`${p.name} wants to play ${mods.length ? 'with ' + mods.join('') : 'without speed mods'} — everyone has to accept`)];
+  }
+  settleVote() {
+    const v = this.vote;
+    if (!v || !this.players.every(x => v.yes.includes(x.id))) return [];
+    this.mods = v.mods; this.modConfig = v.mods.includes('RT') ? v.modConfig : null; this.vote = null;
+    for (const x of this.players) x.ready = false;
+    return [this.system(this.mods.length ? `Everyone accepted — playing with ${this.mods.join('')}` : 'Speed mods removed')];
+  }
+
   /** Called periodically: players who never report back are timed out. */
   tick() {
     if (this.state !== 'playing' || this.now() < this.deadline) return [];
@@ -174,7 +239,7 @@ export class RoomLogic {
     const done = active.every(p => p.finished);
     // someone left mid-match: the player still here wins by forfeit straight away
     if (!done && !(someoneLeft && active.length === 1)) return [];
-    const row = p => ({ id: p.id, name: p.name, diff: p.diff, ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), pending: true }) });
+    const row = p => ({ id: p.id, name: p.name, diff: p.diff, mods: [...this.mods, ...(p.mods || [])], ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), pending: true }) });
     const rows = [...active.map(row), ...this.departed];
     // the winner is decided by pp (score, then accuracy, only break ties — e.g. two fails with 0pp)
     const order = (a, b) => (a.forfeit - b.forfeit) || (b.pp - a.pp) || (b.score - a.score) || (b.accuracy - a.accuracy);

@@ -19,6 +19,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Multiplayer mods and skip voting
+
+* **Mods in multiplayer:** the room's **Mods** button opens the mod select. Mods that don't change the song's speed (Hidden, Hard Rock, Mirror, Random…) are yours alone; everyone sees them next to your name. The room panel shows the room's **Speed** and **Your mods**.
+* **Speed mods need everyone:** DT, NC, HT, DC and Rate apply to the whole room, so choosing one starts a vote. The others see "*name* wants to play with DT" with **Accept** / **Decline**. It applies once everyone accepts, and any decline cancels it. Start is blocked while a vote is open. Removing a speed mod works the same way. Picking a new beatmap keeps the room's current speed.
+* **Skip needs everyone:** in a match, `Space` (or the Skip button) votes to skip the intro, and the button shows the count (1/2). The intro is skipped for everyone once every player has voted.
+
 ### Neru on the menu, only playable difficulties, faster gameplay
 
 * **Neru on the main menu:** the game now ships with two Neru pictures, with their backgrounds removed. One is `public/neru.png`, where she stands in the corner. The other is `public/neru-happy.png`, which she switches to for a moment when you click her.
@@ -151,7 +157,7 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 | Global | `Ctrl+O` settings · `Alt+Enter` fullscreen · `Esc` back · `Alt+wheel` volume · `Ctrl+Shift+D` debug overlay |
 | Main menu | any key opens the menu · `O` settings · `P` play · `B` browse · `U` profile · in Play: `S` solo · `M` multiplayer · `P` practice |
 | Song select | `↑↓` difficulty · `←→` set · `Enter` play · `Ctrl+Enter` watch Auto · `F1` mods · `F2` random · `F3` options · `F4` practice · typing searches |
-| Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry |
+| Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry · `Space` votes to skip the intro (everyone has to) |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
 | Player loader | `Space` start now · `Esc` back to song select · hover the settings to hold |
 | Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
