@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { handleSearch, handleDownload, normalizeSet, MIRRORS } from '../worker/index.js';
+import worker, { handleSearch, handleDownload, normalizeSet, MIRRORS, osuApi, allowSearch } from '../worker/index.js';
 
 const osuSet = (id, keys = [4, 7], mode = 'mania') => ({
   id, title: 'Song ' + id, artist: 'Artist', creator: 'Mapper', status: 'ranked', play_count: 10, favourite_count: 2,
@@ -31,14 +31,17 @@ test('search sends osu!-style sort, filters "has leaderboard" and pins the mirro
   const calls = [];
   const sets = [osuSet(7), { ...osuSet(8), status: 'graveyard' }, { ...osuSet(9), status: 'loved' }];
   const fetchImpl = async url => { calls.push(url); return res(sets); };
+  // a text search in the default order is osu!'s relevance order: the mirror is asked without a sort (its own
+  // relevance order), exactly like Web-Osu-Mania leaves "sort" out for the default
   const d = await (await handleSearch(new URL('https://x/api/search?q=a'), {}, fetchImpl)).json();
-  assert.ok(calls[0].includes('sort=ranked_desc'));
+  assert.ok(!calls[0].includes('sort='));
+  assert.equal(d.sort, 'relevance_desc');
   assert.deepEqual(d.sets.map(s => s.id), [7, 9]);
   assert.equal(d.provider, 0);
   await handleSearch(new URL('https://x/api/search?q=a&sort=title_asc&page=1&provider=1'), {}, fetchImpl);
   assert.ok(calls[1].includes('nerinyan') && calls[1].includes('sort=title_asc'));
-  await handleSearch(new URL('https://x/api/search?q=a&sort=evil;drop'), {}, fetchImpl);
-  assert.ok(calls[2].includes('sort=ranked_desc'));
+  await handleSearch(new URL('https://x/api/search?sort=evil;drop'), {}, fetchImpl);
+  assert.ok(calls[2].includes('sort=ranked_desc'), 'an unknown sort is the default order (ranked, newest first)');
 });
 
 test('rating sort: a mirror that rejects it is asked again in its default order and the page is sorted by rating', async () => {
@@ -75,6 +78,50 @@ test('search reports every provider failure', async () => {
   assert.equal(d.errors.length, MIRRORS.search.length);
 });
 
+test('official osu! API: the same request Web-Osu-Mania sends, cached, with back-off on 429', async () => {
+  osuApi.cache.clear(); osuApi.blockedUntil = 0;
+  const calls = [];
+  const env = { OSU_CLIENT_ID: '1', OSU_CLIENT_SECRET: 's' };
+  let limited = false;
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes('/oauth/token')) return res({ access_token: 'tok', expires_in: 3600 });
+    if (url.includes('osu.ppy.sh/api/v2/beatmapsets/search')) {
+      if (limited) return new Response('slow down', { status: 429, headers: { 'Retry-After': '60' } });
+      return res({ beatmapsets: [osuSet(9), { ...osuSet(10), nsfw: true }], cursor_string: 'abc', total: 2 });
+    }
+    return res([osuSet(11)]); // mirrors
+  };
+  const search = async qs => (await handleSearch(new URL('https://x/api/search?' + qs), env, fetchImpl)).json();
+  const d = await search('q=camellia&keys=4,7&minStars=3&maxStars=6');
+  const u = new URL(calls.find(c => c.includes('beatmapsets/search')));
+  assert.equal(u.searchParams.get('m'), '3');
+  assert.equal(u.searchParams.get('q'), 'stars>=3 stars<=6 key>=4 key<=7 camellia');
+  assert.equal(u.searchParams.get('sort'), null, 'the default order is left to osu! (relevance for a text search)');
+  assert.equal(u.searchParams.get('s'), null, '"Has leaderboard" is osu!\'s default category');
+  assert.equal(u.searchParams.get('nsfw'), 'true');
+  assert.equal(d.source, 'osu! API'); assert.equal(d.cursor, 'abc'); assert.ok(d.hasMore);
+  // category, genre, language, NSFW, explicit sort and the cursor go through as osu! parameters
+  await search('status=loved&g=3&l=3&nsfw=false&sort=plays_desc&cursor=abc');
+  const u2 = new URL(calls.filter(c => c.includes('beatmapsets/search')).pop());
+  assert.deepEqual([...u2.searchParams.keys()], [...u2.searchParams.keys()].slice().sort(), 'sorted, so equal searches share a cache entry');
+  assert.equal(u2.searchParams.get('s'), 'loved'); assert.equal(u2.searchParams.get('g'), '3'); assert.equal(u2.searchParams.get('l'), '3');
+  assert.equal(u2.searchParams.get('nsfw'), 'false'); assert.equal(u2.searchParams.get('sort'), 'plays_desc'); assert.equal(u2.searchParams.get('cursor_string'), 'abc');
+  // the same search again comes from the cache
+  const before = calls.length;
+  await search('q=camellia&keys=4,7&minStars=3&maxStars=6');
+  assert.equal(calls.length, before);
+  // a 429 blocks the osu! API for Retry-After and the mirrors answer meanwhile
+  limited = true;
+  const r = await search('q=something+else');
+  assert.notEqual(r.source, 'osu! API'); assert.ok(r.sets.length);
+  assert.ok(osuApi.blockedUntil > Date.now() + 50000);
+  const n = calls.length;
+  await search('q=third');
+  assert.ok(!calls.slice(n).some(c => c.includes('osu.ppy.sh')), 'no osu! requests while blocked');
+  osuApi.blockedUntil = 0; osuApi.cache.clear();
+});
+
 test('official osu! API is used when credentials are configured', async () => {
   const fetchImpl = async (url) => {
     if (url.includes('/oauth/token')) return res({ access_token: 'tok', expires_in: 3600 });
@@ -101,4 +148,25 @@ test('non-API paths are served from static assets', async () => {
   assert.equal((await worker.fetch(new Request('https://x/api/nope'), env)).status, 404);
   const h = await (await worker.fetch(new Request('https://x/api/health'), env)).json();
   assert.equal(h.ok, true);
+});
+
+test('search is rate-limited per visitor (like Web-Osu-Mania)', () => {
+  const t0 = 1e12;
+  for (let i = 0; i < 40; i++) assert.ok(allowSearch('1.2.3.4', t0 + i));
+  assert.ok(!allowSearch('1.2.3.4', t0 + 100));
+  assert.ok(allowSearch('5.6.7.8', t0 + 100), 'other visitors are not affected');
+  assert.ok(allowSearch('1.2.3.4', t0 + 61000), 'the window slides');
+});
+
+test('downloads try the chosen provider first (Web-Osu-Mania providers incl. Nekoha)', async () => {
+  const calls = [];
+  const osz = new Uint8Array(300).fill(7);
+  const fetchImpl = async url => { calls.push(url); return new Response(osz, { status: 200, headers: { 'content-type': 'application/octet-stream' } }); };
+  const r = await handleDownload('123', fetchImpl, 'nekoha');
+  assert.equal(r.status, 200);
+  assert.ok(calls[0].includes('mirror.nekoha.moe'));
+  assert.equal(r.headers.get('X-Mirror'), 'Nekoha');
+  calls.length = 0;
+  await handleDownload('123', fetchImpl);
+  assert.ok(calls[0].includes('catboy.best'), 'default order starts with Mino');
 });

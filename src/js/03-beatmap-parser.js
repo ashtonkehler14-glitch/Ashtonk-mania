@@ -146,8 +146,9 @@ const BeatmapParser = {
     const durations = new Map();
     for (let i = 0; i < red.length; i++) {
       const cur = red[i], next = red[i + 1];
+      if (cur.time > endTime) break; // BPM lines after the last note don't count (WOM drops them)
       const start = Math.max(cur.time, startTime), end = next ? Math.min(next.time, endTime) : endTime;
-      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + (end - start));
+      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + Math.max(0, end - start));
     }
     let best = 0, max = 0;
     durations.forEach((d, bl) => { if (d > max) { best = bl; max = d; } });

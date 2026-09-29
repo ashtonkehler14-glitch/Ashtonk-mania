@@ -49,6 +49,9 @@ class ManiaRenderer {
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
+  /** Distance a note scrolls during one "time range" (scroll speed): osu!lazer scales the time range with the skin's
+   *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
+  get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');

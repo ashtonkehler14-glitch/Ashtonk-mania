@@ -177,6 +177,27 @@ await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results',
 const rres = await page.evaluate(() => { const s = AshtonkMania.Screens.current.p.score; return { score: s.score, counts: s.counts, acc: s.accuracy }; });
 check('replay playback reproduces the original score exactly', rres.score === rp.summary.score && JSON.stringify(rres.counts) === JSON.stringify(rp.summary.counts), `${rres.score} vs ${rp.summary.score}`);
 
+check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
+
+// two keys bound to one column: the column stays pressed until both are up
+await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.SongSelect.play('play'); });
+await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
+const twoKeys = await page.evaluate(() => {
+  const G = AshtonkMania.GameplayScreen, s = G.s;
+  const main = AshtonkMania.Settings.keybinds(s.keys)[0][0];
+  s.keyMap.set('KeyQ', 0);
+  const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+  key('keydown', main); key('keydown', 'KeyQ'); key('keyup', main);
+  const stillHeld = s.held[0] && s.engine.held[0];
+  key('keyup', 'KeyQ');
+  const released = !s.held[0] && !s.engine.held[0];
+  return { stillHeld, released, presses: s.engine.pressCounts[0], scroll: Math.abs(G.renderer.scrollLength - 402 * G.renderer.s) < 1e-9 };
+});
+check('two keys on one column: releasing one keeps the column held; releasing both lets go', twoKeys.stillHeld && twoKeys.released && twoKeys.presses === 1, JSON.stringify(twoKeys));
+check('scroll speed is independent of the skin hit position (osu!lazer: 402/480 of the height per time range)', twoKeys.scroll);
+await page.evaluate(() => AshtonkMania.Screens.go('songselect', {}, { replace: true }));
+await page.waitForTimeout(400);
+
 // pause / resume / fail path
 await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.Settings.set('songselect.mods', ['SD']); AshtonkMania.SongSelect.play('play'); });
 await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
@@ -331,17 +352,46 @@ check('explorer download imports the .osz into the library', true);
   await page.waitForSelector('.ex-card[data-id="801"]');
   const order1 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
   const p0 = seen[seen.length - 1];
-  check('explorer: default is "Has leaderboard", newest ranked first (ranked_desc)', order1 === '802,801,804' && p0.get('sort') === 'ranked_desc' && p0.get('status') === 'leaderboard', `${order1} ${p0}`);
+  check('explorer: default is "Has leaderboard", newest ranked first, with no sort sent (osu!\'s default, like WOM)', order1 === '802,801,804' && p0.get('sort') === null && p0.get('status') === 'leaderboard', `${order1} ${p0}`);
   await page.click('.ex-chip:text-is("Title")');
   await page.waitForTimeout(300);
   const order2 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
+  const s2 = seen[seen.length - 1].get('sort');
   await page.click('.ex-chip:text-matches("^Title")');
   await page.waitForTimeout(300);
   const order3 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
-  check('explorer: sorting by title is A→Z, clicking again flips it', order2 === '802,801,804' && order3 === '804,801,802' && seen[seen.length - 1].get('sort') === 'title_desc', `${order2} / ${order3}`);
+  check('explorer: a new sort starts descending (Z→A), clicking again flips it (as on WOM)', order2 === '804,801,802' && s2 === 'title_desc' && order3 === '802,801,804' && seen[seen.length - 1].get('sort') === 'title_asc', `${order2} / ${order3}`);
+  // WOM's other filters: genre, language, explicit content (under "More filters"), key counts up to 18K, reset
+  await page.click('.ex-chip:text-is("More filters")');
+  await page.click('.ex-chip:text-is("Anime")'); await page.waitForTimeout(150);
+  await page.click('.ex-chip:text-is("Japanese")'); await page.waitForTimeout(150);
+  await page.click('.ex-chip:text-is("Hide")'); await page.waitForTimeout(150);
+  await page.click('.ex-chip:text-is("18K")'); await page.waitForTimeout(300);
+  const pf = seen[seen.length - 1];
+  check('explorer: genre, language, explicit content and 18K are sent as osu! filters', pf.get('g') === '3' && pf.get('l') === '3' && pf.get('nsfw') === 'false' && pf.get('keys') === '18', String(pf));
+  await page.click('.ex-reset'); await page.waitForTimeout(300);
+  const pr = seen[seen.length - 1];
+  check('explorer: "Reset filters" goes back to the defaults', !pr.get('g') && !pr.get('l') && !pr.get('nsfw') && !pr.get('keys') && !pr.get('sort') && !(await page.$('.ex-reset')), String(pr));
+  await page.click('.ex-chip:text-is("Fewer filters")');
   await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; });
 }
 await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version))); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+
+// beatmap sources (Web-Osu-Mania's "Sources" settings)
+const src = await page.evaluate(async () => {
+  const S = AshtonkMania.Settings, O = AshtonkMania.OnlineBeatmaps;
+  const def = { preview: O.previewURL(5), cover: O.coverURL(5, 'card@2x'), dl: O.downloadURLs(5, true) };
+  await S.set('online.previewSource', 'beatconnect'); await S.set('online.coverSource', 'sayobot'); await S.set('online.downloadSource', 'sayobot');
+  const alt = { preview: O.previewURL(5), cover: O.coverURL(5, 'card@2x'), dl: O.downloadURLs(5, true), direct: O.downloadURLs(5, false) };
+  await S.set('online.downloadSource', 'custom'); await S.set('online.customDownload', 'https://example.org/d/$setId');
+  const custom = O.downloadURLs(5, false)[0];
+  for (const k of ['online.previewSource', 'online.coverSource', 'online.downloadSource', 'online.customDownload']) S.reset(k);
+  return { def, alt, custom };
+});
+check('beatmap sources: official preview / cover by default, downloads through the server first', src.def.preview === 'https://b.ppy.sh/preview/5.mp3' && src.def.cover === 'https://assets.ppy.sh/beatmaps/5/covers/card@2x.jpg' && src.def.dl[0] === 'api/download/5', JSON.stringify(src.def));
+check('beatmap sources: choosing Beatconnect / SayoBot / a custom URL changes where previews, covers and downloads come from',
+  src.alt.preview === 'https://beatconnect.io/preview/5.mp3' && src.alt.cover === 'https://a.sayobot.cn/beatmaps/5/covers/cover.webp'
+  && src.alt.dl[0] === 'api/download/5?provider=sayobot' && src.alt.direct[0].includes('dl.sayobot.cn') && src.custom === 'https://example.org/d/5', JSON.stringify(src));
 
 // pp tracking
 const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));

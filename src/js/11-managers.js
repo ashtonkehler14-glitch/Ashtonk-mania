@@ -71,11 +71,12 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
       keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
+      rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,

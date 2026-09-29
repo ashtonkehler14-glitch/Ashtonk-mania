@@ -142,7 +142,9 @@ const GameplayScreen = {
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const baseNotes = prepareNotes(loaded.notes, keys, mods, seed);
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od });
+    // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
+    const rules = replay ? (replay.rules || 1) : RULES;
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
     const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
@@ -150,10 +152,10 @@ const GameplayScreen = {
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
+      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules,
       endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
-      held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
+      held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
@@ -290,7 +292,7 @@ const GameplayScreen = {
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
     s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
-      breaks: s.bm.events.breaks, modConfig: s.modConfig });
+      breaks: s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
   },
@@ -410,7 +412,7 @@ const GameplayScreen = {
       const L = s.layout;
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       this.renderer.render({
-        now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.hitY / (timeRange * s.rate) * 1,
+        now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.scrollLength / (timeRange * s.rate),
         engine: eng, held: s.held,
         hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
         percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
@@ -678,7 +680,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (col !== undefined) {
       e.preventDefault(); e.stopPropagation();
       if (e.repeat || !s.running || s.feed) return;
-      this.press(col, true, this.inputTime(e));
+      this.keyDown(col, e.code, this.inputTime(e));
       return;
     }
     if (e.code === 'Space' && !e.repeat) { e.preventDefault(); this.skip(); return; }
@@ -694,8 +696,20 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
     e.preventDefault(); e.stopPropagation();
-    if (!s.running || s.feed) { s.held[col] = false; return; }
-    this.press(col, false, this.inputTime(e));
+    if (!s.running || s.feed) { s.held[col] = false; s.down[col].clear(); return; }
+    this.keyUp(col, e.code, this.inputTime(e));
+  },
+  /** Two keys can be bound to one column: it's pressed when the first goes down and released when the last comes up. */
+  keyDown(col, code, t) {
+    const d = this.s.down[col];
+    if (d.has(code)) return;
+    d.add(code);
+    if (d.size === 1) this.press(col, true, t);
+  },
+  keyUp(col, code, t) {
+    const d = this.s.down[col];
+    if (!d.delete(code)) return;
+    if (d.size === 0) this.press(col, false, t);
   },
   press(col, down, t) {
     const s = this.s, eng = s.engine;
@@ -713,6 +727,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const t = this.gameTime();
     for (let c = 0; c < s.keys; c++) if (s.held[c] && !s.feed) this.press(c, false, t);
     if (s.feed) s.held.fill(false);
+    s.down.forEach(d => d.clear());
   },
 
   onEngineEvent(e) {
@@ -723,7 +738,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
-    } else if (e.type === 'earlyRelease') {
+    } else if (e.type === 'earlyRelease' && e.broke) {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;
     }
@@ -893,7 +908,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
-      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp,
+      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     await ScoreManager.add(score);
     const mode = Settings.get('replays.autosave');
@@ -961,7 +976,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         const col = s.keyMap.get(code);
         if (col === undefined) return;
         const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
-        this.press(col, now, t);
+        if (now) this.keyDown(col, code, t); else this.keyUp(col, code, t);
       });
     }
   },

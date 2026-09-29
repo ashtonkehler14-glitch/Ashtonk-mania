@@ -611,12 +611,15 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-searchwrap .i { position: absolute; left: 16px; top: 16px; color: var(--muted); width: 1.3em; height: 1.3em; }
 .ex-search { width: 100%; height: 54px; padding-left: 50px; font-size: 1.15rem; border-radius: 14px; background: rgba(0, 0, 0, .35); }
 .ex-filters { display: grid; gap: 6px; margin-top: 12px; }
-.ex-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ex-flabel { width: 74px; flex: none; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.ex-chips { display: flex; flex-wrap: wrap; gap: 2px; }
+.ex-filter { display: flex; align-items: flex-start; gap: 12px; }
+.ex-flabel { width: 74px; flex: none; padding-top: 6px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ex-chips { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; min-width: 0; }
+.ex-filter > .ex-stars { padding-top: 3px; }
 .ex-chip { border: 0; background: transparent; color: var(--text-2); font-weight: 700; font-size: .86rem; padding: 4px 9px; border-radius: 8px; transition: all var(--t-fast); }
 .ex-chip:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
 .ex-chip.on { color: var(--accent); font-weight: 700; }
+.ex-chip.ex-reset { display: inline-flex; align-items: center; gap: 4px; color: var(--bad, #ff6b7a); }
+.ex-chip.ex-reset .ic { width: 13px; height: 13px; }
 .ex-stars { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); }
 .ex-stars .slider { flex: 1; }
 .ex-starval { min-width: 96px; font-weight: 600; color: var(--accent-3); font-size: .85rem; }
@@ -1925,8 +1928,9 @@ const BeatmapParser = {
     const durations = new Map();
     for (let i = 0; i < red.length; i++) {
       const cur = red[i], next = red[i + 1];
+      if (cur.time > endTime) break; // BPM lines after the last note don't count (WOM drops them)
       const start = Math.max(cur.time, startTime), end = next ? Math.min(next.time, endTime) : endTime;
-      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + (end - start));
+      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + Math.max(0, end - start));
     }
     let best = 0, max = 0;
     durations.forEach((d, bl) => { if (d > max) { best = bl; max = d; } });
@@ -3126,6 +3130,14 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
   { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
+  // beatmap sources, as in Web-Osu-Mania's "Sources" settings
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Download source', t: 'select', d: 'auto', o: [['auto', 'Automatic (try every mirror)'], ['mino', 'Mino (catboy.best)'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from. The chosen one is tried first, then the others.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customDownload', l: 'Custom download URL', t: 'text', d: '', hint: 'Put $setId where the beatmap set number goes, e.g. https://api.nerinyan.moe/d/$setId', when: () => Settings.get('online.downloadSource') === 'custom' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.proxyDownloads', l: 'Download through this site\'s server', t: 'bool', d: true, hint: 'Downloads go through the game\'s own server, which tries every mirror for you. Turn it off to download straight from the mirror.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.previewSource', l: 'Audio preview source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['beatconnect', 'Beatconnect'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customPreview', l: 'Custom preview URL', t: 'text', d: '', hint: 'e.g. https://b.ppy.sh/preview/$setId.mp3', when: () => Settings.get('online.previewSource') === 'custom' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.coverSource', l: 'Cover image source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customCover', l: 'Custom cover URL', t: 'text', d: '', hint: 'e.g. https://assets.ppy.sh/beatmaps/$setId/covers/cover.jpg', when: () => Settings.get('online.coverSource') === 'custom' },
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
@@ -3674,7 +3686,13 @@ const ModSystem = {
 /* ===== 09-gameplay.js ===== */
 /* JudgementSystem / ScoreSystem / HealthSystem / GameplayEngine.
  * Pure, deterministic logic: given notes and a sequence of (column, down/up, songTime) inputs it
- * always produces the same result. Live play and replay playback share this code path exactly. */
+ * always produces the same result. Live play and replay playback share this code path exactly.
+ *
+ * Judging rules (`rules`):
+ *   2 — osu!lazer's osu!mania rules, checked line by line against the osu!lazer source (ppy/osu:
+ *       DrawableNote, DrawableHoldNote(+Head/Tail/Body), ManiaHitWindows, OrderedHitPolicy,
+ *       ManiaHealthProcessor, ManiaModHardRock/Easy/Perfect). Used for every new play.
+ *   1 — the rules plays were judged with before; replays recorded then keep them, so they re-score exactly. */
 
 const J = { MARV: 0, PERF: 1, GREAT: 2, GOOD: 3, BAD: 4, MISS: 5 };
 const JUDGEMENTS = [
@@ -3686,15 +3704,22 @@ const JUDGEMENTS = [
   { id: '0', name: 'Miss', short: 'MISS', score: 0, color: '#ff4a5c' },
 ];
 const TAIL_LENIENCE = 1.5;
+/** The judging rules new plays use (replays store the rules they were recorded with). */
+const RULES = 2;
 
-/** Timing windows in real milliseconds (osu!mania ScoreV2 table; OD adjusted by EZ/HR/Difficulty Adjust). */
-function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null } = {}) {
+/** Timing windows in real milliseconds, [MAX, 300, 200, 100, 50, miss] (osu!mania table from OD).
+ *  osu!mania's Easy / Hard Rock scale the windows themselves (×1.4 / ÷1.4) and leave OD alone; rules 1
+ *  changed OD instead. Difficulty Adjust sets OD directly. */
+function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null, rules = RULES } = {}) {
   if (mode === 'ms') {
     const p = String(customMs).split(/[,\s]+/).map(Number).filter(n => isFinite(n) && n > 0);
     if (p.length === 6) return p.slice().sort((a, b) => a - b);
   }
   const base = mode === 'custom' ? customOD : od;
-  return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, mods.includes('DA') ? odOverride : null));
+  const override = mods.includes('DA') ? odOverride : null;
+  if (rules < 2) return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, override));
+  const m = mods.includes('HR') ? 1 / 1.4 : mods.includes('EZ') ? 1.4 : 1;
+  return OsuMath.hitWindows(override != null ? override : base).map(w => w * m);
 }
 
 /** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo. */
@@ -3727,10 +3752,12 @@ class ScoreSystem {
 
 /** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES } = {}) {
     this.value = 1;
-    this.rawHp = mods.includes('DA') && hpOverride != null ? hpOverride : hp;
+    this.lazer = rules >= 2;
     const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
+    // osu!lazer uses the drain rate after mods for everything; rules 1 used the unmodified one for the changes
+    this.rawHp = this.lazer ? hpMod : (mods.includes('DA') && hpOverride != null ? hpOverride : hp);
     this.mult = computeHpMultiplier(notes, hpMod, breaks, this.rawHp);
     this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
     this.suddenDeath = mods.includes('SD');
@@ -3752,7 +3779,8 @@ class HealthSystem {
     if (this.value <= 0) this.fail(t);
     this.timeline.push([Math.round(t), Math.round(this.value * 1000) / 1000]);
   }
-  earlyRelease() { if (this.suddenDeath) this.fail(); }
+  /** A hold released too early (its body breaks combo): Sudden Death fails, and in osu!lazer so do Perfect / SS. */
+  earlyRelease(t) { if (this.suddenDeath || (this.lazer && (this.perfect || this.perfectSS))) this.fail(t); }
   fail(t) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; }
 }
 
@@ -3766,12 +3794,16 @@ class GameplayEngine {
    * @param {number} o.keys
    * @param {number[]} o.windows real-time windows [marv..miss] ms
    * @param {number} o.rate playback rate (map-time windows = real * rate)
+   * @param {number} o.rules judging rules (see top of file)
    */
-  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {} }) {
+  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
-    this.W = windows.map(w => w * rate);
+    this.rules = rules; this.lazer = rules >= 2;
+    // Windows in song time. In osu!mania they scale with the playback rate, so the real-time window never changes
+    // (IManiaRateAdjustmentMod); osu!lazer floors each one and adds half a millisecond (ManiaHitWindows).
+    this.W = this.lazer ? windows.map(w => Math.floor(w * rate + 1e-9) + 0.5) : windows.map(w => w * rate);
     this.TW = this.W.map(w => w * TAIL_LENIENCE);
-    this.notes = notes.map((n, i) => ({ ...n, i, state: NS.PENDING, headJ: -1, tailJ: -1, capped: false, holdStart: 0, hitTime: 0 }));
+    this.notes = notes.map((n, i) => ({ ...n, i, state: NS.PENDING, headJ: -1, tailJ: -1, capped: false, bodyBroken: false, holdStart: 0, hitTime: 0 }));
     this.columns = Array.from({ length: keys }, () => []);
     for (const n of this.notes) this.columns[n.col].push(n);
     this.ptr = new Array(keys).fill(0);
@@ -3780,7 +3812,7 @@ class GameplayEngine {
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
     this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -3795,7 +3827,8 @@ class GameplayEngine {
 
   _judge(n, j, t, err, tail) {
     this.score.add(j);
-    this.health.apply(j, t, tail, this.score.accuracy);
+    // osu!lazer: misses on either end of a hold (head or tail) cost half a note's health; rules 1: only the tail
+    this.health.apply(j, t, this.lazer ? n.isLN : tail, this.score.accuracy);
     this.remaining--;
     const e = { type: 'judgement', col: n.col, j, t, err, tail, note: n };
     this.lastJudgement = e;
@@ -3807,11 +3840,51 @@ class GameplayEngine {
     for (let j = 0; j < 5; j++) if (absErr <= W[j]) return j;
     return J.MISS;
   }
+  /** The column's current note (the first one not fully judged), or undefined. */
+  _cur(c) {
+    const col = this.columns[c];
+    let p = this.ptr[c];
+    while (p < col.length && (col[p].state === NS.DONE || col[p].state === NS.MISSED)) p++;
+    this.ptr[c] = p;
+    return col[p];
+  }
 
   /** Process misses / auto-resolutions up to song time t. */
   advance(t) {
     if (t < this.lastTime) t = this.lastTime;
     this.lastTime = t;
+    if (this.lazer) this._advanceLazer(t); else this._advanceLegacy(t);
+  }
+
+  /** osu!lazer: a note can't be hit any more once it's later than the 50 window (HitWindows.CanBeHit), and a hold's
+   *  tail once it's later than 1.5× that. Resolved in time order across all columns. */
+  _expiry(n) {
+    if (n.state === NS.PENDING) return n.time + this.W[J.BAD];
+    return n.end + this.TW[J.BAD]; // HOLDING (held too long) or DROPPED (let go / head missed)
+  }
+  _advanceLazer(t) {
+    for (;;) {
+      let best = -1, bestT = Infinity;
+      for (let c = 0; c < this.keys; c++) {
+        const n = this._cur(c);
+        if (!n) continue;
+        const x = this._expiry(n);
+        if (x < bestT) { bestT = x; best = c; }
+      }
+      if (best < 0 || !(t > bestT)) return;
+      const n = this.columns[best][this.ptr[best]];
+      if (n.state === NS.PENDING) {
+        n.headJ = J.MISS;
+        if (n.isLN) { n.state = NS.DROPPED; n.capped = true; } else { n.state = NS.MISSED; this.ptr[best]++; }
+        this._judge(n, J.MISS, bestT, null, false);
+      } else {
+        if (this.holding[best] === n) this.holding[best] = null;
+        n.tailJ = J.MISS; n.state = NS.MISSED; this.ptr[best]++;
+        this._judge(n, J.MISS, bestT, null, true);
+      }
+    }
+  }
+  _advanceLegacy(t) {
     for (let c = 0; c < this.keys; c++) {
       const col = this.columns[c];
       let p = this.ptr[c];
@@ -3826,7 +3899,7 @@ class GameplayEngine {
           break;
         } else if (n.state === NS.HOLDING) {
           if (t - n.end > this.TW[J.MISS]) {
-            // held past the release window without letting go: the tail is missed (osu!mania behaviour)
+            // held past the release window without letting go: the tail is missed
             n.tailJ = J.MISS; n.state = NS.MISSED;
             this.holding[c] = null;
             this._judge(n, J.MISS, n.end + this.TW[J.MISS], null, true);
@@ -3846,6 +3919,16 @@ class GameplayEngine {
     }
   }
 
+  /** osu!lazer note lock (OrderedHitPolicy): hitting a note misses the earlier, still unjudged one in its column. */
+  _forceMiss(n, c, t) {
+    if (n.state === NS.PENDING) { n.headJ = J.MISS; this._judge(n, J.MISS, t, null, false); }
+    if (n.isLN) {
+      if (this.holding[c] === n) this.holding[c] = null;
+      n.tailJ = J.MISS; this._judge(n, J.MISS, t, null, true);
+    }
+    n.state = NS.MISSED; this.ptr[c]++; // n is always the column's current note here
+  }
+
   /** Key press/release at song time t (map ms). */
   input(col, down, t) {
     if (col < 0 || col >= this.keys) return;
@@ -3855,6 +3938,7 @@ class GameplayEngine {
       if (this.held[col]) return;
       this.held[col] = true;
       this.pressCounts[col]++;
+      if (this.lazer) { this._pressLazer(col, t); return; }
       const colNotes = this.columns[col];
       const n = colNotes[this.ptr[col]];
       this._emit({ type: 'press', col, t, note: n || null });
@@ -3886,18 +3970,56 @@ class GameplayEngine {
       this.holding[col] = null;
       const err = t - n.end;
       if (err < -this.TW[J.MISS]) {
-        // released too early: combo breaks, the note can be re-grabbed but the tail is capped at 50
+        // released too early: no tail result yet. The hold's body breaks combo (osu!lazer: only the first time),
+        // the note can be held again, and its tail is then worth at most a 50.
         n.state = NS.DROPPED; n.capped = true;
-        this.score.breakCombo();
-        this.health.earlyRelease(t);
-        this._emit({ type: 'earlyRelease', col, t, note: n });
+        const broke = !this.lazer || !n.bodyBroken;
+        n.bodyBroken = true;
+        if (broke) { this.score.breakCombo(); this.health.earlyRelease(t); }
+        this._emit({ type: 'earlyRelease', col, t, note: n, broke });
         return;
       }
       let j = this._windowFor(Math.abs(err), this.TW);
-      if (n.capped) j = J.BAD;
-      n.tailJ = j; n.state = NS.DONE;
+      // a broken hold's tail is capped at 50 (a miss stays a miss in osu!lazer)
+      if (n.capped) j = this.lazer ? Math.max(j, J.BAD) : J.BAD;
+      n.tailJ = j; n.state = this.lazer && j === J.MISS ? NS.MISSED : NS.DONE;
       this._judge(n, j, t, err, true);
       this.ptr[col]++;
+    }
+  }
+  /** osu!lazer press: DrawableNote / DrawableHoldNote.OnPressed with the ordered hit policy. */
+  _pressLazer(col, t) {
+    let n = this._cur(col);
+    this._emit({ type: 'press', col, t, note: n || null });
+    while (n) {
+      const next = this.columns[col][this.ptr[col] + 1];
+      const hittable = !next || t < next.time; // a note can't be hit once the next one in its column has started
+      if (n.state === NS.PENDING) {
+        if (!hittable) { this._forceMiss(n, col, t); n = this._cur(col); continue; }
+        const err = t - n.time;
+        if (err < -this.W[J.MISS]) return; // too early: nothing happens
+        const j = this._windowFor(Math.abs(err), this.W);
+        n.headJ = j; n.hitTime = t;
+        if (n.isLN) {
+          // the hold begins even when the head is an early miss; its tail can then be at most a 50
+          n.state = NS.HOLDING; n.holdStart = t; n.capped = j === J.MISS; this.holding[col] = n;
+          this._judge(n, j, t, err, false);
+        } else {
+          n.state = j === J.MISS ? NS.MISSED : NS.DONE; this.ptr[col]++;
+          this._judge(n, j, t, err, false);
+        }
+        return;
+      }
+      if (n.state === NS.DROPPED) {
+        // hold it again: from the head's miss window until 50-window after the end (never in the tail's extra lenience)
+        if (hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
+          n.state = NS.HOLDING; n.capped = true; this.holding[col] = n;
+          this._emit({ type: 'regrab', col, t, note: n });
+          return;
+        }
+        if (!hittable) { this._forceMiss(n, col, t); n = this._cur(col); continue; }
+      }
+      return;
     }
   }
 
@@ -3913,7 +4035,7 @@ class GameplayEngine {
         const n = col[i];
         if (n.time >= from - 1 && n.time <= to) {
           if (n.state !== NS.PENDING) this.remaining += n.isLN ? 2 : 1;
-          n.state = NS.PENDING; n.headJ = -1; n.tailJ = -1; n.capped = false;
+          n.state = NS.PENDING; n.headJ = -1; n.tailJ = -1; n.capped = false; n.bodyBroken = false;
           if (first < 0) first = i;
         }
       }
@@ -3961,7 +4083,6 @@ function generateAutoInputs(notes, keys) {
   ev.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
   return ev;
 }
-
 
 /* ===== 09a-osu-math.js ===== */
 /* OsuMath — osu!mania-accurate formulas.
@@ -4046,14 +4167,15 @@ const OsuMath = {
     return { total: total + bonus, weighted: total, bonus };
   },
 
-  /** Letter grade (osu!mania): SS = no 200/100/50/miss; then strict accuracy thresholds. */
+  /** Letter grade (osu!lazer ManiaScoreProcessor.RankFromScore): SS = only MAX / 300 hits; then 95 / 90 / 80 / 70%
+   *  and up for S / A / B / C. */
   grade(acc, counts, failed = false, hidden = false) {
     if (failed) return 'F';
     if (counts && counts[2] + counts[3] + counts[4] + counts[5] === 0) return hidden ? 'XH' : 'SS';
-    if (acc > 0.95) return hidden ? 'SH' : 'S';
-    if (acc > 0.9) return 'A';
-    if (acc > 0.8) return 'B';
-    if (acc > 0.7) return 'C';
+    if (acc >= 0.95) return hidden ? 'SH' : 'S';
+    if (acc >= 0.9) return 'A';
+    if (acc >= 0.8) return 'B';
+    if (acc >= 0.7) return 'C';
     return 'D';
   },
 
@@ -4248,6 +4370,9 @@ class ManiaRenderer {
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
+  /** Distance a note scrolls during one "time range" (scroll speed): osu!lazer scales the time range with the skin's
+   *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
+  get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');
@@ -4839,11 +4964,12 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
       keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
+      rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,
@@ -6552,7 +6678,9 @@ const GameplayScreen = {
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const baseNotes = prepareNotes(loaded.notes, keys, mods, seed);
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od });
+    // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
+    const rules = replay ? (replay.rules || 1) : RULES;
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
     const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
@@ -6560,10 +6688,10 @@ const GameplayScreen = {
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
+      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules,
       endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
-      held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
+      held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
@@ -6700,7 +6828,7 @@ const GameplayScreen = {
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
     s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
-      breaks: s.bm.events.breaks, modConfig: s.modConfig });
+      breaks: s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
   },
@@ -6820,7 +6948,7 @@ const GameplayScreen = {
       const L = s.layout;
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       this.renderer.render({
-        now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.hitY / (timeRange * s.rate) * 1,
+        now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.scrollLength / (timeRange * s.rate),
         engine: eng, held: s.held,
         hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
         percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
@@ -7088,7 +7216,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (col !== undefined) {
       e.preventDefault(); e.stopPropagation();
       if (e.repeat || !s.running || s.feed) return;
-      this.press(col, true, this.inputTime(e));
+      this.keyDown(col, e.code, this.inputTime(e));
       return;
     }
     if (e.code === 'Space' && !e.repeat) { e.preventDefault(); this.skip(); return; }
@@ -7104,8 +7232,20 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
     e.preventDefault(); e.stopPropagation();
-    if (!s.running || s.feed) { s.held[col] = false; return; }
-    this.press(col, false, this.inputTime(e));
+    if (!s.running || s.feed) { s.held[col] = false; s.down[col].clear(); return; }
+    this.keyUp(col, e.code, this.inputTime(e));
+  },
+  /** Two keys can be bound to one column: it's pressed when the first goes down and released when the last comes up. */
+  keyDown(col, code, t) {
+    const d = this.s.down[col];
+    if (d.has(code)) return;
+    d.add(code);
+    if (d.size === 1) this.press(col, true, t);
+  },
+  keyUp(col, code, t) {
+    const d = this.s.down[col];
+    if (!d.delete(code)) return;
+    if (d.size === 0) this.press(col, false, t);
   },
   press(col, down, t) {
     const s = this.s, eng = s.engine;
@@ -7123,6 +7263,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const t = this.gameTime();
     for (let c = 0; c < s.keys; c++) if (s.held[c] && !s.feed) this.press(c, false, t);
     if (s.feed) s.held.fill(false);
+    s.down.forEach(d => d.clear());
   },
 
   onEngineEvent(e) {
@@ -7133,7 +7274,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
-    } else if (e.type === 'earlyRelease') {
+    } else if (e.type === 'earlyRelease' && e.broke) {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;
     }
@@ -7303,7 +7444,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
-      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp,
+      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     await ScoreManager.add(score);
     const mode = Settings.get('replays.autosave');
@@ -7371,7 +7512,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         const col = s.keyMap.get(code);
         if (col === undefined) return;
         const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
-        this.press(col, now, t);
+        if (now) this.keyDown(col, code, t); else this.keyUp(col, code, t);
       });
     }
   },
@@ -8173,7 +8314,7 @@ class SkinPreview {
         this.engine.input(c, !!d, tt);
       }
       this.engine.advance(now);
-      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / (this.useSpeed ? 11485 / Settings.get('gameplay.scrollSpeed') : 520), engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
+      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: (this.useSpeed ? this.renderer.scrollLength : this.renderer.hitY) / (this.useSpeed ? 11485 / Settings.get('gameplay.scrollSpeed') : 520), engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
     };
     frame();
   }
@@ -8238,7 +8379,26 @@ const OnlineBeatmaps = {
     p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
     p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
   ],
-  DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
+  // Web-Osu-Mania's providers ($setId = the beatmap set number)
+  DOWNLOAD_PROVIDERS: {
+    mino: 'https://catboy.best/d/$setId', nerinyan: 'https://api.nerinyan.moe/d/$setId?noVideo=true',
+    sayobot: 'https://dl.sayobot.cn/beatmaps/download/novideo/$setId', osudirect: 'https://osu.direct/api/d/$setId',
+    nekoha: 'https://mirror.nekoha.moe/api4/download/$setId',
+  },
+  PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
+  COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
+  fill(tpl, id, kind = 'cover') { return String(tpl).split('$setId').join(id).split('$kind').join(kind); },
+  /** Where to download a set from, in the order to try (chosen provider first, then the rest). */
+  downloadURLs(id, viaServer) {
+    const choice = Settings.get('online.downloadSource');
+    const custom = choice === 'custom' && /\$setId/.test(Settings.get('online.customDownload') || '') ? this.fill(Settings.get('online.customDownload').trim(), id) : null;
+    const order = Object.keys(this.DOWNLOAD_PROVIDERS).sort((a, b) => (b === choice) - (a === choice));
+    const direct = order.map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
+    const urls = custom ? [custom] : [];
+    // through the game's server (it tries every mirror, starting with the chosen one); straight from the mirrors if that fails
+    if (viaServer) urls.push(`api/download/${id}${choice in this.DOWNLOAD_PROVIDERS ? `?provider=${choice}` : ''}`);
+    return [...urls, ...direct];
+  },
 
   async checkApi() {
     if (this.apiAvailable !== null) return this.apiAvailable;
@@ -8283,10 +8443,15 @@ const OnlineBeatmaps = {
     return n ? sum / n : 0;
   },
   async search(p) {
-    p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
+    // like Web-Osu-Mania, "sort" is only sent when it isn't the default: osu! then picks its own order (relevance
+    // for a text search, last update for pending / WIP / graveyard, newest ranked otherwise)
+    p = { status: 'leaderboard', ...p };
     const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
     if (p.keys.length) params.set('keys', p.keys.join(','));
     if (p.sort) params.set('sort', p.sort);
+    if (p.genre) params.set('g', p.genre);
+    if (p.language) params.set('l', p.language);
+    if (p.nsfw === false) params.set('nsfw', 'false');
     if (p.minStars > 0) params.set('minStars', p.minStars);
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
@@ -8301,7 +8466,8 @@ const OnlineBeatmaps = {
     const errors = [];
     // mirrors differ on "rating" and "relevance": if one rejects the sort, ask again in its default order
     // (the explorer sorts what comes back itself)
-    const sorts = p.sort.startsWith('relevance') ? [null] : p.sort === 'ranked_desc' ? [p.sort] : [p.sort, null];
+    const want = p.sort || (p.q ? 'relevance_desc' : 'ranked_desc');
+    const sorts = want.startsWith('relevance') ? [null] : want === 'ranked_desc' ? [want] : [want, null];
     for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
       try {
         const r = await fetch(u({ ...p, q, sort }));
@@ -8309,7 +8475,7 @@ const OnlineBeatmaps = {
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
         if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
-        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
+        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
@@ -8320,7 +8486,7 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
-    const urls = (await this.checkApi()) ? [`api/download/${id}`] : this.DIRECT_DOWNLOAD.map(f => f(id));
+    const urls = this.downloadURLs(id, Settings.get('online.proxyDownloads') && await this.checkApi());
     let lastErr = null;
     for (const url of urls) {
       try {
@@ -8356,19 +8522,28 @@ const OnlineBeatmaps = {
     Bus.emit('library:changed');
     return report;
   },
-  coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
+  coverURL(id, kind = 'card') {
+    const src = Settings.get('online.coverSource');
+    const tpl = src === 'custom' && Settings.get('online.customCover') ? Settings.get('online.customCover').trim() : this.COVER_PROVIDERS[src] || this.COVER_PROVIDERS.official;
+    return this.fill(tpl, id, kind);
+  },
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
   loadCover(el, id, kinds, done) {
+    const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     const next = i => {
-      if (i >= kinds.length) return;
+      if (i >= urls.length) return;
       const img = new Image();
       img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
       img.onerror = () => next(i + 1);
-      img.src = this.coverURL(id, kinds[i]);
+      img.src = urls[i];
     };
     next(0);
   },
-  previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
+  previewURL(id) {
+    const src = Settings.get('online.previewSource');
+    const tpl = src === 'custom' && Settings.get('online.customPreview') ? Settings.get('online.customPreview').trim() : this.PREVIEW_PROVIDERS[src] || this.PREVIEW_PROVIDERS.official;
+    return this.fill(tpl, id);
+  },
 };
 
 class OnlineBeatmapProvider extends BeatmapProvider {
@@ -8385,6 +8560,10 @@ BeatmapProviders.register(new OnlineBeatmapProvider());
 // Categories and sorting as on osu! and Web-Osu-Mania: "Has leaderboard", newest ranked first by default.
 const EXPLORE_STATUSES = [['any', 'Any'], ['leaderboard', 'Has leaderboard'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['wip', 'WIP'], ['graveyard', 'Graveyard']];
 const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites'], ['relevance', 'Relevance']];
+// osu!'s genre and language ids, in the order osu! (and Web-Osu-Mania) list them
+const EXPLORE_GENRES = [[0, 'Any'], [1, 'Unspecified'], [2, 'Video Game'], [3, 'Anime'], [4, 'Rock'], [5, 'Pop'], [6, 'Other'], [7, 'Novelty'], [9, 'Hip Hop'], [10, 'Electronic'], [11, 'Metal'], [12, 'Classical'], [13, 'Folk'], [14, 'Jazz']];
+const EXPLORE_LANGUAGES = [[0, 'Any'], [2, 'English'], [4, 'Chinese'], [7, 'French'], [8, 'German'], [11, 'Italian'], [3, 'Japanese'], [6, 'Korean'], [10, 'Spanish'], [9, 'Swedish'], [12, 'Russian'], [13, 'Polish'], [5, 'Instrumental'], [1, 'Unspecified'], [14, 'Other']];
+const EXPLORE_DEFAULTS = { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false, genre: 0, language: 0, nsfw: true, more: false };
 function statusMatches(set, status) {
   if (status === 'any') return true;
   if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
@@ -8398,6 +8577,7 @@ function sortOnlineSets(list, sort, dir) {
     title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(),
     difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0, ranked: date, rating: s => s.rating || 0,
     plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
+    updated: s => Date.parse(s.lastUpdated || s.rankedDate || '') || 0,
   }[sort];
   if (!key) return list; // relevance: keep the server's order
   const sign = dir === 'asc' ? 1 : -1;
@@ -8410,7 +8590,7 @@ function sortOnlineSets(list, sort, dir) {
 
 const ExplorerScreen = {
   tab: 'explore',
-  state: { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
+  state: { ...EXPLORE_DEFAULTS },
   results: [], page: 0, hasMore: false, loading: false, cursor: null,
   downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
   audio: null,
@@ -8428,12 +8608,20 @@ const ExplorerScreen = {
     this.filters = h('div.ex-filters');
     this.renderFilters = () => {
       clearEl(this.filters).append(
-        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}K`]), [10, '10K']], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v]; }),
+        // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
+        // clicking a sort picks it newest/highest first; clicking it again flips the direction (as on WOM and osu!)
         chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
-          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = v === 'title' || v === 'artist' ? 'asc' : 'desc'; } }),
+          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = 'desc'; } }),
         h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
-        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips', h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'))));
+        st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
+        st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
+        st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
+        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips',
+          h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
+          h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
+          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null)));
     };
     this.renderFilters();
     this.grid = h('div.ex-grid');
@@ -8461,7 +8649,7 @@ const ExplorerScreen = {
   starSliders() {
     const st = this.state;
     const mk = (key, label) => {
-      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.5, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
+      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
       const upd = () => s.style.setProperty('--p', (s.value / 10 * 100) + '%');
       s.addEventListener('input', () => { upd(); v.textContent = this.starLabel(); });
       s.addEventListener('change', () => { st[key] = key === 'maxStars' && +s.value >= 10 ? 20 : +s.value; this.newSearch(); });
@@ -8473,7 +8661,21 @@ const ExplorerScreen = {
     return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
   },
   starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
-  sortParam() { const st = this.state; return `${st.sort || 'ranked'}_${st.dir}`; },
+  /** The sort sent to the server: none for the default (newest ranked first), exactly like Web-Osu-Mania. */
+  sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
+  /** The order results come in: the chosen one, or osu!'s default for this search. */
+  effectiveSort() {
+    const st = this.state;
+    if (this.sortParam()) return [st.sort, st.dir];
+    if (st.q) return ['relevance', 'desc'];
+    if (['pending', 'wip', 'graveyard'].includes(st.status)) return ['updated', 'desc'];
+    return ['ranked', 'desc'];
+  },
+  filtersChanged() {
+    const st = this.state, d = EXPLORE_DEFAULTS;
+    return st.keys.length > 0 || st.status !== d.status || st.sort !== d.sort || st.dir !== d.dir || st.minStars !== d.minStars || st.maxStars !== d.maxStars
+      || st.genre !== d.genre || st.language !== d.language || st.nsfw !== d.nsfw;
+  },
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
@@ -8484,10 +8686,13 @@ const ExplorerScreen = {
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, genre: st.genre, language: st.language, nsfw: st.nsfw });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
-      this.results = sortOnlineSets([...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))], st.sort, st.dir);
+      const merged = [...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))];
+      // the osu! API pages through one global order (as WOM shows it); mirror pages are merged back into order here
+      const [sort, dir] = this.effectiveSort();
+      this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
       if (d.provider != null) this.provider = d.provider;
       this.hasMore = !!d.hasMore && d.sets.length > 0;
       this.cursor = d.cursor || null;

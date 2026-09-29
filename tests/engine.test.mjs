@@ -181,15 +181,19 @@ test('star rating grows with density', () => {
   assert.ok(slow < fast && fast < faster);
 });
 
-test('osu!mania hit windows follow the ScoreV2 table and EZ/HR adjust OD', () => {
+test('osu!mania hit windows follow the ScoreV2 table; EZ/HR scale the windows (rules 1 changed OD)', () => {
   const w = timingWindows({ od: 8 });
   assert.equal(Math.round(w[0] * 10) / 10, 16.1);
   assert.deepEqual(Array.from(w.slice(1)), [40, 73, 103, 127, 164]);
   assert.equal(timingWindows({ od: 5 })[0], 22.4 - 3);
-  const hr = timingWindows({ od: 8, mods: ['HR'] });   // OD 10 (capped)
-  assert.equal(hr[1], 34);
-  const ez = timingWindows({ od: 8, mods: ['EZ'] });   // OD 4
-  assert.equal(ez[1], 52);
+  // osu!mania HR divides the windows by 1.4 and EZ multiplies them by 1.4; OD itself is untouched
+  const hr = timingWindows({ od: 8, mods: ['HR'] });
+  assert.equal(Math.round(hr[1] * 1000) / 1000, Math.round(40 / 1.4 * 1000) / 1000);
+  const ez = timingWindows({ od: 8, mods: ['EZ'] });
+  assert.equal(Math.round(ez[1] * 1000) / 1000, 56);
+  // rules 1 (older replays) changed OD: HR → OD 10, EZ → OD 4
+  assert.equal(timingWindows({ od: 8, mods: ['HR'], rules: 1 })[1], 34);
+  assert.equal(timingWindows({ od: 8, mods: ['EZ'], rules: 1 })[1], 52);
   const da = timingWindows({ od: 8, mods: ['DA'], odOverride: 0 });
   assert.equal(da[5], 188);
 });
@@ -218,7 +222,10 @@ test('accuracy and pp formulas', () => {
 test('grades use osu!mania thresholds (SS needs no 200/100/50/miss)', () => {
   assert.equal(OsuMath.grade(0.99, [10, 5, 0, 0, 0, 0]), 'SS');
   assert.equal(OsuMath.grade(0.99, [10, 5, 1, 0, 0, 0]), 'S');
-  assert.equal(OsuMath.grade(0.95, [10, 5, 1, 0, 0, 0]), 'A');
+  assert.equal(OsuMath.grade(0.95, [10, 5, 1, 0, 0, 0]), 'S', 'osu!lazer: 95% and up is S');
+  assert.equal(OsuMath.grade(0.9499, [10, 5, 1, 0, 0, 0]), 'A');
+  assert.equal(OsuMath.grade(0.9, [10, 5, 1, 0, 0, 0]), 'A');
+  assert.equal(OsuMath.grade(0.7, [10, 5, 1, 0, 0, 0]), 'C');
   assert.equal(OsuMath.grade(0.5, [1, 0, 0, 0, 0, 1], true), 'F');
 });
 
@@ -287,4 +294,152 @@ test('SV/BPM follow Web-Osu-Mania: main BPM from the playable part only, no spee
   assert.equal(velAt(segs, 21000), 1);
   assert.equal(velAt(segs, 25500), 20, 'SV 20× is not capped (teleport)');
   assert.equal(velAt(segs, 1000), 2, 'the intro still scrolls at its own BPM');
+});
+
+// ── osu!lazer judging rules (rules 2) — each case mirrors a line of the osu!lazer source ──
+function engineRules(text, { mods = [], rules = 2, rate = 1 } = {}) {
+  const bm = BeatmapParser.parse(text);
+  const keys = BeatmapParser.keyCount(bm);
+  const notes = prepareNotes(BeatmapParser.toManiaNotes(bm), keys, mods, 1);
+  return new GameplayEngine({ notes, keys, windows: timingWindows({ od: bm.od, mods, rules }), mods, hp: bm.hp, rules, rate });
+}
+
+test('lazer windows: floor(window × rate) + 0.5, in song time', () => {
+  const e = engineRules(osu([note(0, 1000)]));
+  assert.deepEqual(Array.from(e.W), [16.5, 40.5, 73.5, 103.5, 127.5, 164.5]);
+  const dt = engineRules(osu([note(0, 1000)]), { rate: 1.5 });
+  assert.deepEqual(Array.from(dt.W), [24.5, 60.5, 109.5, 154.5, 190.5, 246.5]); // floor(16.1×1.5)=24, 60, floor(109.5)=109…
+  // an error of 40.3 ms is a 300 under lazer (≤ 40.5); rules 1 made it a 200
+  const a = engineRules(osu([note(0, 1000)])); a.input(0, true, 1040.3);
+  assert.equal(a.score.counts[J.PERF], 1);
+  const b = engineRules(osu([note(0, 1000)]), { rules: 1 }); b.input(0, true, 1040.3);
+  assert.equal(b.score.counts[J.GREAT], 1);
+});
+
+test('lazer: a late note is missed once it is past the 50 window (not the miss window)', () => {
+  const e = engineRules(osu([note(0, 1000)]));
+  e.advance(1127); assert.equal(e.score.judged, 0);
+  e.advance(1128); assert.equal(e.score.counts[J.MISS], 1);
+  assert.equal(e.judgementLog[0].t, 1127.5);
+  // rules 1 waited for the miss window, and a press in between was a miss
+  const l = engineRules(osu([note(0, 1000)]), { rules: 1 });
+  l.advance(1150); assert.equal(l.score.judged, 0);
+  l.input(0, true, 1150); assert.equal(l.score.counts[J.MISS], 1);
+});
+
+test('lazer: pressing early inside the miss window is a miss; earlier does nothing', () => {
+  const e = engineRules(osu([note(0, 1000), note(1, 2000)]));
+  e.input(0, true, 1000 - 150); e.input(0, false, 1000 - 140);
+  assert.equal(e.score.counts[J.MISS], 1, '−150 ms is past the 50 window (127.5) but inside miss (164.5)');
+  e.input(1, true, 2000 - 170);
+  assert.equal(e.score.judged, 1, '−170 ms is outside the miss window: nothing');
+});
+
+test('lazer note lock: once the next note in a column starts, the earlier one is missed and the press hits the next', () => {
+  const e = engineRules(osu([note(0, 1000), note(0, 1100)]));
+  e.input(0, true, 1105); e.input(0, false, 1130);
+  assert.equal(e.score.counts[J.MISS], 1);
+  assert.equal(e.score.counts[J.MARV], 1);
+  assert.equal(e.judgementLog[0].t, 1105);
+  // before the next note's time the earlier note still takes the press
+  const f = engineRules(osu([note(0, 1000), note(0, 1100)]));
+  f.input(0, true, 1095);
+  assert.equal(f.score.counts[J.GOOD], 1, '+95 ms on the first note is a 100');
+  // rules 1: the press hit the first note late (a 50) and the second one stayed
+  const l = engineRules(osu([note(0, 1000), note(0, 1100)]), { rules: 1 });
+  l.input(0, true, 1105);
+  assert.equal(l.score.counts[J.BAD], 1); assert.equal(l.score.judged, 1);
+});
+
+test('lazer: misses from several columns are judged in time order', () => {
+  const e = engineRules(osu([note(0, 1000), note(1, 990), note(2, 1010)]));
+  e.advance(2000);
+  assert.deepEqual(Array.from(e.judgementLog, x => x.col), [1, 0, 2]);
+});
+
+test('lazer hold: an early-miss head still starts the hold, and the tail is capped at 50', () => {
+  const e = engineRules(osu([ln(0, 1000, 2000)]));
+  e.input(0, true, 850); // −150: head miss
+  assert.equal(e.score.counts[J.MISS], 1);
+  e.input(0, false, 2000);
+  assert.equal(e.score.counts[J.BAD], 1);
+  assert.ok(e.finished);
+});
+
+test('lazer hold: held past the end, the tail is missed at 1.5 × the 50 window', () => {
+  const e = engineRules(osu([ln(0, 1000, 2000)]));
+  e.input(0, true, 1000);
+  e.advance(2191); assert.equal(e.score.judged, 1, 'still releasable at +191 ms (1.5 × 127.5 = 191.25)');
+  e.advance(2192); assert.equal(e.score.counts[J.MISS], 1);
+  // a release at +191 is a 50
+  const f = engineRules(osu([ln(0, 1000, 2000)]));
+  f.input(0, true, 1000); f.input(0, false, 2191);
+  assert.equal(f.score.counts[J.BAD], 1);
+});
+
+test('lazer hold: let go and never held again, the tail is missed after its window (not at the end)', () => {
+  const e = engineRules(osu([ln(0, 1000, 2000)]));
+  e.input(0, true, 1000); e.input(0, false, 1400);
+  e.advance(2100); assert.equal(e.score.counts[J.MISS], 0);
+  e.advance(2192); assert.equal(e.score.counts[J.MISS], 1);
+});
+
+test('lazer hold: can be held again until the 50 window after its end, and combo breaks only once', () => {
+  const e = engineRules(osu([note(1, 900), ln(0, 1000, 3000), note(1, 1500), note(1, 2500)]));
+  e.input(1, true, 900); e.input(1, false, 920);
+  e.input(0, true, 1000);
+  e.input(0, false, 1200);                 // early release: combo breaks
+  assert.equal(e.score.combo, 0);
+  e.input(1, true, 1500); e.input(1, false, 1520);
+  e.input(0, true, 1600); e.input(0, false, 1700); // held again, let go again: no second combo break
+  assert.equal(e.score.combo, 1);
+  e.input(0, true, 3100); e.input(0, false, 3110); // +100 after the end, inside the 50 window: hold again
+  assert.equal(e.score.counts[J.BAD], 1, 'the tail of a broken hold is at most a 50');
+  // after end + 50-window it can't be held again (and then it's missed at end + 1.5 × 50)
+  const f = engineRules(osu([ln(0, 1000, 3000)]));
+  f.input(0, true, 1000); f.input(0, false, 1200);
+  f.input(0, true, 3130); f.input(0, false, 3140);
+  assert.equal(f.score.counts[J.BAD], 0);
+  f.advance(3200); assert.equal(f.score.counts[J.MISS], 1);
+});
+
+test('lazer hold: a tail released inside the miss part of its window stays a miss when capped', () => {
+  const e = engineRules(osu([ln(0, 1000, 3000)]));
+  e.input(0, true, 1000); e.input(0, false, 1200); e.input(0, true, 1300);
+  e.input(0, false, 3000 - 220); // −220: past 1.5 × 50 (191.25), inside 1.5 × miss (246.75)
+  assert.equal(e.score.counts[J.MISS], 1);
+  assert.equal(e.score.counts[J.BAD], 0);
+});
+
+test('lazer: missing either end of a hold costs half a note of health', () => {
+  const miss = (objs, t) => { const e = engineRules(osu(objs)); e.advance(t); return 1 - e.health.value; };
+  const tapLoss = miss([note(0, 1000)], 1200);
+  const headLoss = miss([ln(0, 1000, 5000)], 1200);
+  assert.ok(Math.abs(headLoss - tapLoss / 2) < 1e-9, `${headLoss} vs ${tapLoss}`);
+});
+
+test('lazer: Sudden Death and Perfect fail when a hold is let go early', () => {
+  const sd = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['SD'] });
+  sd.input(0, true, 1000); sd.input(0, false, 1300); assert.ok(sd.health.failed);
+  const pf = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['PF'] });
+  pf.input(0, true, 1000); pf.input(0, false, 1300); assert.ok(pf.health.failed);
+  const pf1 = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['PF'], rules: 1 });
+  pf1.input(0, true, 1000); pf1.input(0, false, 1300); assert.ok(!pf1.health.failed);
+});
+
+test('lazer: autoplay still scores a perfect play on chords, jacks and long notes', () => {
+  const objs = [note(0, 1000), note(1, 1000), note(0, 1080), note(0, 1160), ln(2, 1000, 1500), ln(3, 1200, 1300), note(3, 1400), ln(1, 1300, 2000)];
+  const e = engineRules(osu(objs));
+  for (const [t, c, d] of generateAutoInputs(e.notes, 4)) e.input(c, !!d, t);
+  e.advance(9999);
+  assert.equal(e.score.counts[J.MARV], e.totalJudgements);
+  assert.equal(e.score.score, 1000000);
+});
+
+test('main BPM ignores BPM lines after the last note', () => {
+  const bm = BeatmapParser.parse(osu([note(0, 1000), note(1, 5000)]).replace('[TimingPoints]\n0,500,4,1,0,100,1,0',
+    '[TimingPoints]\n0,500,4,1,0,100,1,0\n2000,400,4,1,0,100,1,0\n9000,500,4,1,0,100,1,0'));
+  // 1000–2000 at 500 (1s) vs 2000–5000 at 400 (3s): 400 is the main beat; the 500 line after the last note used
+  // to subtract its (negative) duration and could never matter
+  assert.equal(BeatmapParser.mostCommonBeatLength(bm), 400);
 });

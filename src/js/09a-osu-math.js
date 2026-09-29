@@ -80,14 +80,15 @@ const OsuMath = {
     return { total: total + bonus, weighted: total, bonus };
   },
 
-  /** Letter grade (osu!mania): SS = no 200/100/50/miss; then strict accuracy thresholds. */
+  /** Letter grade (osu!lazer ManiaScoreProcessor.RankFromScore): SS = only MAX / 300 hits; then 95 / 90 / 80 / 70%
+   *  and up for S / A / B / C. */
   grade(acc, counts, failed = false, hidden = false) {
     if (failed) return 'F';
     if (counts && counts[2] + counts[3] + counts[4] + counts[5] === 0) return hidden ? 'XH' : 'SS';
-    if (acc > 0.95) return hidden ? 'SH' : 'S';
-    if (acc > 0.9) return 'A';
-    if (acc > 0.8) return 'B';
-    if (acc > 0.7) return 'C';
+    if (acc >= 0.95) return hidden ? 'SH' : 'S';
+    if (acc >= 0.9) return 'A';
+    if (acc >= 0.8) return 'B';
+    if (acc >= 0.7) return 'C';
     return 'D';
   },
 

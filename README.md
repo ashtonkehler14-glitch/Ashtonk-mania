@@ -10,14 +10,31 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 
 * `public/` is served as static assets (the built `index.html` and `skins/kori.osk`).
 * `worker/index.js` answers `/api/*` for the Beatmap Explorer:
-  * `/api/search` uses public mirrors (Mino, NeriNyan, osu.direct), trying each one in turn.
-  * `/api/download/:id` proxies the `.osz` from the first mirror that has it (Mino, NeriNyan, osu.direct, SayoBot).
+  * `/api/search` uses the official osu! API when a key is set (below), otherwise public mirrors (Mino, NeriNyan, osu.direct), trying each one in turn.
+  * `/api/download/:id` proxies the `.osz` from the first mirror that has it (Mino, NeriNyan, osu.direct, SayoBot, Nekoha; `?provider=` picks which goes first).
 * `/api/mp/*` runs online 1v1 multiplayer on two Durable Objects (`worker/multiplayer.js`): `MatchRoom` (one per room code, relays the match over WebSockets) and `Matchmaker` (quick match). They are declared in `wrangler.jsonc` as SQLite-backed classes, so they work on the Workers free plan and are created on the first deploy.
-* Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an [osu! OAuth application](https://osu.ppy.sh/home/account/edit#oauth)) make search use the official osu! API.
+* **To browse exactly like Web-Osu-Mania** (the official osu! API, same order and filters as osu!), give the Worker an osu! API key once:
+  1. On osu.ppy.sh go to **Settings → OAuth → New OAuth Application**. Any name works; the callback URL can be left empty. Copy the **Client ID** and **Client Secret**.
+  2. Run `npx wrangler secret put OSU_CLIENT_ID` and paste the ID, then `npx wrangler secret put OSU_CLIENT_SECRET` and paste the secret.
+  3. `/api/health` then reports `"official": true` and the explorer shows "via osu! API". Without the key, search falls back to the public mirrors.
 
 In the dashboard, leave the build command empty and set the deploy command to `npx wrangler deploy`.
 
 ## What's new
+
+### Gameplay checked against osu!lazer, browsing like Web-Osu-Mania
+
+* **Judging now follows osu!lazer's own source code** (ppy/osu mania ruleset), checked rule by rule:
+  * a late note is missed once it's past the 50 window (a late press in the miss window used to count as a miss);
+  * note lock: once the next note in a column has started, the earlier one is missed and your press hits the new one (jacks feel much fairer);
+  * hold notes: an early-miss head still starts the hold (tail capped at 50), a hold held too long is missed at 1.5× the 50 window after its end, a dropped hold can be grabbed again until the 50 window after its end, letting go early breaks combo only once, and misses on either end of a hold cost half a note of health;
+  * hit windows are `floor(window × rate) + 0.5` like lazer, and Hard Rock / Easy scale the windows (÷1.4 / ×1.4) instead of changing OD;
+  * misses from several columns are judged in time order; Perfect and Sudden Death also fail when a hold is let go early; grades use 95 / 90 / 80 / 70% *and up*.
+* **Old replays still replay exactly as recorded**: new replays store the rules they were played with (`rules: 2`); older ones keep the previous rules (checked against the old engine on 3,000 random plays: identical).
+* **Scroll speed matches osu!lazer and WOM**: the on-screen speed no longer depends on the skin's judgement-line height (Kori's 4K/7K lines made notes 8–14% faster). BPM lines after the last note no longer affect the main BPM.
+* **Two keys on one column** work properly: the column stays held until both are released.
+* **Beatmap Explorer browses like Web-Osu-Mania's home screen**: with an osu! API key set up (see *Hosting*), a search is exactly the osu! API request WOM makes — category, genre, language, explicit content, stars and key filters, `sort` only when you pick one (so text searches are ranked by relevance), cursor paging — cached for an hour, with WOM's back-off when osu! rate-limits (the mirrors answer meanwhile). New filters: genre, language, explicit content, 1K–18K, and Reset filters; a new sort starts newest/highest first and a second click flips it.
+* **Beatmap sources** (Settings → Maintenance): download source (Mino, NeriNyan, SayoBot, osu.direct, Nekoha or a custom `$setId` URL), download through the server on/off, audio preview source (osu!, Beatconnect, SayoBot, custom) and cover image source (osu!, SayoBot, custom).
 
 ### Search sorting fixed, osu!lazer health bar, sharper Neru, full beatmap covers
 

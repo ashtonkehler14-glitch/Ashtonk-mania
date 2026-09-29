@@ -108,6 +108,14 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
   { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
+  // beatmap sources, as in Web-Osu-Mania's "Sources" settings
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Download source', t: 'select', d: 'auto', o: [['auto', 'Automatic (try every mirror)'], ['mino', 'Mino (catboy.best)'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from. The chosen one is tried first, then the others.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customDownload', l: 'Custom download URL', t: 'text', d: '', hint: 'Put $setId where the beatmap set number goes, e.g. https://api.nerinyan.moe/d/$setId', when: () => Settings.get('online.downloadSource') === 'custom' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.proxyDownloads', l: 'Download through this site\'s server', t: 'bool', d: true, hint: 'Downloads go through the game\'s own server, which tries every mirror for you. Turn it off to download straight from the mirror.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.previewSource', l: 'Audio preview source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['beatconnect', 'Beatconnect'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customPreview', l: 'Custom preview URL', t: 'text', d: '', hint: 'e.g. https://b.ppy.sh/preview/$setId.mp3', when: () => Settings.get('online.previewSource') === 'custom' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.coverSource', l: 'Cover image source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customCover', l: 'Custom cover URL', t: 'text', d: '', hint: 'e.g. https://assets.ppy.sh/beatmaps/$setId/covers/cover.jpg', when: () => Settings.get('online.coverSource') === 'custom' },
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)

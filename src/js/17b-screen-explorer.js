@@ -10,7 +10,26 @@ const OnlineBeatmaps = {
     p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
     p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
   ],
-  DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
+  // Web-Osu-Mania's providers ($setId = the beatmap set number)
+  DOWNLOAD_PROVIDERS: {
+    mino: 'https://catboy.best/d/$setId', nerinyan: 'https://api.nerinyan.moe/d/$setId?noVideo=true',
+    sayobot: 'https://dl.sayobot.cn/beatmaps/download/novideo/$setId', osudirect: 'https://osu.direct/api/d/$setId',
+    nekoha: 'https://mirror.nekoha.moe/api4/download/$setId',
+  },
+  PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
+  COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
+  fill(tpl, id, kind = 'cover') { return String(tpl).split('$setId').join(id).split('$kind').join(kind); },
+  /** Where to download a set from, in the order to try (chosen provider first, then the rest). */
+  downloadURLs(id, viaServer) {
+    const choice = Settings.get('online.downloadSource');
+    const custom = choice === 'custom' && /\$setId/.test(Settings.get('online.customDownload') || '') ? this.fill(Settings.get('online.customDownload').trim(), id) : null;
+    const order = Object.keys(this.DOWNLOAD_PROVIDERS).sort((a, b) => (b === choice) - (a === choice));
+    const direct = order.map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
+    const urls = custom ? [custom] : [];
+    // through the game's server (it tries every mirror, starting with the chosen one); straight from the mirrors if that fails
+    if (viaServer) urls.push(`api/download/${id}${choice in this.DOWNLOAD_PROVIDERS ? `?provider=${choice}` : ''}`);
+    return [...urls, ...direct];
+  },
 
   async checkApi() {
     if (this.apiAvailable !== null) return this.apiAvailable;
@@ -55,10 +74,15 @@ const OnlineBeatmaps = {
     return n ? sum / n : 0;
   },
   async search(p) {
-    p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
+    // like Web-Osu-Mania, "sort" is only sent when it isn't the default: osu! then picks its own order (relevance
+    // for a text search, last update for pending / WIP / graveyard, newest ranked otherwise)
+    p = { status: 'leaderboard', ...p };
     const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
     if (p.keys.length) params.set('keys', p.keys.join(','));
     if (p.sort) params.set('sort', p.sort);
+    if (p.genre) params.set('g', p.genre);
+    if (p.language) params.set('l', p.language);
+    if (p.nsfw === false) params.set('nsfw', 'false');
     if (p.minStars > 0) params.set('minStars', p.minStars);
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
@@ -73,7 +97,8 @@ const OnlineBeatmaps = {
     const errors = [];
     // mirrors differ on "rating" and "relevance": if one rejects the sort, ask again in its default order
     // (the explorer sorts what comes back itself)
-    const sorts = p.sort.startsWith('relevance') ? [null] : p.sort === 'ranked_desc' ? [p.sort] : [p.sort, null];
+    const want = p.sort || (p.q ? 'relevance_desc' : 'ranked_desc');
+    const sorts = want.startsWith('relevance') ? [null] : want === 'ranked_desc' ? [want] : [want, null];
     for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
       try {
         const r = await fetch(u({ ...p, q, sort }));
@@ -81,7 +106,7 @@ const OnlineBeatmaps = {
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
         if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
-        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
+        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
@@ -92,7 +117,7 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
-    const urls = (await this.checkApi()) ? [`api/download/${id}`] : this.DIRECT_DOWNLOAD.map(f => f(id));
+    const urls = this.downloadURLs(id, Settings.get('online.proxyDownloads') && await this.checkApi());
     let lastErr = null;
     for (const url of urls) {
       try {
@@ -128,19 +153,28 @@ const OnlineBeatmaps = {
     Bus.emit('library:changed');
     return report;
   },
-  coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
+  coverURL(id, kind = 'card') {
+    const src = Settings.get('online.coverSource');
+    const tpl = src === 'custom' && Settings.get('online.customCover') ? Settings.get('online.customCover').trim() : this.COVER_PROVIDERS[src] || this.COVER_PROVIDERS.official;
+    return this.fill(tpl, id, kind);
+  },
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
   loadCover(el, id, kinds, done) {
+    const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     const next = i => {
-      if (i >= kinds.length) return;
+      if (i >= urls.length) return;
       const img = new Image();
       img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
       img.onerror = () => next(i + 1);
-      img.src = this.coverURL(id, kinds[i]);
+      img.src = urls[i];
     };
     next(0);
   },
-  previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
+  previewURL(id) {
+    const src = Settings.get('online.previewSource');
+    const tpl = src === 'custom' && Settings.get('online.customPreview') ? Settings.get('online.customPreview').trim() : this.PREVIEW_PROVIDERS[src] || this.PREVIEW_PROVIDERS.official;
+    return this.fill(tpl, id);
+  },
 };
 
 class OnlineBeatmapProvider extends BeatmapProvider {
@@ -157,6 +191,10 @@ BeatmapProviders.register(new OnlineBeatmapProvider());
 // Categories and sorting as on osu! and Web-Osu-Mania: "Has leaderboard", newest ranked first by default.
 const EXPLORE_STATUSES = [['any', 'Any'], ['leaderboard', 'Has leaderboard'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['wip', 'WIP'], ['graveyard', 'Graveyard']];
 const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites'], ['relevance', 'Relevance']];
+// osu!'s genre and language ids, in the order osu! (and Web-Osu-Mania) list them
+const EXPLORE_GENRES = [[0, 'Any'], [1, 'Unspecified'], [2, 'Video Game'], [3, 'Anime'], [4, 'Rock'], [5, 'Pop'], [6, 'Other'], [7, 'Novelty'], [9, 'Hip Hop'], [10, 'Electronic'], [11, 'Metal'], [12, 'Classical'], [13, 'Folk'], [14, 'Jazz']];
+const EXPLORE_LANGUAGES = [[0, 'Any'], [2, 'English'], [4, 'Chinese'], [7, 'French'], [8, 'German'], [11, 'Italian'], [3, 'Japanese'], [6, 'Korean'], [10, 'Spanish'], [9, 'Swedish'], [12, 'Russian'], [13, 'Polish'], [5, 'Instrumental'], [1, 'Unspecified'], [14, 'Other']];
+const EXPLORE_DEFAULTS = { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false, genre: 0, language: 0, nsfw: true, more: false };
 function statusMatches(set, status) {
   if (status === 'any') return true;
   if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
@@ -170,6 +208,7 @@ function sortOnlineSets(list, sort, dir) {
     title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(),
     difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0, ranked: date, rating: s => s.rating || 0,
     plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
+    updated: s => Date.parse(s.lastUpdated || s.rankedDate || '') || 0,
   }[sort];
   if (!key) return list; // relevance: keep the server's order
   const sign = dir === 'asc' ? 1 : -1;
@@ -182,7 +221,7 @@ function sortOnlineSets(list, sort, dir) {
 
 const ExplorerScreen = {
   tab: 'explore',
-  state: { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
+  state: { ...EXPLORE_DEFAULTS },
   results: [], page: 0, hasMore: false, loading: false, cursor: null,
   downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
   audio: null,
@@ -200,12 +239,20 @@ const ExplorerScreen = {
     this.filters = h('div.ex-filters');
     this.renderFilters = () => {
       clearEl(this.filters).append(
-        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}K`]), [10, '10K']], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v]; }),
+        // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
+        // clicking a sort picks it newest/highest first; clicking it again flips the direction (as on WOM and osu!)
         chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
-          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = v === 'title' || v === 'artist' ? 'asc' : 'desc'; } }),
+          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = 'desc'; } }),
         h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
-        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips', h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'))));
+        st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
+        st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
+        st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
+        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips',
+          h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
+          h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
+          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null)));
     };
     this.renderFilters();
     this.grid = h('div.ex-grid');
@@ -233,7 +280,7 @@ const ExplorerScreen = {
   starSliders() {
     const st = this.state;
     const mk = (key, label) => {
-      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.5, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
+      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
       const upd = () => s.style.setProperty('--p', (s.value / 10 * 100) + '%');
       s.addEventListener('input', () => { upd(); v.textContent = this.starLabel(); });
       s.addEventListener('change', () => { st[key] = key === 'maxStars' && +s.value >= 10 ? 20 : +s.value; this.newSearch(); });
@@ -245,7 +292,21 @@ const ExplorerScreen = {
     return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
   },
   starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
-  sortParam() { const st = this.state; return `${st.sort || 'ranked'}_${st.dir}`; },
+  /** The sort sent to the server: none for the default (newest ranked first), exactly like Web-Osu-Mania. */
+  sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
+  /** The order results come in: the chosen one, or osu!'s default for this search. */
+  effectiveSort() {
+    const st = this.state;
+    if (this.sortParam()) return [st.sort, st.dir];
+    if (st.q) return ['relevance', 'desc'];
+    if (['pending', 'wip', 'graveyard'].includes(st.status)) return ['updated', 'desc'];
+    return ['ranked', 'desc'];
+  },
+  filtersChanged() {
+    const st = this.state, d = EXPLORE_DEFAULTS;
+    return st.keys.length > 0 || st.status !== d.status || st.sort !== d.sort || st.dir !== d.dir || st.minStars !== d.minStars || st.maxStars !== d.maxStars
+      || st.genre !== d.genre || st.language !== d.language || st.nsfw !== d.nsfw;
+  },
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
@@ -256,10 +317,13 @@ const ExplorerScreen = {
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, genre: st.genre, language: st.language, nsfw: st.nsfw });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
-      this.results = sortOnlineSets([...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))], st.sort, st.dir);
+      const merged = [...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))];
+      // the osu! API pages through one global order (as WOM shows it); mirror pages are merged back into order here
+      const [sort, dir] = this.effectiveSort();
+      this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
       if (d.provider != null) this.provider = d.provider;
       this.hasMore = !!d.hasMore && d.sets.length > 0;
       this.cursor = d.cursor || null;
