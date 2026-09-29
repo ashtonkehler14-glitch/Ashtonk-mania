@@ -34,6 +34,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Scroll speed matches osu!lazer and WOM**: the on-screen speed no longer depends on the skin's judgement-line height (Kori's 4K/7K lines made notes 8–14% faster). BPM lines after the last note no longer affect the main BPM.
 * **Two keys on one column** work properly: the column stays held until both are released.
 * **Beatmap Explorer browses like Web-Osu-Mania's home screen**: with an osu! API key set up (see *Hosting*), a search is exactly the osu! API request WOM makes — category, genre, language, explicit content, stars and key filters, `sort` only when you pick one (so text searches are ranked by relevance), cursor paging — cached for an hour, with WOM's back-off when osu! rate-limits (the mirrors answer meanwhile). New filters: genre, language, explicit content, 1K–18K, and Reset filters; a new sort starts newest/highest first and a second click flips it.
+* **11K–18K are playable**: they now have default keys (Web-Osu-Mania's layouts), and the key configuration and skin preview go up to 18K.
+* **Polish**: missed notes fade out as they scroll away (osu!lazer), beatmap sets show their genre and language, the player loader no longer shows a stray "null", and mod descriptions match the new rules.
 * **Beatmap sources** (Settings → Maintenance): download source (Mino, NeriNyan, SayoBot, osu.direct, Nekoha or a custom `$setId` URL), download through the server on/off, audio preview source (osu!, Beatconnect, SayoBot, custom) and cover image source (osu!, SayoBot, custom).
 
 ### Search sorting fixed, osu!lazer health bar, sharper Neru, full beatmap covers

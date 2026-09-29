@@ -885,6 +885,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-card-s { color: var(--muted); font-size: .85rem; flex: 1; }
 .mp-card .btn { align-self: flex-start; }
 .mp-code { width: 150px; text-transform: uppercase; letter-spacing: .2em; font-weight: 600; }
+.mp-code::placeholder { letter-spacing: .06em; font-weight: 500; }
 .mp-status { margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--text-2); min-height: 24px; }
 .mp-err { color: #ff8d95; white-space: pre-line; }
 .mp-room { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 12px; max-width: 1400px; width: 100%; margin: 0 auto; }
@@ -3038,8 +3039,17 @@ const DEFAULT_KEYBINDS = {
   8: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
   9: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['Space'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
   10: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyV'], ['KeyN'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  // 11K–18K: Web-Osu-Mania's defaults (MIT © 2024 Danny Duong)
+  11: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyV'], ['Space'], ['KeyN'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  12: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  13: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  14: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  15: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyX'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['Comma'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  16: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  17: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  18: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyG'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyH'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
 };
-const MAX_KEYS = 10;
+const MAX_KEYS = 18;
 
 function keyLabel(code) {
   if (!code) return '—';
@@ -8388,7 +8398,7 @@ const SkinsScreen = {
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
       h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
-        ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
+        ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
       pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}`}`));
     this.preview && this.preview.stop();

@@ -277,6 +277,13 @@ for (const s of ['home', 'beatmaps', 'collections', 'profile', 'stats', 'replays
   const j = await junkText(); if (j) junk.push(`${s}: ${j}`);
 }
 check('no screen shows stray "null" / "undefined" / "NaN" text', !junk.length, junk.join(' | '));
+check('every key count 1K–18K has a full set of distinct default keys', await page.evaluate(() => {
+  for (let k = 1; k <= 18; k++) {
+    const codes = AshtonkMania.Settings.keybinds(k).map(c => c[0]);
+    if (codes.length !== k || codes.some(c => !c) || new Set(codes).size !== k) return false;
+  }
+  return true;
+}));
 await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');

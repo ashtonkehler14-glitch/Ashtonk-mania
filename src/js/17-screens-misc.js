@@ -322,7 +322,7 @@ const SkinsScreen = {
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
       h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
-        ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
+        ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
       pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}`}`));
     this.preview && this.preview.stop();

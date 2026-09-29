@@ -12,8 +12,17 @@ const DEFAULT_KEYBINDS = {
   8: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
   9: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['Space'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
   10: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyV'], ['KeyN'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  // 11K–18K: Web-Osu-Mania's defaults (MIT © 2024 Danny Duong)
+  11: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyV'], ['Space'], ['KeyN'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  12: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  13: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  14: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  15: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyX'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['Comma'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  16: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  17: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['Space'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  18: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyG'], ['KeyZ'], ['KeyX'], ['KeyC'], ['KeyV'], ['KeyN'], ['KeyM'], ['Comma'], ['Period'], ['KeyH'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
 };
-const MAX_KEYS = 10;
+const MAX_KEYS = 18;
 
 function keyLabel(code) {
   if (!code) return '—';

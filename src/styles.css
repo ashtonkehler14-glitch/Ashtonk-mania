@@ -872,6 +872,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-card-s { color: var(--muted); font-size: .85rem; flex: 1; }
 .mp-card .btn { align-self: flex-start; }
 .mp-code { width: 150px; text-transform: uppercase; letter-spacing: .2em; font-weight: 600; }
+.mp-code::placeholder { letter-spacing: .06em; font-weight: 500; }
 .mp-status { margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--text-2); min-height: 24px; }
 .mp-err { color: #ff8d95; white-space: pre-line; }
 .mp-room { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 12px; max-width: 1400px; width: 100%; margin: 0 auto; }
