@@ -75,7 +75,8 @@ const GameplayScreen = {
     if (this.bgRec) this.applyBackground();
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
-    this._blur = () => { if (this.s && this.s.running && !this.s.mp) this.pause(); };
+    // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
+    this._blur = () => { if (this.s && this.s.running) { if (!this.s.mp) this.pause(); else this.releaseAll(); } };
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
@@ -248,14 +249,14 @@ const GameplayScreen = {
       inp.addEventListener('change', () => { MapOffsets.set(rec.hash, parseInt(inp.value, 10)); if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash); });
       inp.addEventListener('keydown', e => e.stopPropagation());
       upd();
-      clearEl(box).append(h('div.pl-gt', 'Audio settings'),
+      clearEl(box).append(...[h('div.pl-gt', 'Audio settings'),
         h('label.pl-slider', h('span', 'Beatmap offset', v), inp),
         sug != null ? h('button.btn.sm.pl-calib', { onclick: async () => {
           await MapOffsets.set(rec.hash, cur + sug); MapOffsets.last = null;
           if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash);
           UISounds.click(); paint();
         } }, icon('clock'), `Calibrate using last play (${sug > 0 ? '+' : ''}${sug}ms)`) : null,
-        h('div.pl-note', `Global offset ${Settings.get('audio.offset')}ms · positive if you hit late`));
+        h('div.pl-note', `Global offset ${Settings.get('audio.offset')}ms · positive if you hit late`)].filter(Boolean));
     };
     paint();
     return box;

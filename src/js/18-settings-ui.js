@@ -363,6 +363,10 @@ const ModSelect = {
       }
       col.append(list);
       cols.append(col);
+      // fade the bottom edge while there are more mods below (so a cut-off row reads as "scroll for more")
+      const edge = () => list.classList.toggle('more', list.scrollHeight - list.scrollTop - list.clientHeight > 4);
+      list.addEventListener('scroll', edge, { passive: true });
+      requestAnimationFrame(edge);
     }
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
     if (cfgMods.length) cols.append(this.configPanel(cfgMods));

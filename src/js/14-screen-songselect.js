@@ -436,7 +436,7 @@ const SongSelect = {
     const attr = (k, v, max) => h('div.attr', h('span.k', k), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.v', typeof v === 'number' ? v.toFixed(1) : v));
     const details = h('div.ss-attrs', attr('Keys', m.keys, 10), attr('Accuracy', m.od, 10), attr('HP drain', m.hp, 10), attr('Star rating', m.stars, 10));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', `${ScoreManager.playCount(m.hash)} plays`)));
+    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', plural(ScoreManager.playCount(m.hash), 'play'))));
     const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
     const best = ScoreManager.best(m.hash);
@@ -484,7 +484,7 @@ const SongSelect = {
   async deleteSet(set) {
     set = set || BeatmapManager.setById.get(BeatmapManager.maps.get(this.selectedId)?.setId);
     if (!set) return;
-    if (await Dialog.confirm('Delete beatmap set?', `${set.artist} - ${set.title} (${set.maps.length} difficulties) will be removed from your library. Scores are kept.`, { ok: 'Delete', danger: true })) {
+    if (await Dialog.confirm('Delete beatmap set?', `${set.artist} - ${set.title} (${plural(set.maps.length, 'difficulty', 'difficulties')}) will be removed from your library. Scores are kept.`, { ok: 'Delete', danger: true })) {
       if (Music.meta && Music.meta.setId === set.id) Music.stop(200);
       await BeatmapManager.removeSet(set.id);
       Toast.show('Beatmap set deleted');

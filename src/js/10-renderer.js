@@ -45,7 +45,7 @@ class ManiaRenderer {
     this.layout = layout;
     this._spr = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0;
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = [];
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -330,6 +330,26 @@ class ManiaRenderer {
         }
       }
     }
+    // missed notes fading out (lazer: FadeOut(150, Easing.In))
+    const mf = this._missFx;
+    if (mf && mf.length) {
+      let keep = 0;
+      for (let i = 0; i < mf.length; i++) {
+        const f = mf[i], el = realNow - f.t0;
+        if (el >= 150 || f.n.col >= K) continue;
+        mf[keep++] = f;
+        const n = f.n, c = n.col, texN = L.tex.note[c];
+        if (!texN) continue;
+        if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = 0; }
+        const y = yOf(n._hp), nh = this._noteH(texN, c);
+        if (y - nh > this.H) continue;
+        const k = el / 150;
+        ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
+        this._spriteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh);
+      }
+      mf.length = keep;
+      ctx.globalAlpha = 1;
+    }
   }
   _drawBody(tex, x, w, top, bottom, style, realNow) {
     const img = tex.frameAt(realNow);
@@ -349,6 +369,8 @@ class ManiaRenderer {
   onJudgement(e, realNow) {
     const L = this.layout;
     if (!L) return;
+    // osu!lazer: a missed note keeps scrolling while it fades out over 150 ms instead of vanishing
+    if (e.j === J.MISS && !e.note.isLN) (this._missFx || (this._missFx = [])).push({ n: e.note, t0: realNow });
     // culling: a new hit light replaces the column's previous one (dense streams used to stack them)
     if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) {
       const fx = { type: 'N', col: e.col, t0: realNow };

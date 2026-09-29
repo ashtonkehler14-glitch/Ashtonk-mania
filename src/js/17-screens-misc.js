@@ -39,7 +39,7 @@ const BeatmapsScreen = {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
     const est = await DB.estimate();
-    clearEl(this.summary).append(`${fmtInt(BeatmapManager.sets.length)} sets · ${fmtInt(maps.length)} difficulties${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
+    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
   },
   renderReport() {
     clearEl(this.report);
@@ -238,6 +238,10 @@ class SkinPreview {
     if (tok !== this.token) return;
     this.keys = keys;
     this.renderer.setLayout(layout);
+    // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
+    // lives in the gameplay HUD, so the preview shows none for it
+    const hs = Settings.get('gameplay.healthStyle');
+    this.renderer.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : null;
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;

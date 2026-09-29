@@ -138,7 +138,7 @@ const App = {
     this.lastReport = report;
     Bus.emit('import:report', report);
     const parts = [];
-    if (report.sets.length) parts.push(`${report.sets.length} beatmap set${report.sets.length === 1 ? '' : 's'} (${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties)`);
+    if (report.sets.length) parts.push(`${plural(report.sets.length, 'beatmap set')} (${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')})`);
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');

@@ -5,7 +5,7 @@
 
 const MODS = [
   { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#7ee07a', incompatible: ['HR', 'DA'],
-    desc: 'Halves OD and HP: larger timing windows, gentler health drain.' },
+    desc: 'Timing windows 1.4× wider, health drains half as much.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#7ee07a', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
   { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
@@ -13,11 +13,11 @@ const MODS = [
   { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
   { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
-    desc: 'OD and HP ×1.4: tighter windows, harsher drain.' },
+    desc: 'Timing windows 1.4× tighter, health drains 1.4× harder.' },
   { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
-    desc: 'Miss once and fail.' },
+    desc: 'Miss once (or let go of a hold early) and fail.' },
   { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PSS', 'AT'],
-    desc: 'Anything below 300 fails you.' },
+    desc: 'Anything below 300 (or letting go of a hold early) fails you.' },
   { id: 'PSS', name: 'Perfect (SS)', group: 'increase', key: 'KeyP', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PF', 'AT'],
     desc: 'Only MAX judgements allowed.' },
   { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'AT'], config: 'acc',

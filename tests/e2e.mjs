@@ -124,12 +124,14 @@ for (const v of ['4K Normal', '7K Hard', '8K Insane', '9K Expert']) {
 await page.evaluate(() => AshtonkMania.Settings.set('songselect.mods', []));
 
 // live keyboard play: press every note of 4K using the real keybinds at the right audio time
+let loaderChecked = false;
 async function livePlay({ version, errorMs = 0, missEvery = 0 }) {
   await page.evaluate((v) => {
     const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v);
     AshtonkMania.SongSelect.selectedId = m.id;
     AshtonkMania.SongSelect.play('play');
   }, version);
+  if (!loaderChecked) { loaderChecked = true; const lt = await page.$eval('.gp-loader', el => el.innerText).catch(() => ''); check('player loader shows no stray "null" text', lt && !/\bnull\b/.test(lt), lt.replace(/\s+/g, ' ').slice(0, 160)); }
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
   // drive keys from inside the page, scheduled against the audio clock
   await page.evaluate(({ errorMs, missEvery }) => new Promise(resolve => {
@@ -265,11 +267,16 @@ await page.evaluate(() => AshtonkMania.Settings.set('practice.speed', 1));
 await page.waitForTimeout(400);
 
 // other screens render without errors
-for (const s of ['home', 'beatmaps', 'collections', 'profile', 'stats', 'replays']) {
+// no screen may show a stray "null" / "undefined" / "NaN" (a native append() prints null children as text)
+const junkText = () => page.evaluate(() => { const m = document.body.innerText.match(/\b(null|undefined|NaN)\b/); return m ? m[0] + ' … ' + document.body.innerText.slice(Math.max(0, m.index - 60), m.index + 20).replace(/\s+/g, ' ') : null; });
+const junk = [];
+for (const s of ['home', 'beatmaps', 'collections', 'profile', 'stats', 'replays', 'songselect', 'skins', 'multiplayer']) {
   await page.evaluate(n => AshtonkMania.Screens.go(n), s);
   await page.waitForTimeout(700);
   await shot('11-' + s);
+  const j = await junkText(); if (j) junk.push(`${s}: ${j}`);
 }
+check('no screen shows stray "null" / "undefined" / "NaN" text', !junk.length, junk.join(' | '));
 await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
@@ -330,6 +337,7 @@ await page.route('https://assets.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { AshtonkMania.OnlineBeatmaps.apiAvailable = null; AshtonkMania.ExplorerScreen.results = []; AshtonkMania.Screens.go('explore'); });
 await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 10000 });
 check('beatmap explorer lists online results', true);
+check('explorer filters show no stray "null" text (More filters closed)', !(await page.$eval('.ex-filters', el => /\bnull\b/.test(el.innerText))));
 await page.route('https://b.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { window.__card = document.querySelector('.ex-card[data-id="777"]'); });
 await page.click('.ex-card[data-id="777"] .ex-play');

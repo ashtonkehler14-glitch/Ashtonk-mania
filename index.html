@@ -986,6 +986,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .modcol-h { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; background: var(--c); color: #111; font-weight: 600; font-size: .9rem; }
 .modcol-n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: rgba(0, 0, 0, .75); color: var(--c); font-size: .72rem; display: grid; place-items: center; }
 .modcol-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.modcol-list.more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent); }
 .mod-p { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 6px 12px 6px 8px; border: 0; border-radius: 8px; background: #34313c; color: var(--text); text-align: left; transition: background var(--t-fast), transform var(--t-fast); }
 .mod-p:hover { background: #3f3b48; }
 .mod-p:active { transform: scale(.98); }
@@ -1338,6 +1339,8 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
+/** "1 set", "2 sets", "1 difficulty", "3 difficulties" (formatted count + word). */
+const plural = (n, one, many = one + 's') => `${fmtInt(n)} ${Math.round(n) === 1 ? one : many}`;
 /** 1234 → "1.2K", 1234567 → "1.2M" (osu!-style short counts). */
 const fmtCompact = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(Math.round(n));
 const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -3588,7 +3591,7 @@ const BeatmapProviders = {
 
 const MODS = [
   { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#7ee07a', incompatible: ['HR', 'DA'],
-    desc: 'Halves OD and HP: larger timing windows, gentler health drain.' },
+    desc: 'Timing windows 1.4× wider, health drains half as much.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#7ee07a', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
   { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
@@ -3596,11 +3599,11 @@ const MODS = [
   { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
   { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
-    desc: 'OD and HP ×1.4: tighter windows, harsher drain.' },
+    desc: 'Timing windows 1.4× tighter, health drains 1.4× harder.' },
   { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
-    desc: 'Miss once and fail.' },
+    desc: 'Miss once (or let go of a hold early) and fail.' },
   { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PSS', 'AT'],
-    desc: 'Anything below 300 fails you.' },
+    desc: 'Anything below 300 (or letting go of a hold early) fails you.' },
   { id: 'PSS', name: 'Perfect (SS)', group: 'increase', key: 'KeyP', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PF', 'AT'],
     desc: 'Only MAX judgements allowed.' },
   { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'AT'], config: 'acc',
@@ -4366,7 +4369,7 @@ class ManiaRenderer {
     this.layout = layout;
     this._spr = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0;
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = [];
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -4651,6 +4654,26 @@ class ManiaRenderer {
         }
       }
     }
+    // missed notes fading out (lazer: FadeOut(150, Easing.In))
+    const mf = this._missFx;
+    if (mf && mf.length) {
+      let keep = 0;
+      for (let i = 0; i < mf.length; i++) {
+        const f = mf[i], el = realNow - f.t0;
+        if (el >= 150 || f.n.col >= K) continue;
+        mf[keep++] = f;
+        const n = f.n, c = n.col, texN = L.tex.note[c];
+        if (!texN) continue;
+        if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = 0; }
+        const y = yOf(n._hp), nh = this._noteH(texN, c);
+        if (y - nh > this.H) continue;
+        const k = el / 150;
+        ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
+        this._spriteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh);
+      }
+      mf.length = keep;
+      ctx.globalAlpha = 1;
+    }
   }
   _drawBody(tex, x, w, top, bottom, style, realNow) {
     const img = tex.frameAt(realNow);
@@ -4670,6 +4693,8 @@ class ManiaRenderer {
   onJudgement(e, realNow) {
     const L = this.layout;
     if (!L) return;
+    // osu!lazer: a missed note keeps scrolling while it fades out over 150 ms instead of vanishing
+    if (e.j === J.MISS && !e.note.isLN) (this._missFx || (this._missFx = [])).push({ n: e.note, t0: realNow });
     // culling: a new hit light replaces the column's previous one (dense streams used to stack them)
     if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) {
       const fx = { type: 'N', col: e.col, t0: realNow };
@@ -6462,7 +6487,7 @@ const SongSelect = {
     const attr = (k, v, max) => h('div.attr', h('span.k', k), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.v', typeof v === 'number' ? v.toFixed(1) : v));
     const details = h('div.ss-attrs', attr('Keys', m.keys, 10), attr('Accuracy', m.od, 10), attr('HP drain', m.hp, 10), attr('Star rating', m.stars, 10));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', `${ScoreManager.playCount(m.hash)} plays`)));
+    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', plural(ScoreManager.playCount(m.hash), 'play'))));
     const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
     const best = ScoreManager.best(m.hash);
@@ -6510,7 +6535,7 @@ const SongSelect = {
   async deleteSet(set) {
     set = set || BeatmapManager.setById.get(BeatmapManager.maps.get(this.selectedId)?.setId);
     if (!set) return;
-    if (await Dialog.confirm('Delete beatmap set?', `${set.artist} - ${set.title} (${set.maps.length} difficulties) will be removed from your library. Scores are kept.`, { ok: 'Delete', danger: true })) {
+    if (await Dialog.confirm('Delete beatmap set?', `${set.artist} - ${set.title} (${plural(set.maps.length, 'difficulty', 'difficulties')}) will be removed from your library. Scores are kept.`, { ok: 'Delete', danger: true })) {
       if (Music.meta && Music.meta.setId === set.id) Music.stop(200);
       await BeatmapManager.removeSet(set.id);
       Toast.show('Beatmap set deleted');
@@ -6611,7 +6636,8 @@ const GameplayScreen = {
     if (this.bgRec) this.applyBackground();
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
-    this._blur = () => { if (this.s && this.s.running && !this.s.mp) this.pause(); };
+    // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
+    this._blur = () => { if (this.s && this.s.running) { if (!this.s.mp) this.pause(); else this.releaseAll(); } };
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
@@ -6784,14 +6810,14 @@ const GameplayScreen = {
       inp.addEventListener('change', () => { MapOffsets.set(rec.hash, parseInt(inp.value, 10)); if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash); });
       inp.addEventListener('keydown', e => e.stopPropagation());
       upd();
-      clearEl(box).append(h('div.pl-gt', 'Audio settings'),
+      clearEl(box).append(...[h('div.pl-gt', 'Audio settings'),
         h('label.pl-slider', h('span', 'Beatmap offset', v), inp),
         sug != null ? h('button.btn.sm.pl-calib', { onclick: async () => {
           await MapOffsets.set(rec.hash, cur + sug); MapOffsets.last = null;
           if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash);
           UISounds.click(); paint();
         } }, icon('clock'), `Calibrate using last play (${sug > 0 ? '+' : ''}${sug}ms)`) : null,
-        h('div.pl-note', `Global offset ${Settings.get('audio.offset')}ms · positive if you hit late`));
+        h('div.pl-note', `Global offset ${Settings.get('audio.offset')}ms · positive if you hit late`)].filter(Boolean));
     };
     paint();
     return box;
@@ -8078,7 +8104,7 @@ const BeatmapsScreen = {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
     const est = await DB.estimate();
-    clearEl(this.summary).append(`${fmtInt(BeatmapManager.sets.length)} sets · ${fmtInt(maps.length)} difficulties${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
+    clearEl(this.summary).append(`${plural(BeatmapManager.sets.length, 'set')} · ${plural(maps.length, 'difficulty', 'difficulties')}${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
   },
   renderReport() {
     clearEl(this.report);
@@ -8277,6 +8303,10 @@ class SkinPreview {
     if (tok !== this.token) return;
     this.keys = keys;
     this.renderer.setLayout(layout);
+    // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
+    // lives in the gameplay HUD, so the preview shows none for it
+    const hs = Settings.get('gameplay.healthStyle');
+    this.renderer.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : null;
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;
@@ -8518,7 +8548,7 @@ const OnlineBeatmaps = {
     const report = await BeatmapManager.importFiles([file]);
     if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
     for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
-    if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
+    if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
     Bus.emit('library:changed');
     return report;
   },
@@ -8607,7 +8637,7 @@ const ExplorerScreen = {
     const chipRow = (label, items, isOn, onClick) => h('div.ex-filter', h('span.ex-flabel', label), h('div.ex-chips', ...items.map(([v, l]) => h(`button.ex-chip${isOn(v) ? '.on' : ''}`, { onclick: () => { onClick(v); UISounds.click(); this.renderFilters(); this.newSearch(); } }, l))));
     this.filters = h('div.ex-filters');
     this.renderFilters = () => {
-      clearEl(this.filters).append(
+      clearEl(this.filters).append(...[
         // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
         chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
@@ -8621,7 +8651,7 @@ const ExplorerScreen = {
         h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips',
           h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
           h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
-          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null)));
+          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null))].filter(Boolean));
     };
     this.renderFilters();
     this.grid = h('div.ex-grid');
@@ -9275,6 +9305,10 @@ const ModSelect = {
       }
       col.append(list);
       cols.append(col);
+      // fade the bottom edge while there are more mods below (so a cut-off row reads as "scroll for more")
+      const edge = () => list.classList.toggle('more', list.scrollHeight - list.scrollTop - list.clientHeight > 4);
+      list.addEventListener('scroll', edge, { passive: true });
+      requestAnimationFrame(edge);
     }
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
     if (cfgMods.length) cols.append(this.configPanel(cfgMods));
@@ -10323,7 +10357,7 @@ const App = {
     this.lastReport = report;
     Bus.emit('import:report', report);
     const parts = [];
-    if (report.sets.length) parts.push(`${report.sets.length} beatmap set${report.sets.length === 1 ? '' : 's'} (${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties)`);
+    if (report.sets.length) parts.push(`${plural(report.sets.length, 'beatmap set')} (${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')})`);
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
