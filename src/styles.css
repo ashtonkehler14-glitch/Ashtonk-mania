@@ -251,7 +251,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── loading screen */
 #loading-screen { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; background: #18171c; transition: opacity calc(500ms * var(--anim)) ease, visibility 0s linear calc(500ms * var(--anim)); }
 #loading-screen.done { opacity: 0; visibility: hidden; pointer-events: none; }
-.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
+.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
 .load-logo small { display: block; font-size: .5em; letter-spacing: .12em; font-weight: 600; margin-top: .25em; }
 @keyframes logoBreath { 50% { transform: scale(1.04); } }
 .load-status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
@@ -425,7 +425,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-cookie:hover { transform: scale(1.06); }
 .ss-cookie:active { transform: scale(.95); }
 .ss-cookie[disabled] { filter: grayscale(1); opacity: .5; }
-.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
+.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
 .ss-cookie-disc .i { width: 34px; height: 34px; margin-left: 4px; }
 
 /* ── GAMEPLAY */
@@ -737,13 +737,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-vis { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .lz-cookie { position: absolute; inset: 21%; border: 0; padding: 0; border-radius: 50%; background: transparent; will-change: transform; }
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
-  background: var(--accent); border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
+  background: #ff66ab; border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
   transition: transform var(--t-med) var(--ease-out), filter var(--t-fast), border-width var(--t-slow) var(--ease-out); }
 .lz-menu[data-state="initial"] .lz-cookie-disc { border-width: 15px; }
 .lz-cookie-disc::before { content: ""; position: absolute; inset: 0; opacity: .5;
   background: linear-gradient(60deg, transparent 46%, rgba(255, 255, 255, .12) 46% 54%, transparent 54%) 0 0 / 28% 48%,
               linear-gradient(-60deg, transparent 46%, rgba(0, 0, 0, .06) 46% 54%, transparent 54%) 14% 24% / 28% 48%,
-              radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); }
+              radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); }
 .lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
 .lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
 .lz-cookie { container-type: size; }
@@ -1025,6 +1025,19 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-pdiff { font-size: .75rem; color: var(--muted); margin-top: 1px; }
 .ex-mp { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border-radius: 8px; background: rgba(var(--accent-rgb), .15); color: var(--text); font-size: .9rem; }
 .ex-mp .i { color: var(--accent); }
+.setup-pfp { display: flex; align-items: center; gap: 14px; }
+.av-picker { display: flex; flex-direction: column; gap: 14px; }
+.av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.av-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .04); color: var(--text-2); font-size: .78rem; font-weight: 600; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
+.av-tile img { width: 72px; height: 72px; border-radius: 30%; object-fit: cover; display: block; }
+.av-tile:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
+.av-tile.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
+.av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dialog:has(.av-picker) { width: min(560px, calc(100vw - 32px)); }
+.ex-totop { position: absolute; left: 50%; margin-left: -26px; bottom: 24px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), filter var(--t-fast); }
+.ex-totop .i { width: 26px; height: 26px; stroke-width: 2.6; }
+.ex-totop.show { opacity: 1; transform: none; pointer-events: auto; }
+.ex-totop.show:hover { filter: brightness(1.12); transform: translateY(-2px); }
 .hud-mpdied { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(237, 17, 33, .75); font-weight: 600; font-size: .85rem; pointer-events: none; animation: mpDied 3s ease forwards; }
 @keyframes mpDied { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 70% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: .55; } }
 /* ── First-run setup (minimal wizard) */

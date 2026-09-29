@@ -442,6 +442,13 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sp.waitForSelector('.home .neru:not([hidden]) img', { timeout: 5000 });
   await sp.click('.neru');
   check('Neru shows the chosen picture on the main menu (no speech bubbles)', await sp.evaluate(() => document.querySelector('.neru').classList.contains('hop') && !document.querySelector('.neru-bubble')));
+  check('the Ashtonk!mania logo stays pink whatever the theme', await sp.evaluate(() => getComputedStyle(document.querySelector('.lz-cookie-disc')).backgroundColor === 'rgb(255, 102, 171)'));
+  await sp.evaluate(() => AshtonkMania.Screens.go('profile')); await sp.waitForTimeout(400);
+  await sp.click('.pf-avatar'); await sp.waitForSelector('.av-tile');
+  const tiles = await sp.$$eval('.av-tile span', a => a.map(x => x.textContent).join(','));
+  await sp.click('.av-tile >> nth=4'); await sp.waitForTimeout(400);
+  check('free Miku / Teto / Neru profile pictures can be picked', tiles.startsWith('Miku,Miku,Teto,Teto,Neru,Neru') && await sp.evaluate(() => AshtonkMania.ProfileManager.profile.avatar === 'preset:neru-1' && /^data:image\/svg/.test(AshtonkMania.ProfileManager.avatarURL) && !!document.querySelector('#toolbar .avatar').style.backgroundImage), tiles);
+  await sp.evaluate(() => AshtonkMania.Screens.go('home')); await sp.waitForTimeout(400);
   check('no FPS box in the corner when the FPS counter is off', await sp.evaluate(() => getComputedStyle(document.querySelector('#fps-counter')).display === 'none'));
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });

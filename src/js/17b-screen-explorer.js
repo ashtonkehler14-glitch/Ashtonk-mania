@@ -196,7 +196,11 @@ const ExplorerScreen = {
       h('div.ex-title', h('h1', 'Beatmap Explorer'), h('span.muted', 'osu!mania beatmaps, downloaded straight into your library')),
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
-    el.append(h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel)));
+    const scroller = h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel));
+    // "back to top" appears once you've scrolled a good way down
+    this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
+    scroller.addEventListener('scroll', () => this.topBtn.classList.toggle('show', scroller.scrollTop > 900), { passive: true });
+    el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
     this.io.observe(this.sentinel);
     this._unsub = [Bus.on('library:changed', () => this.renderResults())];

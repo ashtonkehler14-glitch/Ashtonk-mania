@@ -19,6 +19,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Profile pictures, back to top, pink logo
+
+* **Free profile pictures:** click your avatar on the profile page, or use **Profile picture** in the setup's "Make it yours" step. You can pick one of six built-in avatars (two each of Miku, Teto and Neru), upload your own, or go back to your initial. To offer more pictures to everyone, put image files in `public/avatars/` and list them in `public/avatars/avatars.json`, e.g. `[{ "file": "miku-3.png", "name": "Miku" }]`. They then appear in the picker.
+* **Back to top:** after you scroll a good way down the Beatmap Explorer, a round button appears at the bottom that scrolls back to the top.
+* **Logo:** the Ashtonk!mania logo stays pink whatever accent colour you choose.
+
 ### Cleaner HUD, Neru on the main menu
 
 * **Removed from the HUD:** the keys-per-second counter, the judgement counter and the hit error bar.

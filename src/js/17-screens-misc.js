@@ -153,10 +153,7 @@ const ProfileScreen = {
     const avatar = ProfileManager.avatarEl(110);
     avatar.classList.add('pf-avatar');
     avatar.title = 'Change avatar';
-    avatar.addEventListener('click', e => showMenu(e.clientX, e.clientY, [
-      { label: 'Upload image…', icon: 'upload', onClick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await ProfileManager.setAvatar('custom', f); Toolbar.updateProfile(); } } },
-      { label: 'Use initial', icon: 'user', onClick: async () => { await ProfileManager.setAvatar('default'); Toolbar.updateProfile(); } },
-    ]));
+    avatar.addEventListener('click', () => AvatarPicker.open());
     const head = h('div.pf-head',
       avatar,
       h('div.pf-id', h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),

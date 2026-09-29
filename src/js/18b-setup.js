@@ -163,6 +163,11 @@ const Onboarding = {
         style: { '--c': c }, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
       h('div.setup-label', 'Size'),
       this.slider('ui.scale', 'Interface size', 0.75, 1.5, 0.05, v => `${Math.round(v * 100)}%`, null, 'change'),
+      h('div.setup-label', 'Profile picture'),
+      h('div.setup-pfp', ProfileManager.avatarEl(56), h('button.btn.sm.setup-pfp-btn', { onclick: () => {
+        const off = Bus.on('avatar:changed', () => { off(); if (this.o && this.step.id === 'look') this.render(); });
+        AvatarPicker.open();
+      } }, icon('user'), 'Choose a picture')),
     ];
   },
 

@@ -171,22 +171,24 @@ const ProfileManager = {
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
-    await this.save(); await this.loadAvatar();
+    await this.loadAvatar(); await this.save();
   },
   avatarURL: null,
   async loadAvatar() {
     if (this.avatarURL && this.avatarURL.startsWith('blob:')) URL.revokeObjectURL(this.avatarURL);
     this.avatarURL = null;
-    if (this.profile.avatar === 'custom') {
+    const a = this.profile.avatar || 'default';
+    if (a === 'custom') {
       const b = await DB.get('files', 'profile/avatar');
       if (b) this.avatarURL = URL.createObjectURL(b);
-    }
+    } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
+    else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
   },
   /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {
     const p = this.profile;
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
-    if (p.avatar === 'custom' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
+    if (p.avatar !== 'default' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
     else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },

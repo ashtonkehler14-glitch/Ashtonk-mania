@@ -264,7 +264,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── loading screen */
 #loading-screen { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; background: #18171c; transition: opacity calc(500ms * var(--anim)) ease, visibility 0s linear calc(500ms * var(--anim)); }
 #loading-screen.done { opacity: 0; visibility: hidden; pointer-events: none; }
-.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
+.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
 .load-logo small { display: block; font-size: .5em; letter-spacing: .12em; font-weight: 600; margin-top: .25em; }
 @keyframes logoBreath { 50% { transform: scale(1.04); } }
 .load-status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
@@ -438,7 +438,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-cookie:hover { transform: scale(1.06); }
 .ss-cookie:active { transform: scale(.95); }
 .ss-cookie[disabled] { filter: grayscale(1); opacity: .5; }
-.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
+.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
 .ss-cookie-disc .i { width: 34px; height: 34px; margin-left: 4px; }
 
 /* ── GAMEPLAY */
@@ -750,13 +750,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-vis { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .lz-cookie { position: absolute; inset: 21%; border: 0; padding: 0; border-radius: 50%; background: transparent; will-change: transform; }
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
-  background: var(--accent); border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
+  background: #ff66ab; border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
   transition: transform var(--t-med) var(--ease-out), filter var(--t-fast), border-width var(--t-slow) var(--ease-out); }
 .lz-menu[data-state="initial"] .lz-cookie-disc { border-width: 15px; }
 .lz-cookie-disc::before { content: ""; position: absolute; inset: 0; opacity: .5;
   background: linear-gradient(60deg, transparent 46%, rgba(255, 255, 255, .12) 46% 54%, transparent 54%) 0 0 / 28% 48%,
               linear-gradient(-60deg, transparent 46%, rgba(0, 0, 0, .06) 46% 54%, transparent 54%) 14% 24% / 28% 48%,
-              radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); }
+              radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); }
 .lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
 .lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
 .lz-cookie { container-type: size; }
@@ -1038,6 +1038,19 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-pdiff { font-size: .75rem; color: var(--muted); margin-top: 1px; }
 .ex-mp { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border-radius: 8px; background: rgba(var(--accent-rgb), .15); color: var(--text); font-size: .9rem; }
 .ex-mp .i { color: var(--accent); }
+.setup-pfp { display: flex; align-items: center; gap: 14px; }
+.av-picker { display: flex; flex-direction: column; gap: 14px; }
+.av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.av-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .04); color: var(--text-2); font-size: .78rem; font-weight: 600; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
+.av-tile img { width: 72px; height: 72px; border-radius: 30%; object-fit: cover; display: block; }
+.av-tile:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
+.av-tile.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
+.av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dialog:has(.av-picker) { width: min(560px, calc(100vw - 32px)); }
+.ex-totop { position: absolute; left: 50%; margin-left: -26px; bottom: 24px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), filter var(--t-fast); }
+.ex-totop .i { width: 26px; height: 26px; stroke-width: 2.6; }
+.ex-totop.show { opacity: 1; transform: none; pointer-events: auto; }
+.ex-totop.show:hover { filter: brightness(1.12); transform: translateY(-2px); }
 .hud-mpdied { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(237, 17, 33, .75); font-weight: 600; font-size: .85rem; pointer-events: none; animation: mpDied 3s ease forwards; }
 @keyframes mpDied { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 70% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: .55; } }
 /* ── First-run setup (minimal wizard) */
@@ -4758,22 +4771,24 @@ const ProfileManager = {
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
-    await this.save(); await this.loadAvatar();
+    await this.loadAvatar(); await this.save();
   },
   avatarURL: null,
   async loadAvatar() {
     if (this.avatarURL && this.avatarURL.startsWith('blob:')) URL.revokeObjectURL(this.avatarURL);
     this.avatarURL = null;
-    if (this.profile.avatar === 'custom') {
+    const a = this.profile.avatar || 'default';
+    if (a === 'custom') {
       const b = await DB.get('files', 'profile/avatar');
       if (b) this.avatarURL = URL.createObjectURL(b);
-    }
+    } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
+    else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
   },
   /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {
     const p = this.profile;
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
-    if (p.avatar === 'custom' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
+    if (p.avatar !== 'default' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
     else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },
@@ -4859,6 +4874,103 @@ const DataManager = {
   },
 };
 
+/* ===== 11b-avatars.js ===== */
+/* Free profile pictures: built-in Miku, Teto and Neru avatars (drawn here as small SVG portraits), plus any
+ * images listed in public/avatars/avatars.json — [{ "file": "miku.png", "name": "Miku" }, …] — so real pictures
+ * can be added by dropping them into that folder. Profile avatar values: 'default' (initial), 'custom'
+ * (uploaded), 'preset:<id>' or 'file:<file>'. */
+
+const CHARACTERS = {
+  miku: { hair: '#3ec9bf', hairS: '#1e9e96', hairH: '#9ff0ea', eye: '#2bb3a8', outfit: '#9ca3ad', tie: '#3ec9bf', style: 'twintails', acc: '#2b2d36' },
+  teto: { hair: '#e0445e', hairS: '#b52a44', hairH: '#ff9aab', eye: '#d8364f', outfit: '#8f8c99', tie: '#e0445e', style: 'drills', acc: '#2b2d36' },
+  neru: { hair: '#f5d34a', hairS: '#d9ae25', hairH: '#fff1a6', eye: '#d99a22', outfit: '#a4a8b3', tie: '#373b46', style: 'ponytail', acc: '#5b4bc4' },
+};
+
+/** A small chibi bust portrait as an SVG string (100×100). */
+function avatarSVG(c, { bg = ['#2a2a3a', '#15151f'], expr = 'open' } = {}) {
+  const skin = '#ffe9de', line = '#3a2418';
+  let back = '';
+  if (c.style === 'twintails') back = `<path d="M22 28 C4 40 2 76 10 104 L26 104 C22 80 22 54 30 36 Z" fill="${c.hairS}"/><path d="M78 28 C96 40 98 76 90 104 L74 104 C78 80 78 54 70 36 Z" fill="${c.hairS}"/>`;
+  if (c.style === 'drills') back = [0, 1, 2].map(i => `<circle cx="16" cy="${52 + i * 15}" r="${10 - i}" fill="${i % 2 ? c.hairS : c.hair}"/><circle cx="84" cy="${52 + i * 15}" r="${10 - i}" fill="${i % 2 ? c.hairS : c.hair}"/>`).join('')
+    + `<path d="M11 50 q5 -4 10 0 M79 50 q5 -4 10 0 M12 66 q4 -4 9 0 M79 66 q4 -4 9 0" stroke="${c.hairH}" stroke-width="1.6" fill="none" opacity=".7"/>`;
+  if (c.style === 'ponytail') back = `<path d="M70 24 C98 18 104 60 96 104 L80 104 C84 74 82 46 70 38 Z" fill="${c.hair}"/><path d="M84 34 C96 48 96 72 92 96" stroke="${c.hairH}" stroke-width="2.4" fill="none" opacity=".7"/>`;
+  const eye = (x, kind) => kind === 'shut'
+    ? `<path d="M${x - 6} 55 Q${x} 48 ${x + 6} 55" stroke="${line}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+    : `<ellipse cx="${x}" cy="55" rx="5.2" ry="6.4" fill="${c.eye}"/><ellipse cx="${x}" cy="56.5" rx="2.6" ry="3.6" fill="#1f1a2a"/><circle cx="${x - 1.8}" cy="53" r="1.7" fill="#fff"/><path d="M${x - 6.5} 50 Q${x} 46.5 ${x + 6.5} 50" stroke="${line}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  const eyes = expr === 'happy' ? eye(39, 'shut') + eye(61, 'shut') : expr === 'wink' ? eye(39, 'open') + eye(61, 'shut') : eye(39, 'open') + eye(61, 'open');
+  const mouth = expr === 'open' ? `<path d="M45.5 64 Q50 70 54.5 64 Z" fill="#b0404a" stroke="${line}" stroke-width="1.2" stroke-linejoin="round"/>`
+    : `<path d="M45 64 Q50 68 55 64" stroke="${line}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  let acc = '';
+  if (c.style === 'twintails') acc = `<rect x="18" y="26" width="8" height="8" rx="1.5" fill="${c.acc}"/><rect x="74" y="26" width="8" height="8" rx="1.5" fill="${c.acc}"/><rect x="20" y="28" width="4" height="4" fill="#ff6aa8"/><rect x="76" y="28" width="4" height="4" fill="#ff6aa8"/>`;
+  if (c.style === 'drills') acc = `<path d="M50 17 C44 6 56 2 58 10 C60 4 68 8 62 14" stroke="${c.hair}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  if (c.style === 'ponytail') acc = `<circle cx="72" cy="28" r="4.5" fill="${c.acc}"/><path d="M50 17 C45 8 55 4 58 11" stroke="${c.hair}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient></defs>
+<rect width="100" height="100" fill="url(#g)"/>
+<circle cx="18" cy="18" r="10" fill="#fff" opacity=".08"/><circle cx="86" cy="80" r="16" fill="#fff" opacity=".06"/>
+${back}
+<ellipse cx="50" cy="44" rx="33" ry="31" fill="${c.hairS}"/>
+<path d="M18 104 C20 86 32 78 50 78 C68 78 80 86 82 104 Z" fill="${c.outfit}"/>
+<path d="M38 80 L50 88 L62 80 L58 78 L50 84 L42 78 Z" fill="#c9ccd4"/>
+<path d="M47.5 86 L52.5 86 L55 100 L50 104 L45 100 Z" fill="${c.tie}"/>
+<rect x="45" y="70" width="10" height="10" rx="3" fill="${skin}"/>
+<ellipse cx="50" cy="52" rx="26" ry="25" fill="${skin}"/>
+${eyes}
+<ellipse cx="33" cy="63" rx="5" ry="2.8" fill="#ff8fa8" opacity=".55"/><ellipse cx="67" cy="63" rx="5" ry="2.8" fill="#ff8fa8" opacity=".55"/>
+${mouth}
+<path d="M23 52 C20 24 36 15 50 15 C64 15 80 24 77 52 L72 42 L67 51 L61 37 L55 49 L49 35 L44 49 L38 37 L33 50 L28 42 Z" fill="${c.hair}"/>
+<path d="M32 28 C38 21 46 19 55 20" stroke="${c.hairH}" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".85"/>
+${acc}
+</svg>`;
+}
+
+const AVATAR_PRESETS = [
+  { id: 'miku-1', name: 'Miku', char: 'miku', bg: ['#baf5ef', '#39c5bb'], expr: 'open' },
+  { id: 'miku-2', name: 'Miku', char: 'miku', bg: ['#ffd1e6', '#ff7ab6'], expr: 'wink' },
+  { id: 'teto-1', name: 'Teto', char: 'teto', bg: ['#ffe0e5', '#ff6b84'], expr: 'happy' },
+  { id: 'teto-2', name: 'Teto', char: 'teto', bg: ['#3a2a3e', '#1c1622'], expr: 'open' },
+  { id: 'neru-1', name: 'Neru', char: 'neru', bg: ['#fff4c2', '#ffcf3a'], expr: 'smile' },
+  { id: 'neru-2', name: 'Neru', char: 'neru', bg: ['#d9c8ff', '#8a63ff'], expr: 'wink' },
+];
+
+const AvatarPresets = {
+  _urls: new Map(),
+  url(id) {
+    if (this._urls.has(id)) return this._urls.get(id);
+    const p = AVATAR_PRESETS.find(x => x.id === id);
+    if (!p) return null;
+    const u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(avatarSVG(CHARACTERS[p.char], p));
+    this._urls.set(id, u);
+    return u;
+  },
+  /** Extra pictures from public/avatars/avatars.json (cached for the session). */
+  extra() {
+    if (!this._extra) this._extra = fetch('avatars/avatars.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(a => Array.isArray(a)
+      ? a.filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(png|jpe?g|webp|gif|svg)$/i.test(x.file)).map(x => ({ file: x.file, name: String(x.name || x.file), url: 'avatars/' + encodeURIComponent(x.file) }))
+      : []).catch(() => []);
+    return this._extra;
+  },
+};
+
+/** Profile picture picker: the free avatars, pictures in public/avatars, your own upload, or your initial. */
+const AvatarPicker = {
+  async open() {
+    let o;
+    const pick = async (kind, blob) => { await ProfileManager.setAvatar(kind, blob); Toolbar.updateProfile(); UISounds.click(); o && o.close(); Bus.emit('avatar:changed'); };
+    const cur = ProfileManager.profile.avatar;
+    const tile = (kind, url, name) => h(`button.av-tile${cur === kind ? '.on' : ''}`, { title: name, 'aria-label': name, onclick: () => pick(kind) }, h('img', { src: url, alt: '' }), h('span', name));
+    const grid = h('div.av-grid', ...AVATAR_PRESETS.map(p => tile('preset:' + p.id, AvatarPresets.url(p.id), p.name)));
+    const body = h('div.av-picker',
+      grid,
+      h('div.av-actions',
+        h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) pick('custom', f); } }, icon('upload'), 'Upload your own'),
+        h('button.btn.sm.ghost', { onclick: () => pick('default') }, icon('user'), 'Use my initial')));
+    o = Dialog.custom('Profile picture', body, [{ label: 'Close' }]);
+    const extra = await AvatarPresets.extra();
+    for (const x of extra) grid.append(tile('file:' + x.file, x.url, x.name));
+  },
+};
+
 /* ===== 12-ui-core.js ===== */
 /* UIManager: icons, toasts, dialogs, menus, background, toolbar and the ScreenManager. */
 
@@ -4886,6 +4998,7 @@ const ICONS = {
   laptop: '<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 19h19l-2.2-4H4.7z"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
@@ -7607,10 +7720,7 @@ const ProfileScreen = {
     const avatar = ProfileManager.avatarEl(110);
     avatar.classList.add('pf-avatar');
     avatar.title = 'Change avatar';
-    avatar.addEventListener('click', e => showMenu(e.clientX, e.clientY, [
-      { label: 'Upload image…', icon: 'upload', onClick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await ProfileManager.setAvatar('custom', f); Toolbar.updateProfile(); } } },
-      { label: 'Use initial', icon: 'user', onClick: async () => { await ProfileManager.setAvatar('default'); Toolbar.updateProfile(); } },
-    ]));
+    avatar.addEventListener('click', () => AvatarPicker.open());
     const head = h('div.pf-head',
       avatar,
       h('div.pf-id', h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),
@@ -7983,7 +8093,11 @@ const ExplorerScreen = {
       h('div.ex-title', h('h1', 'Beatmap Explorer'), h('span.muted', 'osu!mania beatmaps, downloaded straight into your library')),
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
-    el.append(h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel)));
+    const scroller = h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel));
+    // "back to top" appears once you've scrolled a good way down
+    this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
+    scroller.addEventListener('scroll', () => this.topBtn.classList.toggle('show', scroller.scrollTop > 900), { passive: true });
+    el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
     this.io.observe(this.sentinel);
     this._unsub = [Bus.on('library:changed', () => this.renderResults())];
@@ -8809,6 +8923,11 @@ const Onboarding = {
         style: { '--c': c }, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
       h('div.setup-label', 'Size'),
       this.slider('ui.scale', 'Interface size', 0.75, 1.5, 0.05, v => `${Math.round(v * 100)}%`, null, 'change'),
+      h('div.setup-label', 'Profile picture'),
+      h('div.setup-pfp', ProfileManager.avatarEl(56), h('button.btn.sm.setup-pfp-btn', { onclick: () => {
+        const off = Bus.on('avatar:changed', () => { off(); if (this.o && this.step.id === 'look') this.render(); });
+        AvatarPicker.open();
+      } }, icon('user'), 'Choose a picture')),
     ];
   },
 
