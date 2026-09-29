@@ -610,8 +610,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-stars { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); }
 .ex-stars .slider { flex: 1; }
 .ex-starval { min-width: 96px; font-weight: 600; color: var(--accent-3); font-size: .85rem; }
-.ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 12px; }
-@media (max-width: 520px) { .ex-grid { grid-template-columns: 1fr; } }
+.ex-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card { position: relative; height: 136px; border-radius: 14px; overflow: hidden; display: flex; background: var(--panel-3); border: 1px solid var(--line); transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast); }
 .ex-card:hover { transform: translateY(-2px); border-color: rgba(var(--accent-rgb), .5); box-shadow: 0 12px 28px rgba(0, 0, 0, .4); }
 .ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: .55; transition: opacity var(--t-fast), transform var(--t-slow); }
@@ -975,3 +976,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 #fps-counter .fc-fps b { font-size: 1rem; font-weight: 600; color: var(--fc, #88b300); }
 #fps-counter .fc-fps small { font-size: .65rem; margin-left: 2px; color: #bbb; }
 #fps-counter i { font-style: normal; font-size: .7rem; color: #bbb; }
+/* 3 cards per row: the action sits in the bottom-right corner so the text keeps the full card width */
+.ex-card { height: 150px; }
+.ex-info { padding-right: 12px; }
+.ex-action { position: absolute; right: 10px; bottom: 10px; padding: 0; z-index: 2; }
+.ex-action .btn.sm { height: 30px; padding: 0 12px; }
+.ex-action .ex-progress { width: 40px; height: 40px; }
+.ex-meta .keys-tag + .keys-tag ~ .keys-tag { display: none; }
+.ex-diffs { padding-right: 112px; }
