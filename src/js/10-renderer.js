@@ -103,10 +103,13 @@ class ManiaRenderer {
     ctx.save();
     ctx.translate(this.stageX, 0);
 
-    // column backgrounds
+    // column backgrounds, snapped to whole device pixels: adjacent columns then share an exact edge instead of
+    // two anti-aliased half-covered pixels, which let the background show through as thin vertical seams
+    const sx = this.stageX;
     for (let i = 0; i < K; i++) {
+      const x0 = Math.round(sx + this.colX[i]) - sx, x1 = Math.round(sx + this.colX[i] + this.colW[i]) - sx;
       ctx.fillStyle = rgba(L.colours.column[i], Settings.get('gameplay.stageOpacity'));
-      ctx.fillRect(this.colX[i], 0, this.colW[i], H);
+      ctx.fillRect(x0, 0, x1 - x0, H);
     }
     const dim = Settings.get('skin.dim');
     if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
