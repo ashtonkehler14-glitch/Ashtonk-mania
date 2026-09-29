@@ -288,7 +288,8 @@ const DataPanel = {
         btn('Import data', 'upload', () => importViaPicker('.json')),
         btn('Export settings', 'download', () => DataManager.exportSettings()),
         btn('Import settings', 'upload', async () => { const [f] = await pickFiles({ accept: '.json', multiple: false }); if (!f) return; try { const o = JSON.parse(await f.text()); await DataManager.importAll({ ...o, kind: 'settings' }); Toast.ok('Settings imported'); SettingsPanel.o && SettingsPanel.build(''); } catch (e) { Toast.err('Import failed', e.message); } }),
-        btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); })),
+        btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); }),
+        btn('Run first-run setup', 'sparkle', () => { SettingsPanel.close && SettingsPanel.close(); Onboarding.run({ again: true }); })),
       h('div.row.wrap',
         btn('Clear scores', 'trash', () => confirmClear('scores', () => ScoreManager.clear()), '.danger'),
         btn('Clear replays', 'trash', () => confirmClear('replays', () => ReplayManager.clear()), '.danger'),
@@ -394,33 +395,3 @@ const ModSelect = {
   },
 };
 
-// ─────────────────────────────── First-run onboarding ───────────────────────────────
-const Onboarding = {
-  /** Ask the player's name the first time the client starts. Resolves when finished. */
-  run() {
-    return new Promise(resolve => {
-      const p = ProfileManager.profile;
-      const name = h('input.input.ob-name', { value: p.onboarded ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
-      const err = h('div.ob-err');
-      const finish = async () => {
-        const n = name.value.trim();
-        if (!n) { err.textContent = 'Pick a name — it shows on your scores, replays and profile.'; name.focus(); return; }
-        await ProfileManager.setName(n);
-        p.onboarded = true; await ProfileManager.save();
-        Toolbar.updateProfile();
-        UISounds.click();
-        o.close();
-        Toast.show(`Welcome, ${n}!`, 'Your plays earn pp now — check your profile after a few maps.');
-        resolve();
-      };
-      name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(); });
-      const card = h('div.dialog.onboarding', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome' },
-        h('h2', 'Welcome'),
-        h('p.muted', 'What should we call you? Your name appears on your scores, replays and profile.'),
-        name, err,
-        h('div.actions', h('button.btn.primary', { onclick: finish }, 'Continue')));
-      const o = makeOverlay(card, { onKey: e => e.key === 'Escape', dismissable: false });
-      setTimeout(() => name.focus(), 60);
-    });
-  },
-};

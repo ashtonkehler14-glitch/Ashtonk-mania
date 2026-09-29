@@ -232,7 +232,8 @@ const ReplaysScreen = {
 
 // ─────────────────────────────── Skins ───────────────────────────────
 class SkinPreview {
-  constructor(canvas) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas); this.running = false; }
+  /** scrollSpeed: scroll at the player's scroll speed setting instead of a fixed demo speed. */
+  constructor(canvas, { scrollSpeed = false } = {}) { this.canvas = canvas; this.renderer = new ManiaRenderer(canvas); this.running = false; this.useSpeed = scrollSpeed; }
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
@@ -277,7 +278,7 @@ class SkinPreview {
         this.engine.input(c, !!d, tt);
       }
       this.engine.advance(now);
-      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / 520, engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
+      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / (this.useSpeed ? 11485 / Settings.get('gameplay.scrollSpeed') : 520), engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
     };
     frame();
   }

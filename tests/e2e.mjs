@@ -38,7 +38,11 @@ const shot = async name => { if (SHOTS) await page.screenshot({ path: join(shotD
 const waitBoot = async () => {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(400);
-  if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter'); await page.waitForTimeout(400); }
+  if (await page.$('.onboarding')) {
+    await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
+    await page.waitForSelector('.setup-step-experience');
+    await page.click('.onboarding .ob-skip'); await page.waitForTimeout(400);
+  }
 };
 
 await page.goto(url);
@@ -352,6 +356,45 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   check('Ctrl + / Ctrl - zoom shortcuts are blocked', prevented);
   await zctx.close();
+}
+
+// first-run setup wizard on a fresh profile, as a Chromebook
+{
+  const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, userAgent: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' });
+  const sp = await sctx.newPage();
+  sp.on('pageerror', e => errors.push('setup: ' + e.message));
+  await sp.goto(url);
+  await sp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
+  await sp.click('.setup-next');
+  check('setup: a name is required', /Pick a name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
+  await sp.fill('.ob-name', 'Newbie'); await sp.keyboard.press('Enter');
+  await sp.waitForSelector('.setup-step-experience');
+  await sp.click('.setup-choice[data-id="new"]');
+  check('setup: "I\'m new" slows the scroll speed and shows the input display', await sp.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed') === 16 && AshtonkMania.Settings.get('input.keyOverlay') === true));
+  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-device');
+  await sp.waitForSelector('.setup-choice[data-id="low"] .setup-rec', { timeout: 5000 }).catch(() => {});
+  check('setup: Chromebook is detected and recommended', !!(await sp.$('.setup-choice[data-id="low"] .setup-rec')) && /ChromeOS/.test(await sp.textContent('.setup-detect')));
+  await sp.click('.setup-choice[data-id="low"]');
+  check('setup: Chromebook preset turns on performance mode', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 0));
+  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-look');
+  await sp.click('.setup-swatch >> nth=1');
+  check('setup: accent colour applies live', await sp.evaluate(() => document.documentElement.dataset.theme === 'kori'));
+  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
+  await sp.waitForTimeout(600);
+  const pvDrawn = await sp.evaluate(() => { const c = document.querySelector('.setup-pv canvas'); return c && c.width > 50 && c.height > 50; });
+  check('setup: live gameplay preview renders', pvDrawn);
+  await sp.click('.setup-key >> nth=0'); await sp.keyboard.press('KeyA');
+  check('setup: keys can be rebound', await sp.evaluate(() => AshtonkMania.Settings.keybinds(4)[0][0] === 'KeyA'));
+  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-skin');
+  check('setup: skin step lists the installed skins', (await sp.$$('.setup-skinitem')).length >= 3);
+  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-done');
+  await sp.click('.setup-next'); await sp.waitForTimeout(500);
+  check('setup: finishing closes it and marks the profile onboarded', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
+  await sp.reload();
+  await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  await sp.waitForTimeout(600);
+  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed') === 16 && AshtonkMania.Settings.get('graphics.performanceMode') === true));
+  await sctx.close();
 }
 
 check('no uncaught page errors', errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e)).length === 0, errors.slice(0, 8).join('\n'));

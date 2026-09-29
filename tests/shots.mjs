@@ -27,7 +27,17 @@ const shot = async n => { if (!only.length || only.includes(n)) await page.scree
 await page.goto(url);
 await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
 await page.waitForTimeout(400);
-if (await page.$('.onboarding')) { await shot('onboarding'); await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter'); await page.waitForTimeout(400); }
+if (await page.$('.onboarding')) {
+  await page.waitForTimeout(500); await shot('onboarding');
+  await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
+  await page.waitForSelector('.setup-step-experience'); await page.click('.setup-choice[data-id="some"]'); await page.waitForTimeout(500); await shot('setup-experience');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-device'); await page.waitForTimeout(1000); await page.click('.setup-choice[data-id="high"]'); await page.waitForTimeout(500); await shot('setup-device');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-look'); await page.waitForTimeout(500); await shot('setup-personalise');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-gameplay'); await page.waitForTimeout(900); await shot('setup-gameplay');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-skin'); await page.waitForTimeout(900); await shot('setup-skin');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-done'); await page.waitForTimeout(500); await shot('setup-done');
+  await page.click('.setup-next'); await page.waitForTimeout(400);
+}
 await page.evaluate(async () => {
   const b = await (await fetch('/tests/fixtures/test-set.osz')).blob();
   await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]);

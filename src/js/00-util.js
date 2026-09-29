@@ -66,6 +66,8 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
+/** 1234 → "1.2K", 1234567 → "1.2M" (osu!-style short counts). */
+const fmtCompact = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(Math.round(n));
 const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fmtAcc = a => (a * 100).toFixed(2) + '%';
 function fmtDate(ts) {

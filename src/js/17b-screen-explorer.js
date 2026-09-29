@@ -176,7 +176,7 @@ const ExplorerScreen = {
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
-  leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); },
+  leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
   starSliders() {
     const st = this.state;
     const mk = (key, label) => {
@@ -242,42 +242,104 @@ const ExplorerScreen = {
       const ic = this.previewId === id ? 'pause' : 'play';
       if (b.dataset.ic !== ic) { b.dataset.ic = ic; clearEl(b).append(icon(ic)); }
     }
+    if (this.setView) this.renderSet();
   },
+  /** osu!lazer-style beatmap card: cover on top (status, counts, length, preview), details below with the
+   *  difficulty spectrum and the main action. Clicking the card opens the beatmap set overlay. */
   card(set) {
     const owned = this.owned(set.id);
-    const dl = this.downloads.get(set.id);
     const cover = h('div.ex-cover');
     const img = new Image();
-    img.onload = () => cover.style.backgroundImage = `url("${img.src}")`;
+    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; cover.classList.add('loaded'); };
     img.src = OnlineBeatmaps.coverURL(set.id, 'card@2x');
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
-    const maxStars = Math.max(...set.diffs.map(d => d.stars));
+    const stars = set.diffs.map(d => d.stars);
+    const minS = Math.min(...stars), maxS = Math.max(...stars);
     const len = Math.max(...set.diffs.map(d => d.length));
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
-    const playBtn = h('button.ex-play', { title: 'Preview', 'aria-label': 'Preview', onclick: e => { e.stopPropagation(); this.togglePreview(set.id, playBtn); } }, icon(this.previewId === set.id ? 'pause' : 'play'));
-    let action;
-    if (this.mpPick) {
-      const host = Multiplayer.isHost();
-      action = dl && dl.state === 'downloading'
-        ? h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : '…'))
-        : h('button.btn.sm.primary', { onclick: e => this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Suggest');
-    } else if (owned) action = h('button.btn.sm.primary', { onclick: () => Screens.go('songselect', { mapId: (owned.maps.find(m => !m.problems.length) || owned.maps[0]).id }) }, icon('play'), 'Play');
-    else if (dl && dl.state === 'downloading') action = h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
-    else action = h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
-    const card = h('div.ex-card', { dataset: { id: set.id } },
-      cover, h('div.ex-shade'),
-      h('div.ex-left', playBtn),
-      h('div.ex-info',
-        h('div.ex-top', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.tag', 'VIDEO') : null, owned ? h('span.tag.accent', 'IN LIBRARY') : null),
-        h('div.ex-t', title), h('div.ex-a', `by ${artist}`),
+    const playBtn = h('button.ex-play', { title: 'Preview', 'aria-label': 'Preview', dataset: { ic: this.previewId === set.id ? 'pause' : 'play' }, onclick: e => { e.stopPropagation(); this.togglePreview(set.id); } }, icon(this.previewId === set.id ? 'pause' : 'play'));
+    const spectrum = set.diffs.length > 12
+      ? h('span.ex-spec-more', { style: { '--sc': starColour(maxS) } }, `${set.diffs.length} diffs`)
+      : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
+    const card = h('div.ex-card', { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
+      onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
+      h('div.ex-cover-wrap', cover, h('div.ex-cover-shade'),
+        h('div.ex-badges', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.ex-badge', icon('film')) : null, owned ? h('span.ex-badge.owned', icon('save'), 'In library') : null),
+        h('div.ex-counts', h('span', icon('play'), fmtCompact(set.playCount)), h('span', icon('heart'), fmtCompact(set.favourites))),
+        playBtn,
+        h('span.ex-length', icon('clock'), fmtTime(len * 1000))),
+      h('div.ex-cb',
+        h('div.ex-t', { title }, title),
+        h('div.ex-a', { title: artist }, artist),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
-        h('div.ex-meta', icon('play'), fmtInt(set.playCount), icon('heart'), fmtInt(set.favourites), icon('clock'), fmtTime(len * 1000), keys.map(k => h('span.keys-tag', `${k}K`))),
-        h('div.ex-diffs', ...set.diffs.slice(0, 16).map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })),
-          set.diffs.length > 16 ? h('span.muted', `+${set.diffs.length - 16}`) : null, h('span.ex-maxstar', starBadge(maxStars)))),
-      h('div.ex-action', action));
+        h('div.ex-foot', spectrum, h('span.ex-srange', { style: { color: starColour(maxS) } }, minS === maxS ? `★ ${maxS.toFixed(2)}` : `★ ${minS.toFixed(1)}–${maxS.toFixed(1)}`),
+          h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')), h('span.grow'),
+          h('div.ex-action', { onclick: e => e.stopPropagation() }, this.actionFor(set)))));
     card.addEventListener('pointerenter', () => UISounds.hover());
     return card;
+  },
+  /** The card's / overlay's main action: Play, Download (with progress), or Pick / Suggest for a room. */
+  actionFor(set, diff = null) {
+    const owned = this.owned(set.id), dl = this.downloads.get(set.id);
+    if (dl && dl.state === 'downloading') return h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
+    if (this.mpPick) {
+      const host = Multiplayer.isHost();
+      return h('button.btn.sm.primary', { onclick: e => diff ? this.mpPickDiff(set, diff) : this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Suggest');
+    }
+    if (owned) {
+      const m = (diff && owned.maps.find(x => x.onlineId === diff.id)) || owned.maps.find(x => !x.problems.length) || owned.maps[0];
+      return h('button.btn.sm.primary', { onclick: () => { this.closeSet(); Screens.go('songselect', { mapId: m.id }); } }, icon('play'), 'Play');
+    }
+    return h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
+  },
+
+  // ─────────────────────────────── beatmap set overlay ───────────────────────────────
+  /** osu!lazer's beatmap set overlay, compact: cover header, difficulty picker and the chosen difficulty's
+   *  attributes, with preview and the main action. */
+  openSet(set) {
+    this.closeSet();
+    UISounds.click();
+    this.setView = { set, diff: set.diffs[set.diffs.length - 1] };
+    this.setEl = h('div.dialog.ex-set', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
+    this.setO = makeOverlay(this.setEl, { onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
+    this.renderSet();
+  },
+  closeSet() { if (this.setO) this.setO.close(); },
+  renderSet() {
+    if (!this.setEl || !this.setView) return;
+    const { set, diff } = this.setView;
+    const d = diff;
+    const cover = h('div.ex-set-cover');
+    const img = new Image();
+    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; };
+    img.src = OnlineBeatmaps.coverURL(set.id, 'cover@2x');
+    const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
+    const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
+    const playing = this.previewId === set.id;
+    const bar = (label, v, max, fmt = x => x.toFixed(1)) => h('div.ex-attr', h('span', label), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('b', fmt(v)));
+    clearEl(this.setEl).append(
+      h('div.ex-set-head', cover, h('div.ex-cover-shade'),
+        h('button.icon-btn.ex-set-close', { title: 'Close', 'aria-label': 'Close', onclick: () => this.closeSet() }, icon('x')),
+        h('div.ex-set-info',
+          h('div.ex-badges', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.ex-badge', icon('film'), 'Video') : null),
+          h('div.ex-set-t', title), h('div.ex-set-a', artist),
+          h('div.ex-set-m', 'mapped by ', h('b', set.creator), set.source ? h('span.muted', ` · ${set.source}`) : null),
+          h('div.ex-set-actions',
+            h('button.btn.sm', { onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play'), playing ? 'Stop preview' : 'Preview'),
+            this.actionFor(set, d),
+            h('span.grow'),
+            h('span.ex-set-counts', icon('play'), fmtInt(set.playCount), icon('heart'), fmtInt(set.favourites))))),
+      h('div.ex-set-diffs', ...set.diffs.map(x => h(`button.ex-set-diff${x === d ? '.on' : ''}`, { style: { '--sc': starColour(x.stars) }, title: `${x.version} · ${x.stars.toFixed(2)}★`,
+        onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } }, h('i'), h('span', `${x.keys}K`)))),
+      h('div.ex-set-body',
+        h('div.ex-set-dname', h('b', d.version), starBadge(d.stars), h('span.keys-tag', `${d.keys}K`)),
+        h('div.ex-set-stats',
+          h('div', icon('clock'), h('span', 'Length'), h('b', fmtTime(d.length * 1000))),
+          h('div', icon('music'), h('span', 'BPM'), h('b', String(Math.round(d.bpm)))),
+          h('div', icon('target'), h('span', 'Notes'), h('b', fmtInt(d.notes))),
+          h('div', icon('list'), h('span', 'Long notes'), h('b', fmtInt(d.lns)))),
+        h('div.ex-set-attrs', bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Star rating', d.stars, 10, x => x.toFixed(2)))));
   },
   async download(set) {
     if (this.downloads.get(set.id)?.state === 'downloading') return;
@@ -338,6 +400,7 @@ const ExplorerScreen = {
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
     if (old) old.replaceWith(this.card(set));
+    if (this.setView && this.setView.set.id === set.id) this.renderSet();
   },
   togglePreview(id) {
     if (this.previewId === id) { this.stopPreview(); this.syncPreviewButtons(); return; }
