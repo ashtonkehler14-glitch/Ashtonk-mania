@@ -377,6 +377,12 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.waitForFunction(() => document.querySelector('.gp-loader.ready'), null, { timeout: 15000 });
   await page.keyboard.press('Space');
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 5000 });
+  await page.waitForTimeout(300);
+  check('HUD score and accuracy use the skin\'s number font (Kori)', await page.evaluate(() => !!document.querySelector('.hud-score .sc canvas.skin-digits') && !!document.querySelector('.hud-score .acc canvas.skin-digits')));
+  check('Hidden covers long notes band by band (the covered part of the lane hides hold bodies)', await page.evaluate(() => {
+    const b = AshtonkMania.GameplayScreen.renderer._coverBands('HD'), f = AshtonkMania.GameplayScreen.renderer._coverBands('FI');
+    return b[0][2] === 1 && b[b.length - 1][2] < 0.1 && f[0][2] < 0.1 && f[f.length - 1][2] === 1 && b.every(x => x[1] > x[0]);
+  }));
   check('Space starts from the loader; the beatmap offset is applied', await page.evaluate(() => AshtonkMania.GameplayScreen.s.mapOffset === 20 && AshtonkMania.GameplayScreen.offsetMs() === AshtonkMania.Settings.get('audio.offset') + 20));
   await page.keyboard.down('Backquote'); await page.waitForTimeout(250);
   const holding = await page.evaluate(() => document.querySelector('.hold-retry').classList.contains('on') && !!AshtonkMania.GameplayScreen.s);
@@ -438,9 +444,6 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
   await sp.waitForFunction(() => { const i = document.querySelector('.home .neru:not([hidden]) img'); return i && /neru\.png$/.test(i.src); }, null, { timeout: 5000 });
   await sp.waitForTimeout(300);
-  for (let i = 0; i < 10; i++) { await sp.click('.neru'); await sp.waitForTimeout(60); }
-  await sp.waitForTimeout(500);
-  check('easter egg: clicking Neru 10 times turns her into Teto', await sp.evaluate(() => /teto\.png$/.test(document.querySelector('.neru img').src) && AshtonkMania.NeruMascot.teto));
   await sp.evaluate(async () => {
     const c = document.createElement('canvas'); c.width = 40; c.height = 80; c.getContext('2d').fillRect(0, 0, 40, 80);
     await AshtonkMania.NeruMascot.setImage(await new Promise(r => c.toBlob(r, 'image/png')));

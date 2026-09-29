@@ -1056,10 +1056,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .av-tile.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
 .av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .dialog:has(.av-picker) { width: min(560px, calc(100vw - 32px)); }
-.ex-totop { position: absolute; left: 50%; margin-left: -26px; bottom: 24px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), filter var(--t-fast); }
+.ex-totop { position: absolute; right: 28px; bottom: 28px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .1); display: grid; place-items: center; background: rgba(18, 16, 24, .92); color: var(--text-2); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), box-shadow var(--t-fast), color var(--t-fast), border-color var(--t-fast); }
 .ex-totop .i { width: 26px; height: 26px; stroke-width: 2.6; }
 .ex-totop.show { opacity: 1; transform: none; pointer-events: auto; }
-.ex-totop.show:hover { filter: brightness(1.12); transform: translateY(-2px); }
+.ex-totop.show:hover { color: #fff; border-color: rgba(var(--accent-rgb), .7); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18), 0 0 22px rgba(var(--accent-rgb), .7), 0 8px 24px rgba(0, 0, 0, .5); transform: translateY(-2px); }
 .hud-mpdied { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(237, 17, 33, .75); font-weight: 600; font-size: .85rem; pointer-events: none; animation: mpDied 3s ease forwards; }
 @keyframes mpDied { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 70% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: .55; } }
 /* ── First-run setup (minimal wizard) */
@@ -1207,8 +1207,6 @@ div.res-calib .i { color: var(--good); }
 .neru[hidden] { display: none; }
 .neru-img { display: block; height: 100%; width: auto; max-width: 32vw; object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
 .neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
-.neru.swap .neru-img { animation: neruSwap 520ms var(--ease-out); }
-@keyframes neruSwap { 0% { transform: none; } 48% { transform: scaleX(0) translateY(-10px); filter: brightness(2.2); } 52% { transform: scaleX(0) translateY(-10px); filter: brightness(2.2); } 100% { transform: none; } }
 @keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
 @keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
 @keyframes neruHop { 40% { transform: translateY(-14px) scale(1.02); } }
@@ -1225,6 +1223,10 @@ div.res-calib .i { color: var(--good); }
 .inv-empty { padding: 14px; text-align: center; color: var(--muted); border-radius: 10px; background: rgba(255, 255, 255, .03); }
 .inv-link { align-self: flex-start; }
 .mp-reconnecting { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 4px 12px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .8rem; font-weight: 600; color: var(--text-2); align-self: center; }
+/* skin number fonts (score / accuracy drawn with score-0.png …) */
+.skinned { line-height: 0; text-shadow: none; }
+.skin-digits { display: inline-block; vertical-align: bottom; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .5)); }
+.res-score.skinned { margin: 6px 0 4px; }
 
 </style>
 </head>
@@ -2238,145 +2240,129 @@ class DefaultSkin extends Skin {
     const p = hsl(hue, 80, 69), c = hsl(centre, 80, 69);
     return { n1: [hex(hsl(hue, 8, 98)), hex(hsl(hue, 6, 76))], n2: [hex(p), hex(hsl(hue, 58, 54))], s: [hex(c), hex(hsl(centre, 58, 54))], key: hex(p), glow: p, glowS: c };
   }
+  /** Kori-style procedural textures: flat soft shapes with a gentle glow, muted holds with rounded caps, thin
+   *  outline receptors, a near-black stage and pastel judgement words. Note shapes are Web-Osu-Mania's
+   *  bars / circles / diamonds / arrows (MIT © 2024 Danny Duong). */
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
     const P = DefaultSkin.palette();
     const noteCol = { '1': P.n1, '2': P.n2, 's': P.s };
     const hex = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
+    const mix = (c1, c2, t) => { const p = c => [1, 3, 5].map(k => parseInt(c.slice(k, k + 2), 16)); const a = p(c1), b = p(c2); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
     const darker = typeof Settings === 'undefined' || Settings.get('skin.darkerHolds');
+    const style0 = typeof Settings === 'undefined' ? 'diamonds' : Settings.get('skin.noteStyle');
+    const W = 128;
+    // shape path centred on (cx, cy); `size` is the shape's width
+    const shape = (x, style, cx, cy, size, ang = 0) => {
+      x.save(); x.translate(cx, cy);
+      x.beginPath();
+      if (style === 'bars') { const hh = size * 0.34; rr(x, -size / 2, -hh / 2, size, hh, hh / 2); }
+      else if (style === 'circles') x.arc(0, 0, size / 2, 0, Math.PI * 2);
+      else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.26); }
+      else {
+        x.rotate(+ang * Math.PI / 180);
+        const r = size / 2;
+        x.moveTo(0, -r); x.lineTo(r, -r * 0.02); x.lineTo(r * 0.4, -r * 0.02); x.lineTo(r * 0.4, r); x.lineTo(-r * 0.4, r); x.lineTo(-r * 0.4, -r * 0.02); x.lineTo(-r, -r * 0.02); x.closePath();
+      }
+      x.restore();
+    };
+    const sizeOf = style => W * (style === 'bars' ? 0.86 : style === 'diamonds' ? 0.84 : 0.78);
+    const noteHOf = style => style === 'bars' ? 52 : W; // texture height: bars are short pills
+    const bodyW = style => sizeOf(style) * (style === 'bars' ? 0.78 : 0.56);
+    const glowFill = (x, col, blur = 10) => { x.shadowColor = hex(col, 0.6); x.shadowBlur = blur; x.fillStyle = col; x.fill(); x.shadowBlur = 0; };
+    // holds: one dark, accent-tinted body for every column (as Kori) — or the note's own colour, softened
+    const holdCol = T => darker ? mix(P.n2[0], '#15111c', 0.74) : mix(noteCol[T][0], '#15111c', 0.4);
+
     let m;
-    // Shaped notes for the built-in skin (styles from Web-Osu-Mania): am-<part>-<type>-<style>-<angle>
+    // legacy names (used as fallbacks for imported skins) → the bars style
+    if ((m = /^mania-note([12s])(h?)$/.exec(key))) return DefaultSkin.generate(`am-note-${m[1]}-bars-0`);
+    if ((m = /^mania-note([12s])l$/.exec(key))) return DefaultSkin.generate(`am-body-${m[1]}-bars-0`);
+    if ((m = /^mania-note([12s])t$/.exec(key))) return DefaultSkin.generate(`am-tail-${m[1]}-bars-0`);
+    if ((m = /^mania-key([12s])(d?)$/.exec(key))) return DefaultSkin.generate(`am-key${m[2]}-${m[1]}-bars-0`);
+
     if ((m = /^am-(note|body|tail|key|keyd)-([12s])-(bars|circles|diamonds|arrows)-(\d+)$/.exec(key))) {
       const [, part, T, style, ang] = m;
-      if (style === 'bars') return DefaultSkin.generate(part === 'note' ? `mania-note${T}` : part === 'body' ? `mania-note${T}l` : part === 'tail' ? `mania-note${T}t` : `mania-key${T}${part === 'keyd' ? 'd' : ''}`);
-      const [a, b] = noteCol[T];
-      const ratio = style === 'diamonds' ? 0.85 : 0.8;
-      const shape = (x, cx, cy, size) => {
-        x.save(); x.translate(cx, cy);
-        if (style === 'circles') { x.beginPath(); x.arc(0, 0, size / 2, 0, Math.PI * 2); }
-        else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.18); }
-        else {
-          x.rotate(+ang * Math.PI / 180);
-          const r = size / 2;
-          x.beginPath();
-          x.moveTo(0, -r); x.lineTo(r, 0); x.lineTo(r * 0.42, 0); x.lineTo(r * 0.42, r); x.lineTo(-r * 0.42, r); x.lineTo(-r * 0.42, 0); x.lineTo(-r, 0); x.closePath();
-        }
-        x.restore();
-      };
-      if (part === 'note') return new Texture([C(128, 128, (x, w, h) => {
-        shape(x, w / 2, h / 2, w * ratio);
-        const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
-        x.fillStyle = g; x.fill(); x.lineWidth = 5; x.strokeStyle = 'rgba(10,4,20,.85)'; x.stroke();
-      })], 2);
-      if (part === 'body') return new Texture([C(128, 32, (x, w, h) => {
-        const bw = w * ratio * 0.62;
-        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fillRect((w - bw) / 2, 0, bw, h);
-      })], 2);
-      if (part === 'tail') return new Texture([C(128, 64, (x, w, h) => {
-        const bw = w * ratio * 0.62;
-        rr(x, (w - bw) / 2, 0, bw, h * 0.7, [0, 0, bw / 2, bw / 2]);
-        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fill();
-      })], 2);
+      const [a] = noteCol[T];
+      const size = sizeOf(style);
+      if (part === 'note') {
+        const nh = noteHOf(style);
+        return new Texture([C(W, nh, x => {
+          shape(x, style, W / 2, nh / 2, size, ang);
+          glowFill(x, a, 12);
+        })], 2);
+      }
+      if (part === 'body') {
+        const bw = bodyW(style);
+        return new Texture([C(W, 32, (x, w, h) => { x.fillStyle = holdCol(T); x.fillRect((w - bw) / 2, 0, bw, h); })], 2);
+      }
+      if (part === 'tail') {
+        const bw = bodyW(style);
+        return new Texture([C(W, Math.round(bw / 2) + 4, (x, w, h) => {
+          x.fillStyle = holdCol(T);
+          rr(x, (w - bw) / 2, 0, bw, h - 4, [0, 0, bw / 2, bw / 2]); x.fill();
+        })], 2);
+      }
+      // receptors: a thin outline of the note shape; pressed = bright outline with a soft fill and glow
       const pressed = part === 'keyd';
-      return new Texture([C(128, 320, (x, w, h) => {
-        const g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.22, pressed ? hex(P.n2[1], 0.22) : 'rgba(8,5,14,.45)'); g.addColorStop(1, 'rgba(5,3,8,.9)');
-        x.fillStyle = g; x.fillRect(0, 0, w, h);
-        shape(x, w / 2, h * 0.25, w * ratio);
-        x.lineWidth = 7;
-        x.strokeStyle = pressed ? (T === 's' ? P.s[0] : P.key) : hex(T === 's' ? P.s[1] : P.key, 0.5);
-        if (pressed) { x.shadowColor = x.strokeStyle; x.shadowBlur = 20; x.fillStyle = hex(T === 's' ? P.s[1] : P.n2[1], 0.35); x.fill(); }
-        x.stroke();
+      return new Texture([C(W, 320, (x, w, h) => {
+        if (pressed) {
+          const g = x.createLinearGradient(0, h * 0.25, 0, 0);
+          g.addColorStop(0, hex(a, 0.16)); g.addColorStop(1, hex(a, 0));
+          x.fillStyle = g; x.fillRect(w * 0.08, 0, w * 0.84, h * 0.25);
+        }
+        shape(x, style, w / 2, h * 0.25, size * 0.94, ang);
+        x.lineWidth = pressed ? 6 : 5; x.lineJoin = 'round';
+        if (pressed) { x.shadowColor = a; x.shadowBlur = 16; x.fillStyle = hex(a, 0.28); x.fill(); x.strokeStyle = '#ffffff'; }
+        else x.strokeStyle = 'rgba(255,255,255,.3)';
+        x.stroke(); x.shadowBlur = 0;
       })], 2);
     }
-    if ((m = /^mania-note([12s])$/.exec(key)) || (m = /^mania-note([12s])h$/.exec(key))) {
-      const [a, b] = noteCol[m[1]];
-      return new Texture([C(128, 40, (x, w, h) => {
-        rr(x, 4, 4, w - 8, h - 8, 10);
-        const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
-        x.fillStyle = g; x.fill();
-        x.lineWidth = 3; x.strokeStyle = 'rgba(15,5,30,.85)'; x.stroke();
-        x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(16, 9, w - 32, 3);
-      })], 2);
-    }
-    if ((m = /^mania-note([12s])l$/.exec(key))) {
-      const [a, b] = noteCol[m[1]];
-      const c1 = darker ? b : a;
-      return new Texture([C(128, 32, (x, w, h) => {
-        const g = x.createLinearGradient(0, 0, w, 0);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, hex(c1, 0.66)); g.addColorStop(0.5, hex(darker ? b : a, darker ? 0.7 : 0.8));
-        g.addColorStop(0.9, hex(c1, 0.66)); g.addColorStop(1, 'rgba(0,0,0,0)');
-        x.fillStyle = g; x.fillRect(14, 0, w - 28, h);
-        x.fillStyle = 'rgba(255,255,255,.3)'; x.fillRect(w / 2 - 2, 0, 4, h);
-      })], 2);
-    }
-    if ((m = /^mania-note([12s])t$/.exec(key))) {
-      const [a, b] = noteCol[m[1]];
-      return new Texture([C(128, 24, (x, w, h) => {
-        rr(x, 14, 4, w - 28, h - 8, 8);
-        const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
-        x.fillStyle = g; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(15,5,30,.85)'; x.stroke();
-      })], 2);
-    }
-    if ((m = /^mania-key([12s])(d?)$/.exec(key))) {
-      const pressed = !!m[2], spec = m[1] === 's';
-      const col = spec ? P.s[0] : P.key;
-      return new Texture([C(128, 172, (x, w, h) => {
-        const g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, pressed ? hex(spec ? P.s[1] : P.n2[1], 0.3) : '#0b0812'); g.addColorStop(1, '#050308');
-        x.fillStyle = g; x.fillRect(0, 0, w, h);
-        rr(x, 22, 26, w - 44, 34, 12);
-        x.lineWidth = 5;
-        x.strokeStyle = pressed ? col : hex(col, 0.45);
-        if (pressed) { x.shadowColor = col; x.shadowBlur = 18; x.fillStyle = hex(col, 0.35); x.fill(); }
-        x.stroke();
-        x.shadowBlur = 0;
-        x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(0, 0, 2, h); x.fillRect(w - 2, 0, 2, h);
-      })], 2);
-    }
-    if (key === 'mania-stage-hint') return new Texture([C(256, 24, (x, w, h) => {
-      const g = x.createLinearGradient(0, 0, 0, h);
-      const [r0, g0, b0] = DefaultSkin.palette().glow;
-      g.addColorStop(0, `rgba(${r0},${g0},${b0},0)`); g.addColorStop(0.5, `rgba(${r0},${g0},${b0},.95)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
-      x.fillStyle = g; x.fillRect(0, 0, w, h);
-    })], 2);
+    if (key === 'mania-stage-hint') return new Texture([C(256, 8, (x, w, h) => { x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(0, 3, w, 2); })], 2);
     if (key === 'mania-stage-light') return new Texture([C(64, 256, (x, w, h) => {
+      const [r0, g0, b0] = DefaultSkin.palette().glow;
       const g = x.createLinearGradient(0, h, 0, 0);
-      g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(0.35, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      g.addColorStop(0, `rgba(${r0},${g0},${b0},.32)`); g.addColorStop(0.4, `rgba(${r0},${g0},${b0},.1)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
-    if (key === 'mania-stage-left' || key === 'mania-stage-right') return new Texture([C(8, 64, (x, w, h) => {
+    if (key === 'mania-stage-left' || key === 'mania-stage-right') return new Texture([C(6, 64, (x, w, h) => {
       const g = x.createLinearGradient(key.endsWith('left') ? w : 0, 0, key.endsWith('left') ? 0 : w, 0);
-      const [r0, g0, b0] = DefaultSkin.palette().glow;
-      g.addColorStop(0, `rgba(${r0},${g0},${b0},.9)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
+      g.addColorStop(0, 'rgba(255,255,255,.14)'); g.addColorStop(1, 'rgba(255,255,255,0)');
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
     if (key === 'mania-stage-bottom') return null;
-    if (key === 'lightingn' || key === 'lightingl') {
-      const hold = key === 'lightingl';
-      return new Texture([C(256, 256, (x, w, h) => {
-        const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
-        g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(hold ? 0.25 : 0.15, 'rgba(255,255,255,.75)');
-        g.addColorStop(0.5, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-        x.fillStyle = g; x.fillRect(0, 0, w, h);
-      })], 2);
-    }
+    if (key === 'lightingn') return new Texture([C(256, 256, (x, w, h) => {
+      // a small white flash in the note's shape, as Kori's
+      shape(x, style0, w / 2, h / 2, w * 0.3);
+      x.shadowColor = 'rgba(255,255,255,.9)'; x.shadowBlur = 24; x.fillStyle = '#ffffff'; x.fill(); x.shadowBlur = 0;
+    })], 2);
+    if (key === 'lightingl') return new Texture([C(256, 256, (x, w, h) => {
+      // hold lighting: four little corner brackets around the receptor
+      const r = w * 0.2, l = w * 0.07;
+      x.strokeStyle = '#ffffff'; x.lineWidth = 7; x.lineCap = 'round'; x.shadowColor = 'rgba(255,255,255,.8)'; x.shadowBlur = 10;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        x.beginPath(); x.moveTo(w / 2 + sx * r, h / 2 + sy * (r - l)); x.lineTo(w / 2 + sx * r, h / 2 + sy * r); x.lineTo(w / 2 + sx * (r - l), h / 2 + sy * r); x.stroke();
+      }
+    })], 2);
     if ((m = /^mania-hit(300g|300|200|100|50|0)$/.exec(key))) {
+      // pastel, rounded, lowercase — in the spirit of Kori's judgement words
       const spec = {
-        '300g': ['MARVELOUS', ['#fff7c2', '#ffd23f', '#c9a2ff']], '300': ['PERFECT', ['#fff4b0', '#ffc933']],
-        '200': ['GREAT', ['#b4ffc8', '#38d97a']], '100': ['GOOD', ['#a9e1ff', '#3c9dff']],
-        '50': ['BAD', ['#e2c4ff', '#9a64d8']], '0': ['MISS', ['#ffb3b3', '#ff4a5c']],
+        '300g': ['marvelous', ['#bdf6ff', '#e6c8ff', '#ffc4e6']], '300': ['perfect', ['#fff6b8', '#ffd96b']],
+        '200': ['great', ['#c9ffd9', '#7fe3a6']], '100': ['good', ['#c7e8ff', '#86bfff']],
+        '50': ['bad', ['#ead6ff', '#b894ea']], '0': ['miss', ['#ffd0d6', '#ff8a9a']],
       }[m[1]];
-      const font = '900 italic 64px "Torus", "Outfit", system-ui, sans-serif';
+      const font = '800 64px "Varela Round", "Nunito", "Torus", "Outfit", system-ui, sans-serif';
       const meas = document.createElement('canvas').getContext('2d'); meas.font = font;
-      const tw = Math.ceil(meas.measureText(spec[0]).width) + 40;
-      return new Texture([C(tw, 96, (x, w, h) => {
+      const tw = Math.ceil(meas.measureText(spec[0]).width) + 48;
+      return new Texture([C(tw, 100, (x, w, h) => {
         x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
-        const g = x.createLinearGradient(0, 16, 0, 80);
+        const g = x.createLinearGradient(0, 20, w, 80);
         spec[1].forEach((c, i) => g.addColorStop(i / Math.max(1, spec[1].length - 1), c));
-        x.lineWidth = 8; x.strokeStyle = 'rgba(10,4,20,.9)'; x.lineJoin = 'round';
-        x.strokeText(spec[0], w / 2, h / 2); x.fillStyle = g; x.fillText(spec[0], w / 2, h / 2);
-      })], 2.6);
+        x.lineJoin = 'round';
+        x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 8; x.shadowOffsetY = 3;
+        x.lineWidth = 12; x.strokeStyle = '#ffffff'; x.strokeText(spec[0], w / 2, h / 2);
+        x.shadowColor = 'transparent';
+        x.fillStyle = g; x.fillText(spec[0], w / 2, h / 2);
+      })], 2.1);
     }
     return null;
   }
@@ -2438,7 +2424,7 @@ const ManiaLayout = {
     const col = (k, d) => parseColour(get(k), d);
     L.colours.column = []; L.colours.light = [];
     for (let i = 0; i < keys; i++) {
-      L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: 8, g: 5, b: 14, a: 0.88 } : { r: 0, g: 0, b: 0, a: 1 }));
+      L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: 4, g: 3, b: 7, a: 0.92 } : { r: 0, g: 0, b: 0, a: 1 }));
       const types = maniaColumnTypes(keys, L.specialStyle);
       const P = DefaultSkin.palette(), gl = types[i] === 'S' ? P.glowS : P.glow;
       L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? { r: gl[0], g: gl[1], b: gl[2], a: 1 } : { r: 255, g: 255, b: 255, a: 1 }));
@@ -2489,6 +2475,7 @@ const ManiaLayout = {
     // score/combo fonts from [Fonts]
     const fonts = skin.ini.fonts || {};
     L.font = await SkinManager.loadFont(skin, fonts.ComboPrefix || fonts.ScorePrefix || 'score', parseFloat(fonts.ComboOverlap || fonts.ScoreOverlap || '0') || 0);
+    L.scoreFont = await SkinManager.loadFont(skin, fonts.ScorePrefix || 'score', parseFloat(fonts.ScoreOverlap || '0') || 0);
     // tinted variants for lights
     L.tinted = { stageLight: [], lightingN: [], lightingL: [] };
     for (let i = 0; i < keys; i++) {
@@ -2628,6 +2615,20 @@ const SkinManager = {
     return found >= 10 ? { glyphs, overlap } : null;
   },
 
+  /** The current skin's score font (for the HUD and results), or null. */
+  scoreFont() {
+    const skin = this.current;
+    if (!skin || skin.builtin) return Promise.resolve(null);
+    if (this._sfSkin !== skin) { this._sfSkin = skin; const f = skin.ini.fonts || {}; this._sf = this.loadFont(skin, f.ScorePrefix || 'score', parseFloat(f.ScoreOverlap || '0') || 0); }
+    return this._sf;
+  },
+  /** A sound only the current (imported) skin provides — no synthesized fallback. Plays it if present. */
+  async skinOnly(name, volume = 1) {
+    const skin = this.current;
+    if (!skin || skin.builtin || !skin.has(name)) return;
+    const b = await skin.sound(name).catch(() => null);
+    if (b) AudioManager.play(b, { volume });
+  },
   /** Play a skin sound with fallback to the default skin's synthesized sound. */
   async sample(name) {
     const s = this.current && await this.current.sound(name);
@@ -4200,6 +4201,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
     this.crop = crop; this.cropX = 0;
+    this._spr = new WeakMap(); this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
@@ -4216,8 +4218,9 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
+    this._spr = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null;
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0;
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -4248,6 +4251,7 @@ class ManiaRenderer {
     this._geom();
   }
   _geom() {
+    this._spr = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
     const s = this.H / 480;
@@ -4288,8 +4292,33 @@ class ManiaRenderer {
     const L = this.layout;
     if (!tex) return 0;
     // note height follows the narrowest column (or WidthForNoteHeightScale) so every column's notes match
-    const w = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') : Math.min(...this.colW);
+    const w = this._noteRefW || (this._noteRefW = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') : Math.min(...this.colW));
     return tex.h * (w / tex.w);
+  }
+  /** A copy of `img` pre-scaled to exactly w×h device pixels (optionally flipped), cached per image and size.
+   *  Drawing it 1:1 at a whole-pixel position is much cheaper than resampling the texture for every note. */
+  _sprite(img, w, h, flip) {
+    const W = Math.max(1, Math.round(w)), Hh = Math.max(1, Math.round(h));
+    let m = this._spr.get(img);
+    if (!m) { m = new Map(); this._spr.set(img, m); }
+    const key = W * 16384 + Hh * 2 + (flip ? 1 : 0);
+    let c = m.get(key);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = W; c.height = Hh;
+      const x = c.getContext('2d');
+      if (flip) { x.translate(0, Hh); x.scale(1, -1); }
+      x.drawImage(img, 0, 0, W, Hh);
+      m.set(key, c);
+      if (m.size > 24) m.delete(m.keys().next().value);
+    }
+    return c;
+  }
+  /** Like _img for fixed-size textures (notes, keys): drawn from a pre-scaled sprite, snapped to whole pixels. */
+  _spriteImg(img, x, yTop, w, h, flipY = false) {
+    if (!img || w <= 0 || h <= 0) return;
+    if (this.up) yTop = this.H - yTop - h;
+    const tx = this._tx; // translation from stage space to device pixels
+    this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, Math.round(yTop));
   }
 
   /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], hidden:'HD'|'FI'|null, realNow} */
@@ -4303,6 +4332,7 @@ class ManiaRenderer {
     ctx.clearRect(this.cropX, 0, this.canvas.width, H);
     ctx.save();
     ctx.translate(this.stageX, 0);
+    this._tx = this.stageX - this.cropX;
 
     // column backgrounds, snapped to whole device pixels: adjacent columns then share an exact edge instead of
     // two anti-aliased half-covered pixels, which let the background show through as thin vertical seams
@@ -4354,13 +4384,13 @@ class ManiaRenderer {
         if (this.legacy) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
-          this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+          this._spriteImg(t.img, this.colX[i], H - h, this.colW[i], h);
         } else {
           // built-in keys: receptor (25% down the texture) centred on where notes are hit
           const h = t.h * (this.colW[i] / t.w);
           const nh = this._noteH(L.tex.note[i], i);
           const top = this.hitY - nh / 2 - h * 0.25;
-          this._img(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
+          this._spriteImg(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
         }
       }
     };
@@ -4405,42 +4435,67 @@ class ManiaRenderer {
     return clamp((f - c) / fade, 0, 1);
   }
 
+  /** Hidden / Fade In for long notes: the note is drawn once per horizontal band of the lane, each band clipped
+   *  and given that band's opacity, so the covered part of the lane hides the body too (one opacity for the
+   *  whole note let a visible head drag its body through the cover). */
+  _coverBands(hidden) {
+    const hY = this.hitY, c = clamp(this.coverage ?? 0.5, 0.1, 0.9), fade = 0.12, steps = 10, out = [];
+    const r0 = (hidden === 'HD' ? 1 - c : c) * hY, r1 = r0 + fade * hY;
+    for (let k = 0; k < steps; k++) {
+      const a = (k + 0.5) / steps;
+      out.push([r0 + (r1 - r0) * k / steps, r0 + (r1 - r0) * (k + 1) / steps, hidden === 'HD' ? 1 - a : a]);
+    }
+    if (hidden === 'HD') out.unshift([-1e6, r0, 1]); else out.push([r1, 1e6, 1]);
+    return out;
+  }
   _drawNotes(g, yOf, realNow) {
-    const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys;
+    const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll;
     const top = -this.H * 0.1;
+    const bands = g.hidden ? this._coverBands(g.hidden) : null;
     for (let c = 0; c < K; c++) {
       const col = eng.columns[c];
       const x = this.colX[c], w = this.colW[c];
       const texN = L.tex.note[c], texH = L.tex.noteH[c], texL = L.tex.noteL[c], texT = L.tex.noteT[c];
+      const nh = texN ? this._noteH(texN, c) : 0;
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
         if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
-        const headPos = g.scroll.pos(n.time);
-        let yHead = yOf(headPos);
+        // scroll positions don't change during a play: computed once per note
+        if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
+        let yHead = yOf(n._hp);
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
-          const yTail = yOf(g.scroll.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end));
+          const yTail = yOf(n._tp);
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
-          const holding = n.state === NS.HOLDING;
-          if (holding) yHead = Math.min(yHead, this.hitY);
-          const dropped = n.state === NS.DROPPED || n.state === NS.MISSED;
-          const alpha = this._noteAlpha(Math.max(yTail, 0), g.hidden) * (dropped ? 0.45 : 1);
-          ctx.globalAlpha = Math.max(this._noteAlpha(yHead, g.hidden), alpha) * (dropped ? 0.45 : 1);
-          const hh = this._noteH(texH || texN, c);
-          const th = texT ? this._noteH(texT, c) : 0;
-          // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
-          // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
-          const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
-          if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow);
-          if (texT && yTail - th < yHead - hh / 2) this._img(texT.frameAt(realNow), x, yTail - th, w, th, !this.up);
-          if (texH || texN) this._img((texH || texN).frameAt(realNow), x, yHead - hh, w, hh);
-          ctx.globalAlpha = 1;
+          if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
+          const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
+          const draw = () => {
+            const hh = this._noteH(texH || texN, c);
+            const th = texT ? this._noteH(texT, c) : 0;
+            // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
+            // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
+            const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
+            if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow);
+            if (texT && yTail - th < yHead - hh / 2) this._spriteImg(texT.frameAt(realNow), x, yTail - th, w, th, !this.up);
+            if (texH || texN) this._spriteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh);
+          };
+          if (!bands) { ctx.globalAlpha = mult; draw(); ctx.globalAlpha = 1; continue; }
+          const y0 = yTail - (texT ? this._noteH(texT, c) : 0), y1 = yHead;
+          for (const [b0, b1, a] of bands) {
+            const lo = Math.max(b0, y0), hi = Math.min(b1, y1);
+            if (hi <= lo || a <= 0) continue;
+            ctx.save();
+            ctx.beginPath(); ctx.rect(x - 1, this.up ? this.H - b1 : b0, w + 2, b1 - b0); ctx.clip();
+            ctx.globalAlpha = a * mult; draw();
+            ctx.restore();
+          }
         } else {
           if (yHead > this.H + 60) continue;
-          const nh = this._noteH(texN, c);
-          ctx.globalAlpha = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
-          if (texN) this._img(texN.frameAt(realNow), x, yHead - nh, w, nh);
+          const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
+          if (a <= 0) continue;
+          ctx.globalAlpha = a;
+          if (texN) this._spriteImg(texN.frameAt(realNow), x, yHead - nh, w, nh);
           ctx.globalAlpha = 1;
         }
       }
@@ -4464,14 +4519,21 @@ class ManiaRenderer {
   onJudgement(e, realNow) {
     const L = this.layout;
     if (!L) return;
-    if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) this.effects.push({ type: 'N', col: e.col, t0: realNow });
+    // culling: a new hit light replaces the column's previous one (dense streams used to stack them)
+    if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) {
+      const fx = { type: 'N', col: e.col, t0: realNow };
+      (this._lastN || (this._lastN = []))[e.col] = fx;
+      this.effects.push(fx);
+    }
     if (Settings.get('gameplay.showJudgements') && (e.j !== J.MARV || Settings.get('gameplay.showMax'))) {
       const thr = Settings.get('gameplay.earlyLate');
       const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
       this.judgementFx = { j: e.j, t0: realNow, el };
     }
     if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
-      const n = e.j === J.MARV ? 7 : 4;
+      // at most ~96 particles alive at once, however dense the chart
+      const n = Math.min(e.j === J.MARV ? 7 : 4, Math.max(0, 96 - (this._pN || 0)));
+      this._pN = (this._pN || 0) + n;
       for (let k = 0; k < n; k++) {
         const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
         const sp = (0.25 + Math.random() * 0.45) * this.s;
@@ -4501,6 +4563,7 @@ class ManiaRenderer {
     for (let i = 0; i < fx.length; i++) {
       const e = fx[i];
       if (e.type !== 'N') { fx[keep++] = e; continue; }
+      if (this._lastN && this._lastN[e.col] !== e) continue; // superseded by a newer hit in this column
       const t = L.tinted.lightingN[e.col];
       if (!t) continue;
       const el = realNow - e.t0;
@@ -4552,6 +4615,7 @@ class ManiaRenderer {
       fx[keep++] = e;
     }
     fx.length = keep;
+    this._pN = 0; for (let i = 0; i < keep; i++) if (fx[i].type === 'P') this._pN++;
   }
   _drawJudgement(realNow) {
     const fx = this.judgementFx;
@@ -5094,6 +5158,30 @@ function starColour(sr) {
   const p = c => [1, 3, 5].map(k => parseInt(c.slice(k, k + 2), 16));
   const x = p(ca), y = p(cb);
   return '#' + x.map((v, k) => Math.round(lerp(v, y[k], t)).toString(16).padStart(2, '0')).join('');
+}
+/** Text drawn with a skin's number font (score-0.png … score-comma, -dot, -percent, -x) on a canvas that sits
+ *  where the text was. Characters the font doesn't have are skipped. */
+function skinDigits(font, cssH) {
+  const c = h('canvas.skin-digits');
+  let last = null;
+  const set = text => {
+    text = String(text);
+    if (text === last) return;
+    last = text;
+    const glyphs = [...text].map(ch => font.glyphs[ch]).filter(Boolean);
+    const dpr = Zoom.dpr(), H = Math.max(1, Math.round(cssH * dpr));
+    const ref = font.glyphs['0'] || glyphs[0];
+    if (!ref || !glyphs.length) { c.width = 1; return; }
+    const k = H / ref.h, ov = font.overlap * k;
+    const widths = glyphs.map(g => g.w * k);
+    const W = Math.max(1, Math.ceil(widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1)));
+    c.width = W; c.height = H;
+    c.style.height = cssH + 'px'; c.style.width = (W / dpr) + 'px';
+    const x = c.getContext('2d');
+    let px = 0;
+    glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, H - gh, widths[i], gh); px += widths[i] - ov; });
+  };
+  return { el: c, set };
 }
 function starBadge(sr) {
   const c = starColour(sr);
@@ -5704,13 +5792,10 @@ const MenuMusic = {
 /* ===== 13b-neru.js ===== */
 /* Neru on the main menu: a picture of Neru standing in the bottom-left corner. It shows the image chosen in
  * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
- * public/ folder). With no picture nothing is shown. Clicking her makes her hop.
- * Easter egg: click her 10 times in a row and she turns into Teto (10 more to swap back). */
+ * public/ folder). With no picture nothing is shown. Clicking her makes her hop. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
-  EGG_CLICKS: 10,
-  teto: false, clicks: 0, _lastClick: 0,
   _probe: null, _blobURL: null,
   /** URL of the picture to show, or null. */
   async source() {
@@ -5732,41 +5817,22 @@ const NeruMascot = {
       el.append(this.img);
       el.hidden = false;
       // the bundled Neru has a second, happy picture she switches to when clicked
-      this.base = u; this.happy = null; this.tetoURL = null;
+      this.base = u; this.happy = null;
       if (!u.startsWith('blob:')) {
-        const loads = src => new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = src; });
-        const [happy, teto] = await Promise.all([loads('neru-happy.png'), loads('teto.png')]);
-        if (this.el !== el) return;
-        if (happy) this.happy = 'neru-happy.png';
-        if (teto) this.tetoURL = 'teto.png';
-        if (this.teto && this.tetoURL) this.img.src = this.tetoURL;
+        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = 'neru-happy.png'; });
+        if (ok && this.el === el) this.happy = 'neru-happy.png';
       }
     });
     return el;
   },
   hop() {
     if (!this.el) return;
-    // easter egg: enough clicks in a row (no more than a second apart) swaps Neru and Teto
-    const now = performance.now();
-    this.clicks = now - this._lastClick < 1000 ? this.clicks + 1 : 1;
-    this._lastClick = now;
-    if (this.tetoURL && this.img && this.clicks >= this.EGG_CLICKS) {
-      this.clicks = 0;
-      this.teto = !this.teto;
-      clearTimeout(this._back);
-      this.el.classList.remove('hop', 'swap'); void this.el.offsetWidth; this.el.classList.add('swap');
-      setTimeout(() => { if (this.img) this.img.src = this.teto ? this.tetoURL : this.base; }, 250);
-      this.el.setAttribute('aria-label', this.teto ? 'Teto' : 'Neru');
-      UISounds.play('check-on');
-      return;
-    }
-    this.el.classList.remove('hop', 'swap'); void this.el.offsetWidth; this.el.classList.add('hop');
+    this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
     UISounds.click();
-    if (this.teto) return;
     if (this.happy && this.img) {
       this.img.src = this.happy;
       clearTimeout(this._back);
-      this._back = setTimeout(() => { if (this.img && !this.teto) this.img.src = this.base; }, 1600);
+      this._back = setTimeout(() => { if (this.img) this.img.src = this.base; }, 1600);
     }
   },
   /** Use a picture the player chose (a File/Blob), or null to go back to the bundled one. */
@@ -6627,7 +6693,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -6644,6 +6710,13 @@ const GameplayScreen = {
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
+    // score and accuracy in the skin's own number font, when it has one
+    this._scoreDigits = this._accDigits = null;
+    const sf = s.layout && s.layout.scoreFont;
+    if (sf) {
+      const swap = el => { const d = skinDigits(sf, Math.round(parseFloat(getComputedStyle(el).fontSize) || 32) * 0.92); el.classList.add('skinned'); el.replaceChildren(d.el); return d; };
+      requestAnimationFrame(() => { if (this.s !== s) return; this._scoreDigits = swap(this.scoreEl); this._accDigits = swap(this.accEl); this._lastSc = this._lastAcc = undefined; });
+    }
     if (s.practice) this.buildPracticeBar();
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
@@ -6709,10 +6782,16 @@ const GameplayScreen = {
       s.mpDied = true;
       this.hud.append(h('div.hud-mpdied', 'Health reached 0 — score and pp halved'));
     }
-    const sc = Math.round(e.score.score * this.mpFactor());
-    if (sc !== this._lastSc) { this._lastSc = sc; this.scoreEl.textContent = fmtScore(sc); }
-    const acc = e.score.accuracy;
-    if (acc !== this._lastAcc) { this._lastAcc = acc; this.accEl.textContent = fmtAcc(acc); }
+    // score / accuracy text at most ~20× a second: on dense charts they change every frame, and each text
+    // change costs a style + layout pass
+    const wall0 = performance.now();
+    if (!(wall0 - (this._scT || 0) < 50)) {
+      this._scT = wall0;
+      const sc = Math.round(e.score.score * this.mpFactor());
+      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
+      const acc = e.score.accuracy;
+      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
+    }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
     // progress bar + osu!-style pie (green while counting down to the first note); DOM writes only when
@@ -6790,7 +6869,9 @@ const GameplayScreen = {
     while (this.s === s) {
       const left = s.mp.startAt - performance.now();
       if (left <= 0) break;
-      el.textContent = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
+      const txt = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
+      if (txt !== el.textContent && left <= 3000) SkinManager.skinOnly(`count${txt}s`);
+      el.textContent = txt;
       await sleep(Math.min(100, left));
     }
     el.remove();
@@ -6991,10 +7072,12 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.closePause();
     const s = this.s;
     const btns = [];
-    if (!failed) btns.push(h('button.btn.primary', { onclick: () => this.resume() }, icon('play'), 'Continue'));
-    btns.push(h('button.btn', { onclick: () => this.retry() }, icon('retry'), 'Retry'));
+    // the skin's pause-menu sounds (hover and clicks), when it has them
+    if (!failed) btns.push(h('button.btn.primary', { onclick: () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); } }, icon('play'), 'Continue'));
+    btns.push(h('button.btn', { onclick: () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); } }, icon('retry'), 'Retry'));
     if (failed && this.failedScore) btns.push(h('button.btn', { onclick: () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true }) }, icon('chart'), 'View results'));
-    btns.push(h('button.btn.danger', { onclick: () => this.quit() }, icon('back'), 'Quit'));
+    btns.push(h('button.btn.danger', { onclick: () => { SkinManager.skinOnly('pause-back-click'); this.quit(); } }, icon('back'), 'Quit'));
+    for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
       this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
@@ -7019,11 +7102,13 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const steps = 3, stepMs = delay / steps;
     const cd = h('div.countdown', '3');
     this.el.appendChild(cd);
+    SkinManager.skinOnly('count3s');
     let n = steps;
     const step = () => {
       if (!this.s || this.s !== s) { cd.remove(); return; }
       n--;
-      if (n <= 0) { cd.remove(); s.running = true; Music.play(Music.pausedPos); return; }
+      if (n <= 0) { cd.remove(); SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); return; }
+      SkinManager.skinOnly(`count${n}s`);
       cd.textContent = String(n);
       this._cdT = setTimeout(step, stepMs);
     };
@@ -7133,6 +7218,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const g = s.gaps.find(([a, b]) => now > a + 800 * s.rate && now < b - 800 * s.rate);
     if (!!g !== this._inBreak) {
       this._inBreak = !!g;
+      // the skin's section sounds (osu!): how you're doing as the break starts
+      if (g) SkinManager.skinOnly(s.engine.health.value >= 0.5 ? 'sectionpass' : 'sectionfail', 0.7);
       if (g) {
         // osu!lazer-style: countdown, a bar shrinking to the centre, and your current accuracy / rank
         const e = s.engine, grade = ScoreSystem.gradeFor(e.score.accuracy, false, s.mods, e.score.counts);
@@ -7385,10 +7472,14 @@ const ResultsScreen = {
     ring.append(gradeEl(s.grade));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
     const scoreEl = h('div.res-score', '0');
+    let digits = null; // the skin's number font, once loaded
+    SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
+    let shown = 0;
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
     const tick = () => {
       const k = dur ? clamp((performance.now() - t0) / dur, 0, 1) : 1;
-      scoreEl.textContent = fmtScore(s.score * (1 - Math.pow(1 - k, 3)));
+      shown = s.score * (1 - Math.pow(1 - k, 3));
+      if (digits) digits.set(fmtScore(shown)); else scoreEl.textContent = fmtScore(shown);
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();

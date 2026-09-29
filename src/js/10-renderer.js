@@ -25,6 +25,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
     this.crop = crop; this.cropX = 0;
+    this._spr = new WeakMap(); this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
@@ -41,8 +42,9 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
+    this._spr = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null;
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0;
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -73,6 +75,7 @@ class ManiaRenderer {
     this._geom();
   }
   _geom() {
+    this._spr = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
     const s = this.H / 480;
@@ -113,8 +116,33 @@ class ManiaRenderer {
     const L = this.layout;
     if (!tex) return 0;
     // note height follows the narrowest column (or WidthForNoteHeightScale) so every column's notes match
-    const w = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') : Math.min(...this.colW);
+    const w = this._noteRefW || (this._noteRefW = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') : Math.min(...this.colW));
     return tex.h * (w / tex.w);
+  }
+  /** A copy of `img` pre-scaled to exactly w×h device pixels (optionally flipped), cached per image and size.
+   *  Drawing it 1:1 at a whole-pixel position is much cheaper than resampling the texture for every note. */
+  _sprite(img, w, h, flip) {
+    const W = Math.max(1, Math.round(w)), Hh = Math.max(1, Math.round(h));
+    let m = this._spr.get(img);
+    if (!m) { m = new Map(); this._spr.set(img, m); }
+    const key = W * 16384 + Hh * 2 + (flip ? 1 : 0);
+    let c = m.get(key);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = W; c.height = Hh;
+      const x = c.getContext('2d');
+      if (flip) { x.translate(0, Hh); x.scale(1, -1); }
+      x.drawImage(img, 0, 0, W, Hh);
+      m.set(key, c);
+      if (m.size > 24) m.delete(m.keys().next().value);
+    }
+    return c;
+  }
+  /** Like _img for fixed-size textures (notes, keys): drawn from a pre-scaled sprite, snapped to whole pixels. */
+  _spriteImg(img, x, yTop, w, h, flipY = false) {
+    if (!img || w <= 0 || h <= 0) return;
+    if (this.up) yTop = this.H - yTop - h;
+    const tx = this._tx; // translation from stage space to device pixels
+    this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, Math.round(yTop));
   }
 
   /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], hidden:'HD'|'FI'|null, realNow} */
@@ -128,6 +156,7 @@ class ManiaRenderer {
     ctx.clearRect(this.cropX, 0, this.canvas.width, H);
     ctx.save();
     ctx.translate(this.stageX, 0);
+    this._tx = this.stageX - this.cropX;
 
     // column backgrounds, snapped to whole device pixels: adjacent columns then share an exact edge instead of
     // two anti-aliased half-covered pixels, which let the background show through as thin vertical seams
@@ -179,13 +208,13 @@ class ManiaRenderer {
         if (this.legacy) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
-          this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+          this._spriteImg(t.img, this.colX[i], H - h, this.colW[i], h);
         } else {
           // built-in keys: receptor (25% down the texture) centred on where notes are hit
           const h = t.h * (this.colW[i] / t.w);
           const nh = this._noteH(L.tex.note[i], i);
           const top = this.hitY - nh / 2 - h * 0.25;
-          this._img(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
+          this._spriteImg(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
         }
       }
     };
@@ -230,42 +259,67 @@ class ManiaRenderer {
     return clamp((f - c) / fade, 0, 1);
   }
 
+  /** Hidden / Fade In for long notes: the note is drawn once per horizontal band of the lane, each band clipped
+   *  and given that band's opacity, so the covered part of the lane hides the body too (one opacity for the
+   *  whole note let a visible head drag its body through the cover). */
+  _coverBands(hidden) {
+    const hY = this.hitY, c = clamp(this.coverage ?? 0.5, 0.1, 0.9), fade = 0.12, steps = 10, out = [];
+    const r0 = (hidden === 'HD' ? 1 - c : c) * hY, r1 = r0 + fade * hY;
+    for (let k = 0; k < steps; k++) {
+      const a = (k + 0.5) / steps;
+      out.push([r0 + (r1 - r0) * k / steps, r0 + (r1 - r0) * (k + 1) / steps, hidden === 'HD' ? 1 - a : a]);
+    }
+    if (hidden === 'HD') out.unshift([-1e6, r0, 1]); else out.push([r1, 1e6, 1]);
+    return out;
+  }
   _drawNotes(g, yOf, realNow) {
-    const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys;
+    const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll;
     const top = -this.H * 0.1;
+    const bands = g.hidden ? this._coverBands(g.hidden) : null;
     for (let c = 0; c < K; c++) {
       const col = eng.columns[c];
       const x = this.colX[c], w = this.colW[c];
       const texN = L.tex.note[c], texH = L.tex.noteH[c], texL = L.tex.noteL[c], texT = L.tex.noteT[c];
+      const nh = texN ? this._noteH(texN, c) : 0;
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
         if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
-        const headPos = g.scroll.pos(n.time);
-        let yHead = yOf(headPos);
+        // scroll positions don't change during a play: computed once per note
+        if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
+        let yHead = yOf(n._hp);
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
-          const yTail = yOf(g.scroll.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end));
+          const yTail = yOf(n._tp);
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
-          const holding = n.state === NS.HOLDING;
-          if (holding) yHead = Math.min(yHead, this.hitY);
-          const dropped = n.state === NS.DROPPED || n.state === NS.MISSED;
-          const alpha = this._noteAlpha(Math.max(yTail, 0), g.hidden) * (dropped ? 0.45 : 1);
-          ctx.globalAlpha = Math.max(this._noteAlpha(yHead, g.hidden), alpha) * (dropped ? 0.45 : 1);
-          const hh = this._noteH(texH || texN, c);
-          const th = texT ? this._noteH(texT, c) : 0;
-          // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
-          // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
-          const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
-          if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow);
-          if (texT && yTail - th < yHead - hh / 2) this._img(texT.frameAt(realNow), x, yTail - th, w, th, !this.up);
-          if (texH || texN) this._img((texH || texN).frameAt(realNow), x, yHead - hh, w, hh);
-          ctx.globalAlpha = 1;
+          if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
+          const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
+          const draw = () => {
+            const hh = this._noteH(texH || texN, c);
+            const th = texT ? this._noteH(texT, c) : 0;
+            // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
+            // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
+            const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
+            if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow);
+            if (texT && yTail - th < yHead - hh / 2) this._spriteImg(texT.frameAt(realNow), x, yTail - th, w, th, !this.up);
+            if (texH || texN) this._spriteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh);
+          };
+          if (!bands) { ctx.globalAlpha = mult; draw(); ctx.globalAlpha = 1; continue; }
+          const y0 = yTail - (texT ? this._noteH(texT, c) : 0), y1 = yHead;
+          for (const [b0, b1, a] of bands) {
+            const lo = Math.max(b0, y0), hi = Math.min(b1, y1);
+            if (hi <= lo || a <= 0) continue;
+            ctx.save();
+            ctx.beginPath(); ctx.rect(x - 1, this.up ? this.H - b1 : b0, w + 2, b1 - b0); ctx.clip();
+            ctx.globalAlpha = a * mult; draw();
+            ctx.restore();
+          }
         } else {
           if (yHead > this.H + 60) continue;
-          const nh = this._noteH(texN, c);
-          ctx.globalAlpha = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
-          if (texN) this._img(texN.frameAt(realNow), x, yHead - nh, w, nh);
+          const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
+          if (a <= 0) continue;
+          ctx.globalAlpha = a;
+          if (texN) this._spriteImg(texN.frameAt(realNow), x, yHead - nh, w, nh);
           ctx.globalAlpha = 1;
         }
       }
@@ -289,14 +343,21 @@ class ManiaRenderer {
   onJudgement(e, realNow) {
     const L = this.layout;
     if (!L) return;
-    if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) this.effects.push({ type: 'N', col: e.col, t0: realNow });
+    // culling: a new hit light replaces the column's previous one (dense streams used to stack them)
+    if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) {
+      const fx = { type: 'N', col: e.col, t0: realNow };
+      (this._lastN || (this._lastN = []))[e.col] = fx;
+      this.effects.push(fx);
+    }
     if (Settings.get('gameplay.showJudgements') && (e.j !== J.MARV || Settings.get('gameplay.showMax'))) {
       const thr = Settings.get('gameplay.earlyLate');
       const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
       this.judgementFx = { j: e.j, t0: realNow, el };
     }
     if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
-      const n = e.j === J.MARV ? 7 : 4;
+      // at most ~96 particles alive at once, however dense the chart
+      const n = Math.min(e.j === J.MARV ? 7 : 4, Math.max(0, 96 - (this._pN || 0)));
+      this._pN = (this._pN || 0) + n;
       for (let k = 0; k < n; k++) {
         const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
         const sp = (0.25 + Math.random() * 0.45) * this.s;
@@ -326,6 +387,7 @@ class ManiaRenderer {
     for (let i = 0; i < fx.length; i++) {
       const e = fx[i];
       if (e.type !== 'N') { fx[keep++] = e; continue; }
+      if (this._lastN && this._lastN[e.col] !== e) continue; // superseded by a newer hit in this column
       const t = L.tinted.lightingN[e.col];
       if (!t) continue;
       const el = realNow - e.t0;
@@ -377,6 +439,7 @@ class ManiaRenderer {
       fx[keep++] = e;
     }
     fx.length = keep;
+    this._pN = 0; for (let i = 0; i < keep; i++) if (fx[i].type === 'P') this._pN++;
   }
   _drawJudgement(realNow) {
     const fx = this.judgementFx;

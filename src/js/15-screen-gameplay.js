@@ -331,7 +331,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -348,6 +348,13 @@ const GameplayScreen = {
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
+    // score and accuracy in the skin's own number font, when it has one
+    this._scoreDigits = this._accDigits = null;
+    const sf = s.layout && s.layout.scoreFont;
+    if (sf) {
+      const swap = el => { const d = skinDigits(sf, Math.round(parseFloat(getComputedStyle(el).fontSize) || 32) * 0.92); el.classList.add('skinned'); el.replaceChildren(d.el); return d; };
+      requestAnimationFrame(() => { if (this.s !== s) return; this._scoreDigits = swap(this.scoreEl); this._accDigits = swap(this.accEl); this._lastSc = this._lastAcc = undefined; });
+    }
     if (s.practice) this.buildPracticeBar();
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
@@ -413,10 +420,16 @@ const GameplayScreen = {
       s.mpDied = true;
       this.hud.append(h('div.hud-mpdied', 'Health reached 0 — score and pp halved'));
     }
-    const sc = Math.round(e.score.score * this.mpFactor());
-    if (sc !== this._lastSc) { this._lastSc = sc; this.scoreEl.textContent = fmtScore(sc); }
-    const acc = e.score.accuracy;
-    if (acc !== this._lastAcc) { this._lastAcc = acc; this.accEl.textContent = fmtAcc(acc); }
+    // score / accuracy text at most ~20× a second: on dense charts they change every frame, and each text
+    // change costs a style + layout pass
+    const wall0 = performance.now();
+    if (!(wall0 - (this._scT || 0) < 50)) {
+      this._scT = wall0;
+      const sc = Math.round(e.score.score * this.mpFactor());
+      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
+      const acc = e.score.accuracy;
+      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
+    }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
     // progress bar + osu!-style pie (green while counting down to the first note); DOM writes only when
@@ -494,7 +507,9 @@ const GameplayScreen = {
     while (this.s === s) {
       const left = s.mp.startAt - performance.now();
       if (left <= 0) break;
-      el.textContent = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
+      const txt = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
+      if (txt !== el.textContent && left <= 3000) SkinManager.skinOnly(`count${txt}s`);
+      el.textContent = txt;
       await sleep(Math.min(100, left));
     }
     el.remove();
@@ -695,10 +710,12 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.closePause();
     const s = this.s;
     const btns = [];
-    if (!failed) btns.push(h('button.btn.primary', { onclick: () => this.resume() }, icon('play'), 'Continue'));
-    btns.push(h('button.btn', { onclick: () => this.retry() }, icon('retry'), 'Retry'));
+    // the skin's pause-menu sounds (hover and clicks), when it has them
+    if (!failed) btns.push(h('button.btn.primary', { onclick: () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); } }, icon('play'), 'Continue'));
+    btns.push(h('button.btn', { onclick: () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); } }, icon('retry'), 'Retry'));
     if (failed && this.failedScore) btns.push(h('button.btn', { onclick: () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true }) }, icon('chart'), 'View results'));
-    btns.push(h('button.btn.danger', { onclick: () => this.quit() }, icon('back'), 'Quit'));
+    btns.push(h('button.btn.danger', { onclick: () => { SkinManager.skinOnly('pause-back-click'); this.quit(); } }, icon('back'), 'Quit'));
+    for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
       this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
@@ -723,11 +740,13 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const steps = 3, stepMs = delay / steps;
     const cd = h('div.countdown', '3');
     this.el.appendChild(cd);
+    SkinManager.skinOnly('count3s');
     let n = steps;
     const step = () => {
       if (!this.s || this.s !== s) { cd.remove(); return; }
       n--;
-      if (n <= 0) { cd.remove(); s.running = true; Music.play(Music.pausedPos); return; }
+      if (n <= 0) { cd.remove(); SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); return; }
+      SkinManager.skinOnly(`count${n}s`);
       cd.textContent = String(n);
       this._cdT = setTimeout(step, stepMs);
     };
@@ -837,6 +856,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const g = s.gaps.find(([a, b]) => now > a + 800 * s.rate && now < b - 800 * s.rate);
     if (!!g !== this._inBreak) {
       this._inBreak = !!g;
+      // the skin's section sounds (osu!): how you're doing as the break starts
+      if (g) SkinManager.skinOnly(s.engine.health.value >= 0.5 ? 'sectionpass' : 'sectionfail', 0.7);
       if (g) {
         // osu!lazer-style: countdown, a bar shrinking to the centre, and your current accuracy / rank
         const e = s.engine, grade = ScoreSystem.gradeFor(e.score.accuracy, false, s.mods, e.score.counts);

@@ -65,6 +65,30 @@ function starColour(sr) {
   const x = p(ca), y = p(cb);
   return '#' + x.map((v, k) => Math.round(lerp(v, y[k], t)).toString(16).padStart(2, '0')).join('');
 }
+/** Text drawn with a skin's number font (score-0.png … score-comma, -dot, -percent, -x) on a canvas that sits
+ *  where the text was. Characters the font doesn't have are skipped. */
+function skinDigits(font, cssH) {
+  const c = h('canvas.skin-digits');
+  let last = null;
+  const set = text => {
+    text = String(text);
+    if (text === last) return;
+    last = text;
+    const glyphs = [...text].map(ch => font.glyphs[ch]).filter(Boolean);
+    const dpr = Zoom.dpr(), H = Math.max(1, Math.round(cssH * dpr));
+    const ref = font.glyphs['0'] || glyphs[0];
+    if (!ref || !glyphs.length) { c.width = 1; return; }
+    const k = H / ref.h, ov = font.overlap * k;
+    const widths = glyphs.map(g => g.w * k);
+    const W = Math.max(1, Math.ceil(widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1)));
+    c.width = W; c.height = H;
+    c.style.height = cssH + 'px'; c.style.width = (W / dpr) + 'px';
+    const x = c.getContext('2d');
+    let px = 0;
+    glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, H - gh, widths[i], gh); px += widths[i] - ov; });
+  };
+  return { el: c, set };
+}
 function starBadge(sr) {
   const c = starColour(sr);
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));

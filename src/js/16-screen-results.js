@@ -49,10 +49,14 @@ const ResultsScreen = {
     ring.append(gradeEl(s.grade));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
     const scoreEl = h('div.res-score', '0');
+    let digits = null; // the skin's number font, once loaded
+    SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
+    let shown = 0;
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
     const tick = () => {
       const k = dur ? clamp((performance.now() - t0) / dur, 0, 1) : 1;
-      scoreEl.textContent = fmtScore(s.score * (1 - Math.pow(1 - k, 3)));
+      shown = s.score * (1 - Math.pow(1 - k, 3));
+      if (digits) digits.set(fmtScore(shown)); else scoreEl.textContent = fmtScore(shown);
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();

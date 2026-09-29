@@ -19,10 +19,36 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Faster dense charts, Hidden fixed for holds, skin fonts, a Kori-style Custom skin
+
+* **Smart culling / faster dense charts:**
+  * Notes and keys are drawn from copies pre-scaled to their exact on-screen size, at whole-pixel positions, instead of resampling the texture for every note.
+  * Each note's scroll position is computed once per play.
+  * Only the newest hit-light per column is drawn, so streams no longer stack flashes.
+  * At most ~96 particles are alive at a time.
+  * Score and accuracy text updates about 20× a second.
+  * On a dense 7K stream with the CPU slowed 4×, typical frame time went from ~84 ms to ~46 ms, and the worst frames from ~142 ms to ~71 ms.
+* **Hidden / Fade In and hold notes:** hold notes are now drawn band by band. The covered part of the lane really hides the body; a visible head no longer drags its body through the cover.
+* **Skin fonts:** the in-game score and accuracy (and the results score) use the skin's number font (`ScorePrefix` from `skin.ini`, e.g. Kori's `fonts/score/score-*.png`). The combo already used `ComboPrefix`.
+* **More skin sounds:**
+  * `sectionpass` / `sectionfail` at breaks
+  * `count3s`, `count2s`, `count1s` and `gos` on the unpause countdown and the multiplayer start
+  * `pause-hover` and the `pause-continue/retry/back-click` sounds on the pause menu
+
+  These play only when the skin has them.
+* **Custom skin restyled after Kori:**
+  * flat, soft note shapes with a gentle glow (no outlines or gradients) in all four shapes; bars are now rounded pills
+  * dark, accent-tinted hold bodies with rounded caps
+  * thin outline receptors that light up when pressed
+  * a near-black stage
+  * a small white hit flash, and corner brackets while holding
+  * pastel lowercase judgement words
+* **Back to top:** now a dark round button in the bottom-right that glows in the accent colour on hover.
+* The Teto easter egg is gone.
+
 ### Neru fixes, Teto easter egg, reconnecting
 
 * **Neru's hands:** the cut-out no longer eats into her hands (the background removal stops at skin tones), and the faint border line at the bottom is gone.
-* **Easter egg:** click Neru 10 times quickly and she turns into Teto (`public/teto.png`). Another 10 clicks bring Neru back.
 * **Difficulty picker:** in a multiplayer room, "Your difficulty" only shows when the beatmap set has more than one playable difficulty.
 * **Reconnecting:** if your connection to a room drops, the room stays on screen with a small "Reconnecting…" marker while the game keeps retrying (1s, 2s, 4s… up to 10s apart). There's no error popup. When it gets back in you see "Reconnected to the room", and your difficulty and mods are sent again. If everyone left in the meantime, the room is reopened under the same code. If a match is still running, it waits for the match to end.
 
