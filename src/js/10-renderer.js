@@ -372,14 +372,14 @@ class ManiaRenderer {
     const total = t.frames.length > 1 ? Math.max(t.frames.length / t.fps * 1000, 300) : 360;
     if (el > total) { this.judgementFx = null; return; }
     const sk = Settings.get('skin.scale');
-    const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.18 - 0.18 * (el / 60) : 1);
-    const k = (this.legacy ? this.u : this.s * 0.8) * sk * pop;
+    const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.1 - 0.1 * (el / 60) : 1);
+    const k = (this.legacy ? this.u : this.s * 0.8) * 0.6 * sk * pop;
     const w = t.w * k, hh = t.h * k;
     const y = L.scorePosition * this.s;
     this.ctx.globalAlpha = el > total - 100 ? (total - el) / 100 : 1;
     this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
     if (fx.el) {
-      const ctx = this.ctx, size = Math.round(9 * this.s);
+      const ctx = this.ctx, size = Math.round(6.5 * this.s);
       ctx.font = `900 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
       ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
@@ -444,16 +444,35 @@ class ManiaRenderer {
     ctx.fillStyle = '#fff';
     ctx.fillRect(cx - 1, y - hh * 3, 2, hh * 6);
   }
+  /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
+   *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */
   _drawHealth(v) {
-    const ctx = this.ctx, s = this.s;
-    const x = this.stageX + this.stageW + 6 * s, top = this.H * 0.18, bottom = this.hitY, w = 3.2 * s;
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, top, w, bottom - top);
-    const hh = (bottom - top) * v;
-    const grd = ctx.createLinearGradient(0, bottom - hh, 0, bottom);
-    const P = DefaultSkin.palette();
-    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : P.n2[0]); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : P.n2[1]);
-    ctx.fillStyle = grd;
-    ctx.fillRect(x, bottom - hh, w, hh);
+    const ctx = this.ctx, s = this.s, now = performance.now();
+    const dt = Math.min(100, now - (this._hpT || now)); this._hpT = now;
+    this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
+    const hp = clamp(this._hp, 0, 1);
+    const w = Math.max(4, 3.4 * s), x = this.stageX + this.stageW + 5 * s, top = this.H * 0.06, bottom = this.H;
+    const len = bottom - top, r = w / 2;
+    const bar = (y0, y1) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y0, w, y1 - y0, [r, r, 0, 0]) : ctx.rect(x, y0, w, y1 - y0); ctx.fill(); };
+    // track
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; bar(top, bottom);
+    if (hp <= 0) return;
+    const low = hp < 0.3;
+    const y = bottom - len * hp;
+    const accent = this._hpAccent || (this._hpAccent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ff66ab');
+    const c1 = low ? '#ff5a6e' : accent, c2 = low ? '#ff9a6e' : '#ffffff';
+    const pulse = low ? 0.55 + 0.45 * Math.abs(Math.sin(now / 220)) : 1;
+    // soft glow (a wider translucent bar is much cheaper than shadowBlur)
+    ctx.globalAlpha = 0.18 * pulse; ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w, y - w, w * 3, bottom - y + w, [w * 1.5, w * 1.5, 0, 0]) : ctx.rect(x - w, y - w, w * 3, bottom - y + w); ctx.fill();
+    ctx.globalAlpha = 1;
+    const grd = ctx.createLinearGradient(0, y, 0, bottom);
+    grd.addColorStop(0, c2); grd.addColorStop(0.08, c1); grd.addColorStop(1, c1);
+    ctx.fillStyle = grd; bar(y, bottom);
+    // bright head
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9 * pulse;
+    ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
   }
   _drawKeyOverlay(g) {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;

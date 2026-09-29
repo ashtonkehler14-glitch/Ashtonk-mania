@@ -76,8 +76,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effects', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
-  { s: 'Audio', g: 'Playback', k: 'audio.hitsounds', l: 'Hitsounds', t: 'bool', d: true },
-  { s: 'Audio', g: 'Playback', k: 'audio.beatmapSamples', l: 'Use beatmap samples & keysounds', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Interface sounds', t: 'bool', d: true },

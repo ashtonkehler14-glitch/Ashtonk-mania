@@ -66,7 +66,7 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
-const fmtScore = n => String(Math.round(n)).padStart(7, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fmtAcc = a => (a * 100).toFixed(2) + '%';
 function fmtDate(ts) {
   const d = new Date(ts), now = Date.now(), diff = (now - ts) / 1000;

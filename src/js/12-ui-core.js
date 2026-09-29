@@ -219,7 +219,6 @@ const Toolbar = {
         btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
-        btn('download', 'Beatmap listing', 'Browse and download beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
         this.npBtn,
         this.clock = h('div.tb-clock'),
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Account', onclick: e => this.userMenu(e) })),

@@ -167,7 +167,7 @@ const BeatmapManager = {
     const setId = 'set-' + (await hashHex(keySrc)).slice(0, 16);
     const existing = this.setById.get(setId);
     const md = diffs[0].bm.metadata;
-    // which files do we keep? .osu, audio, backgrounds, samples (wav/ogg/mp3 hitsounds), skip video & big storyboards
+    // which files do we keep? .osu, audio, backgrounds, samples, skip video & big storyboards
     const needed = new Set();
     let storyboard = false, video = false;
     for (const d of diffs) {

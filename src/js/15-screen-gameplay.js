@@ -100,14 +100,10 @@ const GameplayScreen = {
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = baseNotes.length ? Math.max(...baseNotes.map(n => n.end)) : 0;
-    const tpIdx = t => { const tps = bm.timingPoints; let i = bsearchLE(tps, t + 2, 'time'); return i >= 0 ? tps[i] : tps[0]; };
-    const specs = baseNotes.map(n => (n.hsSpec = HitSounds.resolve(n, bm, tpIdx)));
-    const bank = new SampleBank(rec.setId);
-    await bank.preload(specs);
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, specs, bank, modConfig,
+      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
       barlines: BeatmapParser.barlines(bm, endTime), barIdx: 0, endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
@@ -189,7 +185,7 @@ const GameplayScreen = {
     clearEl(this.hud);
     this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
-    this.progEl = h('i'); this.timeEl = h('div.hud-time');
+    this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
     this.kpsEl = h('div.hud-kps');
@@ -197,9 +193,7 @@ const GameplayScreen = {
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl, this.kpsEl),
-      this.timeEl,
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
-      h('div.hud-meta', h('b', s.rec.title), ` — ${s.rec.artist}`, h('br'), `[${s.rec.version}] · ${s.keys}K · ${SkinManager.current.name}`),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -293,8 +287,6 @@ const GameplayScreen = {
       const t = `${(this._kps || []).length} KPS`;
       if (this.kpsEl.textContent !== t) this.kpsEl.textContent = t;
     }
-    const tt = `${fmtTime(Math.max(0, now) / s.rate)} / ${fmtTime(dur / s.rate)}`;
-    if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
@@ -468,12 +460,6 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       this._lastCombo = s.engine.score.combo;
     } else if (e.type === 'press') {
       (this._kps || (this._kps = [])).push(realNow);
-      if (Settings.get('audio.hitsounds')) {
-        const col = s.engine.columns[e.col];
-        let n = e.note;
-        if (!n) n = col[col.length - 1];
-        if (n && n.hsSpec) s.bank.play(n.hsSpec);
-      }
     } else if (e.type === 'earlyRelease') {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;

@@ -19,6 +19,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Cleaner gameplay HUD
+
+* **No hitsounds.** Notes no longer play hit samples (the sound settings for them are gone); skin sounds such as combo break and fail still play.
+* **Less on screen:** the song time (top left) and the title / difficulty line (bottom left) are removed, judgements are drawn about 40% smaller, and scores no longer have leading zeros (366,667 instead of 0,366,667).
+* **New health bar:** a slim bar beside the stage from near the top of the screen to the bottom, eased smoothly, glowing in the accent colour, turning red and pulsing when low.
+* **Beatmap Explorer:** previewing a song no longer jumps the list back to the top. The top bar no longer has a beatmap listing button (Browse on the main menu still opens it).
+
 ### Smoother, simpler settings, room search, new mod select
 
 * **Smoother gameplay.** Nothing behind the playfield is drawn in game any more (the blurred menu background and the hidden toolbar used to cost GPU time every frame), the HUD only touches the page when a value visibly changes, gamepads are only polled while one is connected, and the renderer no longer creates garbage every frame. The multiplayer scoreboard updates in place ten times a second and the opponent's score counts up smoothly instead of jumping.
@@ -100,7 +107,7 @@ The source lives in `src/` and is split into logical systems. `node build.mjs` i
 | `06-settings.js` | Schema-driven `SettingsManager` and default keybinds (1K–10K) |
 | `07-beatmap-manager.js` | Importing (`.osz`, folders, drag & drop), set grouping, library, the `BeatmapProvider` interface |
 | `08-mods.js` | Mod system (definitions, incompatibilities, multipliers, rates, column mapping) |
-| `09-gameplay.js` | `GameplayEngine`, judgement, score, health, long notes, Auto input generator, hitsounds |
+| `09-gameplay.js` | `GameplayEngine`, judgement, score, health, long notes, Auto input generator |
 | `10-renderer.js` | Canvas stage renderer (skin geometry in 480-space units) |
 | `11-managers.js` | Scores and PBs, replays, favorites, collections, profile and XP, statistics, data import/export |
 | `12`–`18` | UI: screen manager, toolbar and now-playing panel, zoom lock, main menu and menu music, song select, gameplay, results, library, collections, profile (with statistics), replays, skins, beatmap explorer, settings, key config, calibration, mod select |
@@ -128,7 +135,7 @@ The source lives in `src/` and is split into logical systems. `node build.mjs` i
 
 Asset paths are matched case-insensitively (for example `mania/key` finds `Mania/key@2x.png`). `@2x` versions are preferred on high-resolution displays, and `-0…-N` animation frames are supported. Any asset a skin doesn't include falls back to the built-in Ashtonk!mania default skin.
 
-Skin sounds are used when present, including hitsounds, combo break, fail, applause, and hover/click/back (with common alias names).
+Skin sounds are used when present: combo break, fail, applause, and hover/click/back (with common alias names). Gameplay has no hitsounds.
 
 ## Mods
 

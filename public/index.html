@@ -1050,7 +1050,7 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
-const fmtScore = n => String(Math.round(n)).padStart(7, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fmtAcc = a => (a * 100).toFixed(2) + '%';
 function fmtDate(ts) {
   const d = new Date(ts), now = Date.now(), diff = (now - ts) / 1000;
@@ -2734,8 +2734,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effects', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
-  { s: 'Audio', g: 'Playback', k: 'audio.hitsounds', l: 'Hitsounds', t: 'bool', d: true },
-  { s: 'Audio', g: 'Playback', k: 'audio.beatmapSamples', l: 'Use beatmap samples & keysounds', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Interface sounds', t: 'bool', d: true },
@@ -3001,7 +2999,7 @@ const BeatmapManager = {
     const setId = 'set-' + (await hashHex(keySrc)).slice(0, 16);
     const existing = this.setById.get(setId);
     const md = diffs[0].bm.metadata;
-    // which files do we keep? .osu, audio, backgrounds, samples (wav/ogg/mp3 hitsounds), skip video & big storyboards
+    // which files do we keep? .osu, audio, backgrounds, samples, skip video & big storyboards
     const needed = new Set();
     let storyboard = false, video = false;
     for (const d of diffs) {
@@ -3580,74 +3578,6 @@ function generateAutoInputs(notes, keys) {
   return ev;
 }
 
-/** Resolve beatmap hitsounds (sample set / additions / custom index / keysounds). */
-const HitSounds = {
-  SETS: ['', 'normal', 'soft', 'drum'],
-  /** List of {name, volume, file?} to play for a note. */
-  resolve(note, bm, tpIndex) {
-    const s = note.sample || [];
-    const tp = tpIndex(note.time);
-    const mapSet = { normal: 1, soft: 2, drum: 3 }[bm.sampleSetName] || 1;
-    let normal = parseInt(s[0], 10) || tp?.sampleSet || mapSet;
-    let add = parseInt(s[1], 10) || normal;
-    const idx = parseInt(s[2], 10) || tp?.sampleIndex || 0;
-    const vol = (parseInt(s[3], 10) || tp?.volume || 100) / 100;
-    const file = s[4] ? normPath(s[4]) : '';
-    const out = [];
-    if (file) { out.push({ file, volume: vol }); return out; }
-    const nm = (set, sound) => `${this.SETS[set] || 'normal'}-hit${sound}`;
-    out.push({ name: nm(normal, 'normal'), index: idx, volume: vol });
-    if (note.hs & 2) out.push({ name: nm(add, 'whistle'), index: idx, volume: vol });
-    if (note.hs & 4) out.push({ name: nm(add, 'finish'), index: idx, volume: vol });
-    if (note.hs & 8) out.push({ name: nm(add, 'clap'), index: idx, volume: vol });
-    return out;
-  },
-};
-
-/** Loads sample buffers for a play (beatmap custom samples > skin > default). */
-class SampleBank {
-  constructor(setId) { this.setId = setId; this.cache = new Map(); }
-  async _beatmapSample(base) {
-    for (const ext of ['wav', 'ogg', 'mp3']) {
-      if (BeatmapManager.hasFile(this.setId, `${base}.${ext}`)) {
-        const b = await BeatmapManager.getFile(this.setId, `${base}.${ext}`);
-        if (b && b.size > 64) return AudioManager.decode(await b.arrayBuffer()).catch(() => null);
-        return null;
-      }
-    }
-    return undefined;
-  }
-  async get(spec) {
-    const key = spec.file ? `f:${spec.file}` : `${spec.name}:${spec.index || 0}`;
-    if (this.cache.has(key)) return this.cache.get(key);
-    const p = (async () => {
-      const useMap = Settings.get('audio.beatmapSamples');
-      if (spec.file) {
-        if (!useMap) return null;
-        const b = await BeatmapManager.getFile(this.setId, spec.file);
-        return b ? AudioManager.decode(await b.arrayBuffer()).catch(() => null) : null;
-      }
-      if (useMap && spec.index > 0) {
-        const r = await this._beatmapSample(spec.index === 1 ? spec.name : spec.name + spec.index);
-        if (r !== undefined) return r;
-      }
-      return SkinManager.sample(spec.name);
-    })();
-    this.cache.set(key, p);
-    return p;
-  }
-  async preload(specLists) {
-    const uniq = new Map();
-    for (const l of specLists) for (const s of l) uniq.set(s.file ? `f:${s.file}` : `${s.name}:${s.index || 0}`, s);
-    await Promise.all([...uniq.values()].map(s => this.get(s)));
-  }
-  play(specs) {
-    for (const s of specs) {
-      const p = this.cache.get(s.file ? `f:${s.file}` : `${s.name}:${s.index || 0}`);
-      if (p) p.then(b => b && AudioManager.play(b, { volume: s.volume ?? 1 }));
-    }
-  }
-}
 
 /* ===== 09a-osu-math.js ===== */
 /* OsuMath — osu!mania-accurate formulas.
@@ -4257,14 +4187,14 @@ class ManiaRenderer {
     const total = t.frames.length > 1 ? Math.max(t.frames.length / t.fps * 1000, 300) : 360;
     if (el > total) { this.judgementFx = null; return; }
     const sk = Settings.get('skin.scale');
-    const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.18 - 0.18 * (el / 60) : 1);
-    const k = (this.legacy ? this.u : this.s * 0.8) * sk * pop;
+    const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.1 - 0.1 * (el / 60) : 1);
+    const k = (this.legacy ? this.u : this.s * 0.8) * 0.6 * sk * pop;
     const w = t.w * k, hh = t.h * k;
     const y = L.scorePosition * this.s;
     this.ctx.globalAlpha = el > total - 100 ? (total - el) / 100 : 1;
     this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
     if (fx.el) {
-      const ctx = this.ctx, size = Math.round(9 * this.s);
+      const ctx = this.ctx, size = Math.round(6.5 * this.s);
       ctx.font = `900 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
       ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
@@ -4329,16 +4259,35 @@ class ManiaRenderer {
     ctx.fillStyle = '#fff';
     ctx.fillRect(cx - 1, y - hh * 3, 2, hh * 6);
   }
+  /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
+   *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */
   _drawHealth(v) {
-    const ctx = this.ctx, s = this.s;
-    const x = this.stageX + this.stageW + 6 * s, top = this.H * 0.18, bottom = this.hitY, w = 3.2 * s;
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, top, w, bottom - top);
-    const hh = (bottom - top) * v;
-    const grd = ctx.createLinearGradient(0, bottom - hh, 0, bottom);
-    const P = DefaultSkin.palette();
-    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : P.n2[0]); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : P.n2[1]);
-    ctx.fillStyle = grd;
-    ctx.fillRect(x, bottom - hh, w, hh);
+    const ctx = this.ctx, s = this.s, now = performance.now();
+    const dt = Math.min(100, now - (this._hpT || now)); this._hpT = now;
+    this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
+    const hp = clamp(this._hp, 0, 1);
+    const w = Math.max(4, 3.4 * s), x = this.stageX + this.stageW + 5 * s, top = this.H * 0.06, bottom = this.H;
+    const len = bottom - top, r = w / 2;
+    const bar = (y0, y1) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y0, w, y1 - y0, [r, r, 0, 0]) : ctx.rect(x, y0, w, y1 - y0); ctx.fill(); };
+    // track
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; bar(top, bottom);
+    if (hp <= 0) return;
+    const low = hp < 0.3;
+    const y = bottom - len * hp;
+    const accent = this._hpAccent || (this._hpAccent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ff66ab');
+    const c1 = low ? '#ff5a6e' : accent, c2 = low ? '#ff9a6e' : '#ffffff';
+    const pulse = low ? 0.55 + 0.45 * Math.abs(Math.sin(now / 220)) : 1;
+    // soft glow (a wider translucent bar is much cheaper than shadowBlur)
+    ctx.globalAlpha = 0.18 * pulse; ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w, y - w, w * 3, bottom - y + w, [w * 1.5, w * 1.5, 0, 0]) : ctx.rect(x - w, y - w, w * 3, bottom - y + w); ctx.fill();
+    ctx.globalAlpha = 1;
+    const grd = ctx.createLinearGradient(0, y, 0, bottom);
+    grd.addColorStop(0, c2); grd.addColorStop(0.08, c1); grd.addColorStop(1, c1);
+    ctx.fillStyle = grd; bar(y, bottom);
+    // bright head
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9 * pulse;
+    ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
   }
   _drawKeyOverlay(g) {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;
@@ -4840,7 +4789,6 @@ const Toolbar = {
         btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
-        btn('download', 'Beatmap listing', 'Browse and download beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
         this.npBtn,
         this.clock = h('div.tb-clock'),
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Account', onclick: e => this.userMenu(e) })),
@@ -5889,14 +5837,10 @@ const GameplayScreen = {
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = baseNotes.length ? Math.max(...baseNotes.map(n => n.end)) : 0;
-    const tpIdx = t => { const tps = bm.timingPoints; let i = bsearchLE(tps, t + 2, 'time'); return i >= 0 ? tps[i] : tps[0]; };
-    const specs = baseNotes.map(n => (n.hsSpec = HitSounds.resolve(n, bm, tpIdx)));
-    const bank = new SampleBank(rec.setId);
-    await bank.preload(specs);
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, specs, bank, modConfig,
+      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
       barlines: BeatmapParser.barlines(bm, endTime), barIdx: 0, endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
@@ -5978,7 +5922,7 @@ const GameplayScreen = {
     clearEl(this.hud);
     this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
-    this.progEl = h('i'); this.timeEl = h('div.hud-time');
+    this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
     this.kpsEl = h('div.hud-kps');
@@ -5986,9 +5930,7 @@ const GameplayScreen = {
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl, this.kpsEl),
-      this.timeEl,
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
-      h('div.hud-meta', h('b', s.rec.title), ` — ${s.rec.artist}`, h('br'), `[${s.rec.version}] · ${s.keys}K · ${SkinManager.current.name}`),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -6082,8 +6024,6 @@ const GameplayScreen = {
       const t = `${(this._kps || []).length} KPS`;
       if (this.kpsEl.textContent !== t) this.kpsEl.textContent = t;
     }
-    const tt = `${fmtTime(Math.max(0, now) / s.rate)} / ${fmtTime(dur / s.rate)}`;
-    if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
@@ -6257,12 +6197,6 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       this._lastCombo = s.engine.score.combo;
     } else if (e.type === 'press') {
       (this._kps || (this._kps = [])).push(realNow);
-      if (Settings.get('audio.hitsounds')) {
-        const col = s.engine.columns[e.col];
-        let n = e.note;
-        if (!n) n = col[col.length - 1];
-        if (n && n.hsSpec) s.bank.play(n.hsSpec);
-      }
     } else if (e.type === 'earlyRelease') {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;
@@ -7513,10 +7447,23 @@ const ExplorerScreen = {
   },
   renderResults() {
     if (!this.grid) return;
+    // keep the scroll position: re-rendering (more results, a finished download) must not jump to the top
+    const scroller = this.grid.closest('.screen-body');
+    const top = scroller ? scroller.scrollTop : 0;
     clearEl(this.grid);
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
     for (const set of list) this.grid.append(this.card(set));
     this.renderStatus();
+    if (scroller) scroller.scrollTop = top;
+  },
+  /** Only swap the play/pause icons — previewing never re-renders the list. */
+  syncPreviewButtons() {
+    if (!this.grid) return;
+    for (const b of $$('.ex-play', this.grid)) {
+      const id = Number(b.closest('.ex-card')?.dataset.id);
+      const ic = this.previewId === id ? 'pause' : 'play';
+      if (b.dataset.ic !== ic) { b.dataset.ic = ic; clearEl(b).append(icon(ic)); }
+    }
   },
   card(set) {
     const owned = this.owned(set.id);
@@ -7573,16 +7520,16 @@ const ExplorerScreen = {
     if (old) old.replaceWith(this.card(set));
   },
   togglePreview(id) {
-    if (this.previewId === id) { this.stopPreview(); this.renderResults(); return; }
+    if (this.previewId === id) { this.stopPreview(); this.syncPreviewButtons(); return; }
     this.stopPreview();
     AudioManager.resume();
     if (Music.playing) { Music.pause(); this._resumeMusic = true; }
     const a = new Audio(OnlineBeatmaps.previewURL(id));
     a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
     a.play().catch(() => Toast.err('Preview unavailable'));
-    a.onended = () => { this.stopPreview(); this.renderResults(); };
+    a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
     this.audio = a; this.previewId = id;
-    this.renderResults();
+    this.syncPreviewButtons();
   },
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
@@ -7600,7 +7547,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
   'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
-  'audio.master', 'audio.music', 'audio.effects', 'audio.offset', 'audio.hitsounds',
+  'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',
 ]);

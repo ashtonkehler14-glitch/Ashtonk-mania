@@ -220,10 +220,23 @@ const ExplorerScreen = {
   },
   renderResults() {
     if (!this.grid) return;
+    // keep the scroll position: re-rendering (more results, a finished download) must not jump to the top
+    const scroller = this.grid.closest('.screen-body');
+    const top = scroller ? scroller.scrollTop : 0;
     clearEl(this.grid);
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
     for (const set of list) this.grid.append(this.card(set));
     this.renderStatus();
+    if (scroller) scroller.scrollTop = top;
+  },
+  /** Only swap the play/pause icons — previewing never re-renders the list. */
+  syncPreviewButtons() {
+    if (!this.grid) return;
+    for (const b of $$('.ex-play', this.grid)) {
+      const id = Number(b.closest('.ex-card')?.dataset.id);
+      const ic = this.previewId === id ? 'pause' : 'play';
+      if (b.dataset.ic !== ic) { b.dataset.ic = ic; clearEl(b).append(icon(ic)); }
+    }
   },
   card(set) {
     const owned = this.owned(set.id);
@@ -280,16 +293,16 @@ const ExplorerScreen = {
     if (old) old.replaceWith(this.card(set));
   },
   togglePreview(id) {
-    if (this.previewId === id) { this.stopPreview(); this.renderResults(); return; }
+    if (this.previewId === id) { this.stopPreview(); this.syncPreviewButtons(); return; }
     this.stopPreview();
     AudioManager.resume();
     if (Music.playing) { Music.pause(); this._resumeMusic = true; }
     const a = new Audio(OnlineBeatmaps.previewURL(id));
     a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
     a.play().catch(() => Toast.err('Preview unavailable'));
-    a.onended = () => { this.stopPreview(); this.renderResults(); };
+    a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
     this.audio = a; this.previewId = id;
-    this.renderResults();
+    this.syncPreviewButtons();
   },
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
