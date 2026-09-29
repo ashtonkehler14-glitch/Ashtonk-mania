@@ -3,7 +3,7 @@
 //  - Matchmaker (Durable Object, single instance) pairs players for "Quick match".
 //  - RoomLogic holds all room rules and is plain JS so it can be unit-tested in Node.
 //
-// Protocol (client → server): hello {name, create}, chat {text}, suggest {map}, map {map, mods, modConfig} (host),
+// Protocol (client → server): hello {name, create}, chat {text}, suggest {map}, diff {diff}, map {map, mods, modConfig} (host),
 // hasMap {has}, ready {ready}, start (host), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
 // Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig},
 // opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s}.
@@ -59,7 +59,7 @@ export class RoomLogic {
   snapshot() {
     return {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
-      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, hasMap: p.hasMap, playing: p.playing })),
+      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff })),
     };
   }
   roomMsg() { return { to: 'all', msg: { t: 'room', room: this.snapshot() } }; }
@@ -70,7 +70,7 @@ export class RoomLogic {
     if (this.players.length >= MAX_PLAYERS) return { ok: false, error: 'This room is full.' };
     if (this.state !== 'lobby') return { ok: false, error: 'A match is in progress in this room.' };
     this.created = true;
-    const p = { id, name: str(name, 24) || 'Player', ready: false, hasMap: false, playing: false, finished: null, live: null };
+    const p = { id, name: str(name, 24) || 'Player', ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     return { ok: true, out: [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot() } }, this.roomMsg(), this.system(`${p.name} joined the room`)] };
@@ -82,7 +82,7 @@ export class RoomLogic {
     const out = [];
     if (this.state === 'playing' && p.playing) {
       if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), forfeit: true };
-      this.departed.push({ id: p.id, name: p.name, ...p.finished, left: true });
+      this.departed.push({ id: p.id, name: p.name, diff: p.diff, ...p.finished, left: true });
     }
     this.players = this.players.filter(x => x !== p);
     if (this.state === 'playing') out.push(...this.checkFinished(true));
@@ -119,9 +119,16 @@ export class RoomLogic {
         this.map = map;
         this.mods = Array.isArray(m.mods) ? m.mods.filter(x => typeof x === 'string' && /^[A-Z]{2,3}$/.test(x) && x !== 'AT').slice(0, 12) : [];
         this.modConfig = m.modConfig && typeof m.modConfig === 'object' ? Object.fromEntries(Object.entries(m.modConfig).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
-        for (const x of this.players) { x.ready = false; if (x.id !== id) x.hasMap = false; }
+        for (const x of this.players) { x.ready = false; x.diff = null; if (x.id !== id) x.hasMap = false; }
         p.hasMap = true;
         return [this.roomMsg(), this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
+      }
+      case 'diff': {
+        // each player may play any difficulty of the room's beatmap set
+        if (this.state !== 'lobby' || !this.map) return [];
+        const d = m.diff && typeof m.diff === 'object' ? m.diff : null;
+        p.diff = d ? { version: str(d.version, 200), stars: num(d.stars, 0, 100), keys: Math.round(num(d.keys, 1, 18, 4)) } : null;
+        return [this.roomMsg()];
       }
       case 'hasMap': p.hasMap = !!m.has; if (!p.hasMap) p.ready = false; return [this.roomMsg()];
       case 'ready':
@@ -167,7 +174,7 @@ export class RoomLogic {
     const done = active.every(p => p.finished);
     // someone left mid-match: the player still here wins by forfeit straight away
     if (!done && !(someoneLeft && active.length === 1)) return [];
-    const row = p => ({ id: p.id, name: p.name, ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), pending: true }) });
+    const row = p => ({ id: p.id, name: p.name, diff: p.diff, ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), pending: true }) });
     const rows = [...active.map(row), ...this.departed];
     const order = (a, b) => (a.forfeit - b.forfeit) || (b.score - a.score) || (b.accuracy - a.accuracy);
     rows.sort(order);

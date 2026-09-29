@@ -162,24 +162,53 @@ for (const p of [alice, bob]) {
   await p.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
   await p.route('https://assets.ppy.sh/**', r => r.abort());
 }
-await alice.click('.mp-tab:nth-child(2)');
-await alice.click('.mp-tabpane [data-src="online"]');
-await alice.fill('.mp-sr-box input', 'online');
-await alice.waitForFunction(() => [...document.querySelectorAll('.mp-sr-row')].some(r => r.textContent.includes('Online Hard')), null, { timeout: 5000 });
+// the host opens the beatmap provider from the map panel ("Search beatmaps" popup), searches online and picks
+await alice.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /Search beatmaps/.test(b.textContent)).click());
+await alice.waitForSelector('.mp-search-dlg', { timeout: 5000 });
+check('"Search beatmaps" opens the beatmap provider search in the room', await alice.evaluate(() => document.querySelector('.mp-search-dlg [data-src="online"]').classList.contains('on')));
+await alice.fill('.mp-search-dlg .mp-sr-box input', 'online');
+await alice.waitForFunction(() => [...document.querySelectorAll('.mp-search-dlg .mp-sr-row')].some(r => r.textContent.includes('Online Hard')), null, { timeout: 5000 });
 check('room search finds songs online', true);
-await alice.evaluate(() => [...document.querySelectorAll('.mp-sr-row')].find(r => r.textContent.includes('Online Hard')).querySelector('button').click());
+await shot(alice, 'mp-search-popup');
+await alice.evaluate(() => [...document.querySelectorAll('.mp-search-dlg .mp-sr-row')].find(r => r.textContent.includes('Online Hard')).querySelector('button').click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Hard', null, { timeout: 15000 });
-check('host picks an online beatmap (downloaded on pick)', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
-await bob.waitForSelector('.mp-map-actions .btn.primary', { timeout: 5000 });
-await bob.click('.mp-map-actions .btn.primary');
+await alice.waitForFunction(() => !document.querySelector('.mp-search-dlg'), null, { timeout: 3000 }).catch(() => {});
+check('host picks an online beatmap from the popup (downloaded on pick, popup closes)', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242) && !document.querySelector('.mp-search-dlg')));
+// the other player installs it automatically — no click — and only for the room
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 15000 });
-check('guest downloads the missing beatmap from the room', true);
+check('the other player installs the room beatmap automatically', await bob.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
+await bob.waitForSelector('.mp-temp', { timeout: 5000 });
+check('it is marked as installed only for this room', await bob.evaluate(() => AshtonkMania.Multiplayer.isTemp()));
+await shot(bob, 'mp-temp');
+
+// each player picks their own difficulty
+await bob.selectOption('.mp-diff select', { label: await bob.evaluate(() => [...document.querySelectorAll('.mp-diff option')].find(o => o.textContent.startsWith('Online Easy')).textContent) });
+await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b.diff && b.diff.version === 'Online Easy'; }, null, { timeout: 5000 });
+check('players choose their own difficulty (shown to the room)', await alice.evaluate(() => [...document.querySelectorAll('.mp-pdiff')].some(e => e.textContent.includes('Online Easy'))));
+await alice.click('.mp-ready'); await bob.click('.mp-ready');
+await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
+await alice.click('.mp-start');
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s, null, { timeout: 15000 })));
+const played = [await alice.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version), await bob.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version)];
+check('each player plays the difficulty they chose', played[0] === 'Online Hard' && played[1] === 'Online Easy', played.join(' / '));
+for (const p of [bob, alice]) {
+  await p.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 15000 });
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('.dialog', { timeout: 5000 }).catch(() => {});
+  if (await p.$('.dialog .btn.danger')) await p.click('.dialog .btn.danger');
+  await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 8000 });
+}
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Hard', null, { timeout: 10000 });
+check('results show which difficulty each player played', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.rows.find(r => r.name === 'Bob').diff.version === 'Online Easy'));
 
 // leaving: the other player becomes host
 await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1 && AshtonkMania.Multiplayer.isHost(), null, { timeout: 5000 });
 check('host left → remaining player becomes host', true);
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
+await bob.waitForFunction(() => !AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242), null, { timeout: 5000 }).catch(() => {});
+check('leaving the room removes the beatmap that was installed only for it', await bob.evaluate(() => !AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242) && AshtonkMania.BeatmapManager.sets.length === 1));
+check('beatmaps you picked yourself stay', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
 
 // quick match pairs two searching players
 await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer', { force: true }));

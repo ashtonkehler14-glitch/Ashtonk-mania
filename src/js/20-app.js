@@ -14,6 +14,7 @@ const App = {
       await this.installBundledSkin(say);
       say('Loading beatmaps…');
       await BeatmapManager.init();
+      await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
       await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init()]);
       say('Preparing stage…');
     } catch (e) {

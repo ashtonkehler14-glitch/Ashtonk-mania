@@ -131,3 +131,16 @@ test('suggestions are broadcast as chat with the beatmap attached (online-only m
   assert.equal(out[0].msg.suggest.hash, '');
   assert.equal(r.message('b', { t: 'suggest', map: { title: 'No ids' } }).length, 0);
 });
+
+test('each player can pick their own difficulty of the room beatmap; a new map resets the choices', () => {
+  const r = room(); ready(r);
+  r.message('b', { t: 'diff', diff: { version: '4K Easy', stars: 1.2, keys: 4 } });
+  assert.equal(r.snapshot().players.find(p => p.id === 'b').diff.version, '4K Easy');
+  r.message('a', { t: 'start' });
+  r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97 } });
+  const res = msgs(r.message('b', { t: 'finish', result: { score: 950000, accuracy: 0.99 } }), 'results')[0].msg.results;
+  assert.equal(res.rows.find(x => x.id === 'b').diff.version, '4K Easy');
+  assert.equal(res.rows.find(x => x.id === 'a').diff, null, 'no choice = the host\'s difficulty');
+  r.message('a', { t: 'map', map: { ...MAP, hash: 'other' } });
+  assert.equal(r.get('b').diff, null);
+});

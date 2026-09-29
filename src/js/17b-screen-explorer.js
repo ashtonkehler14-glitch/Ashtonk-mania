@@ -105,12 +105,12 @@ const OnlineBeatmaps = {
     throw lastErr || new Error('Download failed');
   },
   /** Download a set and import it into the library (remembering its online id). */
-  async downloadAndImport(set, onProgress) {
+  async downloadAndImport(set, onProgress, { quiet = false } = {}) {
     const file = await this.download(set.id, onProgress);
     const report = await BeatmapManager.importFiles([file]);
     if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
     for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
-    Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
+    if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
     Bus.emit('library:changed');
     return report;
   },

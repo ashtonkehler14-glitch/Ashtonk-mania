@@ -4,6 +4,9 @@
 const Multiplayer = {
   ws: null, room: null, me: null, code: null, quick: false,
   chat: [], opp: null, lastResults: null, rtt: 80, _keep: 0,
+  temp: new Set(),   // beatmap sets downloaded automatically for this room (removed again when leaving)
+  fetch: null,       // {onlineSetId, progress, error, done} — the automatic download of the room's beatmap
+  myDiffId: null,    // the difficulty (local map id) this player chose from the room's beatmap set
 
   available() { return /^https?:$/.test(location.protocol); },
   inRoom() { return !!(this.ws && this.room); },
@@ -42,7 +45,7 @@ const Multiplayer = {
       ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, create })); this.ping(); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; settled = true; resolve(); this.startKeepAlive(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -58,6 +61,8 @@ const Multiplayer = {
   },
   leave(silent = false) {
     this.stopKeepAlive();
+    this.myDiffId = null; this.fetch = null;
+    if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
     this.ws = null; this.room = null; this.me = null; this.opp = null;
@@ -79,8 +84,11 @@ const Multiplayer = {
     switch (m.t) {
       case 'room': {
         const hadOpp = !!this.opponent();
+        const prevHash = this.room && this.room.map && this.room.map.hash;
         this.room = m.room;
+        if ((m.room.map && m.room.map.hash) !== prevHash) this.myDiffId = null;
         this.syncHasMap();
+        this.autoFetch();
         if (!hadOpp && this.opponent()) UISounds.click();
         Bus.emit('mp:changed');
         break;
@@ -109,6 +117,54 @@ const Multiplayer = {
     if (map.onlineId > 0) for (const m of BeatmapManager.maps.values()) if (m.onlineId === map.onlineId && !m.problems.length) return m;
     return null;
   },
+  /** The difficulty this player will play: their own pick from the room's set, else the host's. */
+  myMap() {
+    const local = this.localMap();
+    if (!local) return null;
+    const d = this.myDiffId && BeatmapManager.maps.get(this.myDiffId);
+    return d && d.setId === local.setId && !d.problems.length ? d : local;
+  },
+  chooseDiff(mapId) {
+    const d = BeatmapManager.maps.get(mapId), local = this.localMap();
+    if (!d || !local || d.setId !== local.setId) return;
+    this.myDiffId = d.id === local.id ? null : d.id;
+    this.send({ t: 'diff', diff: this.myDiffId ? { version: d.version, stars: d.stars, keys: d.keys } : null });
+    Bus.emit('mp:changed');
+  },
+
+  /** Download the room's beatmap straight away when this player doesn't have it. It's installed only for the
+   *  room: `cleanupTemp()` removes it when they leave (unless they choose to keep it). */
+  autoFetch() {
+    const map = this.room && this.room.map;
+    if (!map || this.isHost() || this.localMap(map) || !(map.onlineSetId > 0)) return;
+    if (this.fetch && this.fetch.onlineSetId === map.onlineSetId && !this.fetch.error) return;
+    const f = this.fetch = { onlineSetId: map.onlineSetId, progress: 0 };
+    const before = new Set(BeatmapManager.sets.map(x => x.id));
+    let last = 0;
+    OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }, p => {
+      f.progress = p;
+      if (performance.now() - last > 150) { last = performance.now(); Bus.emit('mp:fetch', f); }
+    }, { quiet: true }).then(report => {
+      for (const set of report.sets) if (!before.has(set.id)) this.temp.add(set.id);
+      this.saveTemp();
+      f.done = true;
+      if (this.fetch === f) Bus.emit('mp:changed');
+    }).catch(e => { f.error = e.message; if (this.fetch === f) Bus.emit('mp:changed'); });
+  },
+  isTemp(map = this.room && this.room.map) { const l = this.localMap(map); return !!(l && this.temp.has(l.setId)); },
+  keepTemp() { const l = this.localMap(); if (l) { this.temp.delete(l.setId); this.saveTemp(); Toast.ok('Kept in your library', `${l.artist} - ${l.title}`); Bus.emit('mp:changed'); } },
+  saveTemp() { DB.kvSet('mp.tempSets', [...this.temp]).catch(() => {}); },
+  /** Remove beatmaps that were only installed for a room (also run at startup, in case the tab was closed). */
+  async cleanupTemp() {
+    const ids = new Set([...this.temp, ...(await DB.kvGet('mp.tempSets', []).catch(() => []))]);
+    this.temp.clear();
+    await DB.kvSet('mp.tempSets', []).catch(() => {});
+    for (const id of ids) {
+      if (!BeatmapManager.setById.has(id)) continue;
+      if (Music.meta && Music.meta.setId === id) Music.stop(0);
+      await BeatmapManager.removeSet(id).catch(e => console.warn('temp cleanup', e));
+    }
+  },
   syncHasMap() {
     const me = this.self();
     if (!me || !this.room.map) return;
@@ -121,7 +177,7 @@ const Multiplayer = {
       onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => x !== 'AT'), modConfig: ModSystem.config() });
   },
   launch(m) {
-    const local = this.localMap(m.map);
+    const local = this.localMap(m.map) && this.myMap();
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
     this.opp = null;
     const startAt = performance.now() + m.delay - this.rtt / 2;
@@ -138,13 +194,113 @@ Bus.on('screen:changed', name => {
 });
 Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap());
 
+/** Beatmap search used inside a room (the "Search songs" tab and the "Search beatmaps" popup): your library or
+ *  osu! beatmaps online. The host picks directly (online maps download first); other players suggest. */
+function makeRoomSearch(defaultSrc = 'local', onDone = null) {
+  let src = defaultSrc, tok = null, timer = 0;
+  const input = h('input.input', { type: 'search', placeholder: 'Search title, artist, mapper…', 'aria-label': 'Search beatmaps', spellcheck: 'false' });
+  const list = h('div.mp-sr-list');
+  const srcBtn = (id, label) => h(`button.chip${src === id ? '.on' : ''}`, { dataset: { src: id }, onclick: () => {
+    src = id; $$('[data-src]', el).forEach(b => b.classList.toggle('on', b.dataset.src === id)); run(true); input.focus();
+  } }, label);
+  const el = h('div.mp-tabpane', h('div.row', h('div.mp-sr-box', icon('search'), input), srcBtn('local', 'My beatmaps'), srcBtn('online', 'Online')), list);
+  input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') run(true); });
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => run(), src === 'online' ? 450 : 80); });
+
+  const row = (info, local, set, host) => {
+    const label = host ? 'Pick' : 'Suggest';
+    const act = h('button.btn.sm' + (host ? '.primary' : ''), { onclick: async () => {
+      act.disabled = true;
+      try {
+        let m = local;
+        if (!m && set) {
+          act.textContent = 'Downloading…';
+          await OnlineBeatmaps.downloadAndImport(set, p => { if (p != null) act.textContent = `${Math.round(p * 100)}%`; });
+          m = [...BeatmapManager.maps.values()].find(x => x.onlineId === info.onlineId) || null;
+        }
+        if (host) {
+          if (!m) throw new Error('That difficulty couldn\'t be found after downloading.');
+          Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+          Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
+        } else {
+          const s = m && BeatmapManager.setById.get(m.setId);
+          Multiplayer.send({ t: 'suggest', map: m ? { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
+            onlineSetId: s && s.onlineId > 0 ? s.onlineId : info.onlineSetId || -1, onlineId: m.onlineId > 0 ? m.onlineId : info.onlineId || -1 } : { ...info } });
+          Toast.show('Suggested to the host', `${info.title} [${info.version}]`);
+        }
+        if (onDone) onDone();
+      } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
+      act.disabled = false; act.textContent = label;
+    } }, label);
+    return h('div.mp-sr-row', h('span.dp-icon', { style: { '--sc': starColour(info.stars) } }, `${info.keys}K`),
+      h('div.main', h('div.t', `${info.title}`, h('span.muted', ` · ${info.artist}`)), h('div.s', h('span', { style: { color: starColour(info.stars) } }, `★ ${info.stars.toFixed(2)}`), ` ${info.version}`, local ? '' : ' · online')),
+      act);
+  };
+
+  async function run(now = false) {
+    const q = input.value.trim(), host = Multiplayer.isHost();
+    api.host = host;
+    const t = tok = {};
+    if (src === 'local') {
+      clearEl(list);
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      // every word must appear (title, artist, mapper, tags or difficulty name); the difficulty name counts most
+      const collect = fuzzy => {
+        const rows = [];
+        for (const set of BeatmapManager.sets) {
+          const hay = `${set.artist} ${set.artistUnicode || ''} ${set.title} ${set.titleUnicode || ''} ${set.creator} ${set.tags || ''}`.toLowerCase();
+          for (const m of set.maps) {
+            if (m.problems.length) continue;
+            const ver = m.version.toLowerCase();
+            let score = 1;
+            for (const w of words) {
+              const f = ver.includes(w) ? 3 : hay.includes(w) ? 2 : fuzzy ? fuzzyScore(hay + ' ' + ver, w) : 0;
+              if (!f) { score = 0; break; }
+              score += f;
+            }
+            if (score) rows.push({ m, set, score });
+          }
+        }
+        return rows;
+      };
+      let rows = collect(false);
+      if (!rows.length && words.length) rows = collect(true);
+      rows.sort((a, b) => (b.score - a.score) || (b.set.added - a.set.added) || (a.m.stars - b.m.stars));
+      if (!rows.length) { list.append(h('div.mp-sr-empty', BeatmapManager.sets.length ? 'No matches in your library — try Online.' : 'Your library is empty — search Online.')); return; }
+      for (const { m } of rows.slice(0, 60)) list.append(row({ title: m.title, artist: m.artist, version: m.version, creator: m.creator, stars: m.stars, keys: m.keys }, m, null, host));
+      return;
+    }
+    if (!q && !now) { clearEl(list).append(h('div.mp-sr-empty', 'Type to search osu!mania beatmaps online.')); return; }
+    clearEl(list).append(h('div.mp-sr-empty', h('span.spinner'), ' Searching…'));
+    try {
+      const res = await OnlineBeatmaps.search({ q, keys: [], status: 'any', page: 0, minStars: 0, maxStars: 99, sort: '' });
+      if (t !== tok) return;
+      clearEl(list);
+      if (!res.sets.length) { list.append(h('div.mp-sr-empty', 'No beatmaps found.')); return; }
+      for (const set of res.sets.slice(0, 25)) {
+        const owned = BeatmapManager.sets.find(s => s.onlineId === set.id);
+        list.append(h('div.mp-sr-set', `${set.artist} - ${set.title}`, h('span.muted', ` · mapped by ${set.creator}`), owned ? h('span.tag.accent', 'IN LIBRARY') : null));
+        for (const d of set.diffs.slice(0, 8)) {
+          const local = owned ? owned.maps.find(m => m.onlineId === d.id) || null : null;
+          list.append(row({ title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id }, local, set, host));
+        }
+      }
+    } catch (e) {
+      if (t !== tok) return;
+      clearEl(list).append(h('div.mp-sr-empty.err', e.message));
+    }
+  }
+  const api = { el, input, run, host: null };
+  return api;
+}
+
 const MultiplayerScreen = {
   tab: 'multiplayer',
   enter() {
     this.el = h('div.mp');
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
-    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m))];
+    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => this.updateFetch())];
     this.render();
     return this.el;
   },
@@ -212,13 +368,14 @@ const MultiplayerScreen = {
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
     // beatmap search
-    const search = this.buildSearch();
+    this.search = makeRoomSearch('local');
+    const search = this.search.el;
     const tabs = [['Chat', chat], ['Search songs', search]];
     const tabBar = h('div.mp-tabs', ...tabs.map(([name, pane], i) => h(`button.mp-tab${i === 0 ? '.on' : ''}`, { onclick: e => {
       $$('.mp-tab', tabBar).forEach(b => b.classList.toggle('on', b === e.currentTarget));
       tabs.forEach(([, p]) => { p.hidden = p !== pane; });
       UISounds.click();
-      if (pane === search) { this.searchInput.focus(); this.runSearch(); }
+      if (pane === search) { this.search.input.focus(); this.search.run(); }
     } }, name)));
     search.hidden = true;
     const side = h('div.mp-side', tabBar, chat, search);
@@ -240,17 +397,29 @@ const MultiplayerScreen = {
       ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search for one.' : 'Waiting for the host to pick a beatmap — you can search and suggest one.')];
     const mapActions = h('div.mp-map-actions');
     if (host) mapActions.append(h('button.btn', { onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), map ? 'Change beatmap' : 'Select beatmap'));
-    else if (map && !local) {
-      if (map.onlineSetId > 0) {
-        const dl = h('button.btn.primary', { onclick: async () => {
-          dl.disabled = true; dl.textContent = 'Downloading…';
-          try { await OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }, p => { if (p != null) dl.textContent = `Downloading… ${Math.round(p * 100)}%`; }); }
-          catch (e) { Toast.err('Download failed', e.message); dl.disabled = false; dl.textContent = 'Download beatmap'; }
-        } }, icon('download'), 'Download beatmap');
-        mapActions.append(dl);
-      } else mapActions.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
+    mapActions.append(h('button.btn', { onclick: () => this.openSearch() }, icon('search'), 'Search beatmaps'));
+    const status = h('div.mp-map-status');
+    this.fetchEl = null;
+    if (map && !local) {
+      const f = Multiplayer.fetch;
+      if (!(map.onlineSetId > 0)) status.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
+      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Download failed: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
+      else { this.fetchEl = h('span'); status.append(h('span.spinner'), this.fetchEl); this.updateFetch(); }
+    } else if (local && Multiplayer.isTemp(map)) {
+      status.append(h('span.mp-temp', 'Installed for this room — removed when you leave'), h('button.btn.sm', { onclick: () => Multiplayer.keepTemp() }, 'Keep'));
     }
-    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, mapActions)));
+    // each player chooses their own difficulty from the room's beatmap set
+    let diffPick = null;
+    if (local) {
+      const set = BeatmapManager.setById.get(local.setId);
+      const diffs = set ? set.maps.filter(m => !m.problems.length).sort((a, b) => a.stars - b.stars) : [local];
+      const mine = Multiplayer.myMap() || local;
+      const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version} · ${m.keys}K · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
+      sel.addEventListener('change', () => { UISounds.click(); Multiplayer.chooseDiff(sel.value); });
+      sel.addEventListener('keydown', e => e.stopPropagation());
+      diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
+    }
+    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, diffPick, mapActions, status.childNodes.length ? status : null)));
 
     // players
     const slot = p => {
@@ -259,7 +428,8 @@ const MultiplayerScreen = {
       const state = !r.map ? '' : !p.hasMap ? 'Missing beatmap' : p.ready ? 'Ready' : 'Not ready';
       return h(`div.mp-player${p.ready ? '.ready' : ''}`,
         isMe ? ProfileManager.avatarEl(44) : h('div.avatar.avatar-mono', { style: { width: '44px', height: '44px', fontSize: '20px' } }, (p.name || '?').slice(0, 1).toUpperCase()),
-        h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
+        h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
+          r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null),
         h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
     clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), slot(me), slot(opp)));
@@ -275,105 +445,26 @@ const MultiplayerScreen = {
     const startBtn = host ? h('button.mp-start', { disabled: !allReady, title: allReady ? '' : 'Both players must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
     clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
     // host/guest can change (Pick ↔ Suggest)
-    if (this.searchPane && !this.searchPane.hidden && this._searchHost !== host) this.runSearch();
+    if (this.search && !this.search.el.hidden && this.search.host !== host) this.search.run();
   },
 
-  // ── beatmap search inside the room (local library, or osu! beatmaps online)
-  buildSearch() {
-    this.searchSrc = this.searchSrc || 'local';
-    this.searchInput = h('input.input', { type: 'search', placeholder: 'Search title, artist, mapper…', 'aria-label': 'Search beatmaps', spellcheck: 'false' });
-    this.searchInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') this.runSearch(true); });
-    this.searchInput.addEventListener('input', () => { clearTimeout(this._searchT); this._searchT = setTimeout(() => this.runSearch(), this.searchSrc === 'online' ? 450 : 80); });
-    const srcBtn = (id, label) => h(`button.chip${this.searchSrc === id ? '.on' : ''}`, { dataset: { src: id }, onclick: e => {
-      this.searchSrc = id; $$('[data-src]', this.searchPane).forEach(b => b.classList.toggle('on', b.dataset.src === id)); this.runSearch(true);
-    } }, label);
-    this.searchResults = h('div.mp-sr-list');
-    this.searchPane = h('div.mp-tabpane', h('div.row', h('div.mp-sr-box', icon('search'), this.searchInput), srcBtn('local', 'My beatmaps'), srcBtn('online', 'Online')), this.searchResults);
-    return this.searchPane;
+  updateFetch() {
+    const f = Multiplayer.fetch;
+    if (this.fetchEl && f) this.fetchEl.textContent = ` Downloading the beatmap for this room… ${f.progress != null ? Math.round(f.progress * 100) + '%' : ''}`;
   },
-  async runSearch(now = false) {
-    const q = this.searchInput.value.trim(), host = Multiplayer.isHost();
-    this._searchHost = host;
-    const tok = this._searchTok = {};
-    const list = this.searchResults;
-    if (this.searchSrc === 'local') {
-      clearEl(list);
-      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-      // every word must appear (title, artist, mapper, tags or difficulty name); the difficulty name counts most
-      const collect = fuzzy => {
-        const rows = [];
-        for (const set of BeatmapManager.sets) {
-          const hay = `${set.artist} ${set.artistUnicode || ''} ${set.title} ${set.titleUnicode || ''} ${set.creator} ${set.tags || ''}`.toLowerCase();
-          for (const m of set.maps) {
-            if (m.problems.length) continue;
-            const ver = m.version.toLowerCase();
-            let score = 1;
-            for (const w of words) {
-              const f = ver.includes(w) ? 3 : hay.includes(w) ? 2 : fuzzy ? fuzzyScore(hay + ' ' + ver, w) : 0;
-              if (!f) { score = 0; break; }
-              score += f;
-            }
-            if (score) rows.push({ m, set, score });
-          }
-        }
-        return rows;
-      };
-      let rows = collect(false);
-      if (!rows.length && words.length) rows = collect(true);
-      rows.sort((a, b) => (b.score - a.score) || (b.set.added - a.set.added) || (a.m.stars - b.m.stars));
-      if (!rows.length) { list.append(h('div.mp-sr-empty', BeatmapManager.sets.length ? 'No matches in your library — try Online.' : 'Your library is empty — search Online.')); return; }
-      for (const { m } of rows.slice(0, 60)) list.append(this.resultRow({ title: m.title, artist: m.artist, version: m.version, creator: m.creator, stars: m.stars, keys: m.keys }, m, null, host));
-      return;
-    }
-    // online
-    if (!q && !now) { clearEl(list).append(h('div.mp-sr-empty', 'Type to search osu!mania beatmaps online.')); return; }
-    clearEl(list).append(h('div.mp-sr-empty', h('span.spinner'), ' Searching…'));
-    try {
-      const res = await OnlineBeatmaps.search({ q, keys: [], status: 'any', page: 0, minStars: 0, maxStars: 99, sort: '' });
-      if (tok !== this._searchTok) return;
-      clearEl(list);
-      if (!res.sets.length) { list.append(h('div.mp-sr-empty', 'No beatmaps found.')); return; }
-      for (const set of res.sets.slice(0, 25)) {
-        const owned = BeatmapManager.sets.find(s => s.onlineId === set.id);
-        list.append(h('div.mp-sr-set', `${set.artist} - ${set.title}`, h('span.muted', ` · mapped by ${set.creator}`), owned ? h('span.tag.accent', 'IN LIBRARY') : null));
-        for (const d of set.diffs.slice(0, 8)) {
-          const local = owned ? owned.maps.find(m => m.onlineId === d.id) || null : null;
-          list.append(this.resultRow({ title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id }, local, set, host));
-        }
-      }
-    } catch (e) {
-      if (tok !== this._searchTok) return;
-      clearEl(list).append(h('div.mp-sr-empty.err', e.message));
-    }
+  /** "Search beatmaps" popup (the beatmap provider): pick or suggest a song without leaving the room. */
+  openSearch() {
+    UISounds.click();
+    let o;
+    const search = makeRoomSearch('online', () => o && o.close());
+    const card = h('div.dialog.mp-search-dlg', { role: 'dialog', 'aria-label': 'Search beatmaps' },
+      h('div.row', h('h2', 'Search beatmaps'), h('span.grow'), h('button.icon-btn', { title: 'Close', onclick: () => o.close() }, icon('x'))),
+      h('div.muted', { style: { marginBottom: '8px' } }, Multiplayer.isHost() ? 'Pick the beatmap for this room — online beatmaps are downloaded for everyone.' : 'Find a beatmap and suggest it to the host.'),
+      search.el);
+    o = makeOverlay(card, {});
+    setTimeout(() => search.input.focus(), 60);
   },
-  /** One difficulty in the search results. `local` is the library map (if any); `set` the online set (if any). */
-  resultRow(info, local, set, host) {
-    const act = h('button.btn.sm' + (host ? '.primary' : ''), { onclick: async () => {
-      act.disabled = true;
-      try {
-        let m = local;
-        if (!m && set) {
-          act.textContent = 'Downloading…';
-          await OnlineBeatmaps.downloadAndImport(set, p => { if (p != null) act.textContent = `${Math.round(p * 100)}%`; });
-          m = [...BeatmapManager.maps.values()].find(x => x.onlineId === info.onlineId) || null;
-        }
-        if (host) {
-          if (!m) throw new Error('That difficulty couldn\'t be found after downloading.');
-          Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
-          Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
-        } else {
-          const s = m && BeatmapManager.setById.get(m.setId);
-          Multiplayer.send({ t: 'suggest', map: m ? { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
-            onlineSetId: s && s.onlineId > 0 ? s.onlineId : info.onlineSetId || -1, onlineId: m.onlineId > 0 ? m.onlineId : info.onlineId || -1 } : { ...info } });
-          Toast.show('Suggested to the host', `${info.title} [${info.version}]`);
-        }
-      } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
-      act.disabled = false; act.textContent = host ? 'Pick' : 'Suggest';
-    } }, host ? 'Pick' : 'Suggest');
-    return h('div.mp-sr-row', h('span.dp-icon', { style: { '--sc': starColour(info.stars) } }, `${info.keys}K`),
-      h('div.main', h('div.t', `${info.title}`, h('span.muted', ` · ${info.artist}`)), h('div.s', h('span', { style: { color: starColour(info.stars) } }, `★ ${info.stars.toFixed(2)}`), ` ${info.version}`, local ? '' : ' · online')),
-      act);
-  },
+
   appendChat(m, scroll = true) {
     if (!this.chatList || !this.chatList.isConnected && scroll) return;
     let el;
@@ -399,7 +490,7 @@ const MultiplayerScreen = {
     const verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
     const row = x => h(`div.mp-res-row${x.id === res.winner ? '.win' : ''}`,
       x.pending ? h('span.grade', '—') : gradeEl(x.forfeit ? 'F' : x.grade || 'D'),
-      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.pp ? ` · ${fmtInt(x.pp)}pp` : ''}`)),
+      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.pp ? ` · ${fmtInt(x.pp)}pp` : ''}${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
       h('div.mp-res-score', fmtScore(x.score)));
     return h(`div.mp-results.${res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost'}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),

@@ -993,3 +993,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
   .ex-left { width: 58px; }
   .ex-meta { gap: 3px; font-size: .7rem; }
 }
+.mp-map-status { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: .85rem; color: var(--text-2); flex-wrap: wrap; }
+.mp-temp { color: var(--blue); }
+.mp-diff { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+.mp-diff .select { height: 32px; max-width: 320px; font-size: .85rem; }
+.mp-pdiff { font-size: .75rem; color: var(--muted); margin-top: 1px; }
+.mp-search-dlg { width: min(760px, calc(100vw - 32px)); height: min(640px, calc(100vh - 60px)); display: flex; flex-direction: column; }
+.mp-search-dlg h2 { margin: 0; }
+.mp-search-dlg .mp-tabpane { padding: 0; min-height: 0; }
