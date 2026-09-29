@@ -183,24 +183,6 @@ const BeatmapParser = {
     return segs;
   },
 
-  /** Barline times (every measure of every uninherited section, omitting "omit first barline" effect). */
-  barlines(bm, endTime) {
-    const red = this.timing(bm).red;
-    const out = [];
-    for (let i = 0; i < red.length; i++) {
-      const tp = red[i];
-      const until = i + 1 < red.length ? red[i + 1].time : endTime + 1;
-      const step = tp.beatLength * (tp.meter || 4);
-      if (step < 50) continue;
-      for (let k = (tp.effects & 8) ? 1 : 0; k < 100000; k++) {
-        const t = tp.time + k * step;
-        if (t >= until - 1) break;
-        out.push(t);
-      }
-    }
-    return out;
-  },
-
   /** Compute summary stats + star rating for library display. */
   analyse(bm) {
     const notes = this.toManiaNotes(bm);

@@ -1715,24 +1715,6 @@ const BeatmapParser = {
     return segs;
   },
 
-  /** Barline times (every measure of every uninherited section, omitting "omit first barline" effect). */
-  barlines(bm, endTime) {
-    const red = this.timing(bm).red;
-    const out = [];
-    for (let i = 0; i < red.length; i++) {
-      const tp = red[i];
-      const until = i + 1 < red.length ? red[i + 1].time : endTime + 1;
-      const step = tp.beatLength * (tp.meter || 4);
-      if (step < 50) continue;
-      for (let k = (tp.effects & 8) ? 1 : 0; k < 100000; k++) {
-        const t = tp.time + k * step;
-        if (t >= until - 1) break;
-        out.push(t);
-      }
-    }
-    return out;
-  },
-
   /** Compute summary stats + star rating for library display. */
   analyse(bm) {
     const notes = this.toManiaNotes(bm);
@@ -2806,7 +2788,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Receptor position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves the judgement line relative to the skin\'s HitPosition.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stagePosition', l: 'Stage position', t: 'select', d: 'center', o: [['center', 'Centered'], ['skin', 'Skin (ColumnStart)'], ['left', 'Left'], ['right', 'Right']] },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.barlines', l: 'Show barlines', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneSpacing', l: 'Lane spacing', t: 'range', d: 0, min: 0, max: 20, step: 1, fmt: v => `${v}` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOffset', l: 'Stage horizontal offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -4019,7 +4000,7 @@ class ManiaRenderer {
     return tex.h * (w / tex.w);
   }
 
-  /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], barlines[], hidden:'HD'|'FI'|null, realNow} */
+  /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], hidden:'HD'|'FI'|null, realNow} */
   render(g) {
     const L = this.layout;
     if (!L) return;
@@ -4051,18 +4032,6 @@ class ManiaRenderer {
     const pxPerMs = g.pxPerMs;
     const noteOffset = Settings.get('gameplay.noteOffset') * s;
     const yOf = pos => this.hitY + noteOffset - (pos - g.posNow) * pxPerMs;
-    // barlines
-    if (g.barlines && Settings.get('gameplay.barlines')) {
-      ctx.fillStyle = rgba(L.colours.barline, 0.6);
-      const bh = Math.max(1, L.barlineHeight * s * 0.5);
-      for (let i = g.barIdx || 0; i < g.barlines.length; i++) {
-        const t = g.barlines[i];
-        const y = yOf(g.scroll.posAt(t));
-        if (y > this.hitY + 2) { g.barIdx = i + 1; continue; }
-        if (y < -10) break;
-        this._rect(0, y - bh, this.stageW, bh);
-      }
-    }
     // stage light (key press glow)
     if (Settings.get('skin.effects')) {
       for (let i = 0; i < K; i++) {
@@ -5989,7 +5958,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
-      barlines: BeatmapParser.barlines(bm, endTime), barIdx: 0, endTime, redTiming,
+      endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
@@ -6027,7 +5996,6 @@ const GameplayScreen = {
       breaks: s.bm.events.breaks, modConfig: s.modConfig });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
-    s.barIdx = 0;
   },
 
   applyBackground() {
@@ -6128,7 +6096,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       this.renderer.render({
         now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.hitY / (timeRange * s.rate) * 1,
-        engine: eng, held: s.held, barlines: s.barlines, get barIdx() { return s.barIdx; }, set barIdx(v) { s.barIdx = v; },
+        engine: eng, held: s.held,
         hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
         percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
       });
@@ -7354,7 +7322,7 @@ class SkinPreview {
         this.engine.input(c, !!d, tt);
       }
       this.engine.advance(now);
-      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / 520, engine: this.engine, held: this.held, barlines: null, hidden: null, realNow: performance.now() });
+      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / 520, engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
     };
     frame();
   }

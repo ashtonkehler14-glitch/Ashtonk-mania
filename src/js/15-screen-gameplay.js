@@ -127,7 +127,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig,
-      barlines: BeatmapParser.barlines(bm, endTime), barIdx: 0, endTime, redTiming,
+      endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
@@ -165,7 +165,6 @@ const GameplayScreen = {
       breaks: s.bm.events.breaks, modConfig: s.modConfig });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
-    s.barIdx = 0;
   },
 
   applyBackground() {
@@ -266,7 +265,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       this.renderer.render({
         now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.hitY / (timeRange * s.rate) * 1,
-        engine: eng, held: s.held, barlines: s.barlines, get barIdx() { return s.barIdx; }, set barIdx(v) { s.barIdx = v; },
+        engine: eng, held: s.held,
         hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
         percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
       });

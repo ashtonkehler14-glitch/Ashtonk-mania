@@ -117,7 +117,7 @@ The source lives in `src/` and is split into logical systems. `node build.mjs` i
 | `00-util.js` | DOM helpers, hashing, fuzzy search, event bus |
 | `01-db.js` | IndexedDB storage (sets, maps, files, scores, replays, skins, kv) |
 | `02-zip.js` | ZIP reader (native `DecompressionStream` with a pure-JS inflate fallback) and a ZIP writer for exports |
-| `03-beatmap-parser.js` | `.osu` parser, mania conversion, timing/SV scroll segments, barlines, strain-based star rating, validation |
+| `03-beatmap-parser.js` | `.osu` parser, mania conversion, timing/SV scroll segments, strain-based star rating, validation |
 | `04-skin.js` | `SkinParser` (`skin.ini`), `SkinManager`, per-key-count `ManiaLayout`, @2x handling, animation frames, fallbacks, procedural default skin |
 | `05-audio.js` | `AudioManager` (Web Audio clock), `Music` (song-position clock), WSOLA pitch-preserving time stretch, UI sounds |
 | `06-settings.js` | Schema-driven `SettingsManager` and default keybinds (1K–10K) |
@@ -145,7 +145,7 @@ The source lives in `src/` and is split into logical systems. `node build.mjs` i
 * Column settings: `ColumnWidth`, `ColumnSpacing`, `ColumnLineWidth`, `ColumnStart`
 * Positions: `HitPosition`, `LightPosition`, `ScorePosition`, `ComboPosition`
 * Display options: `JudgementLine`, `KeysUnderNotes`, `NoteBodyStyle`, `WidthForNoteHeightScale`, `LightingN/LWidth`, `LightFramePerSecond`, `SpecialStyle`, `UpsideDown`
-* Colours: `Colour#`, `ColourLight#`, `ColourBarline`, `ColourJudgementLine`, `ColourHold`
+* Colours: `Colour#`, `ColourLight#`, `ColourJudgementLine`, `ColourHold` (gameplay has no barlines, so `ColourBarline` is ignored)
 * Images: `KeyImage#`/`D`, `NoteImage#`/`H`/`L`/`T`, `Stage*`, `Lighting*`, `Hit*`
 * Fonts: `[Fonts]` `ScorePrefix` and `ComboPrefix`
 

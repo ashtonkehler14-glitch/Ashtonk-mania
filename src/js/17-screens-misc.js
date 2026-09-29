@@ -277,7 +277,7 @@ class SkinPreview {
         this.engine.input(c, !!d, tt);
       }
       this.engine.advance(now);
-      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / 520, engine: this.engine, held: this.held, barlines: null, hidden: null, realNow: performance.now() });
+      this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: this.renderer.hitY / 520, engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
     };
     frame();
   }

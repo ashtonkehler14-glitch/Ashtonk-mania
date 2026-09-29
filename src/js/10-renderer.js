@@ -91,7 +91,7 @@ class ManiaRenderer {
     return tex.h * (w / tex.w);
   }
 
-  /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], barlines[], hidden:'HD'|'FI'|null, realNow} */
+  /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], hidden:'HD'|'FI'|null, realNow} */
   render(g) {
     const L = this.layout;
     if (!L) return;
@@ -123,18 +123,6 @@ class ManiaRenderer {
     const pxPerMs = g.pxPerMs;
     const noteOffset = Settings.get('gameplay.noteOffset') * s;
     const yOf = pos => this.hitY + noteOffset - (pos - g.posNow) * pxPerMs;
-    // barlines
-    if (g.barlines && Settings.get('gameplay.barlines')) {
-      ctx.fillStyle = rgba(L.colours.barline, 0.6);
-      const bh = Math.max(1, L.barlineHeight * s * 0.5);
-      for (let i = g.barIdx || 0; i < g.barlines.length; i++) {
-        const t = g.barlines[i];
-        const y = yOf(g.scroll.posAt(t));
-        if (y > this.hitY + 2) { g.barIdx = i + 1; continue; }
-        if (y < -10) break;
-        this._rect(0, y - bh, this.stageW, bh);
-      }
-    }
     // stage light (key press glow)
     if (Settings.get('skin.effects')) {
       for (let i = 0; i < K; i++) {

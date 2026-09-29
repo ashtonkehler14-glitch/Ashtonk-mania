@@ -172,8 +172,6 @@ test('BPM changes and SV produce monotonic scroll segments', () => {
   const at = t => { let s = segs[0]; for (const x of segs) if (x.time <= t) s = x; return s.pos + (t - s.time) * s.vel; };
   assert.ok(at(2500) - at(2000) > at(1500) - at(1000)); // faster after BPM doubles
   assert.equal(segs.find(s => s.time === 3000).vel, 4); // 2x BPM * 2x SV
-  const bl = BeatmapParser.barlines(bm, 4000);
-  assert.ok(bl.includes(0) && bl.includes(2000) && bl.includes(3000));
 });
 
 test('star rating grows with density', () => {
