@@ -1,11 +1,18 @@
-// Cloudflare Workers static-assets deployment for Ashtonk!mania.
-// Only ./public is uploaded. `node build.mjs` regenerates public/index.html (it is committed, so no build step is required).
+// Cloudflare Workers deployment for Ashtonk!mania.
+//  - ./public is served as static assets (index.html + the bundled Kori skin).
+//  - worker/index.js answers /api/* (beatmap explorer search + .osz download proxy) and hands
+//    everything else to the assets.
+//  - Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app)
+//    to search with the official osu! API instead of the public mirrors.
 // Deploy: npx wrangler deploy
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "beta-ashtonkmania",
+  "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
   }
 }

@@ -6,12 +6,48 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 
 ## Hosting on Cloudflare
 
-`wrangler.jsonc` deploys the game as a Cloudflare Worker named `beta-ashtonkmania`. Cloudflare serves static assets from `public/`, which contains only the built `index.html`.
+`wrangler.jsonc` deploys a Worker named `beta-ashtonkmania`:
 
-* **From Git:** in the Cloudflare dashboard, go to Workers & Pages, connect the repo, leave the build command empty and set the deploy command to `npx wrangler deploy`.
-* **From your machine:** run `npx wrangler deploy`.
+* `public/` is served as static assets (the built `index.html` and `skins/kori.osk`).
+* `worker/index.js` answers `/api/*` for the Beatmap Explorer:
+  * `/api/search` uses public mirrors (Mino, NeriNyan, osu.direct), trying each one in turn.
+  * `/api/download/:id` proxies the `.osz` from the first mirror that has it (Mino, NeriNyan, osu.direct, SayoBot).
+* Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an [osu! OAuth application](https://osu.ppy.sh/home/account/edit#oauth)) make search use the official osu! API.
 
-After editing anything in `src/`, run `node build.mjs`. It updates both `index.html` and `public/index.html`.
+In the dashboard, leave the build command empty and set the deploy command to `npx wrangler deploy`.
+
+## What's new
+
+* **Kori 3.0 comes preinstalled.** On the Cloudflare site (or any http server), `public/skins/kori.osk` is installed and selected on first launch. It's a mania-only trim of the skin at 3.2 MB.
+* **The math now matches osu!** Ported from [Web-Osu-Mania](https://github.com/hectickiwi/Web-Osu-Mania) (MIT):
+  * ScoreV1 scoring with the hit bonus
+  * osu!mania accuracy (MAX weighted as 305)
+  * ScoreV2-table hit windows, with EZ/HR applied to OD
+  * legacy health drain
+  * lazer's star rating
+  * pp from ManiaPerformanceCalculator, with profile totals weighted 0.95ⁿ plus the play-count bonus
+* **Skins no longer stretch vertically.** Legacy skin textures are sized in lazer's 768-unit space. Keys, hint lines and lights keep their authored height, and hit lighting scales with column width / 30.
+* **Beatmap Explorer:** search osu!mania beatmaps and download them straight into the library. See *Hosting* below.
+* **Themes:** Default (Kori purple), Neru, Teto, Miku and Midnight. The built-in skin follows the theme and offers bars, circles, diamonds or arrows.
+* **First launch** asks for your name.
+* **pp:** a live pp counter in gameplay, pp on results, total pp and weighted top plays on your profile, and pp history in Statistics.
+* **In-game HUD:** a song-progress pie (green during the lead-in), a KPS counter and an early/late indicator.
+* **More options:**
+  * a toggle to hide MAX judgements
+  * a break overlay that lightens the background
+  * an unpause countdown
+  * retry on fail
+  * Shift+Tab to hide the HUD
+  * Alt+wheel volume
+* **Touch and gamepad controls.**
+* **Background videos** (mp4/webm).
+* **New mods:** Perfect (SS), Accuracy Challenge, Difficulty Adjust (OD/HP), Song Speed (0.5–2×), Percy, and coverage amount for Hidden and Fade In.
+* **lazer-style menus:**
+  * a slanted main-menu button bar (Play → Solo / Practice / Quick play)
+  * a pink back button
+  * slanted footer buttons, with the logo as the Play button
+  * a rank-coloured accuracy ring on results
+  * slanted mod panels
 
 ## Getting started
 
@@ -114,3 +150,8 @@ The end-to-end run checks:
 * Only osu!mania difficulties (`Mode: 3`) can be played. Other modes are listed with an explanation.
 * Online beatmap providers and multiplayer have their architecture in place (`BeatmapProvider`, `MultiplayerRoom`), but they're hidden from the UI until a backend exists.
 * The UI font (Nunito) loads from Google Fonts. When you're offline it falls back to system fonts.
+
+## Credits
+
+* Scoring, accuracy, health, star rating, pp and hit-window formulas, plus the arrow directions for the arrows note style, are ported from **Web-Osu-Mania** by Danny Duong (MIT License, © 2024 Danny Duong). The notice is kept in `src/js/09a-osu-math.js`. Those formulas follow the official osu!/osu!lazer sources.
+* **《NM》 Kori 3.0** skin by Kori (`public/skins/kori.osk`, mania assets only).

@@ -5,7 +5,7 @@ function pageShell(title, sub, actions = []) {
   const page = h('div.page');
   page.append(h('div.screen-title', h('div', h('h1', title), sub ? h('div.sub', sub) : null), h('div.grow'), ...actions));
   body.append(page);
-  return { el: h('div', body), page };
+  return { el: h('div', body, h('div.page-back', backButton(() => Screens.back()))), page };
 }
 
 async function importViaPicker(accept, directory = false) {
@@ -156,17 +156,21 @@ const ProfileScreen = {
     const bestPerMap = new Map();
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || bestPerMap.get(s.mapHash).score < s.score)) bestPerMap.set(s.mapHash, s);
     const totalScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
-    const banner = h(`div.profile-banner${p.banner === 'neru' ? '.neru' : ''}`,
+    const pp = ScoreManager.totalPp();
+    const topPlays = ScoreManager.bestPpPerMap();
+    const banner = h(`div.profile-banner${['neru', 'teto', 'miku'].includes(p.banner) ? '.' + p.banner : ''}`,
       ProfileManager.avatarEl(110),
       h('div', { style: { flex: '1', minWidth: '260px' } },
         h('div.pname', p.name, h('button.icon-btn', { title: 'Rename', onclick: async () => { const n = await Dialog.prompt('Profile name', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')),
           p.banner === 'neru' ? h('span.gold', { title: 'Neru theme' }, '✦') : null),
         h('div.plevel', h('div.lvl-badge', String(xp.level)), h('div', h('div.xp-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } })),
           h('div.muted', { style: { fontSize: '.8rem', marginTop: '4px' } }, `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP to level ${xp.level + 1} · ${fmtInt(xp.xp)} XP total`))),
-        h('div.muted', { style: { marginTop: '8px', fontSize: '.85rem' } }, `Local player since ${new Date(p.created).toLocaleDateString()}`)));
+        h('div.muted', { style: { marginTop: '8px', fontSize: '.85rem' } }, `Local player since ${new Date(p.created).toLocaleDateString()}`)),
+      h('div.profile-pp', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` },
+        h('div.k', 'Performance'), h('div.v', fmtInt(pp.total), h('span', 'pp')), h('div.sub', `${topPlays.length} ranked play${topPlays.length === 1 ? '' : 's'}`)));
     const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
     const stats = h('div.stats-grid', { style: { marginTop: '16px' } },
-      card('Total score', fmtInt(totalScore), 'sum of best scores'), card('Accuracy', st.passed ? fmtAcc(st.avgAcc) : '—', 'average of passes'),
+      card('Total pp', fmtInt(pp.total) + 'pp', 'weighted top plays + bonus'), card('Total score', fmtInt(totalScore), 'sum of best scores'), card('Accuracy', st.passed ? fmtAcc(st.avgAcc) : '—', 'average of passes'),
       card('Play count', fmtInt(st.plays), `${st.passed} passed · ${st.failed} failed`), card('Play time', fmtDuration(st.playtime)),
       card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'));
     // customisation
@@ -182,12 +186,15 @@ const ProfileScreen = {
         Toolbar.updateProfile();
       } }, prev, h('div.muted', { style: { fontSize: '.7rem', marginTop: '4px' } }, label));
     }));
-    const bannerSel = h('div.row', ...[['kori', 'Kori'], ['neru', 'Neru ✦']].map(([k, l]) => h(`button.chip${p.banner === k ? '.on' : ''}`, { onclick: async () => { p.banner = k; await ProfileManager.save(); } }, l)));
+    const bannerSel = h('div.row', ...[['kori', 'Kori'], ['neru', 'Neru ✦'], ['teto', 'Teto'], ['miku', 'Miku']].map(([k, l]) => h(`button.chip${p.banner === k ? '.on' : ''}`, { onclick: async () => { p.banner = k; await ProfileManager.save(); } }, l)));
     const custom = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Avatar'), picker,
       h('div.sp-group', 'Profile theme'), bannerSel);
     // lists
     const recent = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Recent plays'), this.scoreList(ScoreManager.recent(10)));
-    const pbs = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Personal bests'), this.scoreList([...bestPerMap.values()].sort((a, b) => b.score * (b.stars || 1) - a.score * (a.stars || 1)).slice(0, 10)));
+    const pbs = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Top plays (pp)'),
+      topPlays.length ? h('div.list', ...topPlays.slice(0, 15).map((tp, i) => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: tp.score, fromList: true }) },
+        gradeEl(tp.score.grade), h('div.main', h('div.t', `${tp.score.title} [${tp.score.version}]`), h('div.s', `${fmtAcc(tp.score.accuracy)} · ${(tp.score.mods || []).length ? '+' + tp.score.mods.join('') + ' · ' : ''}${fmtDate(tp.score.date)}`)),
+        h('div.pp-cell', h('b', `${fmtInt(tp.pp)}pp`), h('span.muted', `weighted ${Math.round(Math.pow(0.95, i) * 100)}% (${fmtInt(tp.pp * Math.pow(0.95, i))}pp)`))))) : h('div.muted', 'Pass a map to earn pp.'));
     const favs = BeatmapManager.sets.filter(s => Favorites.has(s.id));
     const favPanel = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, `Favorites (${favs.length})`),
       favs.length ? h('div.list', ...favs.slice(0, 12).map(s => h('div.list-row', h('div.main', h('div.t', `${s.artist} — ${s.title}`), h('div.s', `${s.maps.length} difficulties · ${s.creator}`)),
@@ -197,7 +204,7 @@ const ProfileScreen = {
   scoreList(scores) {
     if (!scores.length) return h('div.muted', 'Nothing here yet.');
     return h('div.list', ...scores.map(s => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: s, fromList: true }) },
-      gradeEl(s.grade), h('div.main', h('div.t', `${s.title} [${s.version}]`), h('div.s', `${fmtScore(s.score)} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.mods.length ? ' · +' + s.mods.join('') : ''} · ${fmtDate(s.date)}`)))));
+      gradeEl(s.grade), h('div.main', h('div.t', `${s.title} [${s.version}]`), h('div.s', `${fmtScore(s.score)} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'}${s.mods.length ? ' · +' + s.mods.join('') : ''} · ${fmtDate(s.date)}`)))));
   },
 };
 
@@ -208,7 +215,7 @@ const StatsScreen = {
     const st = StatisticsManager.compute();
     const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
     page.append(h('div.stats-grid',
-      card('Total plays', fmtInt(st.plays)), card('Play time', fmtDuration(st.playtime)), card('Notes hit', fmtInt(st.notes)),
+      card('Total pp', fmtInt(ScoreManager.totalPp().total) + 'pp'), card('Total plays', fmtInt(st.plays)), card('Play time', fmtDuration(st.playtime)), card('Notes hit', fmtInt(st.notes)),
       card('Misses', fmtInt(st.misses)), card('Average accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), card('Highest score', fmtInt(st.highestScore)),
       card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'),
       card('Maps passed', fmtInt(st.passed)), card('Maps failed', fmtInt(st.failed))));
@@ -216,6 +223,9 @@ const StatsScreen = {
     const day = 86400000;
     const perDay = Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })));
     const accTrend = st.accTrend.length ? Charts.line(st.accTrend.map(a => ({ y: a.acc * 100, tip: `${a.title} [${a.version}] · ${(a.acc * 100).toFixed(2)}% · ${new Date(a.date).toLocaleDateString()}` })), { fmtY: v => v.toFixed(1) + '%' }) : h('div.muted', 'Pass a map to see your accuracy trend.');
+    const ppHist = ScoreManager.ppHistory();
+    page.append(h('div.panel.chart-card', { style: { marginTop: '16px' } }, h('h3', 'Performance (total pp) over time', h('span.grow'), h('span', `${fmtInt(ScoreManager.totalPp().total)}pp now`)),
+      ppHist.length ? Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0 }) : h('div.muted', 'Pass a map to start tracking pp.')));
     page.append(h('div.chart-row',
       h('div.panel.chart-card', h('h3', 'Plays per day (last 30 days)'), perDay),
       h('div.panel.chart-card', h('h3', 'Accuracy trend (last 60 passes)'), accTrend)));

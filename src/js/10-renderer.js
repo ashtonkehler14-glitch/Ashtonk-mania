@@ -51,19 +51,24 @@ class ManiaRenderer {
     if (!L) return;
     const s = this.H / 480;
     this.s = s;
+    // osu!stable/lazer size legacy skin textures in a 768-unit-tall space (POSITION_SCALE_FACTOR 1.6):
+    // a texture pixel is H/768 screen pixels, while column widths/positions are in 480-space.
+    this.u = this.H / 768;
+    this.legacy = !L.skin.builtin;
     const lw = Settings.get('gameplay.laneWidth');
     this.colW = L.columnWidth.map(w => w * s * lw);
     this.colX = [];
     let x = 0;
     for (let i = 0; i < L.keys; i++) {
       this.colX.push(x);
-      x += this.colW[i] + (i < L.keys - 1 ? (L.columnSpacing[i] || 0) * s * lw : 0);
+      x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
     const pos = Settings.get('gameplay.stagePosition');
     this.stageX = pos === 'skin' ? L.columnStart * s * (this.W / this.H > 4 / 3 ? 1 : 1)
       : pos === 'left' ? this.W * 0.12 : pos === 'right' ? this.W * 0.88 - this.stageW : (this.W - this.stageW) / 2;
-    this.hitY = clamp((L.hitPosition + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
+    this.stageX += Settings.get('gameplay.stageOffset') / 100 * this.W;
+    this.hitY = clamp((clamp(L.hitPosition, 240, 480) + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
     this.up = Settings.get('gameplay.scrollDirection') === 'up' || L.upsideDown;
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
@@ -100,7 +105,7 @@ class ManiaRenderer {
 
     // column backgrounds
     for (let i = 0; i < K; i++) {
-      ctx.fillStyle = rgba(L.colours.column[i]);
+      ctx.fillStyle = rgba(L.colours.column[i], Settings.get('gameplay.stageOpacity'));
       ctx.fillRect(this.colX[i], 0, this.colW[i], H);
     }
     const dim = Settings.get('skin.dim');
@@ -116,7 +121,8 @@ class ManiaRenderer {
       }
     }
     const pxPerMs = g.pxPerMs;
-    const yOf = pos => this.hitY - (pos - g.posNow) * pxPerMs;
+    const noteOffset = Settings.get('gameplay.noteOffset') * s;
+    const yOf = pos => this.hitY + noteOffset - (pos - g.posNow) * pxPerMs;
     // barlines
     if (g.barlines && Settings.get('gameplay.barlines')) {
       ctx.fillStyle = rgba(L.colours.barline, 0.6);
@@ -138,7 +144,7 @@ class ManiaRenderer {
         if (g.held[i]) a = 1; else { const dt = realNow - this.keyLight[i]; if (dt < 120) a = 1 - dt / 120; }
         if (a <= 0) continue;
         ctx.globalAlpha = a;
-        const h = t.h * s;
+        const h = t.h * (this.legacy ? this.u : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
         this._img(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
         ctx.globalAlpha = 1;
@@ -146,15 +152,24 @@ class ManiaRenderer {
     }
     // stage hint
     if (L.tex.stageHint) {
-      const t = L.tex.stageHint, h = t.h * s;
+      const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u : s);
       this._img(t.img, 0, this.hitY - h / 2, this.stageW, h);
     }
     const drawKeys = () => {
       for (let i = 0; i < K; i++) {
         const t = g.held[i] ? (L.tex.keyD[i] || L.tex.key[i]) : L.tex.key[i];
         if (!t) continue;
-        const h = t.h * (this.colW[i] / t.w);
-        this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+        if (this.legacy) {
+          // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
+          const h = t.h * this.u;
+          this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+        } else {
+          // built-in keys: receptor (25% down the texture) centred on where notes are hit
+          const h = t.h * (this.colW[i] / t.w);
+          const nh = this._noteH(L.tex.note[i], i);
+          const top = this.hitY - nh / 2 - h * 0.25;
+          this._img(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
+        }
       }
     };
     if (L.keysUnderNotes) drawKeys();
@@ -168,10 +183,11 @@ class ManiaRenderer {
     }
     if (!L.keysUnderNotes) drawKeys();
     // stage sides / bottom
-    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * s; ctx.drawImage(t.img, -w, 0, w, H); }
-    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * s; ctx.drawImage(t.img, this.stageW, 0, w, H); }
+    const us = this.legacy ? this.u : s;
+    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; ctx.drawImage(t.img, -w, 0, w, H); }
+    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; ctx.drawImage(t.img, this.stageW, 0, w, H); }
     if (L.tex.stageBottom) {
-      const t = L.tex.stageBottom, w = t.w * s, h = t.h * s;
+      const t = L.tex.stageBottom, w = t.w * us, h = t.h * us;
       this._img(t.img, (this.stageW - w) / 2, H - h, w, h);
     }
     // lighting
@@ -191,11 +207,12 @@ class ManiaRenderer {
     }
   }
 
+  /** Hidden / Fade In lane cover: `coverage` is the fraction of the lane (above the receptors) that is covered. */
   _noteAlpha(y, hidden) {
     if (!hidden) return 1;
-    const f = y / this.hitY;
-    if (hidden === 'HD') return clamp(1 - (f - 0.45) / 0.2, 0, 1);
-    return clamp((f - 0.3) / 0.2, 0, 1);
+    const f = y / this.hitY, c = clamp(this.coverage ?? 0.5, 0.1, 0.9), fade = 0.12;
+    if (hidden === 'HD') return clamp((1 - c - f) / fade + 1, 0, 1);
+    return clamp((f - c) / fade, 0, 1);
   }
 
   _drawNotes(g, yOf, realNow) {
@@ -212,7 +229,7 @@ class ManiaRenderer {
         let yHead = yOf(headPos);
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
-          const yTail = yOf(g.scroll.posAt(n.end));
+          const yTail = yOf(g.scroll.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end));
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
           const holding = n.state === NS.HOLDING;
@@ -258,7 +275,11 @@ class ManiaRenderer {
     const L = this.layout;
     if (!L) return;
     if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) this.effects.push({ type: 'N', col: e.col, t0: realNow });
-    if (Settings.get('gameplay.showJudgements')) this.judgementFx = { j: e.j, t0: realNow };
+    if (Settings.get('gameplay.showJudgements') && (e.j !== J.MARV || Settings.get('gameplay.showMax'))) {
+      const thr = Settings.get('gameplay.earlyLate');
+      const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
+      this.judgementFx = { j: e.j, t0: realNow, el };
+    }
     if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
       const n = e.j === J.MARV ? 7 : 4;
       const gold = e.j === J.MARV && Settings.get('gameplay.neruSparkle');
@@ -281,7 +302,7 @@ class ManiaRenderer {
       if (!eng.holding[c]) continue;
       const t = L.tinted.lightingL[c];
       if (!t) continue;
-      const w = (L.lightingLWidth[c] > 0 ? L.lightingLWidth[c] * s : t.w * s), hh = t.h * (w / t.w);
+      const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
       this._img(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
@@ -294,7 +315,7 @@ class ManiaRenderer {
       const multi = t.frames.length > 1;
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
       if (el > dur) return false;
-      const w0 = (L.lightingNWidth[e.col] > 0 ? L.lightingNWidth[e.col] * s : t.w * s);
+      const w0 = this._lightW(t, e.col, L.lightingNWidth);
       const sc = multi ? 1 : 1 + el / dur * 0.25;
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
       ctx.globalAlpha = multi ? 1 : 1 - el / dur;
@@ -304,6 +325,15 @@ class ManiaRenderer {
       return true;
     });
     ctx.globalCompositeOperation = 'source-over';
+  }
+  /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
+  _lightW(t, c, widths) {
+    const L = this.layout;
+    if (this.legacy) {
+      const cw = widths[c] > 0 ? widths[c] : L.columnWidth[c] * Settings.get('gameplay.laneWidth');
+      return t.w * this.u * cw / 30;
+    }
+    return widths[c] > 0 ? widths[c] * this.s : t.w * this.s;
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
@@ -336,10 +366,18 @@ class ManiaRenderer {
     if (el > total) { this.judgementFx = null; return; }
     const sk = Settings.get('skin.scale');
     const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.18 - 0.18 * (el / 60) : 1);
-    const w = t.w * this.s * sk * pop * 0.8, hh = t.h * this.s * sk * pop * 0.8;
+    const k = (this.legacy ? this.u : this.s * 0.8) * sk * pop;
+    const w = t.w * k, hh = t.h * k;
     const y = L.scorePosition * this.s;
     this.ctx.globalAlpha = el > total - 100 ? (total - el) / 100 : 1;
     this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
+    if (fx.el) {
+      const ctx = this.ctx, size = Math.round(9 * this.s);
+      ctx.font = `900 ${size}px Nunito, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
+      ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
+      ctx.fillStyle = fx.el === 'EARLY' ? '#6cc6ff' : '#ff8a6c'; ctx.fillText(fx.el, this.stageW / 2, yy);
+    }
     this.ctx.globalAlpha = 1;
   }
   _drawCombo(combo, realNow) {
@@ -354,9 +392,9 @@ class ManiaRenderer {
     const text = String(combo);
     if (L.font) {
       const glyphs = text.split('').map(ch => L.font.glyphs[ch]).filter(Boolean);
-      const hh = glyphs[0].h * s * 0.8 * sk * bump;
+      const hh = glyphs[0].h * (this.legacy ? this.u : s * 0.8) * sk * bump;
       const widths = glyphs.map(gl => gl.w * (hh / gl.h));
-      const ov = L.font.overlap * s * 0.8 * sk;
+      const ov = L.font.overlap * (this.legacy ? this.u : s * 0.8) * sk;
       const total = widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1);
       let x = cx - total / 2;
       glyphs.forEach((gl, k) => { this._img(gl.img, x, y - hh / 2, widths[k], hh); x += widths[k] - ov; });
@@ -375,7 +413,7 @@ class ManiaRenderer {
   _drawErrorBar(g, realNow) {
     const eng = g.engine, ctx = this.ctx, s = this.s;
     const W = eng.W.map(w => w / eng.rate);
-    const width = Math.min(this.stageW * 0.9, 150 * s);
+    const width = Math.min(this.stageW * 0.9, 150 * s) * Settings.get('gameplay.errorBarScale');
     const scale = width / 2 / W[J.BAD];
     const cx = this.stageW / 2;
     const y = this.up ? 14 * s : this.H - 8 * s;
@@ -405,7 +443,8 @@ class ManiaRenderer {
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, top, w, bottom - top);
     const hh = (bottom - top) * v;
     const grd = ctx.createLinearGradient(0, bottom - hh, 0, bottom);
-    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : '#c79bff'); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : '#8a4dff');
+    const P = DefaultSkin.palette();
+    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : P.n2[0]); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : P.n2[1]);
     ctx.fillStyle = grd;
     ctx.fillRect(x, bottom - hh, w, hh);
   }

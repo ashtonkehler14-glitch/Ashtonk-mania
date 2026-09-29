@@ -52,6 +52,21 @@
   --panel: rgba(28, 22, 14, 0.84); --panel-2: rgba(44, 34, 20, 0.92); --panel-3: #2c2214; --panel-solid: #1c160e;
   --bg: #0e0b06; --bg-2: #17120a; --text-2: #eadfbf; --muted: #b3a47c;
 }
+:root[data-theme="teto"] {
+  --accent: #ff4d6a; --accent-2: #d0213d; --accent-3: #ffc7d0; --accent-rgb: 255, 77, 106;
+  --gold: #c9ced6; --gold-2: #8f96a3;
+  --line: rgba(255, 110, 130, 0.14); --line-2: rgba(255, 110, 130, 0.28);
+  --panel: rgba(30, 16, 20, 0.84); --panel-2: rgba(48, 24, 30, 0.92); --panel-3: #2e1a1f; --panel-solid: #1d1013;
+  --bg: #0f0709; --bg-2: #1a0c10; --text-2: #f0d0d6; --muted: #b58d95;
+}
+:root[data-theme="miku"] {
+  --accent: #39c5bb; --accent-2: #139a90; --accent-3: #bff4ef; --accent-rgb: 57, 197, 187;
+  --gold: #ff5fa8; --gold-2: #e12885;
+  --line: rgba(80, 220, 210, 0.14); --line-2: rgba(80, 220, 210, 0.28);
+  --panel: rgba(10, 26, 28, 0.84); --panel-2: rgba(16, 40, 44, 0.92); --panel-3: #11292c; --panel-solid: #0b1c1e;
+  --bg: #050e10; --bg-2: #0a171a; --text-2: #c9eeea; --muted: #7fb1ad;
+}
+:root[data-theme="teto"] .btn.primary, :root[data-theme="miku"] .btn.primary { color: #fff; }
 :root[data-theme="midnight"] {
   --accent: #6cb6ff; --accent-2: #2f7fff; --accent-3: #c6e2ff; --accent-rgb: 108, 182, 255;
   --line: rgba(140, 190, 255, 0.14); --line-2: rgba(140, 190, 255, 0.26);
@@ -678,6 +693,185 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .calib { display: flex; flex-direction: column; gap: 12px; align-items: center; }
 .calib-beat { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); display: grid; place-items: center; font-weight: 900; transition: transform 60ms, background 60ms; }
 .calib-beat.on { transform: scale(1.12); background: rgba(var(--accent-rgb), .3); }
+
+/* ── onboarding */
+.dialog.onboarding { width: min(560px, calc(100vw - 32px)); text-align: center; padding: 34px 32px 28px; }
+.ob-logo { font-size: 2.2rem; font-weight: 900; font-style: italic; }
+.ob-logo span { color: var(--gold); } .ob-logo b { color: var(--accent); }
+.onboarding h2 { margin-top: 6px; font-size: 1.6rem; }
+.onboarding .ob-name { width: 100%; height: 52px; font-size: 1.25rem; text-align: center; margin-top: 8px; }
+.ob-err { color: #ffb3bb; min-height: 1.3em; font-size: .85rem; margin-top: 6px; }
+.ob-themes { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+.ob-theme { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--line); background: rgba(255,255,255,.03); font-weight: 800; font-size: .8rem; color: var(--text-2); transition: all var(--t-fast); }
+.ob-theme i { width: 34px; height: 34px; border-radius: 50%; background: var(--c); box-shadow: 0 0 16px var(--c); }
+.ob-theme:hover { border-color: var(--c); }
+.ob-theme.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--text); }
+.onboarding .actions { justify-content: center; }
+
+/* ── in-game pie / pp / kps */
+.hud-accrow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.hud-pie { --p: 0%; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(rgba(255,255,255,.92) var(--p), rgba(255,255,255,.14) 0); box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 10px rgba(0,0,0,.5); }
+.hud-pie.lead { background: conic-gradient(#7ee07a var(--p), rgba(126,224,122,.18) 0); box-shadow: 0 0 0 2px #7ee07a, 0 2px 10px rgba(0,0,0,.5); }
+.hud-pp { font-size: clamp(1rem, 1.5vw, 1.3rem); font-weight: 900; color: var(--accent-3); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.hud-kps { font-size: .85rem; font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.res-pp { font-size: 1.1rem; font-weight: 800; color: var(--text-2); margin-top: -6px; }
+.res-pp b { font-size: 1.9rem; color: var(--accent-3); margin-right: 2px; }
+.res-ppdelta { font-size: .85rem; }
+.profile-pp { text-align: right; padding: 10px 18px; border-radius: 16px; background: rgba(0,0,0,.28); border: 1px solid var(--line-2); }
+.profile-pp .k { font-size: .72rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.profile-pp .v { font-size: 2.6rem; font-weight: 900; line-height: 1.05; color: var(--accent-3); font-variant-numeric: tabular-nums; }
+.profile-pp .v span { font-size: 1.2rem; margin-left: 3px; color: var(--text-2); }
+.profile-pp .sub { font-size: .78rem; color: var(--muted); }
+.pp-cell { display: flex; flex-direction: column; align-items: flex-end; font-size: .78rem; }
+.pp-cell b { font-size: 1.05rem; color: var(--accent-3); }
+
+/* ── beatmap explorer (lazer beatmap-listing style) */
+.ex-body { padding-top: 0; }
+.ex-header { position: sticky; top: 0; z-index: 3; margin: 0 calc(-1 * clamp(16px, 3vw, 48px)) 18px; padding: 22px clamp(16px, 3vw, 48px) 14px; background: linear-gradient(180deg, rgba(12, 8, 20, .96), rgba(12, 8, 20, .88)); border-bottom: 1px solid var(--line); }
+:root:not(.no-effects) .ex-header { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ex-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.ex-title h1 { margin: 0; font-size: 1.7rem; font-weight: 900; }
+.ex-searchwrap { position: relative; }
+.ex-searchwrap .i { position: absolute; left: 16px; top: 16px; color: var(--muted); width: 1.3em; height: 1.3em; }
+.ex-search { width: 100%; height: 54px; padding-left: 50px; font-size: 1.15rem; border-radius: 14px; background: rgba(0, 0, 0, .35); }
+.ex-filters { display: grid; gap: 6px; margin-top: 12px; }
+.ex-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ex-flabel { width: 74px; flex: none; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ex-chips { display: flex; flex-wrap: wrap; gap: 2px; }
+.ex-chip { border: 0; background: transparent; color: var(--text-2); font-weight: 700; font-size: .86rem; padding: 4px 9px; border-radius: 8px; transition: all var(--t-fast); }
+.ex-chip:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
+.ex-chip.on { color: var(--accent); font-weight: 900; }
+.ex-stars { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); }
+.ex-stars .slider { flex: 1; }
+.ex-starval { min-width: 96px; font-weight: 800; color: var(--accent-3); font-size: .85rem; }
+.ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 12px; }
+@media (max-width: 520px) { .ex-grid { grid-template-columns: 1fr; } }
+.ex-card { position: relative; height: 136px; border-radius: 14px; overflow: hidden; display: flex; background: var(--panel-3); border: 1px solid var(--line); transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast); }
+.ex-card:hover { transform: translateY(-2px); border-color: rgba(var(--accent-rgb), .5); box-shadow: 0 12px 28px rgba(0, 0, 0, .4); }
+.ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: .55; transition: opacity var(--t-fast), transform var(--t-slow); }
+.ex-card:hover .ex-cover { opacity: .75; transform: scale(1.03); }
+.ex-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10, 6, 18, .92) 0%, rgba(10, 6, 18, .55) 60%, rgba(10, 6, 18, .75) 100%); }
+.ex-left { position: relative; width: 70px; flex: none; display: grid; place-items: center; }
+.ex-play { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .14); color: #fff; display: grid; place-items: center; transition: all var(--t-fast); }
+.ex-play:hover { background: var(--accent); transform: scale(1.08); }
+.ex-info { position: relative; flex: 1; min-width: 0; padding: 10px 6px 10px 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; overflow: hidden; }
+.ex-info > * { flex: none; }
+.ex-top { display: flex; gap: 5px; align-items: center; margin-bottom: 2px; }
+.ex-statuspill { font-size: .62rem; font-weight: 900; letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; background: #444; color: #fff; }
+.st-ranked, .st-approved { background: #b3ff66; color: #1a2600; } .st-qualified { background: #66ccff; color: #00202e; } .st-loved { background: #ff66aa; color: #2e0014; }
+.st-pending, .st-wip { background: #ffd966; color: #2e2300; } .st-graveyard { background: #1a1a1a; color: #aaa; }
+.ex-t { font-weight: 900; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-a, .ex-m { font-size: .82rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-m b { color: var(--text); }
+.ex-meta { display: flex; align-items: center; gap: 5px; font-size: .75rem; color: var(--muted); margin-top: 3px; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.ex-meta .i { width: .95em; height: .95em; margin-left: 4px; }
+.ex-meta .keys-tag { font-size: .66rem; padding: 1px 5px; }
+.ex-diffs { display: flex; align-items: center; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
+.ex-diffs i { width: 10px; height: 10px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); }
+.ex-maxstar { margin-left: 6px; }
+.ex-action { position: relative; display: grid; place-items: center; padding: 0 14px; }
+.ex-progress { --p: 0%; width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; font-size: .72rem; font-weight: 900; background: radial-gradient(closest-side, var(--panel-3) 78%, transparent 80% 100%), conic-gradient(var(--accent) var(--p), rgba(255, 255, 255, .12) 0); }
+.ex-status { padding: 18px 0 30px; text-align: center; }
+.ex-loading { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text-2); }
+.ex-error { text-align: left; padding: 16px 18px; border-color: rgba(255, 74, 92, .45); max-width: 760px; margin: 0 auto; }
+.ex-error pre { white-space: pre-wrap; color: var(--text-2); font-size: .8rem; margin: 8px 0 0; }
+.ex-source { font-size: .8rem; }
+.ex-sentinel { height: 1px; }
+
+/* ── mod config / gameplay extras */
+.mod-config { margin-top: 18px; padding: 14px 18px; max-width: 760px; }
+.mod-config h4 { margin: 0 0 6px; font-size: .75rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.gp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+.gp-video.on { display: block; }
+.gp-touch { position: absolute; inset: 0; display: none; touch-action: none; }
+.gp-touch.on { display: block; }
+.gp-lane { position: absolute; top: 0; bottom: 0; border-left: 1px solid rgba(255, 255, 255, var(--o)); border-right: 1px solid rgba(255, 255, 255, var(--o)); }
+.gp-pausebtn { position: absolute; left: 14px; top: 44px; pointer-events: auto; width: 46px; height: 46px; padding: 0; border-radius: 50%; }
+.gp-break { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: 10px 22px 14px; border-radius: 14px; background: rgba(0, 0, 0, .55); font-weight: 900; letter-spacing: .12em; font-size: 1.1rem; pointer-events: none; }
+.gp-break::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 6px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), rgba(255, 255, 255, .15) var(--p, 0%)); }
+.gp-hud.hidden-hud > *:not(.hud-replay) { visibility: hidden; }
+
+.volume-overlay { position: absolute; right: 18px; top: 50%; transform: translate(20px, -50%); opacity: 0; z-index: 92; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: rgba(12, 8, 20, .9); border: 1px solid var(--line-2); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
+.volume-overlay.show { opacity: 1; transform: translate(0, -50%); }
+.vo-row { display: flex; align-items: center; gap: 12px; }
+.vo-ring { --p: 50%; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; background: radial-gradient(closest-side, rgb(12 8 20) 78%, transparent 80% 100%), conic-gradient(var(--accent) var(--p), rgba(255, 255, 255, .12) 0); }
+.vo-l { font-weight: 800; color: var(--text-2); min-width: 60px; }
+
+/* ── lazer-style main menu */
+.lz-menu { padding-top: var(--toolbar-h); }
+.lz-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; position: relative; }
+.lz-bar { position: relative; width: 100%; height: clamp(84px, 13vh, 118px); display: flex; align-items: center; justify-content: center; }
+.lz-bar::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: rgba(8, 5, 14, .55); box-shadow: 0 0 40px rgba(0, 0, 0, .35); transform: scaleY(1); transition: transform var(--t-med) var(--ease-out), opacity var(--t-med); }
+:root:not(.no-effects) .lz-bar::before { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.lz-menu[data-state="initial"] .lz-bar::before { transform: scaleY(0); opacity: 0; }
+.lz-logo-slot { position: relative; z-index: 2; flex: none; width: clamp(130px, 19vh, 190px); display: grid; place-items: center; transition: width var(--t-slow) var(--ease-out); }
+.lz-menu[data-state="initial"] .lz-logo-slot { width: clamp(220px, 38vh, 340px); }
+.lz-logo-slot .cookie { width: 100%; }
+.lz-buttons { position: relative; z-index: 1; display: flex; height: 100%; align-items: stretch; transition: opacity var(--t-med), max-width var(--t-slow) var(--ease-out); max-width: 100vw; }
+.lz-menu[data-state="initial"] .lz-buttons { opacity: 0; max-width: 0; overflow: hidden; pointer-events: none; }
+.lz-btn { --c: #555; position: relative; flex: none; width: clamp(68px, 8.4vw, 128px); margin: 0 -1px; border: 0; padding: 0; background: var(--c); color: #fff; transform: skewX(-12deg); transition: width var(--t-med) var(--ease-out), filter var(--t-fast); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); animation: lzIn var(--t-med) var(--ease-out) both; }
+.lz-right .lz-btn:nth-child(2) { animation-delay: calc(30ms * var(--anim)); } .lz-right .lz-btn:nth-child(3) { animation-delay: calc(60ms * var(--anim)); }
+.lz-right .lz-btn:nth-child(4) { animation-delay: calc(90ms * var(--anim)); } .lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
+@keyframes lzIn { from { opacity: 0; transform: skewX(-12deg) translateX(-30px); } }
+.lz-btn:first-child { margin-left: 0; }
+.lz-btn:hover, .lz-btn:focus-visible { width: clamp(84px, 10.4vw, 160px); filter: brightness(1.15); outline: none; }
+.lz-btn:active { filter: brightness(.9); }
+.lz-btn::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, .14), transparent 55%); pointer-events: none; }
+.lz-inner { position: absolute; inset: 0; transform: skewX(12deg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-weight: 800; font-size: clamp(.72rem, 1vw, .95rem); text-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.lz-inner .i { width: clamp(20px, 2.4vw, 32px); height: clamp(20px, 2.4vw, 32px); }
+.lz-sub { font-size: .68rem; opacity: .8; font-weight: 700; }
+.lz-under { text-align: center; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out); }
+.lz-under .logo { font-size: clamp(1.8rem, 3.6vw, 3rem); }
+.lz-menu[data-state="initial"] .lz-under .logo { font-size: clamp(2.4rem, 5vw, 4.2rem); }
+.lz-under .greet { margin-top: 6px; }
+.lz-hint { position: absolute; left: 0; right: 0; bottom: 34%; text-align: center; color: var(--muted); font-weight: 700; letter-spacing: .08em; font-size: .8rem; text-transform: lowercase; opacity: 0; transition: opacity var(--t-med); pointer-events: none; }
+.lz-menu[data-state="initial"] .lz-hint { opacity: .7; animation: hintPulse 2.4s ease-in-out infinite; }
+@keyframes hintPulse { 50% { opacity: .35; } }
+.lz-menu.lz-instant * { transition: none !important; animation: none !important; }
+.lz-footer { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr); gap: 14px; padding: 0 clamp(16px, 3vw, 48px) 18px; max-height: 250px; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out); }
+.lz-menu[data-state="initial"] .lz-footer { opacity: .0; transform: translateY(20px); pointer-events: none; }
+.lz-footer .home-card { padding: 12px 14px; min-height: 0; overflow: hidden; }
+.lz-footer .home-card:last-child { display: flex; flex-direction: column; }
+.lz-footer .continue { min-height: 88px; }
+@media (max-width: 900px) { .lz-footer { grid-template-columns: 1fr; max-height: none; } .lz-footer .home-card:last-child { max-height: 220px; } }
+
+/* ── lazer-style song select footer, back button, play cookie */
+.lz-back { --c: #ff66aa; position: relative; height: 50px; min-width: 128px; border: 0; padding: 0 22px 0 18px; margin-left: -34px; background: var(--c); color: #fff; font-weight: 800; font-size: 1rem; transform: skewX(-15deg); transition: min-width var(--t-med) var(--ease-out), filter var(--t-fast); box-shadow: 0 6px 20px rgba(255, 102, 170, .25); }
+.lz-back:hover, .lz-back:focus-visible { min-width: 158px; filter: brightness(1.1); outline: none; }
+.lz-back-inner { display: inline-flex; align-items: center; gap: 8px; transform: skewX(15deg); padding-left: 22px; }
+.page-back { position: absolute; left: 0; bottom: 18px; z-index: 5; }
+.ss-footer { gap: 6px; padding-left: 0; }
+.ss-footer .foot-btn { --c: #888; position: relative; height: 50px; padding: 0 18px; border: 0; border-radius: 0; background: rgba(255, 255, 255, .05); color: var(--text); transform: skewX(-15deg); overflow: hidden; }
+.ss-footer .foot-btn::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--c); transition: height var(--t-fast); }
+.ss-footer .foot-btn:hover { background: rgba(255, 255, 255, .1); border: 0; }
+.ss-footer .foot-btn:hover::before { height: 7px; }
+.fb-inner { display: inline-flex; align-items: center; gap: 8px; transform: skewX(15deg); font-weight: 800; }
+.ss-cookie { position: relative; width: 92px; height: 92px; margin: -30px 6px -10px 10px; border: 0; padding: 0; border-radius: 50%; background: transparent; transition: transform var(--t-fast); }
+.ss-cookie:hover { transform: scale(1.07) rotate(-4deg); }
+.ss-cookie:active { transform: scale(.94); }
+.ss-cookie[disabled] { filter: grayscale(1); opacity: .5; }
+.ss-cookie .ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 200deg, var(--accent), var(--accent-2), #3b1780, var(--accent), var(--gold) 92%, var(--accent)); box-shadow: 0 0 30px rgba(var(--accent-rgb), .5); animation: spin 14s linear infinite; }
+.ss-cookie .face { position: absolute; inset: 6px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 30% 25%, #2d1a4c, #0d0716 70%); color: #fff; }
+.ss-cookie .face .i { width: 34px; height: 34px; margin-left: 4px; }
+.ss-cookie-l { position: absolute; left: 0; right: 0; bottom: -2px; text-align: center; font-size: .62rem; font-weight: 900; letter-spacing: .2em; color: var(--text-2); }
+.dp-icon { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: .66rem; font-weight: 900; color: #0d0716; background: var(--sc); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 0 12px color-mix(in srgb, var(--sc) 45%, transparent); }
+.wedge { clip-path: polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%); border-radius: 18px 4px 4px 18px; }
+.set-panel { border-radius: 12px; }
+.tb-clock { white-space: nowrap; }
+@media (max-width: 1500px) { .tb-np { display: none; } }
+@media (max-width: 1280px) { .tb-btn .lbl.opt { display: none; } }
+
+/* ── lazer-style results ring & mod panels */
+.res-ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(#ff6b7a 0 70%, #c68bff 70% 80%, #5cb3ff 80% 90%, #6ef08e 90% 95%, #ffc31f 95% 99.6%, #fff3a6 99.6% 100%);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); opacity: .9; }
+.mod-card { transform: skewX(-8deg); border-radius: 8px; }
+.mod-card > * { transform: skewX(8deg); }
+.mod-card.on { box-shadow: inset 5px 0 0 var(--mod), 0 0 20px color-mix(in srgb, var(--mod) 25%, transparent); }
+.modcol h4 { padding: 6px 10px; border-radius: 6px; background: rgba(255, 255, 255, .04); }
+.profile-banner.teto { background: linear-gradient(120deg, rgba(255, 77, 106, .38), rgba(60, 56, 64, .5) 45%, rgba(20, 12, 16, .92) 70%); border-color: rgba(255, 77, 106, .45); }
+.profile-banner.miku { background: linear-gradient(120deg, rgba(57, 197, 187, .38), rgba(225, 40, 133, .16) 45%, rgba(8, 20, 22, .92) 70%); border-color: rgba(57, 197, 187, .45); }
 
 </style>
 </head>
@@ -1306,7 +1500,7 @@ const BeatmapParser = {
     const type = p[0].trim();
     const file = s => s ? normPath(s.trim().replace(/^"|"$/g, '')) : null;
     if (type === '0' && p.length >= 3) bm.events.background = { file: file(p[2]), x: +p[3] || 0, y: +p[4] || 0 };
-    else if ((type === '1' || type === 'Video') && p.length >= 3) bm.events.video = file(p[2]);
+    else if ((type === '1' || type === 'Video') && p.length >= 3) bm.events.video = { file: file(p[2]), offset: +p[1] || 0 };
     else if ((type === '2' || type === 'Break') && p.length >= 3) bm.events.breaks.push({ start: +p[1], end: +p[2] });
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
@@ -1426,47 +1620,10 @@ const BeatmapParser = {
 
 class BeatmapError extends Error {}
 
-/** DifficultyCalculator — an independent strain-based star rating for mania.
- *  Each column keeps an "individual strain" (jacks/minijacks); a shared "overall strain"
- *  tracks density and hand coordination; holds under a new note add extra load.
- *  The rating is a weighted sum of the hardest 400ms sections. */
+/** DifficultyCalculator — star rating via the osu!lazer mania strain model (see 09a-osu-math.js). */
+const SR_VERSION = 2;
 const DifficultyCalculator = {
-  calculate(notes, keys, rate = 1) {
-    if (!notes.length) return 0;
-    const SECTION = 400;
-    const indiv = new Float64Array(keys), indivTime = new Float64Array(keys).fill(-1e9);
-    const holdEnd = new Float64Array(keys).fill(-1e9);
-    let overall = 1, prevTime = notes[0].time / rate;
-    const peaks = [];
-    let sectionEnd = Math.ceil((notes[0].time / rate) / SECTION) * SECTION, sectionPeak = 0;
-    for (const n of notes) {
-      const time = n.time / rate, end = n.end / rate;
-      while (time > sectionEnd) { peaks.push(sectionPeak); sectionPeak = 0; sectionEnd += SECTION; }
-      // hold bonus: a note placed while another column is holding, especially if that hold ends after this note
-      let holdFactor = 1, holdAddition = 0;
-      for (let c = 0; c < keys; c++) {
-        if (c === n.col) continue;
-        if (holdEnd[c] > time + 1) {
-          holdFactor = 1.25;
-          if (end > holdEnd[c] + 1) holdAddition = 1;
-        }
-      }
-      const dtCol = time - indivTime[n.col];
-      indiv[n.col] = indiv[n.col] * Math.pow(0.125, dtCol / 1000) + 2.0 * holdFactor;
-      indivTime[n.col] = time;
-      const dt = time - prevTime;
-      overall = overall * Math.pow(0.30, dt / 1000) + (1 + holdAddition) * holdFactor;
-      prevTime = time;
-      if (n.isLN) holdEnd[n.col] = end;
-      const strain = indiv[n.col] + overall;
-      if (strain > sectionPeak) sectionPeak = strain;
-    }
-    peaks.push(sectionPeak);
-    peaks.sort((a, b) => b - a);
-    let sum = 0, w = 1;
-    for (const p of peaks) { sum += p * w; w *= 0.9; if (w < 1e-4) break; }
-    return Math.round(sum * 0.03 * 100) / 100;
-  },
+  calculate(notes, keys, rate = 1) { return Math.round(ManiaStarRating.calculate(notes, keys, rate) * 100) / 100; },
 };
 
 /** BeatmapValidator: explain what is wrong with a difficulty instead of crashing. */
@@ -1671,6 +1828,21 @@ class Skin {
   }
 }
 
+/** Colours of the built-in skin for each UI theme. */
+const THEME_PALETTES = {
+  kori: { n1: ['#f4ecff', '#c9b0ff'], n2: ['#b57bff', '#7d3cff'], s: ['#ffe27a', '#f5b700'], key: '#c69bff', glow: [176, 128, 255], glowS: [255, 210, 80] },
+  neru: { n1: ['#fffbea', '#ffe9a0'], n2: ['#ffd54a', '#e6a800'], s: ['#d9c2ff', '#8a4dff'], key: '#ffd54a', glow: [255, 207, 58], glowS: [176, 124, 255] },
+  teto: { n1: ['#f5f6f8', '#c9ced6'], n2: ['#ff6b84', '#d0213d'], s: ['#ffd0d8', '#ff8fa3'], key: '#ff6b84', glow: [255, 77, 106], glowS: [255, 170, 185] },
+  miku: { n1: ['#ecfffd', '#aeeee8'], n2: ['#39c5bb', '#139a90'], s: ['#ff8cc0', '#e12885'], key: '#39c5bb', glow: [57, 197, 187], glowS: [255, 95, 168] },
+  midnight: { n1: ['#eef6ff', '#bcd9ff'], n2: ['#6cb6ff', '#2f7fff'], s: ['#ffe27a', '#f5b700'], key: '#6cb6ff', glow: [108, 182, 255], glowS: [255, 210, 80] },
+};
+/** Arrow directions per column for the "arrows" note style (from Web-Osu-Mania, MIT © 2024 Danny Duong). */
+const LANE_ARROW_DIRECTIONS = [
+  [180], [270, 90], [270, 180, 90], [270, 180, 0, 90], [270, 315, 180, 45, 90], [270, 45, 180, 0, 45, 90],
+  [270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90],
+  [270, 315, 225, 315, 180, 0, 45, 135, 45, 90],
+];
+
 /** Built-in "Ashtonk!mania" default skin: procedurally generated Kori-inspired textures + synthesized sounds. */
 class DefaultSkin extends Skin {
   constructor() {
@@ -1679,7 +1851,7 @@ class DefaultSkin extends Skin {
     this.gen = new Map();
   }
   get builtin() { return true; }
-  has(name) { return DefaultSkin.NAMES.has(this._key(name)); }
+  has(name) { const k = this._key(name); return DefaultSkin.NAMES.has(k) || k.startsWith('am-'); }
   supportedKeys() { return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; }
   async texture(name) {
     const key = this._key(name);
@@ -1700,10 +1872,58 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
+  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori; }
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
-    const noteCol = { '1': ['#f4ecff', '#c9b0ff'], '2': ['#b57bff', '#7d3cff'], 's': ['#ffe27a', '#f5b700'] };
+    const P = DefaultSkin.palette();
+    const noteCol = { '1': P.n1, '2': P.n2, 's': P.s };
+    const hex = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
+    const darker = typeof Settings === 'undefined' || Settings.get('skin.darkerHolds');
     let m;
+    // Shaped notes for the built-in skin (styles from Web-Osu-Mania): am-<part>-<type>-<style>-<angle>
+    if ((m = /^am-(note|body|tail|key|keyd)-([12s])-(bars|circles|diamonds|arrows)-(\d+)$/.exec(key))) {
+      const [, part, T, style, ang] = m;
+      if (style === 'bars') return DefaultSkin.generate(part === 'note' ? `mania-note${T}` : part === 'body' ? `mania-note${T}l` : part === 'tail' ? `mania-note${T}t` : `mania-key${T}${part === 'keyd' ? 'd' : ''}`);
+      const [a, b] = noteCol[T];
+      const ratio = style === 'diamonds' ? 0.85 : 0.8;
+      const shape = (x, cx, cy, size) => {
+        x.save(); x.translate(cx, cy);
+        if (style === 'circles') { x.beginPath(); x.arc(0, 0, size / 2, 0, Math.PI * 2); }
+        else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.18); }
+        else {
+          x.rotate(+ang * Math.PI / 180);
+          const r = size / 2;
+          x.beginPath();
+          x.moveTo(0, -r); x.lineTo(r, 0); x.lineTo(r * 0.42, 0); x.lineTo(r * 0.42, r); x.lineTo(-r * 0.42, r); x.lineTo(-r * 0.42, 0); x.lineTo(-r, 0); x.closePath();
+        }
+        x.restore();
+      };
+      if (part === 'note') return new Texture([C(128, 128, (x, w, h) => {
+        shape(x, w / 2, h / 2, w * ratio);
+        const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
+        x.fillStyle = g; x.fill(); x.lineWidth = 5; x.strokeStyle = 'rgba(10,4,20,.85)'; x.stroke();
+      })], 2);
+      if (part === 'body') return new Texture([C(128, 32, (x, w, h) => {
+        const bw = w * ratio * 0.62;
+        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fillRect((w - bw) / 2, 0, bw, h);
+      })], 2);
+      if (part === 'tail') return new Texture([C(128, 64, (x, w, h) => {
+        const bw = w * ratio * 0.62;
+        rr(x, (w - bw) / 2, 0, bw, h * 0.7, [0, 0, bw / 2, bw / 2]);
+        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fill();
+      })], 2);
+      const pressed = part === 'keyd';
+      return new Texture([C(128, 320, (x, w, h) => {
+        const g = x.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.22, pressed ? hex(P.n2[1], 0.22) : 'rgba(8,5,14,.45)'); g.addColorStop(1, 'rgba(5,3,8,.9)');
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+        shape(x, w / 2, h * 0.25, w * ratio);
+        x.lineWidth = 7;
+        x.strokeStyle = pressed ? (T === 's' ? P.s[0] : P.key) : hex(T === 's' ? P.s[1] : P.key, 0.5);
+        if (pressed) { x.shadowColor = x.strokeStyle; x.shadowBlur = 20; x.fillStyle = hex(T === 's' ? P.s[1] : P.n2[1], 0.35); x.fill(); }
+        x.stroke();
+      })], 2);
+    }
     if ((m = /^mania-note([12s])$/.exec(key)) || (m = /^mania-note([12s])h$/.exec(key))) {
       const [a, b] = noteCol[m[1]];
       return new Texture([C(128, 40, (x, w, h) => {
@@ -1716,12 +1936,13 @@ class DefaultSkin extends Skin {
     }
     if ((m = /^mania-note([12s])l$/.exec(key))) {
       const [a, b] = noteCol[m[1]];
+      const c1 = darker ? b : a;
       return new Texture([C(128, 32, (x, w, h) => {
         const g = x.createLinearGradient(0, 0, w, 0);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, b + 'aa'); g.addColorStop(0.5, a + 'cc');
-        g.addColorStop(0.9, b + 'aa'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, hex(c1, 0.66)); g.addColorStop(0.5, hex(darker ? b : a, darker ? 0.7 : 0.8));
+        g.addColorStop(0.9, hex(c1, 0.66)); g.addColorStop(1, 'rgba(0,0,0,0)');
         x.fillStyle = g; x.fillRect(14, 0, w - 28, h);
-        x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(w / 2 - 2, 0, 4, h);
+        x.fillStyle = 'rgba(255,255,255,.3)'; x.fillRect(w / 2 - 2, 0, 4, h);
       })], 2);
     }
     if ((m = /^mania-note([12s])t$/.exec(key))) {
@@ -1734,14 +1955,15 @@ class DefaultSkin extends Skin {
     }
     if ((m = /^mania-key([12s])(d?)$/.exec(key))) {
       const pressed = !!m[2], spec = m[1] === 's';
+      const col = spec ? P.s[0] : P.key;
       return new Texture([C(128, 172, (x, w, h) => {
         const g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, pressed ? (spec ? '#3a2a00' : '#2a1350') : '#0b0812'); g.addColorStop(1, '#050308');
+        g.addColorStop(0, pressed ? hex(spec ? P.s[1] : P.n2[1], 0.3) : '#0b0812'); g.addColorStop(1, '#050308');
         x.fillStyle = g; x.fillRect(0, 0, w, h);
         rr(x, 22, 26, w - 44, 34, 12);
         x.lineWidth = 5;
-        x.strokeStyle = pressed ? (spec ? '#ffd54a' : '#c69bff') : (spec ? 'rgba(255,213,74,.45)' : 'rgba(170,120,255,.45)');
-        if (pressed) { x.shadowColor = x.strokeStyle; x.shadowBlur = 18; x.fillStyle = spec ? 'rgba(255,213,74,.35)' : 'rgba(170,120,255,.35)'; x.fill(); }
+        x.strokeStyle = pressed ? col : hex(col, 0.45);
+        if (pressed) { x.shadowColor = col; x.shadowBlur = 18; x.fillStyle = hex(col, 0.35); x.fill(); }
         x.stroke();
         x.shadowBlur = 0;
         x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(0, 0, 2, h); x.fillRect(w - 2, 0, 2, h);
@@ -1749,7 +1971,8 @@ class DefaultSkin extends Skin {
     }
     if (key === 'mania-stage-hint') return new Texture([C(256, 24, (x, w, h) => {
       const g = x.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, 'rgba(180,130,255,0)'); g.addColorStop(0.5, 'rgba(200,160,255,.95)'); g.addColorStop(1, 'rgba(180,130,255,0)');
+      const [r0, g0, b0] = DefaultSkin.palette().glow;
+      g.addColorStop(0, `rgba(${r0},${g0},${b0},0)`); g.addColorStop(0.5, `rgba(${r0},${g0},${b0},.95)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
     if (key === 'mania-stage-light') return new Texture([C(64, 256, (x, w, h) => {
@@ -1759,7 +1982,8 @@ class DefaultSkin extends Skin {
     })], 2);
     if (key === 'mania-stage-left' || key === 'mania-stage-right') return new Texture([C(8, 64, (x, w, h) => {
       const g = x.createLinearGradient(key.endsWith('left') ? w : 0, 0, key.endsWith('left') ? 0 : w, 0);
-      g.addColorStop(0, 'rgba(160,110,255,.9)'); g.addColorStop(1, 'rgba(160,110,255,0)');
+      const [r0, g0, b0] = DefaultSkin.palette().glow;
+      g.addColorStop(0, `rgba(${r0},${g0},${b0},.9)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
     if (key === 'mania-stage-bottom') return null;
@@ -1851,7 +2075,8 @@ const ManiaLayout = {
     for (let i = 0; i < keys; i++) {
       L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: 8, g: 5, b: 14, a: 0.88 } : { r: 0, g: 0, b: 0, a: 1 }));
       const types = maniaColumnTypes(keys, L.specialStyle);
-      L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? (types[i] === 'S' ? { r: 255, g: 210, b: 80, a: 1 } : { r: 176, g: 128, b: 255, a: 1 }) : { r: 255, g: 255, b: 255, a: 1 }));
+      const P = DefaultSkin.palette(), gl = types[i] === 'S' ? P.glowS : P.glow;
+      L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? { r: gl[0], g: gl[1], b: gl[2], a: 1 } : { r: 255, g: 255, b: 255, a: 1 }));
     }
     L.colours.columnLine = col('ColourColumnLine', { r: 255, g: 255, b: 255, a: 1 });
     L.colours.barline = col('ColourBarline', { r: 255, g: 255, b: 255, a: isDefault ? 0.35 : 1 });
@@ -1868,8 +2093,17 @@ const ManiaLayout = {
       return defName ? def.texture(defName, opts) : null;
     };
     const types = maniaColumnTypes(keys, L.specialStyle);
+    const style = isDefault ? (Settings.get('skin.noteStyle') || 'bars') : 'bars';
     for (let i = 0; i < keys; i++) {
       const T = types[i];
+      if (isDefault && style !== 'bars') {
+        const ang = (LANE_ARROW_DIRECTIONS[keys - 1] || [])[i] ?? 0;
+        const nm = part => `am-${part}-${T.toLowerCase()}-${style}-${ang}`;
+        L.tex.key[i] = await def.texture(nm('key')); L.tex.keyD[i] = await def.texture(nm('keyd'));
+        L.tex.note[i] = L.tex.noteH[i] = await def.texture(nm('note'));
+        L.tex.noteL[i] = await def.texture(nm('body')); L.tex.noteT[i] = await def.texture(nm('tail'));
+        continue;
+      }
       L.tex.key[i] = await load(`KeyImage${i}`, `mania-key${T}`);
       L.tex.keyD[i] = await load(`KeyImage${i}D`, `mania-key${T}D`);
       L.tex.note[i] = await load(`NoteImage${i}`, `mania-note${T}`);
@@ -1916,8 +2150,14 @@ const SkinManager = {
     return (window.innerHeight * (window.devicePixelRatio || 1)) >= 700;
   },
 
+  /** Theme / built-in style changes regenerate the procedural textures (imported skins fall back to them). */
+  invalidateGenerated() {
+    this.defaultSkin.gen.clear(); this.defaultSkin.layoutCache.clear();
+    if (this.current && this.current !== this.defaultSkin) this.current.layoutCache.clear();
+  },
   async init() {
     this.defaultSkin = new DefaultSkin();
+    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
     await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
@@ -2354,6 +2594,7 @@ function keyLabel(code) {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num' + code.slice(6);
+  if (code.startsWith('Pad')) return '🎮' + code.slice(3);
   return ({
     Space: 'Space', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', BracketLeft: '[', BracketRight: ']',
     Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', ShiftLeft: 'LShift', ShiftRight: 'RShift', ControlLeft: 'LCtrl',
@@ -2373,21 +2614,36 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Receptor position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves the judgement line relative to the skin\'s HitPosition.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stagePosition', l: 'Stage position', t: 'select', d: 'center', o: [['center', 'Centered'], ['skin', 'Skin (ColumnStart)'], ['left', 'Left'], ['right', 'Right']] },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.barlines', l: 'Show barlines', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneSpacing', l: 'Lane spacing', t: 'range', d: 0, min: 0, max: 20, step: 1, fmt: v => `${v}` },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOffset', l: 'Stage horizontal offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}%` },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Visual note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Shifts where notes are drawn relative to the receptors (visual only).' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten background during breaks', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.video', l: 'Background video', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.videoImport', l: 'Store videos when importing (.mp4 / .webm)', t: 'bool', d: true, hint: 'Videos can be large; turn off to save storage.' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0, min: 0, max: 30, step: 1, fmt: v => `${v}px` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.neruSparkle', l: 'Golden sparkle on Marvelous ✦', t: 'bool', d: false, hint: 'A little yellow flourish. You know who you are.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressBar', l: 'Song progress', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.errorBarScale', l: 'Hit error bar size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.1, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.kpsCounter', l: 'Keys-per-second counter', t: 'bool', d: false },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Judgement counter', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted (Marvelous > Perfect)'], ['v1', 'Classic (Marvelous = Perfect)']] },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 5000, min: 2000, max: 15000, step: 500, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Retry automatically on fail', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 1500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
   { s: 'Audio', g: 'Volume', k: 'audio.master', l: 'Master', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
@@ -2404,6 +2660,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS counter', t: 'bool', d: false },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Rendering scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting, stage light and UI blur for low-end devices.' },
   { s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
@@ -2412,18 +2669,23 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
+  { s: 'Input', g: 'Touch', k: 'input.touch', l: 'Touch controls', t: 'select', d: 'auto', o: [['auto', 'Automatic (touch devices)'], ['full', 'On — full-width lanes'], ['lanes', 'On — tap the columns'], ['off', 'Off']] },
+  { s: 'Input', g: 'Touch', k: 'input.touchOpacity', l: 'Touch lane borders', t: 'range', d: 0.12, min: 0, max: 0.6, step: 0.02, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Theme', t: 'select', d: 'kori', o: [['kori', 'Kori (purple)'], ['neru', 'Neru (gold)'], ['midnight', 'Midnight (blue)']] },
+  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Theme', t: 'select', d: 'kori', o: [['kori', 'Default — Kori (purple)'], ['neru', 'Neru (gold)'], ['teto', 'Teto (crimson)'], ['miku', 'Miku (teal)'], ['midnight', 'Midnight (blue)']] },
   { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
+  { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
   { s: 'Interface', g: 'Style', k: 'ui.homeMessages', l: 'Home screen greetings', t: 'bool', d: true },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Ashtonk!mania Default skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
   { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
@@ -2432,11 +2694,13 @@ const SETTINGS_SCHEMA = [
   { k: 'debug.overlay', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.filter', d: 'all' }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
+  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 } },
 ];
 
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
+  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'audio.uiSounds']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -2444,6 +2708,7 @@ const Settings = {
     this.applyUI();
   },
   get(k) {
+    if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
     return s ? (typeof s.d === 'object' && s.d !== null ? structuredClone(s.d) : s.d) : undefined;
@@ -2452,7 +2717,7 @@ const Settings = {
     this.values[k] = v;
     Bus.emit('settings:changed', k, v);
     if (k.startsWith('audio.')) AudioManager.applyVolumes();
-    if (k.startsWith('ui.') || k === 'graphics.effects') this.applyUI();
+    if (k.startsWith('ui.') || k.startsWith('graphics.')) this.applyUI();
     clearTimeout(this._saveT);
     this._saveT = setTimeout(() => DB.kvSet('settings', this.values).catch(e => console.error(e)), 250);
   },
@@ -2498,6 +2763,24 @@ const BeatmapManager = {
     this.sets = sets; this.setById = new Map(sets.map(s => [s.id, s]));
     this.maps = new Map(maps.map(m => [m.id, m]));
     for (const s of this.sets) s.maps = s.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
+  },
+  /** Recalculate star ratings stored by older versions (runs in the background after boot). */
+  async migrateStarRatings() {
+    const stale = [...this.maps.values()].filter(m => m.srVersion !== SR_VERSION && !m.problems.length);
+    if (!stale.length) return 0;
+    for (const m of stale) {
+      try {
+        const { bm, notes } = await this.load(m.id);
+        m.stars = DifficultyCalculator.calculate(notes, m.keys, 1);
+        m.breaks = bm.events.breaks;
+        m.srVersion = SR_VERSION;
+        await DB.put('maps', m);
+      } catch (e) { m.srVersion = SR_VERSION; }
+      await sleep(0);
+    }
+    for (const s of this.sets) s.maps.sort((a, b) => a.stars - b.stars);
+    Bus.emit('library:changed');
+    return stale.length;
   },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
   mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
@@ -2644,7 +2927,14 @@ const BeatmapManager = {
       if (d.bm.audioFile) needed.add(d.bm.audioFile.toLowerCase());
       if (d.bm.events.background) needed.add(d.bm.events.background.file.toLowerCase());
       if (d.bm.events.storyboard) storyboard = true;
-      if (d.bm.events.video) video = true;
+      if (d.bm.events.video) {
+        video = true;
+        const vf = d.bm.events.video.file;
+        if (vf && /\.(mp4|webm|m4v|mov)$/i.test(vf) && Settings.get('gameplay.videoImport')) {
+          const ve = lowerIndex.get(vf.toLowerCase());
+          if (ve && ve.size < 120e6) needed.add(vf.toLowerCase());
+        }
+      }
       for (const ho of d.bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) needed.add(normPath(f).toLowerCase()); }
     }
     for (const e of entries) {
@@ -2682,7 +2972,8 @@ const BeatmapManager = {
         creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
         osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
         previewTime: bm.previewTime, mode: bm.mode, keys: BeatmapParser.keyCount(bm),
-        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings,
+        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
+        breaks: bm.events.breaks,
         added: existing?.added || Date.now(),
         ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
       };
@@ -2815,30 +3106,36 @@ const BeatmapProviders = {
 
 /* ===== 08-mods.js ===== */
 /* ModSystem — modular, data-driven mods. Only mods that make sense for mania are offered
- * (osu!standard-only mods such as Relax / Autopilot / Spun Out / Flashlight aim are intentionally excluded). */
+ * (osu!standard-only mods such as Relax / Autopilot / Spun Out are intentionally excluded).
+ * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN 0.9, Difficulty Adjust 0.5, others 1.0.
+ * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
-  { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#7ee07a', incompatible: ['HR'],
-    desc: 'Larger timing windows, half health drain.' },
-  { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#7ee07a', incompatible: ['SD', 'PF', 'AT'],
+  { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#7ee07a', incompatible: ['HR', 'DA'],
+    desc: 'Halves OD and HP: larger timing windows, gentler health drain.' },
+  { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#7ee07a', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
-  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'DC'], rate: 0.75,
+  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
-  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT'], rate: 0.75, pitch: true,
+  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
-  { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ'],
-    desc: 'Tighter timing windows (÷1.4) and harsher health drain.' },
-  { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'AT'],
+  { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
+    desc: 'OD and HP ×1.4: tighter windows, harsher drain.' },
+  { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
     desc: 'Miss once and fail.' },
-  { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'AT'],
-    desc: 'Anything below Perfect fails you.' },
-  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'NC'], rate: 1.5,
+  { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PSS', 'AT'],
+    desc: 'Anything below 300 fails you.' },
+  { id: 'PSS', name: 'Perfect (SS)', group: 'increase', key: 'KeyP', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PF', 'AT'],
+    desc: 'Only MAX judgements allowed.' },
+  { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'AT'], config: 'acc',
+    desc: 'Fail if your accuracy drops below the target.' },
+  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'NC', 'RT'], rate: 1.5,
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
-  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'DT'], rate: 1.5, pitch: true,
+  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
-  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff7a8a', incompatible: ['FI'],
+  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff7a8a', incompatible: ['FI'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
-  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff7a8a', incompatible: ['HD'],
+  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff7a8a', incompatible: ['HD'], config: 'cover',
     desc: 'Notes appear out of nowhere near the receptors.' },
   { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#b28bff', incompatible: ['RD'],
     desc: 'Columns are mirrored left ↔ right.' },
@@ -2846,13 +3143,20 @@ const MODS = [
     desc: 'Columns are shuffled (seeded — replays stay reproducible).' },
   { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#b28bff', incompatible: [],
     desc: 'No more tricky speed changes: ignores SV and BPM scroll changes.' },
-  { id: 'NLN', name: 'No Long Notes', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: [],
+  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: [],
     desc: 'Long notes become regular notes.' },
-  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#6cc6ff', incompatible: ['NF', 'SD', 'PF'], unranked: true,
+  { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#b28bff', incompatible: ['NLN'], config: 'percy',
+    desc: 'Long note tails are drawn shorter (visual only).' },
+  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#b28bff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',
+    desc: 'Any playback rate from 0.5× to 2×.' },
+  { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#b28bff', incompatible: ['EZ', 'HR'], config: 'da',
+    desc: 'Override the beatmap\'s OD and HP.' },
+  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#6cc6ff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
 ];
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
 const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -2862,14 +3166,20 @@ const ModSystem = {
     if (list.includes(id)) return list.filter(x => x !== id);
     return this.normalize([...list.filter(x => !m.incompatible.includes(x) && !(MOD_BY_ID.get(x)?.incompatible || []).includes(id)), id]);
   },
-  multiplier(list) { return list.reduce((a, id) => a * (MOD_BY_ID.get(id)?.mult ?? 1), 1); },
-  rate(list) { for (const id of list) { const r = MOD_BY_ID.get(id)?.rate; if (r) return r; } return 1; },
+  config(cfg) { return { ...MOD_CONFIG_DEFAULTS, ...(cfg || (typeof Settings !== 'undefined' ? Settings.get('mods.config') : null) || {}) }; },
+  multiplier(list, cfg) {
+    let m = list.reduce((a, id) => a * (MOD_BY_ID.get(id)?.mult ?? 1), 1);
+    if (list.includes('RT') && this.config(cfg).rate < 1) m *= 0.5;
+    return m;
+  },
+  rate(list, cfg) {
+    if (list.includes('RT')) return clamp(Math.round(this.config(cfg).rate * 20) / 20, 0.5, 2);
+    for (const id of list) { const r = MOD_BY_ID.get(id)?.rate; if (r) return r; }
+    return 1;
+  },
   pitchShift(list) { return list.some(id => MOD_BY_ID.get(id)?.pitch); },
   label(list) { return list.length ? list.join('') : 'NM'; },
   isRanked(list) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
-  /** Timing window multiplier in real time. */
-  windowScale(list) { return list.includes('HR') ? 1 / 1.4 : list.includes('EZ') ? 1.4 : 1; },
-  drainScale(list) { return list.includes('HR') ? 1.4 : list.includes('EZ') ? 0.5 : 1; },
   /** Column permutation for Mirror / Random. */
   columnMap(list, keys, seed) {
     const map = Array.from({ length: keys }, (_, i) => i);
@@ -2880,9 +3190,20 @@ const ModSystem = {
     }
     return map;
   },
-  badge(id, small = false) {
+  /** Short human description of configured values (shown on badges / results). */
+  describe(id, cfg) {
+    const c = this.config(cfg);
+    if (id === 'AC') return `${Math.round(c.acc * 100)}%`;
+    if (id === 'RT') return `${this.rate(['RT'], cfg)}×`;
+    if (id === 'DA') return `OD${c.od} HP${c.hp}`;
+    if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
+    if (id === 'PC') return `${c.percy}ms`;
+    return '';
+  },
+  badge(id, small = false, cfg = null) {
     const m = MOD_BY_ID.get(id);
-    return h(`span.mod-badge${small ? '.small' : ''}`, { style: { '--mod': m ? m.color : '#888' }, title: m ? m.name : id }, id);
+    const d = cfg ? this.describe(id, cfg) : '';
+    return h(`span.mod-badge${small ? '.small' : ''}`, { style: { '--mod': m ? m.color : '#888' }, title: m ? `${m.name}${d ? ' ' + d : ''}` : id }, id);
   },
 };
 
@@ -2893,30 +3214,26 @@ const ModSystem = {
 
 const J = { MARV: 0, PERF: 1, GREAT: 2, GOOD: 3, BAD: 4, MISS: 5 };
 const JUDGEMENTS = [
-  { id: '300g', name: 'Marvelous', short: 'MAX', score: 305, v1: 300, color: '#ffe066', health: 0.008 },
-  { id: '300', name: 'Perfect', short: '300', score: 300, v1: 300, color: '#ffc233', health: 0.006 },
-  { id: '200', name: 'Great', short: '200', score: 200, v1: 200, color: '#38d97a', health: 0.002 },
-  { id: '100', name: 'Good', short: '100', score: 100, v1: 100, color: '#3c9dff', health: 0 },
-  { id: '50', name: 'Bad', short: '50', score: 50, v1: 50, color: '#b07cf0', health: -0.012 },
-  { id: '0', name: 'Miss', short: 'MISS', score: 0, v1: 0, color: '#ff4a5c', health: -0.06 },
+  { id: '300g', name: 'Marvelous', short: 'MAX', score: 320, color: '#ffe066' },
+  { id: '300', name: 'Perfect', short: '300', score: 300, color: '#ffc233' },
+  { id: '200', name: 'Great', short: '200', score: 200, color: '#38d97a' },
+  { id: '100', name: 'Good', short: '100', score: 100, color: '#3c9dff' },
+  { id: '50', name: 'Bad', short: '50', score: 50, color: '#b07cf0' },
+  { id: '0', name: 'Miss', short: 'MISS', score: 0, color: '#ff4a5c' },
 ];
 const TAIL_LENIENCE = 1.5;
 
-/** Timing windows in real milliseconds (before rate scaling). */
-function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '' } = {}) {
-  let w;
+/** Timing windows in real milliseconds (osu!mania ScoreV2 table; OD adjusted by EZ/HR/Difficulty Adjust). */
+function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null } = {}) {
   if (mode === 'ms') {
     const p = String(customMs).split(/[,\s]+/).map(Number).filter(n => isFinite(n) && n > 0);
-    if (p.length === 6) w = p.slice().sort((a, b) => a - b);
+    if (p.length === 6) return p.slice().sort((a, b) => a - b);
   }
-  if (!w) {
-    const o = mode === 'custom' ? customOD : od;
-    w = [16, 64 - 3 * o, 97 - 3 * o, 127 - 3 * o, 151 - 3 * o, 188 - 3 * o];
-  }
-  const s = ModSystem.windowScale(mods);
-  return w.map(x => x * s);
+  const base = mode === 'custom' ? customOD : od;
+  return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, mods.includes('DA') ? odOverride : null));
 }
 
+/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo. */
 class ScoreSystem {
   constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
     this.total = Math.max(1, totalJudgements);
@@ -2924,69 +3241,54 @@ class ScoreSystem {
     this.accMode = accuracyMode;
     this.counts = [0, 0, 0, 0, 0, 0];
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
-    this.scoreSum = 0; this.accSum = 0; this.comboSum = 0;
+    this.bonus = 100; this.rawScore = 0;
     this.comboBreaks = 0;
-    let cm = 0; for (let k = 1; k <= this.total; k++) cm += Math.min(k, 400) / 400;
-    this.comboMax = cm;
   }
   add(j) {
-    const J_ = JUDGEMENTS[j];
     this.counts[j]++; this.judged++;
-    this.scoreSum += J_.score;
-    this.accSum += this.accMode === 'v1' ? J_.v1 : J_.score;
+    const unit = 1e6 / 2 / this.total;
+    this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
+    this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
     if (j === J.MISS) this.breakCombo();
-    else {
-      this.combo++;
-      if (this.combo > this.maxCombo) this.maxCombo = this.combo;
-      this.comboSum += (J_.score / 305) * Math.min(this.combo, 400) / 400;
-    }
+    else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
-  get accuracy() {
-    if (!this.judged) return 1;
-    return this.accSum / (this.judged * (this.accMode === 'v1' ? 300 : 305));
-  }
-  get score() {
-    return Math.round(1e6 * this.mult * (0.99 * this.scoreSum / (this.total * 305) + 0.01 * this.comboSum / this.comboMax));
-  }
-  /** Score if the rest of the map were played perfectly — used for pace display. */
+  get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
+  get score() { return Math.round(this.rawScore); }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
-    if (failed) return 'F';
-    const hid = mods.includes('HD') || mods.includes('FI');
-    const perfect = counts ? counts[2] + counts[3] + counts[4] + counts[5] === 0 : acc >= 1;
-    if (perfect) return hid ? 'XH' : 'SS';
-    if (acc >= 0.95) return hid ? 'SH' : 'S';
-    if (acc >= 0.9) return 'A';
-    if (acc >= 0.8) return 'B';
-    if (acc >= 0.7) return 'C';
-    return 'D';
+    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
   }
 }
 
+/** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null } = {}) {
     this.value = 1;
-    this.factor = (0.5 + hp / 10) * ModSystem.drainScale(mods);
+    this.rawHp = mods.includes('DA') && hpOverride != null ? hpOverride : hp;
+    const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
+    this.mult = computeHpMultiplier(notes, hpMod, breaks, this.rawHp);
     this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
+    this.perfectSS = mods.includes('PSS');
+    this.accChallenge = mods.includes('AC') ? (accChallenge ?? 0.9) : null;
     this.failed = false; this.failTime = null;
     this.min = 1;
+    this.timeline = [];
   }
-  apply(j, t) {
-    const g = JUDGEMENTS[j].health;
-    this.value = clamp(this.value + (g < 0 ? g * this.factor : g), 0, 1);
+  apply(j, t, hold = false, accuracy = 1) {
+    if ((this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV)) {
+      this.value = 0; this.fail(t);
+    } else {
+      this.value = clamp(this.value + healthIncrease(j, this.rawHp, hold, this.mult), 0, 1);
+    }
+    if (this.accChallenge != null && accuracy < this.accChallenge) this.fail(t);
     if (this.value < this.min) this.min = this.value;
-    if (this.suddenDeath && j === J.MISS) this.fail(t);
-    if (this.perfect && j >= J.GREAT) this.fail(t);
     if (this.value <= 0) this.fail(t);
+    this.timeline.push([Math.round(t), Math.round(this.value * 1000) / 1000]);
   }
-  earlyRelease(t) {
-    this.value = clamp(this.value - 0.03 * this.factor, 0, 1);
-    if (this.suddenDeath) this.fail(t);
-    if (this.value <= 0) this.fail(t);
-  }
+  earlyRelease() { if (this.suddenDeath) this.fail(); }
   fail(t) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; }
 }
 
@@ -3001,7 +3303,7 @@ class GameplayEngine {
    * @param {number[]} o.windows real-time windows [marv..miss] ms
    * @param {number} o.rate playback rate (map-time windows = real * rate)
    */
-  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false }) {
+  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {} }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.W = windows.map(w => w * rate);
     this.TW = this.W.map(w => w * TAIL_LENIENCE);
@@ -3014,7 +3316,7 @@ class GameplayEngine {
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
     this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -3029,7 +3331,7 @@ class GameplayEngine {
 
   _judge(n, j, t, err, tail) {
     this.score.add(j);
-    this.health.apply(j, t);
+    this.health.apply(j, t, tail, this.score.accuracy);
     this.remaining--;
     const e = { type: 'judgement', col: n.col, j, t, err, tail, note: n };
     this.lastJudgement = e;
@@ -3059,11 +3361,11 @@ class GameplayEngine {
           }
           break;
         } else if (n.state === NS.HOLDING) {
-          if (t - n.end > this.TW[J.BAD]) {
-            // held past the release window: judged as a late release
-            n.tailJ = J.BAD; n.state = NS.DONE;
+          if (t - n.end > this.TW[J.MISS]) {
+            // held past the release window without letting go: the tail is missed (osu!mania behaviour)
+            n.tailJ = J.MISS; n.state = NS.MISSED;
             this.holding[c] = null;
-            this._judge(n, n.tailJ, n.end + this.TW[J.BAD], null, true);
+            this._judge(n, J.MISS, n.end + this.TW[J.MISS], null, true);
             p++; continue;
           }
           break;
@@ -3119,8 +3421,8 @@ class GameplayEngine {
       if (!n) return;
       this.holding[col] = null;
       const err = t - n.end;
-      if (err < -this.TW[J.BAD]) {
-        // released too early
+      if (err < -this.TW[J.MISS]) {
+        // released too early: combo breaks, the note can be re-grabbed but the tail is capped at 50
         n.state = NS.DROPPED; n.capped = true;
         this.score.breakCombo();
         this.health.earlyRelease(t);
@@ -3128,7 +3430,7 @@ class GameplayEngine {
         return;
       }
       let j = this._windowFor(Math.abs(err), this.TW);
-      if (n.capped) j = Math.max(j, J.BAD);
+      if (n.capped) j = J.BAD;
       n.tailJ = j; n.state = NS.DONE;
       this._judge(n, j, t, err, true);
       this.ptr[col]++;
@@ -3265,6 +3567,239 @@ class SampleBank {
   }
 }
 
+/* ===== 09a-osu-math.js ===== */
+/* OsuMath — osu!mania-accurate formulas.
+ *
+ * Ported from Web-Osu-Mania by Danny Duong (MIT License, Copyright (c) 2024 Danny Duong,
+ * https://github.com/hectickiwi/Web-Osu-Mania), which in turn follows the official osu! sources:
+ *   - hit windows:  https://osu.ppy.sh/wiki/en/Gameplay/Judgement/osu%21mania#scorev2
+ *   - ScoreV1:      https://osu.ppy.sh/wiki/en/Gameplay/Score/ScoreV1/osu%21mania
+ *   - accuracy:     https://osu.ppy.sh/wiki/en/Gameplay/Accuracy#osu!mania
+ *   - health:       osu.Game/Rulesets/Scoring/LegacyDrainingHealthProcessor.cs, ManiaHealthProcessor.cs
+ *   - star rating:  osu.Game.Rulesets.Mania/Difficulty/ManiaDifficultyCalculator.cs (+ Strain.cs, evaluators)
+ *   - pp:           osu.Game.Rulesets.Mania/Difficulty/ManiaPerformanceCalculator.cs
+ *
+ * The MIT permission notice for the ported portions:
+ *   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ *   associated documentation files (the "Software"), to deal in the Software without restriction,
+ *   including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ *   and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ *   subject to the following conditions: The above copyright notice and this permission notice shall be
+ *   included in all copies or substantial portions of the Software.
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+ */
+
+const OsuMath = {
+  /** OD after EZ / HR (osu! applies these to the difficulty value, not to the windows). */
+  odAfterMods(od, mods = [], override = null) {
+    if (mods.includes('EZ')) return od / 2;
+    if (mods.includes('HR')) return Math.min(od * 1.4, 10);
+    if (override != null) return override;
+    return od;
+  },
+  hpAfterMods(hp, mods = [], override = null) {
+    if (mods.includes('EZ')) return hp / 2;
+    if (mods.includes('HR')) return Math.min(hp * 1.4, 10);
+    if (override != null) return override;
+    return hp;
+  },
+
+  /** osu!mania ScoreV2-table hit windows (ms, real time): [MAX, 300, 200, 100, 50, miss]. */
+  hitWindows(od) {
+    return [
+      od <= 5 ? 22.4 - 0.6 * od : 24.9 - 1.1 * od,
+      64 - 3 * od, 97 - 3 * od, 127 - 3 * od, 151 - 3 * od, 188 - 3 * od,
+    ];
+  },
+
+  /** Displayed accuracy (MAX weighted 305). counts: [MAX,300,200,100,50,miss] */
+  accuracy(c) {
+    const n = c[0] + c[1] + c[2] + c[3] + c[4] + c[5];
+    if (!n) return 1;
+    return (305 * c[0] + 300 * c[1] + 200 * c[2] + 100 * c[3] + 50 * c[4]) / (305 * n);
+  },
+  /** Classic accuracy (MAX == 300). */
+  accuracyV1(c) {
+    const n = c[0] + c[1] + c[2] + c[3] + c[4] + c[5];
+    if (!n) return 1;
+    return (300 * (c[0] + c[1]) + 200 * c[2] + 100 * c[3] + 50 * c[4]) / (300 * n);
+  },
+  /** Accuracy used by pp (MAX weighted 320). */
+  ppAccuracy(c) {
+    const n = c[0] + c[1] + c[2] + c[3] + c[4] + c[5];
+    if (!n) return 1;
+    return (320 * c[0] + 300 * c[1] + 200 * c[2] + 100 * c[3] + 50 * c[4]) / (320 * n);
+  },
+
+  /** Performance points (ManiaPerformanceCalculator). starRating must already include rate mods. */
+  pp(starRating, counts, mods = []) {
+    const totalHits = counts.reduce((a, b) => a + b, 0);
+    if (!totalHits) return 0;
+    const acc = this.ppAccuracy(counts);
+    let value = 8 * Math.pow(Math.max(starRating - 0.15, 0.05), 2.2) * Math.max(0, 5 * acc - 4) * (1 + 0.1 * Math.min(1, totalHits / 1500));
+    if (mods.includes('NF')) value *= 0.75;
+    if (mods.includes('EZ')) value *= 0.5;
+    return value;
+  },
+  /** Profile total pp: best score per map, weighted 0.95^i, plus the play-count bonus osu! adds. */
+  totalPp(ppList) {
+    const sorted = ppList.filter(p => p > 0).sort((a, b) => b - a);
+    let total = 0, w = 1;
+    for (const p of sorted) { total += p * w; w *= 0.95; }
+    const bonus = 416.6667 * (1 - Math.pow(0.995, Math.min(sorted.length, 1000)));
+    return { total: total + bonus, weighted: total, bonus };
+  },
+
+  /** Letter grade (osu!mania): SS = no 200/100/50/miss; then strict accuracy thresholds. */
+  grade(acc, counts, failed = false, hidden = false) {
+    if (failed) return 'F';
+    if (counts && counts[2] + counts[3] + counts[4] + counts[5] === 0) return hidden ? 'XH' : 'SS';
+    if (acc > 0.95) return hidden ? 'SH' : 'S';
+    if (acc > 0.9) return 'A';
+    if (acc > 0.8) return 'B';
+    if (acc > 0.7) return 'C';
+    return 'D';
+  },
+
+  // https://github.com/ppy/osu/blob/master/osu.Game/Beatmaps/IBeatmapDifficultyInfo.cs
+  difficultyRange(d, min, mid, max) {
+    if (d > 5) return mid + (max - mid) * (d - 5) / 5;
+    if (d < 5) return mid + (mid - min) * (d - 5) / 5;
+    return mid;
+  },
+};
+
+/** ScoreV1 (osu!mania) with the hit-bonus mechanic. Values indexed like J (MAX..miss). */
+const SCORE_V1 = {
+  value: [320, 300, 200, 100, 50, 0],
+  bonusValue: [32, 32, 16, 8, 4, 0],
+  bonusChange: [2, 1, -8, -24, -44, -100],
+};
+
+/** Legacy mania health: calibrates hpMultiplierNormal by simulating a perfect play, then applies
+ *  per-judgement increases (hold-tail misses cost half). */
+function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp) {
+  const lowestHpEver = OsuMath.difficultyRange(hp, 0.975, 0.8, 0.3);
+  const lowestHpEnd = OsuMath.difficultyRange(hp, 0.99, 0.9, 0.4);
+  const hpRecoveryAvailable = OsuMath.difficultyRange(hp, 0.04, 0.02, 0);
+  let hpMultiplierNormal = 1;
+  if (!notes.length) return 1;
+  const heads = notes.slice().sort((a, b) => a.time - b.time);
+  const drainStart = heads[0].time;
+  const increaseFor = (j, hold) => healthIncrease(j, rawHp, hold, hpMultiplierNormal);
+  let testDrop = 0.00025;
+  for (let guard = 0; guard < 4000; guard++) {
+    let currentHp = 1, currentHpUncapped = 1, lastTime = drainStart, currentBreak = 0, fail = false, count = 0;
+    const reduce = amt => { currentHpUncapped = Math.max(0, currentHpUncapped - amt); currentHp = Math.max(0, currentHp - amt); };
+    const increase = hold => { const a = increaseFor(J.MARV, hold); currentHpUncapped += a; currentHp = Math.max(0, Math.min(1, currentHp + a)); };
+    for (const h of heads) {
+      count++;
+      while (currentBreak < breaks.length && breaks[currentBreak].end <= h.time) { lastTime = h.time; currentBreak++; }
+      reduce(testDrop * (h.time - lastTime));
+      lastTime = h.end;
+      if (currentHp <= lowestHpEver) { fail = true; testDrop *= 0.96; break; }
+      const reduction = testDrop * (h.end - h.time);
+      const overkill = Math.max(0, reduction - currentHp);
+      reduce(reduction);
+      if (h.isLN) { increase(true); increase(true); }
+      if (overkill > 0 && currentHp - overkill <= lowestHpEver) { fail = true; testDrop *= 0.96; break; }
+      if (!h.isLN) increase(false);
+    }
+    if (!fail && currentHp < lowestHpEnd) { fail = true; testDrop *= 0.94; hpMultiplierNormal *= 1.01; }
+    const recovery = (currentHpUncapped - 1) / Math.max(1, count);
+    if (!fail && recovery < hpRecoveryAvailable) { fail = true; testDrop *= 0.96; hpMultiplierNormal *= 1.01; }
+    if (!fail && !isFinite(hpMultiplierNormal)) return 1;
+    if (!fail) return hpMultiplierNormal;
+  }
+  return hpMultiplierNormal;
+}
+function healthIncrease(j, hp, hold, mult = 1) {
+  switch (j) {
+    case J.MISS: return hold ? -(hp + 1) * 0.00375 : -(hp + 1) * 0.0075;
+    case J.BAD: return -(hp + 1) * 0.0016;
+    case J.GOOD: return 0;
+    case J.GREAT: return mult * (0.004 - hp * 0.0004);
+    case J.PERF: return mult * (0.005 - hp * 0.0005);
+    default: return mult * (0.0055 - hp * 0.0005);
+  }
+}
+
+/** Star rating: port of osu!lazer's ManiaDifficultyCalculator (Strain skill). */
+const ManiaStarRating = {
+  DIFFICULTY_MULTIPLIER: 0.018, INDIVIDUAL_DECAY_BASE: 0.125, OVERALL_DECAY_BASE: 0.3,
+  DECAY_WEIGHT: 0.9, SECTION_LENGTH: 400, RELEASE_THRESHOLD: 30,
+
+  calculate(notes, keys, rate = 1) {
+    if (notes.length < 2) return 0;
+    const hos = notes.map(n => ({ startTime: n.time / rate, endTime: (n.isLN ? n.end : n.time) / rate, column: n.col }))
+      .sort((a, b) => Math.round(a.startTime) - Math.round(b.startTime));
+    const objs = this._diffObjects(hos, keys);
+    return this._strain(objs, keys) * this.DIFFICULTY_MULTIPLIER;
+  },
+  _diffObjects(hos, keys) {
+    const objects = [], perCol = Array.from({ length: keys }, () => []);
+    for (let i = 1; i < hos.length; i++) {
+      const cur = hos[i], last = hos[i - 1];
+      const col = perCol[cur.column] || (perCol[cur.column] = []);
+      const prevInCol = col[col.length - 1] || null;
+      const prevs = new Array(keys).fill(null);
+      if (objects.length) {
+        const p = objects[objects.length - 1];
+        for (let j = 0; j < keys; j++) prevs[j] = p.prevs[j];
+        prevs[p.column] = p;
+      }
+      const o = {
+        index: objects.length, startTime: cur.startTime, endTime: cur.endTime, deltaTime: cur.startTime - last.startTime,
+        column: cur.column, columnStrainTime: prevInCol ? cur.startTime - prevInCol.startTime : cur.startTime, prevs,
+      };
+      objects.push(o); col.push(o);
+    }
+    return objects;
+  },
+  _strain(objects, keys) {
+    const decay = (v, dt, base) => v * Math.pow(base, dt / 1000);
+    const bigger = (a, b, d) => a - b > d;
+    const logistic = (x, mid, mul, max = 1) => max / (1 + Math.exp(mul * (mid - x)));
+    const indiv = new Array(keys).fill(0);
+    let highestIndiv = 0, overall = 1, currentStrain = 0, sectionPeak = 0, sectionEnd = 0;
+    const peaks = [];
+    for (const cur of objects) {
+      if (cur.index === 0) sectionEnd = Math.ceil(cur.startTime / this.SECTION_LENGTH) * this.SECTION_LENGTH;
+      while (cur.startTime > sectionEnd) {
+        peaks.push(sectionPeak);
+        const prev = cur.index > 0 ? objects[cur.index - 1] : null;
+        const prevStart = prev ? prev.startTime : cur.startTime;
+        sectionPeak = decay(highestIndiv, sectionEnd - prevStart, this.INDIVIDUAL_DECAY_BASE) + decay(overall, sectionEnd - prevStart, this.OVERALL_DECAY_BASE);
+        sectionEnd += this.SECTION_LENGTH;
+      }
+      currentStrain *= Math.pow(1, cur.deltaTime / 1000);
+      // individual strain
+      let holdFactor = 1;
+      for (const p of cur.prevs) {
+        if (p && bigger(p.endTime, cur.endTime, 1) && bigger(cur.startTime, p.startTime, 1)) { holdFactor = 1.25; break; }
+      }
+      indiv[cur.column] = decay(indiv[cur.column], cur.columnStrainTime, this.INDIVIDUAL_DECAY_BASE) + 2 * holdFactor;
+      highestIndiv = cur.deltaTime <= 1 ? Math.max(highestIndiv, indiv[cur.column]) : indiv[cur.column];
+      // overall strain
+      let overlapping = false, closestEnd = Math.abs(cur.endTime - cur.startTime), hf = 1, holdAdd = 0;
+      for (const p of cur.prevs) {
+        if (!p) continue;
+        overlapping = overlapping || (bigger(p.endTime, cur.startTime, 1) && bigger(cur.endTime, p.endTime, 1) && bigger(cur.startTime, p.startTime, 1));
+        if (bigger(p.endTime, cur.endTime, 1) && bigger(cur.startTime, p.startTime, 1)) hf = 1.25;
+        closestEnd = Math.min(closestEnd, Math.abs(cur.endTime - p.endTime));
+      }
+      if (overlapping) holdAdd = logistic(closestEnd, this.RELEASE_THRESHOLD, 0.27);
+      overall = decay(overall, cur.deltaTime, this.OVERALL_DECAY_BASE) + (1 + holdAdd) * hf;
+      currentStrain += highestIndiv + overall - currentStrain;
+      sectionPeak = Math.max(currentStrain, sectionPeak);
+    }
+    peaks.push(sectionPeak);
+    let diff = 0, w = 1;
+    for (const p of peaks.filter(x => x > 0).sort((a, b) => b - a)) { diff += p * w; w *= this.DECAY_WEIGHT; }
+    return diff;
+  },
+};
+
 /* ===== 10-renderer.js ===== */
 /* Renderer — Canvas 2D mania stage renderer driven by the TimingEngine clock.
  * All skin geometry is expressed in osu! "480-space" units and scaled by (canvas height / 480),
@@ -3319,19 +3854,24 @@ class ManiaRenderer {
     if (!L) return;
     const s = this.H / 480;
     this.s = s;
+    // osu!stable/lazer size legacy skin textures in a 768-unit-tall space (POSITION_SCALE_FACTOR 1.6):
+    // a texture pixel is H/768 screen pixels, while column widths/positions are in 480-space.
+    this.u = this.H / 768;
+    this.legacy = !L.skin.builtin;
     const lw = Settings.get('gameplay.laneWidth');
     this.colW = L.columnWidth.map(w => w * s * lw);
     this.colX = [];
     let x = 0;
     for (let i = 0; i < L.keys; i++) {
       this.colX.push(x);
-      x += this.colW[i] + (i < L.keys - 1 ? (L.columnSpacing[i] || 0) * s * lw : 0);
+      x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
     const pos = Settings.get('gameplay.stagePosition');
     this.stageX = pos === 'skin' ? L.columnStart * s * (this.W / this.H > 4 / 3 ? 1 : 1)
       : pos === 'left' ? this.W * 0.12 : pos === 'right' ? this.W * 0.88 - this.stageW : (this.W - this.stageW) / 2;
-    this.hitY = clamp((L.hitPosition + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
+    this.stageX += Settings.get('gameplay.stageOffset') / 100 * this.W;
+    this.hitY = clamp((clamp(L.hitPosition, 240, 480) + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
     this.up = Settings.get('gameplay.scrollDirection') === 'up' || L.upsideDown;
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
@@ -3368,7 +3908,7 @@ class ManiaRenderer {
 
     // column backgrounds
     for (let i = 0; i < K; i++) {
-      ctx.fillStyle = rgba(L.colours.column[i]);
+      ctx.fillStyle = rgba(L.colours.column[i], Settings.get('gameplay.stageOpacity'));
       ctx.fillRect(this.colX[i], 0, this.colW[i], H);
     }
     const dim = Settings.get('skin.dim');
@@ -3384,7 +3924,8 @@ class ManiaRenderer {
       }
     }
     const pxPerMs = g.pxPerMs;
-    const yOf = pos => this.hitY - (pos - g.posNow) * pxPerMs;
+    const noteOffset = Settings.get('gameplay.noteOffset') * s;
+    const yOf = pos => this.hitY + noteOffset - (pos - g.posNow) * pxPerMs;
     // barlines
     if (g.barlines && Settings.get('gameplay.barlines')) {
       ctx.fillStyle = rgba(L.colours.barline, 0.6);
@@ -3406,7 +3947,7 @@ class ManiaRenderer {
         if (g.held[i]) a = 1; else { const dt = realNow - this.keyLight[i]; if (dt < 120) a = 1 - dt / 120; }
         if (a <= 0) continue;
         ctx.globalAlpha = a;
-        const h = t.h * s;
+        const h = t.h * (this.legacy ? this.u : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
         this._img(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
         ctx.globalAlpha = 1;
@@ -3414,15 +3955,24 @@ class ManiaRenderer {
     }
     // stage hint
     if (L.tex.stageHint) {
-      const t = L.tex.stageHint, h = t.h * s;
+      const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u : s);
       this._img(t.img, 0, this.hitY - h / 2, this.stageW, h);
     }
     const drawKeys = () => {
       for (let i = 0; i < K; i++) {
         const t = g.held[i] ? (L.tex.keyD[i] || L.tex.key[i]) : L.tex.key[i];
         if (!t) continue;
-        const h = t.h * (this.colW[i] / t.w);
-        this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+        if (this.legacy) {
+          // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
+          const h = t.h * this.u;
+          this._img(t.img, this.colX[i], H - h, this.colW[i], h);
+        } else {
+          // built-in keys: receptor (25% down the texture) centred on where notes are hit
+          const h = t.h * (this.colW[i] / t.w);
+          const nh = this._noteH(L.tex.note[i], i);
+          const top = this.hitY - nh / 2 - h * 0.25;
+          this._img(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
+        }
       }
     };
     if (L.keysUnderNotes) drawKeys();
@@ -3436,10 +3986,11 @@ class ManiaRenderer {
     }
     if (!L.keysUnderNotes) drawKeys();
     // stage sides / bottom
-    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * s; ctx.drawImage(t.img, -w, 0, w, H); }
-    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * s; ctx.drawImage(t.img, this.stageW, 0, w, H); }
+    const us = this.legacy ? this.u : s;
+    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; ctx.drawImage(t.img, -w, 0, w, H); }
+    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; ctx.drawImage(t.img, this.stageW, 0, w, H); }
     if (L.tex.stageBottom) {
-      const t = L.tex.stageBottom, w = t.w * s, h = t.h * s;
+      const t = L.tex.stageBottom, w = t.w * us, h = t.h * us;
       this._img(t.img, (this.stageW - w) / 2, H - h, w, h);
     }
     // lighting
@@ -3459,11 +4010,12 @@ class ManiaRenderer {
     }
   }
 
+  /** Hidden / Fade In lane cover: `coverage` is the fraction of the lane (above the receptors) that is covered. */
   _noteAlpha(y, hidden) {
     if (!hidden) return 1;
-    const f = y / this.hitY;
-    if (hidden === 'HD') return clamp(1 - (f - 0.45) / 0.2, 0, 1);
-    return clamp((f - 0.3) / 0.2, 0, 1);
+    const f = y / this.hitY, c = clamp(this.coverage ?? 0.5, 0.1, 0.9), fade = 0.12;
+    if (hidden === 'HD') return clamp((1 - c - f) / fade + 1, 0, 1);
+    return clamp((f - c) / fade, 0, 1);
   }
 
   _drawNotes(g, yOf, realNow) {
@@ -3480,7 +4032,7 @@ class ManiaRenderer {
         let yHead = yOf(headPos);
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
-          const yTail = yOf(g.scroll.posAt(n.end));
+          const yTail = yOf(g.scroll.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end));
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
           const holding = n.state === NS.HOLDING;
@@ -3526,7 +4078,11 @@ class ManiaRenderer {
     const L = this.layout;
     if (!L) return;
     if (e.j !== J.MISS && Settings.get('gameplay.hitLighting') && (!e.note.isLN || e.tail)) this.effects.push({ type: 'N', col: e.col, t0: realNow });
-    if (Settings.get('gameplay.showJudgements')) this.judgementFx = { j: e.j, t0: realNow };
+    if (Settings.get('gameplay.showJudgements') && (e.j !== J.MARV || Settings.get('gameplay.showMax'))) {
+      const thr = Settings.get('gameplay.earlyLate');
+      const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
+      this.judgementFx = { j: e.j, t0: realNow, el };
+    }
     if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
       const n = e.j === J.MARV ? 7 : 4;
       const gold = e.j === J.MARV && Settings.get('gameplay.neruSparkle');
@@ -3549,7 +4105,7 @@ class ManiaRenderer {
       if (!eng.holding[c]) continue;
       const t = L.tinted.lightingL[c];
       if (!t) continue;
-      const w = (L.lightingLWidth[c] > 0 ? L.lightingLWidth[c] * s : t.w * s), hh = t.h * (w / t.w);
+      const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
       this._img(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
@@ -3562,7 +4118,7 @@ class ManiaRenderer {
       const multi = t.frames.length > 1;
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
       if (el > dur) return false;
-      const w0 = (L.lightingNWidth[e.col] > 0 ? L.lightingNWidth[e.col] * s : t.w * s);
+      const w0 = this._lightW(t, e.col, L.lightingNWidth);
       const sc = multi ? 1 : 1 + el / dur * 0.25;
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
       ctx.globalAlpha = multi ? 1 : 1 - el / dur;
@@ -3572,6 +4128,15 @@ class ManiaRenderer {
       return true;
     });
     ctx.globalCompositeOperation = 'source-over';
+  }
+  /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
+  _lightW(t, c, widths) {
+    const L = this.layout;
+    if (this.legacy) {
+      const cw = widths[c] > 0 ? widths[c] : L.columnWidth[c] * Settings.get('gameplay.laneWidth');
+      return t.w * this.u * cw / 30;
+    }
+    return widths[c] > 0 ? widths[c] * this.s : t.w * this.s;
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
@@ -3604,10 +4169,18 @@ class ManiaRenderer {
     if (el > total) { this.judgementFx = null; return; }
     const sk = Settings.get('skin.scale');
     const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.18 - 0.18 * (el / 60) : 1);
-    const w = t.w * this.s * sk * pop * 0.8, hh = t.h * this.s * sk * pop * 0.8;
+    const k = (this.legacy ? this.u : this.s * 0.8) * sk * pop;
+    const w = t.w * k, hh = t.h * k;
     const y = L.scorePosition * this.s;
     this.ctx.globalAlpha = el > total - 100 ? (total - el) / 100 : 1;
     this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
+    if (fx.el) {
+      const ctx = this.ctx, size = Math.round(9 * this.s);
+      ctx.font = `900 ${size}px Nunito, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
+      ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
+      ctx.fillStyle = fx.el === 'EARLY' ? '#6cc6ff' : '#ff8a6c'; ctx.fillText(fx.el, this.stageW / 2, yy);
+    }
     this.ctx.globalAlpha = 1;
   }
   _drawCombo(combo, realNow) {
@@ -3622,9 +4195,9 @@ class ManiaRenderer {
     const text = String(combo);
     if (L.font) {
       const glyphs = text.split('').map(ch => L.font.glyphs[ch]).filter(Boolean);
-      const hh = glyphs[0].h * s * 0.8 * sk * bump;
+      const hh = glyphs[0].h * (this.legacy ? this.u : s * 0.8) * sk * bump;
       const widths = glyphs.map(gl => gl.w * (hh / gl.h));
-      const ov = L.font.overlap * s * 0.8 * sk;
+      const ov = L.font.overlap * (this.legacy ? this.u : s * 0.8) * sk;
       const total = widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1);
       let x = cx - total / 2;
       glyphs.forEach((gl, k) => { this._img(gl.img, x, y - hh / 2, widths[k], hh); x += widths[k] - ov; });
@@ -3643,7 +4216,7 @@ class ManiaRenderer {
   _drawErrorBar(g, realNow) {
     const eng = g.engine, ctx = this.ctx, s = this.s;
     const W = eng.W.map(w => w / eng.rate);
-    const width = Math.min(this.stageW * 0.9, 150 * s);
+    const width = Math.min(this.stageW * 0.9, 150 * s) * Settings.get('gameplay.errorBarScale');
     const scale = width / 2 / W[J.BAD];
     const cx = this.stageW / 2;
     const y = this.up ? 14 * s : this.H - 8 * s;
@@ -3673,7 +4246,8 @@ class ManiaRenderer {
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, top, w, bottom - top);
     const hh = (bottom - top) * v;
     const grd = ctx.createLinearGradient(0, bottom - hh, 0, bottom);
-    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : '#c79bff'); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : '#8a4dff');
+    const P = DefaultSkin.palette();
+    grd.addColorStop(0, v < 0.25 ? '#ff4a5c' : P.n2[0]); grd.addColorStop(1, v < 0.25 ? '#ff8a5c' : P.n2[1]);
     ctx.fillStyle = grd;
     ctx.fillRect(x, bottom - hh, w, hh);
   }
@@ -3724,13 +4298,45 @@ const ScoreManager = {
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
   lastPlayed(hash) { const l = this.byHash.get(hash); return l && l.length ? l[l.length - 1].date : 0; },
   recent(n = 20) { return this.scores.slice(-n).reverse(); },
+  /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
+  ppOf(s) {
+    if (!s || !s.passed || (s.mods || []).includes('AT')) return 0;
+    if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
+    const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
+    const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
+    return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);
+  },
+  /** Best pp per beatmap (osu! counts one score per map toward the total). */
+  bestPpPerMap(scores = this.scores) {
+    const best = new Map();
+    for (const s of scores) {
+      const pp = this.ppOf(s);
+      if (pp > 0 && (!best.has(s.mapHash) || best.get(s.mapHash).pp < pp)) best.set(s.mapHash, { pp, score: s });
+    }
+    return [...best.values()].sort((a, b) => b.pp - a.pp);
+  },
+  totalPp(scores = this.scores) { return OsuMath.totalPp(this.bestPpPerMap(scores).map(x => x.pp)); },
+  /** Total pp after each play, for the profile/statistics history graph. */
+  ppHistory() {
+    const out = [], best = new Map();
+    for (const s of this.scores) {
+      const pp = this.ppOf(s);
+      if (pp > (best.get(s.mapHash) || 0)) best.set(s.mapHash, pp);
+      else if (!pp) continue;
+      out.push({ date: s.date, pp: OsuMath.totalPp([...best.values()]).total, title: s.title, version: s.version });
+    }
+    return out;
+  },
   async add(score) {
     const prev = this.best(score.mapHash);
     score.isPB = score.passed && (!prev || score.score > prev.score);
-    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade } : null;
+    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
+    score.totalPpBefore = this.totalPp().total;
     await DB.put('scores', score);
     this.scores.push(score);
     this._reindex();
+    score.totalPpAfter = this.totalPp().total;
+    await DB.put('scores', score);
     Bus.emit('scores:changed');
     return score;
   },
@@ -3744,11 +4350,11 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {} }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
-      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration,
+      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig,
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,
@@ -3814,11 +4420,11 @@ const ProfileManager = {
   profile: null,
   async init() {
     this.profile = await DB.kvGet('profile', null);
-    if (!this.profile) { this.profile = { name: 'Ashton', avatar: 'default', created: Date.now(), banner: 'kori' }; await this.save(); }
+    if (!this.profile) { this.profile = { name: 'Player', avatar: 'default', created: Date.now(), banner: 'kori', onboarded: false }; await this.save(); }
     await this.loadAvatar();
   },
   async save() { await DB.kvSet('profile', this.profile); Bus.emit('profile:changed'); },
-  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Ashton'; await this.save(); },
+  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Player'; await this.save(); },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
@@ -4030,7 +4636,7 @@ const Overlays = {
   closeAll() { for (const o of [...this.stack].reverse()) o.close(); },
 };
 
-function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out' } = {}) {
+function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true } = {}) {
   const wrap = h('div', { style: { position: 'absolute', inset: '0' } });
   let bd = null;
   if (backdrop) { bd = h('div.backdrop'); wrap.appendChild(bd); }
@@ -4046,7 +4652,7 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
       onClose && onClose();
     },
   };
-  if (bd) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
+  if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
   return Overlays.push(o);
 }
 
@@ -4135,7 +4741,7 @@ const Background = {
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
   tabs: [
-    ['home', 'Home', 'home'], ['songselect', 'Play', 'play'], ['beatmaps', 'Beatmaps', 'music'], ['collections', 'Collections', 'folder'],
+    ['home', 'Home', 'home'], ['songselect', 'Play', 'play'], ['explore', 'Explore', 'download'], ['beatmaps', 'Beatmaps', 'music'], ['collections', 'Collections', 'folder'],
     ['replays', 'Replays', 'film'], ['stats', 'Statistics', 'chart'], ['skins', 'Skins', 'brush'],
   ],
   build() {
@@ -4168,6 +4774,41 @@ const Toolbar = {
     if (!map) return;
     this.np.append(icon('music'), h('span.np-text', h('b', map.title), ' — ', map.artist));
     this.np.title = `${map.artist} - ${map.title}`;
+  },
+};
+
+/** osu!lazer-style back button (pink, slanted, bottom-left). */
+function backButton(onClick) {
+  const b = h('button.lz-back', { onclick: () => { UISounds.back(); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('back'), 'back'));
+  b.addEventListener('pointerenter', () => UISounds.hover());
+  return b;
+}
+
+/** osu!-style volume control: Alt + mouse wheel adjusts master volume (Shift = music, Ctrl = effects). */
+const VolumeOverlay = {
+  el: null, hideT: 0,
+  adjust(which, delta) {
+    const key = which === 'music' ? 'audio.music' : which === 'effects' ? 'audio.effects' : 'audio.master';
+    const v = clamp(Math.round((Settings.get(key) + delta) * 100) / 100, 0, 1);
+    Settings.set(key, v);
+    this.show();
+  },
+  show() {
+    if (!this.el) { this.el = h('div.volume-overlay'); $('#app').appendChild(this.el); }
+    clearEl(this.el).append(...[['Master', 'audio.master'], ['Music', 'audio.music'], ['Effects', 'audio.effects']].map(([l, k]) => {
+      const v = Settings.get(k);
+      return h('div.vo-row', h('div.vo-ring', { style: { '--p': (v * 100) + '%' } }, h('span', Math.round(v * 100))), h('div.vo-l', l));
+    }));
+    this.el.classList.add('show');
+    clearTimeout(this.hideT);
+    this.hideT = setTimeout(() => this.el.classList.remove('show'), 1400);
+  },
+  bind() {
+    window.addEventListener('wheel', e => {
+      if (!e.altKey) return;
+      e.preventDefault();
+      this.adjust(e.shiftKey ? 'music' : e.ctrlKey ? 'effects' : 'master', e.deltaY < 0 ? 0.05 : -0.05);
+    }, { passive: false });
   },
 };
 
@@ -4237,34 +4878,24 @@ const LOADING_NERU = ['Neru is checking her messages…', 'Polishing the yellow 
 const HomeScreen = {
   tab: 'home',
   listTab: 'recent',
+  menuState: 'initial',
+  /** lazer-style main menu: a big logo that opens a slanted button bar (Play → Solo / Practice / Quick play). */
   enter() {
     const greetEl = h('div.greet');
     const cookie = this.buildCookie();
-    const tile = (cls, title, sub, ic, onClick, key) => {
-      const b = h(`button.home-tile${cls ? '.' + cls : ''}`, { onclick: () => { UISounds.click(); onClick(); } },
-        h('span.ht-ico', icon(ic)), h('span.ht-t', title), h('span.ht-s', sub, key ? [' · ', h('span.kbd', key)] : null));
-      b.addEventListener('pointermove', e => { const r = b.getBoundingClientRect(); b.style.setProperty('--mx', `${e.clientX - r.left}px`); b.style.setProperty('--my', `${e.clientY - r.top}px`); });
-      b.addEventListener('pointerenter', () => UISounds.hover());
-      return b;
-    };
-    const nMaps = BeatmapManager.playableMaps().length;
+    this.cookie = cookie;
     const logo = h('div.logo', h('span.l1', 'Ashtonk'), this.bang = h('span.bang', '!'), h('span.l2', 'mania'));
     this.bang.addEventListener('click', () => this.bangClick());
-    const left = h('div.home-left',
-      h('div.home-hero', cookie, h('div.home-title', logo, greetEl)),
-      h('div.home-actions',
-        tile('play', 'Play', nMaps ? `${nMaps} difficult${nMaps === 1 ? 'y' : 'ies'} ready` : 'Import a beatmap to start', 'play', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'P'),
-        tile('', 'Beatmaps', 'Import & manage', 'music', () => Screens.go('beatmaps'), 'B'),
-        tile('', 'Collections', `${Collections.list.length} collection${Collections.list.length === 1 ? '' : 's'}`, 'folder', () => Screens.go('collections'), 'C'),
-        tile('', 'Profile', ProfileManager.profile.name, 'user', () => Screens.go('profile'), 'U'),
-        tile('', 'Statistics', `${ScoreManager.scores.length} plays`, 'chart', () => Screens.go('stats'), 'T'),
-        tile('', 'Skins', SkinManager.current.name, 'brush', () => Screens.go('skins'), 'K'),
-        tile('', 'Replays', `${ReplayManager.list.length} saved`, 'film', () => Screens.go('replays'), 'R'),
-        tile('', 'Settings', 'Gameplay, audio, keys', 'gear', () => SettingsPanel.open(), 'O'),
-      ));
-    const right = h('div.home-right', this.buildContinue(), this.buildLists());
-    const el = h('div.home', h('div.home-grid', left, right));
+    this.leftBtns = h('div.lz-buttons.lz-left');
+    this.rightBtns = h('div.lz-buttons.lz-right');
+    this.bar = h('div.lz-bar', this.leftBtns, h('div.lz-logo-slot', cookie), this.rightBtns);
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } },
+      h('div.lz-stage', this.bar, h('div.lz-under', logo, greetEl)),
+      h('div.lz-hint', 'click the logo or press any key'),
+      h('div.lz-footer', this.buildContinue(), this.buildLists()));
+    this.el = el;
     this.greetEl = greetEl;
+    this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.rotateGreeting(true);
     this._gt = setInterval(() => this.rotateGreeting(), 9000);
     this._unsub = [Bus.on('scores:changed', () => this.refreshLists()), Bus.on('favorites:changed', () => this.refreshLists())];
@@ -4278,14 +4909,65 @@ const HomeScreen = {
     clearInterval(this._gt); cancelAnimationFrame(this._raf);
     (this._unsub || []).forEach(f => f());
   },
+  /** Button definitions (colours follow osu!lazer's main menu). */
+  menuButtons(state) {
+    const nMaps = BeatmapManager.playableMaps().length;
+    if (state === 'play') return {
+      left: [['Back', 'back', '#555555', () => this.setState('top'), 'Esc']],
+      right: [
+        ['Solo', 'play', '#6644cc', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'S', nMaps ? `${nMaps} maps` : 'no maps yet'],
+        ['Practice', 'flag', '#5e3fba', () => Screens.go('songselect', { practice: true }, { transition: 'zoom' }), 'P'],
+        ['Quick play', 'shuffle', '#5e3fba', () => this.quickPlay(), 'Q'],
+      ],
+    };
+    return {
+      left: [],
+      right: [
+        ['Play', 'play', '#6644cc', () => this.setState('play'), 'P'],
+        ['Explore', 'download', '#a5cc00', () => Screens.go('explore'), 'E'],
+        ['Library', 'music', '#eeaa00', () => Screens.go('beatmaps'), 'L'],
+        ['Profile', 'user', '#ee3399', () => Screens.go('profile'), 'U'],
+        ['Settings', 'gear', '#555555', () => SettingsPanel.open(), 'O'],
+      ],
+    };
+  },
+  setState(state, instant = false) {
+    this.menuState = state;
+    this.el.dataset.state = state;
+    if (instant) this.el.classList.add('lz-instant'); else this.el.classList.remove('lz-instant');
+    const mk = ([label, ic, color, fn, key, sub]) => {
+      const b = h('button.lz-btn', { style: { '--c': color }, 'aria-label': label, title: key ? `${label} (${key})` : label,
+        onclick: () => { UISounds.click(); fn(); } }, h('span.lz-inner', icon(ic), h('span.lz-label', label), sub ? h('span.lz-sub', sub) : null));
+      b.addEventListener('pointerenter', () => UISounds.hover());
+      return b;
+    };
+    const d = this.menuButtons(state);
+    clearEl(this.leftBtns).append(...d.left.map(mk));
+    clearEl(this.rightBtns).append(...d.right.map(mk));
+    if (state !== 'initial') requestAnimationFrame(() => { const f = this.rightBtns.querySelector('button'); f && f.focus({ preventScroll: true }); });
+  },
   onKey(e) {
-    const k = e.code;
-    const map = { KeyP: () => Screens.go('songselect', {}, { transition: 'zoom' }), Enter: () => Screens.go('songselect', {}, { transition: 'zoom' }), KeyB: () => Screens.go('beatmaps'),
-      KeyC: () => Screens.go('collections'), KeyU: () => Screens.go('profile'), KeyT: () => Screens.go('stats'), KeyK: () => Screens.go('skins'), KeyR: () => Screens.go('replays') };
-    if (map[k] && !e.ctrlKey && !e.metaKey && !e.altKey) { UISounds.click(); map[k](); return true; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (this.menuState === 'initial' && !['Escape', 'Tab', 'Shift'].includes(e.key)) { UISounds.click(); this.setState('top'); return true; }
+    const d = this.menuButtons(this.menuState);
+    const all = [...d.left, ...d.right];
+    const hit = all.find(b => b[4] && b[4].length === 1 && e.code === 'Key' + b[4]);
+    if (hit) { UISounds.click(); hit[3](); return true; }
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.classList.contains('lz-btn')) { document.activeElement.click(); return true; }
+    if (e.key === 'Enter') { UISounds.click(); (this.menuState === 'play' ? d.right[0] : d.right[0])[3](); return true; }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const btns = $$('.lz-btn', this.el), i = btns.indexOf(document.activeElement);
+      const n = btns[clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, btns.length - 1)];
+      if (n) { n.focus(); UISounds.hover(); }
+      return true;
+    }
     return false;
   },
-  onBack() { return true; },
+  onBack() {
+    if (this.menuState === 'play') { UISounds.back(); this.setState('top'); return true; }
+    if (this.menuState === 'top') { UISounds.back(); this.setState('initial'); return true; }
+    return true;
+  },
   rotateGreeting(first = false) {
     if (!this.greetEl) return;
     if (!Settings.get('ui.homeMessages')) { this.greetEl.textContent = ''; return; }
@@ -4314,7 +4996,12 @@ const HomeScreen = {
     const bars = h('div.bars', h('i'), h('i'), h('i'), h('i'));
     this.pulse = h('div.pulse');
     this.bars = $$('i', bars);
-    const c = h('button.cookie', { title: 'Play', 'aria-label': 'Play', onclick: () => { UISounds.click(); Screens.go('songselect', {}, { transition: 'zoom' }); } },
+    const c = h('button.cookie', { title: 'Play', 'aria-label': 'Play', onclick: () => {
+      UISounds.click();
+      if (this.menuState === 'initial') this.setState('top');
+      else if (this.menuState === 'top') this.setState('play');
+      else Screens.go('songselect', {}, { transition: 'zoom' });
+    } },
       h('div.ring'), h('div.face', bars), this.pulse);
     c.addEventListener('pointerenter', () => UISounds.hover());
     return c;
@@ -4518,6 +5205,7 @@ const SongSelect = {
   rows: [], ROW_SET: 92, ROW_DIFF: 64,
 
   enter(params = {}) {
+    this.practiceMode = !!params.practice;
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
     const el = h('div.ss');
@@ -4547,7 +5235,6 @@ const SongSelect = {
     this.renderKeyChips();
 
     const top = h('div.ss-top',
-      h('button.btn.ghost', { onclick: () => Screens.back(), title: 'Back (Esc)' }, icon('back'), 'Back'),
       h('div.ss-search', icon('search'), this.searchInput), sortSel, statusSel, this.countEl);
     const filters = h('div.ss-filters', keyChips, starSel, bpmSel, this.collSel);
 
@@ -4564,13 +5251,16 @@ const SongSelect = {
     // footer
     this.modsOn = h('div.mods-on');
     this.pbEl = h('div.muted', { style: { fontSize: '.85rem' } });
-    this.playBtn = h('button.btn.primary.play-btn', { onclick: () => this.play() }, icon('play'), 'Play');
+    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
+      h('span.ring'), h('span.face', icon('play', 'fill')));
+    const fb = (label, ic, color, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), label, h('span.kbd', key)));
     const footer = h('div.ss-footer',
-      h('button.foot-btn', { onclick: () => ModSelect.open(), title: 'Mods (F1)' }, icon('mods'), 'Mods', h('span.kbd', 'F1')),
-      h('button.foot-btn', { onclick: () => this.random(), title: 'Random (F2)' }, icon('shuffle'), 'Random', h('span.kbd', 'F2')),
-      h('button.foot-btn', { onclick: e => this.options(e), title: 'Beatmap options (F3)' }, icon('list'), 'Options', h('span.kbd', 'F3')),
-      h('button.foot-btn', { onclick: () => this.play('practice'), title: 'Practice (F4)' }, icon('flag'), 'Practice', h('span.kbd', 'F4')),
-      this.modsOn, h('div.grow'), this.pbEl, this.playBtn);
+      backButton(() => Screens.back()),
+      fb('Mods', 'mods', '#ffcc22', () => ModSelect.open(), 'F1'),
+      fb('Random', 'shuffle', '#88dd44', () => this.random(), 'F2'),
+      fb('Options', 'list', '#aa77ff', e => this.options(e), 'F3'),
+      fb('Practice', 'flag', '#66ccff', () => this.play('practice'), 'F4'),
+      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'PRACTICE MODE') : null, this.pbEl, this.playBtn);
 
     el.append(top, filters, h('div.ss-main', this.info, this.carousel), footer);
     this._unsub = [
@@ -4818,7 +5508,8 @@ const SongSelect = {
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
-      }, best ? gradeEl(best.grade) : h('span', { style: { width: '34px' } }),
+      }, h('span.dp-icon', { style: { '--sc': starColour(m.stars) }, title: `${m.stars.toFixed(2)}★` }, `${m.keys}K`),
+      best ? gradeEl(best.grade) : h('span', { style: { width: '34px' } }),
       h('div.dp-main', h('div.dp-v', m.version), h('div.dp-s', h('span', `${m.keys}K`), h('span', `${Math.round(m.bpm)} BPM`), h('span', fmtTime(m.length)), m.lnCount ? h('span', `${Math.round(m.lnRatio * 100)}% LN`) : null,
         m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, '⚠ ' + m.problems[0]) : null)),
       starBadge(m.stars));
@@ -4962,7 +5653,7 @@ const SongSelect = {
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
         h('span.rank', String(i + 1)), gradeEl(s.grade),
-        h('div.main', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${fmtDate(s.date)}${s.passed ? '' : ' · failed'}`)),
+        h('div.main', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'} · ${fmtDate(s.date)}`)),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true)), s.replayId ? icon('film') : null));
       list.append(row);
     });
@@ -5008,6 +5699,7 @@ const SongSelect = {
     }
   },
   play(mode = 'play') {
+    if (mode === 'play' && this.practiceMode) mode = 'practice';
     const m = BeatmapManager.maps.get(this.selectedId);
     if (!m) return;
     if (m.problems.length) { Toast.err('Can\'t play this difficulty', m.problems.join('\n')); return; }
@@ -5042,10 +5734,14 @@ const GameplayScreen = {
     const el = h('div.gameplay');
     this.el = el;
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');
+    this.videoEl = h('video.gp-video', { muted: true, playsinline: true, preload: 'auto' }); this.videoEl.muted = true;
     this.canvas = h('canvas.gp-canvas');
+    this.touchLayer = h('div.gp-touch');
+    this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.dimEl, this.canvas, this.failEl, this.hud);
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.touchLayer, this.failEl, this.breakEl, this.hud);
+    this.bindTouch();
     this.hud.append(h('div.hud-center-msg', { style: { fontSize: '1.4rem' } }, LoadingMessages.pick('Preparing stage…')));
     this.renderer = new ManiaRenderer(this.canvas);
     this.params = params;
@@ -5064,6 +5760,8 @@ const GameplayScreen = {
   },
   leave() {
     window.removeEventListener('keydown', this._keydown, true);
+    if (this.videoEl) { this.videoEl.pause(); this.videoEl.removeAttribute('src'); this.videoEl.load(); }
+    if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
     window.removeEventListener('keyup', this._keyup, true);
     window.removeEventListener('blur', this._blur);
     cancelAnimationFrame(this._raf);
@@ -5082,7 +5780,8 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
-    let rate = replay ? replay.rate : ModSystem.rate(mods);
+    const modConfig = replay ? (replay.modConfig || {}) : ModSystem.config();
+    let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     const skin = SkinManager.current;
@@ -5092,10 +5791,11 @@ const GameplayScreen = {
     const msgEl = this.hud.querySelector('.hud-center-msg');
     await Music.setRate(rate, preserve, f => { if (msgEl) msgEl.textContent = `Preparing audio… ${Math.round(f * 100)}%`; });
     this.renderer.setLayout(layout);
+    this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const baseNotes = prepareNotes(loaded.notes, keys, mods, seed);
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs') });
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od });
     const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
@@ -5107,7 +5807,7 @@ const GameplayScreen = {
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, specs, bank,
+      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, specs, bank, modConfig,
       barlines: BeatmapParser.barlines(bm, endTime), barIdx: 0, endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
@@ -5127,6 +5827,8 @@ const GameplayScreen = {
     const leadIn = Math.max(Settings.get('gameplay.leadIn'), bm.audioLeadIn) * rate;
     const startPos = Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
+    s.startPos = startPos;
+    s.stars = rate === 1 && rec.srVersion === SR_VERSION ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
@@ -5139,7 +5841,8 @@ const GameplayScreen = {
     const s = this.s;
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
-    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice });
+    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice,
+      breaks: s.bm.events.breaks, modConfig: s.modConfig });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
     s.barIdx = 0;
@@ -5149,13 +5852,35 @@ const GameplayScreen = {
     const s = this.s;
     if (!s) return;
     const show = Settings.get('gameplay.showBackground');
-    this.dimEl.style.opacity = show ? Settings.get('gameplay.bgDim') : 1;
+    this.baseDim = show ? Settings.get('gameplay.bgDim') : 1;
+    this.dimEl.style.opacity = this.baseDim;
     this.bgEl.style.filter = Settings.get('gameplay.bgBlur') ? `blur(${Settings.get('gameplay.bgBlur')}px)` : '';
     this.bgEl.style.inset = Settings.get('gameplay.bgBlur') ? '-30px' : '0';
     const set = BeatmapManager.setById.get(s.rec.setId);
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(u => {
       this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
     });
+    this.loadVideo();
+  },
+  /** Background video (mp4/webm stored at import) kept in sync with the audio clock. */
+  async loadVideo() {
+    const s = this.s, v = s.bm.events.video;
+    if (!v || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground') || this._videoURL) return;
+    const blob = await BeatmapManager.getFile(s.rec.setId, v.file || v);
+    if (!blob || this.s !== s) return;
+    this._videoURL = URL.createObjectURL(blob);
+    this.videoEl.src = this._videoURL;
+    this.videoOffset = v.offset || 0;
+    this.videoEl.classList.add('on');
+  },
+  syncVideo(now) {
+    const vid = this.videoEl, s = this.s;
+    if (!this._videoURL || !vid) return;
+    const target = (now - this.videoOffset) / 1000;
+    if (target < 0 || !s.running) { if (!vid.paused) vid.pause(); if (target < 0 && vid.currentTime !== 0) vid.currentTime = 0; return; }
+    vid.playbackRate = s.rate;
+    if (vid.paused) { vid.currentTime = target; vid.play().catch(() => {}); return; }
+    if (Math.abs(vid.currentTime - target) > 0.12) vid.currentTime = target;
   },
 
   buildHud() {
@@ -5163,9 +5888,13 @@ const GameplayScreen = {
     clearEl(this.hud);
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i'); this.timeEl = h('div.hud-time');
+    this.pieEl = h('div.hud-pie', { title: 'Song progress' });
+    this.ppEl = h('div.hud-pp');
+    this.kpsEl = h('div.hud-kps');
+    const pd = Settings.get('gameplay.progressDisplay');
     this.hud.append(
-      h('div.hud-progress', { style: { display: Settings.get('gameplay.progressBar') ? '' : 'none' } }, this.progEl),
-      h('div.hud-score', this.scoreEl, this.accEl, this.paceEl),
+      h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
+      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl, this.kpsEl),
       this.timeEl,
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
       h('div.hud-meta', h('b', s.rec.title), ` — ${s.rec.artist}`, h('br'), `[${s.rec.version}] · ${s.keys}K · ${SkinManager.current.name}`),
@@ -5176,6 +5905,7 @@ const GameplayScreen = {
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     if (s.practice) this.buildPracticeBar();
+    this.applyTouchLayer();
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
   },
@@ -5218,8 +5948,12 @@ const GameplayScreen = {
         now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.hitY / (timeRange * s.rate) * 1,
         engine: eng, held: s.held, barlines: s.barlines, get barIdx() { return s.barIdx; }, set barIdx(v) { s.barIdx = v; },
         hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
+        percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
       });
       this.updateHud(now);
+      this.updateBreak(now);
+      this.syncVideo(now);
+      if (s.running && !s.feed) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
       void L;
@@ -5236,6 +5970,22 @@ const GameplayScreen = {
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
     this.progEl.style.width = (p * 100).toFixed(2) + '%';
+    // osu!-style pie: green while counting down to the first note, then fills with song progress
+    const lead = now < s.firstNote;
+    const pieP = lead ? clamp(1 - (s.firstNote - now) / Math.max(1, s.firstNote - Math.min(0, s.startPos)), 0, 1) : p;
+    this.pieEl.style.setProperty('--p', (pieP * 100).toFixed(1) + '%');
+    this.pieEl.classList.toggle('lead', lead);
+    if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
+      const pp = this.livePp(e);
+      const t = `${Math.round(pp)}pp`;
+      if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+    } else if (this.ppEl.textContent) this.ppEl.textContent = '';
+    if (Settings.get('gameplay.kpsCounter')) {
+      const cutoff = performance.now() - 1000;
+      while (this._kps && this._kps.length && this._kps[0] < cutoff) this._kps.shift();
+      const t = `${(this._kps || []).length} KPS`;
+      if (this.kpsEl.textContent !== t) this.kpsEl.textContent = t;
+    }
     const tt = `${fmtTime(Math.max(0, now) / s.rate)} / ${fmtTime(dur / s.rate)}`;
     if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
@@ -5245,6 +5995,13 @@ const GameplayScreen = {
       const t = `PB ${fmtAcc(pb.accuracy)}`;
       if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
+  },
+  /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
+  livePp(e) {
+    const c = e.score.counts, judged = e.score.judged, total = e.totalJudgements;
+    if (!judged) return 0;
+    const scaled = c.map(x => x * total / judged);
+    return OsuMath.pp(this.s.stars, scaled, this.s.mods);
   },
   updateDebug(now, realNow) {
     const s = this.s, e = s.engine;
@@ -5297,6 +6054,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (!s) return;
     if (e.code === 'Backquote' && !e.repeat) { e.preventDefault(); this._retryHold = setTimeout(() => this.retry(), 450); return; }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); this.retry(); return; }
+    if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
@@ -5348,6 +6106,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
     } else if (e.type === 'press') {
+      (this._kps || (this._kps = [])).push(realNow);
       if (Settings.get('audio.hitsounds')) {
         const col = s.engine.columns[e.col];
         let n = e.note;
@@ -5404,17 +6163,20 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
     this.closePause();
+    const delay = Settings.get('gameplay.unpauseDelay');
+    if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
+    const steps = 3, stepMs = delay / steps;
     const cd = h('div.countdown', '3');
     this.el.appendChild(cd);
-    let n = 3;
+    let n = steps;
     const step = () => {
       if (!this.s || this.s !== s) { cd.remove(); return; }
       n--;
       if (n <= 0) { cd.remove(); s.running = true; Music.play(Music.pausedPos); return; }
       cd.textContent = String(n);
-      this._cdT = setTimeout(step, 400);
+      this._cdT = setTimeout(step, stepMs);
     };
-    this._cdT = setTimeout(step, 400);
+    this._cdT = setTimeout(step, stepMs);
   },
   retry() {
     clearTimeout(this._cdT);
@@ -5445,6 +6207,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       const { score } = await this.saveScore(false, now);
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
     }
+    if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
   },
   async complete() {
@@ -5463,16 +6226,19 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   buildScore(passed, summary) {
     const s = this.s;
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
+    const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
+    const pp = passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0;
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
-      keys: s.keys, stars: s.rate === 1 ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate),
+      keys: s.keys, stars, pp,
       mods: s.mods, rate: s.rate, score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
       duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name,
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
       hitErrors: summary.hitErrors, totalJudgements: summary.totalJudgements, accuracyMode: s.accuracyMode,
-      windows: s.windows, od: s.bm.od, replayId: null,
+      windows: s.windows, od: s.bm.od, replayId: null, modConfig: s.modConfig,
+      healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION,
     };
   },
   async saveScore(passed) {
@@ -5480,7 +6246,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const summary = s.engine.summary();
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
-      map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys,
+      map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
       events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration,
     });
     await ScoreManager.add(score);
@@ -5491,6 +6257,99 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     }
     this._unsavedReplay = replay;
     return { score, replay };
+  },
+
+  // ─────────────────────────────── breaks ───────────────────────────────
+  /** Break overlay between distant notes (gaps of at least the minimum break length). */
+  updateBreak(now) {
+    const s = this.s;
+    if (!s.running || s.practice) { this.breakEl.hidden = true; return; }
+    if (!s.gaps) {
+      const minGap = Settings.get('gameplay.breakMin');
+      const times = s.baseNotes.map(n => [n.time, n.end]).sort((a, b) => a[0] - b[0]);
+      s.gaps = [];
+      let lastEnd = times.length ? times[0][1] : 0;
+      for (let i = 1; i < times.length; i++) {
+        if (times[i][0] - lastEnd >= minGap * s.rate) s.gaps.push([lastEnd, times[i][0]]);
+        lastEnd = Math.max(lastEnd, times[i][1]);
+      }
+    }
+    const g = s.gaps.find(([a, b]) => now > a + 600 * s.rate && now < b - 300 * s.rate);
+    this.breakEl.hidden = !g;
+    if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
+    if (!g) return;
+    const left = Math.ceil((g[1] - now) / 1000 / s.rate);
+    const pct = clamp((now - g[0]) / (g[1] - g[0]), 0, 1);
+    const txt = `BREAK · ${left}s`;
+    if (this.breakEl.dataset.t !== txt) { this.breakEl.dataset.t = txt; this.breakEl.textContent = txt; }
+    this.breakEl.style.setProperty('--p', (pct * 100).toFixed(1) + '%');
+  },
+
+  // ─────────────────────────────── touch & gamepad ───────────────────────────────
+  touchMode() {
+    const m = Settings.get('input.touch');
+    if (m === 'off') return null;
+    if (m === 'auto') return (navigator.maxTouchPoints || 0) > 0 ? 'full' : null;
+    return m;
+  },
+  /** Touch controls: each finger presses the lane under it (full-width mode splits the whole screen). */
+  bindTouch() {
+    const layer = this.touchLayer;
+    this._touches = new Map();
+    const colAt = clientX => {
+      const s = this.s, r = this.renderer;
+      if (!s || !r.colX) return -1;
+      if (this.touchMode() === 'full') return clamp(Math.floor(clientX / innerWidth * s.keys), 0, s.keys - 1);
+      const ratio = r.W / Math.max(1, this.canvas.clientWidth);
+      const x = clientX * ratio - r.stageX;
+      for (let i = 0; i < s.keys; i++) if (x >= r.colX[i] && x < r.colX[i] + r.colW[i]) return i;
+      return -1;
+    };
+    layer.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' || !this.s || !this.s.running || this.s.feed) return;
+      const col = colAt(e.clientX);
+      if (col < 0) return;
+      e.preventDefault();
+      if (layer.setPointerCapture) layer.setPointerCapture(e.pointerId);
+      this._touches.set(e.pointerId, col);
+      if (![...this._touches.entries()].some(([id, c]) => id !== e.pointerId && c === col)) this.press(col, true, this.inputTime(e));
+    });
+    const up = e => {
+      if (!this._touches.has(e.pointerId)) return;
+      const col = this._touches.get(e.pointerId);
+      this._touches.delete(e.pointerId);
+      if (this.s && this.s.running && ![...this._touches.values()].includes(col)) this.press(col, false, this.inputTime(e));
+    };
+    layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', up);
+    layer.addEventListener('contextmenu', e => e.preventDefault());
+  },
+  applyTouchLayer() {
+    const mode = this.touchMode(), s = this.s;
+    this.touchLayer.classList.toggle('on', !!mode);
+    clearEl(this.touchLayer);
+    if (!mode || !s) return;
+    const op = Settings.get('input.touchOpacity');
+    if (mode === 'full') for (let i = 0; i < s.keys; i++) this.touchLayer.append(h('div.gp-lane', { style: { left: (i / s.keys * 100) + '%', width: (100 / s.keys) + '%', '--o': op } }));
+    this.hud.append(h('button.btn.gp-pausebtn', { onclick: () => this.onBack(), 'aria-label': 'Pause' }, icon('pause')));
+  },
+  /** Gamepads: buttons are bound like keys ("Pad0", "Pad1", …) in the key configuration. */
+  pollGamepad() {
+    if (!navigator.getGamepads) return;
+    const s = this.s;
+    const pads = [...navigator.getGamepads()].filter(Boolean);
+    if (!pads.length) return;
+    this._padState = this._padState || {};
+    for (const gp of pads) {
+      gp.buttons.forEach((b, i) => {
+        const code = `Pad${i}`, prev = !!this._padState[code], now = !!b.pressed;
+        if (now === prev) return;
+        this._padState[code] = now;
+        const col = s.keyMap.get(code);
+        if (col === undefined) return;
+        const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - Settings.get('audio.offset') * s.rate - Settings.get('input.latency') * s.rate;
+        this.press(col, now, t);
+      });
+    }
   },
 
   // ─────────────────────────────── practice ───────────────────────────────
@@ -5668,7 +6527,7 @@ const ResultsScreen = {
         h('div.t', s.title), h('div.a', `${s.artist} · mapped by ${s.creator || '?'}`),
         h('div.d', `[${s.version}] · ${s.keys}K · played by ${s.player} · ${new Date(s.date).toLocaleString()}`)),
       starBadge(s.stars || 0),
-      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m))),
+      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, false, s.modConfig || null))),
       p.watched ? h('span.tag.accent', p.watched === 'auto' ? 'AUTO PLAY' : 'REPLAY') : null,
       !s.passed ? h('span.tag.warn', 'FAILED') : null);
     grid.append(head, this.gradeCard(s, p), this.rightCol(s));
@@ -5708,7 +6567,14 @@ const ResultsScreen = {
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();
-    const card = h('div.panel.glass.res-grade-card', ring, scoreEl);
+    const pp = ScoreManager.ppOf(s);
+    const ppEl = h('div.res-pp', h('b', fmtInt(pp)), 'pp');
+    if (!s.passed || (s.mods || []).includes('AT')) ppEl.title = 'pp is only awarded for passes (not Auto)';
+    const card = h('div.panel.glass.res-grade-card', ring, scoreEl, ppEl);
+    if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
+      const d = s.totalPpAfter - s.totalPpBefore;
+      card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+    }
     if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) card.append(h('div.muted', `Personal best: ${fmtScore(s.prevBest.score)} (${s.score >= s.prevBest.score ? '+' : ''}${fmtInt(s.score - s.prevBest.score)})`));
     const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
@@ -5743,6 +6609,13 @@ const ResultsScreen = {
       scatter.style.display = 'none';
     }
     col.append(hist, scatter);
+    const hl = s.healthTimeline || [];
+    if (hl.length > 2) {
+      const step = Math.max(1, Math.floor(hl.length / 240));
+      const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([t, v]) => ({ y: v * 100, tip: `${fmtTime(t)} · health ${Math.round(v * 100)}%` }));
+      col.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(Math.min(...hl.map(x => x[1])) * 100)}%`)),
+        Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
+    }
     return col;
   },
   actions(s, p, map) {
@@ -5938,7 +6811,7 @@ const Charts = {
     return wrap;
   },
   /** Line chart (single series). pts: [{x, y, tip}] */
-  line(pts, { height = 180, yMin = null, yMax = null, fmtY = v => v } = {}) {
+  line(pts, { height = 180, yMin = null, yMax = null, fmtY = v => v, dots = true } = {}) {
     const { wrap, cv, tip } = this._setup(height);
     let geo = null;
     const draw = hi => {
@@ -5957,6 +6830,7 @@ const Charts = {
       x.strokeStyle = acc; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
       pts.forEach((p, i) => i ? x.lineTo(X(i), Y(p.y)) : x.moveTo(X(i), Y(p.y))); x.stroke();
       pts.forEach((p, i) => {
+        if (!dots && hi !== i) return;
         x.fillStyle = this._css('--panel-solid') || '#111'; x.beginPath(); x.arc(X(i), Y(p.y), hi === i ? 6 : 4, 0, Math.PI * 2); x.fill();
         x.fillStyle = acc; x.beginPath(); x.arc(X(i), Y(p.y), hi === i ? 4.5 : 3, 0, Math.PI * 2); x.fill();
       });
@@ -5985,7 +6859,7 @@ function pageShell(title, sub, actions = []) {
   const page = h('div.page');
   page.append(h('div.screen-title', h('div', h('h1', title), sub ? h('div.sub', sub) : null), h('div.grow'), ...actions));
   body.append(page);
-  return { el: h('div', body), page };
+  return { el: h('div', body, h('div.page-back', backButton(() => Screens.back()))), page };
 }
 
 async function importViaPicker(accept, directory = false) {
@@ -6136,17 +7010,21 @@ const ProfileScreen = {
     const bestPerMap = new Map();
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || bestPerMap.get(s.mapHash).score < s.score)) bestPerMap.set(s.mapHash, s);
     const totalScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
-    const banner = h(`div.profile-banner${p.banner === 'neru' ? '.neru' : ''}`,
+    const pp = ScoreManager.totalPp();
+    const topPlays = ScoreManager.bestPpPerMap();
+    const banner = h(`div.profile-banner${['neru', 'teto', 'miku'].includes(p.banner) ? '.' + p.banner : ''}`,
       ProfileManager.avatarEl(110),
       h('div', { style: { flex: '1', minWidth: '260px' } },
         h('div.pname', p.name, h('button.icon-btn', { title: 'Rename', onclick: async () => { const n = await Dialog.prompt('Profile name', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')),
           p.banner === 'neru' ? h('span.gold', { title: 'Neru theme' }, '✦') : null),
         h('div.plevel', h('div.lvl-badge', String(xp.level)), h('div', h('div.xp-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } })),
           h('div.muted', { style: { fontSize: '.8rem', marginTop: '4px' } }, `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP to level ${xp.level + 1} · ${fmtInt(xp.xp)} XP total`))),
-        h('div.muted', { style: { marginTop: '8px', fontSize: '.85rem' } }, `Local player since ${new Date(p.created).toLocaleDateString()}`)));
+        h('div.muted', { style: { marginTop: '8px', fontSize: '.85rem' } }, `Local player since ${new Date(p.created).toLocaleDateString()}`)),
+      h('div.profile-pp', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` },
+        h('div.k', 'Performance'), h('div.v', fmtInt(pp.total), h('span', 'pp')), h('div.sub', `${topPlays.length} ranked play${topPlays.length === 1 ? '' : 's'}`)));
     const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
     const stats = h('div.stats-grid', { style: { marginTop: '16px' } },
-      card('Total score', fmtInt(totalScore), 'sum of best scores'), card('Accuracy', st.passed ? fmtAcc(st.avgAcc) : '—', 'average of passes'),
+      card('Total pp', fmtInt(pp.total) + 'pp', 'weighted top plays + bonus'), card('Total score', fmtInt(totalScore), 'sum of best scores'), card('Accuracy', st.passed ? fmtAcc(st.avgAcc) : '—', 'average of passes'),
       card('Play count', fmtInt(st.plays), `${st.passed} passed · ${st.failed} failed`), card('Play time', fmtDuration(st.playtime)),
       card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'));
     // customisation
@@ -6162,12 +7040,15 @@ const ProfileScreen = {
         Toolbar.updateProfile();
       } }, prev, h('div.muted', { style: { fontSize: '.7rem', marginTop: '4px' } }, label));
     }));
-    const bannerSel = h('div.row', ...[['kori', 'Kori'], ['neru', 'Neru ✦']].map(([k, l]) => h(`button.chip${p.banner === k ? '.on' : ''}`, { onclick: async () => { p.banner = k; await ProfileManager.save(); } }, l)));
+    const bannerSel = h('div.row', ...[['kori', 'Kori'], ['neru', 'Neru ✦'], ['teto', 'Teto'], ['miku', 'Miku']].map(([k, l]) => h(`button.chip${p.banner === k ? '.on' : ''}`, { onclick: async () => { p.banner = k; await ProfileManager.save(); } }, l)));
     const custom = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Avatar'), picker,
       h('div.sp-group', 'Profile theme'), bannerSel);
     // lists
     const recent = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Recent plays'), this.scoreList(ScoreManager.recent(10)));
-    const pbs = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Personal bests'), this.scoreList([...bestPerMap.values()].sort((a, b) => b.score * (b.stars || 1) - a.score * (a.stars || 1)).slice(0, 10)));
+    const pbs = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Top plays (pp)'),
+      topPlays.length ? h('div.list', ...topPlays.slice(0, 15).map((tp, i) => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: tp.score, fromList: true }) },
+        gradeEl(tp.score.grade), h('div.main', h('div.t', `${tp.score.title} [${tp.score.version}]`), h('div.s', `${fmtAcc(tp.score.accuracy)} · ${(tp.score.mods || []).length ? '+' + tp.score.mods.join('') + ' · ' : ''}${fmtDate(tp.score.date)}`)),
+        h('div.pp-cell', h('b', `${fmtInt(tp.pp)}pp`), h('span.muted', `weighted ${Math.round(Math.pow(0.95, i) * 100)}% (${fmtInt(tp.pp * Math.pow(0.95, i))}pp)`))))) : h('div.muted', 'Pass a map to earn pp.'));
     const favs = BeatmapManager.sets.filter(s => Favorites.has(s.id));
     const favPanel = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, `Favorites (${favs.length})`),
       favs.length ? h('div.list', ...favs.slice(0, 12).map(s => h('div.list-row', h('div.main', h('div.t', `${s.artist} — ${s.title}`), h('div.s', `${s.maps.length} difficulties · ${s.creator}`)),
@@ -6177,7 +7058,7 @@ const ProfileScreen = {
   scoreList(scores) {
     if (!scores.length) return h('div.muted', 'Nothing here yet.');
     return h('div.list', ...scores.map(s => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: s, fromList: true }) },
-      gradeEl(s.grade), h('div.main', h('div.t', `${s.title} [${s.version}]`), h('div.s', `${fmtScore(s.score)} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.mods.length ? ' · +' + s.mods.join('') : ''} · ${fmtDate(s.date)}`)))));
+      gradeEl(s.grade), h('div.main', h('div.t', `${s.title} [${s.version}]`), h('div.s', `${fmtScore(s.score)} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'}${s.mods.length ? ' · +' + s.mods.join('') : ''} · ${fmtDate(s.date)}`)))));
   },
 };
 
@@ -6188,7 +7069,7 @@ const StatsScreen = {
     const st = StatisticsManager.compute();
     const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
     page.append(h('div.stats-grid',
-      card('Total plays', fmtInt(st.plays)), card('Play time', fmtDuration(st.playtime)), card('Notes hit', fmtInt(st.notes)),
+      card('Total pp', fmtInt(ScoreManager.totalPp().total) + 'pp'), card('Total plays', fmtInt(st.plays)), card('Play time', fmtDuration(st.playtime)), card('Notes hit', fmtInt(st.notes)),
       card('Misses', fmtInt(st.misses)), card('Average accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), card('Highest score', fmtInt(st.highestScore)),
       card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'),
       card('Maps passed', fmtInt(st.passed)), card('Maps failed', fmtInt(st.failed))));
@@ -6196,6 +7077,9 @@ const StatsScreen = {
     const day = 86400000;
     const perDay = Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })));
     const accTrend = st.accTrend.length ? Charts.line(st.accTrend.map(a => ({ y: a.acc * 100, tip: `${a.title} [${a.version}] · ${(a.acc * 100).toFixed(2)}% · ${new Date(a.date).toLocaleDateString()}` })), { fmtY: v => v.toFixed(1) + '%' }) : h('div.muted', 'Pass a map to see your accuracy trend.');
+    const ppHist = ScoreManager.ppHistory();
+    page.append(h('div.panel.chart-card', { style: { marginTop: '16px' } }, h('h3', 'Performance (total pp) over time', h('span.grow'), h('span', `${fmtInt(ScoreManager.totalPp().total)}pp now`)),
+      ppHist.length ? Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0 }) : h('div.muted', 'Pass a map to start tracking pp.')));
     page.append(h('div.chart-row',
       h('div.panel.chart-card', h('h3', 'Plays per day (last 30 days)'), perDay),
       h('div.panel.chart-card', h('h3', 'Accuracy trend (last 60 passes)'), accTrend)));
@@ -6346,6 +7230,304 @@ const SkinsScreen = {
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     requestAnimationFrame(() => this.preview.show(skin, this.keys));
+  },
+};
+
+/* ===== 17b-screen-explorer.js ===== */
+/* Beatmap Explorer — search osu!mania beatmaps online and download them straight into the library.
+ * On the Cloudflare deployment it talks to the same-origin Worker (/api/search, /api/download/:id),
+ * which uses the official osu! API (if configured) or public mirrors. When the page is not served
+ * by the Worker (e.g. a local copy) it calls the mirrors directly, which works where they allow CORS. */
+
+const OnlineBeatmaps = {
+  apiAvailable: null,
+  PAGE: 40,
+  DIRECT_SEARCH: [
+    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, graveyard: -2 })[p.status] ?? 1}` : ''}`,
+    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
+  ],
+  DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
+
+  async checkApi() {
+    if (this.apiAvailable !== null) return this.apiAvailable;
+    if (!/^https?:/.test(location.protocol)) return (this.apiAvailable = false);
+    try {
+      const r = await fetch('api/health', { cache: 'no-store' });
+      this.apiAvailable = r.ok && /json/.test(r.headers.get('content-type') || '');
+    } catch (e) { this.apiAvailable = false; }
+    return this.apiAvailable;
+  },
+  /** Mirror/osu! set → compact form (same shape as the Worker's normalizeSet). */
+  normalize(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const id = Number(raw.id ?? raw.beatmapset_id ?? raw.SetID);
+    if (!id) return null;
+    const diffs = (raw.beatmaps || raw.ChildrenBeatmaps || []).map(b => ({
+      id: Number(b.id ?? b.BeatmapID ?? 0),
+      mode: b.mode_int ?? (typeof b.mode === 'number' ? b.mode : b.mode === 'mania' ? 3 : b.Mode ?? (b.mode === undefined ? 3 : -1)),
+      version: String(b.version ?? b.DiffName ?? 'Normal'), stars: Number(b.difficulty_rating ?? b.DifficultyRating ?? 0),
+      keys: Math.round(Number(b.cs ?? b.CS ?? 4)), od: Number(b.accuracy ?? b.OD ?? 0), hp: Number(b.drain ?? b.HP ?? 0),
+      bpm: Number(b.bpm ?? b.BPM ?? raw.bpm ?? 0), length: Number(b.total_length ?? b.TotalLength ?? 0),
+      notes: Number(b.count_circles ?? 0), lns: Number(b.count_sliders ?? 0),
+    })).filter(d => Number(d.mode) === 3).sort((a, b) => a.stars - b.stars);
+    if (!diffs.length) return null;
+    const st = raw.status ?? raw.ranked ?? raw.RankedStatus;
+    const names = { '-2': 'graveyard', '-1': 'wip', 0: 'pending', 1: 'ranked', 2: 'approved', 3: 'qualified', 4: 'loved' };
+    return {
+      id, title: String(raw.title ?? raw.Title ?? ''), titleUnicode: String(raw.title_unicode ?? raw.title ?? ''),
+      artist: String(raw.artist ?? raw.Artist ?? ''), artistUnicode: String(raw.artist_unicode ?? raw.artist ?? ''),
+      creator: String(raw.creator ?? raw.Creator ?? ''), source: String(raw.source ?? ''),
+      status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
+      playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
+      video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
+    };
+  },
+  async search(p) {
+    const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
+    if (p.keys.length) params.set('keys', p.keys.join(','));
+    if (p.sort) params.set('sort', p.sort);
+    if (p.minStars > 0) params.set('minStars', p.minStars);
+    if (p.maxStars < 20) params.set('maxStars', p.maxStars);
+    if (p.cursor) params.set('cursor', p.cursor);
+    if (await this.checkApi()) {
+      const r = await fetch('api/search?' + params);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error ? `${d.error}\n${(d.errors || []).join('\n')}` : `Search failed (${r.status})`);
+      return d;
+    }
+    const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
+    const errors = [];
+    for (const u of this.DIRECT_SEARCH) {
+      try {
+        const r = await fetch(u({ ...p, q }));
+        if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
+        const data = await r.json();
+        const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
+        const sets = arr.map(x => this.normalize(x)).filter(Boolean)
+          .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
+          .filter(s => s.diffs.length);
+        return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
+      } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
+    }
+    throw new Error('Online search is unavailable here.\n' + errors.join('\n') +
+      '\nTip: the explorer works fully on the Cloudflare deployment (it proxies the mirrors).');
+  },
+  /** Download an .osz with progress; returns a File. */
+  async download(id, onProgress) {
+    const urls = (await this.checkApi()) ? [`api/download/${id}`] : this.DIRECT_DOWNLOAD.map(f => f(id));
+    let lastErr = null;
+    for (const url of urls) {
+      try {
+        const r = await fetch(url);
+        const ct = r.headers.get('content-type') || '';
+        if (!r.ok || /json|html|text/.test(ct)) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+        const total = Number(r.headers.get('content-length')) || 0;
+        const reader = r.body && r.body.getReader ? r.body.getReader() : null;
+        let blob;
+        if (reader) {
+          const chunks = []; let got = 0;
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value); got += value.length;
+            onProgress && onProgress(total ? got / total : null, got);
+          }
+          blob = new Blob(chunks);
+        } else blob = await r.blob();
+        if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
+        return new File([blob], `${id}.osz`, { type: 'application/zip' });
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Download failed');
+  },
+  coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
+  previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
+};
+
+class OnlineBeatmapProvider extends BeatmapProvider {
+  get id() { return 'online'; }
+  get name() { return 'osu! beatmaps (online)'; }
+  get online() { return true; }
+  async search(query, opts = {}) { return (await OnlineBeatmaps.search({ q: query, keys: [], status: 'ranked', page: 0, minStars: 0, maxStars: 99, ...opts })).sets; }
+  async getBeatmap(id) { return (await this.search(String(id))).find(s => s.id === Number(id)) || null; }
+  async downloadBeatmap(id, onProgress) { return OnlineBeatmaps.download(id, onProgress); }
+  async getMetadata(id) { return this.getBeatmap(id); }
+}
+BeatmapProviders.register(new OnlineBeatmapProvider());
+
+const EXPLORE_STATUSES = [['any', 'Any'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['graveyard', 'Graveyard']];
+const EXPLORE_SORTS = [['', 'Relevance'], ['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites']];
+
+const ExplorerScreen = {
+  tab: 'explore',
+  state: { q: '', keys: [], status: 'ranked', sort: '', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
+  results: [], page: 0, hasMore: false, loading: false, cursor: null,
+  downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
+  audio: null,
+
+  enter() {
+    const el = h('div.explorer');
+    const st = this.state;
+    this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
+    let t = 0;
+    this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { st.q = this.searchInput.value.trim(); this.newSearch(); }, 420); });
+    this.searchInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); } if (e.key === 'Escape') this.searchInput.blur(); });
+    const chipRow = (label, items, isOn, onClick) => h('div.ex-filter', h('span.ex-flabel', label), h('div.ex-chips', ...items.map(([v, l]) => h(`button.ex-chip${isOn(v) ? '.on' : ''}`, { onclick: () => { onClick(v); UISounds.click(); this.renderFilters(); this.newSearch(); } }, l))));
+    this.filters = h('div.ex-filters');
+    this.renderFilters = () => {
+      clearEl(this.filters).append(
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}K`]), [10, '10K']], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v]; }),
+        chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
+        chipRow('Sort', EXPLORE_SORTS, v => st.sort === v, v => { if (st.sort === v && v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; st.sort = v; }),
+        h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
+        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips', h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'))));
+    };
+    this.renderFilters();
+    this.grid = h('div.ex-grid');
+    this.status = h('div.ex-status');
+    this.sentinel = h('div.ex-sentinel');
+    const header = h('div.ex-header',
+      h('div.ex-title', h('h1', 'Beatmap Explorer'), h('span.muted', 'osu!mania beatmaps, downloaded straight into your library')),
+      h('div.ex-searchwrap', icon('search'), this.searchInput),
+      this.filters);
+    el.append(h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel)));
+    this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
+    this.io.observe(this.sentinel);
+    this._unsub = [Bus.on('library:changed', () => this.renderResults())];
+    if (!this.results.length) this.newSearch(); else this.renderResults();
+    return el;
+  },
+  leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); },
+  starSliders() {
+    const st = this.state;
+    const mk = (key, label) => {
+      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.5, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
+      const upd = () => s.style.setProperty('--p', (s.value / 10 * 100) + '%');
+      s.addEventListener('input', () => { upd(); v.textContent = this.starLabel(); });
+      s.addEventListener('change', () => { st[key] = key === 'maxStars' && +s.value >= 10 ? 20 : +s.value; this.newSearch(); });
+      s.addEventListener('keydown', e => e.stopPropagation());
+      upd();
+      return s;
+    };
+    const v = h('span.ex-starval', this.starLabel());
+    return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
+  },
+  starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
+  sortParam() { const st = this.state; return st.sort ? `${st.sort}_${st.dir}` : ''; },
+  async newSearch() { this.page = 0; this.results = []; this.cursor = null; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore(); },
+  async loadMore() {
+    const tok = this.token || (this.token = {});
+    this.loading = true; this.renderStatus();
+    try {
+      const st = this.state;
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor });
+      if (tok !== this.token) return;
+      const seen = new Set(this.results.map(s => s.id));
+      this.results.push(...d.sets.filter(s => !seen.has(s.id)));
+      this.hasMore = !!d.hasMore && d.sets.length > 0;
+      this.cursor = d.cursor || null;
+      this.page++;
+      this.source = d.source;
+      this.error = null;
+    } catch (e) {
+      if (tok !== this.token) return;
+      this.error = e.message; this.hasMore = false;
+    } finally {
+      if (tok === this.token) { this.loading = false; this.renderResults(); }
+    }
+  },
+  owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || null; },
+  renderStatus() {
+    clearEl(this.status);
+    if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
+    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', 'Couldn\'t reach the beatmap servers'), h('pre', this.error)));
+    else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
+    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
+  },
+  renderResults() {
+    if (!this.grid) return;
+    clearEl(this.grid);
+    const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
+    for (const set of list) this.grid.append(this.card(set));
+    this.renderStatus();
+  },
+  card(set) {
+    const owned = this.owned(set.id);
+    const dl = this.downloads.get(set.id);
+    const cover = h('div.ex-cover');
+    const img = new Image();
+    img.onload = () => cover.style.backgroundImage = `url("${img.src}")`;
+    img.src = OnlineBeatmaps.coverURL(set.id, 'card@2x');
+    const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
+    const maxStars = Math.max(...set.diffs.map(d => d.stars));
+    const len = Math.max(...set.diffs.map(d => d.length));
+    const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
+    const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
+    const playBtn = h('button.ex-play', { title: 'Preview', 'aria-label': 'Preview', onclick: e => { e.stopPropagation(); this.togglePreview(set.id, playBtn); } }, icon(this.previewId === set.id ? 'pause' : 'play'));
+    let action;
+    if (owned) action = h('button.btn.sm.primary', { onclick: () => Screens.go('songselect', { mapId: (owned.maps.find(m => !m.problems.length) || owned.maps[0]).id }) }, icon('play'), 'Play');
+    else if (dl && dl.state === 'downloading') action = h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
+    else action = h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
+    const card = h('div.ex-card', { dataset: { id: set.id } },
+      cover, h('div.ex-shade'),
+      h('div.ex-left', playBtn),
+      h('div.ex-info',
+        h('div.ex-top', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.tag', 'VIDEO') : null, owned ? h('span.tag.accent', 'IN LIBRARY') : null),
+        h('div.ex-t', title), h('div.ex-a', `by ${artist}`),
+        h('div.ex-m', 'mapped by ', h('b', set.creator)),
+        h('div.ex-meta', icon('play'), fmtInt(set.playCount), icon('heart'), fmtInt(set.favourites), icon('clock'), fmtTime(len * 1000), keys.map(k => h('span.keys-tag', `${k}K`))),
+        h('div.ex-diffs', ...set.diffs.slice(0, 16).map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })),
+          set.diffs.length > 16 ? h('span.muted', `+${set.diffs.length - 16}`) : null, h('span.ex-maxstar', starBadge(maxStars)))),
+      h('div.ex-action', action));
+    card.addEventListener('pointerenter', () => UISounds.hover());
+    return card;
+  },
+  async download(set) {
+    if (this.downloads.get(set.id)?.state === 'downloading') return;
+    const state = { state: 'downloading', progress: 0, bytes: 0 };
+    this.downloads.set(set.id, state);
+    this.refreshCard(set);
+    try {
+      let lastPaint = 0;
+      const file = await OnlineBeatmaps.download(set.id, (p, bytes) => {
+        state.progress = p; state.bytes = bytes;
+        const now = performance.now();
+        if (now - lastPaint > 120) { lastPaint = now; this.refreshCard(set); }
+      });
+      state.state = 'done';
+      const report = await BeatmapManager.importFiles([file]);
+      if (report.sets.length) {
+        for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
+        Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
+        Bus.emit('library:changed');
+      } else Toast.err('Import failed', report.errors.join('\n') || 'The archive had no playable difficulties.');
+    } catch (e) {
+      state.state = 'error';
+      Toast.err(`Couldn't download ${set.title}`, e.message);
+    }
+    this.refreshCard(set);
+  },
+  refreshCard(set) {
+    const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
+    if (old) old.replaceWith(this.card(set));
+  },
+  togglePreview(id) {
+    if (this.previewId === id) { this.stopPreview(); this.renderResults(); return; }
+    this.stopPreview();
+    AudioManager.resume();
+    if (Music.playing) { Music.pause(); this._resumeMusic = true; }
+    const a = new Audio(OnlineBeatmaps.previewURL(id));
+    a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
+    a.play().catch(() => Toast.err('Preview unavailable'));
+    a.onended = () => { this.stopPreview(); this.renderResults(); };
+    this.audio = a; this.previewId = id;
+    this.renderResults();
+  },
+  stopPreview() {
+    if (this.audio) { this.audio.pause(); this.audio = null; }
+    this.previewId = null;
+    if (this._resumeMusic && Music.buffer && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
+    this._resumeMusic = false;
   },
 };
 
@@ -6515,7 +7697,26 @@ const KeyConfig = {
       h('button.btn.sm.ghost', { onclick: async () => { if (await Dialog.confirm('Reset all keybinds?', 'Every key mode goes back to its default layout.')) { Settings.set('input.keybinds', structuredClone(DEFAULT_KEYBINDS)); this.render(); } } }, 'Reset all')));
     this.attach();
   },
-  listen(i, add) { this.listening = i; this.addMode = add; UISounds.click(); this.render(); },
+  listen(i, add) { this.listening = i; this.addMode = add; UISounds.click(); this.render(); this.pollPad(); },
+  /** While a lane is listening, a gamepad button press is captured as that lane's binding ("Pad<n>"). */
+  pollPad() {
+    if (!navigator.getGamepads || this._padRaf) return;
+    const base = {};
+    const tick = () => {
+      this._padRaf = null;
+      if (this.listening === null || !this.root || !this.root.isConnected) return;
+      for (const gp of [...navigator.getGamepads()].filter(Boolean)) {
+        for (let i = 0; i < gp.buttons.length; i++) {
+          const k = gp.index + ':' + i, pressed = gp.buttons[i].pressed;
+          if (base[k] === undefined) { base[k] = pressed; continue; }
+          if (pressed && !base[k]) { this._kd({ code: `Pad${i}`, preventDefault() {}, stopPropagation() {} }); base[k] = pressed; return this.listening !== null && this.pollPad(); }
+          base[k] = pressed;
+        }
+      }
+      this._padRaf = requestAnimationFrame(tick);
+    };
+    this._padRaf = requestAnimationFrame(tick);
+  },
   attach() {
     if (this._kd) return;
     this._kd = e => {
@@ -6671,6 +7872,71 @@ const ModSelect = {
       cols.append(col);
     }
     sheet.append(cols);
+    const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
+    if (cfgMods.length) sheet.append(this.configPanel(cfgMods));
+  },
+  /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
+  configPanel(ids) {
+    const cfg = ModSystem.config();
+    const set = (k, v) => { Settings.set('mods.config', { ...ModSystem.config(), [k]: v }); Bus.emit('mods:changed'); };
+    const slider = (label, k, min, max, step, fmt) => {
+      const s = h('input.slider', { type: 'range', min, max, step, value: cfg[k] });
+      const val = h('span.val', fmt(+cfg[k]));
+      const upd = () => { s.style.setProperty('--p', ((s.value - min) / (max - min) * 100) + '%'); val.textContent = fmt(+s.value); };
+      s.addEventListener('input', () => { upd(); set(k, +s.value); });
+      s.addEventListener('keydown', e => e.stopPropagation());
+      upd();
+      return h('div.set-row.col', h('div.row', h('div.lbl', label), val), h('div.ctl', s));
+    };
+    const rows = [];
+    if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
+    if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
+    if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
+    if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
+    if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
+    return h('div.panel.mod-config', h('h4', 'Customise'), ...rows);
+  },
+};
+
+// ─────────────────────────────── First-run onboarding ───────────────────────────────
+const Onboarding = {
+  THEMES: [['kori', 'Default', '#b07cff'], ['neru', 'Neru', '#ffcf3a'], ['teto', 'Teto', '#ff4d6a'], ['miku', 'Miku', '#39c5bb'], ['midnight', 'Midnight', '#6cb6ff']],
+  /** Ask the player's name (and theme) the first time the client starts. Resolves when finished. */
+  run() {
+    return new Promise(resolve => {
+      const p = ProfileManager.profile;
+      const name = h('input.input.ob-name', { value: p.onboarded ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
+      let theme = Settings.get('ui.theme');
+      const swatches = h('div.ob-themes', ...this.THEMES.map(([id, label, c]) => {
+        const b = h(`button.ob-theme${id === theme ? '.on' : ''}`, { style: { '--c': c }, title: label, onclick: () => {
+          theme = id; Settings.set('ui.theme', id); UISounds.click();
+          $$('.ob-theme', swatches).forEach(x => x.classList.toggle('on', x === b));
+        } }, h('i'), label);
+        return b;
+      }));
+      const err = h('div.ob-err');
+      const finish = async () => {
+        const n = name.value.trim();
+        if (!n) { err.textContent = 'Pick a name — it shows on your scores, replays and profile.'; name.focus(); return; }
+        await ProfileManager.setName(n);
+        p.onboarded = true; await ProfileManager.save();
+        Toolbar.updateProfile();
+        UISounds.click();
+        o.close();
+        Toast.show(`Welcome, ${n}!`, 'Your plays earn pp now — check your profile after a few maps.');
+        resolve();
+      };
+      name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(); });
+      const card = h('div.dialog.onboarding', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome' },
+        h('div.ob-logo', 'Ashtonk', h('span', '!'), h('b', 'mania')),
+        h('h2', 'Welcome!'),
+        h('p.muted', 'What should we call you? Your name appears on scores, replays and your pp profile.'),
+        name, err,
+        h('div.sp-group', 'Pick a theme'), swatches,
+        h('div.actions', h('button.btn.primary.lg', { onclick: finish }, icon('play'), 'Let\'s play')));
+      const o = makeOverlay(card, { onKey: e => e.key === 'Escape', dismissable: false });
+      setTimeout(() => name.focus(), 60);
+    });
   },
 };
 
@@ -6759,32 +8025,47 @@ const App = {
     Screens.register('gameplay', GameplayScreen);
     Screens.register('results', ResultsScreen);
     Screens.register('beatmaps', BeatmapsScreen);
+    Screens.register('explore', ExplorerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
     Screens.register('stats', StatsScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
+    VolumeOverlay.bind();
+    window.AshtonkMania = { App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
     this.globalLoop();
+    if (!ProfileManager.profile.onboarded) await Onboarding.run();
+    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));
-    window.AshtonkMania = { App, DB, Settings, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites };
   },
 
-  /** First launch: a skin placed next to index.html (skins/default.osk or skins/Kori 3.0.osk) is installed and
-   *  selected automatically, so a local copy of the client can ship with its gameplay skin preinstalled. */
+  /** Kori 3.0 ships with the client (public/skins/kori.osk, mania assets only) and is installed and selected
+   *  on first launch. A skin dropped in as skins/default.osk takes priority. Runs once per browser; deleting
+   *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
   async installBundledSkin(say) {
-    if (SkinManager.skins.length || !/^https?:/.test(location.protocol)) return;
-    for (const name of ['skins/default.osk', 'skins/Kori 3.0.osk', 'skins/kori.osk']) {
+    if (!/^https?:/.test(location.protocol)) return;
+    if (await DB.kvGet('bundled.kori', false)) return;
+    const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
+    if (existing) {
+      await DB.kvSet('bundled.kori', true);
+      if (SkinManager.current.builtin) await SkinManager.select(existing.id, { silent: true });
+      return;
+    }
+    for (const name of ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
-        const r = await fetch(encodeURI(name), { cache: 'no-store' });
+        const r = await fetch(encodeURI(name), { cache: 'no-cache' });
         if (!r.ok) continue;
-        say('Installing bundled skin…');
-        const meta = await SkinManager.importOsk(new File([await r.blob()], name.split('/').pop()));
-        await SkinManager.select(meta.id, { silent: true });
+        const blob = await r.blob();
+        if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        say('Installing Kori 3.0…');
+        const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
+        if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });
+        await DB.kvSet('bundled.kori', true);
         return;
       } catch (e) { /* not bundled */ }
     }

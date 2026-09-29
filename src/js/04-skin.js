@@ -187,6 +187,21 @@ class Skin {
   }
 }
 
+/** Colours of the built-in skin for each UI theme. */
+const THEME_PALETTES = {
+  kori: { n1: ['#f4ecff', '#c9b0ff'], n2: ['#b57bff', '#7d3cff'], s: ['#ffe27a', '#f5b700'], key: '#c69bff', glow: [176, 128, 255], glowS: [255, 210, 80] },
+  neru: { n1: ['#fffbea', '#ffe9a0'], n2: ['#ffd54a', '#e6a800'], s: ['#d9c2ff', '#8a4dff'], key: '#ffd54a', glow: [255, 207, 58], glowS: [176, 124, 255] },
+  teto: { n1: ['#f5f6f8', '#c9ced6'], n2: ['#ff6b84', '#d0213d'], s: ['#ffd0d8', '#ff8fa3'], key: '#ff6b84', glow: [255, 77, 106], glowS: [255, 170, 185] },
+  miku: { n1: ['#ecfffd', '#aeeee8'], n2: ['#39c5bb', '#139a90'], s: ['#ff8cc0', '#e12885'], key: '#39c5bb', glow: [57, 197, 187], glowS: [255, 95, 168] },
+  midnight: { n1: ['#eef6ff', '#bcd9ff'], n2: ['#6cb6ff', '#2f7fff'], s: ['#ffe27a', '#f5b700'], key: '#6cb6ff', glow: [108, 182, 255], glowS: [255, 210, 80] },
+};
+/** Arrow directions per column for the "arrows" note style (from Web-Osu-Mania, MIT © 2024 Danny Duong). */
+const LANE_ARROW_DIRECTIONS = [
+  [180], [270, 90], [270, 180, 90], [270, 180, 0, 90], [270, 315, 180, 45, 90], [270, 45, 180, 0, 45, 90],
+  [270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90],
+  [270, 315, 225, 315, 180, 0, 45, 135, 45, 90],
+];
+
 /** Built-in "Ashtonk!mania" default skin: procedurally generated Kori-inspired textures + synthesized sounds. */
 class DefaultSkin extends Skin {
   constructor() {
@@ -195,7 +210,7 @@ class DefaultSkin extends Skin {
     this.gen = new Map();
   }
   get builtin() { return true; }
-  has(name) { return DefaultSkin.NAMES.has(this._key(name)); }
+  has(name) { const k = this._key(name); return DefaultSkin.NAMES.has(k) || k.startsWith('am-'); }
   supportedKeys() { return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; }
   async texture(name) {
     const key = this._key(name);
@@ -216,10 +231,58 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
+  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori; }
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
-    const noteCol = { '1': ['#f4ecff', '#c9b0ff'], '2': ['#b57bff', '#7d3cff'], 's': ['#ffe27a', '#f5b700'] };
+    const P = DefaultSkin.palette();
+    const noteCol = { '1': P.n1, '2': P.n2, 's': P.s };
+    const hex = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
+    const darker = typeof Settings === 'undefined' || Settings.get('skin.darkerHolds');
     let m;
+    // Shaped notes for the built-in skin (styles from Web-Osu-Mania): am-<part>-<type>-<style>-<angle>
+    if ((m = /^am-(note|body|tail|key|keyd)-([12s])-(bars|circles|diamonds|arrows)-(\d+)$/.exec(key))) {
+      const [, part, T, style, ang] = m;
+      if (style === 'bars') return DefaultSkin.generate(part === 'note' ? `mania-note${T}` : part === 'body' ? `mania-note${T}l` : part === 'tail' ? `mania-note${T}t` : `mania-key${T}${part === 'keyd' ? 'd' : ''}`);
+      const [a, b] = noteCol[T];
+      const ratio = style === 'diamonds' ? 0.85 : 0.8;
+      const shape = (x, cx, cy, size) => {
+        x.save(); x.translate(cx, cy);
+        if (style === 'circles') { x.beginPath(); x.arc(0, 0, size / 2, 0, Math.PI * 2); }
+        else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.18); }
+        else {
+          x.rotate(+ang * Math.PI / 180);
+          const r = size / 2;
+          x.beginPath();
+          x.moveTo(0, -r); x.lineTo(r, 0); x.lineTo(r * 0.42, 0); x.lineTo(r * 0.42, r); x.lineTo(-r * 0.42, r); x.lineTo(-r * 0.42, 0); x.lineTo(-r, 0); x.closePath();
+        }
+        x.restore();
+      };
+      if (part === 'note') return new Texture([C(128, 128, (x, w, h) => {
+        shape(x, w / 2, h / 2, w * ratio);
+        const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
+        x.fillStyle = g; x.fill(); x.lineWidth = 5; x.strokeStyle = 'rgba(10,4,20,.85)'; x.stroke();
+      })], 2);
+      if (part === 'body') return new Texture([C(128, 32, (x, w, h) => {
+        const bw = w * ratio * 0.62;
+        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fillRect((w - bw) / 2, 0, bw, h);
+      })], 2);
+      if (part === 'tail') return new Texture([C(128, 64, (x, w, h) => {
+        const bw = w * ratio * 0.62;
+        rr(x, (w - bw) / 2, 0, bw, h * 0.7, [0, 0, bw / 2, bw / 2]);
+        x.fillStyle = hex(darker ? b : a, darker ? 0.62 : 0.8); x.fill();
+      })], 2);
+      const pressed = part === 'keyd';
+      return new Texture([C(128, 320, (x, w, h) => {
+        const g = x.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.22, pressed ? hex(P.n2[1], 0.22) : 'rgba(8,5,14,.45)'); g.addColorStop(1, 'rgba(5,3,8,.9)');
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+        shape(x, w / 2, h * 0.25, w * ratio);
+        x.lineWidth = 7;
+        x.strokeStyle = pressed ? (T === 's' ? P.s[0] : P.key) : hex(T === 's' ? P.s[1] : P.key, 0.5);
+        if (pressed) { x.shadowColor = x.strokeStyle; x.shadowBlur = 20; x.fillStyle = hex(T === 's' ? P.s[1] : P.n2[1], 0.35); x.fill(); }
+        x.stroke();
+      })], 2);
+    }
     if ((m = /^mania-note([12s])$/.exec(key)) || (m = /^mania-note([12s])h$/.exec(key))) {
       const [a, b] = noteCol[m[1]];
       return new Texture([C(128, 40, (x, w, h) => {
@@ -232,12 +295,13 @@ class DefaultSkin extends Skin {
     }
     if ((m = /^mania-note([12s])l$/.exec(key))) {
       const [a, b] = noteCol[m[1]];
+      const c1 = darker ? b : a;
       return new Texture([C(128, 32, (x, w, h) => {
         const g = x.createLinearGradient(0, 0, w, 0);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, b + 'aa'); g.addColorStop(0.5, a + 'cc');
-        g.addColorStop(0.9, b + 'aa'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, hex(c1, 0.66)); g.addColorStop(0.5, hex(darker ? b : a, darker ? 0.7 : 0.8));
+        g.addColorStop(0.9, hex(c1, 0.66)); g.addColorStop(1, 'rgba(0,0,0,0)');
         x.fillStyle = g; x.fillRect(14, 0, w - 28, h);
-        x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(w / 2 - 2, 0, 4, h);
+        x.fillStyle = 'rgba(255,255,255,.3)'; x.fillRect(w / 2 - 2, 0, 4, h);
       })], 2);
     }
     if ((m = /^mania-note([12s])t$/.exec(key))) {
@@ -250,14 +314,15 @@ class DefaultSkin extends Skin {
     }
     if ((m = /^mania-key([12s])(d?)$/.exec(key))) {
       const pressed = !!m[2], spec = m[1] === 's';
+      const col = spec ? P.s[0] : P.key;
       return new Texture([C(128, 172, (x, w, h) => {
         const g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, pressed ? (spec ? '#3a2a00' : '#2a1350') : '#0b0812'); g.addColorStop(1, '#050308');
+        g.addColorStop(0, pressed ? hex(spec ? P.s[1] : P.n2[1], 0.3) : '#0b0812'); g.addColorStop(1, '#050308');
         x.fillStyle = g; x.fillRect(0, 0, w, h);
         rr(x, 22, 26, w - 44, 34, 12);
         x.lineWidth = 5;
-        x.strokeStyle = pressed ? (spec ? '#ffd54a' : '#c69bff') : (spec ? 'rgba(255,213,74,.45)' : 'rgba(170,120,255,.45)');
-        if (pressed) { x.shadowColor = x.strokeStyle; x.shadowBlur = 18; x.fillStyle = spec ? 'rgba(255,213,74,.35)' : 'rgba(170,120,255,.35)'; x.fill(); }
+        x.strokeStyle = pressed ? col : hex(col, 0.45);
+        if (pressed) { x.shadowColor = col; x.shadowBlur = 18; x.fillStyle = hex(col, 0.35); x.fill(); }
         x.stroke();
         x.shadowBlur = 0;
         x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(0, 0, 2, h); x.fillRect(w - 2, 0, 2, h);
@@ -265,7 +330,8 @@ class DefaultSkin extends Skin {
     }
     if (key === 'mania-stage-hint') return new Texture([C(256, 24, (x, w, h) => {
       const g = x.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, 'rgba(180,130,255,0)'); g.addColorStop(0.5, 'rgba(200,160,255,.95)'); g.addColorStop(1, 'rgba(180,130,255,0)');
+      const [r0, g0, b0] = DefaultSkin.palette().glow;
+      g.addColorStop(0, `rgba(${r0},${g0},${b0},0)`); g.addColorStop(0.5, `rgba(${r0},${g0},${b0},.95)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
     if (key === 'mania-stage-light') return new Texture([C(64, 256, (x, w, h) => {
@@ -275,7 +341,8 @@ class DefaultSkin extends Skin {
     })], 2);
     if (key === 'mania-stage-left' || key === 'mania-stage-right') return new Texture([C(8, 64, (x, w, h) => {
       const g = x.createLinearGradient(key.endsWith('left') ? w : 0, 0, key.endsWith('left') ? 0 : w, 0);
-      g.addColorStop(0, 'rgba(160,110,255,.9)'); g.addColorStop(1, 'rgba(160,110,255,0)');
+      const [r0, g0, b0] = DefaultSkin.palette().glow;
+      g.addColorStop(0, `rgba(${r0},${g0},${b0},.9)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
     if (key === 'mania-stage-bottom') return null;
@@ -367,7 +434,8 @@ const ManiaLayout = {
     for (let i = 0; i < keys; i++) {
       L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: 8, g: 5, b: 14, a: 0.88 } : { r: 0, g: 0, b: 0, a: 1 }));
       const types = maniaColumnTypes(keys, L.specialStyle);
-      L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? (types[i] === 'S' ? { r: 255, g: 210, b: 80, a: 1 } : { r: 176, g: 128, b: 255, a: 1 }) : { r: 255, g: 255, b: 255, a: 1 }));
+      const P = DefaultSkin.palette(), gl = types[i] === 'S' ? P.glowS : P.glow;
+      L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? { r: gl[0], g: gl[1], b: gl[2], a: 1 } : { r: 255, g: 255, b: 255, a: 1 }));
     }
     L.colours.columnLine = col('ColourColumnLine', { r: 255, g: 255, b: 255, a: 1 });
     L.colours.barline = col('ColourBarline', { r: 255, g: 255, b: 255, a: isDefault ? 0.35 : 1 });
@@ -384,8 +452,17 @@ const ManiaLayout = {
       return defName ? def.texture(defName, opts) : null;
     };
     const types = maniaColumnTypes(keys, L.specialStyle);
+    const style = isDefault ? (Settings.get('skin.noteStyle') || 'bars') : 'bars';
     for (let i = 0; i < keys; i++) {
       const T = types[i];
+      if (isDefault && style !== 'bars') {
+        const ang = (LANE_ARROW_DIRECTIONS[keys - 1] || [])[i] ?? 0;
+        const nm = part => `am-${part}-${T.toLowerCase()}-${style}-${ang}`;
+        L.tex.key[i] = await def.texture(nm('key')); L.tex.keyD[i] = await def.texture(nm('keyd'));
+        L.tex.note[i] = L.tex.noteH[i] = await def.texture(nm('note'));
+        L.tex.noteL[i] = await def.texture(nm('body')); L.tex.noteT[i] = await def.texture(nm('tail'));
+        continue;
+      }
       L.tex.key[i] = await load(`KeyImage${i}`, `mania-key${T}`);
       L.tex.keyD[i] = await load(`KeyImage${i}D`, `mania-key${T}D`);
       L.tex.note[i] = await load(`NoteImage${i}`, `mania-note${T}`);
@@ -432,8 +509,14 @@ const SkinManager = {
     return (window.innerHeight * (window.devicePixelRatio || 1)) >= 700;
   },
 
+  /** Theme / built-in style changes regenerate the procedural textures (imported skins fall back to them). */
+  invalidateGenerated() {
+    this.defaultSkin.gen.clear(); this.defaultSkin.layoutCache.clear();
+    if (this.current && this.current !== this.defaultSkin) this.current.layoutCache.clear();
+  },
   async init() {
     this.defaultSkin = new DefaultSkin();
+    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
     await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });

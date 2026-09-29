@@ -4,30 +4,26 @@
 
 const J = { MARV: 0, PERF: 1, GREAT: 2, GOOD: 3, BAD: 4, MISS: 5 };
 const JUDGEMENTS = [
-  { id: '300g', name: 'Marvelous', short: 'MAX', score: 305, v1: 300, color: '#ffe066', health: 0.008 },
-  { id: '300', name: 'Perfect', short: '300', score: 300, v1: 300, color: '#ffc233', health: 0.006 },
-  { id: '200', name: 'Great', short: '200', score: 200, v1: 200, color: '#38d97a', health: 0.002 },
-  { id: '100', name: 'Good', short: '100', score: 100, v1: 100, color: '#3c9dff', health: 0 },
-  { id: '50', name: 'Bad', short: '50', score: 50, v1: 50, color: '#b07cf0', health: -0.012 },
-  { id: '0', name: 'Miss', short: 'MISS', score: 0, v1: 0, color: '#ff4a5c', health: -0.06 },
+  { id: '300g', name: 'Marvelous', short: 'MAX', score: 320, color: '#ffe066' },
+  { id: '300', name: 'Perfect', short: '300', score: 300, color: '#ffc233' },
+  { id: '200', name: 'Great', short: '200', score: 200, color: '#38d97a' },
+  { id: '100', name: 'Good', short: '100', score: 100, color: '#3c9dff' },
+  { id: '50', name: 'Bad', short: '50', score: 50, color: '#b07cf0' },
+  { id: '0', name: 'Miss', short: 'MISS', score: 0, color: '#ff4a5c' },
 ];
 const TAIL_LENIENCE = 1.5;
 
-/** Timing windows in real milliseconds (before rate scaling). */
-function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '' } = {}) {
-  let w;
+/** Timing windows in real milliseconds (osu!mania ScoreV2 table; OD adjusted by EZ/HR/Difficulty Adjust). */
+function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null } = {}) {
   if (mode === 'ms') {
     const p = String(customMs).split(/[,\s]+/).map(Number).filter(n => isFinite(n) && n > 0);
-    if (p.length === 6) w = p.slice().sort((a, b) => a - b);
+    if (p.length === 6) return p.slice().sort((a, b) => a - b);
   }
-  if (!w) {
-    const o = mode === 'custom' ? customOD : od;
-    w = [16, 64 - 3 * o, 97 - 3 * o, 127 - 3 * o, 151 - 3 * o, 188 - 3 * o];
-  }
-  const s = ModSystem.windowScale(mods);
-  return w.map(x => x * s);
+  const base = mode === 'custom' ? customOD : od;
+  return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, mods.includes('DA') ? odOverride : null));
 }
 
+/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo. */
 class ScoreSystem {
   constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
     this.total = Math.max(1, totalJudgements);
@@ -35,69 +31,54 @@ class ScoreSystem {
     this.accMode = accuracyMode;
     this.counts = [0, 0, 0, 0, 0, 0];
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
-    this.scoreSum = 0; this.accSum = 0; this.comboSum = 0;
+    this.bonus = 100; this.rawScore = 0;
     this.comboBreaks = 0;
-    let cm = 0; for (let k = 1; k <= this.total; k++) cm += Math.min(k, 400) / 400;
-    this.comboMax = cm;
   }
   add(j) {
-    const J_ = JUDGEMENTS[j];
     this.counts[j]++; this.judged++;
-    this.scoreSum += J_.score;
-    this.accSum += this.accMode === 'v1' ? J_.v1 : J_.score;
+    const unit = 1e6 / 2 / this.total;
+    this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
+    this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
     if (j === J.MISS) this.breakCombo();
-    else {
-      this.combo++;
-      if (this.combo > this.maxCombo) this.maxCombo = this.combo;
-      this.comboSum += (J_.score / 305) * Math.min(this.combo, 400) / 400;
-    }
+    else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
-  get accuracy() {
-    if (!this.judged) return 1;
-    return this.accSum / (this.judged * (this.accMode === 'v1' ? 300 : 305));
-  }
-  get score() {
-    return Math.round(1e6 * this.mult * (0.99 * this.scoreSum / (this.total * 305) + 0.01 * this.comboSum / this.comboMax));
-  }
-  /** Score if the rest of the map were played perfectly — used for pace display. */
+  get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
+  get score() { return Math.round(this.rawScore); }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
-    if (failed) return 'F';
-    const hid = mods.includes('HD') || mods.includes('FI');
-    const perfect = counts ? counts[2] + counts[3] + counts[4] + counts[5] === 0 : acc >= 1;
-    if (perfect) return hid ? 'XH' : 'SS';
-    if (acc >= 0.95) return hid ? 'SH' : 'S';
-    if (acc >= 0.9) return 'A';
-    if (acc >= 0.8) return 'B';
-    if (acc >= 0.7) return 'C';
-    return 'D';
+    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
   }
 }
 
+/** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null } = {}) {
     this.value = 1;
-    this.factor = (0.5 + hp / 10) * ModSystem.drainScale(mods);
+    this.rawHp = mods.includes('DA') && hpOverride != null ? hpOverride : hp;
+    const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
+    this.mult = computeHpMultiplier(notes, hpMod, breaks, this.rawHp);
     this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
+    this.perfectSS = mods.includes('PSS');
+    this.accChallenge = mods.includes('AC') ? (accChallenge ?? 0.9) : null;
     this.failed = false; this.failTime = null;
     this.min = 1;
+    this.timeline = [];
   }
-  apply(j, t) {
-    const g = JUDGEMENTS[j].health;
-    this.value = clamp(this.value + (g < 0 ? g * this.factor : g), 0, 1);
+  apply(j, t, hold = false, accuracy = 1) {
+    if ((this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV)) {
+      this.value = 0; this.fail(t);
+    } else {
+      this.value = clamp(this.value + healthIncrease(j, this.rawHp, hold, this.mult), 0, 1);
+    }
+    if (this.accChallenge != null && accuracy < this.accChallenge) this.fail(t);
     if (this.value < this.min) this.min = this.value;
-    if (this.suddenDeath && j === J.MISS) this.fail(t);
-    if (this.perfect && j >= J.GREAT) this.fail(t);
     if (this.value <= 0) this.fail(t);
+    this.timeline.push([Math.round(t), Math.round(this.value * 1000) / 1000]);
   }
-  earlyRelease(t) {
-    this.value = clamp(this.value - 0.03 * this.factor, 0, 1);
-    if (this.suddenDeath) this.fail(t);
-    if (this.value <= 0) this.fail(t);
-  }
+  earlyRelease() { if (this.suddenDeath) this.fail(); }
   fail(t) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; }
 }
 
@@ -112,7 +93,7 @@ class GameplayEngine {
    * @param {number[]} o.windows real-time windows [marv..miss] ms
    * @param {number} o.rate playback rate (map-time windows = real * rate)
    */
-  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false }) {
+  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {} }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.W = windows.map(w => w * rate);
     this.TW = this.W.map(w => w * TAIL_LENIENCE);
@@ -125,7 +106,7 @@ class GameplayEngine {
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
     this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -140,7 +121,7 @@ class GameplayEngine {
 
   _judge(n, j, t, err, tail) {
     this.score.add(j);
-    this.health.apply(j, t);
+    this.health.apply(j, t, tail, this.score.accuracy);
     this.remaining--;
     const e = { type: 'judgement', col: n.col, j, t, err, tail, note: n };
     this.lastJudgement = e;
@@ -170,11 +151,11 @@ class GameplayEngine {
           }
           break;
         } else if (n.state === NS.HOLDING) {
-          if (t - n.end > this.TW[J.BAD]) {
-            // held past the release window: judged as a late release
-            n.tailJ = J.BAD; n.state = NS.DONE;
+          if (t - n.end > this.TW[J.MISS]) {
+            // held past the release window without letting go: the tail is missed (osu!mania behaviour)
+            n.tailJ = J.MISS; n.state = NS.MISSED;
             this.holding[c] = null;
-            this._judge(n, n.tailJ, n.end + this.TW[J.BAD], null, true);
+            this._judge(n, J.MISS, n.end + this.TW[J.MISS], null, true);
             p++; continue;
           }
           break;
@@ -230,8 +211,8 @@ class GameplayEngine {
       if (!n) return;
       this.holding[col] = null;
       const err = t - n.end;
-      if (err < -this.TW[J.BAD]) {
-        // released too early
+      if (err < -this.TW[J.MISS]) {
+        // released too early: combo breaks, the note can be re-grabbed but the tail is capped at 50
         n.state = NS.DROPPED; n.capped = true;
         this.score.breakCombo();
         this.health.earlyRelease(t);
@@ -239,7 +220,7 @@ class GameplayEngine {
         return;
       }
       let j = this._windowFor(Math.abs(err), this.TW);
-      if (n.capped) j = Math.max(j, J.BAD);
+      if (n.capped) j = J.BAD;
       n.tailJ = j; n.state = NS.DONE;
       this._judge(n, j, t, err, true);
       this.ptr[col]++;

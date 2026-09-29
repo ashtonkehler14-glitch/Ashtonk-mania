@@ -16,7 +16,7 @@ const ResultsScreen = {
         h('div.t', s.title), h('div.a', `${s.artist} · mapped by ${s.creator || '?'}`),
         h('div.d', `[${s.version}] · ${s.keys}K · played by ${s.player} · ${new Date(s.date).toLocaleString()}`)),
       starBadge(s.stars || 0),
-      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m))),
+      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, false, s.modConfig || null))),
       p.watched ? h('span.tag.accent', p.watched === 'auto' ? 'AUTO PLAY' : 'REPLAY') : null,
       !s.passed ? h('span.tag.warn', 'FAILED') : null);
     grid.append(head, this.gradeCard(s, p), this.rightCol(s));
@@ -56,7 +56,14 @@ const ResultsScreen = {
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();
-    const card = h('div.panel.glass.res-grade-card', ring, scoreEl);
+    const pp = ScoreManager.ppOf(s);
+    const ppEl = h('div.res-pp', h('b', fmtInt(pp)), 'pp');
+    if (!s.passed || (s.mods || []).includes('AT')) ppEl.title = 'pp is only awarded for passes (not Auto)';
+    const card = h('div.panel.glass.res-grade-card', ring, scoreEl, ppEl);
+    if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
+      const d = s.totalPpAfter - s.totalPpBefore;
+      card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+    }
     if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) card.append(h('div.muted', `Personal best: ${fmtScore(s.prevBest.score)} (${s.score >= s.prevBest.score ? '+' : ''}${fmtInt(s.score - s.prevBest.score)})`));
     const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
@@ -91,6 +98,13 @@ const ResultsScreen = {
       scatter.style.display = 'none';
     }
     col.append(hist, scatter);
+    const hl = s.healthTimeline || [];
+    if (hl.length > 2) {
+      const step = Math.max(1, Math.floor(hl.length / 240));
+      const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([t, v]) => ({ y: v * 100, tip: `${fmtTime(t)} · health ${Math.round(v * 100)}%` }));
+      col.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(Math.min(...hl.map(x => x[1])) * 100)}%`)),
+        Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
+    }
     return col;
   },
   actions(s, p, map) {
@@ -286,7 +300,7 @@ const Charts = {
     return wrap;
   },
   /** Line chart (single series). pts: [{x, y, tip}] */
-  line(pts, { height = 180, yMin = null, yMax = null, fmtY = v => v } = {}) {
+  line(pts, { height = 180, yMin = null, yMax = null, fmtY = v => v, dots = true } = {}) {
     const { wrap, cv, tip } = this._setup(height);
     let geo = null;
     const draw = hi => {
@@ -305,6 +319,7 @@ const Charts = {
       x.strokeStyle = acc; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
       pts.forEach((p, i) => i ? x.lineTo(X(i), Y(p.y)) : x.moveTo(X(i), Y(p.y))); x.stroke();
       pts.forEach((p, i) => {
+        if (!dots && hi !== i) return;
         x.fillStyle = this._css('--panel-solid') || '#111'; x.beginPath(); x.arc(X(i), Y(p.y), hi === i ? 6 : 4, 0, Math.PI * 2); x.fill();
         x.fillStyle = acc; x.beginPath(); x.arc(X(i), Y(p.y), hi === i ? 4.5 : 3, 0, Math.PI * 2); x.fill();
       });

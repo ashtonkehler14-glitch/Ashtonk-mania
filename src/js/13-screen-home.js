@@ -7,34 +7,24 @@ const LOADING_NERU = ['Neru is checking her messages…', 'Polishing the yellow 
 const HomeScreen = {
   tab: 'home',
   listTab: 'recent',
+  menuState: 'initial',
+  /** lazer-style main menu: a big logo that opens a slanted button bar (Play → Solo / Practice / Quick play). */
   enter() {
     const greetEl = h('div.greet');
     const cookie = this.buildCookie();
-    const tile = (cls, title, sub, ic, onClick, key) => {
-      const b = h(`button.home-tile${cls ? '.' + cls : ''}`, { onclick: () => { UISounds.click(); onClick(); } },
-        h('span.ht-ico', icon(ic)), h('span.ht-t', title), h('span.ht-s', sub, key ? [' · ', h('span.kbd', key)] : null));
-      b.addEventListener('pointermove', e => { const r = b.getBoundingClientRect(); b.style.setProperty('--mx', `${e.clientX - r.left}px`); b.style.setProperty('--my', `${e.clientY - r.top}px`); });
-      b.addEventListener('pointerenter', () => UISounds.hover());
-      return b;
-    };
-    const nMaps = BeatmapManager.playableMaps().length;
+    this.cookie = cookie;
     const logo = h('div.logo', h('span.l1', 'Ashtonk'), this.bang = h('span.bang', '!'), h('span.l2', 'mania'));
     this.bang.addEventListener('click', () => this.bangClick());
-    const left = h('div.home-left',
-      h('div.home-hero', cookie, h('div.home-title', logo, greetEl)),
-      h('div.home-actions',
-        tile('play', 'Play', nMaps ? `${nMaps} difficult${nMaps === 1 ? 'y' : 'ies'} ready` : 'Import a beatmap to start', 'play', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'P'),
-        tile('', 'Beatmaps', 'Import & manage', 'music', () => Screens.go('beatmaps'), 'B'),
-        tile('', 'Collections', `${Collections.list.length} collection${Collections.list.length === 1 ? '' : 's'}`, 'folder', () => Screens.go('collections'), 'C'),
-        tile('', 'Profile', ProfileManager.profile.name, 'user', () => Screens.go('profile'), 'U'),
-        tile('', 'Statistics', `${ScoreManager.scores.length} plays`, 'chart', () => Screens.go('stats'), 'T'),
-        tile('', 'Skins', SkinManager.current.name, 'brush', () => Screens.go('skins'), 'K'),
-        tile('', 'Replays', `${ReplayManager.list.length} saved`, 'film', () => Screens.go('replays'), 'R'),
-        tile('', 'Settings', 'Gameplay, audio, keys', 'gear', () => SettingsPanel.open(), 'O'),
-      ));
-    const right = h('div.home-right', this.buildContinue(), this.buildLists());
-    const el = h('div.home', h('div.home-grid', left, right));
+    this.leftBtns = h('div.lz-buttons.lz-left');
+    this.rightBtns = h('div.lz-buttons.lz-right');
+    this.bar = h('div.lz-bar', this.leftBtns, h('div.lz-logo-slot', cookie), this.rightBtns);
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } },
+      h('div.lz-stage', this.bar, h('div.lz-under', logo, greetEl)),
+      h('div.lz-hint', 'click the logo or press any key'),
+      h('div.lz-footer', this.buildContinue(), this.buildLists()));
+    this.el = el;
     this.greetEl = greetEl;
+    this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.rotateGreeting(true);
     this._gt = setInterval(() => this.rotateGreeting(), 9000);
     this._unsub = [Bus.on('scores:changed', () => this.refreshLists()), Bus.on('favorites:changed', () => this.refreshLists())];
@@ -48,14 +38,65 @@ const HomeScreen = {
     clearInterval(this._gt); cancelAnimationFrame(this._raf);
     (this._unsub || []).forEach(f => f());
   },
+  /** Button definitions (colours follow osu!lazer's main menu). */
+  menuButtons(state) {
+    const nMaps = BeatmapManager.playableMaps().length;
+    if (state === 'play') return {
+      left: [['Back', 'back', '#555555', () => this.setState('top'), 'Esc']],
+      right: [
+        ['Solo', 'play', '#6644cc', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'S', nMaps ? `${nMaps} maps` : 'no maps yet'],
+        ['Practice', 'flag', '#5e3fba', () => Screens.go('songselect', { practice: true }, { transition: 'zoom' }), 'P'],
+        ['Quick play', 'shuffle', '#5e3fba', () => this.quickPlay(), 'Q'],
+      ],
+    };
+    return {
+      left: [],
+      right: [
+        ['Play', 'play', '#6644cc', () => this.setState('play'), 'P'],
+        ['Explore', 'download', '#a5cc00', () => Screens.go('explore'), 'E'],
+        ['Library', 'music', '#eeaa00', () => Screens.go('beatmaps'), 'L'],
+        ['Profile', 'user', '#ee3399', () => Screens.go('profile'), 'U'],
+        ['Settings', 'gear', '#555555', () => SettingsPanel.open(), 'O'],
+      ],
+    };
+  },
+  setState(state, instant = false) {
+    this.menuState = state;
+    this.el.dataset.state = state;
+    if (instant) this.el.classList.add('lz-instant'); else this.el.classList.remove('lz-instant');
+    const mk = ([label, ic, color, fn, key, sub]) => {
+      const b = h('button.lz-btn', { style: { '--c': color }, 'aria-label': label, title: key ? `${label} (${key})` : label,
+        onclick: () => { UISounds.click(); fn(); } }, h('span.lz-inner', icon(ic), h('span.lz-label', label), sub ? h('span.lz-sub', sub) : null));
+      b.addEventListener('pointerenter', () => UISounds.hover());
+      return b;
+    };
+    const d = this.menuButtons(state);
+    clearEl(this.leftBtns).append(...d.left.map(mk));
+    clearEl(this.rightBtns).append(...d.right.map(mk));
+    if (state !== 'initial') requestAnimationFrame(() => { const f = this.rightBtns.querySelector('button'); f && f.focus({ preventScroll: true }); });
+  },
   onKey(e) {
-    const k = e.code;
-    const map = { KeyP: () => Screens.go('songselect', {}, { transition: 'zoom' }), Enter: () => Screens.go('songselect', {}, { transition: 'zoom' }), KeyB: () => Screens.go('beatmaps'),
-      KeyC: () => Screens.go('collections'), KeyU: () => Screens.go('profile'), KeyT: () => Screens.go('stats'), KeyK: () => Screens.go('skins'), KeyR: () => Screens.go('replays') };
-    if (map[k] && !e.ctrlKey && !e.metaKey && !e.altKey) { UISounds.click(); map[k](); return true; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (this.menuState === 'initial' && !['Escape', 'Tab', 'Shift'].includes(e.key)) { UISounds.click(); this.setState('top'); return true; }
+    const d = this.menuButtons(this.menuState);
+    const all = [...d.left, ...d.right];
+    const hit = all.find(b => b[4] && b[4].length === 1 && e.code === 'Key' + b[4]);
+    if (hit) { UISounds.click(); hit[3](); return true; }
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.classList.contains('lz-btn')) { document.activeElement.click(); return true; }
+    if (e.key === 'Enter') { UISounds.click(); (this.menuState === 'play' ? d.right[0] : d.right[0])[3](); return true; }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const btns = $$('.lz-btn', this.el), i = btns.indexOf(document.activeElement);
+      const n = btns[clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, btns.length - 1)];
+      if (n) { n.focus(); UISounds.hover(); }
+      return true;
+    }
     return false;
   },
-  onBack() { return true; },
+  onBack() {
+    if (this.menuState === 'play') { UISounds.back(); this.setState('top'); return true; }
+    if (this.menuState === 'top') { UISounds.back(); this.setState('initial'); return true; }
+    return true;
+  },
   rotateGreeting(first = false) {
     if (!this.greetEl) return;
     if (!Settings.get('ui.homeMessages')) { this.greetEl.textContent = ''; return; }
@@ -84,7 +125,12 @@ const HomeScreen = {
     const bars = h('div.bars', h('i'), h('i'), h('i'), h('i'));
     this.pulse = h('div.pulse');
     this.bars = $$('i', bars);
-    const c = h('button.cookie', { title: 'Play', 'aria-label': 'Play', onclick: () => { UISounds.click(); Screens.go('songselect', {}, { transition: 'zoom' }); } },
+    const c = h('button.cookie', { title: 'Play', 'aria-label': 'Play', onclick: () => {
+      UISounds.click();
+      if (this.menuState === 'initial') this.setState('top');
+      else if (this.menuState === 'top') this.setState('play');
+      else Screens.go('songselect', {}, { transition: 'zoom' });
+    } },
       h('div.ring'), h('div.face', bars), this.pulse);
     c.addEventListener('pointerenter', () => UISounds.hover());
     return c;

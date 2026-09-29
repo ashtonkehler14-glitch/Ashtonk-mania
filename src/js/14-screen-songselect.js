@@ -20,6 +20,7 @@ const SongSelect = {
   rows: [], ROW_SET: 92, ROW_DIFF: 64,
 
   enter(params = {}) {
+    this.practiceMode = !!params.practice;
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
     const el = h('div.ss');
@@ -49,7 +50,6 @@ const SongSelect = {
     this.renderKeyChips();
 
     const top = h('div.ss-top',
-      h('button.btn.ghost', { onclick: () => Screens.back(), title: 'Back (Esc)' }, icon('back'), 'Back'),
       h('div.ss-search', icon('search'), this.searchInput), sortSel, statusSel, this.countEl);
     const filters = h('div.ss-filters', keyChips, starSel, bpmSel, this.collSel);
 
@@ -66,13 +66,16 @@ const SongSelect = {
     // footer
     this.modsOn = h('div.mods-on');
     this.pbEl = h('div.muted', { style: { fontSize: '.85rem' } });
-    this.playBtn = h('button.btn.primary.play-btn', { onclick: () => this.play() }, icon('play'), 'Play');
+    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
+      h('span.ring'), h('span.face', icon('play', 'fill')));
+    const fb = (label, ic, color, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), label, h('span.kbd', key)));
     const footer = h('div.ss-footer',
-      h('button.foot-btn', { onclick: () => ModSelect.open(), title: 'Mods (F1)' }, icon('mods'), 'Mods', h('span.kbd', 'F1')),
-      h('button.foot-btn', { onclick: () => this.random(), title: 'Random (F2)' }, icon('shuffle'), 'Random', h('span.kbd', 'F2')),
-      h('button.foot-btn', { onclick: e => this.options(e), title: 'Beatmap options (F3)' }, icon('list'), 'Options', h('span.kbd', 'F3')),
-      h('button.foot-btn', { onclick: () => this.play('practice'), title: 'Practice (F4)' }, icon('flag'), 'Practice', h('span.kbd', 'F4')),
-      this.modsOn, h('div.grow'), this.pbEl, this.playBtn);
+      backButton(() => Screens.back()),
+      fb('Mods', 'mods', '#ffcc22', () => ModSelect.open(), 'F1'),
+      fb('Random', 'shuffle', '#88dd44', () => this.random(), 'F2'),
+      fb('Options', 'list', '#aa77ff', e => this.options(e), 'F3'),
+      fb('Practice', 'flag', '#66ccff', () => this.play('practice'), 'F4'),
+      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'PRACTICE MODE') : null, this.pbEl, this.playBtn);
 
     el.append(top, filters, h('div.ss-main', this.info, this.carousel), footer);
     this._unsub = [
@@ -320,7 +323,8 @@ const SongSelect = {
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
-      }, best ? gradeEl(best.grade) : h('span', { style: { width: '34px' } }),
+      }, h('span.dp-icon', { style: { '--sc': starColour(m.stars) }, title: `${m.stars.toFixed(2)}★` }, `${m.keys}K`),
+      best ? gradeEl(best.grade) : h('span', { style: { width: '34px' } }),
       h('div.dp-main', h('div.dp-v', m.version), h('div.dp-s', h('span', `${m.keys}K`), h('span', `${Math.round(m.bpm)} BPM`), h('span', fmtTime(m.length)), m.lnCount ? h('span', `${Math.round(m.lnRatio * 100)}% LN`) : null,
         m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, '⚠ ' + m.problems[0]) : null)),
       starBadge(m.stars));
@@ -464,7 +468,7 @@ const SongSelect = {
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
         h('span.rank', String(i + 1)), gradeEl(s.grade),
-        h('div.main', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${fmtDate(s.date)}${s.passed ? '' : ' · failed'}`)),
+        h('div.main', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'} · ${fmtDate(s.date)}`)),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true)), s.replayId ? icon('film') : null));
       list.append(row);
     });
@@ -510,6 +514,7 @@ const SongSelect = {
     }
   },
   play(mode = 'play') {
+    if (mode === 'play' && this.practiceMode) mode = 'practice';
     const m = BeatmapManager.maps.get(this.selectedId);
     if (!m) return;
     if (m.problems.length) { Toast.err('Can\'t play this difficulty', m.problems.join('\n')); return; }

@@ -12,6 +12,24 @@ const BeatmapManager = {
     this.maps = new Map(maps.map(m => [m.id, m]));
     for (const s of this.sets) s.maps = s.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
   },
+  /** Recalculate star ratings stored by older versions (runs in the background after boot). */
+  async migrateStarRatings() {
+    const stale = [...this.maps.values()].filter(m => m.srVersion !== SR_VERSION && !m.problems.length);
+    if (!stale.length) return 0;
+    for (const m of stale) {
+      try {
+        const { bm, notes } = await this.load(m.id);
+        m.stars = DifficultyCalculator.calculate(notes, m.keys, 1);
+        m.breaks = bm.events.breaks;
+        m.srVersion = SR_VERSION;
+        await DB.put('maps', m);
+      } catch (e) { m.srVersion = SR_VERSION; }
+      await sleep(0);
+    }
+    for (const s of this.sets) s.maps.sort((a, b) => a.stars - b.stars);
+    Bus.emit('library:changed');
+    return stale.length;
+  },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
   mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
 
@@ -157,7 +175,14 @@ const BeatmapManager = {
       if (d.bm.audioFile) needed.add(d.bm.audioFile.toLowerCase());
       if (d.bm.events.background) needed.add(d.bm.events.background.file.toLowerCase());
       if (d.bm.events.storyboard) storyboard = true;
-      if (d.bm.events.video) video = true;
+      if (d.bm.events.video) {
+        video = true;
+        const vf = d.bm.events.video.file;
+        if (vf && /\.(mp4|webm|m4v|mov)$/i.test(vf) && Settings.get('gameplay.videoImport')) {
+          const ve = lowerIndex.get(vf.toLowerCase());
+          if (ve && ve.size < 120e6) needed.add(vf.toLowerCase());
+        }
+      }
       for (const ho of d.bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) needed.add(normPath(f).toLowerCase()); }
     }
     for (const e of entries) {
@@ -195,7 +220,8 @@ const BeatmapManager = {
         creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
         osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
         previewTime: bm.previewTime, mode: bm.mode, keys: BeatmapParser.keyCount(bm),
-        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings,
+        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
+        breaks: bm.events.breaks,
         added: existing?.added || Date.now(),
         ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
       };

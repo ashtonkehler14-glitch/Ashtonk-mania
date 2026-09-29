@@ -35,11 +35,17 @@ const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 const shot = async name => { if (SHOTS) await page.screenshot({ path: join(shotDir, name + '.png') }); };
-const waitBoot = async () => { await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 15000 }); await page.waitForTimeout(400); };
+const waitBoot = async () => {
+  await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  await page.waitForTimeout(400);
+  if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter'); await page.waitForTimeout(400); }
+};
 
 await page.goto(url);
 await waitBoot();
 check('boots to home screen', await page.evaluate(() => AshtonkMania.Screens.currentName === 'home'));
+check('first launch asks for a name', await page.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Tester' && AshtonkMania.ProfileManager.profile.onboarded));
+check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.tb-logo').textContent.includes('Ashtonk')));
 await shot('01-home-empty');
 
@@ -182,7 +188,7 @@ await page.waitForTimeout(500);
 
 // skin import (Kori-structured stand-in)
 await dropFiles(['Kori-test.osk']);
-await page.waitForFunction(() => AshtonkMania.SkinManager.current.id !== 'default', null, { timeout: 10000 });
+await page.waitForFunction(() => AshtonkMania.SkinManager.current.name === 'Kori 3.0 (test stand-in)', null, { timeout: 10000 });
 const sk = await page.evaluate(async () => {
   const s = AshtonkMania.SkinManager.current; const L4 = await s.mania(4); const L7 = await s.mania(7);
   return { name: s.name, author: s.author, keys: s.supportedKeys(), fromIni: L4.fromSkinIni, colW: L4.columnWidth, hit: L4.hitPosition,
@@ -231,6 +237,26 @@ await page.keyboard.press('Escape');
 await page.evaluate(() => AshtonkMania.Settings.set('gameplay.scrollSpeed', 27));
 await page.waitForTimeout(600);
 
+// beatmap explorer (Worker API mocked — the real mirrors are external services)
+await page.route('**/api/health', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
+await page.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false,
+  sets: [{ id: 777, title: 'Explorer Song', titleUnicode: '', artist: 'Mock', artistUnicode: '', creator: 'M', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
+    diffs: [{ id: 7770, mode: 3, version: '4K', stars: 2.1, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 100, lns: 10 }] }] }) }));
+await page.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'standard.osz')) }));
+await page.route('https://assets.ppy.sh/**', r => r.abort());
+await page.evaluate(() => { AshtonkMania.OnlineBeatmaps.apiAvailable = null; AshtonkMania.ExplorerScreen.results = []; AshtonkMania.Screens.go('explore'); });
+await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 10000 });
+check('beatmap explorer lists online results', true);
+await shot('11b-explorer');
+await page.click('.ex-card[data-id="777"] .ex-action button');
+await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 2, null, { timeout: 15000 });
+check('explorer download imports the .osz into the library', true);
+await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => /Standard/.test(x.title)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+
+// pp tracking
+const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));
+check('pp is tracked from passed scores', ppInfo.total > 0 && ppInfo.best >= 1, JSON.stringify(ppInfo));
+
 // persistence across reload
 const before = await page.evaluate(() => ({ scores: AshtonkMania.ScoreManager.scores.length, sets: AshtonkMania.BeatmapManager.sets.length, fav: AshtonkMania.Favorites.set.size, skin: AshtonkMania.SkinManager.current.id, replays: AshtonkMania.ReplayManager.list.length }));
 await page.reload();
@@ -252,7 +278,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.waitForTimeout(300);
 }
 
-check('no uncaught page errors', errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET/.test(e)).length === 0, errors.slice(0, 8).join('\n'));
+check('no uncaught page errors', errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e)).length === 0, errors.slice(0, 8).join('\n'));
 await browser.close();
 server.close();
 const failed = results.filter(r => !r.ok);

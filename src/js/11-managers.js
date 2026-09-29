@@ -19,13 +19,45 @@ const ScoreManager = {
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
   lastPlayed(hash) { const l = this.byHash.get(hash); return l && l.length ? l[l.length - 1].date : 0; },
   recent(n = 20) { return this.scores.slice(-n).reverse(); },
+  /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
+  ppOf(s) {
+    if (!s || !s.passed || (s.mods || []).includes('AT')) return 0;
+    if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
+    const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
+    const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
+    return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);
+  },
+  /** Best pp per beatmap (osu! counts one score per map toward the total). */
+  bestPpPerMap(scores = this.scores) {
+    const best = new Map();
+    for (const s of scores) {
+      const pp = this.ppOf(s);
+      if (pp > 0 && (!best.has(s.mapHash) || best.get(s.mapHash).pp < pp)) best.set(s.mapHash, { pp, score: s });
+    }
+    return [...best.values()].sort((a, b) => b.pp - a.pp);
+  },
+  totalPp(scores = this.scores) { return OsuMath.totalPp(this.bestPpPerMap(scores).map(x => x.pp)); },
+  /** Total pp after each play, for the profile/statistics history graph. */
+  ppHistory() {
+    const out = [], best = new Map();
+    for (const s of this.scores) {
+      const pp = this.ppOf(s);
+      if (pp > (best.get(s.mapHash) || 0)) best.set(s.mapHash, pp);
+      else if (!pp) continue;
+      out.push({ date: s.date, pp: OsuMath.totalPp([...best.values()]).total, title: s.title, version: s.version });
+    }
+    return out;
+  },
   async add(score) {
     const prev = this.best(score.mapHash);
     score.isPB = score.passed && (!prev || score.score > prev.score);
-    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade } : null;
+    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
+    score.totalPpBefore = this.totalPp().total;
     await DB.put('scores', score);
     this.scores.push(score);
     this._reindex();
+    score.totalPpAfter = this.totalPp().total;
+    await DB.put('scores', score);
     Bus.emit('scores:changed');
     return score;
   },
@@ -39,11 +71,11 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {} }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
-      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration,
+      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig,
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,
@@ -109,11 +141,11 @@ const ProfileManager = {
   profile: null,
   async init() {
     this.profile = await DB.kvGet('profile', null);
-    if (!this.profile) { this.profile = { name: 'Ashton', avatar: 'default', created: Date.now(), banner: 'kori' }; await this.save(); }
+    if (!this.profile) { this.profile = { name: 'Player', avatar: 'default', created: Date.now(), banner: 'kori', onboarded: false }; await this.save(); }
     await this.loadAvatar();
   },
   async save() { await DB.kvSet('profile', this.profile); Bus.emit('profile:changed'); },
-  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Ashton'; await this.save(); },
+  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Player'; await this.save(); },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }

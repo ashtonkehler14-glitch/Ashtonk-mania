@@ -32,32 +32,47 @@ const App = {
     Screens.register('gameplay', GameplayScreen);
     Screens.register('results', ResultsScreen);
     Screens.register('beatmaps', BeatmapsScreen);
+    Screens.register('explore', ExplorerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
     Screens.register('stats', StatsScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
+    VolumeOverlay.bind();
+    window.AshtonkMania = { App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
     this.globalLoop();
+    if (!ProfileManager.profile.onboarded) await Onboarding.run();
+    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));
-    window.AshtonkMania = { App, DB, Settings, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites };
   },
 
-  /** First launch: a skin placed next to index.html (skins/default.osk or skins/Kori 3.0.osk) is installed and
-   *  selected automatically, so a local copy of the client can ship with its gameplay skin preinstalled. */
+  /** Kori 3.0 ships with the client (public/skins/kori.osk, mania assets only) and is installed and selected
+   *  on first launch. A skin dropped in as skins/default.osk takes priority. Runs once per browser; deleting
+   *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
   async installBundledSkin(say) {
-    if (SkinManager.skins.length || !/^https?:/.test(location.protocol)) return;
-    for (const name of ['skins/default.osk', 'skins/Kori 3.0.osk', 'skins/kori.osk']) {
+    if (!/^https?:/.test(location.protocol)) return;
+    if (await DB.kvGet('bundled.kori', false)) return;
+    const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
+    if (existing) {
+      await DB.kvSet('bundled.kori', true);
+      if (SkinManager.current.builtin) await SkinManager.select(existing.id, { silent: true });
+      return;
+    }
+    for (const name of ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
-        const r = await fetch(encodeURI(name), { cache: 'no-store' });
+        const r = await fetch(encodeURI(name), { cache: 'no-cache' });
         if (!r.ok) continue;
-        say('Installing bundled skin…');
-        const meta = await SkinManager.importOsk(new File([await r.blob()], name.split('/').pop()));
-        await SkinManager.select(meta.id, { silent: true });
+        const blob = await r.blob();
+        if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        say('Installing Kori 3.0…');
+        const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
+        if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });
+        await DB.kvSet('bundled.kori', true);
         return;
       } catch (e) { /* not bundled */ }
     }

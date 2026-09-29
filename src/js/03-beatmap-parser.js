@@ -92,7 +92,7 @@ const BeatmapParser = {
     const type = p[0].trim();
     const file = s => s ? normPath(s.trim().replace(/^"|"$/g, '')) : null;
     if (type === '0' && p.length >= 3) bm.events.background = { file: file(p[2]), x: +p[3] || 0, y: +p[4] || 0 };
-    else if ((type === '1' || type === 'Video') && p.length >= 3) bm.events.video = file(p[2]);
+    else if ((type === '1' || type === 'Video') && p.length >= 3) bm.events.video = { file: file(p[2]), offset: +p[1] || 0 };
     else if ((type === '2' || type === 'Break') && p.length >= 3) bm.events.breaks.push({ start: +p[1], end: +p[2] });
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
@@ -212,47 +212,10 @@ const BeatmapParser = {
 
 class BeatmapError extends Error {}
 
-/** DifficultyCalculator — an independent strain-based star rating for mania.
- *  Each column keeps an "individual strain" (jacks/minijacks); a shared "overall strain"
- *  tracks density and hand coordination; holds under a new note add extra load.
- *  The rating is a weighted sum of the hardest 400ms sections. */
+/** DifficultyCalculator — star rating via the osu!lazer mania strain model (see 09a-osu-math.js). */
+const SR_VERSION = 2;
 const DifficultyCalculator = {
-  calculate(notes, keys, rate = 1) {
-    if (!notes.length) return 0;
-    const SECTION = 400;
-    const indiv = new Float64Array(keys), indivTime = new Float64Array(keys).fill(-1e9);
-    const holdEnd = new Float64Array(keys).fill(-1e9);
-    let overall = 1, prevTime = notes[0].time / rate;
-    const peaks = [];
-    let sectionEnd = Math.ceil((notes[0].time / rate) / SECTION) * SECTION, sectionPeak = 0;
-    for (const n of notes) {
-      const time = n.time / rate, end = n.end / rate;
-      while (time > sectionEnd) { peaks.push(sectionPeak); sectionPeak = 0; sectionEnd += SECTION; }
-      // hold bonus: a note placed while another column is holding, especially if that hold ends after this note
-      let holdFactor = 1, holdAddition = 0;
-      for (let c = 0; c < keys; c++) {
-        if (c === n.col) continue;
-        if (holdEnd[c] > time + 1) {
-          holdFactor = 1.25;
-          if (end > holdEnd[c] + 1) holdAddition = 1;
-        }
-      }
-      const dtCol = time - indivTime[n.col];
-      indiv[n.col] = indiv[n.col] * Math.pow(0.125, dtCol / 1000) + 2.0 * holdFactor;
-      indivTime[n.col] = time;
-      const dt = time - prevTime;
-      overall = overall * Math.pow(0.30, dt / 1000) + (1 + holdAddition) * holdFactor;
-      prevTime = time;
-      if (n.isLN) holdEnd[n.col] = end;
-      const strain = indiv[n.col] + overall;
-      if (strain > sectionPeak) sectionPeak = strain;
-    }
-    peaks.push(sectionPeak);
-    peaks.sort((a, b) => b - a);
-    let sum = 0, w = 1;
-    for (const p of peaks) { sum += p * w; w *= 0.9; if (w < 1e-4) break; }
-    return Math.round(sum * 0.03 * 100) / 100;
-  },
+  calculate(notes, keys, rate = 1) { return Math.round(ManiaStarRating.calculate(notes, keys, rate) * 100) / 100; },
 };
 
 /** BeatmapValidator: explain what is wrong with a difficulty instead of crashing. */

@@ -97,7 +97,7 @@ const Overlays = {
   closeAll() { for (const o of [...this.stack].reverse()) o.close(); },
 };
 
-function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out' } = {}) {
+function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass = 'out', dismissable = true } = {}) {
   const wrap = h('div', { style: { position: 'absolute', inset: '0' } });
   let bd = null;
   if (backdrop) { bd = h('div.backdrop'); wrap.appendChild(bd); }
@@ -113,7 +113,7 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
       onClose && onClose();
     },
   };
-  if (bd) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
+  if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
   return Overlays.push(o);
 }
 
@@ -202,7 +202,7 @@ const Background = {
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
   tabs: [
-    ['home', 'Home', 'home'], ['songselect', 'Play', 'play'], ['beatmaps', 'Beatmaps', 'music'], ['collections', 'Collections', 'folder'],
+    ['home', 'Home', 'home'], ['songselect', 'Play', 'play'], ['explore', 'Explore', 'download'], ['beatmaps', 'Beatmaps', 'music'], ['collections', 'Collections', 'folder'],
     ['replays', 'Replays', 'film'], ['stats', 'Statistics', 'chart'], ['skins', 'Skins', 'brush'],
   ],
   build() {
@@ -235,6 +235,41 @@ const Toolbar = {
     if (!map) return;
     this.np.append(icon('music'), h('span.np-text', h('b', map.title), ' — ', map.artist));
     this.np.title = `${map.artist} - ${map.title}`;
+  },
+};
+
+/** osu!lazer-style back button (pink, slanted, bottom-left). */
+function backButton(onClick) {
+  const b = h('button.lz-back', { onclick: () => { UISounds.back(); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('back'), 'back'));
+  b.addEventListener('pointerenter', () => UISounds.hover());
+  return b;
+}
+
+/** osu!-style volume control: Alt + mouse wheel adjusts master volume (Shift = music, Ctrl = effects). */
+const VolumeOverlay = {
+  el: null, hideT: 0,
+  adjust(which, delta) {
+    const key = which === 'music' ? 'audio.music' : which === 'effects' ? 'audio.effects' : 'audio.master';
+    const v = clamp(Math.round((Settings.get(key) + delta) * 100) / 100, 0, 1);
+    Settings.set(key, v);
+    this.show();
+  },
+  show() {
+    if (!this.el) { this.el = h('div.volume-overlay'); $('#app').appendChild(this.el); }
+    clearEl(this.el).append(...[['Master', 'audio.master'], ['Music', 'audio.music'], ['Effects', 'audio.effects']].map(([l, k]) => {
+      const v = Settings.get(k);
+      return h('div.vo-row', h('div.vo-ring', { style: { '--p': (v * 100) + '%' } }, h('span', Math.round(v * 100))), h('div.vo-l', l));
+    }));
+    this.el.classList.add('show');
+    clearTimeout(this.hideT);
+    this.hideT = setTimeout(() => this.el.classList.remove('show'), 1400);
+  },
+  bind() {
+    window.addEventListener('wheel', e => {
+      if (!e.altKey) return;
+      e.preventDefault();
+      this.adjust(e.shiftKey ? 'music' : e.ctrlKey ? 'effects' : 'master', e.deltaY < 0 ? 0.05 : -0.05);
+    }, { passive: false });
   },
 };
 

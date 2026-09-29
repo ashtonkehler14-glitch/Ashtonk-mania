@@ -163,7 +163,26 @@ const KeyConfig = {
       h('button.btn.sm.ghost', { onclick: async () => { if (await Dialog.confirm('Reset all keybinds?', 'Every key mode goes back to its default layout.')) { Settings.set('input.keybinds', structuredClone(DEFAULT_KEYBINDS)); this.render(); } } }, 'Reset all')));
     this.attach();
   },
-  listen(i, add) { this.listening = i; this.addMode = add; UISounds.click(); this.render(); },
+  listen(i, add) { this.listening = i; this.addMode = add; UISounds.click(); this.render(); this.pollPad(); },
+  /** While a lane is listening, a gamepad button press is captured as that lane's binding ("Pad<n>"). */
+  pollPad() {
+    if (!navigator.getGamepads || this._padRaf) return;
+    const base = {};
+    const tick = () => {
+      this._padRaf = null;
+      if (this.listening === null || !this.root || !this.root.isConnected) return;
+      for (const gp of [...navigator.getGamepads()].filter(Boolean)) {
+        for (let i = 0; i < gp.buttons.length; i++) {
+          const k = gp.index + ':' + i, pressed = gp.buttons[i].pressed;
+          if (base[k] === undefined) { base[k] = pressed; continue; }
+          if (pressed && !base[k]) { this._kd({ code: `Pad${i}`, preventDefault() {}, stopPropagation() {} }); base[k] = pressed; return this.listening !== null && this.pollPad(); }
+          base[k] = pressed;
+        }
+      }
+      this._padRaf = requestAnimationFrame(tick);
+    };
+    this._padRaf = requestAnimationFrame(tick);
+  },
   attach() {
     if (this._kd) return;
     this._kd = e => {
@@ -319,5 +338,70 @@ const ModSelect = {
       cols.append(col);
     }
     sheet.append(cols);
+    const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
+    if (cfgMods.length) sheet.append(this.configPanel(cfgMods));
+  },
+  /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
+  configPanel(ids) {
+    const cfg = ModSystem.config();
+    const set = (k, v) => { Settings.set('mods.config', { ...ModSystem.config(), [k]: v }); Bus.emit('mods:changed'); };
+    const slider = (label, k, min, max, step, fmt) => {
+      const s = h('input.slider', { type: 'range', min, max, step, value: cfg[k] });
+      const val = h('span.val', fmt(+cfg[k]));
+      const upd = () => { s.style.setProperty('--p', ((s.value - min) / (max - min) * 100) + '%'); val.textContent = fmt(+s.value); };
+      s.addEventListener('input', () => { upd(); set(k, +s.value); });
+      s.addEventListener('keydown', e => e.stopPropagation());
+      upd();
+      return h('div.set-row.col', h('div.row', h('div.lbl', label), val), h('div.ctl', s));
+    };
+    const rows = [];
+    if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
+    if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
+    if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
+    if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
+    if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
+    return h('div.panel.mod-config', h('h4', 'Customise'), ...rows);
+  },
+};
+
+// ─────────────────────────────── First-run onboarding ───────────────────────────────
+const Onboarding = {
+  THEMES: [['kori', 'Default', '#b07cff'], ['neru', 'Neru', '#ffcf3a'], ['teto', 'Teto', '#ff4d6a'], ['miku', 'Miku', '#39c5bb'], ['midnight', 'Midnight', '#6cb6ff']],
+  /** Ask the player's name (and theme) the first time the client starts. Resolves when finished. */
+  run() {
+    return new Promise(resolve => {
+      const p = ProfileManager.profile;
+      const name = h('input.input.ob-name', { value: p.onboarded ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
+      let theme = Settings.get('ui.theme');
+      const swatches = h('div.ob-themes', ...this.THEMES.map(([id, label, c]) => {
+        const b = h(`button.ob-theme${id === theme ? '.on' : ''}`, { style: { '--c': c }, title: label, onclick: () => {
+          theme = id; Settings.set('ui.theme', id); UISounds.click();
+          $$('.ob-theme', swatches).forEach(x => x.classList.toggle('on', x === b));
+        } }, h('i'), label);
+        return b;
+      }));
+      const err = h('div.ob-err');
+      const finish = async () => {
+        const n = name.value.trim();
+        if (!n) { err.textContent = 'Pick a name — it shows on your scores, replays and profile.'; name.focus(); return; }
+        await ProfileManager.setName(n);
+        p.onboarded = true; await ProfileManager.save();
+        Toolbar.updateProfile();
+        UISounds.click();
+        o.close();
+        Toast.show(`Welcome, ${n}!`, 'Your plays earn pp now — check your profile after a few maps.');
+        resolve();
+      };
+      name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(); });
+      const card = h('div.dialog.onboarding', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome' },
+        h('div.ob-logo', 'Ashtonk', h('span', '!'), h('b', 'mania')),
+        h('h2', 'Welcome!'),
+        h('p.muted', 'What should we call you? Your name appears on scores, replays and your pp profile.'),
+        name, err,
+        h('div.sp-group', 'Pick a theme'), swatches,
+        h('div.actions', h('button.btn.primary.lg', { onclick: finish }, icon('play'), 'Let\'s play')));
+      const o = makeOverlay(card, { onKey: e => e.key === 'Escape', dismissable: false });
+      setTimeout(() => name.focus(), 60);
+    });
   },
 };
