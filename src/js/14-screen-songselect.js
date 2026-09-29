@@ -161,6 +161,7 @@ const SongSelect = {
         if (!setScore) continue;
       }
       const maps = set.maps.filter(m => {
+        if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
         if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.some(k => k === 9 ? m.keys >= 9 : m.keys === k)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;

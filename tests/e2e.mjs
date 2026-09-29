@@ -68,8 +68,8 @@ const dropFiles = async (names) => page.evaluate(async (names) => {
 await dropFiles(['test-set.osz']);
 await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
 const lib = await page.evaluate(() => { const s = AshtonkMania.BeatmapManager.sets[0]; return { n: s.maps.length, keys: s.maps.map(m => m.keys).sort(), broken: s.maps.filter(m => m.problems.length).map(m => m.version + ': ' + m.problems.join(';')), stars: s.maps.map(m => m.stars) }; });
-check('.osz import: 5 difficulties grouped into one set', lib.n === 5, JSON.stringify(lib.keys));
-check('broken difficulty explained, not crashing', lib.broken.length === 1 && /Missing audio/.test(lib.broken[0]), lib.broken[0]);
+check('.osz import: the 4 playable difficulties grouped into one set', lib.n === 4 && !lib.broken.length, JSON.stringify(lib.keys));
+check('unplayable difficulty is left out (reported, not listed)', await page.evaluate(() => AshtonkMania.App.lastReport.warnings.some(w => /Missing audio/.test(w))));
 await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect', null, { timeout: 5000 });
 await page.waitForTimeout(800);
 check('import navigates to song select with new map selected', await page.evaluate(() => !!AshtonkMania.SongSelect.selectedId));
@@ -80,7 +80,7 @@ await dropFiles(['corrupt.osz', 'standard.osz']);
 await page.waitForTimeout(1500);
 const rep = await page.evaluate(() => AshtonkMania.App.lastReport);
 check('corrupt archive reported', rep.errors.some(e => /corrupt\.osz/.test(e)), rep.errors.join(' | '));
-check('non-mania map reported as unplayable', rep.warnings.some(w => /Not an osu!mania/.test(w)) || rep.errors.some(e => /mania/.test(e)), rep.warnings.join(' | '));
+check('non-mania archive is rejected (nothing unplayable is added)', rep.errors.some(e => /no playable osu!mania/.test(e)) && !(await page.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => /Standard/.test(s.title)))), rep.errors.join(' | '));
 await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => m.mode === 0)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
 
 // search & sort
@@ -303,7 +303,7 @@ await page.route('**/api/health', r => r.fulfill({ contentType: 'application/jso
 await page.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false,
   sets: [{ id: 777, title: 'Explorer Song', titleUnicode: '', artist: 'Mock', artistUnicode: '', creator: 'M', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
     diffs: [{ id: 7770, mode: 3, version: '4K', stars: 2.1, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 100, lns: 10 }] }] }) }));
-await page.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'standard.osz')) }));
+await page.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
 await page.route('https://assets.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { AshtonkMania.OnlineBeatmaps.apiAvailable = null; AshtonkMania.ExplorerScreen.results = []; AshtonkMania.Screens.go('explore'); });
 await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 10000 });
@@ -340,7 +340,7 @@ check('explorer download imports the .osz into the library', true);
   check('explorer: sorting by title is A→Z, clicking again flips it', order2 === '802,801,804' && order3 === '804,801,802' && seen[seen.length - 1].get('sort') === 'title_desc', `${order2} / ${order3}`);
   await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; });
 }
-await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => /Standard/.test(x.title)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version))); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
 
 // pp tracking
 const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));

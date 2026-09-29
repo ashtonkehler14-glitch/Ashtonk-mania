@@ -20,8 +20,16 @@ class ScrollMap {
 }
 
 class ManiaRenderer {
-  constructor(canvas) {
+  /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
+   *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
+  constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
+    this.crop = crop; this.cropX = 0;
+    if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
+      // cache the screen size instead of reading clientWidth every frame (that can force a layout)
+      this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
+      this._ro.observe(canvas.parentElement);
+    }
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     this.layout = null;
     this.effects = [];          // lighting + particles
@@ -37,9 +45,27 @@ class ManiaRenderer {
     this.effects = []; this.judgementFx = null;
     this.resize(true);
   }
+  dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
   resize(force = false) {
     const c = this.canvas;
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');
+    if (this.crop) {
+      const host = c.parentElement;
+      const cw = this._hostW ?? (host ? host.clientWidth : c.clientWidth), ch = this._hostH ?? (host ? host.clientHeight : c.clientHeight);
+      const w = Math.max(1, Math.round(cw * dpr)), hh = Math.max(1, Math.round(ch * dpr));
+      if (!force && w === this.W && hh === this.H && dpr === this._dpr) return;
+      this._dpr = dpr; this.W = w; this.H = hh;
+      this._geom();
+      let x0 = 0, x1 = w;
+      if (this.layout && Number.isFinite(this.stageX)) {
+        x0 = clamp(Math.floor(this.stageX - 40 * this.s), 0, w - 1);
+        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s), x0 + 1, w);
+      }
+      this.cropX = x0;
+      c.width = x1 - x0; c.height = hh;
+      c.style.left = (x0 / dpr) + 'px'; c.style.right = 'auto'; c.style.width = ((x1 - x0) / dpr) + 'px';
+      return;
+    }
     const w = Math.max(1, Math.round(c.clientWidth * dpr)), hh = Math.max(1, Math.round(c.clientHeight * dpr));
     if (!force && w === c.width && hh === c.height) return;
     c.width = w; c.height = hh;
@@ -98,8 +124,8 @@ class ManiaRenderer {
     this.resize();
     const ctx = this.ctx, s = this.s, K = L.keys, H = this.H;
     const realNow = g.realNow ?? performance.now();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.W, H);
+    ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
+    ctx.clearRect(this.cropX, 0, this.canvas.width, H);
     ctx.save();
     ctx.translate(this.stageX, 0);
 

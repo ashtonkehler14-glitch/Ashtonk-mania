@@ -61,7 +61,7 @@ const GameplayScreen = {
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
-    this.renderer = new ManiaRenderer(this.canvas);
+    this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
     this._tok = {};
     if (!params.quick) this.retryCount = 0;
@@ -88,6 +88,7 @@ const GameplayScreen = {
   },
   leave() {
     this._tok = null;
+    this.renderer && this.renderer.dispose();
     clearTimeout(this._retryHold);
     window.removeEventListener('keydown', this._keydown, true);
     if (this.videoEl) { this.videoEl.pause(); this.videoEl.removeAttribute('src'); this.videoEl.load(); }
@@ -330,7 +331,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -422,17 +423,25 @@ const GameplayScreen = {
     // the value moves by a visible step, so the HUD doesn't force a style pass every frame
     const lead = now < s.firstNote;
     const pieP = lead ? clamp(1 - (s.firstNote - now) / Math.max(1, s.firstNote - Math.min(0, s.startPos)), 0, 1) : p;
-    const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
-    if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
-    if (pieQ !== this._pieQ || lead !== this._lead) {
-      this._pieQ = pieQ;
-      this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
-      if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+    // (progress and pie at most 4× a second — each write restyles the HUD, and they move slowly anyway)
+    const wall = performance.now();
+    if (lead !== this._lead || !(wall - (this._progT || 0) < 250)) {
+      this._progT = wall;
+      const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
+      if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
+      if (pieQ !== this._pieQ || lead !== this._lead) {
+        this._pieQ = pieQ;
+        this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
+        if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+      }
     }
     if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
-      const pp = this.livePp(e);
-      const t = `${Math.round(pp)}pp`;
-      if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+      // live pp only changes when a note is judged
+      if (e.score.judged !== this._ppJudged) {
+        this._ppJudged = e.score.judged;
+        const t = `${Math.round(this.livePp(e))}pp`;
+        if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+      }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }

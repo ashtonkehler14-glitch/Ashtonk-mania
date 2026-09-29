@@ -30,6 +30,19 @@ const BeatmapManager = {
     Bus.emit('library:changed');
     return stale.length;
   },
+  /** Remove difficulties stored by older versions that can't be played (and sets left with none). */
+  async pruneUnplayable() {
+    const bad = [...this.maps.values()].filter(m => m.problems && m.problems.length);
+    if (!bad.length) return 0;
+    for (const m of bad) { await DB.del('maps', m.id); this.maps.delete(m.id); }
+    for (const s of [...this.sets]) {
+      const keep = s.mapIds.filter(id => this.maps.has(id));
+      if (!keep.length) { await this.removeSet(s.id); continue; }
+      if (keep.length !== s.mapIds.length) { s.mapIds = keep; s.maps = keep.map(id => this.maps.get(id)).sort((a, b) => a.stars - b.stars); await DB.put('sets', { ...s, maps: undefined }); }
+    }
+    Bus.emit('library:changed');
+    return bad.length;
+  },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
   mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
 
@@ -225,8 +238,13 @@ const BeatmapManager = {
         added: existing?.added || Date.now(),
         ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
       };
-      if (v.problems.length && report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`);
+      // difficulties that can't be played (other game modes, missing audio…) aren't kept at all
+      if (v.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`); continue; }
       mapRecords.push(rec);
+    }
+    if (!mapRecords.length && !existing) {
+      await DB.delPrefix('files', `${setId}/`);
+      throw new Error(`${md.Title || sourceName}: no playable osu!mania difficulties`);
     }
     // thumbnail from first background available
     let thumb = existing?.thumb || false;

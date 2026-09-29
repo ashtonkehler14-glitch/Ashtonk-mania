@@ -19,6 +19,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Neru on the menu, only playable difficulties, faster gameplay
+
+* **Neru on the main menu:** the game now ships with two Neru pictures, with their backgrounds removed. One is `public/neru.png`, where she stands in the corner. The other is `public/neru-happy.png`, which she switches to for a moment when you click her.
+* **Only playable difficulties:** difficulties that can't be played (other game modes, missing audio…) aren't imported any more. They're only mentioned in the Beatmaps screen's import report. An archive with nothing playable is rejected. Unplayable difficulties stored by older versions are removed on startup.
+* **Faster gameplay:** the playfield canvas now covers only the stage (plus room for the health bar and key display) instead of the whole screen. That cuts the pixels cleared, drawn and composited every frame to about a third on a 16:9 screen. The canvas size is cached with a ResizeObserver instead of being measured every frame. The progress bar and pie update 4 times a second, and live pp is only recalculated when a note is judged.
+
 ### Profile pictures, back to top, pink logo
 
 * **Free profile pictures:** click your avatar on the profile page, or use **Profile picture** in the setup's "Make it yours" step. You can pick one of six built-in avatars (two each of Miku, Teto and Neru), upload your own, or go back to your initial. To offer more pictures to everyone, put image files in `public/avatars/` and list them in `public/avatars/avatars.json`, e.g. `[{ "file": "miku-3.png", "name": "Miku" }]`. They then appear in the picker.

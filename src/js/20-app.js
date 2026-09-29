@@ -14,6 +14,7 @@ const App = {
       await this.installBundledSkin(say);
       say('Loading beatmaps…');
       await BeatmapManager.init();
+      await BeatmapManager.pruneUnplayable().catch(e => console.warn('prune', e)); // older versions kept them
       await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
       await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init(), MapOffsets.init()]);
       say('Preparing stage…');
@@ -141,7 +142,7 @@ const App = {
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
-    if (parts.length) Toast.ok('Imported ' + parts.join(', '), report.warnings.length ? `${report.warnings.length} difficult${report.warnings.length === 1 ? 'y' : 'ies'} can't be played — see Beatmaps.` : '');
+    if (parts.length) Toast.ok('Imported ' + parts.join(', '));
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
     if (report.skins.length) await SkinManager.select(report.skins[report.skins.length - 1].id);
     if (report.data) Toolbar.updateProfile();

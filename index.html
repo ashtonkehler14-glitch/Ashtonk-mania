@@ -3192,6 +3192,19 @@ const BeatmapManager = {
     Bus.emit('library:changed');
     return stale.length;
   },
+  /** Remove difficulties stored by older versions that can't be played (and sets left with none). */
+  async pruneUnplayable() {
+    const bad = [...this.maps.values()].filter(m => m.problems && m.problems.length);
+    if (!bad.length) return 0;
+    for (const m of bad) { await DB.del('maps', m.id); this.maps.delete(m.id); }
+    for (const s of [...this.sets]) {
+      const keep = s.mapIds.filter(id => this.maps.has(id));
+      if (!keep.length) { await this.removeSet(s.id); continue; }
+      if (keep.length !== s.mapIds.length) { s.mapIds = keep; s.maps = keep.map(id => this.maps.get(id)).sort((a, b) => a.stars - b.stars); await DB.put('sets', { ...s, maps: undefined }); }
+    }
+    Bus.emit('library:changed');
+    return bad.length;
+  },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
   mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
 
@@ -3387,8 +3400,13 @@ const BeatmapManager = {
         added: existing?.added || Date.now(),
         ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
       };
-      if (v.problems.length && report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`);
+      // difficulties that can't be played (other game modes, missing audio…) aren't kept at all
+      if (v.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`); continue; }
       mapRecords.push(rec);
+    }
+    if (!mapRecords.length && !existing) {
+      await DB.delPrefix('files', `${setId}/`);
+      throw new Error(`${md.Title || sourceName}: no playable osu!mania difficulties`);
     }
     // thumbnail from first background available
     let thumb = existing?.thumb || false;
@@ -4165,8 +4183,16 @@ class ScrollMap {
 }
 
 class ManiaRenderer {
-  constructor(canvas) {
+  /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
+   *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
+  constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
+    this.crop = crop; this.cropX = 0;
+    if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
+      // cache the screen size instead of reading clientWidth every frame (that can force a layout)
+      this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
+      this._ro.observe(canvas.parentElement);
+    }
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     this.layout = null;
     this.effects = [];          // lighting + particles
@@ -4182,9 +4208,27 @@ class ManiaRenderer {
     this.effects = []; this.judgementFx = null;
     this.resize(true);
   }
+  dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
   resize(force = false) {
     const c = this.canvas;
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');
+    if (this.crop) {
+      const host = c.parentElement;
+      const cw = this._hostW ?? (host ? host.clientWidth : c.clientWidth), ch = this._hostH ?? (host ? host.clientHeight : c.clientHeight);
+      const w = Math.max(1, Math.round(cw * dpr)), hh = Math.max(1, Math.round(ch * dpr));
+      if (!force && w === this.W && hh === this.H && dpr === this._dpr) return;
+      this._dpr = dpr; this.W = w; this.H = hh;
+      this._geom();
+      let x0 = 0, x1 = w;
+      if (this.layout && Number.isFinite(this.stageX)) {
+        x0 = clamp(Math.floor(this.stageX - 40 * this.s), 0, w - 1);
+        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s), x0 + 1, w);
+      }
+      this.cropX = x0;
+      c.width = x1 - x0; c.height = hh;
+      c.style.left = (x0 / dpr) + 'px'; c.style.right = 'auto'; c.style.width = ((x1 - x0) / dpr) + 'px';
+      return;
+    }
     const w = Math.max(1, Math.round(c.clientWidth * dpr)), hh = Math.max(1, Math.round(c.clientHeight * dpr));
     if (!force && w === c.width && hh === c.height) return;
     c.width = w; c.height = hh;
@@ -4243,8 +4287,8 @@ class ManiaRenderer {
     this.resize();
     const ctx = this.ctx, s = this.s, K = L.keys, H = this.H;
     const realNow = g.realNow ?? performance.now();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.W, H);
+    ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
+    ctx.clearRect(this.cropX, 0, this.canvas.width, H);
     ctx.save();
     ctx.translate(this.stageX, 0);
 
@@ -5667,10 +5711,17 @@ const NeruMascot = {
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', onclick: e => { e.stopPropagation(); this.hop(); } });
     if (!Settings.get('ui.mascot')) return el;
-    this.source().then(u => {
+    this.source().then(async u => {
       if (!u || this.el !== el) return;
-      el.append(h('img.neru-img', { src: u, alt: '', draggable: 'false' }));
+      this.img = h('img.neru-img', { src: u, alt: '', draggable: 'false' });
+      el.append(this.img);
       el.hidden = false;
+      // the bundled Neru has a second, happy picture she switches to when clicked
+      this.base = u; this.happy = null;
+      if (!u.startsWith('blob:')) {
+        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = 'neru-happy.png'; });
+        if (ok && this.el === el) this.happy = 'neru-happy.png';
+      }
     });
     return el;
   },
@@ -5678,6 +5729,11 @@ const NeruMascot = {
     if (!this.el) return;
     this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
     UISounds.click();
+    if (this.happy && this.img) {
+      this.img.src = this.happy;
+      clearTimeout(this._back);
+      this._back = setTimeout(() => { if (this.img) this.img.src = this.base; }, 1600);
+    }
   },
   /** Use a picture the player chose (a File/Blob), or null to go back to the bundled one. */
   async setImage(file) {
@@ -5686,7 +5742,7 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
-  stop() { this.el = null; },
+  stop() { clearTimeout(this._back); this.el = null; this.img = null; },
 };
 
 Bus.on('settings:changed', k => {
@@ -5857,6 +5913,7 @@ const SongSelect = {
         if (!setScore) continue;
       }
       const maps = set.maps.filter(m => {
+        if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
         if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.some(k => k === 9 ? m.keys >= 9 : m.keys === k)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
@@ -6266,7 +6323,7 @@ const GameplayScreen = {
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
-    this.renderer = new ManiaRenderer(this.canvas);
+    this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
     this._tok = {};
     if (!params.quick) this.retryCount = 0;
@@ -6293,6 +6350,7 @@ const GameplayScreen = {
   },
   leave() {
     this._tok = null;
+    this.renderer && this.renderer.dispose();
     clearTimeout(this._retryHold);
     window.removeEventListener('keydown', this._keydown, true);
     if (this.videoEl) { this.videoEl.pause(); this.videoEl.removeAttribute('src'); this.videoEl.load(); }
@@ -6535,7 +6593,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -6627,17 +6685,25 @@ const GameplayScreen = {
     // the value moves by a visible step, so the HUD doesn't force a style pass every frame
     const lead = now < s.firstNote;
     const pieP = lead ? clamp(1 - (s.firstNote - now) / Math.max(1, s.firstNote - Math.min(0, s.startPos)), 0, 1) : p;
-    const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
-    if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
-    if (pieQ !== this._pieQ || lead !== this._lead) {
-      this._pieQ = pieQ;
-      this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
-      if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+    // (progress and pie at most 4× a second — each write restyles the HUD, and they move slowly anyway)
+    const wall = performance.now();
+    if (lead !== this._lead || !(wall - (this._progT || 0) < 250)) {
+      this._progT = wall;
+      const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
+      if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
+      if (pieQ !== this._pieQ || lead !== this._lead) {
+        this._pieQ = pieQ;
+        this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
+        if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+      }
     }
     if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
-      const pp = this.livePp(e);
-      const t = `${Math.round(pp)}pp`;
-      if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+      // live pp only changes when a note is judged
+      if (e.score.judged !== this._ppJudged) {
+        this._ppJudged = e.score.judged;
+        const t = `${Math.round(this.livePp(e))}pp`;
+        if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+      }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
@@ -9566,6 +9632,7 @@ const App = {
       await this.installBundledSkin(say);
       say('Loading beatmaps…');
       await BeatmapManager.init();
+      await BeatmapManager.pruneUnplayable().catch(e => console.warn('prune', e)); // older versions kept them
       await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
       await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init(), MapOffsets.init()]);
       say('Preparing stage…');
@@ -9693,7 +9760,7 @@ const App = {
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
-    if (parts.length) Toast.ok('Imported ' + parts.join(', '), report.warnings.length ? `${report.warnings.length} difficult${report.warnings.length === 1 ? 'y' : 'ies'} can't be played — see Beatmaps.` : '');
+    if (parts.length) Toast.ok('Imported ' + parts.join(', '));
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
     if (report.skins.length) await SkinManager.select(report.skins[report.skins.length - 1].id);
     if (report.data) Toolbar.updateProfile();

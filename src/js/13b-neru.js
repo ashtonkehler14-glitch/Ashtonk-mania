@@ -19,10 +19,17 @@ const NeruMascot = {
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', onclick: e => { e.stopPropagation(); this.hop(); } });
     if (!Settings.get('ui.mascot')) return el;
-    this.source().then(u => {
+    this.source().then(async u => {
       if (!u || this.el !== el) return;
-      el.append(h('img.neru-img', { src: u, alt: '', draggable: 'false' }));
+      this.img = h('img.neru-img', { src: u, alt: '', draggable: 'false' });
+      el.append(this.img);
       el.hidden = false;
+      // the bundled Neru has a second, happy picture she switches to when clicked
+      this.base = u; this.happy = null;
+      if (!u.startsWith('blob:')) {
+        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = 'neru-happy.png'; });
+        if (ok && this.el === el) this.happy = 'neru-happy.png';
+      }
     });
     return el;
   },
@@ -30,6 +37,11 @@ const NeruMascot = {
     if (!this.el) return;
     this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
     UISounds.click();
+    if (this.happy && this.img) {
+      this.img.src = this.happy;
+      clearTimeout(this._back);
+      this._back = setTimeout(() => { if (this.img) this.img.src = this.base; }, 1600);
+    }
   },
   /** Use a picture the player chose (a File/Blob), or null to go back to the bundled one. */
   async setImage(file) {
@@ -38,7 +50,7 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
-  stop() { this.el = null; },
+  stop() { clearTimeout(this._back); this.el = null; this.img = null; },
 };
 
 Bus.on('settings:changed', k => {
