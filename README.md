@@ -23,6 +23,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 * **Search beatmaps from the room:** the beatmap panel has a "Search beatmaps" button (also when no beatmap is selected yet) that opens the Browse screen (Beatmap Explorer) in "pick for this room" mode: every card gets a Pick button (host; online beatmaps download first) or a Suggest button (other players), then a difficulty menu, and you're taken back to the room. The room's side panel is just chat.
 * **Automatic temporary installs:** when the host picks a beatmap you don't have, it downloads immediately — no click needed. It's installed only for the room and removed when you leave (press **Keep** to hold on to it). Leftovers from a closed tab are cleaned up the next time the game starts.
+* **Invites:** the room's **Invite** button copies a link (or opens the share sheet on devices that have one). Opening the link starts the game and joins that room directly.
+* **You can't die in multiplayer:** health can reach 0 but you keep playing — from that moment your score and pp for the match are halved (a notice shows in game, and the saved score is marked).
 * **Matches are won on pp:** the player with more pp wins (score, then accuracy, only break ties such as two fails at 0pp). The in-game board ranks and shows live pp, and the results lead with pp.
 * **Pick your own difficulty:** every player chooses which difficulty of the room's beatmap set they play ("Your difficulty"). Everyone's choice is shown in the players list and on the results — and since the winner is decided by pp, a harder difficulty can pay off.
 

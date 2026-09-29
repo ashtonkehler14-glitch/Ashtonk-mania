@@ -161,7 +161,7 @@ const GameplayScreen = {
     const s = this.s;
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
-    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice,
+    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
       breaks: s.bm.events.breaks, modConfig: s.modConfig });
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
@@ -282,7 +282,12 @@ const GameplayScreen = {
 
   updateHud(now) {
     const s = this.s, e = s.engine;
-    const sc = e.score.score;
+    // multiplayer: health can reach 0 without failing — from then on score and pp count half
+    if (s.mp && !s.mpDied && e.health.value <= 0) {
+      s.mpDied = true;
+      this.hud.append(h('div.hud-mpdied', 'Health reached 0 — score and pp halved'));
+    }
+    const sc = Math.round(e.score.score * this.mpFactor());
     if (sc !== this._lastSc) { this._lastSc = sc; this.scoreEl.textContent = fmtScore(sc); }
     const acc = e.score.accuracy;
     if (acc !== this._lastAcc) { this._lastAcc = acc; this.accEl.textContent = fmtAcc(acc); }
@@ -324,8 +329,8 @@ const GameplayScreen = {
     const t = performance.now();
     if (t - this._mpSent > 250 && this.s.running) {
       this._mpSent = t;
-      this._myPp = this.livePp(e);
-      Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value, pp: this._myPp });
+      this._myPp = this.livePp(e) * this.mpFactor();
+      Multiplayer.send({ t: 'score', score: Math.round(e.score.score * this.mpFactor()), acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value, pp: this._myPp });
     }
     // the opponent's score arrives 4×/s; ease the displayed value towards it so it counts up smoothly
     const o = Multiplayer.opp;
@@ -341,7 +346,7 @@ const GameplayScreen = {
       this._mpRows = [mk(ProfileManager.profile.name, true), opp ? mk(opp.name, false) : null].filter(Boolean);
       this.mpBoard.append(...this._mpRows.map(r => r.el));
     }
-    const vals = [[this._myPp || 0, e.score.score, e.score.accuracy], [this._oppShown, o ? o.score : 0, o ? o.acc : 1]];
+    const vals = [[this._myPp || 0, Math.round(e.score.score * this.mpFactor()), e.score.accuracy], [this._oppShown, o ? o.score : 0, o ? o.acc : 1]];
     const first = vals[1] && this._mpRows[1] && (vals[1][0] > vals[0][0] || (vals[1][0] === vals[0][0] && vals[1][1] > vals[0][1])) ? 1 : 0;
     this._mpRows.forEach((r, i) => {
       const [pp, sc, acc] = vals[i];
@@ -352,6 +357,8 @@ const GameplayScreen = {
       if (r._st !== st) { r._st = st; r.sc.textContent = st; }
     });
   },
+  /** Score / pp multiplier for the "can't die in multiplayer" rule. */
+  mpFactor() { return this.s && this.s.mpDied ? 0.5 : 1; },
   /** Wait for the synchronised start; everyone begins at the same moment. */
   async mpWait(s) {
     const el = h('div.mp-countdown');
@@ -617,7 +624,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const s = this.s;
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
     const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
-    const pp = passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0;
+    const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
+    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5) };
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
@@ -628,7 +636,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
       hitErrors: summary.hitErrors, totalJudgements: summary.totalJudgements, accuracyMode: s.accuracyMode,
       windows: s.windows, od: s.bm.od, replayId: null, modConfig: s.modConfig,
-      healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION,
+      healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION, healthPenalty: !!s.mpDied,
     };
   },
   async saveScore(passed) {
@@ -637,7 +645,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
-      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration,
+      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp,
     });
     await ScoreManager.add(score);
     const mode = Settings.get('replays.autosave');

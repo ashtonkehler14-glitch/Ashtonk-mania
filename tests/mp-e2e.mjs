@@ -40,7 +40,7 @@ const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gestur
 const errors = [];
 
 async function player(name) {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 }, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`${name} pageerror: ${e.message}`));
   await page.goto(url);
@@ -111,7 +111,10 @@ await bob.waitForTimeout(2500);
 await shot(alice, 'mp-ingame');
 const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.textContent));
 check('in-game board shows both players with live pp', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\dpp$/.test(t)), JSON.stringify(board));
+await bob.waitForSelector('.hud-mpdied', { timeout: 20000 });
+check('in multiplayer you can\'t die: health reaches 0 and play continues with a penalty', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s.mpDied && !s.failed && s.engine.health.value <= 0; }));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 40000 })));
+check('the play still finishes and is saved with the health penalty', await bob.evaluate(() => { const sc = AshtonkMania.ScoreManager.scores[0]; return sc && sc.passed && sc.healthPenalty === true; }));
 const ra = await alice.evaluate(() => ({ verdict: document.querySelector('.mp-verdict')?.textContent, res: AshtonkMania.Multiplayer.lastResults }));
 const rb = await bob.evaluate(() => document.querySelector('.mp-verdict')?.textContent);
 await shot(alice, 'mp-results');
@@ -128,11 +131,14 @@ await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Scr
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog');
 await bob.click('.dialog .btn.danger');
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.rows.some(r => r.forfeit), null, { timeout: 10000 });
+// (nobody can die in multiplayer, so Alice plays on to the end of the song before the results come in)
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.rows.some(r => r.forfeit), null, { timeout: 40000 });
 check('quitting forfeits the match', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.winner === AshtonkMania.Multiplayer.me));
-await alice.keyboard.press('Escape');
-await alice.waitForSelector('.dialog').catch(() => {});
-if (await alice.$('.dialog')) await alice.click('.dialog .btn.danger');
+if (await alice.evaluate(() => AshtonkMania.Screens.currentName === 'gameplay')) {
+  await alice.keyboard.press('Escape');
+  await alice.waitForSelector('.dialog', { timeout: 2000 }).catch(() => {});
+  if (await alice.$('.dialog .btn.danger')) await alice.click('.dialog .btn.danger');
+}
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
 // room updates keep a half-typed chat message
@@ -217,6 +223,20 @@ await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { tim
 await bob.click('.mp-card:nth-child(1) button');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 check('quick match puts both players in the same room', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
+
+// invites: the Invite button copies (or shares) a link; opening it joins the room directly
+await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1, null, { timeout: 5000 });
+const link = await alice.evaluate(() => AshtonkMania.Multiplayer.inviteLink());
+if (!(await alice.evaluate(() => !!navigator.share))) {
+  await alice.click('.mp-head .btn.primary');
+  await alice.waitForTimeout(300);
+  check('Invite copies the room link', await alice.evaluate(async l => (await navigator.clipboard.readText()) === l, link), link);
+}
+await bob.goto(link);
+await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Multiplayer.inRoom(), null, { timeout: 20000 });
+check('opening an invite link joins the room', await bob.evaluate(c => AshtonkMania.Multiplayer.room.code === c && !location.search.includes('join'), await alice.evaluate(() => AshtonkMania.Multiplayer.room.code)));
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
 
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();

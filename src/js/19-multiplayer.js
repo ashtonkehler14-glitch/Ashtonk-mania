@@ -183,6 +183,30 @@ const Multiplayer = {
     const startAt = performance.now() + m.delay - this.rtt / 2;
     Game.launch({ mapId: local.id, mods: m.mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt } });
   },
+  /** Invite link for the current room: opening it joins the room directly. */
+  inviteLink() {
+    const u = new URL(location.href);
+    u.search = ''; u.hash = '';
+    u.searchParams.set('join', this.room.code);
+    return u.toString();
+  },
+  async invite() {
+    const link = this.inviteLink(), text = `Join my Ashtonk!mania room (${this.room.code})`;
+    // the share sheet where there is one (phones, some desktops), otherwise copy the link
+    if (navigator.share) { try { await navigator.share({ title: 'Ashtonk!mania', text, url: link }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(link); Toast.ok('Invite link copied', 'Send it to your friend — opening it joins this room.'); }
+    catch { Dialog.prompt('Invite link', link, { ok: 'Done' }); }
+  },
+  /** Opened from an invite link (?join=CODE): join that room once the game has started. */
+  async joinFromLink() {
+    const code = new URLSearchParams(location.search).get('join');
+    if (!code) return;
+    const u = new URL(location.href); u.searchParams.delete('join'); history.replaceState(null, '', u);
+    if (!/^[A-Za-z0-9]{4,8}$/.test(code) || !this.available()) return;
+    await Screens.go('multiplayer');
+    try { await this.join(code); Toast.ok('Joined the room', code.toUpperCase()); }
+    catch (e) { Toast.err('Couldn\'t join the room', e.message); }
+  },
   finish(score, forfeit = false) {
     this.send({ t: 'finish', result: { score: score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
   },
@@ -275,7 +299,8 @@ const MultiplayerScreen = {
   refreshRoom() {
     const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
-    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), copy);
+    const invite = h('button.btn.sm.primary', { title: 'Copy (or share) a link that joins this room', onclick: () => { UISounds.click(); Multiplayer.invite(); } }, icon('multi'), 'Invite');
+    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), invite, copy);
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;

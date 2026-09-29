@@ -45,6 +45,7 @@ const App = {
     $('#loading-screen').classList.add('done');
     this.globalLoop();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
+    Multiplayer.joinFromLink();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));
