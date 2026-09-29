@@ -19,6 +19,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Smoother, simpler settings, room search, new mod select
+
+* **Smoother gameplay.** Nothing behind the playfield is drawn in game any more (the blurred menu background and the hidden toolbar used to cost GPU time every frame), the HUD only touches the page when a value visibly changes, gamepads are only polled while one is connected, and the renderer no longer creates garbage every frame. The multiplayer scoreboard updates in place ten times a second and the opponent's score counts up smoothly instead of jumping.
+* **Simpler settings.** The panel shows about 20 essentials; "Show all settings" at the bottom reveals the rest, and search always finds everything.
+* **Search songs in multiplayer rooms.** The room has a "Search songs" tab next to Chat that searches your library or osu! beatmaps online. The host picks directly (online maps download on pick); the other player can suggest a map, which shows up in chat with a Pick button for the host.
+* **New mod select** in the osu!lazer style: coloured columns per mod type, compact mod panels that fill with the column colour when enabled, a Customise column for mods with settings, and a footer with Deselect all / Done.
+
 ### osu!lazer look, simpler menus, multiplayer
 
 * **The UI now follows osu!lazer.** Neutral dark panels, a pink accent, the lazer toolbar (icon buttons with tooltips, clock, account menu), the main-menu logo with its button bar, the song select layout (info wedge and ranking on the left, filters and carousel on the right, footer with the logo as the Play button), the lazer profile layout and flat controls. The logo no longer changes with the theme, and the theme setting now only changes the accent colour.
@@ -138,7 +145,7 @@ node tests/e2e.mjs --shots          # headless Chromium end-to-end run (Playwrig
 MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs   # two browsers play a match against the real Worker + Durable Objects
 ```
 
-`tests/mp-e2e.mjs` needs `miniflare` installed somewhere (`npm i miniflare` in any folder, then point `MINIFLARE_DIR` at it). It runs `worker/index.js` in workerd and checks rooms, chat, map selection, ready/start, the synchronised start, the live scoreboard, results, forfeits, host hand-over and quick match.
+`tests/mp-e2e.mjs` needs `miniflare` installed somewhere (`npm i miniflare` in any folder, then point `MINIFLARE_DIR` at it). It runs `worker/index.js` in workerd and checks rooms, chat, map selection, ready/start, the synchronised start, the live scoreboard, results, forfeits, room song search (library and online, suggestions and picks), host hand-over and quick match.
 
 The end-to-end run checks:
 

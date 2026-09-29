@@ -12,6 +12,16 @@ const Game = {
   },
 };
 
+/** Gamepads are only polled while one is actually connected (navigator.getGamepads() isn't free). */
+const GamepadWatch = {
+  connected: 0,
+  init() {
+    addEventListener('gamepadconnected', () => { this.connected++; });
+    addEventListener('gamepaddisconnected', () => { this.connected = Math.max(0, this.connected - 1); });
+  },
+};
+GamepadWatch.init();
+
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const GameplayScreen = {
@@ -177,6 +187,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i'); this.timeEl = h('div.hud-time');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -193,7 +204,7 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
-    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; }
+    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     if (s.practice) this.buildPracticeBar();
@@ -244,7 +255,7 @@ const GameplayScreen = {
       this.updateHud(now);
       this.updateBreak(now);
       this.syncVideo(now);
-      if (s.running && !s.feed) this.pollGamepad();
+      if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
       void L;
@@ -260,12 +271,17 @@ const GameplayScreen = {
     if (acc !== this._lastAcc) { this._lastAcc = acc; this.accEl.textContent = fmtAcc(acc); }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
-    this.progEl.style.width = (p * 100).toFixed(2) + '%';
-    // osu!-style pie: green while counting down to the first note, then fills with song progress
+    // progress bar + osu!-style pie (green while counting down to the first note); DOM writes only when
+    // the value moves by a visible step, so the HUD doesn't force a style pass every frame
     const lead = now < s.firstNote;
     const pieP = lead ? clamp(1 - (s.firstNote - now) / Math.max(1, s.firstNote - Math.min(0, s.startPos)), 0, 1) : p;
-    this.pieEl.style.setProperty('--p', (pieP * 100).toFixed(1) + '%');
-    this.pieEl.classList.toggle('lead', lead);
+    const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
+    if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
+    if (pieQ !== this._pieQ || lead !== this._lead) {
+      this._pieQ = pieQ;
+      this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
+      if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+    }
     if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
       const pp = this.livePp(e);
       const t = `${Math.round(pp)}pp`;
@@ -280,7 +296,7 @@ const GameplayScreen = {
     const tt = `${fmtTime(Math.max(0, now) / s.rate)} / ${fmtTime(dur / s.rate)}`;
     if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
-    this.skipBtn.style.display = canSkip ? '' : 'none';
+    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
@@ -295,15 +311,29 @@ const GameplayScreen = {
       this._mpSent = t;
       Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value });
     }
-    const opp = Multiplayer.opponent(), o = Multiplayer.opp;
-    const rows = [{ name: ProfileManager.profile.name, score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, me: true }];
-    if (opp) rows.push({ name: opp.name, score: o ? o.score : 0, acc: o ? o.acc : 1, combo: o ? o.combo : 0 });
-    rows.sort((a, b) => b.score - a.score);
-    const key = rows.map(r => `${r.name}:${r.score}:${r.combo}`).join('|');
-    if (key === this._mpKey) return;
-    this._mpKey = key;
-    clearEl(this.mpBoard).append(...rows.map((r, i) => h(`div.hud-mp-row${r.me ? '.me' : ''}`,
-      h('span.pos', String(i + 1)), h('div.nm', h('b', r.name), h('span', `${fmtAcc(r.acc)} · ${fmtInt(r.combo)}x`)), h('span.sc', fmtScore(r.score)))));
+    // the opponent's score arrives 4×/s; ease the displayed value towards it so it counts up smoothly
+    const o = Multiplayer.opp;
+    const target = o ? o.score : 0;
+    this._oppShown = this._oppShown == null ? target : this._oppShown + (target - this._oppShown) * Math.min(1, (t - (this._mpT || t)) / 180);
+    this._mpT = t;
+    if (t - (this._mpDrawn || 0) < 100) return;
+    this._mpDrawn = t;
+    if (!this._mpRows) {
+      const opp = Multiplayer.opponent();
+      const mk = (name, me) => { const r = { pos: h('span.pos'), sub: h('span'), sc: h('span.sc') }; r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc); return r; };
+      this._mpRows = [mk(ProfileManager.profile.name, true), opp ? mk(opp.name, false) : null].filter(Boolean);
+      this.mpBoard.append(...this._mpRows.map(r => r.el));
+    }
+    const vals = [[e.score.score, e.score.accuracy, e.score.combo], [Math.round(this._oppShown), o ? o.acc : 1, o ? o.combo : 0]];
+    const first = vals[1] && this._mpRows[1] && vals[1][0] > vals[0][0] ? 1 : 0;
+    this._mpRows.forEach((r, i) => {
+      const [sc, acc, combo] = vals[i];
+      const pos = i === first ? 1 : 2;
+      const sub = `${fmtAcc(acc)} · ${fmtInt(combo)}x`, st = fmtScore(sc);
+      if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
+      if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
+      if (r._st !== st) { r._st = st; r.sc.textContent = st; }
+    });
   },
   /** Wait for the synchronised start; everyone begins at the same moment. */
   async mpWait(s) {
@@ -608,8 +638,11 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       }
     }
     const g = s.gaps.find(([a, b]) => now > a + 600 * s.rate && now < b - 300 * s.rate);
-    this.breakEl.hidden = !g;
-    if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
+    if (!!g !== this._inBreak) {
+      this._inBreak = !!g;
+      this.breakEl.hidden = !g;
+      if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
+    }
     if (!g) return;
     const left = Math.ceil((g[1] - now) / 1000 / s.rate);
     const pct = clamp((now - g[0]) / (g[1] - g[0]), 0, 1);
@@ -783,7 +816,7 @@ const FPS = {
       if (this.acc >= 500) {
         this.fps = this.n * 1000 / this.acc; this.acc = 0; this.n = 0;
         const el = $('#fps-counter');
-        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else el.hidden = true;
+        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else if (!el.hidden) el.hidden = true;
       }
     }
     this.last = now;

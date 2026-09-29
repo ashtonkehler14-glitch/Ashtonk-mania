@@ -3,7 +3,7 @@
 //  - Matchmaker (Durable Object, single instance) pairs players for "Quick match".
 //  - RoomLogic holds all room rules and is plain JS so it can be unit-tested in Node.
 //
-// Protocol (client → server): hello {name, create}, chat {text}, map {map, mods, modConfig} (host),
+// Protocol (client → server): hello {name, create}, chat {text}, suggest {map}, map {map, mods, modConfig} (host),
 // hasMap {has}, ready {ready}, start (host), score {score, acc, combo, hp}, finish {result}, quit, ping {c}.
 // Server → client: welcome {you, room}, room {room}, chat {...}, start {delay, map, mods, modConfig},
 // opp {id, score, acc, combo, hp}, results {results}, error {msg, fatal}, pong {c, s}.
@@ -29,6 +29,14 @@ function cleanMap(m) {
     keys: Math.round(num(m.keys, 1, 18, 4)), stars: num(m.stars, 0, 100), length: num(m.length, 0, 3600000),
     onlineSetId: Math.round(num(m.onlineSetId, -1, 1e9, -1)), onlineId: Math.round(num(m.onlineId, -1, 1e10, -1)),
   };
+}
+/** Suggestions may point at a beatmap the suggester only found online (no local hash yet). */
+function cleanSuggestion(m) {
+  if (!m || typeof m !== 'object') return null;
+  const map = cleanMap({ ...m, hash: typeof m.hash === 'string' && m.hash ? m.hash : '-' });
+  if (!map || !map.title || (map.hash === '-' && map.onlineId <= 0 && map.onlineSetId <= 0)) return null;
+  if (map.hash === '-') map.hash = '';
+  return map;
 }
 function cleanResult(r) {
   r = r && typeof r === 'object' ? r : {};
@@ -98,6 +106,11 @@ export class RoomLogic {
       case 'chat': {
         const text = str(m.text, 300);
         return text ? [{ to: 'all', msg: { t: 'chat', from: id, name: p.name, text, ts: this.now() } }] : [];
+      }
+      case 'suggest': {
+        const map = cleanSuggestion(m.map);
+        if (!map) return [];
+        return [{ to: 'all', msg: { t: 'chat', from: id, name: p.name, text: `suggested ${map.artist} - ${map.title} [${map.version}]`, suggest: map, ts: this.now() } }];
       }
       case 'map': {
         if (!host || this.state !== 'lobby') return [];

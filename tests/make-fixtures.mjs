@@ -121,6 +121,9 @@ const set = zip([
   ['audio.wav', audio], ['bg.png', bg], ['soft-hitfinish.wav', wav(0.2, 600)],
 ]);
 writeFileSync(new URL('test-set.osz', out), set);
+// a set that "exists online" (osu! ids 424242 / 4242420) for the explorer and multiplayer search tests
+const online = (v, id) => osu(4, v, pattern).replace(/Title(Unicode)?:.*/g, m => m.split(':')[0] + ':Online Anthem').replace('BeatmapID:0', `BeatmapID:${id}`).replace('BeatmapSetID:-1', 'BeatmapSetID:424242');
+writeFileSync(new URL('online-set.osz', out), zip([['Online [Easy].osu', online('Online Easy', 4242420)], ['Online [Hard].osu', online('Online Hard', 4242421)], ['audio.wav', wav(20, BPM)]]));
 writeFileSync(new URL('corrupt.osz', out), Buffer.from('this is not a zip file at all'));
 writeFileSync(new URL('standard.osz', out), zip([['std.osu', osu(4, 'Std', pattern).replace('Mode: 3', 'Mode: 0').replace(/Title:.*/g, 'Title:Standard Only')], ['audio.wav', wav(1, 120)]]));
 

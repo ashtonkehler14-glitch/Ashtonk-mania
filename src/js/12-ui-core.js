@@ -229,7 +229,11 @@ const Toolbar = {
     setInterval(() => this.tick(), 1000);
     Bus.on('music:changed', () => this.updateNp());
   },
-  tick() { this.clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); },
+  tick() {
+    if ($('#app').classList.contains('in-game')) return; // the toolbar is hidden in game: don't relayout every second
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (this.clock.textContent !== t) this.clock.textContent = t;
+  },
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;

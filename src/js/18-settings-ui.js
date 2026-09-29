@@ -2,19 +2,26 @@
 
 const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', Interface: 'home', Skin: 'brush', Maintenance: 'database' };
 
+/** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
+const ESSENTIAL_SETTINGS = new Set([
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'audio.master', 'audio.music', 'audio.effects', 'audio.offset', 'audio.hitsounds',
+  'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
+  'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',
+]);
+
 const SettingsPanel = {
   o: null,
   toggle() { this.o ? this.close() : this.open(); },
   open(section) {
     if (this.o) { if (section) this.scrollTo(section); return; }
     UISounds.click();
-    const sections = [...new Set(SETTINGS_SCHEMA.filter(s => s.s).map(s => s.s))];
-    const nav = h('div.sp-nav', ...sections.map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
+    const nav = h('div.sp-nav');
     const search = h('input.input.sp-search', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
     const scroll = h('div.sp-scroll');
     const panel = h('div.settings-panel', { role: 'dialog', 'aria-label': 'Settings' }, nav,
       h('div.sp-main', h('div.sp-head', h('div.row', h('h2', 'Settings'), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
-        h('div.sub', 'Changes apply instantly and are saved locally.'), search), scroll));
+        search), scroll));
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
@@ -38,10 +45,13 @@ const SettingsPanel = {
     this.q = q;
     const scroll = this.scrollEl;
     clearEl(scroll);
+    const all = !!Settings.get('ui.allSettings') || !!q;
     const bySec = new Map();
+    let hiddenCount = 0;
     for (const it of SETTINGS_SCHEMA) {
       if (!it.s) continue;
       if (q && !(`${it.s} ${it.g} ${it.l} ${it.hint || ''}`.toLowerCase().includes(q))) continue;
+      if (!all && !ESSENTIAL_SETTINGS.has(it.k)) { hiddenCount++; continue; }
       if (!bySec.has(it.s)) bySec.set(it.s, new Map());
       const g = bySec.get(it.s);
       if (!g.has(it.g)) g.set(it.g, []);
@@ -56,7 +66,13 @@ const SettingsPanel = {
       scroll.append(secEl);
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
+    if (!q) {
+      const more = !!Settings.get('ui.allSettings');
+      scroll.append(h('button.btn.sp-more', { onclick: () => { Settings.set('ui.allSettings', !more); UISounds.click(); this.build(''); } },
+        more ? 'Show fewer settings' : `Show all settings (${hiddenCount} more)`));
+    }
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION}`));
+    clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },
   row(it) {
@@ -310,35 +326,50 @@ const ModSelect = {
     this.render();
     Bus.emit('mods:changed');
   },
+  /** osu!lazer mod type colours. */
+  GROUP_COLOURS: { reduction: '#b2ff66', increase: '#ff6666', conversion: '#8c66ff', automation: '#66ccff', fun: '#ff66ab' },
   render() {
     const sheet = this.sheet;
+    const scrollX = this.colsEl ? this.colsEl.scrollLeft : 0;
     clearEl(sheet);
     const cur = Settings.get('songselect.mods') || [];
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
-    sheet.append(h('div.modsel-head', h('h2', 'Mods'), h('span.muted', 'Press the shortcut keys to toggle quickly'), h('span.grow'),
-      h(`span.mult${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, `Score multiplier ${mult.toFixed(2)}×`),
-      rate !== 1 ? h('span.mult', `Speed ${rate}×`) : null,
-      h('button.btn', { onclick: () => { Settings.set('songselect.mods', []); this.render(); Bus.emit('mods:changed'); } }, 'Deselect all', h('span.kbd', '⌫')),
-      h('button.btn.primary', { onclick: () => this.close() }, 'Done', h('span.kbd', 'F1'))));
+    const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
+    sheet.append(h('div.modsel-head',
+      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods change the way the game plays. Some affect your score multiplier.')),
+      h('span.grow'),
+      rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
+      h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));
     const cols = h('div.modsel-cols');
     for (const [gid, gname] of MOD_GROUPS) {
-      const col = h('div.modcol', h('h4', gname));
-      for (const m of MODS.filter(x => x.group === gid)) {
+      const mods = MODS.filter(x => x.group === gid);
+      const n = mods.filter(m => cur.includes(m.id)).length;
+      const col = h('div.modcol', { style: { '--c': this.GROUP_COLOURS[gid] || '#aaa' } },
+        h('div.modcol-h', h('span', gname), n ? h('span.modcol-n', String(n)) : null));
+      const list = h('div.modcol-list');
+      for (const m of mods) {
         const on = cur.includes(m.id);
         const blocked = !on && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
-        const card = h(`button.mod-card${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, { style: { '--mod': m.color }, 'aria-pressed': String(on), onclick: () => this.toggle(m.id),
-          title: blocked ? `Replaces: ${cur.filter(x => m.incompatible.includes(x)).join(', ')}` : '' },
-          h('span.mod-icon', m.id),
-          h('span', { style: { minWidth: 0 } }, h('span.mc-name', m.name), h('span.mc-desc', m.desc)),
-          h('span.mc-meta', h('span.kbd', keyLabel(m.key)), `${m.mult.toFixed(2)}×`));
-        card.addEventListener('pointerenter', () => UISounds.hover());
-        col.append(card);
+        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
+          'aria-pressed': String(on), onclick: () => this.toggle(m.id),
+          title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+        }, h('span.mod-ac', h('span', m.id)), h('span.mod-txt', h('b', m.name), h('span', m.desc)));
+        panel.addEventListener('pointerenter', () => UISounds.hover());
+        list.append(panel);
       }
+      col.append(list);
       cols.append(col);
     }
-    sheet.append(cols);
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
-    if (cfgMods.length) sheet.append(this.configPanel(cfgMods));
+    if (cfgMods.length) cols.append(this.configPanel(cfgMods));
+    this.colsEl = cols;
+    sheet.append(cols, h('div.modsel-foot',
+      backButton(() => this.close()),
+      h('button.btn', { disabled: !cur.length, onclick: () => setMods([]) }, 'Deselect all'),
+      h('span.grow'),
+      h('span.modsel-hint', 'Tip: every mod has a letter shortcut (hover to see it) · Backspace clears'),
+      h('button.btn.primary', { onclick: () => this.close() }, 'Done')));
+    cols.scrollLeft = scrollX;
   },
   /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
   configPanel(ids) {
@@ -359,7 +390,7 @@ const ModSelect = {
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
-    return h('div.panel.mod-config', h('h4', 'Customise'), ...rows);
+    return h('div.modcol.mod-config', { style: { '--c': '#ffcc22' } }, h('div.modcol-h', h('span', 'Customise')), h('div.modcol-list', ...rows));
   },
 };
 

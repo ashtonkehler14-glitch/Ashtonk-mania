@@ -237,7 +237,27 @@ for (const s of ['home', 'beatmaps', 'collections', 'profile', 'stats', 'replays
 await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
+const simple = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
+await page.click('.sp-more');
+await page.waitForTimeout(200);
+const full = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
+check('settings show the essentials first, everything behind "Show all settings"', simple <= 22 && full > simple + 20, `${simple} → ${full}`);
+await page.click('.sp-more');
+await page.fill('.sp-search', 'unpause');
+await page.waitForTimeout(200);
+check('settings search still finds advanced options', await page.evaluate(() => [...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause/.test(r.textContent))));
 await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
+await page.waitForTimeout(700);
+await page.keyboard.press('F1');
+await page.waitForSelector('.modsel .mod-p');
+await page.evaluate(() => [...document.querySelectorAll('.mod-p')].find(b => b.textContent.includes('Hidden')).click());
+await page.waitForTimeout(200);
+check('mod select: lazer columns, toggling a mod and its customise panel', await page.evaluate(() => document.querySelectorAll('.modcol-h').length >= 5 && document.querySelector('.mod-p.on').textContent.includes('Hidden') && !!document.querySelector('.mod-config .slider') && AshtonkMania.Settings.get('songselect.mods').includes('HD')));
+await page.keyboard.press('Backspace');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
 await page.evaluate(() => AshtonkMania.Settings.set('gameplay.scrollSpeed', 27));
 await page.waitForTimeout(600);
 

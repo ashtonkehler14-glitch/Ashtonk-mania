@@ -338,26 +338,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .keycfg-help.warn { color: #ffb3bb; }
 
 /* ── mod select (bottom sheet) */
-.modsel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 78vh; overflow: auto; padding: 22px clamp(16px, 3vw, 44px) 26px; background: linear-gradient(180deg, rgba(22, 15, 36, .97), rgba(12, 8, 20, .99)); border-top: 1px solid var(--line-2); box-shadow: 0 -20px 60px rgba(0, 0, 0, .5); animation: sheetIn var(--t-med) var(--ease-out) both; }
-.modsel.out { animation: sheetOut calc(180ms * var(--anim)) ease both; }
-@keyframes sheetIn { from { transform: translateY(100%); } }
-@keyframes sheetOut { to { transform: translateY(100%); } }
-.modsel-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.modsel-head h2 { margin: 0; font-weight: 700; font-size: 1.7rem; }
-.mult { padding: 6px 12px; border-radius: 10px; background: rgba(0, 0, 0, .35); font-weight: 700; font-variant-numeric: tabular-nums; }
-.mult.up { color: #7ee07a; } .mult.down { color: #ff9aa6; }
-.modsel-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
-.modcol h4 { margin: 0 0 8px; font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.mod-card { display: flex; width: 100%; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 7px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); text-align: left; transition: all var(--t-fast); --mod: #888; }
-.mod-card:hover { border-color: color-mix(in srgb, var(--mod) 70%, transparent); background: color-mix(in srgb, var(--mod) 8%, transparent); }
-.mod-card:active { transform: scale(.98); }
-.mod-card.on { background: color-mix(in srgb, var(--mod) 20%, transparent); border-color: var(--mod); box-shadow: 0 0 20px color-mix(in srgb, var(--mod) 25%, transparent); }
-.mod-card.blocked { opacity: .5; }
-.mod-icon { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 13px; font-weight: 700; font-size: .95rem; background: color-mix(in srgb, var(--mod) 18%, #0a0612); color: color-mix(in srgb, var(--mod) 80%, white); border: 2px solid color-mix(in srgb, var(--mod) 50%, transparent); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); transition: transform var(--t-fast); }
-.mod-card.on .mod-icon { background: var(--mod); color: #120a1c; transform: rotate(-6deg) scale(1.05); }
-.mod-card .mc-name { font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.mod-card .mc-desc { color: var(--muted); font-size: .76rem; font-weight: 600; margin-top: 2px; }
-.mod-card .mc-meta { margin-left: auto; text-align: right; font-size: .72rem; color: var(--muted); font-weight: 600; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
 /* ── SONG SELECT (osu!lazer: info wedge + leaderboard left, filter + carousel right, footer bar) */
 .ss { padding-top: var(--toolbar-h); }
@@ -472,7 +452,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-score .acc { font-size: clamp(1.1rem, 1.8vw, 1.5rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .hud-score .pace { font-size: .8rem; color: var(--muted); font-weight: 600; }
 .hud-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: rgba(255, 255, 255, .06); }
-.hud-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); box-shadow: 0 0 10px var(--accent); width: 0; }
+.hud-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); width: 100%; transform: scaleX(0); transform-origin: 0 0; }
 .hud-time { position: absolute; top: 12px; left: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
 .hud-mods { position: absolute; top: 118px; right: 24px; display: flex; gap: 4px; }
 .hud-meta { position: absolute; bottom: 18px; left: 22px; color: var(--text-2); font-size: .85rem; font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); max-width: 30vw; }
@@ -680,8 +660,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-sentinel { height: 1px; }
 
 /* ── mod config / gameplay extras */
-.mod-config { margin-top: 18px; padding: 14px 18px; max-width: 760px; }
-.mod-config h4 { margin: 0 0 6px; font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .gp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
 .gp-video.on { display: block; }
 .gp-break { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: 10px 22px 14px; border-radius: 14px; background: rgba(0, 0, 0, .55); font-weight: 700; letter-spacing: .12em; font-size: 1.1rem; pointer-events: none; }
@@ -702,10 +680,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── lazer-style results ring & mod panels */
 
-.mod-card { transform: skewX(-8deg); border-radius: 8px; }
-.mod-card > * { transform: skewX(8deg); }
-.mod-card.on { box-shadow: inset 5px 0 0 var(--mod), 0 0 20px color-mix(in srgb, var(--mod) 25%, transparent); }
-.modcol h4 { padding: 6px 10px; border-radius: 6px; background: rgba(255, 255, 255, .04); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── main menu (osu!lazer): centred logo; clicking it slides the button bar out to the right */
@@ -885,7 +859,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-state { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: var(--text-2); }
 .mp-state.on { background: #88b300; color: #fff; }
 .mp-state.warn { background: rgba(255, 204, 34, .15); color: #ffcc22; }
-.mp-chat { min-height: 260px; }
+
 .mp-chat-list { flex: 1; min-height: 120px; overflow: auto; display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
 .mp-msg b { color: var(--accent-3); font-weight: 600; margin-right: 8px; }
 .mp-msg.sys { color: var(--muted); font-size: .8rem; }
@@ -919,6 +893,70 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 4rem; font-weight: 600; color: #fff; text-shadow: 0 4px 30px rgba(0, 0, 0, .6); pointer-events: none; z-index: 5; }
 /* overflow: clip (not hidden) so focus()/scrollIntoView can never scroll the whole client out of place */
 #app, #screens, .screen { overflow: clip; }
+
+/* in game nothing behind the playfield is drawn: the blurred menu background and hidden toolbar cost GPU time every frame */
+#app.in-game #bg-layer, #app.in-game #toolbar, #app.in-game .np-panel { visibility: hidden; }
+.hud-mp { display: flex; }
+.sp-more { width: 100%; margin-top: 22px; }
+
+/* ── mod select (osu!lazer ModSelectOverlay) */
+.modsel { position: absolute; left: 0; right: 0; bottom: 0; height: min(620px, 82vh); display: flex; flex-direction: column; background: #1c1b21; box-shadow: 0 -10px 40px rgba(0, 0, 0, .5); animation: sheetIn var(--t-med) var(--ease-out) both; }
+.modsel.out { animation: sheetOut calc(180ms * var(--anim)) ease both; }
+@keyframes sheetIn { from { transform: translateY(100%); } }
+@keyframes sheetOut { to { transform: translateY(100%); } }
+.modsel-head { display: flex; align-items: center; gap: 12px; padding: 22px 32px 16px; background: #24222a; }
+.modsel-head h2 { margin: 0; font-weight: 600; font-size: 1.6rem; }
+.modsel-sub { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+.modsel-stat { display: flex; flex-direction: column; align-items: flex-end; padding: 6px 14px; border-radius: 8px; background: rgba(0, 0, 0, .3); min-width: 120px; }
+.modsel-stat span { font-size: .7rem; color: var(--muted); }
+.modsel-stat b { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.modsel-stat.up b { color: #b2ff66; } .modsel-stat.down b { color: #ff8d95; }
+.modsel-cols { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 16px 32px; overflow-x: auto; overflow-y: hidden; align-items: stretch; }
+.modcol { flex: 0 0 300px; display: flex; flex-direction: column; min-height: 0; border-radius: 10px; background: #2a2830; overflow: hidden; }
+.modcol-h { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; background: var(--c); color: #111; font-weight: 600; font-size: .9rem; }
+.modcol-n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: rgba(0, 0, 0, .75); color: var(--c); font-size: .72rem; display: grid; place-items: center; }
+.modcol-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.mod-p { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 6px 12px 6px 8px; border: 0; border-radius: 8px; background: #34313c; color: var(--text); text-align: left; transition: background var(--t-fast), transform var(--t-fast); }
+.mod-p:hover { background: #3f3b48; }
+.mod-p:active { transform: scale(.98); }
+.mod-p.on { background: var(--c); color: #111; }
+.mod-p.on:hover { filter: brightness(1.06); }
+.mod-p.blocked { opacity: .45; }
+.mod-ac { flex: none; width: 50px; height: 26px; display: grid; place-items: center; border-radius: 6px; transform: skewX(-12deg); background: rgba(0, 0, 0, .35); color: var(--c); font-weight: 700; font-size: .78rem; letter-spacing: .02em; }
+.mod-ac span { transform: skewX(12deg); }
+.mod-p.on .mod-ac { background: rgba(0, 0, 0, .8); color: var(--c); }
+.mod-txt { display: flex; flex-direction: column; min-width: 0; }
+.mod-txt b { font-weight: 600; font-size: .92rem; }
+.mod-txt span { font-size: .74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mod-p.on .mod-txt span { color: rgba(0, 0, 0, .65); }
+.mod-config { flex-basis: 340px; }
+.mod-config .modcol-list { gap: 2px; padding: 10px 14px; }
+.modsel-foot { display: flex; align-items: center; gap: 10px; height: 54px; padding-right: 32px; background: #111014; flex: none; }
+.modsel-foot .lz-back { margin-right: 6px; }
+.modsel-hint { color: var(--muted); font-size: .78rem; margin-right: 8px; }
+@media (max-width: 900px) { .modsel-hint { display: none; } .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
+.mp-side { border-radius: 10px; background: var(--panel-solid); display: flex; flex-direction: column; min-height: 320px; overflow: hidden; }
+.mp-tabs { display: flex; gap: 4px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); flex: none; }
+.mp-tab { border: 0; background: transparent; color: var(--muted); padding: 8px 12px; font-weight: 600; font-size: .9rem; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.mp-tab:hover { color: var(--text); }
+.mp-tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.mp-tabpane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+.mp-tabpane[hidden] { display: none; }
+.mp-sr-box { position: relative; flex: 1; }
+.mp-sr-box .input { width: 100%; padding-left: 34px; }
+.mp-sr-box .i { position: absolute; left: 10px; top: 11px; color: var(--muted); }
+.mp-sr-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.mp-sr-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.mp-sr-row:hover { background: rgba(255, 255, 255, .08); }
+.mp-sr-row .main { flex: 1; min-width: 0; }
+.mp-sr-row .t { font-weight: 600; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-sr-row .s { font-size: .75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-sr-set { margin-top: 8px; font-size: .8rem; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.mp-sr-empty { color: var(--muted); padding: 20px 4px; display: flex; align-items: center; gap: 8px; }
+.mp-sr-empty.err { color: #ff8d95; white-space: pre-line; }
+.mp-msg.suggest { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(var(--accent-rgb), .12); }
+.mp-msg.suggest i { color: var(--text); font-style: normal; font-weight: 600; }
+.mp-msg.suggest .btn { margin-left: auto; }
 
 </style>
 </head>
@@ -2733,7 +2771,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
-  { k: 'debug.overlay', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
+  { k: 'debug.overlay', d: false }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.filter', d: 'all' }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 } },
@@ -4152,15 +4190,18 @@ class ManiaRenderer {
       const cx = this.colX[c] + this.colW[c] / 2;
       this._img(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
-    // hit lighting
-    this.effects = this.effects.filter(e => {
-      if (e.type !== 'N') return true;
+    // hit lighting (effects are compacted in place: no new array every frame)
+    let keep = 0;
+    const fx = this.effects;
+    for (let i = 0; i < fx.length; i++) {
+      const e = fx[i];
+      if (e.type !== 'N') { fx[keep++] = e; continue; }
       const t = L.tinted.lightingN[e.col];
-      if (!t) return false;
+      if (!t) continue;
       const el = realNow - e.t0;
       const multi = t.frames.length > 1;
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
-      if (el > dur) return false;
+      if (el > dur) continue;
       const w0 = this._lightW(t, e.col, L.lightingNWidth);
       const sc = multi ? 1 : 1 + el / dur * 0.25;
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
@@ -4168,8 +4209,9 @@ class ManiaRenderer {
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
       this._img(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
       ctx.globalAlpha = 1;
-      return true;
-    });
+      fx[keep++] = e;
+    }
+    fx.length = keep;
     ctx.globalCompositeOperation = 'source-over';
   }
   /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
@@ -4183,10 +4225,13 @@ class ManiaRenderer {
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
-    this.effects = this.effects.filter(e => {
-      if (e.type !== 'P') return true;
+    const fx = this.effects;
+    let keep = 0;
+    for (let i = 0; i < fx.length; i++) {
+      const e = fx[i];
+      if (e.type !== 'P') { fx[keep++] = e; continue; }
       const el = realNow - e.t0;
-      if (el > e.life) return false;
+      if (el > e.life) continue;
       const x = this.colX[e.col] + this.colW[e.col] / 2 + e.vx * el;
       let y = this.hitY + e.vy * el + 0.0006 * this.s * el * el;
       if (this.up) y = this.H - y;
@@ -4199,8 +4244,9 @@ class ManiaRenderer {
         ctx.fill();
       } else ctx.fillRect(x - r, y - r, r * 2, r * 2);
       ctx.globalAlpha = 1;
-      return true;
-    });
+      fx[keep++] = e;
+    }
+    fx.length = keep;
   }
   _drawJudgement(realNow) {
     const fx = this.judgementFx;
@@ -4804,7 +4850,11 @@ const Toolbar = {
     setInterval(() => this.tick(), 1000);
     Bus.on('music:changed', () => this.updateNp());
   },
-  tick() { this.clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); },
+  tick() {
+    if ($('#app').classList.contains('in-game')) return; // the toolbar is hidden in game: don't relayout every second
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (this.clock.textContent !== t) this.clock.textContent = t;
+  },
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;
@@ -5751,6 +5801,16 @@ const Game = {
   },
 };
 
+/** Gamepads are only polled while one is actually connected (navigator.getGamepads() isn't free). */
+const GamepadWatch = {
+  connected: 0,
+  init() {
+    addEventListener('gamepadconnected', () => { this.connected++; });
+    addEventListener('gamepaddisconnected', () => { this.connected = Math.max(0, this.connected - 1); });
+  },
+};
+GamepadWatch.init();
+
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const GameplayScreen = {
@@ -5916,6 +5976,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
     this.progEl = h('i'); this.timeEl = h('div.hud-time');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -5932,7 +5993,7 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
-    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; }
+    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     if (s.practice) this.buildPracticeBar();
@@ -5983,7 +6044,7 @@ const GameplayScreen = {
       this.updateHud(now);
       this.updateBreak(now);
       this.syncVideo(now);
-      if (s.running && !s.feed) this.pollGamepad();
+      if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
       void L;
@@ -5999,12 +6060,17 @@ const GameplayScreen = {
     if (acc !== this._lastAcc) { this._lastAcc = acc; this.accEl.textContent = fmtAcc(acc); }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
-    this.progEl.style.width = (p * 100).toFixed(2) + '%';
-    // osu!-style pie: green while counting down to the first note, then fills with song progress
+    // progress bar + osu!-style pie (green while counting down to the first note); DOM writes only when
+    // the value moves by a visible step, so the HUD doesn't force a style pass every frame
     const lead = now < s.firstNote;
     const pieP = lead ? clamp(1 - (s.firstNote - now) / Math.max(1, s.firstNote - Math.min(0, s.startPos)), 0, 1) : p;
-    this.pieEl.style.setProperty('--p', (pieP * 100).toFixed(1) + '%');
-    this.pieEl.classList.toggle('lead', lead);
+    const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
+    if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
+    if (pieQ !== this._pieQ || lead !== this._lead) {
+      this._pieQ = pieQ;
+      this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');
+      if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
+    }
     if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
       const pp = this.livePp(e);
       const t = `${Math.round(pp)}pp`;
@@ -6019,7 +6085,7 @@ const GameplayScreen = {
     const tt = `${fmtTime(Math.max(0, now) / s.rate)} / ${fmtTime(dur / s.rate)}`;
     if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
-    this.skipBtn.style.display = canSkip ? '' : 'none';
+    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
@@ -6034,15 +6100,29 @@ const GameplayScreen = {
       this._mpSent = t;
       Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value });
     }
-    const opp = Multiplayer.opponent(), o = Multiplayer.opp;
-    const rows = [{ name: ProfileManager.profile.name, score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, me: true }];
-    if (opp) rows.push({ name: opp.name, score: o ? o.score : 0, acc: o ? o.acc : 1, combo: o ? o.combo : 0 });
-    rows.sort((a, b) => b.score - a.score);
-    const key = rows.map(r => `${r.name}:${r.score}:${r.combo}`).join('|');
-    if (key === this._mpKey) return;
-    this._mpKey = key;
-    clearEl(this.mpBoard).append(...rows.map((r, i) => h(`div.hud-mp-row${r.me ? '.me' : ''}`,
-      h('span.pos', String(i + 1)), h('div.nm', h('b', r.name), h('span', `${fmtAcc(r.acc)} · ${fmtInt(r.combo)}x`)), h('span.sc', fmtScore(r.score)))));
+    // the opponent's score arrives 4×/s; ease the displayed value towards it so it counts up smoothly
+    const o = Multiplayer.opp;
+    const target = o ? o.score : 0;
+    this._oppShown = this._oppShown == null ? target : this._oppShown + (target - this._oppShown) * Math.min(1, (t - (this._mpT || t)) / 180);
+    this._mpT = t;
+    if (t - (this._mpDrawn || 0) < 100) return;
+    this._mpDrawn = t;
+    if (!this._mpRows) {
+      const opp = Multiplayer.opponent();
+      const mk = (name, me) => { const r = { pos: h('span.pos'), sub: h('span'), sc: h('span.sc') }; r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc); return r; };
+      this._mpRows = [mk(ProfileManager.profile.name, true), opp ? mk(opp.name, false) : null].filter(Boolean);
+      this.mpBoard.append(...this._mpRows.map(r => r.el));
+    }
+    const vals = [[e.score.score, e.score.accuracy, e.score.combo], [Math.round(this._oppShown), o ? o.acc : 1, o ? o.combo : 0]];
+    const first = vals[1] && this._mpRows[1] && vals[1][0] > vals[0][0] ? 1 : 0;
+    this._mpRows.forEach((r, i) => {
+      const [sc, acc, combo] = vals[i];
+      const pos = i === first ? 1 : 2;
+      const sub = `${fmtAcc(acc)} · ${fmtInt(combo)}x`, st = fmtScore(sc);
+      if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
+      if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
+      if (r._st !== st) { r._st = st; r.sc.textContent = st; }
+    });
   },
   /** Wait for the synchronised start; everyone begins at the same moment. */
   async mpWait(s) {
@@ -6347,8 +6427,11 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       }
     }
     const g = s.gaps.find(([a, b]) => now > a + 600 * s.rate && now < b - 300 * s.rate);
-    this.breakEl.hidden = !g;
-    if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
+    if (!!g !== this._inBreak) {
+      this._inBreak = !!g;
+      this.breakEl.hidden = !g;
+      if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
+    }
     if (!g) return;
     const left = Math.ceil((g[1] - now) / 1000 / s.rate);
     const pct = clamp((now - g[0]) / (g[1] - g[0]), 0, 1);
@@ -6522,7 +6605,7 @@ const FPS = {
       if (this.acc >= 500) {
         this.fps = this.n * 1000 / this.acc; this.acc = 0; this.n = 0;
         const el = $('#fps-counter');
-        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else el.hidden = true;
+        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else if (!el.hidden) el.hidden = true;
       }
     }
     this.last = now;
@@ -7514,19 +7597,26 @@ const ExplorerScreen = {
 
 const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', Interface: 'home', Skin: 'brush', Maintenance: 'database' };
 
+/** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
+const ESSENTIAL_SETTINGS = new Set([
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'audio.master', 'audio.music', 'audio.effects', 'audio.offset', 'audio.hitsounds',
+  'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
+  'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',
+]);
+
 const SettingsPanel = {
   o: null,
   toggle() { this.o ? this.close() : this.open(); },
   open(section) {
     if (this.o) { if (section) this.scrollTo(section); return; }
     UISounds.click();
-    const sections = [...new Set(SETTINGS_SCHEMA.filter(s => s.s).map(s => s.s))];
-    const nav = h('div.sp-nav', ...sections.map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
+    const nav = h('div.sp-nav');
     const search = h('input.input.sp-search', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
     const scroll = h('div.sp-scroll');
     const panel = h('div.settings-panel', { role: 'dialog', 'aria-label': 'Settings' }, nav,
       h('div.sp-main', h('div.sp-head', h('div.row', h('h2', 'Settings'), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
-        h('div.sub', 'Changes apply instantly and are saved locally.'), search), scroll));
+        search), scroll));
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
@@ -7550,10 +7640,13 @@ const SettingsPanel = {
     this.q = q;
     const scroll = this.scrollEl;
     clearEl(scroll);
+    const all = !!Settings.get('ui.allSettings') || !!q;
     const bySec = new Map();
+    let hiddenCount = 0;
     for (const it of SETTINGS_SCHEMA) {
       if (!it.s) continue;
       if (q && !(`${it.s} ${it.g} ${it.l} ${it.hint || ''}`.toLowerCase().includes(q))) continue;
+      if (!all && !ESSENTIAL_SETTINGS.has(it.k)) { hiddenCount++; continue; }
       if (!bySec.has(it.s)) bySec.set(it.s, new Map());
       const g = bySec.get(it.s);
       if (!g.has(it.g)) g.set(it.g, []);
@@ -7568,7 +7661,13 @@ const SettingsPanel = {
       scroll.append(secEl);
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
+    if (!q) {
+      const more = !!Settings.get('ui.allSettings');
+      scroll.append(h('button.btn.sp-more', { onclick: () => { Settings.set('ui.allSettings', !more); UISounds.click(); this.build(''); } },
+        more ? 'Show fewer settings' : `Show all settings (${hiddenCount} more)`));
+    }
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION}`));
+    clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },
   row(it) {
@@ -7822,35 +7921,50 @@ const ModSelect = {
     this.render();
     Bus.emit('mods:changed');
   },
+  /** osu!lazer mod type colours. */
+  GROUP_COLOURS: { reduction: '#b2ff66', increase: '#ff6666', conversion: '#8c66ff', automation: '#66ccff', fun: '#ff66ab' },
   render() {
     const sheet = this.sheet;
+    const scrollX = this.colsEl ? this.colsEl.scrollLeft : 0;
     clearEl(sheet);
     const cur = Settings.get('songselect.mods') || [];
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
-    sheet.append(h('div.modsel-head', h('h2', 'Mods'), h('span.muted', 'Press the shortcut keys to toggle quickly'), h('span.grow'),
-      h(`span.mult${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, `Score multiplier ${mult.toFixed(2)}×`),
-      rate !== 1 ? h('span.mult', `Speed ${rate}×`) : null,
-      h('button.btn', { onclick: () => { Settings.set('songselect.mods', []); this.render(); Bus.emit('mods:changed'); } }, 'Deselect all', h('span.kbd', '⌫')),
-      h('button.btn.primary', { onclick: () => this.close() }, 'Done', h('span.kbd', 'F1'))));
+    const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
+    sheet.append(h('div.modsel-head',
+      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods change the way the game plays. Some affect your score multiplier.')),
+      h('span.grow'),
+      rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
+      h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));
     const cols = h('div.modsel-cols');
     for (const [gid, gname] of MOD_GROUPS) {
-      const col = h('div.modcol', h('h4', gname));
-      for (const m of MODS.filter(x => x.group === gid)) {
+      const mods = MODS.filter(x => x.group === gid);
+      const n = mods.filter(m => cur.includes(m.id)).length;
+      const col = h('div.modcol', { style: { '--c': this.GROUP_COLOURS[gid] || '#aaa' } },
+        h('div.modcol-h', h('span', gname), n ? h('span.modcol-n', String(n)) : null));
+      const list = h('div.modcol-list');
+      for (const m of mods) {
         const on = cur.includes(m.id);
         const blocked = !on && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
-        const card = h(`button.mod-card${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, { style: { '--mod': m.color }, 'aria-pressed': String(on), onclick: () => this.toggle(m.id),
-          title: blocked ? `Replaces: ${cur.filter(x => m.incompatible.includes(x)).join(', ')}` : '' },
-          h('span.mod-icon', m.id),
-          h('span', { style: { minWidth: 0 } }, h('span.mc-name', m.name), h('span.mc-desc', m.desc)),
-          h('span.mc-meta', h('span.kbd', keyLabel(m.key)), `${m.mult.toFixed(2)}×`));
-        card.addEventListener('pointerenter', () => UISounds.hover());
-        col.append(card);
+        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
+          'aria-pressed': String(on), onclick: () => this.toggle(m.id),
+          title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+        }, h('span.mod-ac', h('span', m.id)), h('span.mod-txt', h('b', m.name), h('span', m.desc)));
+        panel.addEventListener('pointerenter', () => UISounds.hover());
+        list.append(panel);
       }
+      col.append(list);
       cols.append(col);
     }
-    sheet.append(cols);
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
-    if (cfgMods.length) sheet.append(this.configPanel(cfgMods));
+    if (cfgMods.length) cols.append(this.configPanel(cfgMods));
+    this.colsEl = cols;
+    sheet.append(cols, h('div.modsel-foot',
+      backButton(() => this.close()),
+      h('button.btn', { disabled: !cur.length, onclick: () => setMods([]) }, 'Deselect all'),
+      h('span.grow'),
+      h('span.modsel-hint', 'Tip: every mod has a letter shortcut (hover to see it) · Backspace clears'),
+      h('button.btn.primary', { onclick: () => this.close() }, 'Done')));
+    cols.scrollLeft = scrollX;
   },
   /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
   configPanel(ids) {
@@ -7871,7 +7985,7 @@ const ModSelect = {
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
-    return h('div.panel.mod-config', h('h4', 'Customise'), ...rows);
+    return h('div.modcol.mod-config', { style: { '--c': '#ffcc22' } }, h('div.modcol-h', h('span', 'Customise')), h('div.modcol-list', ...rows));
   },
 };
 
@@ -8068,8 +8182,10 @@ const MultiplayerScreen = {
   onKey(e) { return false; },
   render() {
     if (!this.body) return;
+    if (Multiplayer.inRoom()) { this.renderRoom(); return; }
+    this.roomEl = null;
     clearEl(this.body);
-    if (Multiplayer.inRoom()) this.renderRoom(); else this.renderLobby();
+    this.renderLobby();
   },
 
   // ── lobby: quick match / create / join
@@ -8100,11 +8216,43 @@ const MultiplayerScreen = {
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);
   },
 
-  // ── room
+  // ── room: the chat and beatmap search panels are built once per room and survive updates, so a
+  //    half-typed message or search is never wiped when the other player readies up.
   renderRoom() {
+    const r = Multiplayer.room;
+    if (!this.roomEl || !this.roomEl.isConnected || this.roomCode !== r.code) this.buildRoom();
+    this.refreshRoom();
+  },
+  buildRoom() {
+    const r = Multiplayer.room;
+    this.roomCode = r.code;
+    clearEl(this.body);
+    this.headEl = h('div.mp-head'); this.resEl = h('div'); this.mapEl = h('div'); this.playersEl = h('div'); this.footEl = h('div.mp-footer');
+    // chat
+    this.chatList = h('div.mp-chat-list');
+    for (const m of Multiplayer.chat) this.appendChat(m, false);
+    const input = h('input.input', { placeholder: 'Type a message…', maxlength: 300, 'aria-label': 'Chat message' });
+    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
+    const chat = h('div.mp-tabpane', this.chatList, input);
+    // beatmap search
+    const search = this.buildSearch();
+    const tabs = [['Chat', chat], ['Search songs', search]];
+    const tabBar = h('div.mp-tabs', ...tabs.map(([name, pane], i) => h(`button.mp-tab${i === 0 ? '.on' : ''}`, { onclick: e => {
+      $$('.mp-tab', tabBar).forEach(b => b.classList.toggle('on', b === e.currentTarget));
+      tabs.forEach(([, p]) => { p.hidden = p !== pane; });
+      UISounds.click();
+      if (pane === search) { this.searchInput.focus(); this.runSearch(); }
+    } }, name)));
+    search.hidden = true;
+    const side = h('div.mp-side', tabBar, chat, search);
+    this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid', h('div.mp-left', this.mapEl, this.playersEl), side));
+    this.body.append(this.roomEl, this.footEl);
+    requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
+  },
+  refreshRoom() {
     const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
-    const head = h('div.mp-head', h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), copy);
+    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), copy);
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -8112,7 +8260,7 @@ const MultiplayerScreen = {
     if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
     else if (map && map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(map.onlineSetId, 'cover')}")`;
     const mapInfo = map ? [h('div.mp-map-t', map.title), h('div.mp-map-a', map.artist), h('div.mp-map-d', starBadge(map.stars), h('span', map.version), h('span.keys-tag', `${map.keys}K`),
-      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one to play.' : 'Waiting for the host to pick a beatmap.')];
+      ...(r.mods || []).map(m => ModSystem.badge(m, true)))] : [h('div.mp-map-t', 'No beatmap selected'), h('div.mp-map-a', host ? 'Pick one from song select or search for one.' : 'Waiting for the host to pick a beatmap — you can search and suggest one.')];
     const mapActions = h('div.mp-map-actions');
     if (host) mapActions.append(h('button.btn', { onclick: () => Screens.go('songselect', { mpPick: true }) }, icon('music'), map ? 'Change beatmap' : 'Select beatmap'));
     else if (map && !local) {
@@ -8125,7 +8273,7 @@ const MultiplayerScreen = {
         mapActions.append(dl);
       } else mapActions.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
     }
-    const mapPanel = h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, mapActions));
+    clearEl(this.mapEl).append(h('div.mp-map', bg, h('div.mp-map-body', ...mapInfo, mapActions)));
 
     // players
     const slot = p => {
@@ -8137,44 +8285,147 @@ const MultiplayerScreen = {
         h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
         h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
-    const players = h('div.mp-players', h('h3', 'Players'), slot(me), slot(opp));
+    clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), slot(me), slot(opp)));
 
-    // chat
-    this.chatList = h('div.mp-chat-list');
-    for (const m of Multiplayer.chat) this.appendChat(m, false);
-    const input = h('input.input', { placeholder: 'Type a message…', maxlength: 300, 'aria-label': 'Chat message' });
-    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
-    const chat = h('div.mp-chat', h('h3', 'Chat'), this.chatList, input);
+    clearEl(this.resEl);
+    if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    // results of the last match
-    const res = Multiplayer.lastResults ? this.resultsPanel(Multiplayer.lastResults) : null;
-
-    // footer: ready / start
     const allReady = r.players.length === 2 && r.players.every(p => p.ready && p.hasMap);
     const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
       disabled: !r.map || !me || !me.hasMap,
       onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
     }, me && me.ready ? 'Not ready' : 'Ready');
     const startBtn = host ? h('button.mp-start', { disabled: !allReady, title: allReady ? '' : 'Both players must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
-    const footer = h('div.mp-footer', h('div.grow'), readyBtn, startBtn);
+    clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
+    // host/guest can change (Pick ↔ Suggest)
+    if (this.searchPane && !this.searchPane.hidden && this._searchHost !== host) this.runSearch();
+  },
 
-    this.body.append(h('div.mp-room', head, res, h('div.mp-grid', h('div.mp-left', mapPanel, players), chat)), footer);
-    requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
+  // ── beatmap search inside the room (local library, or osu! beatmaps online)
+  buildSearch() {
+    this.searchSrc = this.searchSrc || 'local';
+    this.searchInput = h('input.input', { type: 'search', placeholder: 'Search title, artist, mapper…', 'aria-label': 'Search beatmaps', spellcheck: 'false' });
+    this.searchInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') this.runSearch(true); });
+    this.searchInput.addEventListener('input', () => { clearTimeout(this._searchT); this._searchT = setTimeout(() => this.runSearch(), this.searchSrc === 'online' ? 450 : 80); });
+    const srcBtn = (id, label) => h(`button.chip${this.searchSrc === id ? '.on' : ''}`, { dataset: { src: id }, onclick: e => {
+      this.searchSrc = id; $$('[data-src]', this.searchPane).forEach(b => b.classList.toggle('on', b.dataset.src === id)); this.runSearch(true);
+    } }, label);
+    this.searchResults = h('div.mp-sr-list');
+    this.searchPane = h('div.mp-tabpane', h('div.row', h('div.mp-sr-box', icon('search'), this.searchInput), srcBtn('local', 'My beatmaps'), srcBtn('online', 'Online')), this.searchResults);
+    return this.searchPane;
+  },
+  async runSearch(now = false) {
+    const q = this.searchInput.value.trim(), host = Multiplayer.isHost();
+    this._searchHost = host;
+    const tok = this._searchTok = {};
+    const list = this.searchResults;
+    if (this.searchSrc === 'local') {
+      clearEl(list);
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      // every word must appear (title, artist, mapper, tags or difficulty name); the difficulty name counts most
+      const collect = fuzzy => {
+        const rows = [];
+        for (const set of BeatmapManager.sets) {
+          const hay = `${set.artist} ${set.artistUnicode || ''} ${set.title} ${set.titleUnicode || ''} ${set.creator} ${set.tags || ''}`.toLowerCase();
+          for (const m of set.maps) {
+            if (m.problems.length) continue;
+            const ver = m.version.toLowerCase();
+            let score = 1;
+            for (const w of words) {
+              const f = ver.includes(w) ? 3 : hay.includes(w) ? 2 : fuzzy ? fuzzyScore(hay + ' ' + ver, w) : 0;
+              if (!f) { score = 0; break; }
+              score += f;
+            }
+            if (score) rows.push({ m, set, score });
+          }
+        }
+        return rows;
+      };
+      let rows = collect(false);
+      if (!rows.length && words.length) rows = collect(true);
+      rows.sort((a, b) => (b.score - a.score) || (b.set.added - a.set.added) || (a.m.stars - b.m.stars));
+      if (!rows.length) { list.append(h('div.mp-sr-empty', BeatmapManager.sets.length ? 'No matches in your library — try Online.' : 'Your library is empty — search Online.')); return; }
+      for (const { m } of rows.slice(0, 60)) list.append(this.resultRow({ title: m.title, artist: m.artist, version: m.version, creator: m.creator, stars: m.stars, keys: m.keys }, m, null, host));
+      return;
+    }
+    // online
+    if (!q && !now) { clearEl(list).append(h('div.mp-sr-empty', 'Type to search osu!mania beatmaps online.')); return; }
+    clearEl(list).append(h('div.mp-sr-empty', h('span.spinner'), ' Searching…'));
+    try {
+      const res = await OnlineBeatmaps.search({ q, keys: [], status: 'any', page: 0, minStars: 0, maxStars: 99, sort: '' });
+      if (tok !== this._searchTok) return;
+      clearEl(list);
+      if (!res.sets.length) { list.append(h('div.mp-sr-empty', 'No beatmaps found.')); return; }
+      for (const set of res.sets.slice(0, 25)) {
+        const owned = BeatmapManager.sets.find(s => s.onlineId === set.id);
+        list.append(h('div.mp-sr-set', `${set.artist} - ${set.title}`, h('span.muted', ` · mapped by ${set.creator}`), owned ? h('span.tag.accent', 'IN LIBRARY') : null));
+        for (const d of set.diffs.slice(0, 8)) {
+          const local = owned ? owned.maps.find(m => m.onlineId === d.id) || null : null;
+          list.append(this.resultRow({ title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id }, local, set, host));
+        }
+      }
+    } catch (e) {
+      if (tok !== this._searchTok) return;
+      clearEl(list).append(h('div.mp-sr-empty.err', e.message));
+    }
+  },
+  /** One difficulty in the search results. `local` is the library map (if any); `set` the online set (if any). */
+  resultRow(info, local, set, host) {
+    const act = h('button.btn.sm' + (host ? '.primary' : ''), { onclick: async () => {
+      act.disabled = true;
+      try {
+        let m = local;
+        if (!m && set) {
+          act.textContent = 'Downloading…';
+          await OnlineBeatmaps.downloadAndImport(set, p => { if (p != null) act.textContent = `${Math.round(p * 100)}%`; });
+          m = [...BeatmapManager.maps.values()].find(x => x.onlineId === info.onlineId) || null;
+        }
+        if (host) {
+          if (!m) throw new Error('That difficulty couldn\'t be found after downloading.');
+          Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+          Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
+        } else {
+          const s = m && BeatmapManager.setById.get(m.setId);
+          Multiplayer.send({ t: 'suggest', map: m ? { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
+            onlineSetId: s && s.onlineId > 0 ? s.onlineId : info.onlineSetId || -1, onlineId: m.onlineId > 0 ? m.onlineId : info.onlineId || -1 } : { ...info } });
+          Toast.show('Suggested to the host', `${info.title} [${info.version}]`);
+        }
+      } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
+      act.disabled = false; act.textContent = host ? 'Pick' : 'Suggest';
+    } }, host ? 'Pick' : 'Suggest');
+    return h('div.mp-sr-row', h('span.dp-icon', { style: { '--sc': starColour(info.stars) } }, `${info.keys}K`),
+      h('div.main', h('div.t', `${info.title}`, h('span.muted', ` · ${info.artist}`)), h('div.s', h('span', { style: { color: starColour(info.stars) } }, `★ ${info.stars.toFixed(2)}`), ` ${info.version}`, local ? '' : ' · online')),
+      act);
   },
   appendChat(m, scroll = true) {
     if (!this.chatList || !this.chatList.isConnected && scroll) return;
-    this.chatList.append(m.from ? h('div.mp-msg', h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text));
+    let el;
+    if (m.suggest) {
+      const map = m.suggest;
+      const pick = Multiplayer.isHost() ? h('button.btn.sm.primary', { onclick: async () => {
+        pick.disabled = true;
+        try {
+          let local = Multiplayer.localMap(map);
+          if (!local && map.onlineSetId > 0) { pick.textContent = 'Downloading…'; await OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }); local = Multiplayer.localMap(map); }
+          if (!local) throw new Error('Beatmap not available.');
+          Multiplayer.selectMap(local, Settings.get('songselect.mods') || []);
+        } catch (e) { Toast.err('Couldn\'t pick that beatmap', e.message); }
+        pick.disabled = false; pick.textContent = 'Pick';
+      } }, 'Pick') : null;
+      el = h('div.mp-msg.suggest', h('b', m.name), h('span', 'suggested ', h('i', `${map.artist} - ${map.title} [${map.version}]`)), pick);
+    } else el = m.from ? h('div.mp-msg', h('b', m.name), h('span', m.text)) : h('div.mp-msg.sys', m.text);
+    this.chatList.append(el);
     if (scroll) this.chatList.scrollTop = this.chatList.scrollHeight;
   },
   resultsPanel(res) {
     const meId = Multiplayer.me;
     const verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
     const row = x => h(`div.mp-res-row${x.id === res.winner ? '.win' : ''}`,
-      gradeEl(x.forfeit ? 'F' : x.grade || 'D'),
-      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.pp ? ` · ${fmtInt(x.pp)}pp` : ''}`)),
+      x.pending ? h('span.grade', '—') : gradeEl(x.forfeit ? 'F' : x.grade || 'D'),
+      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.pp ? ` · ${fmtInt(x.pp)}pp` : ''}`)),
       h('div.mp-res-score', fmtScore(x.score)));
     return h(`div.mp-results.${res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost'}`,
-      h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; this.render(); } }, icon('x'))),
+      h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
       ...res.rows.map(row));
   },
 };
@@ -8341,10 +8592,11 @@ const App = {
     let lastDbg = 0;
     const tick = now => {
       requestAnimationFrame(tick);
-      if (Screens.current === GameplayScreen) { dbg.hidden = true; return; }
+      // (only write `hidden` when it changes: an attribute write every frame forces a style pass every frame)
+      if (Screens.current === GameplayScreen) { if (!dbg.hidden) dbg.hidden = true; return; }
       FPS.frame(now);
       const on = Settings.get('debug.overlay');
-      dbg.hidden = !on;
+      if (dbg.hidden === on) dbg.hidden = !on;
       if (on && now - lastDbg > 250) {
         lastDbg = now;
         const ctx = AudioManager.ctx;

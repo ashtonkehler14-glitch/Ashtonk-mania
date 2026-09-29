@@ -122,3 +122,12 @@ test('inputs are sanitised', () => {
   const a = res.rows.find(x => x.id === 'a');
   assert.equal(a.score, 1e7); assert.equal(a.accuracy, 1); assert.deepEqual(a.counts, [0, 0, 0, 0, 0, 0]);
 });
+
+test('suggestions are broadcast as chat with the beatmap attached (online-only maps allowed)', () => {
+  const r = room();
+  const out = r.message('b', { t: 'suggest', map: { title: 'Online Song', artist: 'X', version: '7K', onlineSetId: 12, onlineId: 120, keys: 7 } });
+  assert.equal(out[0].to, 'all');
+  assert.equal(out[0].msg.suggest.onlineSetId, 12);
+  assert.equal(out[0].msg.suggest.hash, '');
+  assert.equal(r.message('b', { t: 'suggest', map: { title: 'No ids' } }).length, 0);
+});

@@ -159,10 +159,11 @@ const App = {
     let lastDbg = 0;
     const tick = now => {
       requestAnimationFrame(tick);
-      if (Screens.current === GameplayScreen) { dbg.hidden = true; return; }
+      // (only write `hidden` when it changes: an attribute write every frame forces a style pass every frame)
+      if (Screens.current === GameplayScreen) { if (!dbg.hidden) dbg.hidden = true; return; }
       FPS.frame(now);
       const on = Settings.get('debug.overlay');
-      dbg.hidden = !on;
+      if (dbg.hidden === on) dbg.hidden = !on;
       if (on && now - lastDbg > 250) {
         lastDbg = now;
         const ctx = AudioManager.ctx;

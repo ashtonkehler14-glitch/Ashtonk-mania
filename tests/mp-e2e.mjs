@@ -79,8 +79,8 @@ check('joining a missing room fails cleanly', await bob.evaluate(async () => {
 }));
 
 // chat
-await bob.fill('.mp-chat input', 'glhf');
-await bob.press('.mp-chat input', 'Enter');
+await bob.fill('.mp-tabpane input', 'glhf');
+await bob.press('.mp-tabpane input', 'Enter');
 await alice.waitForFunction(() => [...document.querySelectorAll('.mp-msg')].some(m => m.textContent.includes('glhf')), null, { timeout: 5000 });
 check('chat messages reach the other player', true);
 
@@ -133,6 +133,47 @@ await alice.keyboard.press('Escape');
 await alice.waitForSelector('.dialog').catch(() => {});
 if (await alice.$('.dialog')) await alice.click('.dialog .btn.danger');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
+
+// room updates keep a half-typed chat message
+await bob.fill('.mp-tabpane input', 'half-typed');
+await alice.click('.mp-ready');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.players.some(p => p.ready), null, { timeout: 5000 });
+check('room updates don\'t wipe what you are typing', await bob.evaluate(() => document.querySelector('.mp-tabpane input').value === 'half-typed'));
+await alice.click('.mp-ready');
+
+// song search in the room: the guest searches their library and suggests; the host picks the suggestion
+await bob.click('.mp-tab:nth-child(2)');
+await bob.fill('.mp-sr-box input', 'hard');
+await bob.waitForFunction(() => [...document.querySelectorAll('.mp-sr-row')].some(r => r.textContent.includes('7K Hard')), null, { timeout: 5000 });
+check('room search finds songs in the library', true);
+await shot(bob, 'mp-search');
+await bob.evaluate(() => [...document.querySelectorAll('.mp-sr-row')].find(r => r.textContent.includes('7K Hard')).querySelector('button').click());
+await alice.waitForSelector('.mp-msg.suggest button', { timeout: 5000 });
+check('guest suggestions reach the host with a Pick button', true);
+await alice.click('.mp-msg.suggest button');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === '7K Hard', null, { timeout: 5000 });
+check('host picks a suggested beatmap', true);
+
+// online search: the host picks a beatmap nobody has; it downloads for the host, the guest downloads it from the room
+const onlineSet = { source: 'mock', page: 0, hasMore: false, sets: [{ id: 424242, title: 'Online Anthem', titleUnicode: '', artist: 'The Test Suite', artistUnicode: '', creator: 'Ashton', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
+  diffs: [{ id: 4242420, mode: 3, version: 'Online Easy', stars: 1.5, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }, { id: 4242421, mode: 3, version: 'Online Hard', stars: 1.7, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }] }] };
+for (const p of [alice, bob]) {
+  await p.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
+  await p.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
+  await p.route('https://assets.ppy.sh/**', r => r.abort());
+}
+await alice.click('.mp-tab:nth-child(2)');
+await alice.click('.mp-tabpane [data-src="online"]');
+await alice.fill('.mp-sr-box input', 'online');
+await alice.waitForFunction(() => [...document.querySelectorAll('.mp-sr-row')].some(r => r.textContent.includes('Online Hard')), null, { timeout: 5000 });
+check('room search finds songs online', true);
+await alice.evaluate(() => [...document.querySelectorAll('.mp-sr-row')].find(r => r.textContent.includes('Online Hard')).querySelector('button').click());
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Hard', null, { timeout: 15000 });
+check('host picks an online beatmap (downloaded on pick)', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
+await bob.waitForSelector('.mp-map-actions .btn.primary', { timeout: 5000 });
+await bob.click('.mp-map-actions .btn.primary');
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 15000 });
+check('guest downloads the missing beatmap from the room', true);
 
 // leaving: the other player becomes host
 await alice.evaluate(() => AshtonkMania.Multiplayer.leave());

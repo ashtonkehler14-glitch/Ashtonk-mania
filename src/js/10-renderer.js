@@ -305,15 +305,18 @@ class ManiaRenderer {
       const cx = this.colX[c] + this.colW[c] / 2;
       this._img(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
-    // hit lighting
-    this.effects = this.effects.filter(e => {
-      if (e.type !== 'N') return true;
+    // hit lighting (effects are compacted in place: no new array every frame)
+    let keep = 0;
+    const fx = this.effects;
+    for (let i = 0; i < fx.length; i++) {
+      const e = fx[i];
+      if (e.type !== 'N') { fx[keep++] = e; continue; }
       const t = L.tinted.lightingN[e.col];
-      if (!t) return false;
+      if (!t) continue;
       const el = realNow - e.t0;
       const multi = t.frames.length > 1;
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
-      if (el > dur) return false;
+      if (el > dur) continue;
       const w0 = this._lightW(t, e.col, L.lightingNWidth);
       const sc = multi ? 1 : 1 + el / dur * 0.25;
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
@@ -321,8 +324,9 @@ class ManiaRenderer {
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
       this._img(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
       ctx.globalAlpha = 1;
-      return true;
-    });
+      fx[keep++] = e;
+    }
+    fx.length = keep;
     ctx.globalCompositeOperation = 'source-over';
   }
   /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
@@ -336,10 +340,13 @@ class ManiaRenderer {
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
-    this.effects = this.effects.filter(e => {
-      if (e.type !== 'P') return true;
+    const fx = this.effects;
+    let keep = 0;
+    for (let i = 0; i < fx.length; i++) {
+      const e = fx[i];
+      if (e.type !== 'P') { fx[keep++] = e; continue; }
       const el = realNow - e.t0;
-      if (el > e.life) return false;
+      if (el > e.life) continue;
       const x = this.colX[e.col] + this.colW[e.col] / 2 + e.vx * el;
       let y = this.hitY + e.vy * el + 0.0006 * this.s * el * el;
       if (this.up) y = this.H - y;
@@ -352,8 +359,9 @@ class ManiaRenderer {
         ctx.fill();
       } else ctx.fillRect(x - r, y - r, r * 2, r * 2);
       ctx.globalAlpha = 1;
-      return true;
-    });
+      fx[keep++] = e;
+    }
+    fx.length = keep;
   }
   _drawJudgement(realNow) {
     const fx = this.judgementFx;
