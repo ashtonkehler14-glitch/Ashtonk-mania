@@ -1,0 +1,6 @@
+# Cloudflare static-asset headers: always revalidate the page so a new deploy shows up on the next load
+# (instead of the browser reusing an old cached copy of the game).
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
