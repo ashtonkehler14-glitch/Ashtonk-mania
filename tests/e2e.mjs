@@ -344,6 +344,26 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.waitForTimeout(300);
 }
 
+// player loader, beatmap offset and hold-to-retry
+{
+  const id = await page.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(m => !m.problems.length).id);
+  await page.evaluate(async id => { const m = AshtonkMania.BeatmapManager.maps.get(id); await AshtonkMania.MapOffsets.set(m.hash, 20); AshtonkMania.Screens.go('gameplay', { mapId: id, force: true }); }, id);
+  await page.waitForSelector('.gp-loader .pl-t');
+  check('player loader shows the beatmap and quick settings before playing', await page.evaluate(id => document.querySelector('.gp-loader .pl-t').textContent === AshtonkMania.BeatmapManager.maps.get(id).title && !!document.querySelector('.pl-settings .slider'), id));
+  await page.waitForFunction(() => document.querySelector('.gp-loader.ready'), null, { timeout: 15000 });
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 5000 });
+  check('Space starts from the loader; the beatmap offset is applied', await page.evaluate(() => AshtonkMania.GameplayScreen.s.mapOffset === 20 && AshtonkMania.GameplayScreen.offsetMs() === AshtonkMania.Settings.get('audio.offset') + 20));
+  await page.keyboard.down('Backquote'); await page.waitForTimeout(250);
+  const holding = await page.evaluate(() => document.querySelector('.hold-retry').classList.contains('on') && !!AshtonkMania.GameplayScreen.s);
+  await page.waitForTimeout(450); await page.keyboard.up('Backquote');
+  await page.waitForTimeout(250);
+  check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 1 && !!document.querySelector('.gp-loader .pl-tag.retry')));
+  await page.evaluate(async id => { await AshtonkMania.MapOffsets.set(AshtonkMania.BeatmapManager.maps.get(id).hash, 0); }, id);
+  await page.evaluate(() => AshtonkMania.Screens.go('home'));
+  await page.waitForTimeout(500);
+}
+
 // browser zoom is compensated: simulate 125% zoom (window 1.25× wider than the viewport, DPR 1.25)
 {
   const zctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.25 });

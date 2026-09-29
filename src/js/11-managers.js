@@ -116,6 +116,28 @@ const Favorites = {
   },
 };
 
+/** Per-beatmap offset (osu!lazer's "beatmap offset"), added to the global audio offset for one difficulty.
+ *  Positive = you hit late on this map (its notes arrive later). */
+const MapOffsets = {
+  map: {},
+  last: null, // { hash, mean, hits } — the most recent finished play, for "calibrate using last play"
+  async init() { const m = await DB.kvGet('map.offsets', {}); this.map = m && typeof m === 'object' ? m : {}; },
+  get(hash) { return (hash && this.map[hash]) || 0; },
+  async set(hash, ms) {
+    if (!hash) return;
+    ms = clamp(Math.round(ms), -300, 300);
+    if (ms) this.map[hash] = ms; else delete this.map[hash];
+    Bus.emit('mapoffset:changed', hash, ms);
+    await DB.kvSet('map.offsets', this.map);
+  },
+  /** The offset change the last play on `hash` suggests (its mean hit error), or null if there isn't enough data. */
+  suggestion(hash) {
+    const l = this.last;
+    if (!l || l.hash !== hash || l.hits < 30 || Math.abs(l.mean) < 2) return null;
+    return Math.round(l.mean);
+  },
+};
+
 const Collections = {
   list: [],
   async init() {

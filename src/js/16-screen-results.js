@@ -70,6 +70,16 @@ const ResultsScreen = {
     card.append(h('div.res-kv',
       kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),
       kv('UR', (s.unstableRate || 0).toFixed(1), `Unstable rate · mean ${(s.meanError || 0).toFixed(1)}ms · ${s.early || 0} early / ${s.late || 0} late`)));
+    // osu!lazer: calibrate this beatmap's offset from the play you just finished
+    const sug = p.fresh ? MapOffsets.suggestion(s.mapHash) : null;
+    if (sug != null) {
+      const cur = MapOffsets.get(s.mapHash);
+      card.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
+        const btn = e.currentTarget;
+        await MapOffsets.set(s.mapHash, cur + sug); MapOffsets.last = null; UISounds.click();
+        btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
+      } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
+    }
     return card;
   },
   rightCol(s) {

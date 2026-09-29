@@ -61,9 +61,18 @@ const GameplayScreen = {
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
-    this.hud.append(h('div.hud-center-msg', { style: { fontSize: '1.4rem' } }, 'Preparing stage…'));
     this.renderer = new ManiaRenderer(this.canvas);
     this.params = params;
+    this._tok = {};
+    if (!params.quick) this.retryCount = 0;
+    this.bgRec = BeatmapManager.maps.get(params.mapId) || null;
+    el.classList.add('loading');
+    this.loaderGone = false; this.loaderHold = false; this.loaderSkip = false;
+    this.loaderEl = this.buildLoader(params);
+    el.append(this.loaderEl);
+    this.holdEl = h('div.hold-retry', h('span', icon('retry'), 'Hold to retry'), h('i'));
+    el.append(this.holdEl);
+    if (this.bgRec) this.applyBackground();
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
     this._blur = () => { if (this.s && this.s.running && !this.s.mp) this.pause(); };
@@ -78,6 +87,8 @@ const GameplayScreen = {
     return el;
   },
   leave() {
+    this._tok = null;
+    clearTimeout(this._retryHold);
     window.removeEventListener('keydown', this._keydown, true);
     if (this.videoEl) { this.videoEl.pause(); this.videoEl.removeAttribute('src'); this.videoEl.load(); }
     if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
@@ -90,13 +101,17 @@ const GameplayScreen = {
     this.closePause();
   },
   onBack() {
+    if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) { if (this.s.running) this.pause(); else if (this.pauseEl && !this.s.failed) this.resume(); }
     return true;
   },
 
   async start(p) {
+    const tok = this._tok;
+    this.loaderStatus('Loading beatmap…', 0.1);
     const loaded = await BeatmapManager.load(p.mapId);
+    if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     const keys = BeatmapParser.keyCount(bm);
     const replay = p.replay || null;
@@ -108,11 +123,15 @@ const GameplayScreen = {
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     const skin = SkinManager.current;
+    this.loaderStatus('Loading audio…', 0.3);
     const [layout, buffer] = await Promise.all([skin.mania(keys), TrackCache.get(rec.setId, rec.audioFile)]);
+    if (this._tok !== tok) return;
     Music.stop(0);
+    this.loaderStatus('Decoding audio…', 0.6);
     await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
-    const msgEl = this.hud.querySelector('.hud-center-msg');
-    await Music.setRate(rate, preserve, f => { if (msgEl) msgEl.textContent = `Preparing audio… ${Math.round(f * 100)}%`; });
+    if (this._tok !== tok) return;
+    await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
+    if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
@@ -132,7 +151,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, mp: p.mp || null,
+      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
       debug: { inputs: 0, lastErr: null },
     };
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
@@ -150,11 +169,115 @@ const GameplayScreen = {
     s.stars = rate === 1 && rec.srVersion === SR_VERSION ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
-    if (s.mp) { await this.mpWait(s); if (this.s !== s) return; }
+    const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
+    await this.loaderFinish(tok);
+    if (this._tok !== tok || this.s !== s) return;
+    if (mpWait) { await mpWait; if (this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
     this.loop();
+  },
+
+  // ─────────────────────────────── player loader ───────────────────────────────
+  /** osu!lazer's player loader: beatmap info, mods and loading progress in the middle, quick visual and audio
+   *  settings on the right (hovering them holds the loader, as in lazer). */
+  buildLoader(p) {
+    const rec = this.bgRec;
+    const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
+    const rate = p.replay ? p.replay.rate : p.mode === 'practice' ? (Settings.get('practice.speed') || 1) : ModSystem.rate(mods, p.modConfig || ModSystem.config());
+    const cover = h('div.pl-cover');
+    if (rec) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
+    this.plStatus = h('span', 'Loading…');
+    this.plBar = h('i');
+    const tag = p.replay ? h('span.pl-tag', icon('play'), `Replay · ${p.replay.player || 'Player'}`)
+      : mods.includes('AT') ? h('span.pl-tag', icon('play'), 'Autoplay')
+      : p.mode === 'practice' ? h('span.pl-tag', icon('target'), 'Practice')
+      : p.mp ? h('span.pl-tag', icon('multi'), 'Multiplayer') : null;
+    const card = h('div.pl-card',
+      cover, h('div.pl-cover-shade'),
+      h('div.pl-info',
+        h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null),
+        h('div.pl-t', rec ? (Settings.get('ui.unicodeMetadata') && rec.titleUnicode ? rec.titleUnicode : rec.title) : 'Loading…'),
+        h('div.pl-a', rec ? (Settings.get('ui.unicodeMetadata') && rec.artistUnicode ? rec.artistUnicode : rec.artist) : ''),
+        rec ? h('div.pl-d', h('b', rec.version), starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`)) : null,
+        rec ? h('div.pl-m', 'mapped by ', h('b', rec.creator)) : null,
+        rec ? h('div.pl-stats',
+          h('span', icon('clock'), fmtTime((rec.length || 0) / rate)),
+          rec.bpm ? h('span', icon('music'), `${Math.round(rec.bpm * rate)} BPM`) : null,
+          rate !== 1 ? h('span', icon('sparkle'), `${+rate.toFixed(2)}× speed`) : null,
+          h('span', icon('target'), `${fmtInt((rec.noteCount || 0) + (rec.lnCount || 0))} notes`)) : null,
+        mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null),
+      h('div.pl-load', h('span.spinner'), this.plStatus, h('div.pl-bar', this.plBar)));
+    const settings = h('div.pl-settings', { onpointerenter: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
+      h('div.pl-group', h('div.pl-gt', 'Visual settings'),
+        this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+        this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+        this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
+      rec && !p.replay ? this.loaderOffset(rec) : null);
+    const el = h('div.gp-loader', card, settings,
+      h('div.pl-hint', p.mp ? 'Get ready!' : h('span', h('span.kbd', 'Space'), ' start now · ', h('span.kbd', 'Esc'), ' back')));
+    this.loaderT0 = performance.now();
+    return el;
+  },
+  loaderSlider(k, label, min, max, step, fmt, after) {
+    const inp = h('input.slider', { type: 'range', min, max, step, value: Settings.get(k), 'aria-label': label });
+    const v = h('b');
+    const upd = () => { const x = parseFloat(inp.value); v.textContent = fmt(x); inp.style.setProperty('--p', ((x - min) / (max - min) * 100) + '%'); };
+    inp.addEventListener('input', () => { Settings.set(k, parseFloat(inp.value)); upd(); after && after(); });
+    inp.addEventListener('keydown', e => e.stopPropagation());
+    upd();
+    return h('label.pl-slider', h('span', label, v), inp);
+  },
+  /** Per-beatmap offset, with lazer's "calibrate using last play" when the last play here was early or late. */
+  loaderOffset(rec) {
+    const box = h('div.pl-group');
+    const paint = () => {
+      const cur = MapOffsets.get(rec.hash), sug = MapOffsets.suggestion(rec.hash);
+      const inp = h('input.slider', { type: 'range', min: -100, max: 100, step: 1, value: clamp(cur, -100, 100), 'aria-label': 'Beatmap offset' });
+      const v = h('b', `${cur > 0 ? '+' : ''}${cur}ms`);
+      const upd = () => inp.style.setProperty('--p', ((parseFloat(inp.value) + 100) / 2) + '%');
+      inp.addEventListener('input', () => { const x = parseInt(inp.value, 10); v.textContent = `${x > 0 ? '+' : ''}${x}ms`; upd(); });
+      inp.addEventListener('change', () => { MapOffsets.set(rec.hash, parseInt(inp.value, 10)); if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash); });
+      inp.addEventListener('keydown', e => e.stopPropagation());
+      upd();
+      clearEl(box).append(h('div.pl-gt', 'Audio settings'),
+        h('label.pl-slider', h('span', 'Beatmap offset', v), inp),
+        sug != null ? h('button.btn.sm.pl-calib', { onclick: async () => {
+          await MapOffsets.set(rec.hash, cur + sug); MapOffsets.last = null;
+          if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash);
+          UISounds.click(); paint();
+        } }, icon('clock'), `Calibrate using last play (${sug > 0 ? '+' : ''}${sug}ms)`) : null,
+        h('div.pl-note', `Global offset ${Settings.get('audio.offset')}ms · positive if you hit late`));
+    };
+    paint();
+    return box;
+  },
+  loaderStatus(text, frac) {
+    if (this.plStatus) this.plStatus.textContent = text;
+    if (this.plBar && frac != null) this.plBar.style.width = (clamp(frac, 0, 1) * 100).toFixed(0) + '%';
+  },
+  /** Keep the loader up for a moment (shorter on retries) and while the player is in its settings. */
+  async loaderFinish(tok) {
+    const p = this.params, s = this.s;
+    const min = p.quick ? 350 : 1600;
+    this.loaderStatus('Ready!', 1);
+    this.loaderEl.classList.add('ready');
+    if (s && s.mp) {
+      // everyone starts together: no holding or skipping — the loader leaves 1.5s before the synchronised start
+      while (this._tok === tok && s.mp.startAt - performance.now() > 1500) {
+        this.loaderStatus(`Match starts in ${Math.ceil((s.mp.startAt - performance.now()) / 1000)}…`, 1);
+        await sleep(100);
+      }
+    } else {
+      while (this._tok === tok && !this.loaderSkip && (performance.now() - this.loaderT0 < min || this.loaderHold)) await sleep(50);
+    }
+    if (this._tok !== tok) return;
+    const el = this.loaderEl;
+    el.classList.add('out');
+    this.el.classList.remove('loading');
+    this.loaderGone = true;
+    setTimeout(() => el.remove(), 500);
   },
 
   newEngine(fromTime) {
@@ -168,19 +291,20 @@ const GameplayScreen = {
   },
 
   applyBackground() {
-    const s = this.s;
-    if (!s) return;
+    const s = this.s, rec = s ? s.rec : this.bgRec;
+    if (!rec) return;
     const show = Settings.get('gameplay.showBackground');
     this.baseDim = show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    const set = BeatmapManager.setById.get(s.rec.setId);
+    const set = BeatmapManager.setById.get(rec.setId);
     const blur = Settings.get('gameplay.bgBlur');
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(async u => {
+    const tok = this._bgTok = {};
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(rec)).then(async u => {
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
       if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
-      if (this.s === s) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
+      if (this._bgTok === tok && this._tok) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
     });
-    this.loadVideo();
+    if (s) this.loadVideo();
   },
   /** Background video (mp4/webm stored at import) kept in sync with the audio clock. */
   async loadVideo() {
@@ -230,7 +354,9 @@ const GameplayScreen = {
   },
 
   // ─────────────────────────────── main loop ───────────────────────────────
-  gameTime() { return Music.time - Settings.get('audio.offset') * this.s.rate; },
+  /** Global audio offset plus this beatmap's own offset, in ms. */
+  offsetMs() { return Settings.get('audio.offset') + (this.s ? this.s.mapOffset || 0 : 0); },
+  gameTime() { return Music.time - this.offsetMs() * this.s.rate; },
   loop() {
     const frame = () => {
       this._raf = requestAnimationFrame(frame);
@@ -409,7 +535,7 @@ FPS          ${FPS.fps.toFixed(0)} (${FPS.frameMs.toFixed(2)}ms)
 Audio time   ${(AudioManager.ctx.currentTime * 1000).toFixed(1)}ms  [${AudioManager.ctx.state}]
 Out latency  ${((AudioManager.ctx.outputLatency || AudioManager.ctx.baseLatency || 0) * 1000).toFixed(1)}ms
 Song pos     ${Music.time.toFixed(1)}ms
-Game time    ${now.toFixed(1)}ms  (offset ${Settings.get('audio.offset')}ms, rate ${s.rate}x)
+Game time    ${now.toFixed(1)}ms  (offset ${Settings.get('audio.offset')}+${s.mapOffset || 0}ms, rate ${s.rate}x)
 Last error   ${s.debug.lastErr == null ? '—' : s.debug.lastErr.toFixed(2) + 'ms'}
 BPM          ${tp ? (60000 / tp.beatLength).toFixed(2) : '—'}
 Scroll vel   ${s.scroll.velAt(now).toFixed(3)}x
@@ -438,15 +564,22 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   inputTime(e) {
     const s = this.s;
     const ctxT = AudioManager.perfToCtx(e.timeStamp || performance.now());
-    return Music.timeAtCtx(ctxT) - Settings.get('audio.offset') * s.rate - Settings.get('input.latency') * s.rate;
+    return Music.timeAtCtx(ctxT) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
   },
   onKeyDown(e) {
     if (Screens.current !== this) return;
     const s = this.s;
     if (Overlays.top()) return;
     if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) this.onBack(); return; }
-    if (!s) return;
-    if (e.code === 'Backquote' && !e.repeat && !s.mp) { e.preventDefault(); this._retryHold = setTimeout(() => this.retry(), 450); return; }
+    if (!s || !this.loaderGone) {
+      if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }
+      return;
+    }
+    if (e.code === 'Backquote' && !s.mp) {
+      e.preventDefault();
+      if (!e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); if (!s.mp) this.retry(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
@@ -472,7 +605,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   onKeyUp(e) {
     if (Screens.current !== this) return;
     const s = this.s;
-    if (e.code === 'Backquote') clearTimeout(this._retryHold);
+    if (e.code === 'Backquote') { clearTimeout(this._retryHold); this.holdEl && this.holdEl.classList.remove('on'); }
     if (!s) return;
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
@@ -520,7 +653,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const now = this.gameTime();
     if (now >= s.skipTarget - 1000 * s.rate) return;
     UISounds.click();
-    Music.play(s.skipTarget + Settings.get('audio.offset') * s.rate);
+    Music.play(s.skipTarget + this.offsetMs() * s.rate);
   },
 
   // ─────────────────────────────── pause / fail / complete ───────────────────────────────
@@ -542,7 +675,9 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (failed && this.failedScore) btns.push(h('button.btn', { onclick: () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true }) }, icon('chart'), 'View results'));
     btns.push(h('button.btn.danger', { onclick: () => this.quit() }, icon('back'), 'Quit'));
     const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
-      h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`)));
+      h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
+      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
+      s.mp ? null : h('div.pb-keys', h('span.kbd', '`'), ' hold to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -575,13 +710,14 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   },
   retry() {
     clearTimeout(this._cdT);
+    clearTimeout(this._retryHold);
     const p = this.params;
-    Screens.go('gameplay', { ...p, force: true }, { replace: true });
+    this.retryCount = (this.retryCount || 0) + 1;
+    Screens.go('gameplay', { ...p, force: true, quick: true }, { replace: true });
   },
   quit() {
     clearTimeout(this._cdT);
-    const s = this.s;
-    if (s && s.mode === 'replay' && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
+    if (this.params.replay && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
     Screens.go('songselect', { mapId: this.params.mapId }, { replace: true });
   },
   async fail(now) {
@@ -612,6 +748,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.releaseAll();
     const summary = s.engine.summary();
     if (s.mode === 'play') {
+      MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(true);
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
@@ -710,7 +847,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         this._padState[code] = now;
         const col = s.keyMap.get(code);
         if (col === undefined) return;
-        const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - Settings.get('audio.offset') * s.rate - Settings.get('input.latency') * s.rate;
+        const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
         this.press(col, now, t);
       });
     }
@@ -827,7 +964,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.newEngine(t);
     s.running = true;
     this.closePause();
-    Music.play(t - lead + Settings.get('audio.offset') * s.rate);
+    Music.play(t - lead + this.offsetMs() * s.rate);
   },
   async practiceSpeed(sp) {
     const s = this.s;

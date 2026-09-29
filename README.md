@@ -19,6 +19,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### First-run setup, player loader, new beatmap cards
+
+* **First-run setup:** the first time the game opens, a short osu!lazer-style setup walks you through it. It asks for your name, whether you've played osu! before (new players get a slower scroll speed and the key display; veterans get the hit error bar, counters and every advanced setting), and what you're playing on. **Good PC**, **Normal laptop** or **Chromebook / slow PC**: the game detects ChromeOS, CPU threads and memory, measures the browser's frame rate, and recommends one. The Chromebook preset turns on performance mode, lighter backgrounds, no menu blur and a render scale that fits the screen. Then you pick an accent colour, UI size, profile picture, volume and a few interface toggles. Scroll speed, direction, background dim and blur come next, with a live preview drawn by the real renderer and your skin. After that you set your 4K keys and audio offset (with calibration), pick or import a skin (`.osk`), and finish by browsing or importing beatmaps. Every step can be skipped, and you can run it again from **Settings → Maintenance**.
+* **Player loader:** before each play, the beatmap is shown with its cover, difficulty, stars, length, BPM and notes (adjusted for DT/HT), plus your mods and the loading progress. On the right are quick settings: background dim, blur and scroll speed (with a live background), and the beatmap offset. Hovering the settings holds the loader, as in lazer. `Space` starts straight away and `Esc` goes back. Retries use a short loader that shows the retry number. In multiplayer, the loader leaves just before the synchronised start.
+* **Beatmap offset:** each difficulty can have its own offset on top of the global one. After a play where you were consistently early or late, the loader offers **Calibrate using last play**, and the results screen offers a one-click fix.
+* **Hold to retry:** holding `` ` `` shows a retry bar that fills over half a second. The pause screen shows how many times you've retried.
+* **New Beatmap Explorer cards:** each card has a cover image with status, video and "In library" badges, play and favourite counts, the length, and a preview button on hover. Below the cover are the title, artist and mapper, a difficulty spectrum, the star range, the key counts and the main action. Clicking a card opens a beatmap set overlay (like lazer's) with a large cover, preview, download or play, and a difficulty picker. The picker shows each difficulty's length, BPM, note and long-note counts and bars for keys, HP, accuracy and star rating.
+
 ### Multiplayer: search from the room, automatic installs, your own difficulty
 
 * **Search beatmaps from the room:** the beatmap panel has a "Search beatmaps" button (also when no beatmap is selected yet) that opens the Browse screen (Beatmap Explorer) in "pick for this room" mode: every card gets a Pick button (host; online beatmaps download first) or a Suggest button (other players), then a difficulty menu, and you're taken back to the room. The room's side panel is just chat.
@@ -97,7 +105,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## Getting started
 
-1. Open `index.html`.
+1. Open `index.html`. The first-run setup asks a few quick questions (name, experience, device, look and feel, scroll speed, skin); skip it any time.
 2. Drag your skin (for example `《NM》 Kori 3.0.osk`) onto the window. It's imported, its `skin.ini` is parsed, and it's selected straight away.
 3. Drag one or more `.osz` beatmaps onto the window. You can also drop a folder of beatmaps, or loose `.osu` files together with their audio. The first playable difficulty opens in song select, and its preview starts playing.
 4. Press **Enter** to play.
@@ -113,6 +121,7 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 | Song select | `↑↓` difficulty · `←→` set · `Enter` play · `Ctrl+Enter` watch Auto · `F1` mods · `F2` random · `F3` options · `F4` practice · typing searches |
 | Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
+| Player loader | `Space` start now · `Esc` back to song select · hover the settings to hold |
 | Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
 | Practice | `[` / `]` set loop A/B · `\` clear loop · `Backspace` restart section · `←→` seek 5s · `-`/`=` offset |
 | Mod select | letter shortcuts shown on each mod · `Backspace` deselect all |
@@ -192,6 +201,8 @@ The end-to-end run checks:
   * Sudden Death failing.
   * The imported skin in use.
   * Practice speed changes.
+* **Player loader:** beatmap info and quick settings, `Space` to start, the beatmap offset applied, and hold-to-retry with the retry counter.
+* **First-run setup:** name validation, experience and device presets (including Chromebook detection), live accent colour, the gameplay preview, key rebinding, the skin list, and choices persisting without the setup coming back.
 * **Persistence:** everything survives a reload.
 * **Layout:** 720p, 16:10 and ultrawide, plus browser-zoom compensation.
 * **UI:** the lazer toolbar, main menu and the now-playing controls (pause, next, previous).

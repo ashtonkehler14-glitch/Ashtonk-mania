@@ -15,7 +15,7 @@ const App = {
       say('Loading beatmaps…');
       await BeatmapManager.init();
       await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
-      await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init()]);
+      await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init(), MapOffsets.init()]);
       say('Preparing stage…');
     } catch (e) {
       console.error(e);
@@ -39,7 +39,7 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
