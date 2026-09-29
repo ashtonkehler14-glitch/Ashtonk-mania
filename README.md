@@ -19,6 +19,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Neru fixes, Teto easter egg, reconnecting
+
+* **Neru's hands:** the cut-out no longer eats into her hands (the background removal stops at skin tones), and the faint border line at the bottom is gone.
+* **Easter egg:** click Neru 10 times quickly and she turns into Teto (`public/teto.png`). Another 10 clicks bring Neru back.
+* **Difficulty picker:** in a multiplayer room, "Your difficulty" only shows when the beatmap set has more than one playable difficulty.
+* **Reconnecting:** if your connection to a room drops, the room stays on screen with a small "Reconnecting…" marker while the game keeps retrying (1s, 2s, 4s… up to 10s apart). There's no error popup. When it gets back in you see "Reconnected to the room", and your difficulty and mods are sent again. If everyone left in the meantime, the room is reopened under the same code. If a match is still running, it waits for the match to end.
+
 ### Multiplayer mods and skip voting
 
 * **Mods in multiplayer:** the room's **Mods** button opens the mod select. Mods that don't change the song's speed (Hidden, Hard Rock, Mirror, Random…) are yours alone; everyone sees them next to your name. The room panel shows the room's **Speed** and **Your mods**.

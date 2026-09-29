@@ -17,7 +17,8 @@ const server = createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
   const file = p === '/' ? join(root, 'index.html') : join(root, p);
   try {
-    const data = readFileSync(file);
+    let data;
+    try { data = readFileSync(file); } catch { data = readFileSync(join(root, 'public', p)); } // bundled assets (neru.png…)
     res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript' }[extname(file)] || 'application/octet-stream' });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
@@ -435,6 +436,11 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   check('setup: skins are Kori / Custom / Import; Custom has shape and colour options', /^Kori,Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
   await sp.click('.setup-next'); await sp.waitForTimeout(600);
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
+  await sp.waitForFunction(() => { const i = document.querySelector('.home .neru:not([hidden]) img'); return i && /neru\.png$/.test(i.src); }, null, { timeout: 5000 });
+  await sp.waitForTimeout(300);
+  for (let i = 0; i < 10; i++) { await sp.click('.neru'); await sp.waitForTimeout(60); }
+  await sp.waitForTimeout(500);
+  check('easter egg: clicking Neru 10 times turns her into Teto', await sp.evaluate(() => /teto\.png$/.test(document.querySelector('.neru img').src) && AshtonkMania.NeruMascot.teto));
   await sp.evaluate(async () => {
     const c = document.createElement('canvas'); c.width = 40; c.height = 80; c.getContext('2d').fillRect(0, 0, 40, 80);
     await AshtonkMania.NeruMascot.setImage(await new Promise(r => c.toBlob(r, 'image/png')));

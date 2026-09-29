@@ -232,6 +232,16 @@ for (const p of [bob, alice]) {
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Easy', null, { timeout: 10000 });
 check('results show which difficulty each player played', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.rows.find(r => r.name === 'Bob').diff.version === 'Online Hard'));
 
+// a dropped connection reconnects on its own; the only notice is "Reconnected"
+await bob.evaluate(() => { document.querySelectorAll('#toasts .toast').forEach(t => t.remove()); AshtonkMania.Multiplayer.ws.close(); });
+await bob.waitForTimeout(150);
+const midDrop = await bob.evaluate(() => ({ reconnecting: !!AshtonkMania.Multiplayer.reconnecting, room: !!document.querySelector('.mp-room'), marker: !!document.querySelector('.mp-reconnecting'), toasts: document.querySelector('#toasts').textContent }));
+await bob.waitForFunction(() => !AshtonkMania.Multiplayer.reconnecting && AshtonkMania.Multiplayer.ws && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 15000 });
+await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b && b.diff && b.diff.version === 'Online Hard'; }, null, { timeout: 5000 }).catch(() => {});
+const afterDrop = await bob.evaluate(() => document.querySelector('#toasts').textContent);
+check('a dropped connection keeps the room on screen and reconnects quietly', midDrop.reconnecting && midDrop.room && midDrop.marker && !/Disconnected/.test(midDrop.toasts), JSON.stringify(midDrop));
+check('only "Reconnected" is shown, and the player\'s difficulty choice is restored', /Reconnected/.test(afterDrop) && !/Disconnected/.test(afterDrop) && await alice.evaluate(() => AshtonkMania.Multiplayer.room.players.some(p => p.diff && p.diff.version === 'Online Hard')), afterDrop);
+
 // leaving: the other player becomes host
 await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1 && AshtonkMania.Multiplayer.isHost(), null, { timeout: 5000 });

@@ -1194,6 +1194,8 @@ div.res-calib .i { color: var(--good); }
 .neru[hidden] { display: none; }
 .neru-img { display: block; height: 100%; width: auto; max-width: 32vw; object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
 .neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
+.neru.swap .neru-img { animation: neruSwap 520ms var(--ease-out); }
+@keyframes neruSwap { 0% { transform: none; } 48% { transform: scaleX(0) translateY(-10px); filter: brightness(2.2); } 52% { transform: scaleX(0) translateY(-10px); filter: brightness(2.2); } 100% { transform: none; } }
 @keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
 @keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
 @keyframes neruHop { 40% { transform: translateY(-14px) scale(1.02); } }
@@ -1209,3 +1211,4 @@ div.res-calib .i { color: var(--good); }
 .inv-who small { color: var(--muted); font-size: .75rem; }
 .inv-empty { padding: 14px; text-align: center; color: var(--muted); border-radius: 10px; background: rgba(255, 255, 255, .03); }
 .inv-link { align-self: flex-start; }
+.mp-reconnecting { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 4px 12px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .8rem; font-weight: 600; color: var(--text-2); align-self: center; }

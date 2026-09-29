@@ -12,7 +12,8 @@ const Multiplayer = {
   myDiffId: null,    // the difficulty (local map id) this player chose from the room's beatmap set
 
   available() { return /^https?:$/.test(location.protocol); },
-  inRoom() { return !!(this.ws && this.room); },
+  // (while reconnecting after a dropped connection the room stays on screen)
+  inRoom() { return !!(this.room && (this.ws || this.reconnecting)); },
   isHost() { return !!this.room && this.room.host === this.me; },
   opponent() { return this.room ? this.room.players.find(p => p.id !== this.me) || null : null; },
   self() { return this.room ? this.room.players.find(p => p.id === this.me) || null : null; },
@@ -35,14 +36,15 @@ const Multiplayer = {
     throw new Error('Couldn\'t find a match — try again.');
   },
 
-  connect(code, create, quick = false) {
-    this.leave(true);
+  connect(code, create, quick = false, rejoin = false) {
+    if (!rejoin) this.leave(true);
     return new Promise((resolve, reject) => {
       const u = new URL(`api/mp/room/${encodeURIComponent(code)}`, location.href);
       u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
-      this.ws = ws; this.code = code; this.quick = quick; this.chat = []; this.lastResults = null; this.opp = null;
+      this.ws = ws; this.code = code; this.quick = quick; this.opp = null;
+      if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
       ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, create })); this.ping(); };
@@ -55,14 +57,42 @@ const Multiplayer = {
       ws.onerror = () => fail('Couldn\'t reach the multiplayer server.');
       ws.onclose = () => {
         fail('Connection closed.');
-        if (this.ws !== ws) return;
+        if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
-        this.ws = null; this.room = null; this.stopKeepAlive();
-        if (wasIn) { Toast.err('Disconnected from the room'); Bus.emit('mp:changed'); if (Screens.currentName === 'multiplayer') MultiplayerScreen.render(); }
+        this.ws = null; this.stopKeepAlive();
+        // dropped: quietly keep trying to get back in (the only notice is "Reconnected")
+        if (wasIn) { this.startReconnect(); Bus.emit('mp:changed'); }
       };
     });
   },
+  /** Rejoin the room after the connection dropped, retrying with backoff until it works or the player leaves.
+   *  The server sees a fresh join, so this player's beatmap, difficulty and mods are sent again afterwards. */
+  startReconnect() {
+    if (this.reconnecting) return;
+    const me = this.self();
+    const rc = this.reconnecting = { code: this.code, quick: this.quick, tries: 0, create: false, mods: (me && me.mods) || [], diff: this.myDiffId, timer: 0 };
+    const attempt = async () => {
+      if (this.reconnecting !== rc) return;
+      try {
+        await this.connect(rc.code, rc.create, rc.quick, true);
+        if (this.reconnecting !== rc) return;
+        this.reconnecting = null;
+        this.syncHasMap();
+        if (rc.mods.length) this.send({ t: 'mods', mods: rc.mods });
+        if (rc.diff) this.chooseDiff(rc.diff);
+        Toast.ok('Reconnected to the room', rc.code);
+        Bus.emit('mp:changed');
+      } catch (e) {
+        if (this.reconnecting !== rc) return;
+        if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
+        rc.tries++;
+        rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
+      }
+    };
+    rc.timer = setTimeout(attempt, 600);
+  },
   leave(silent = false) {
+    if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
     this.stopKeepAlive();
     this.myDiffId = null; this.fetch = null;
     if (this.temp.size) this.cleanupTemp();
@@ -405,7 +435,8 @@ const MultiplayerScreen = {
     const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
     const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
-    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), invite, copy);
+    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
+    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, h('div.grow'), invite, copy);
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -434,10 +465,13 @@ const MultiplayerScreen = {
       const set = BeatmapManager.setById.get(local.setId);
       const diffs = set ? set.maps.filter(m => !m.problems.length).sort((a, b) => a.stars - b.stars) : [local];
       const mine = Multiplayer.myMap() || local;
-      const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version} · ${m.keys}K · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
-      sel.addEventListener('change', () => { UISounds.click(); Multiplayer.chooseDiff(sel.value); });
-      sel.addEventListener('keydown', e => e.stopPropagation());
-      diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
+      // a set with a single difficulty has nothing to choose (the picker would only look like it does something)
+      if (diffs.length > 1) {
+        const sel = h('select.select', { 'aria-label': 'Your difficulty' }, ...diffs.map(m => h('option', { value: m.id, selected: m.id === mine.id }, `${m.version} · ${m.keys}K · ★${m.stars.toFixed(2)}${m.id === local.id ? ' (room)' : ''}`)));
+        sel.addEventListener('change', () => { UISounds.click(); Multiplayer.chooseDiff(sel.value); });
+        sel.addEventListener('keydown', e => e.stopPropagation());
+        diffPick = h('label.mp-diff', h('span', 'Your difficulty'), sel);
+      }
     }
     // mods: the room's speed (DT, HT… — everyone must accept) and this player's own mods
     const myMods = (me && me.mods) || [];
