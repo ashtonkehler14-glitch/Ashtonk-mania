@@ -40,7 +40,7 @@ const waitBoot = async () => {
   await page.waitForTimeout(400);
   if (await page.$('.onboarding')) {
     await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
-    await page.waitForSelector('.setup-step-experience');
+    await page.waitForSelector('.setup-step-ask');
     await page.click('.onboarding .ob-skip'); await page.waitForTimeout(400);
   }
 };
@@ -52,7 +52,7 @@ check('first launch asks for a name', await page.evaluate(() => AshtonkMania.Pro
 check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
 check('osu!lazer toolbar: icon buttons only, no text tabs, no beatmap listing', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
-check('touch controls, hitsounds and Neru easter eggs removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
+check('touch controls, hitsounds and the old Neru easter-egg settings removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
 check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn').length === 4 && !document.querySelector('.continue, .lz-footer')));
 await shot('01-home-empty');
@@ -317,6 +317,28 @@ await shot('11b-explorer');
 await page.click('.ex-card[data-id="777"] .ex-action button');
 await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 2, null, { timeout: 15000 });
 check('explorer download imports the .osz into the library', true);
+{
+  // Web-Osu-Mania ordering: "Has leaderboard" + newest ranked first by default, results kept in the chosen order
+  const mk = (id, title, status, rankedDate, plays) => ({ id, title, titleUnicode: '', artist: 'A', artistUnicode: '', creator: 'M', source: '', status, rankedDate, playCount: plays, favourites: 0, video: false, nsfw: false,
+    diffs: [{ id: id * 10, mode: 3, version: '4K', stars: 2, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 10, lns: 0 }] });
+  const seen = [];
+  await page.unroute('**/api/search**');
+  await page.route('**/api/search**', r => { seen.push(new URL(r.request().url()).searchParams); r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false, sets: [
+    mk(801, 'Bravo', 'ranked', '2023-05-01T00:00:00Z', 5), mk(802, 'Alpha', 'loved', '2024-01-01T00:00:00Z', 50), mk(803, 'Charlie', 'graveyard', null, 9), mk(804, 'Delta', 'ranked', '2021-01-01T00:00:00Z', 500)] }) }); });
+  await page.evaluate(() => AshtonkMania.ExplorerScreen.newSearch());
+  await page.waitForSelector('.ex-card[data-id="801"]');
+  const order1 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
+  const p0 = seen[seen.length - 1];
+  check('explorer: default is "Has leaderboard", newest ranked first (ranked_desc)', order1 === '802,801,804' && p0.get('sort') === 'ranked_desc' && p0.get('status') === 'leaderboard', `${order1} ${p0}`);
+  await page.click('.ex-chip:text-is("Title")');
+  await page.waitForTimeout(300);
+  const order2 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
+  await page.click('.ex-chip:text-matches("^Title")');
+  await page.waitForTimeout(300);
+  const order3 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
+  check('explorer: sorting by title is A→Z, clicking again flips it', order2 === '802,801,804' && order3 === '804,801,802' && seen[seen.length - 1].get('sort') === 'title_desc', `${order2} / ${order3}`);
+  await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; });
+}
 await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => /Standard/.test(x.title)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
 
 // pp tracking
@@ -378,42 +400,47 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await zctx.close();
 }
 
-// first-run setup wizard on a fresh profile, as a Chromebook
+// first-run setup wizard on a fresh profile, on a Chromebook
 {
-  const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, userAgent: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' });
+  const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const sp = await sctx.newPage();
   sp.on('pageerror', e => errors.push('setup: ' + e.message));
   await sp.goto(url);
   await sp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
   await sp.click('.setup-next');
-  check('setup: a name is required', /Pick a name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
+  check('setup: a name is required', /name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
   await sp.fill('.ob-name', 'Newbie'); await sp.keyboard.press('Enter');
-  await sp.waitForSelector('.setup-step-experience');
-  await sp.click('.setup-choice[data-id="new"]');
-  check('setup: "I\'m new" slows the scroll speed and shows the input display', await sp.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed') === 16 && AshtonkMania.Settings.get('input.keyOverlay') === true));
-  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-device');
-  await sp.waitForSelector('.setup-choice[data-id="low"] .setup-rec', { timeout: 5000 }).catch(() => {});
-  check('setup: Chromebook is detected and recommended', !!(await sp.$('.setup-choice[data-id="low"] .setup-rec')) && /ChromeOS/.test(await sp.textContent('.setup-detect')));
-  await sp.click('.setup-choice[data-id="low"]');
-  check('setup: Chromebook preset turns on performance mode', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 0));
-  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-look');
-  await sp.click('.setup-swatch >> nth=1');
-  check('setup: accent colour applies live', await sp.evaluate(() => document.documentElement.dataset.theme === 'kori'));
+  await sp.waitForSelector('.setup-step-ask');
+  check('setup: after the name it asks whether to set up (set up / skip)', !!(await sp.$('.setup-choice.primary')) && !!(await sp.$('.setup-choice.ob-skip')) && !(await sp.$('.setup-step-experience')));
+  await sp.click('.setup-choice.primary');
+  await sp.waitForSelector('.setup-step-device');
+  check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
+  await sp.click('.setup-choice[data-id="chromebook"]');
+  await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
+  check('setup: Chromebook turns on performance mode and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 0));
+  const swatches = await sp.$$eval('.setup-swatch span', a => a.map(x => x.textContent).join(','));
+  await sp.click('.setup-swatch >> nth=2');
+  check('setup: accent colours are Kori, Neru, Teto, Miku and apply live; size is a slider', swatches === 'Kori,Neru,Teto,Miku' && await sp.evaluate(() => document.documentElement.dataset.theme === 'teto') && !!(await sp.$('.setup-step-look input.slider')), swatches);
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
   await sp.waitForTimeout(600);
   const pvDrawn = await sp.evaluate(() => { const c = document.querySelector('.setup-pv canvas'); return c && c.width > 50 && c.height > 50; });
-  check('setup: live gameplay preview renders', pvDrawn);
-  await sp.click('.setup-key >> nth=0'); await sp.keyboard.press('KeyA');
-  check('setup: keys can be rebound', await sp.evaluate(() => AshtonkMania.Settings.keybinds(4)[0][0] === 'KeyA'));
+  check('setup: live gameplay preview renders; scroll speed defaults to 22', pvDrawn && await sp.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed') === 22));
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-skin');
-  check('setup: skin step lists the installed skins', (await sp.$$('.setup-skinitem')).length >= 3);
-  await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-done');
-  await sp.click('.setup-next'); await sp.waitForTimeout(500);
-  check('setup: finishing closes it and marks the profile onboarded', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
+  const skinNames = await sp.$$eval('.setup-skinitem b', a => a.map(x => x.textContent).join(','));
+  await sp.click('.setup-skinitem[data-id="default"]');
+  await sp.waitForSelector('.setup-custom');
+  await sp.click('.setup-custom .setup-seg >> nth=0 >> button >> nth=3');
+  await sp.click('.setup-custom .setup-seg >> nth=1 >> button >> nth=1');
+  check('setup: skins are Kori / Custom / Import; Custom has shape and colour options', /^Kori,Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
+  await sp.click('.setup-next'); await sp.waitForTimeout(600);
+  check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
+  await sp.click('.neru'); await sp.waitForTimeout(200);
+  check('zako Neru sits on the main menu and talks when clicked', await sp.evaluate(() => document.querySelector('.neru').classList.contains('talk') && document.querySelector('.neru-bubble').textContent.length > 3));
+  check('no FPS box in the corner when the FPS counter is off', await sp.evaluate(() => getComputedStyle(document.querySelector('#fps-counter')).display === 'none'));
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await sp.waitForTimeout(600);
-  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed') === 16 && AshtonkMania.Settings.get('graphics.performanceMode') === true));
+  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('ui.theme') === 'teto'));
   await sctx.close();
 }
 

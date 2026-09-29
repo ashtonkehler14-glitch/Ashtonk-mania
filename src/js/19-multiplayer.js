@@ -212,6 +212,94 @@ const Multiplayer = {
   },
 };
 
+/** Who's online, for invites: one WebSocket to the Worker (/api/mp/presence) for the whole session, which
+ *  reconnects on its own. Players show as in the menus, in a room or playing. */
+const Presence = {
+  ws: null, me: null, players: [], retry: 0, started: false,
+  start() {
+    if (this.started || !Multiplayer.available()) return;
+    this.started = true;
+    // only where the Worker serves multiplayer (a plain static copy has no /api)
+    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    const push = () => this.pushStatus();
+    Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
+  },
+  status() { return Screens.currentName === 'gameplay' ? 'playing' : Multiplayer.inRoom() ? 'room' : 'menu'; },
+  connect() {
+    const u = new URL('api/mp/presence', location.href);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    try { ws = new WebSocket(u); } catch { this.later(); return; }
+    this.ws = ws;
+    ws.onopen = () => {
+      this.retry = 0;
+      this._sent = this.status(); this._name = ProfileManager.profile.name;
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent }));
+      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: 'ping' }), 25000);
+    };
+    ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.t === 'welcome') this.me = m.you;
+      else if (m.t === 'online') { this.players = Array.isArray(m.players) ? m.players : []; Bus.emit('presence:changed'); }
+      else if (m.t === 'invite') this.onInvite(m);
+      else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
+      else if (m.t === 'error') Toast.err(m.msg);
+    };
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ws = null; this.players = []; clearInterval(this._ping);
+      Bus.emit('presence:changed');
+      this.later();
+    };
+  },
+  later() { clearTimeout(this._t); this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
+  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
+  pushStatus() {
+    const st = this.status(), name = ProfileManager.profile.name;
+    if (st === this._sent && name === this._name) return;
+    this._sent = st; this._name = name;
+    this.send({ t: 'status', status: st, name });
+  },
+  others() { return this.players.filter(p => p.id !== this.me); },
+  invite(id) { if (Multiplayer.inRoom()) this.send({ t: 'invite', to: id, code: Multiplayer.room.code }); },
+  async onInvite(m) {
+    const from = m.from && m.from.name || 'Someone';
+    if (Multiplayer.inRoom() && Multiplayer.room.code === m.code) return;
+    if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running) {
+      Toast.show(`${from} invited you to their room`, `Room ${m.code} — join it from Multiplayer after this play.`);
+      return;
+    }
+    UISounds.play('check-on');
+    const ok = await Dialog.confirm(`${from} invited you!`, `Join their multiplayer room (${m.code})?${Multiplayer.inRoom() ? ' You\'ll leave your current room.' : ''}`, { ok: 'Join', cancel: 'Not now' });
+    if (!ok) return;
+    try { await Multiplayer.join(m.code); if (Screens.currentName !== 'multiplayer') await Screens.go('multiplayer'); Toast.ok('Joined the room', m.code); }
+    catch (e) { Toast.err('Couldn\'t join the room', e.message); }
+  },
+  /** The room's Invite button: invite someone who's online, or share a link. */
+  openInvite() {
+    if (!Multiplayer.inRoom()) return;
+    const invited = new Set();
+    const list = h('div.inv-list');
+    const paint = () => {
+      const others = this.others();
+      clearEl(list).append(...(others.length ? others.map(p => {
+        const busy = p.status === 'playing';
+        const done = invited.has(p.id);
+        return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
+          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
+          h(`button.btn.sm${done ? '' : '.primary'}`, { disabled: done || busy, onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : 'Invite'));
+      }) : [h('div.inv-empty', this.ws ? 'Nobody else is online right now.' : 'Connecting…')]));
+    };
+    paint();
+    const off = Bus.on('presence:changed', paint);
+    const o = Dialog.custom(`Invite to room ${Multiplayer.room.code}`, h('div.inv',
+      h('div.inv-label', 'Online players'), list,
+      h('div.inv-label', 'Or send a link'),
+      h('button.btn.inv-link', { onclick: () => { Multiplayer.invite(); } }, icon('upload'), 'Copy invite link')), [{ label: 'Done' }]);
+    const close = o.close; o.close = () => { off(); close(); };
+  },
+};
+
 // Leaving the multiplayer area (anything but the room, song select, gameplay or results) leaves the room.
 Bus.on('screen:changed', name => {
   if (Multiplayer.inRoom() && !['multiplayer', 'songselect', 'gameplay', 'results', 'explore'].includes(name)) { Multiplayer.leave(); Toast.show('Left the multiplayer room'); }
@@ -299,7 +387,7 @@ const MultiplayerScreen = {
   refreshRoom() {
     const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
-    const invite = h('button.btn.sm.primary', { title: 'Copy (or share) a link that joins this room', onclick: () => { UISounds.click(); Multiplayer.invite(); } }, icon('multi'), 'Invite');
+    const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), invite, copy);
 
     // beatmap panel

@@ -10,14 +10,14 @@ const HomeScreen = {
     this.leftBtns = h('div.lz-buttons.lz-left');
     this.rightBtns = h('div.lz-buttons.lz-right');
     this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar));
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar), ZakoNeru.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
     this.loop();
     return el;
   },
-  leave() { cancelAnimationFrame(this._raf); },
+  leave() { cancelAnimationFrame(this._raf); ZakoNeru.stop(); },
 
   /** Button definitions (colours are osu!lazer's main-menu colours). */
   menuButtons(state) {

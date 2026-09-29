@@ -94,7 +94,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'lazer', o: [['lazer', 'osu! pink (default)'], ['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal'], ['midnight', 'Midnight blue']] },
+  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
   { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
@@ -103,7 +103,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
-  { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Ashtonk!mania Default skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Custom skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.hue', l: 'Note colour (Custom skin)', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Accent colour' : `hue ${v}` },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
   { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
@@ -130,6 +131,8 @@ const Settings = {
     const v = this.values;
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
+    // v4: the accent colours are Kori, Neru, Teto and Miku only
+    if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
     this.applyUI();
   },
   get(k) {

@@ -19,9 +19,25 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Simpler setup, Custom skin, invites, Zako Neru
+
+* **Simpler first-run setup:** you type your name, then choose **Set it up** or **Skip**. Setting up takes four short steps:
+  1. **PC** or **Chromebook**. Chromebook turns on performance mode, lighter backgrounds, no menu blur and a render scale that fits the screen.
+  2. **Colour and size:** pick an accent colour and set the interface size with a slider.
+  3. **Scroll speed and background:** scroll speed (22 by default), background dim and blur, and scroll direction, all with a live preview.
+  4. **Skin:** **Kori**, **Custom**, or **Import a skin**.
+
+  **Finish** takes you straight to the main menu. You can run it again from **Settings → Maintenance**.
+* **Accent colours:** Kori (the default), Neru, Teto and Miku. The logo follows the accent colour.
+* **Custom skin:** the built-in skin is now called Custom. It has the note shapes from Web-Osu-Mania (bars, circles, diamonds and arrows) and a note colour you can pick with a hue slider or match to your accent colour, using Web-Osu-Mania's single-colour lane scheme. You can also turn darker hold notes on or off.
+* **Invites:** the room's **Invite** button lists players who are online right now, marked as online, in a room or playing. You can invite any of them, and they get a **Join** prompt. You can still copy an invite link instead. Presence runs on the existing Matchmaker Durable Object, so no new migration is needed.
+* **Beatmap Explorer ordering like Web-Osu-Mania:** it uses osu!'s categories, and the default is **Has leaderboard**. Sorting uses `criteria_asc/desc` (newest ranked first by default); clicking the active sort flips its direction, and Relevance appears once you type a search. The mirror that served the first page also serves the following pages. Results are re-sorted after each page, so the order stays consistent even when a mirror ignores the sort.
+* **Zako Neru:** a little chibi Neru stands in the corner of the main menu with her flip phone. She teases you ("zako~ ♡") when you click her, and pipes up on her own every so often.
+* **Fixes:** the empty FPS box no longer sits in the bottom-right corner when the FPS counter is off. The explorer's header no longer floats as a dimmed box over the beatmap cards.
+
 ### First-run setup, player loader, new beatmap cards
 
-* **First-run setup:** the first time the game opens, a short osu!lazer-style setup walks you through it. It asks for your name, whether you've played osu! before (new players get a slower scroll speed and the key display; veterans get the hit error bar, counters and every advanced setting), and what you're playing on. **Good PC**, **Normal laptop** or **Chromebook / slow PC**: the game detects ChromeOS, CPU threads and memory, measures the browser's frame rate, and recommends one. The Chromebook preset turns on performance mode, lighter backgrounds, no menu blur and a render scale that fits the screen. Then you pick an accent colour, UI size, profile picture, volume and a few interface toggles. Scroll speed, direction, background dim and blur come next, with a live preview drawn by the real renderer and your skin. After that you set your 4K keys and audio offset (with calibration), pick or import a skin (`.osk`), and finish by browsing or importing beatmaps. Every step can be skipped, and you can run it again from **Settings → Maintenance**.
+* **First-run setup:** the first time the game opens, a short setup walks you through the basics. It's now the simpler flow above.
 * **Player loader:** before each play, the beatmap is shown with its cover, difficulty, stars, length, BPM and notes (adjusted for DT/HT), plus your mods and the loading progress. On the right are quick settings: background dim, blur and scroll speed (with a live background), and the beatmap offset. Hovering the settings holds the loader, as in lazer. `Space` starts straight away and `Esc` goes back. Retries use a short loader that shows the retry number. In multiplayer, the loader leaves just before the synchronised start.
 * **Beatmap offset:** each difficulty can have its own offset on top of the global one. After a play where you were consistently early or late, the loader offers **Calibrate using last play**, and the results screen offers a one-click fix.
 * **Hold to retry:** holding `` ` `` shows a retry bar that fills over half a second. The pause screen shows how many times you've retried.
@@ -105,7 +121,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## Getting started
 
-1. Open `index.html`. The first-run setup asks a few quick questions (name, experience, device, look and feel, scroll speed, skin); skip it any time.
+1. Open `index.html`. Type your name, then set the game up (PC or Chromebook, colour, scroll speed, skin) or skip straight to the menu.
 2. Drag your skin (for example `《NM》 Kori 3.0.osk`) onto the window. It's imported, its `skin.ini` is parsed, and it's selected straight away.
 3. Drag one or more `.osz` beatmaps onto the window. You can also drop a folder of beatmaps, or loose `.osu` files together with their audio. The first playable difficulty opens in song select, and its preview starts playing.
 4. Press **Enter** to play.
@@ -186,7 +202,7 @@ node tests/e2e.mjs --shots          # headless Chromium end-to-end run (Playwrig
 MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs   # two browsers play a match against the real Worker + Durable Objects
 ```
 
-`tests/mp-e2e.mjs` needs `miniflare` installed somewhere (`npm i miniflare` in any folder, then point `MINIFLARE_DIR` at it). It runs `worker/index.js` in workerd and checks rooms, chat, map selection, ready/start, the synchronised start, the live scoreboard, results, forfeits, room song search (library and online, suggestions and picks), host hand-over and quick match.
+`tests/mp-e2e.mjs` needs `miniflare` installed somewhere (`npm i miniflare` in any folder, then point `MINIFLARE_DIR` at it). It runs `worker/index.js` in workerd and checks rooms, chat, map selection, ready/start, the synchronised start, the live scoreboard, results, forfeits, room song search (library and online, suggestions and picks), host hand-over, quick match, and invites (to online players and by link).
 
 The end-to-end run checks:
 
@@ -202,7 +218,8 @@ The end-to-end run checks:
   * The imported skin in use.
   * Practice speed changes.
 * **Player loader:** beatmap info and quick settings, `Space` to start, the beatmap offset applied, and hold-to-retry with the retry counter.
-* **First-run setup:** name validation, experience and device presets (including Chromebook detection), live accent colour, the gameplay preview, key rebinding, the skin list, and choices persisting without the setup coming back.
+* **First-run setup:** name validation, the set-up-or-skip choice, the PC/Chromebook presets, the four accent colours and size slider, the gameplay preview, the Kori/Custom/Import skin step with Custom's options, finishing on the main menu, and choices persisting without the setup coming back.
+* **Explorer ordering:** the default "Has leaderboard" category with newest ranked first, and title sorting in both directions.
 * **Persistence:** everything survives a reload.
 * **Layout:** 720p, 16:10 and ultrawide, plus browser-zoom compensation.
 * **UI:** the lazer toolbar, main menu and the now-playing controls (pause, next, previous).

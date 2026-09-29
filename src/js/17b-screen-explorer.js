@@ -7,8 +7,8 @@ const OnlineBeatmaps = {
   apiAvailable: null,
   PAGE: 40,
   DIRECT_SEARCH: [
-    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, graveyard: -2 })[p.status] ?? 1}` : ''}`,
-    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
+    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}&sort=${p.sort}`,
+    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}&sort=${p.sort}`,
   ],
   DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
 
@@ -44,15 +44,18 @@ const OnlineBeatmaps = {
       status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
+      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0),
     };
   },
   async search(p) {
+    p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
     const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
     if (p.keys.length) params.set('keys', p.keys.join(','));
     if (p.sort) params.set('sort', p.sort);
     if (p.minStars > 0) params.set('minStars', p.minStars);
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
+    if (p.provider) params.set('provider', p.provider);
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
@@ -67,7 +70,7 @@ const OnlineBeatmaps = {
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
-        const sets = arr.map(x => this.normalize(x)).filter(Boolean)
+        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
@@ -129,12 +132,35 @@ class OnlineBeatmapProvider extends BeatmapProvider {
 }
 BeatmapProviders.register(new OnlineBeatmapProvider());
 
-const EXPLORE_STATUSES = [['any', 'Any'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['graveyard', 'Graveyard']];
-const EXPLORE_SORTS = [['', 'Relevance'], ['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites']];
+// Categories and sorting as on osu! and Web-Osu-Mania: "Has leaderboard", newest ranked first by default.
+const EXPLORE_STATUSES = [['any', 'Any'], ['leaderboard', 'Has leaderboard'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['wip', 'WIP'], ['graveyard', 'Graveyard']];
+const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites'], ['relevance', 'Relevance']];
+function statusMatches(set, status) {
+  if (status === 'any') return true;
+  if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
+  if (status === 'ranked') return set.status === 'ranked' || set.status === 'approved';
+  return set.status === status;
+}
+/** Order loaded results by the chosen criterion (stable), so pages from any source line up the same way. */
+function sortOnlineSets(list, sort, dir) {
+  const date = s => Date.parse(s.rankedDate || s.lastUpdated || '') || 0;
+  const key = {
+    title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(),
+    difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0, ranked: date, rating: s => s.rating || 0,
+    plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
+  }[sort];
+  if (!key) return list; // relevance: keep the server's order
+  const sign = dir === 'asc' ? 1 : -1;
+  return list.map((s, i) => [s, key(s), i]).sort((a, b) => {
+    const x = a[1], y = b[1];
+    const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
+    return c ? c * sign : a[2] - b[2];
+  }).map(e => e[0]);
+}
 
 const ExplorerScreen = {
   tab: 'explore',
-  state: { q: '', keys: [], status: 'ranked', sort: '', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
+  state: { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
   results: [], page: 0, hasMore: false, loading: false, cursor: null,
   downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
   audio: null,
@@ -154,7 +180,8 @@ const ExplorerScreen = {
       clearEl(this.filters).append(
         chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}K`]), [10, '10K']], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v]; }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
-        chipRow('Sort', EXPLORE_SORTS, v => st.sort === v, v => { if (st.sort === v && v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; st.sort = v; }),
+        chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
+          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = v === 'title' || v === 'artist' ? 'asc' : 'desc'; } }),
         h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
         h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips', h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'))));
     };
@@ -192,17 +219,22 @@ const ExplorerScreen = {
     return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
   },
   starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
-  sortParam() { const st = this.state; return st.sort ? `${st.sort}_${st.dir}` : ''; },
-  async newSearch() { this.page = 0; this.results = []; this.cursor = null; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore(); },
+  sortParam() { const st = this.state; return `${st.sort || 'ranked'}_${st.dir}`; },
+  async newSearch() {
+    const st = this.state;
+    if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
+    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+  },
   async loadMore() {
     const tok = this.token || (this.token = {});
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
-      this.results.push(...d.sets.filter(s => !seen.has(s.id)));
+      this.results = sortOnlineSets([...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))], st.sort, st.dir);
+      if (d.provider != null) this.provider = d.provider;
       this.hasMore = !!d.hasMore && d.sets.length > 0;
       this.cursor = d.cursor || null;
       this.page++;

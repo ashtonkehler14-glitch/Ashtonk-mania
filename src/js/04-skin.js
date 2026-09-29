@@ -206,8 +206,8 @@ const LANE_ARROW_DIRECTIONS = [
 /** Built-in "Ashtonk!mania" default skin: procedurally generated Kori-inspired textures + synthesized sounds. */
 class DefaultSkin extends Skin {
   constructor() {
-    super({ id: 'default', name: 'Ashtonk!mania Default', author: 'Ashtonk!mania', version: 'latest', files: [], builtin: true,
-      ini: { general: { Name: 'Ashtonk!mania Default', Author: 'Ashtonk!mania', Version: 'latest' }, colours: {}, fonts: {}, mania: {}, maniaList: [] } });
+    super({ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', files: [], builtin: true,
+      ini: { general: { Name: 'Custom', Author: 'Ashtonk!mania', Version: 'latest' }, colours: {}, fonts: {}, mania: {}, maniaList: [] } });
     this.gen = new Map();
   }
   get builtin() { return true; }
@@ -232,7 +232,24 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
-  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'lazer'] || THEME_PALETTES.lazer; }
+  static palette() {
+    const hue = typeof Settings !== 'undefined' ? Settings.get('skin.hue') : -1;
+    if (hue >= 0) return DefaultSkin.huePalette(hue);
+    return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+  }
+  /** Note colours from one hue, as Web-Osu-Mania's "simple" colour mode (MIT © 2024 Danny Duong): coloured
+   *  primary columns, near-white secondary columns and a contrasting centre column. */
+  static huePalette(hue) {
+    const hsl = (h, s, l) => {
+      s /= 100; l /= 100;
+      const f = n => { const k = (n + h / 30) % 12; return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
+    };
+    const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+    const centre = hue > 35 && hue < 75 ? 212 : 62;
+    const p = hsl(hue, 80, 69), c = hsl(centre, 80, 69);
+    return { n1: [hex(hsl(hue, 8, 98)), hex(hsl(hue, 6, 76))], n2: [hex(p), hex(hsl(hue, 58, 54))], s: [hex(c), hex(hsl(centre, 58, 54))], key: hex(p), glow: p, glowS: c };
+  }
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
     const P = DefaultSkin.palette();
@@ -517,14 +534,14 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
-    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === '*') this.invalidateGenerated(); });
+    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
     await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
-    return [{ id: 'default', name: 'Ashtonk!mania Default', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
+    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
   },
 
   instance(id) {

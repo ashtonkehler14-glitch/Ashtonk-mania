@@ -27,6 +27,20 @@ test('search falls back to the next mirror and filters by key count', async () =
   assert.ok(calls[1].includes('key%3D7') || calls[1].includes('key=7'));
 });
 
+test('search sends osu!-style sort, filters "has leaderboard" and pins the mirror for later pages', async () => {
+  const calls = [];
+  const sets = [osuSet(7), { ...osuSet(8), status: 'graveyard' }, { ...osuSet(9), status: 'loved' }];
+  const fetchImpl = async url => { calls.push(url); return res(sets); };
+  const d = await (await handleSearch(new URL('https://x/api/search?q=a'), {}, fetchImpl)).json();
+  assert.ok(calls[0].includes('sort=ranked_desc'));
+  assert.deepEqual(d.sets.map(s => s.id), [7, 9]);
+  assert.equal(d.provider, 0);
+  await handleSearch(new URL('https://x/api/search?q=a&sort=title_asc&page=1&provider=1'), {}, fetchImpl);
+  assert.ok(calls[1].includes('nerinyan') && calls[1].includes('sort=title_asc'));
+  await handleSearch(new URL('https://x/api/search?q=a&sort=evil;drop'), {}, fetchImpl);
+  assert.ok(calls[2].includes('sort=ranked_desc'));
+});
+
 test('search reports every provider failure', async () => {
   const r = await handleSearch(new URL('https://x/api/search?q=a'), {}, async () => { throw new Error('offline'); });
   assert.equal(r.status, 502);

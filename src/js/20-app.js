@@ -39,13 +39,14 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
     this.globalLoop();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
+    Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));

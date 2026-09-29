@@ -46,7 +46,7 @@ async function player(name) {
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
-  if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter'); await page.waitForSelector('.setup-step-experience'); await page.click('.onboarding .ob-skip'); await page.waitForTimeout(300); }
+  if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter'); await page.waitForSelector('.setup-step-ask'); await page.click('.onboarding .ob-skip'); await page.waitForTimeout(300); }
   await page.evaluate(async () => {
     const b = await (await fetch('/tests/fixtures/test-set.osz')).blob();
     await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]);
@@ -67,6 +67,17 @@ await alice.click('.mp-card:nth-child(2) button');
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 const code = await alice.evaluate(() => AshtonkMania.Multiplayer.room.code);
 check('room created with a code', /^[A-Z0-9]{6}$/.test(code), code);
+// Invite: Alice sees Bob online and invites him; Bob gets an invite prompt (he declines, then joins with the code)
+await alice.waitForFunction(() => AshtonkMania.Presence.others().some(p => p.name === 'Bob'), null, { timeout: 10000 });
+await alice.click('.mp-invite');
+await alice.waitForSelector('.inv-row');
+check('invite dialog lists online players and offers a link', await alice.evaluate(() => [...document.querySelectorAll('.inv-row b')].some(b => b.textContent === 'Bob') && !!document.querySelector('.inv-link')));
+await alice.click('.inv-row .btn.primary');
+await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice invited you/.test(x.textContent)), null, { timeout: 5000 });
+check('the invited player gets a Join prompt', await bob.evaluate(code => document.querySelector('.dialog .body').textContent.includes(code), code));
+await bob.click('.dialog .btn.ghost');
+await alice.click('.dialog .actions .btn');
+await alice.waitForTimeout(300);
 await bob.fill('.mp-code', code);
 await bob.click('.mp-card:nth-child(3) .btn');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
@@ -229,9 +240,11 @@ await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1, null, { timeout: 5000 });
 const link = await alice.evaluate(() => AshtonkMania.Multiplayer.inviteLink());
 if (!(await alice.evaluate(() => !!navigator.share))) {
-  await alice.click('.mp-head .btn.primary');
+  await alice.click('.mp-invite');
+  await alice.click('.inv-link');
   await alice.waitForTimeout(300);
-  check('Invite copies the room link', await alice.evaluate(async l => (await navigator.clipboard.readText()) === l, link), link);
+  await alice.click('.dialog .actions .btn');
+  check('Invite → "Copy invite link" copies the room link', await alice.evaluate(async l => (await navigator.clipboard.readText()) === l, link), link);
 }
 await bob.goto(link);
 await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Multiplayer.inRoom(), null, { timeout: 20000 });

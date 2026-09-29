@@ -12,9 +12,10 @@ const UA = { 'User-Agent': 'Ashtonk!mania beatmap explorer (+https://github.com/
 
 export const MIRRORS = {
   search: [
-    { name: 'Mino (catboy.best)', url: p => `https://catboy.best/api/v2/search?q=${enc(p.q)}&query=${enc(p.q)}&mode=3&m=3&limit=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${p.status !== 'any' ? `&status=${statusNum(p.status)}&s=${p.status}` : ''}${p.sort ? `&sort=${p.sort}` : ''}` },
-    { name: 'NeriNyan', url: p => `https://api.nerinyan.moe/search?q=${enc(p.q)}&m=3&ps=${PAGE_SIZE}&p=${p.page}${p.status !== 'any' ? `&s=${p.status}` : '&s=all'}${p.sort ? `&sort=${p.sort}` : ''}&nsfw=true` },
-    { name: 'osu.direct', url: p => `https://osu.direct/api/v2/search?query=${enc(p.q)}&q=${enc(p.q)}&mode=3&amount=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${p.status !== 'any' ? `&status=${statusNum(p.status)}` : ''}${p.sort ? `&sort=${p.sort}` : ''}` },
+    // (sort is osu!'s "<criteria>_<asc|desc>", e.g. ranked_desc — the default, as on osu! and Web-Osu-Mania)
+    { name: 'Mino (catboy.best)', url: p => `https://catboy.best/api/v2/search?q=${enc(p.q)}&query=${enc(p.q)}&mode=3&m=3&limit=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}&s=${p.status}` : ''}&sort=${p.sort}` },
+    { name: 'NeriNyan', url: p => `https://api.nerinyan.moe/search?q=${enc(p.q)}&m=3&ps=${PAGE_SIZE}&p=${p.page}${specificStatus(p) ? `&s=${p.status}` : p.status === 'leaderboard' ? '&s=ranked,approved,qualified,loved' : '&s=all'}&sort=${p.sort}&nsfw=true` },
+    { name: 'osu.direct', url: p => `https://osu.direct/api/v2/search?query=${enc(p.q)}&q=${enc(p.q)}&mode=3&amount=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}` : ''}&sort=${p.sort}` },
   ],
   download: [
     { name: 'Mino (catboy.best)', url: id => `https://catboy.best/d/${id}` },
@@ -27,6 +28,10 @@ export const MIRRORS = {
 const enc = s => encodeURIComponent(s || '');
 const STATUS_NUM = { ranked: 1, approved: 2, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 };
 const statusNum = s => STATUS_NUM[s] ?? 1;
+/** "Has leaderboard" (osu!'s default category) and "Any" aren't a single status on the mirrors. */
+const specificStatus = p => p.status !== 'any' && p.status !== 'leaderboard';
+const LEADERBOARD = new Set(['ranked', 'approved', 'qualified', 'loved']);
+export const SORT_CRITERIA = ['title', 'artist', 'difficulty', 'ranked', 'rating', 'plays', 'favourites', 'relevance'];
 const STATUS_NAME = { '-2': 'graveyard', '-1': 'wip', 0: 'pending', 1: 'ranked', 2: 'approved', 3: 'qualified', 4: 'loved' };
 const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', ...extra } });
 
@@ -55,7 +60,9 @@ export function normalizeSet(raw) {
     status: typeof st === 'number' || /^-?\d+$/.test(String(st)) ? (STATUS_NAME[st] || 'pending') : String(st || 'pending'),
     playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
     video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw,
-    rankedDate: raw.ranked_date ?? raw.RankedDate ?? null,
+    rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? raw.ApprovedDate ?? null,
+    lastUpdated: raw.last_updated ?? raw.LastUpdate ?? raw.submitted_date ?? null,
+    rating: Number(raw.rating ?? raw.Rating ?? 0),
     diffs,
   };
 }
@@ -89,14 +96,24 @@ export function buildParams(url) {
   return {
     q: [(sp.get('q') || '').slice(0, 200), ...extra].filter(Boolean).join(' '),
     rawQ: (sp.get('q') || '').slice(0, 200),
-    keys, status: sp.get('status') || 'ranked', sort: sp.get('sort') || '',
+    keys, status: sp.get('status') || 'leaderboard', sort: validSort(sp.get('sort')),
     page: Math.max(0, Math.min(200, parseInt(sp.get('page') || '0', 10) || 0)),
     minStars: parseFloat(sp.get('minStars') || '0') || 0, maxStars: parseFloat(sp.get('maxStars') || '99') || 99,
     cursor: sp.get('cursor') || '',
+    // the mirror that served page 0 serves the following pages too, so the order stays consistent
+    provider: Math.max(0, Math.min(MIRRORS.search.length - 1, parseInt(sp.get('provider') || '0', 10) || 0)),
   };
 }
+/** "<criteria>_<asc|desc>" (osu! API / Web-Osu-Mania); anything else falls back to ranked_desc. */
+export function validSort(s) {
+  const m = /^([a-z]+)_(asc|desc)$/.exec(s || '');
+  return m && SORT_CRITERIA.includes(m[1]) ? s : 'ranked_desc';
+}
 export function postFilter(sets, p) {
-  return sets.map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars - 0.005 && d.stars <= p.maxStars + 0.005) }))
+  const statusOk = s => p.status === 'any' ? true : p.status === 'leaderboard' ? LEADERBOARD.has(s.status)
+    : p.status === 'ranked' ? s.status === 'ranked' || s.status === 'approved' : s.status === p.status;
+  return sets.filter(statusOk)
+    .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars - 0.005 && d.stars <= p.maxStars + 0.005) }))
     .filter(s => s.diffs.length);
 }
 
@@ -107,8 +124,8 @@ export async function handleSearch(url, env, fetchImpl = fetch) {
     try {
       const token = await getOfficialToken(env, fetchImpl);
       const qs = new URLSearchParams({ m: '3', q: p.q });
-      if (p.status !== 'ranked') qs.set('s', p.status === 'any' ? 'any' : p.status);
-      if (p.sort) qs.set('sort', p.sort);
+      if (p.status !== 'leaderboard') qs.set('s', p.status); // osu!'s default category is "has leaderboard"
+      qs.set('sort', p.sort);
       if (p.cursor) qs.set('cursor_string', p.cursor);
       const r = await fetchImpl(`https://osu.ppy.sh/api/v2/beatmapsets/search?${qs}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
       if (!r.ok) throw new Error(`osu! API ${r.status}`);
@@ -117,14 +134,16 @@ export async function handleSearch(url, env, fetchImpl = fetch) {
       return json({ sets, page: p.page, hasMore: !!d.cursor_string, cursor: d.cursor_string || null, source: 'osu! API' }, 200, { 'Cache-Control': 'public, max-age=300' });
     } catch (e) { errors.push(`osu! API: ${e.message}`); }
   }
-  for (const m of MIRRORS.search) {
+  const order = MIRRORS.search.map((_, i) => (i + p.provider) % MIRRORS.search.length);
+  for (const i of order) {
+    const m = MIRRORS.search[i];
     try {
       const r = await fetchImpl(m.url(p), { headers: { Accept: 'application/json', ...UA } });
       if (!r.ok) { errors.push(`${m.name}: HTTP ${r.status}`); continue; }
       const raw = normalizeList(await r.json());
       const sets = postFilter(raw, p);
       if (!raw.length && errors.length < MIRRORS.search.length - 1 && p.page === 0 && p.rawQ) { errors.push(`${m.name}: no results`); continue; }
-      return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
+      return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
     } catch (e) { errors.push(`${m.name}: ${e.message}`); }
   }
   return json({ sets: [], page: p.page, hasMore: false, source: null, errors, error: 'All beatmap search providers failed.' }, 502);

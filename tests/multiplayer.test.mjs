@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, makeCode, validCode, CODE_ALPHABET } from '../worker/multiplayer.js';
+import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET } from '../worker/multiplayer.js';
+
+test('presence: online list, statuses and invites between players', () => {
+  const clock = { t: 0 };
+  const p = new PresenceLogic(() => clock.t);
+  const joinOut = p.join('a', { name: 'Alice' });
+  assert.equal(joinOut[0].msg.t, 'welcome');
+  p.join('b', { name: 'Bob', status: 'room' });
+  assert.deepEqual(p.list().map(x => [x.name, x.status]), [['Alice', 'menu'], ['Bob', 'room']]);
+  const st = p.message('a', { t: 'status', status: 'playing' });
+  assert.equal(st[0].msg.players[0].status, 'playing');
+  const inv = p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' });
+  assert.deepEqual(inv[0], { to: 'b', msg: { t: 'invite', from: { id: 'a', name: 'Alice' }, code: 'ABCDEF' } });
+  assert.equal(inv[1].msg.t, 'invited');
+  assert.deepEqual(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' }), []); // double click
+  assert.equal(p.message('a', { t: 'invite', to: 'nobody', code: 'ABCDEF' })[0].msg.t, 'error');
+  assert.equal(p.message('a', { t: 'invite', to: 'b', code: 'x' })[0].msg.t, 'error');
+  const left = p.leave('b');
+  assert.deepEqual(left[0].msg.players.map(x => x.id), ['a']);
+});
 
 const MAP = { hash: 'abc123', title: 'Song', artist: 'Artist', version: '4K Hard', creator: 'M', keys: 4, stars: 3.2, length: 120000, onlineSetId: 42, onlineId: 420 };
 const msgs = (out, t) => out.filter(o => o.msg.t === t);

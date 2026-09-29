@@ -27,10 +27,10 @@
   --text: #ffffff;
   --text-2: #e0dbf0;
   --muted: #948fa3;
-  --accent: #ff66ab;
-  --accent-2: #dd3388;
-  --accent-3: #ffb3d6;
-  --accent-rgb: 255, 102, 171;
+  --accent: #aa88ff;
+  --accent-2: #7d3cff;
+  --accent-3: #d9c2ff;
+  --accent-rgb: 170, 136, 255;
   --gold: #ffcc22;
   --gold-2: #ee9900;
   --good: #88b300;
@@ -264,7 +264,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── loading screen */
 #loading-screen { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; background: #18171c; transition: opacity calc(500ms * var(--anim)) ease, visibility 0s linear calc(500ms * var(--anim)); }
 #loading-screen.done { opacity: 0; visibility: hidden; pointer-events: none; }
-.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
+.load-logo { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 7px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1.6rem; line-height: .9; text-align: center; animation: logoBreath 1.6s ease-in-out infinite; box-shadow: 0 6px 30px rgba(0, 0, 0, .45); }
 .load-logo small { display: block; font-size: .5em; letter-spacing: .12em; font-weight: 600; margin-top: .25em; }
 @keyframes logoBreath { 50% { transform: scale(1.04); } }
 .load-status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
@@ -438,7 +438,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-cookie:hover { transform: scale(1.06); }
 .ss-cookie:active { transform: scale(.95); }
 .ss-cookie[disabled] { filter: grayscale(1); opacity: .5; }
-.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
+.ss-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); border: 5px solid #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, .5); }
 .ss-cookie-disc .i { width: 34px; height: 34px; margin-left: 4px; }
 
 /* ── GAMEPLAY */
@@ -605,8 +605,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── beatmap explorer (lazer beatmap-listing style) */
 .ex-body { padding-top: 0; }
-.ex-header { position: sticky; top: 0; z-index: 3; margin: 0 calc(-1 * clamp(16px, 3vw, 48px)) 18px; padding: 22px clamp(16px, 3vw, 48px) 14px; background: linear-gradient(180deg, rgba(12, 8, 20, .96), rgba(12, 8, 20, .88)); border-bottom: 1px solid var(--line); }
-:root:not(.no-effects) .ex-header { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ex-header { position: relative; margin: 0 0 20px; padding: 24px 0 16px; border-bottom: 1px solid var(--line); }
 .ex-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .ex-title h1 { margin: 0; font-size: 1.7rem; font-weight: 700; }
 .ex-searchwrap { position: relative; }
@@ -727,7 +726,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .vo-l { font-weight: 600; color: var(--text-2); min-width: 60px; }
 
 /* ── back button (osu!lazer: pink, slanted, bottom-left) */
-.lz-back { --c: #ff66ab; position: relative; height: 50px; min-width: 130px; border: 0; padding: 0 22px 0 18px; margin-left: -30px; margin-right: 6px; background: var(--c); color: #fff; font-size: .95rem; transform: skewX(-12deg); transition: min-width var(--t-med) var(--ease-out), background var(--t-fast); }
+.lz-back { --c: var(--accent); position: relative; height: 50px; min-width: 130px; border: 0; padding: 0 22px 0 18px; margin-left: -30px; margin-right: 6px; background: var(--c); color: #fff; font-size: .95rem; transform: skewX(-12deg); transition: min-width var(--t-med) var(--ease-out), background var(--t-fast); }
 .lz-back:hover, .lz-back:focus-visible { min-width: 160px; background: #ee4f96; outline: none; }
 .lz-back-inner { display: inline-flex; align-items: center; gap: 8px; transform: skewX(12deg); padding-left: 24px; }
 .page-back { position: absolute; left: 0; bottom: 0; z-index: 5; }
@@ -752,13 +751,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-vis { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .lz-cookie { position: absolute; inset: 21%; border: 0; padding: 0; border-radius: 50%; background: transparent; will-change: transform; }
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
-  background: #ff66ab; border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
+  background: var(--accent); border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
   transition: transform var(--t-med) var(--ease-out), filter var(--t-fast), border-width var(--t-slow) var(--ease-out); }
 .lz-menu[data-state="initial"] .lz-cookie-disc { border-width: 15px; }
 .lz-cookie-disc::before { content: ""; position: absolute; inset: 0; opacity: .5;
   background: linear-gradient(60deg, transparent 46%, rgba(255, 255, 255, .12) 46% 54%, transparent 54%) 0 0 / 28% 48%,
               linear-gradient(-60deg, transparent 46%, rgba(0, 0, 0, .06) 46% 54%, transparent 54%) 14% 24% / 28% 48%,
-              radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); }
+              radial-gradient(circle at 50% 30%, var(--accent), var(--accent-2) 80%); }
 .lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
 .lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
 .lz-cookie { container-type: size; }
@@ -1027,6 +1026,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── FPS counter (osu!lazer style, bottom right) */
 #fps-counter { position: absolute; right: 8px; bottom: 8px; z-index: 80; display: flex; align-items: baseline; gap: 8px; padding: 4px 10px; border-radius: 6px; background: rgba(0, 0, 0, .7); color: #fff; pointer-events: none; font-variant-numeric: tabular-nums; box-shadow: inset 0 -2px 0 var(--fc, #88b300); }
+#fps-counter[hidden] { display: none; }
 #fps-counter[data-lvl="ok"] { --fc: #ffcc22; }
 #fps-counter[data-lvl="bad"] { --fc: #ed1121; }
 #fps-counter .fc-fps b { font-size: 1rem; font-weight: 600; color: var(--fc, #88b300); }
@@ -1041,94 +1041,67 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-mp .i { color: var(--accent); }
 .hud-mpdied { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(237, 17, 33, .75); font-weight: 600; font-size: .85rem; pointer-events: none; animation: mpDied 3s ease forwards; }
 @keyframes mpDied { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 70% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: .55; } }
-/* ── First-run setup (osu!lazer-style wizard) */
-.setup { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1040px, calc(100vw - 32px)); height: min(720px, calc(100vh - 32px)); display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: #22212a; box-shadow: 0 30px 90px rgba(0, 0, 0, .6); animation: dlgIn var(--t-med) var(--ease-out) both; text-align: left; }
+/* ── First-run setup (minimal wizard) */
+.setup { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, calc(100vw - 32px)); height: min(600px, calc(100vh - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: #22212a; box-shadow: 0 30px 90px rgba(0, 0, 0, .6); animation: dlgIn var(--t-med) var(--ease-out) both; text-align: left; }
 .setup.out { animation: dlgOut var(--t-fast) ease both; }
-.setup-head { position: relative; flex: none; padding: 22px 30px 0; background: linear-gradient(180deg, #2c2a35, #22212a); }
-.setup-kicker { display: flex; align-items: center; gap: 10px; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
-.setup-kicker span { color: var(--muted); letter-spacing: .06em; }
-.setup-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-.setup-title h2 { margin: 0; font-size: 1.9rem; font-weight: 700; }
-.setup-sub { color: var(--text-2); font-size: 1rem; }
-.setup-progress { display: flex; gap: 6px; margin-top: 16px; }
-.setup-dot { flex: 1; height: 4px; padding: 0; border: 0; border-radius: 2px; background: rgba(255, 255, 255, .1); transition: background var(--t-med); cursor: pointer; }
-.setup-dot.past { background: rgba(var(--accent-rgb), .55); }
-.setup-dot.on { background: var(--accent); box-shadow: 0 0 10px rgba(var(--accent-rgb), .6); }
-.setup-dot:disabled { cursor: default; }
-.setup-body { flex: 1; min-height: 0; overflow: auto; padding: 24px 30px; display: flex; flex-direction: column; gap: 16px; }
+.setup-head { flex: none; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 26px 28px 0; }
+.setup-head h2 { margin: 0; font-size: 1.6rem; font-weight: 700; text-align: center; }
+.setup-progress { display: flex; gap: 6px; }
+.setup-progress i { width: 26px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .12); transition: background var(--t-med), width var(--t-med) var(--ease-out); }
+.setup-progress i.past { background: rgba(var(--accent-rgb), .5); }
+.setup-progress i.on { width: 40px; background: var(--accent); }
+.setup-body { flex: 1; min-height: 0; overflow: auto; padding: 22px 32px; display: flex; flex-direction: column; gap: 14px; }
 .setup-body.anim { animation: setupIn var(--t-slow) var(--ease-out) both; }
-@keyframes setupIn { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 40px)); } }
-.setup-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 14px 30px; background: #1c1b22; }
+@keyframes setupIn { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 36px)); } }
+.setup-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 14px 24px; }
 .setup-foot .ob-err { margin: 0 8px 0 0; }
-.setup-next { min-width: 170px; height: 42px; font-size: .95rem; }
+.setup-next { min-width: 130px; height: 42px; font-size: .95rem; }
 .setup-next .i { order: 2; }
-.setup-step-welcome, .setup-step-done { align-items: center; text-align: center; justify-content: center; }
-.setup-logo { position: relative; width: 150px; height: 150px; flex: none; container-type: size; animation: setupLogo 2.4s ease-in-out infinite; }
-.setup-logo.small { width: 110px; height: 110px; }
+.setup-step-welcome, .setup-step-ask, .setup-step-device, .setup-step-look { align-items: center; justify-content: center; text-align: center; }
+.setup-logo { position: relative; width: 130px; height: 130px; flex: none; container-type: size; animation: setupLogo 2.4s ease-in-out infinite; }
+.setup-logo.small { width: 96px; height: 96px; }
 .setup-logo .lz-cookie-disc { border-width: 6px; }
 @keyframes setupLogo { 50% { transform: scale(1.04); } }
-.setup-hello { font-size: 1.6rem; font-weight: 700; }
-.setup-lead { max-width: 560px; margin: 0 auto; color: var(--text-2); line-height: 1.5; }
-.setup-label { margin-top: 8px; font-weight: 600; }
-.setup .ob-name { width: min(420px, 100%); height: 52px; font-size: 1.25rem; text-align: center; }
-.setup-note { margin: 0; font-size: .8rem; color: var(--muted); }
-.setup-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.setup-choice { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 20px 18px 18px; min-height: 170px; border-radius: 12px; border: 0; background: #2c2a34; color: var(--text); text-align: left; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
+.setup-lead { max-width: 480px; margin: 0; color: var(--text-2); font-size: 1.05rem; line-height: 1.5; }
+.setup .ob-name { width: min(380px, 100%); height: 52px; font-size: 1.25rem; text-align: center; }
+.setup-label { align-self: stretch; font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.setup-choices { display: grid; gap: 14px; width: 100%; }
+.setup-choices.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 560px; }
+.setup-choice { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 18px 22px; border-radius: 14px; border: 0; background: #2c2a34; color: var(--text); text-align: center; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
 .setup-choice:hover { background: #34313d; transform: translateY(-2px); }
-.setup-choice.on { background: rgba(var(--accent-rgb), .16); box-shadow: inset 0 0 0 2px var(--accent); }
-.setup-choice-ic { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); color: var(--accent); margin-bottom: 6px; }
-.setup-choice-ic .i { width: 24px; height: 24px; }
-.setup-choice.on .setup-choice-ic { background: var(--accent); color: #fff; }
-.setup-choice-t { font-size: 1.15rem; font-weight: 700; }
-.setup-choice-s { font-size: .85rem; color: var(--text-2); line-height: 1.4; }
-.setup-check { position: absolute; right: 14px; top: 14px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; opacity: 0; transform: scale(.5); transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
+.setup-choice.on, .setup-choice.primary { box-shadow: inset 0 0 0 2px var(--accent); }
+.setup-choice.on { background: rgba(var(--accent-rgb), .16); }
+.setup-choice-ic { width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); color: var(--accent); margin-bottom: 6px; }
+.setup-choice-ic .i { width: 30px; height: 30px; }
+.setup-choice.on .setup-choice-ic, .setup-choice.primary .setup-choice-ic { background: var(--accent); color: #fff; }
+.setup-choice-t { font-size: 1.2rem; font-weight: 700; }
+.setup-choice-s { font-size: .85rem; color: var(--muted); }
+.setup-check { position: absolute; right: 12px; top: 12px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; opacity: 0; transform: scale(.5); transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
 .setup-check .i { width: 15px; height: 15px; stroke-width: 3; }
 .on > .setup-check { opacity: 1; transform: none; }
-.setup-rec { margin-top: auto; padding: 2px 9px; border-radius: 99px; background: #88b300; color: #15200a; font-size: .7rem; font-weight: 700; letter-spacing: .04em; }
-.setup-tip { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; background: rgba(var(--accent-rgb), .1); color: var(--text); font-size: .9rem; line-height: 1.45; }
-.setup-tip .i { flex: none; color: var(--accent); margin-top: 2px; }
-.setup-tip.alt { background: rgba(102, 204, 255, .1); }
-.setup-tip.alt .i { color: var(--blue); }
-.setup-detect { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--text-2); }
-.setup-detect .i { color: var(--accent-3); }
-.setup-detect b { color: var(--text); }
-.setup-mini-t { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.setup-keys-help { padding: 16px 18px; border-radius: 12px; background: #1c1b22; }
-.setup-howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; font-size: .88rem; color: var(--text-2); line-height: 1.45; }
-.setup-howto > div { display: flex; gap: 10px; align-items: flex-start; }
-.setup-howto b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(var(--accent-rgb), .2); color: var(--accent); font-size: .8rem; }
-kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; margin: 0 1px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .35); font: 700 .8em/1.4 inherit; text-align: center; color: var(--text); }
-.setup-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
-.setup-card { padding: 18px; border-radius: 12px; background: #2a2831; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.setup-swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.setup-swatch { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 0; background: rgba(255, 255, 255, .05); color: var(--text-2); font-size: .8rem; font-weight: 600; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast); }
-.setup-swatch i { width: 18px; height: 18px; flex: none; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px rgba(0, 0, 0, .3); }
-.setup-swatch:hover { background: rgba(255, 255, 255, .1); color: var(--text); }
-.setup-swatch.on { box-shadow: inset 0 0 0 2px var(--c); color: var(--text); background: rgba(255, 255, 255, .08); }
+.setup-swatches { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.setup-swatch { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 8px; min-width: 84px; border-radius: 14px; border: 0; background: transparent; color: var(--text-2); font-weight: 600; font-size: .85rem; transition: background var(--t-fast); }
+.setup-swatch i { width: 48px; height: 48px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px transparent; transition: box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
+.setup-swatch:hover { background: rgba(255, 255, 255, .05); }
+.setup-swatch:hover i { transform: scale(1.06); }
+.setup-swatch.on { color: var(--text); }
+.setup-swatch.on i { box-shadow: 0 0 0 3px #22212a, 0 0 0 6px var(--c); }
+.setup-step-look .setup-slider { width: min(420px, 100%); }
 .setup-seg { display: inline-flex; padding: 3px; border-radius: 8px; background: rgba(0, 0, 0, .3); gap: 2px; flex-wrap: wrap; }
 .setup-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-weight: 600; font-size: .85rem; transition: background var(--t-fast), color var(--t-fast); }
 .setup-seg button:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
 .setup-seg button.on { background: var(--accent); color: #fff; }
-.setup-profile { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
-.setup-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, .06); }
-.setup-row.compact { margin-top: 10px; }
+.setup-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0 0; }
 .setup-row-t { font-weight: 600; font-size: .92rem; }
-.setup-row-s { font-size: .78rem; color: var(--muted); margin-top: 1px; }
-.setup-split { display: grid; grid-template-columns: minmax(280px, 480px) minmax(0, 1fr); gap: 18px; min-height: 0; flex: 1; }
-.setup-pv { position: relative; min-height: 380px; border-radius: 12px; overflow: hidden; background: #000; }
+.setup-split { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 22px; min-height: 0; flex: 1; }
+.setup-pv { position: relative; min-height: 320px; border-radius: 12px; overflow: hidden; background: #000; }
 .setup-pv canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .setup-pv-bg { position: absolute; inset: -30px; background: center / cover no-repeat; }
 .setup-pv-dim { position: absolute; inset: 0; background: #000; }
-.setup-pv-label { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 99px; background: rgba(0, 0, 0, .6); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.setup-controls { gap: 6px; overflow: auto; }
-.setup-slider { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.setup-slider .val { font-weight: 700; color: var(--accent-3); font-size: .88rem; font-variant-numeric: tabular-nums; }
-.setup-hint { font-size: .76rem; color: var(--muted); margin-bottom: 6px; }
-.setup-keys { display: flex; gap: 8px; margin-bottom: 4px; }
-.setup-key { width: 56px; height: 56px; border-radius: 10px; border: 0; background: linear-gradient(180deg, #3a3744, #2c2a34); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .35); color: var(--text); font-weight: 700; font-size: 1.05rem; transition: transform var(--t-fast), box-shadow var(--t-fast); }
-.setup-key:hover { transform: translateY(-2px); }
-.setup-key.wait { box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent); animation: keyWait 1s ease-in-out infinite; }
-@keyframes keyWait { 50% { background: rgba(var(--accent-rgb), .18); } }
+.setup-controls { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: auto; }
+.setup-slider { display: flex; flex-direction: column; gap: 4px; }
+.setup-slider .val { font-weight: 700; color: var(--accent-3); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.setup-hint { font-size: .78rem; color: var(--muted); margin-top: -6px; }
 .setup-skins { display: flex; flex-direction: column; gap: 6px; }
 .setup-skinitem { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 44px 10px 12px; border-radius: 10px; border: 0; background: rgba(255, 255, 255, .04); color: var(--text); text-align: left; box-shadow: inset 0 0 0 2px transparent; transition: background var(--t-fast), box-shadow var(--t-fast); }
 .setup-skinitem:hover { background: rgba(255, 255, 255, .08); }
@@ -1138,24 +1111,18 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; margin: 0 1px; 
 .setup-skin-t { display: flex; flex-direction: column; min-width: 0; }
 .setup-skin-t b { font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setup-skin-t small { font-size: .75rem; color: var(--muted); }
-.setup-skinitem.import { background: transparent; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .1); border-style: dashed; }
+.setup-skinitem.import { background: transparent; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .1); }
 .setup-skinitem.import:hover { box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), .6); }
-.setup-sums { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.setup-sums.left { justify-content: flex-start; }
-.setup-card.wide { grid-column: 1 / -1; }
-.setup-vols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 24px; }
-.setup-sum { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .82rem; font-weight: 600; }
-.setup-sum .i { width: 14px; height: 14px; color: var(--accent); }
-.setup-next-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 200px)); gap: 12px; justify-content: center; }
-.setup-action { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 12px; border-radius: 12px; border: 0; background: #2c2a34; color: var(--text); transition: background var(--t-fast), transform var(--t-fast) var(--ease-out); }
-.setup-action .i { width: 26px; height: 26px; color: var(--accent); margin-bottom: 4px; }
-.setup-action small { font-size: .75rem; color: var(--muted); }
-.setup-action:hover { background: rgba(var(--accent-rgb), .18); transform: translateY(-2px); }
-@media (max-width: 760px) {
-  .setup-choices, .setup-grid2, .setup-split, .setup-howto, .setup-next-actions, .setup-vols { grid-template-columns: 1fr; }
-  .setup-choice { min-height: 0; }
-  .setup-pv { min-height: 300px; }
-  .setup-head, .setup-body, .setup-foot { padding-left: 16px; padding-right: 16px; }
+.setup-custom { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: rgba(0, 0, 0, .2); }
+.setup-custom .setup-label { margin-top: 2px; }
+.setup-custom .setup-row { align-self: stretch; }
+input[type=range].slider.setup-hue::-webkit-slider-runnable-track { height: 8px; background: linear-gradient(90deg, hsl(0, 80%, 69%), hsl(60, 80%, 69%), hsl(120, 80%, 69%), hsl(180, 80%, 69%), hsl(240, 80%, 69%), hsl(300, 80%, 69%), hsl(360, 80%, 69%)); }
+input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; border-color: #fff; background: transparent; }
+.setup-hue { align-self: stretch; }
+@media (max-width: 700px) {
+  .setup-choices.two, .setup-split { grid-template-columns: 1fr; }
+  .setup-pv { min-height: 260px; }
+  .setup-body { padding-left: 16px; padding-right: 16px; }
 }
 /* ── Player loader (osu!lazer style) */
 .gameplay.loading { cursor: default; }
@@ -1213,8 +1180,37 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; margin: 0 1px; 
 .res-calib { margin-top: 12px; align-self: center; }
 div.res-calib { display: inline-flex; gap: 6px; align-items: center; font-size: .82rem; }
 div.res-calib .i { color: var(--good); }
-.setup-swatch span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gameplay.loading .mp-countdown { opacity: 0; }
+/* ── Zako Neru (main menu mascot) */
+.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; width: clamp(160px, 25vh, 260px); aspect-ratio: 230 / 290; padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
+.neru-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; animation: neruBob 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .45)); transition: transform var(--t-med) var(--ease-out); }
+.neru:hover .neru-svg { animation-play-state: paused; transform: rotate(-3deg) scale(1.04); }
+.neru-glow { fill: rgba(var(--accent-rgb), .16); }
+.neru-tail { transform-origin: 152px 70px; animation: neruTail 3.2s ease-in-out infinite; }
+.neru-screen { fill: #ff8cc0; animation: neruScreen 2.4s ease-in-out infinite; }
+.neru-eyes-happy, .neru-mouth-laugh { display: none; }
+.neru.talk .neru-eyes-smug, .neru.talk .neru-mouth-smirk { display: none; }
+.neru.talk .neru-eyes-happy, .neru.talk .neru-mouth-laugh { display: inline; }
+.neru.talk .neru-svg { animation: neruGiggle 450ms ease-in-out 3; }
+.neru-bubble { position: absolute; left: 62%; bottom: 88%; z-index: 1; width: max-content; max-width: 230px; padding: 9px 14px; border-radius: 16px 16px 16px 4px; background: #fff; color: #3a2a4a; font-size: .9rem; font-weight: 700; text-align: left; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); opacity: 0; transform: translateY(8px) scale(.9); transform-origin: 0 100%; pointer-events: none; transition: opacity 200ms, transform 300ms var(--ease-out); }
+.neru.talk .neru-bubble { opacity: 1; transform: none; }
+@keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
+@keyframes neruBob { 50% { transform: translateY(-5px) rotate(1deg); } }
+@keyframes neruTail { 50% { transform: rotate(4deg); } }
+@keyframes neruScreen { 50% { fill: #ffb3d6; } }
+@keyframes neruGiggle { 25% { transform: rotate(-4deg) translateY(-3px); } 75% { transform: rotate(4deg) translateY(-3px); } }
+@media (max-height: 520px) { .neru { display: none; } }
+/* ── Invite dialog */
+.inv { display: flex; flex-direction: column; gap: 8px; }
+.inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.inv-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow: auto; }
+.inv-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.inv-av { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; }
+.inv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.inv-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.inv-who small { color: var(--muted); font-size: .75rem; }
+.inv-empty { padding: 14px; text-align: center; color: var(--muted); border-radius: 10px; background: rgba(255, 255, 255, .03); }
+.inv-link { align-self: flex-start; }
 
 </style>
 </head>
@@ -2184,8 +2180,8 @@ const LANE_ARROW_DIRECTIONS = [
 /** Built-in "Ashtonk!mania" default skin: procedurally generated Kori-inspired textures + synthesized sounds. */
 class DefaultSkin extends Skin {
   constructor() {
-    super({ id: 'default', name: 'Ashtonk!mania Default', author: 'Ashtonk!mania', version: 'latest', files: [], builtin: true,
-      ini: { general: { Name: 'Ashtonk!mania Default', Author: 'Ashtonk!mania', Version: 'latest' }, colours: {}, fonts: {}, mania: {}, maniaList: [] } });
+    super({ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', files: [], builtin: true,
+      ini: { general: { Name: 'Custom', Author: 'Ashtonk!mania', Version: 'latest' }, colours: {}, fonts: {}, mania: {}, maniaList: [] } });
     this.gen = new Map();
   }
   get builtin() { return true; }
@@ -2210,7 +2206,24 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
-  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'lazer'] || THEME_PALETTES.lazer; }
+  static palette() {
+    const hue = typeof Settings !== 'undefined' ? Settings.get('skin.hue') : -1;
+    if (hue >= 0) return DefaultSkin.huePalette(hue);
+    return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+  }
+  /** Note colours from one hue, as Web-Osu-Mania's "simple" colour mode (MIT © 2024 Danny Duong): coloured
+   *  primary columns, near-white secondary columns and a contrasting centre column. */
+  static huePalette(hue) {
+    const hsl = (h, s, l) => {
+      s /= 100; l /= 100;
+      const f = n => { const k = (n + h / 30) % 12; return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
+    };
+    const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+    const centre = hue > 35 && hue < 75 ? 212 : 62;
+    const p = hsl(hue, 80, 69), c = hsl(centre, 80, 69);
+    return { n1: [hex(hsl(hue, 8, 98)), hex(hsl(hue, 6, 76))], n2: [hex(p), hex(hsl(hue, 58, 54))], s: [hex(c), hex(hsl(centre, 58, 54))], key: hex(p), glow: p, glowS: c };
+  }
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
     const P = DefaultSkin.palette();
@@ -2495,14 +2508,14 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
-    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === '*') this.invalidateGenerated(); });
+    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
     await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
-    return [{ id: 'default', name: 'Ashtonk!mania Default', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
+    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
   },
 
   instance(id) {
@@ -3063,7 +3076,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'lazer', o: [['lazer', 'osu! pink (default)'], ['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal'], ['midnight', 'Midnight blue']] },
+  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
   { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
@@ -3072,7 +3085,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
-  { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Ashtonk!mania Default skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Custom skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
+  { s: 'Skin', g: 'Built-in skin', k: 'skin.hue', l: 'Note colour (Custom skin)', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Accent colour' : `hue ${v}` },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
   { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
@@ -3099,6 +3113,8 @@ const Settings = {
     const v = this.values;
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
+    // v4: the accent colours are Kori, Neru, Teto and Miku only
+    if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
     this.applyUI();
   },
   get(k) {
@@ -4917,6 +4933,8 @@ const ICONS = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   chevron: '<path d="M9 5l7 7-7 7"/>',
+  pc: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  laptop: '<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 19h19l-2.2-4H4.7z"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -5370,14 +5388,14 @@ const HomeScreen = {
     this.leftBtns = h('div.lz-buttons.lz-left');
     this.rightBtns = h('div.lz-buttons.lz-right');
     this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar));
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar), ZakoNeru.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
     this.loop();
     return el;
   },
-  leave() { cancelAnimationFrame(this._raf); },
+  leave() { cancelAnimationFrame(this._raf); ZakoNeru.stop(); },
 
   /** Button definitions (colours are osu!lazer's main-menu colours). */
   menuButtons(state) {
@@ -5563,6 +5581,109 @@ const MenuMusic = {
     if (!map) { if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
     this.go(map, false);
   },
+};
+
+/* ===== 13b-neru.js ===== */
+/* Zako Neru — a little chibi Neru who hangs out in the corner of the main menu, poking at her flip phone and
+ * teasing you ("zako~"). Click her for a line; she also pipes up on her own now and then. Pure inline SVG. */
+
+const ZakoNeru = {
+  LINES: [
+    'zako~ zako~ ♡',
+    'Still no S rank? Zako~',
+    'Your accuracy is sooo cute ♡',
+    'Missed again? Zako zako~',
+    'Hmph. Not bad… for a zako.',
+    'Play a song already, slowpoke~',
+    'Bet you can\'t full combo this one~',
+    'Eh? You\'re still here? ♡',
+    'I\'m busy texting. …Fine, one song.',
+    'Try hitting the notes this time~',
+  ],
+  svg() {
+    const hair = '#f7d64e', hairS = '#e2b52c', hairH = '#fff2a6', skin = '#ffe9de', line = '#4a2c14';
+    return `<svg class="neru-svg" viewBox="0 0 230 290" aria-hidden="true">
+  <ellipse class="neru-glow" cx="112" cy="150" rx="100" ry="112"/>
+  <!-- ponytail (her left) -->
+  <g class="neru-tail">
+    <path d="M150 60 C210 38 232 112 214 172 C204 212 218 242 202 276 C188 244 172 220 177 178 C182 136 170 104 150 92 Z" fill="${hair}"/>
+    <path d="M168 70 C200 70 212 120 202 164 C196 190 200 214 198 236 C188 214 182 196 186 170 C192 128 186 96 168 84 Z" fill="${hairS}" opacity=".55"/>
+    <path d="M176 76 C194 88 200 112 196 140" stroke="${hairH}" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/>
+  </g>
+  <!-- back hair -->
+  <ellipse cx="112" cy="110" rx="72" ry="70" fill="${hairS}"/>
+  <path d="M44 112 C36 160 48 196 60 212 C68 184 66 150 72 122 Z" fill="${hair}"/>
+  <path d="M180 112 C188 160 176 196 164 212 C156 184 158 150 152 122 Z" fill="${hair}"/>
+  <!-- body -->
+  <path d="M68 290 C70 214 84 184 112 182 C140 184 154 214 156 290 Z" fill="#a4a8b3"/>
+  <path d="M84 196 C92 188 102 184 112 184 C122 184 132 188 140 196 L128 206 L112 194 L96 206 Z" fill="#c9ccd4"/>
+  <path d="M108 196 L116 196 L121 238 L112 248 L103 238 Z" fill="#373b46"/>
+  <path d="M104.5 214 L119.5 214" stroke="${hair}" stroke-width="3"/>
+  <rect x="105" y="170" width="14" height="16" rx="5" fill="${skin}"/>
+  <!-- arms + flip phone -->
+  <path d="M80 204 C70 222 78 240 96 238" stroke="#a4a8b3" stroke-width="15" fill="none" stroke-linecap="round"/>
+  <path d="M144 204 C154 222 146 240 128 238" stroke="#a4a8b3" stroke-width="15" fill="none" stroke-linecap="round"/>
+  <g class="neru-phone">
+    <rect x="98" y="206" width="28" height="40" rx="5" fill="#2b2d36"/>
+    <rect x="102" y="211" width="20" height="17" rx="2" class="neru-screen"/>
+    <circle cx="112" cy="236" r="3" fill="#555a68"/>
+    <path d="M104 216 h8 M104 221 h12" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+  </g>
+  <circle cx="98" cy="238" r="8" fill="${skin}"/>
+  <circle cx="126" cy="238" r="8" fill="${skin}"/>
+  <!-- face -->
+  <ellipse cx="112" cy="118" rx="58" ry="55" fill="${skin}"/>
+  <!-- eyes: smug (default) / happy (when teasing) -->
+  <g class="neru-eyes-smug">
+    <ellipse cx="89" cy="124" rx="10" ry="12" fill="#e0a226"/><ellipse cx="89" cy="126" rx="5" ry="7" fill="#6a3b0a"/><circle cx="86" cy="121" r="3" fill="#fff"/>
+    <ellipse cx="135" cy="124" rx="10" ry="12" fill="#e0a226"/><ellipse cx="135" cy="126" rx="5" ry="7" fill="#6a3b0a"/><circle cx="132" cy="121" r="3" fill="#fff"/>
+    <path d="M77 110 L101 110 L101 120 Q89 115 77 120 Z M123 110 L147 110 L147 120 Q135 115 123 120 Z" fill="${skin}"/>
+    <path d="M76 120 Q89 113 102 119 M122 119 Q135 113 148 120" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M78 104 Q89 100 100 105 M124 105 Q135 100 146 104" stroke="${hairS}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+  <g class="neru-eyes-happy">
+    <path d="M78 124 Q89 112 100 124 M124 124 Q135 112 146 124" stroke="${line}" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+  <ellipse cx="78" cy="142" rx="10" ry="5.5" fill="#ff8fa8" opacity=".55"/>
+  <ellipse cx="146" cy="142" rx="10" ry="5.5" fill="#ff8fa8" opacity=".55"/>
+  <g class="neru-mouth-smirk">
+    <path d="M101 146 Q112 154 124 143" stroke="#6a2a1a" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M117 148 L119.5 154 L122 146.5 Z" fill="#fff" stroke="#6a2a1a" stroke-width="1"/>
+  </g>
+  <g class="neru-mouth-laugh">
+    <path d="M100 143 Q112 162 125 143 Z" fill="#8a2f2a" stroke="#6a2a1a" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M116 144 L118.5 150 L121 144 Z" fill="#fff"/>
+  </g>
+  <!-- bangs + ahoge + hair tie -->
+  <path d="M50 110 C46 62 78 38 112 38 C148 38 178 62 174 110 L165 94 L156 114 L146 86 L134 108 L122 82 L111 108 L100 82 L89 108 L79 86 L68 112 L60 94 Z" fill="${hair}"/>
+  <path d="M70 70 C84 52 104 46 124 48" stroke="${hairH}" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/>
+  <path d="M110 40 C100 20 122 12 126 28" stroke="${hair}" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="154" cy="70" r="9" fill="#5b4bc4"/><circle cx="151" cy="67" r="3" fill="#8f82ea"/>
+</svg>`;
+  },
+  build() {
+    this.stop();
+    this.bubble = h('div.neru-bubble');
+    this.el = h('button.neru', { 'aria-label': 'Neru', title: 'Neru', onclick: e => { e.stopPropagation(); this.say(); } });
+    this.el.innerHTML = this.svg();
+    this.el.prepend(this.bubble);
+    // say hi shortly after the menu appears, then tease now and then
+    const greet = () => { if (Overlays.top()) { this._t = setTimeout(greet, 1500); return; } this.say(`Hi ${ProfileManager.profile.name || 'zako'}~ ready to lose? ♡`); };
+    this._t = setTimeout(greet, 1800);
+    this._idle = setInterval(() => { if (!document.hidden && !Overlays.top()) this.say(); }, 32000);
+    return this.el;
+  },
+  say(text) {
+    if (!this.el) return;
+    let line = text;
+    if (!line) { do line = this.LINES[Math.floor(Math.random() * this.LINES.length)]; while (line === this._last && this.LINES.length > 1); }
+    this._last = line;
+    this.bubble.textContent = line;
+    this.el.classList.remove('talk'); void this.el.offsetWidth; this.el.classList.add('talk');
+    clearTimeout(this._hide);
+    this._hide = setTimeout(() => this.el && this.el.classList.remove('talk'), 3200);
+  },
+  stop() { clearTimeout(this._t); clearTimeout(this._hide); clearInterval(this._idle); this.el = null; },
 };
 
 /* ===== 14-screen-songselect.js ===== */
@@ -7788,8 +7909,8 @@ const OnlineBeatmaps = {
   apiAvailable: null,
   PAGE: 40,
   DIRECT_SEARCH: [
-    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, graveyard: -2 })[p.status] ?? 1}` : ''}`,
-    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
+    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}&sort=${p.sort}`,
+    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}&sort=${p.sort}`,
   ],
   DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
 
@@ -7825,15 +7946,18 @@ const OnlineBeatmaps = {
       status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
+      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0),
     };
   },
   async search(p) {
+    p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
     const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
     if (p.keys.length) params.set('keys', p.keys.join(','));
     if (p.sort) params.set('sort', p.sort);
     if (p.minStars > 0) params.set('minStars', p.minStars);
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
+    if (p.provider) params.set('provider', p.provider);
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
@@ -7848,7 +7972,7 @@ const OnlineBeatmaps = {
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
-        const sets = arr.map(x => this.normalize(x)).filter(Boolean)
+        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
@@ -7910,12 +8034,35 @@ class OnlineBeatmapProvider extends BeatmapProvider {
 }
 BeatmapProviders.register(new OnlineBeatmapProvider());
 
-const EXPLORE_STATUSES = [['any', 'Any'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['graveyard', 'Graveyard']];
-const EXPLORE_SORTS = [['', 'Relevance'], ['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites']];
+// Categories and sorting as on osu! and Web-Osu-Mania: "Has leaderboard", newest ranked first by default.
+const EXPLORE_STATUSES = [['any', 'Any'], ['leaderboard', 'Has leaderboard'], ['ranked', 'Ranked'], ['qualified', 'Qualified'], ['loved', 'Loved'], ['pending', 'Pending'], ['wip', 'WIP'], ['graveyard', 'Graveyard']];
+const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 'Difficulty'], ['ranked', 'Ranked'], ['rating', 'Rating'], ['plays', 'Plays'], ['favourites', 'Favourites'], ['relevance', 'Relevance']];
+function statusMatches(set, status) {
+  if (status === 'any') return true;
+  if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
+  if (status === 'ranked') return set.status === 'ranked' || set.status === 'approved';
+  return set.status === status;
+}
+/** Order loaded results by the chosen criterion (stable), so pages from any source line up the same way. */
+function sortOnlineSets(list, sort, dir) {
+  const date = s => Date.parse(s.rankedDate || s.lastUpdated || '') || 0;
+  const key = {
+    title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(),
+    difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0, ranked: date, rating: s => s.rating || 0,
+    plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
+  }[sort];
+  if (!key) return list; // relevance: keep the server's order
+  const sign = dir === 'asc' ? 1 : -1;
+  return list.map((s, i) => [s, key(s), i]).sort((a, b) => {
+    const x = a[1], y = b[1];
+    const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
+    return c ? c * sign : a[2] - b[2];
+  }).map(e => e[0]);
+}
 
 const ExplorerScreen = {
   tab: 'explore',
-  state: { q: '', keys: [], status: 'ranked', sort: '', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
+  state: { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false },
   results: [], page: 0, hasMore: false, loading: false, cursor: null,
   downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
   audio: null,
@@ -7935,7 +8082,8 @@ const ExplorerScreen = {
       clearEl(this.filters).append(
         chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}K`]), [10, '10K']], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v]; }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
-        chipRow('Sort', EXPLORE_SORTS, v => st.sort === v, v => { if (st.sort === v && v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; st.sort = v; }),
+        chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
+          v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = v === 'title' || v === 'artist' ? 'asc' : 'desc'; } }),
         h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
         h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips', h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'))));
     };
@@ -7973,17 +8121,22 @@ const ExplorerScreen = {
     return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
   },
   starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
-  sortParam() { const st = this.state; return st.sort ? `${st.sort}_${st.dir}` : ''; },
-  async newSearch() { this.page = 0; this.results = []; this.cursor = null; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore(); },
+  sortParam() { const st = this.state; return `${st.sort || 'ranked'}_${st.dir}`; },
+  async newSearch() {
+    const st = this.state;
+    if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
+    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+  },
   async loadMore() {
     const tok = this.token || (this.token = {});
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
-      this.results.push(...d.sets.filter(s => !seen.has(s.id)));
+      this.results = sortOnlineSets([...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))], st.sort, st.dir);
+      if (d.provider != null) this.provider = d.provider;
       this.hasMore = !!d.hasMore && d.sets.length > 0;
       this.cursor = d.cursor || null;
       this.page++;
@@ -8603,50 +8756,35 @@ const ModSelect = {
 
 
 /* ===== 18b-setup.js ===== */
-/* First-run setup — an osu!lazer-style wizard shown the first time the client opens (and from Settings →
- * Maintenance → "Run first-run setup"). It asks who the player is, how much osu! they've played, what they're
- * playing on, how the game should look and feel, and which skin to use. Every choice applies immediately
+/* First-run setup — a short, friendly wizard shown the first time the client opens (and from Settings →
+ * Maintenance → "Run first-run setup"). Name first, then the player chooses whether to set things up at all:
+ * device, accent colour and size, scroll speed and background, and a skin. Every choice applies immediately
  * (the previews are live) and stays editable in Settings. */
-
-const SETUP_EXPERIENCE = {
-  new: { label: 'I\'m new', sub: 'Never played osu!mania or a key-based rhythm game.', icon: 'sparkle',
-    tip: 'Notes fall slower and an input display shows your keys. Speed up as you get better!',
-    values: { 'gameplay.scrollSpeed': 16, 'gameplay.hitErrorBar': false, 'input.keyOverlay': true, 'gameplay.judgementCounter': false, 'gameplay.kpsCounter': false, 'ui.allSettings': false } },
-  some: { label: 'A little', sub: 'Played osu!mania, Quaver, Etterna or similar casually.', icon: 'music',
-    tip: 'Standard settings — a comfortable scroll speed and a clean HUD.',
-    values: { 'gameplay.scrollSpeed': 22, 'gameplay.hitErrorBar': false, 'input.keyOverlay': false, 'gameplay.judgementCounter': false, 'gameplay.kpsCounter': false, 'ui.allSettings': false } },
-  pro: { label: 'osu! veteran', sub: 'I know my scroll speed, my skin and my keybinds.', icon: 'star',
-    tip: 'Hit error bar, judgement and KPS counters on, and every advanced setting unlocked.',
-    values: { 'gameplay.scrollSpeed': 28, 'gameplay.hitErrorBar': true, 'input.keyOverlay': false, 'gameplay.judgementCounter': true, 'gameplay.kpsCounter': true, 'ui.allSettings': true } },
-};
 
 /** Render scale that keeps the playfield canvas at (at most) one pixel per CSS pixel — the cheapest setting
  *  that still looks sharp on a Chromebook's high-DPI panel. */
 const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio || 1)) / 20, 0.5, 1);
 
 const SETUP_DEVICES = {
-  high: { label: 'Good PC', sub: 'Gaming PC or a fast laptop. Everything on.', icon: 'sparkle',
+  pc: { label: 'PC', sub: 'Desktop or gaming laptop', icon: 'pc',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
-  mid: { label: 'Normal laptop', sub: 'Most laptops. Particles and videos off, the rest on.', icon: 'gear',
-    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': false, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
-      'graphics.bgQuality': 'high', 'gameplay.video': false, 'graphics.renderScale': 1, 'graphics.menuBlur': 8, 'ui.parallax': true }) },
-  low: { label: 'Chromebook / slow PC', sub: 'School Chromebooks and older laptops. Smoothness first.', icon: 'target',
+  chromebook: { label: 'Chromebook', sub: 'School Chromebook or older laptop', icon: 'laptop',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 0, 'ui.parallax': false }) },
 };
 
-const SETUP_THEMES = [['lazer', '#ff66ab', 'osu! pink'], ['kori', '#aa88ff', 'Kori purple'], ['neru', '#ffcf3a', 'Neru yellow'], ['teto', '#ff4d6a', 'Teto red'], ['miku', '#39c5bb', 'Miku teal'], ['midnight', '#66ccff', 'Midnight blue']];
+const SETUP_THEMES = [['kori', '#aa88ff', 'Kori'], ['neru', '#ffcf3a', 'Neru'], ['teto', '#ff4d6a', 'Teto'], ['miku', '#39c5bb', 'Miku']];
+const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']];
 
 const Onboarding = {
   STEPS: [
-    { id: 'welcome', title: 'Welcome', sub: 'Let\'s get you set up — it only takes a minute.' },
-    { id: 'experience', title: 'Your experience', sub: 'Have you played osu! before?' },
-    { id: 'device', title: 'Your device', sub: 'What are you playing on?' },
-    { id: 'look', title: 'Personalise', sub: 'Make it yours.' },
-    { id: 'gameplay', title: 'Gameplay', sub: 'Scroll speed, background and keys — try them live.' },
-    { id: 'skin', title: 'Skin', sub: 'Pick how the notes look, or bring your own.' },
-    { id: 'done', title: 'All set', sub: 'You\'re ready to play.' },
+    { id: 'welcome', title: 'Welcome!' },
+    { id: 'ask', title: 'Set up the game?' },
+    { id: 'device', title: 'What are you playing on?' },
+    { id: 'look', title: 'Make it yours' },
+    { id: 'gameplay', title: 'How notes move' },
+    { id: 'skin', title: 'Pick a skin' },
   ],
 
   /** Runs the wizard. Resolves once it is finished or skipped. `again`: opened from Settings (name is kept). */
@@ -8657,16 +8795,13 @@ const Onboarding = {
       this.again = again;
       this.i = 0;
       this.dir = 1;
-      this.choice = { exp: null, device: null };
-      this.bench = null;
       this.animate = true;
-      this.el = h('div.onboarding.setup', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'First-run setup' });
+      this.el = h('div.onboarding.setup', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Setup' });
       this.o = makeOverlay(this.el, {
         dismissable: false,
         onKey: e => {
-          if (this.capture) return true;
-          if (e.key === 'Escape') return true; // the wizard is closed with its own buttons only
-          if (e.key === 'Enter' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
+          if (e.key === 'Escape') return true; // closed with its own buttons only
+          if (e.key === 'Enter' && this.step.id !== 'ask' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
           return false;
         },
       });
@@ -8676,26 +8811,23 @@ const Onboarding = {
   },
 
   get step() { return this.STEPS[this.i]; },
+  get last() { return this.i === this.STEPS.length - 1; },
 
   render() {
     this.stopPreview();
     const st = this.step;
-    const last = this.i === this.STEPS.length - 1;
-    const nextStep = this.STEPS[this.i + 1];
     const body = h(`div.setup-body.setup-step-${st.id}${this.animate ? '.anim' : ''}`, { style: { '--dir': this.dir } }, ...[].concat(this['step_' + st.id]()));
     this.animate = false;
-    this.nextBtn = h('button.btn.primary.setup-next', { onclick: () => this.next() },
-      last ? 'Let\'s play!' : `Next${nextStep ? ': ' + nextStep.title : ''}`, icon(last ? 'play' : 'chevron'));
+    const showNav = st.id !== 'ask';
+    this.nextBtn = showNav ? h('button.btn.primary.setup-next', { onclick: () => this.next() }, this.last ? 'Finish' : 'Next', icon(this.last ? 'check' : 'chevron')) : null;
     clearEl(this.el).append(
       h('div.setup-head',
-        h('div.setup-kicker', this.again ? 'Setup' : 'First-run setup', h('span', `Step ${this.i + 1} of ${this.STEPS.length}`)),
-        h('div.setup-title', h('h2', st.title), h('div.setup-sub', st.sub)),
-        h('div.setup-progress', ...this.STEPS.map((s, k) => h(`button.setup-dot${k === this.i ? '.on' : k < this.i ? '.past' : ''}`, {
-          title: s.title, 'aria-label': s.title, disabled: k > this.i && !this.canLeave(), onclick: () => this.go(k) })))),
+        h('h2', st.id === 'welcome' ? 'Welcome to Ashtonk!mania' : st.title),
+        this.i > 1 ? h('div.setup-progress', ...this.STEPS.slice(2).map((s, k) => h(`i${k + 2 === this.i ? '.on' : k + 2 < this.i ? '.past' : ''}`)))
+          : null),
       body,
       h('div.setup-foot',
-        this.i > 0 ? h('button.btn.ghost', { onclick: () => this.go(this.i - 1) }, icon('back'), 'Back') : null,
-        this.i > 0 && !last ? h('button.btn.ghost.ob-skip', { onclick: () => this.finish(true) }, 'Skip the rest') : null,
+        this.i > 0 ? h('button.btn.ghost', { onclick: () => this.go(this.i === 2 ? 1 : this.i - 1) }, icon('back'), 'Back') : null,
         h('span.grow'),
         this.err = h('div.ob-err'),
         this.nextBtn));
@@ -8703,10 +8835,6 @@ const Onboarding = {
     this.afterRender = null;
   },
 
-  canLeave() {
-    if (this.step.id === 'welcome') return !!(this.nameEl && this.nameEl.value.trim());
-    return true;
-  },
   async go(k) {
     if (k === this.i || k < 0 || k >= this.STEPS.length) return;
     if (k > this.i && !(await this.commit())) return;
@@ -8717,20 +8845,21 @@ const Onboarding = {
     this.render();
   },
   next() {
-    if (this.i === this.STEPS.length - 1) this.finish(false);
+    if (this.last) this.finish();
     else this.go(this.i + 1);
   },
   /** Validate / save the current step before moving on. */
   async commit() {
     if (this.step.id === 'welcome') {
       const n = this.nameEl.value.trim();
-      if (!n) { this.err.textContent = 'Pick a name — it shows on your scores, replays and profile.'; this.nameEl.focus(); return false; }
+      if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
       if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
       Toolbar.updateProfile();
     }
     return true;
   },
-  async finish(skipped) {
+  /** Close and land on the main menu. */
+  async finish() {
     if (!(await this.commit())) return;
     const p = ProfileManager.profile;
     const first = !p.onboarded;
@@ -8743,254 +8872,133 @@ const Onboarding = {
     const o = this.o;
     this.o = null;
     o.close();
-    if (first) Toast.show(`Welcome, ${p.name}!`, skipped ? 'You can run the setup again from Settings → Maintenance.' : 'Your plays earn pp — check your profile after a few maps.');
-    const then = this.then; this.then = null;
+    if (Screens.currentName !== 'home') Screens.go('home');
+    if (first) Toast.show(`Welcome, ${p.name}!`, 'Change anything later in Settings (Ctrl+O).');
     this.resolve();
-    if (then) then();
   },
 
   // ─────────────────────────────── steps ───────────────────────────────
+  logo(cls = '') { return h(`div.setup-logo${cls}`, h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))); },
+
   step_welcome() {
     const p = ProfileManager.profile;
     this.nameEl = h('input.input.ob-name', { value: p.onboarded || this.again ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; });
     this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-    return [
-      h('div.setup-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
-      h('div.setup-hello', 'Welcome to Ashtonk!mania'),
-      h('p.setup-lead', 'A free osu!mania-style rhythm game that runs right in your browser. We\'ll ask a few quick questions to tune the game to you and your device.'),
-      h('label.setup-label', 'What should we call you?'),
-      this.nameEl,
-      h('p.setup-note', 'Your name appears on your scores, replays, profile and in multiplayer rooms.'),
-    ];
+    return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
   },
 
-  choiceCards(options, current, onPick, extra = () => null) {
-    return h('div.setup-choices', ...Object.entries(options).map(([id, o]) =>
-      h(`button.setup-choice${current === id ? '.on' : ''}`, { dataset: { id }, onclick: () => onPick(id) },
-        h('span.setup-choice-ic', icon(o.icon)),
-        h('span.setup-choice-t', o.label),
-        h('span.setup-choice-s', o.sub),
-        extra(id),
-        h('span.setup-check', icon('check')))));
-  },
-
-  step_experience() {
-    const cur = this.choice.exp;
-    const pick = id => {
-      this.choice.exp = id;
-      for (const [k, v] of Object.entries(SETUP_EXPERIENCE[id].values)) Settings.set(k, v);
-      UISounds.play('check-on');
-      this.render();
-    };
+  step_ask() {
     return [
-      this.choiceCards(SETUP_EXPERIENCE, cur, pick),
-      h('div.setup-tip', icon('info'), cur ? SETUP_EXPERIENCE[cur].tip : 'Pick one — this sets sensible defaults you can fine-tune on the next pages.'),
-      cur === 'pro' ? h('div.setup-tip.alt', icon('upload'), 'Coming from osu!? Drag your .osz beatmaps and .osk skins anywhere onto this window — you can also import skins in a couple of steps.') : null,
-      h('div.setup-keys-help',
-        h('div.setup-mini-t', 'How to play'),
-        h('div.setup-howto',
-          h('div', h('b', '1'), 'Notes fall down the lanes toward the line at the bottom.'),
-          h('div', h('b', '2'), h('span', 'Press the lane\'s key (', h('kbd', 'D'), h('kbd', 'F'), h('kbd', 'J'), h('kbd', 'K'), ' for 4 keys) as each note reaches the line.')),
-          h('div', h('b', '3'), 'Hold the key through long notes, and let go at the end.'))),
+      this.logo('.small'),
+      h('p.setup-lead', `Hi ${ProfileManager.profile.name}! Want to set up the game now? It takes about 30 seconds.`),
+      h('div.setup-choices.two',
+        h('button.setup-choice.primary', { onclick: () => this.go(2) }, h('span.setup-choice-ic', icon('sparkle')), h('span.setup-choice-t', 'Set it up'), h('span.setup-choice-s', 'Pick your device, colours, speed and skin')),
+        h('button.setup-choice.ob-skip', { onclick: () => this.finish() }, h('span.setup-choice-ic', icon('play')), h('span.setup-choice-t', 'Skip'), h('span.setup-choice-s', 'Use the default settings'))),
     ];
   },
 
   step_device() {
-    const cur = this.choice.device;
-    const rec = this.recommendDevice();
+    const cur = Settings.values['setup.device'];
     const pick = id => {
-      this.choice.device = id;
       for (const [k, v] of Object.entries(SETUP_DEVICES[id].values())) Settings.set(k, v);
+      Settings.set('setup.device', id);
       UISounds.play('check-on');
       this.render();
+      setTimeout(() => { if (this.o && this.step.id === 'device') this.next(); }, 350);
     };
-    const detected = h('div.setup-detect');
-    const paintDetect = () => {
-      const b = this.bench;
-      clearEl(detected).append(icon('chart'), h('span',
-        h('b', 'Detected: '),
-        [this.isChromebook() ? 'ChromeOS' : null,
-          navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} CPU threads` : null,
-          navigator.deviceMemory ? `${navigator.deviceMemory} GB+ memory` : null,
-          b ? `~${Math.round(b.fps)} fps in the browser` : 'measuring frame rate…'].filter(Boolean).join(' · ')));
-    };
-    paintDetect();
-    if (!this.bench) this.benchmark().then(() => { if (this.step.id === 'device') this.render(); });
-    return [
-      this.choiceCards(SETUP_DEVICES, cur, pick, id => id === rec ? h('span.setup-rec', 'Recommended') : null),
-      detected,
-      cur ? h('div.setup-changes', h('div.setup-mini-t', 'What this sets'), h('div.setup-sums.left', ...this.describeDevice(cur).map(t => h('span.setup-sum', icon('check'), t)))) : null,
-      h('div.setup-tip', icon('info'), cur === 'low'
-        ? 'Performance mode is on: no particles, hit lighting or menu blur, a lighter background and a render scale that fits your screen. The game will feel much smoother.'
-        : cur ? 'You can switch individual effects in Settings → Graphics at any time.' : 'Not sure? Go with the recommended option — you can always change it.'),
-    ];
-  },
-
-  describeDevice(id) {
-    const v = SETUP_DEVICES[id].values();
-    const perf = v['graphics.performanceMode'];
-    return [
-      perf ? 'Performance mode on' : null,
-      perf || !v['graphics.particles'] ? 'Particles off' : 'Particles on',
-      perf ? 'Hit lighting off' : 'Hit lighting on',
-      v['gameplay.video'] ? 'Background videos on' : 'Background videos off',
-      v['graphics.bgQuality'] === 'low' ? 'Light backgrounds' : 'Full-quality backgrounds',
-      v['graphics.menuBlur'] ? `Menu blur ${v['graphics.menuBlur']}px` : 'Menu blur off',
-      `Render scale ${Math.round(v['graphics.renderScale'] * 100)}%`,
-      v['ui.parallax'] ? 'Parallax on' : 'Parallax off',
-    ].filter(Boolean);
+    return [h('div.setup-choices.two', ...Object.entries(SETUP_DEVICES).map(([id, o]) =>
+      h(`button.setup-choice${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => pick(id) },
+        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_look() {
     const theme = Settings.get('ui.theme');
-    const scale = Settings.get('ui.scale');
-    const toggle = (k, label, sub) => {
-      const t = h(`button.toggle${Settings.get(k) ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!Settings.get(k)), 'aria-label': label, onclick: () => {
-        const v = !Settings.get(k); Settings.set(k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off');
-      } });
-      return h('div.setup-row', h('div', h('div.setup-row-t', label), sub ? h('div.setup-row-s', sub) : null), t);
-    };
-    const avatar = ProfileManager.avatarEl(64);
     return [
-      h('div.setup-grid2',
-        h('div.setup-card',
-          h('div.setup-mini-t', 'Accent colour'),
-          h('div.setup-swatches', ...SETUP_THEMES.map(([id, c, name]) => h(`button.setup-swatch${theme === id ? '.on' : ''}`, {
-            style: { '--c': c }, title: name, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
-          h('div.setup-mini-t', { style: { marginTop: '18px' } }, 'Interface size'),
-          h('div.setup-seg', ...[[0.9, 'Small'], [1, 'Normal'], [1.15, 'Large'], [1.3, 'Huge']].map(([v, l]) =>
-            h(`button${Math.abs(scale - v) < 0.01 ? '.on' : ''}`, { onclick: () => { Settings.set('ui.scale', v); UISounds.click(); this.render(); } }, l)))),
-        h('div.setup-card',
-          h('div.setup-mini-t', 'Profile'),
-          h('div.setup-profile', avatar,
-            h('div', h('div.setup-row-t', ProfileManager.profile.name || 'Player'),
-              h('div.row', { style: { gap: '6px', marginTop: '6px' } },
-                h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await ProfileManager.setAvatar('custom', f); Toolbar.updateProfile(); this.render(); } } }, icon('upload'), 'Upload picture'),
-                ProfileManager.profile.avatar === 'custom' ? h('button.btn.sm.ghost', { onclick: async () => { await ProfileManager.setAvatar('default'); Toolbar.updateProfile(); this.render(); } }, 'Remove') : null))),
-          // (performance mode forces interface sounds off, so the switch would do nothing there)
-          Settings.values['graphics.performanceMode'] ? null : toggle('audio.uiSounds', 'Interface sounds', 'Clicks and whooshes in the menus.'),
-          toggle('ui.parallax', 'Background parallax', 'The menu background follows your mouse.'),
-          toggle('ui.unicodeMetadata', 'Original-language titles', 'Show song names like 夜に駆ける instead of Yoru ni Kakeru.')),
-        h('div.setup-card.wide',
-          h('div.setup-mini-t', 'Volume'),
-          h('div.setup-vols',
-            this.slider('audio.master', 'Master', 0, 1, 0.01, v => `${Math.round(v * 100)}%`),
-            this.slider('audio.music', 'Music', 0, 1, 0.01, v => `${Math.round(v * 100)}%`),
-            this.slider('audio.effects', 'Effects', 0, 1, 0.01, v => `${Math.round(v * 100)}%`)))),
+      h('div.setup-label', 'Colour'),
+      h('div.setup-swatches', ...SETUP_THEMES.map(([id, c, name]) => h(`button.setup-swatch${theme === id ? '.on' : ''}`, {
+        style: { '--c': c }, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
+      h('div.setup-label', 'Size'),
+      this.slider('ui.scale', 'Interface size', 0.75, 1.5, 0.05, v => `${Math.round(v * 100)}%`, null, 'change'),
     ];
   },
 
   step_gameplay() {
-    const fmtSpeed = v => `${v} · ${Math.round(11485 / v)}ms`;
     const bg = h('div.setup-pv-bg', { style: { backgroundImage: `url("${this.previewArt()}")` } });
     const dim = h('div.setup-pv-dim');
     const canvas = h('canvas');
-    const pv = h('div.setup-pv', bg, dim, canvas, h('div.setup-pv-label', 'Live preview'));
+    const pv = h('div.setup-pv', bg, dim, canvas);
     const applyBg = () => {
       const w = pv.clientWidth || 360;
       bg.style.filter = `blur(${(Settings.get('gameplay.bgBlur') * 50 * w / 1920 * 2.2).toFixed(1)}px)`;
       dim.style.opacity = Settings.get('gameplay.bgDim');
     };
-    const slider = (...a) => this.slider(...a);
-    const dirSeg = h('div.setup-seg', ...[['down', 'Downscroll'], ['up', 'Upscroll']].map(([v, l]) =>
+    const dirSeg = h('div.setup-seg', ...[['down', 'Down'], ['up', 'Up']].map(([v, l]) =>
       h(`button${Settings.get('gameplay.scrollDirection') === v ? '.on' : ''}`, { onclick: e => {
         Settings.set('gameplay.scrollDirection', v); UISounds.click();
         for (const b of e.currentTarget.parentNode.children) b.classList.toggle('on', b === e.currentTarget);
         this.preview && this.preview.renderer.resize(true);
       } }, l)));
-    const offset = h('b', `${Settings.get('audio.offset')}ms`);
-    const offOff = Bus.on('settings:changed', k => { if (k === 'audio.offset') offset.textContent = `${Settings.get('audio.offset')}ms`; });
-    this.cleanup.push(offOff);
     this.afterRender = () => {
       applyBg();
       this.preview = new SkinPreview(canvas, { scrollSpeed: true });
       requestAnimationFrame(() => this.preview && this.preview.show(SkinManager.current, 4));
     };
-    return [
-      h('div.setup-split',
-        pv,
-        h('div.setup-card.setup-controls',
-          slider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, fmtSpeed),
-          h('div.setup-hint', 'Higher = notes move faster and appear later. Most players use 18–30.'),
-          h('div.row', { style: { gap: '10px', alignItems: 'center', margin: '4px 0 10px' } }, h('span.setup-row-t', 'Direction'), h('span.grow'), dirSeg),
-          slider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, applyBg),
-          slider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, applyBg),
-          h('div.setup-mini-t', { style: { marginTop: '12px' } }, 'Your keys (4K)'),
-          this.keybindRow(4),
-          h('div.setup-row.compact', h('div', h('div.setup-row-t', 'Audio offset ', offset), h('div.setup-row-s', 'Tap along to measure your headphones\' delay.')),
-            h('button.btn.sm', { onclick: () => Calibration.open() }, icon('clock'), 'Calibrate')))),
-    ];
-  },
-
-  slider(k, label, min, max, step, fmt, after) {
-    const s = h('input.slider', { type: 'range', min, max, step, value: Settings.get(k), 'aria-label': label });
-    const v = h('span.val');
-    const upd = () => { const x = parseFloat(s.value); v.textContent = fmt(x); s.style.setProperty('--p', ((x - min) / (max - min) * 100) + '%'); };
-    s.addEventListener('input', () => { Settings.set(k, parseFloat(s.value)); upd(); after && after(); });
-    s.addEventListener('keydown', e => e.stopPropagation());
-    upd();
-    return h('div.setup-slider', h('div.row', h('span.setup-row-t', label), h('span.grow'), v), s);
-  },
-
-  keybindRow(keys) {
-    const row = h('div.setup-keys');
-    const paint = () => {
-      const binds = Settings.keybinds(keys);
-      clearEl(row).append(...binds.map((b, i) => h(`button.setup-key${this.capture && this.capture.col === i ? '.wait' : ''}`, {
-        title: 'Click, then press a key', onclick: () => startCapture(i) }, this.capture && this.capture.col === i ? '…' : keyLabel(b[0]))));
-    };
-    const startCapture = col => {
-      stopCapture();
-      const onKey = e => {
-        e.preventDefault(); e.stopPropagation();
-        if (e.code !== 'Escape') {
-          const binds = Settings.keybinds(keys);
-          // a key can only drive one lane: swap it with the lane that had it
-          const other = binds.findIndex((b, j) => j !== col && b[0] === e.code);
-          if (other >= 0) binds[other] = [binds[col][0]];
-          binds[col] = [e.code];
-          Settings.setKeybinds(keys, binds);
-          UISounds.play('check-on');
-        }
-        stopCapture();
-      };
-      window.addEventListener('keydown', onKey, true);
-      this.capture = { col, off: () => window.removeEventListener('keydown', onKey, true) };
-      paint();
-    };
-    const stopCapture = () => { if (this.capture) { this.capture.off(); this.capture = null; } paint(); };
-    this.cleanup.push(() => { if (this.capture) { this.capture.off(); this.capture = null; } });
-    paint();
-    return h('div', row, h('div.setup-hint', 'Click a key to change it. Other key counts (1K–10K) are in Settings → Input.'));
+    return [h('div.setup-split', pv,
+      h('div.setup-controls',
+        this.slider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => String(v)),
+        h('div.setup-hint', 'Higher is faster. 22 is a good start.'),
+        this.slider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, applyBg),
+        this.slider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, applyBg),
+        h('div.setup-slider', h('div.row', h('span.setup-row-t', 'Notes fall'), h('span.grow'), dirSeg))))];
   },
 
   step_skin() {
-    const list = h('div.setup-skins');
     const canvas = h('canvas');
     const pv = h('div.setup-pv.skin', canvas);
-    const styleRow = h('div');
+    const side = h('div.setup-controls');
+    const show = () => { if (this.preview) requestAnimationFrame(() => this.preview && this.preview.show(SkinManager.current, 4)); };
+    const choose = async id => {
+      if (this.preview) this.preview.renderer.layout = null; // the old skin's images are freed on switch
+      await SkinManager.select(id, { silent: true }); UISounds.click(); paint(); show(); };
     const paint = () => {
       const cur = SkinManager.current.id;
-      clearEl(list).append(...SkinManager.list().map(s => h(`button.setup-skinitem${s.id === cur ? '.on' : ''}`, { onclick: async () => {
-        await SkinManager.select(s.id, { silent: true }); UISounds.click(); paint(); show();
-      } }, h('span.setup-skin-ic', icon('brush')), h('span.setup-skin-t', h('b', s.name), h('small', s.builtin ? 'Built in · follows your accent colour' : `by ${s.author || 'unknown'}`)), h('span.setup-check', icon('check')))),
-      h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin…'), h('small', '.osk files from osu! — or drag them onto the window'))));
-      clearEl(styleRow);
-      if (SkinManager.current.builtin) {
-        const ns = Settings.get('skin.noteStyle');
-        styleRow.append(h('div.setup-mini-t', { style: { marginTop: '14px' } }, 'Note style'),
-          h('div.setup-seg', ...[['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']].map(([v, l]) =>
-            h(`button${ns === v ? '.on' : ''}`, { onclick: () => { Settings.set('skin.noteStyle', v); UISounds.click(); paint(); show(); } }, l))));
-      }
+      const kori = SkinManager.skins.find(s => /kori/i.test(s.name));
+      const others = SkinManager.skins.filter(s => s !== kori);
+      const card = (id, name, sub, ic) => h(`button.setup-skinitem${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => choose(id) },
+        h('span.setup-skin-ic', icon(ic)), h('span.setup-skin-t', h('b', name), h('small', sub)), h('span.setup-check', icon('check')));
+      clearEl(side).append(
+        h('div.setup-skins',
+          kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
+          card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
+          ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
+          h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
+        cur === 'default' ? this.customSkinOptions(() => { paint(); show(); }) : null);
     };
-    const show = () => { if (this.preview) requestAnimationFrame(() => this.preview && this.preview.show(SkinManager.current, 4)); };
     const offSkins = Bus.on('skins:changed', () => { if (this.step.id === 'skin') { paint(); show(); } });
     this.cleanup.push(offSkins);
     paint();
     this.afterRender = () => { this.preview = new SkinPreview(canvas, { scrollSpeed: true }); show(); };
-    return [h('div.setup-split', pv, h('div.setup-card', h('div.setup-mini-t', 'Installed skins'), list, styleRow))];
+    return [h('div.setup-split', pv, side)];
+  },
+
+  /** The Custom (built-in) skin's options — Web-Osu-Mania's note styles and single-hue colouring. */
+  customSkinOptions(refresh) {
+    const style = Settings.get('skin.noteStyle'), hue = Settings.get('skin.hue');
+    const hueSlider = h('input.slider.setup-hue', { type: 'range', min: 0, max: 360, step: 1, value: hue < 0 ? 270 : hue, 'aria-label': 'Note colour' });
+    hueSlider.addEventListener('change', () => { Settings.set('skin.hue', +hueSlider.value); refresh(); });
+    hueSlider.addEventListener('keydown', e => e.stopPropagation());
+    const t = h(`button.toggle${Settings.get('skin.darkerHolds') ? '.on' : ''}`, { role: 'switch', 'aria-label': 'Darker hold notes', onclick: () => {
+      Settings.set('skin.darkerHolds', !Settings.get('skin.darkerHolds')); UISounds.click(); refresh(); } });
+    return h('div.setup-custom',
+      h('div.setup-label', 'Note shape'),
+      h('div.setup-seg', ...SETUP_NOTE_STYLES.map(([v, l]) => h(`button${style === v ? '.on' : ''}`, { onclick: () => { Settings.set('skin.noteStyle', v); UISounds.click(); refresh(); } }, l))),
+      h('div.setup-label', 'Note colour'),
+      h('div.setup-seg', h(`button${hue < 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', -1); UISounds.click(); refresh(); } }, 'Match my colour'),
+        h(`button${hue >= 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', +hueSlider.value); UISounds.click(); refresh(); } }, 'Pick a colour')),
+      hue >= 0 ? hueSlider : null,
+      h('div.setup-row', h('span.setup-row-t', 'Darker hold notes'), t));
   },
 
   async importSkins(paint, show) {
@@ -9001,66 +9009,25 @@ const Onboarding = {
       try { last = await SkinManager.importOsk(f); Toast.ok('Skin imported', last.name); }
       catch (e) { Toast.err(`Couldn't import ${f.name}`, e.message); }
     }
-    if (last) await SkinManager.select(last.id, { silent: true });
+    if (last) { if (this.preview) this.preview.renderer.layout = null; await SkinManager.select(last.id, { silent: true }); }
     if (this.step.id === 'skin') { paint(); show(); }
   },
 
-  step_done() {
-    const exp = SETUP_EXPERIENCE[this.choice.exp], dev = SETUP_DEVICES[this.choice.device];
-    const n = BeatmapManager.maps.size;
-    const chip = (ic, t) => h('span.setup-sum', icon(ic), t);
-    const go = (fn) => { this.then = fn; this.finish(false); };
-    return [
-      h('div.setup-logo.small', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
-      h('div.setup-hello', `You're all set, ${ProfileManager.profile.name || 'Player'}!`),
-      h('div.setup-sums',
-        exp ? chip('star', exp.label) : null, dev ? chip('gear', dev.label) : null,
-        chip('target', `Scroll speed ${Settings.get('gameplay.scrollSpeed')}`), chip('brush', SkinManager.current.name),
-        chip('sparkle', `Dim ${Math.round(Settings.get('gameplay.bgDim') * 100)}% · blur ${Math.round(Settings.get('gameplay.bgBlur') * 100)}%`)),
-      h('p.setup-lead', n ? `You have ${n} difficult${n === 1 ? 'y' : 'ies'} in your library.` : 'Your library is empty — grab some beatmaps to start playing.'),
-      h('div.setup-next-actions',
-        h('button.setup-action', { onclick: () => go(() => Screens.go('explore')) }, icon('search'), h('b', 'Browse beatmaps'), h('small', 'Search and download osu!mania maps')),
-        h('button.setup-action', { onclick: async () => { const files = await pickFiles({ accept: '.osz,.osk,.zip,.osr', multiple: true }); if (files.length) go(() => App.importFiles(files)); } }, icon('upload'), h('b', 'Import files'), h('small', '.osz beatmaps, .osk skins, .osr replays')),
-        h('button.setup-action', { onclick: () => go(() => Screens.go(n ? 'songselect' : 'explore')) }, icon('play'), h('b', n ? 'Play now' : 'Start'), h('small', n ? 'Jump into song select' : 'Find your first map'))),
-      h('p.setup-note', 'Everything here can be changed later in Settings (Ctrl+O). Run this setup again from Settings → Maintenance.'),
-    ];
-  },
-
   // ─────────────────────────────── helpers ───────────────────────────────
+  slider(k, label, min, max, step, fmt, after, evt = 'input') {
+    const s = h('input.slider', { type: 'range', min, max, step, value: Settings.get(k), 'aria-label': label });
+    const v = h('span.val');
+    const upd = () => { const x = parseFloat(s.value); v.textContent = fmt(x); s.style.setProperty('--p', ((x - min) / (max - min) * 100) + '%'); };
+    s.addEventListener('input', () => { if (evt === 'input') Settings.set(k, parseFloat(s.value)); upd(); after && after(); });
+    if (evt === 'change') s.addEventListener('change', () => Settings.set(k, parseFloat(s.value)));
+    s.addEventListener('keydown', e => e.stopPropagation());
+    upd();
+    return h('div.setup-slider', h('div.row', h('span.setup-row-t', label), h('span.grow'), v), s);
+  },
   cleanup: [],
   stopPreview() {
     if (this.preview) { this.preview.stop(); this.preview = null; }
     for (const f of this.cleanup.splice(0)) try { f(); } catch { /* ignore */ }
-  },
-  isChromebook() { return /\bCrOS\b/.test(navigator.userAgent); },
-  recommendDevice() {
-    const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 8;
-    const fps = this.bench ? this.bench.fps : 60;
-    if (this.isChromebook() || cores <= 4 || mem <= 4 || fps < 50) return 'low';
-    if (cores <= 8 || mem <= 8) return 'mid';
-    return 'high';
-  },
-  /** ~0.7s frame-time sample: a quick hint of how smooth the browser runs on this machine. */
-  benchmark() {
-    if (this._benchP) return this._benchP;
-    this._benchP = new Promise(resolve => {
-      const times = [];
-      let last = 0;
-      const t0 = performance.now();
-      const f = t => {
-        if (last) times.push(t - last);
-        last = t;
-        if (t - t0 < 700) requestAnimationFrame(f);
-        else {
-          times.sort((a, b) => a - b);
-          const med = times[Math.floor(times.length / 2)] || 16.7;
-          this.bench = { fps: Math.min(1000 / med, 360) };
-          resolve(this.bench);
-        }
-      };
-      requestAnimationFrame(f);
-    });
-    return this._benchP;
   },
   /** A generated "beatmap background" for the gameplay preview, so dim and blur are visible even before any
    *  beatmap is installed. Cached as a data URL. */
@@ -9301,6 +9268,94 @@ const Multiplayer = {
   },
 };
 
+/** Who's online, for invites: one WebSocket to the Worker (/api/mp/presence) for the whole session, which
+ *  reconnects on its own. Players show as in the menus, in a room or playing. */
+const Presence = {
+  ws: null, me: null, players: [], retry: 0, started: false,
+  start() {
+    if (this.started || !Multiplayer.available()) return;
+    this.started = true;
+    // only where the Worker serves multiplayer (a plain static copy has no /api)
+    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    const push = () => this.pushStatus();
+    Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
+  },
+  status() { return Screens.currentName === 'gameplay' ? 'playing' : Multiplayer.inRoom() ? 'room' : 'menu'; },
+  connect() {
+    const u = new URL('api/mp/presence', location.href);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    try { ws = new WebSocket(u); } catch { this.later(); return; }
+    this.ws = ws;
+    ws.onopen = () => {
+      this.retry = 0;
+      this._sent = this.status(); this._name = ProfileManager.profile.name;
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent }));
+      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: 'ping' }), 25000);
+    };
+    ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.t === 'welcome') this.me = m.you;
+      else if (m.t === 'online') { this.players = Array.isArray(m.players) ? m.players : []; Bus.emit('presence:changed'); }
+      else if (m.t === 'invite') this.onInvite(m);
+      else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
+      else if (m.t === 'error') Toast.err(m.msg);
+    };
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ws = null; this.players = []; clearInterval(this._ping);
+      Bus.emit('presence:changed');
+      this.later();
+    };
+  },
+  later() { clearTimeout(this._t); this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
+  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
+  pushStatus() {
+    const st = this.status(), name = ProfileManager.profile.name;
+    if (st === this._sent && name === this._name) return;
+    this._sent = st; this._name = name;
+    this.send({ t: 'status', status: st, name });
+  },
+  others() { return this.players.filter(p => p.id !== this.me); },
+  invite(id) { if (Multiplayer.inRoom()) this.send({ t: 'invite', to: id, code: Multiplayer.room.code }); },
+  async onInvite(m) {
+    const from = m.from && m.from.name || 'Someone';
+    if (Multiplayer.inRoom() && Multiplayer.room.code === m.code) return;
+    if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running) {
+      Toast.show(`${from} invited you to their room`, `Room ${m.code} — join it from Multiplayer after this play.`);
+      return;
+    }
+    UISounds.play('check-on');
+    const ok = await Dialog.confirm(`${from} invited you!`, `Join their multiplayer room (${m.code})?${Multiplayer.inRoom() ? ' You\'ll leave your current room.' : ''}`, { ok: 'Join', cancel: 'Not now' });
+    if (!ok) return;
+    try { await Multiplayer.join(m.code); if (Screens.currentName !== 'multiplayer') await Screens.go('multiplayer'); Toast.ok('Joined the room', m.code); }
+    catch (e) { Toast.err('Couldn\'t join the room', e.message); }
+  },
+  /** The room's Invite button: invite someone who's online, or share a link. */
+  openInvite() {
+    if (!Multiplayer.inRoom()) return;
+    const invited = new Set();
+    const list = h('div.inv-list');
+    const paint = () => {
+      const others = this.others();
+      clearEl(list).append(...(others.length ? others.map(p => {
+        const busy = p.status === 'playing';
+        const done = invited.has(p.id);
+        return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
+          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
+          h(`button.btn.sm${done ? '' : '.primary'}`, { disabled: done || busy, onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : 'Invite'));
+      }) : [h('div.inv-empty', this.ws ? 'Nobody else is online right now.' : 'Connecting…')]));
+    };
+    paint();
+    const off = Bus.on('presence:changed', paint);
+    const o = Dialog.custom(`Invite to room ${Multiplayer.room.code}`, h('div.inv',
+      h('div.inv-label', 'Online players'), list,
+      h('div.inv-label', 'Or send a link'),
+      h('button.btn.inv-link', { onclick: () => { Multiplayer.invite(); } }, icon('upload'), 'Copy invite link')), [{ label: 'Done' }]);
+    const close = o.close; o.close = () => { off(); close(); };
+  },
+};
+
 // Leaving the multiplayer area (anything but the room, song select, gameplay or results) leaves the room.
 Bus.on('screen:changed', name => {
   if (Multiplayer.inRoom() && !['multiplayer', 'songselect', 'gameplay', 'results', 'explore'].includes(name)) { Multiplayer.leave(); Toast.show('Left the multiplayer room'); }
@@ -9388,7 +9443,7 @@ const MultiplayerScreen = {
   refreshRoom() {
     const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
-    const invite = h('button.btn.sm.primary', { title: 'Copy (or share) a link that joins this room', onclick: () => { UISounds.click(); Multiplayer.invite(); } }, icon('multi'), 'Invite');
+    const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), h('div.grow'), invite, copy);
 
     // beatmap panel
@@ -9529,13 +9584,14 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
     this.globalLoop();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
+    Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));

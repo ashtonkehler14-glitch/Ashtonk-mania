@@ -250,11 +250,78 @@ export class MatchRoom {
   }
 }
 
-/** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room. */
+/** Who's online, and invites between them. Presence protocol (client → server): hello {name, status},
+ *  status {status, room}, invite {to, code}, ping. Server → client: welcome {you}, online {players},
+ *  invite {from: {id, name}, code}, invited {to}, error {msg}. Plain JS so it can be unit-tested. */
+export class PresenceLogic {
+  constructor(now = () => Date.now()) { this.now = now; this.users = new Map(); this.lastInvite = new Map(); }
+  list() { return [...this.users.entries()].map(([id, u]) => ({ id, name: u.name, status: u.status })); }
+  join(id, msg) {
+    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status) });
+    return [{ to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
+  }
+  leave(id) { if (!this.users.delete(id)) return []; this.lastInvite.delete(id); return [this.broadcast()]; }
+  broadcast() { return { to: 'all', msg: { t: 'online', players: this.list() } }; }
+  message(id, msg) {
+    const u = this.users.get(id);
+    if (!u || !msg || typeof msg !== 'object') return [];
+    if (msg.t === 'status') {
+      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name;
+      if (st === u.status && name === u.name) return [];
+      u.status = st; u.name = name;
+      return [this.broadcast()];
+    }
+    if (msg.t === 'invite') {
+      const code = str(msg.code, 8).toUpperCase();
+      if (!validCode(code) || !this.users.has(msg.to) || msg.to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      const key = `${msg.to}|${code}`, t = this.now();
+      if (this.lastInvite.get(id)?.key === key && t - this.lastInvite.get(id).at < 3000) return []; // double-click
+      this.lastInvite.set(id, { key, at: t });
+      return [{ to: msg.to, msg: { t: 'invite', from: { id, name: u.name }, code } }, { to: id, msg: { t: 'invited', to: msg.to } }];
+    }
+    if (msg.t === 'ping') return [{ to: id, msg: { t: 'pong' } }];
+    return [];
+  }
+}
+const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
+
+/** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
+ *  The same (single) instance also runs presence — who's online — for invites. */
 export class Matchmaker {
-  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; }
+  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.presence = new PresenceLogic(); this.socks = new Map(); }
+  presenceSocket() {
+    const { 0: client, 1: server } = new WebSocketPair();
+    server.accept();
+    const id = crypto.randomUUID().slice(0, 8);
+    let joined = false;
+    server.addEventListener('message', ev => {
+      if (typeof ev.data !== 'string' || ev.data.length > 2048) return;
+      let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+      if (!joined) {
+        if (msg.t !== 'hello') return;
+        joined = true; this.socks.set(id, server);
+        this.send(this.presence.join(id, msg));
+        return;
+      }
+      this.send(this.presence.message(id, msg));
+    });
+    const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
+    server.addEventListener('close', gone);
+    server.addEventListener('error', gone);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+  send(out) {
+    for (const { to, msg } of out || []) {
+      const data = JSON.stringify(msg);
+      for (const [id, ws] of this.socks) if (to === 'all' || to === id) { try { ws.send(data); } catch { /* closing */ } }
+    }
+  }
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname.endsWith('/presence')) {
+      if (request.headers.get('Upgrade') !== 'websocket') return json({ online: this.presence.list().length });
+      return this.presenceSocket();
+    }
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
     if (this.waiting && now - this.waiting.at > 40000) this.waiting = null;
@@ -272,6 +339,10 @@ export async function handleMultiplayer(request, env, url) {
   if (!env.ROOMS || !env.MATCHMAKER) return json({ error: 'Multiplayer is not enabled on this server.' }, 503);
   const path = url.pathname;
   if (path === '/api/mp/new' && request.method === 'POST') return json({ code: makeCode() });
+  if (path === '/api/mp/presence') {
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL(path, url), request));
+  }
   if (path.startsWith('/api/mp/quick') && request.method === 'POST') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
