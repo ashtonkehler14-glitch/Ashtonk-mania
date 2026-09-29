@@ -110,13 +110,14 @@ await alice.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 1
 await bob.waitForTimeout(2500);
 await shot(alice, 'mp-ingame');
 const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.textContent));
-check('in-game board shows both players with live scores', board.length === 2 && board.some(t => t.includes('Alice')), JSON.stringify(board));
+check('in-game board shows both players with live pp', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\dpp$/.test(t)), JSON.stringify(board));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 40000 })));
 const ra = await alice.evaluate(() => ({ verdict: document.querySelector('.mp-verdict')?.textContent, res: AshtonkMania.Multiplayer.lastResults }));
 const rb = await bob.evaluate(() => document.querySelector('.mp-verdict')?.textContent);
 await shot(alice, 'mp-results');
-check('results: higher score wins', /You win/.test(ra.verdict) && /You lose/.test(rb), `${ra.verdict} / ${rb}`);
-check('winner row has the full score', ra.res.rows[0].name === 'Alice' && ra.res.rows[0].score === 1000000, JSON.stringify(ra.res.rows.map(r => [r.name, r.score, r.passed])));
+check('results: more pp wins', /You win/.test(ra.verdict) && /You lose/.test(rb), `${ra.verdict} / ${rb}`);
+check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra.res.rows[0].score === 1000000 && ra.res.rows[0].pp > 0 && ra.res.rows[1].pp === 0, JSON.stringify(ra.res.rows.map(r => [r.name, r.score, Math.round(r.pp), r.passed])));
+check('results panel leads with pp', await alice.evaluate(() => /pp$/.test(document.querySelector('.mp-res-score').textContent)));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
 
 // rematch: forfeit by quitting

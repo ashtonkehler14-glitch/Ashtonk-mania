@@ -81,7 +81,7 @@ export class RoomLogic {
     if (!p) return [];
     const out = [];
     if (this.state === 'playing' && p.playing) {
-      if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), forfeit: true };
+      if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
       this.departed.push({ id: p.id, name: p.name, diff: p.diff, ...p.finished, left: true });
     }
     this.players = this.players.filter(x => x !== p);
@@ -147,7 +147,7 @@ export class RoomLogic {
       }
       case 'score':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
-        p.live = { score: Math.round(num(m.score, 0, 1e7)), acc: num(m.acc, 0, 1), combo: Math.round(num(m.combo, 0, 1e6)), hp: num(m.hp, 0, 1) };
+        p.live = { score: Math.round(num(m.score, 0, 1e7)), acc: num(m.acc, 0, 1), combo: Math.round(num(m.combo, 0, 1e6)), hp: num(m.hp, 0, 1), pp: num(m.pp, 0, 1e5) };
         return [{ to: { except: id }, msg: { t: 'opp', id, ...p.live } }];
       case 'finish':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
@@ -155,7 +155,7 @@ export class RoomLogic {
         return this.checkFinished();
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
-        p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), forfeit: true };
+        p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
         return [this.system(`${p.name} quit the match`), ...this.checkFinished()];
     }
     return [];
@@ -164,7 +164,7 @@ export class RoomLogic {
   /** Called periodically: players who never report back are timed out. */
   tick() {
     if (this.state !== 'playing' || this.now() < this.deadline) return [];
-    for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), forfeit: true };
+    for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
     return this.checkFinished();
   }
 
@@ -174,9 +174,10 @@ export class RoomLogic {
     const done = active.every(p => p.finished);
     // someone left mid-match: the player still here wins by forfeit straight away
     if (!done && !(someoneLeft && active.length === 1)) return [];
-    const row = p => ({ id: p.id, name: p.name, diff: p.diff, ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc } : {}), pending: true }) });
+    const row = p => ({ id: p.id, name: p.name, diff: p.diff, ...(p.finished || { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), pending: true }) });
     const rows = [...active.map(row), ...this.departed];
-    const order = (a, b) => (a.forfeit - b.forfeit) || (b.score - a.score) || (b.accuracy - a.accuracy);
+    // the winner is decided by pp (score, then accuracy, only break ties — e.g. two fails with 0pp)
+    const order = (a, b) => (a.forfeit - b.forfeit) || (b.pp - a.pp) || (b.score - a.score) || (b.accuracy - a.accuracy);
     rows.sort(order);
     const winner = rows.length === 1 ? rows[0].id : rows.length > 1 && order(rows[0], rows[1]) !== 0 ? rows[0].id : null;
     this.lastResults = { rows, winner, map: this.map, mods: this.mods, at: this.now() };

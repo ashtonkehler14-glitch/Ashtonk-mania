@@ -6160,11 +6160,13 @@ const GameplayScreen = {
     const t = performance.now();
     if (t - this._mpSent > 250 && this.s.running) {
       this._mpSent = t;
-      Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value });
+      this._myPp = this.livePp(e);
+      Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value, pp: this._myPp });
     }
     // the opponent's score arrives 4×/s; ease the displayed value towards it so it counts up smoothly
     const o = Multiplayer.opp;
-    const target = o ? o.score : 0;
+    // matches are won on pp, so the board ranks and shows live pp (score underneath)
+    const target = o ? (o.pp || 0) : 0;
     this._oppShown = this._oppShown == null ? target : this._oppShown + (target - this._oppShown) * Math.min(1, (t - (this._mpT || t)) / 180);
     this._mpT = t;
     if (t - (this._mpDrawn || 0) < 100) return;
@@ -6175,12 +6177,12 @@ const GameplayScreen = {
       this._mpRows = [mk(ProfileManager.profile.name, true), opp ? mk(opp.name, false) : null].filter(Boolean);
       this.mpBoard.append(...this._mpRows.map(r => r.el));
     }
-    const vals = [[e.score.score, e.score.accuracy, e.score.combo], [Math.round(this._oppShown), o ? o.acc : 1, o ? o.combo : 0]];
-    const first = vals[1] && this._mpRows[1] && vals[1][0] > vals[0][0] ? 1 : 0;
+    const vals = [[this._myPp || 0, e.score.score, e.score.accuracy], [this._oppShown, o ? o.score : 0, o ? o.acc : 1]];
+    const first = vals[1] && this._mpRows[1] && (vals[1][0] > vals[0][0] || (vals[1][0] === vals[0][0] && vals[1][1] > vals[0][1])) ? 1 : 0;
     this._mpRows.forEach((r, i) => {
-      const [sc, acc, combo] = vals[i];
+      const [pp, sc, acc] = vals[i];
       const pos = i === first ? 1 : 2;
-      const sub = `${fmtAcc(acc)} · ${fmtInt(combo)}x`, st = fmtScore(sc);
+      const sub = `${fmtScore(sc)} · ${fmtAcc(acc)}`, st = `${Math.round(pp)}pp`;
       if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
       if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
       if (r._st !== st) { r._st = st; r.sc.textContent = st; }
@@ -8537,8 +8539,8 @@ const MultiplayerScreen = {
     const verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
     const row = x => h(`div.mp-res-row${x.id === res.winner ? '.win' : ''}`,
       x.pending ? h('span.grade', '—') : gradeEl(x.forfeit ? 'F' : x.grade || 'D'),
-      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.pp ? ` · ${fmtInt(x.pp)}pp` : ''}${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
-      h('div.mp-res-score', fmtScore(x.score)));
+      h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtScore(x.score)} · ${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
+      h('div.mp-res-score', `${fmtInt(x.pp || 0)}pp`));
     return h(`div.mp-results.${res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost'}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
       ...res.rows.map(row));

@@ -58,15 +58,15 @@ test('cannot ready without the beatmap; start needs two ready players', () => {
   assert.equal(r.state, 'playing');
 });
 
-test('live scores go to the opponent only; higher score wins', () => {
+test('live scores go to the opponent only; higher pp wins', () => {
   const r = room(); ready(r); r.message('a', { t: 'start' });
   const live = r.message('a', { t: 'score', score: 5000, acc: 0.99, combo: 10, hp: 1 });
   assert.deepEqual(live[0].to, { except: 'a' });
-  assert.equal(r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, passed: true, grade: 'A' } }).length, 0, 'waits for both');
-  const out = r.message('b', { t: 'finish', result: { score: 950000, accuracy: 0.95, passed: true, grade: 'A' } });
+  assert.equal(r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, passed: true, grade: 'A', pp: 120 } }).length, 0, 'waits for both');
+  const out = r.message('b', { t: 'finish', result: { score: 950000, accuracy: 0.95, passed: true, grade: 'A', pp: 95 } });
   const res = msgs(out, 'results')[0].msg.results;
-  assert.equal(res.winner, 'b');
-  assert.deepEqual(res.rows.map(x => x.id), ['b', 'a']);
+  assert.equal(res.winner, 'a', 'more pp wins even with less score (e.g. a harder difficulty)');
+  assert.deepEqual(res.rows.map(x => x.id), ['a', 'b']);
   assert.equal(r.state, 'lobby');
   assert.ok(r.players.every(p => !p.ready && !p.playing));
 });
@@ -143,4 +143,13 @@ test('each player can pick their own difficulty of the room beatmap; a new map r
   assert.equal(res.rows.find(x => x.id === 'a').diff, null, 'no choice = the host\'s difficulty');
   r.message('a', { t: 'map', map: { ...MAP, hash: 'other' } });
   assert.equal(r.get('b').diff, null);
+});
+
+test('equal pp (e.g. two fails at 0pp) falls back to score, then accuracy', () => {
+  const r = room(); ready(r); r.message('a', { t: 'start' });
+  r.message('a', { t: 'finish', result: { score: 300000, accuracy: 0.7, pp: 0 } });
+  const res = msgs(r.message('b', { t: 'finish', result: { score: 400000, accuracy: 0.6, pp: 0 } }), 'results')[0].msg.results;
+  assert.equal(res.winner, 'b');
+  const live = r.message('a', { t: 'score', score: 1, acc: 1, combo: 1, hp: 1, pp: 5 });
+  assert.equal(live.length, 0, 'no live scores outside a match');
 });
