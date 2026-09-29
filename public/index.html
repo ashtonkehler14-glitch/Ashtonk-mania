@@ -6432,7 +6432,7 @@ const GameplayScreen = {
     this.loaderGone = false; this.loaderHold = false; this.loaderSkip = false;
     this.loaderEl = this.buildLoader(params);
     el.append(this.loaderEl);
-    this.holdEl = h('div.hold-retry', h('span', icon('retry'), 'Hold to retry'), h('i'));
+    this.holdEl = h('div.hold-retry', h('span', icon('retry'), 'Hold R to retry'), h('i'));
     el.append(this.holdEl);
     if (this.bgRec) this.applyBackground();
     this._keydown = e => this.onKeyDown(e);
@@ -6954,12 +6954,13 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }
       return;
     }
-    if (e.code === 'Backquote' && !s.mp) {
+    // retry: hold R (or `) for half a second — never instant. Ctrl+R counts as holding R (and doesn't reload the
+    // page). An R bound to a lane stays a lane key.
+    if (this.isRetryKey(e)) {
       e.preventDefault();
-      if (!e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
+      if (!s.mp && !e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); if (!s.mp) this.retry(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)
@@ -6981,10 +6982,11 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (e.code === 'F11') return;
     if (s.running && !e.ctrlKey && !e.metaKey && !e.altKey && e.code !== 'Tab') e.preventDefault();
   },
+  isRetryKey(e) { return e.code === 'Backquote' || (e.code === 'KeyR' && !(this.s && this.s.keyMap.has('KeyR'))); },
   onKeyUp(e) {
     if (Screens.current !== this) return;
     const s = this.s;
-    if (e.code === 'Backquote') { clearTimeout(this._retryHold); this.holdEl && this.holdEl.classList.remove('on'); }
+    if (this.isRetryKey(e)) { clearTimeout(this._retryHold); this.holdEl && this.holdEl.classList.remove('on'); }
     if (!s) return;
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
@@ -7081,7 +7083,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
       this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
-      s.mp ? null : h('div.pb-keys', h('span.kbd', '`'), ' hold to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
+      s.mp ? null : h('div.pb-keys', 'hold ', h('span.kbd', 'R'), ' to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');

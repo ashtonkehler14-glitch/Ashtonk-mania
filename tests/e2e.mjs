@@ -384,11 +384,17 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
     return b[0][2] === 1 && b[b.length - 1][2] < 0.1 && f[0][2] < 0.1 && f[f.length - 1][2] === 1 && b.every(x => x[1] > x[0]);
   }));
   check('Space starts from the loader; the beatmap offset is applied', await page.evaluate(() => AshtonkMania.GameplayScreen.s.mapOffset === 20 && AshtonkMania.GameplayScreen.offsetMs() === AshtonkMania.Settings.get('audio.offset') + 20));
+  await page.keyboard.down('KeyR'); await page.waitForTimeout(120); await page.keyboard.up('KeyR'); await page.waitForTimeout(600);
+  check('a quick tap of R does not retry (you have to hold it)', await page.evaluate(() => !AshtonkMania.GameplayScreen.retryCount && AshtonkMania.GameplayScreen.loaderGone));
+  await page.keyboard.down('KeyR'); await page.waitForTimeout(700); await page.keyboard.up('KeyR');
+  await page.waitForTimeout(250);
+  check('holding R retries', await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 1 && !!document.querySelector('.gp-loader')));
+  await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 8000 });
   await page.keyboard.down('Backquote'); await page.waitForTimeout(250);
   const holding = await page.evaluate(() => document.querySelector('.hold-retry').classList.contains('on') && !!AshtonkMania.GameplayScreen.s);
   await page.waitForTimeout(450); await page.keyboard.up('Backquote');
   await page.waitForTimeout(250);
-  check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 1 && !!document.querySelector('.gp-loader .pl-tag.retry')));
+  check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 2 && !!document.querySelector('.gp-loader .pl-tag.retry')));
   await page.evaluate(async id => { await AshtonkMania.MapOffsets.set(AshtonkMania.BeatmapManager.maps.get(id).hash, 0); }, id);
   await page.evaluate(() => AshtonkMania.Screens.go('home'));
   await page.waitForTimeout(500);

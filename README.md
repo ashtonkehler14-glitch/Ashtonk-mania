@@ -19,6 +19,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Hold R to retry
+
+* Retrying mid-play needs a hold: keep **R** (or `` ` ``) down for half a second while the retry bar fills, and let go early to cancel. A quick tap, or Ctrl+R, no longer restarts instantly (Ctrl+R counts as holding R and doesn't reload the page). If R is bound to a lane, it stays a lane key.
+
 ### Faster dense charts, Hidden fixed for holds, skin fonts, a Kori-style Custom skin
 
 * **Smart culling / faster dense charts:**
@@ -193,7 +197,7 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 | Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry · `Space` votes to skip the intro (everyone has to) |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
 | Player loader | `Space` start now · `Esc` back to song select · hover the settings to hold |
-| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
+| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `R` (or `` ` ``) to retry — a tap does nothing · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
 | Practice | `[` / `]` set loop A/B · `\` clear loop · `Backspace` restart section · `←→` seek 5s · `-`/`=` offset |
 | Mod select | letter shortcuts shown on each mod · `Backspace` deselect all |
 
