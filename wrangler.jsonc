@@ -1,0 +1,11 @@
+// Cloudflare Workers static-assets deployment for Ashtonk!mania.
+// Only ./public is uploaded. `node build.mjs` regenerates public/index.html (it is committed, so no build step is required).
+// Deploy: npx wrangler deploy
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "beta-ashtonkmania",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./public"
+  }
+}

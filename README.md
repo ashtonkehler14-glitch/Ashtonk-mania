@@ -4,6 +4,15 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 
 **To play, open `index.html` in a modern browser (Chrome, Edge, Firefox or Safari 16.4+).** The whole client is in that one file, with no install and no server. To get the most reliable storage and timing, serve the folder over `http://localhost` (for example `npx http-server .`) instead of opening it from disk.
 
+## Hosting on Cloudflare
+
+`wrangler.jsonc` deploys the game as a Cloudflare Worker named `beta-ashtonkmania`. Cloudflare serves static assets from `public/`, which contains only the built `index.html`.
+
+* **From Git:** in the Cloudflare dashboard, go to Workers & Pages, connect the repo, leave the build command empty and set the deploy command to `npx wrangler deploy`.
+* **From your machine:** run `npx wrangler deploy`.
+
+After editing anything in `src/`, run `node build.mjs`. It updates both `index.html` and `public/index.html`.
+
 ## Getting started
 
 1. Open `index.html`.
