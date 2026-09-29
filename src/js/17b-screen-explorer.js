@@ -104,6 +104,16 @@ const OnlineBeatmaps = {
     }
     throw lastErr || new Error('Download failed');
   },
+  /** Download a set and import it into the library (remembering its online id). */
+  async downloadAndImport(set, onProgress) {
+    const file = await this.download(set.id, onProgress);
+    const report = await BeatmapManager.importFiles([file]);
+    if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
+    for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
+    Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
+    Bus.emit('library:changed');
+    return report;
+  },
   coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
   previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
 };
@@ -253,18 +263,12 @@ const ExplorerScreen = {
     this.refreshCard(set);
     try {
       let lastPaint = 0;
-      const file = await OnlineBeatmaps.download(set.id, (p, bytes) => {
+      await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
         if (now - lastPaint > 120) { lastPaint = now; this.refreshCard(set); }
       });
       state.state = 'done';
-      const report = await BeatmapManager.importFiles([file]);
-      if (report.sets.length) {
-        for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
-        Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${report.sets.reduce((a, s) => a + s.maps.length, 0)} difficulties added to your library.`);
-        Bus.emit('library:changed');
-      } else Toast.err('Import failed', report.errors.join('\n') || 'The archive had no playable difficulties.');
     } catch (e) {
       state.state = 'error';
       Toast.err(`Couldn't download ${set.title}`, e.message);

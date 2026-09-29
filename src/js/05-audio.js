@@ -101,7 +101,6 @@ const AudioManager = {
     else if (name === 'sectionpass' || name === 'applause') buf = make(0.7, t => (Math.sin(2 * Math.PI * 660 * t) * (t < 0.15 ? 1 : 0) + Math.sin(2 * Math.PI * 990 * t) * (t >= 0.15 ? 1 : 0)) * env(t, 0.005, 0.2) * 0.2);
     else if (name === 'sectionfail') buf = make(0.6, t => Math.sin(2 * Math.PI * (400 - 200 * t) * t) * env(t, 0.005, 0.2) * 0.2);
     else if (/^count[123]s$|^gos$/.test(name)) buf = make(0.15, t => Math.sin(2 * Math.PI * (name === 'gos' ? 1320 : 880) * t) * env(t, 0.002, 0.05) * 0.25);
-    else if (name === 'neru-chime') buf = make(0.9, t => [1318.5, 1661.2, 1975.5].reduce((a, f, i) => a + (t > i * 0.08 ? Math.sin(2 * Math.PI * f * (t - i * 0.08)) * env(t - i * 0.08, 0.004, 0.25) : 0), 0) * 0.12);
     this._synthCache.set(name, buf);
     return buf;
   },

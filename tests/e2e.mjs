@@ -46,7 +46,11 @@ await waitBoot();
 check('boots to home screen', await page.evaluate(() => AshtonkMania.Screens.currentName === 'home'));
 check('first launch asks for a name', await page.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Tester' && AshtonkMania.ProfileManager.profile.onboarded));
 check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
-check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.tb-logo').textContent.includes('Ashtonk')));
+check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
+check('osu!lazer toolbar: icon buttons only, no text tabs', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('touch controls and Neru easter eggs removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
+await page.mouse.click(700, 450); await page.waitForTimeout(500);
+check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn').length === 4 && !document.querySelector('.continue, .lz-footer')));
 await shot('01-home-empty');
 
 // import via synthetic drop event (exercises the drag & drop pipeline)
@@ -237,6 +241,29 @@ await page.keyboard.press('Escape');
 await page.evaluate(() => AshtonkMania.Settings.set('gameplay.scrollSpeed', 27));
 await page.waitForTimeout(600);
 
+// now playing panel: hover the song in the toolbar → pause / next / previous
+await page.evaluate(() => AshtonkMania.Screens.go('home'));
+await page.waitForTimeout(1500);
+await page.hover('.tb-music');
+await page.waitForSelector('.np-panel.show', { timeout: 3000 });
+check('hovering the toolbar song opens the now-playing panel', await page.evaluate(() => document.querySelector('.np-title').textContent.length > 0));
+const wasPlaying = await page.evaluate(() => AshtonkMania.Music.playing);
+await page.click('.np-ctls .np-ctl:nth-child(2)');
+await page.waitForTimeout(200);
+check('now-playing pause / resume', wasPlaying && await page.evaluate(() => !AshtonkMania.Music.playing));
+await page.click('.np-ctls .np-ctl:nth-child(2)');
+await page.waitForTimeout(300);
+const beforeNext = await page.evaluate(() => AshtonkMania.MenuMusic.history.length);
+await page.click('.np-ctls .np-ctl:nth-child(3)');
+await page.waitForTimeout(800);
+check('now-playing next track', await page.evaluate(n => AshtonkMania.MenuMusic.history.length === n + 1 && AshtonkMania.Music.playing, beforeNext));
+await page.evaluate(() => AshtonkMania.Music.play(10000));
+await page.click('.np-ctls .np-ctl:nth-child(1)');
+await page.waitForTimeout(300);
+check('now-playing previous restarts the song', await page.evaluate(() => AshtonkMania.Music.time < 3000));
+await page.mouse.move(700, 700);
+await page.waitForTimeout(600);
+
 // beatmap explorer (Worker API mocked — the real mirrors are external services)
 await page.route('**/api/health', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
 await page.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false,
@@ -276,6 +303,20 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   check(`no horizontal overflow at ${n}`, !overflow);
   await page.evaluate(() => AshtonkMania.Screens.go('home'));
   await page.waitForTimeout(300);
+}
+
+// browser zoom is compensated: simulate 125% zoom (window 1.25× wider than the viewport, DPR 1.25)
+{
+  const zctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.25 });
+  await zctx.addInitScript(() => { Object.defineProperty(window, 'outerWidth', { get: () => Math.round(innerWidth * 1.25) }); });
+  const zp = await zctx.newPage();
+  await zp.goto(url);
+  await zp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  const z = await zp.evaluate(() => { const a = document.querySelector('#app').getBoundingClientRect(), t = document.querySelector('#toolbar').getBoundingClientRect(); return { cls: document.querySelector('#app').classList.contains('zoomfix'), w: a.width, h: a.height, tb: t.height, zoom: AshtonkMania.Zoom.z }; });
+  check('browser zoom is compensated (UI keeps its physical size)', z.cls && z.zoom === 1.25 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 32) < 1, JSON.stringify(z));
+  const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+  check('Ctrl + / Ctrl - zoom shortcuts are blocked', prevented);
+  await zctx.close();
 }
 
 check('no uncaught page errors', errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e)).length === 0, errors.slice(0, 8).join('\n'));

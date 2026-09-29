@@ -39,7 +39,7 @@ class ManiaRenderer {
   }
   resize(force = false) {
     const c = this.canvas;
-    const dpr = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale');
+    const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');
     const w = Math.max(1, Math.round(c.clientWidth * dpr)), hh = Math.max(1, Math.round(c.clientHeight * dpr));
     if (!force && w === c.width && hh === c.height) return;
     c.width = w; c.height = hh;
@@ -282,12 +282,11 @@ class ManiaRenderer {
     }
     if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
       const n = e.j === J.MARV ? 7 : 4;
-      const gold = e.j === J.MARV && Settings.get('gameplay.neruSparkle');
       for (let k = 0; k < n; k++) {
         const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
         const sp = (0.25 + Math.random() * 0.45) * this.s;
         this.effects.push({ type: 'P', col: e.col, t0: realNow, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-          color: gold ? `hsl(${45 + Math.random() * 10},100%,${60 + Math.random() * 20}%)` : rgba(L.colours.light[e.col]), star: gold, life: 380 + Math.random() * 200 });
+          color: rgba(L.colours.light[e.col]), life: 380 + Math.random() * 200 });
       }
     }
   }
@@ -373,7 +372,7 @@ class ManiaRenderer {
     this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
     if (fx.el) {
       const ctx = this.ctx, size = Math.round(9 * this.s);
-      ctx.font = `900 ${size}px Nunito, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
       ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
       ctx.fillStyle = fx.el === 'EARLY' ? '#6cc6ff' : '#ff8a6c'; ctx.fillText(fx.el, this.stageW / 2, yy);
@@ -401,7 +400,7 @@ class ManiaRenderer {
       return;
     }
     const size = Math.round(26 * s * sk * bump);
-    ctx.font = `800 ${size}px Nunito, system-ui, sans-serif`;
+    ctx.font = `800 ${size}px Torus, Outfit, system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const yy = this.up ? this.H - y : y;
     ctx.lineWidth = Math.max(2, size / 8); ctx.strokeStyle = 'rgba(0,0,0,.7)';
@@ -452,7 +451,7 @@ class ManiaRenderer {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;
     const size = 14 * s, gap = 2 * s;
     const x0 = this.stageX + this.stageW + 14 * s, y0 = this.H * 0.5;
-    ctx.font = `700 ${Math.round(size * 0.36)}px Nunito, system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(size * 0.36)}px Torus, Outfit, system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let i = 0; i < K; i++) {
       const y = y0 + i * (size + gap);
@@ -465,7 +464,7 @@ class ManiaRenderer {
   _drawCounter(counts) {
     const ctx = this.ctx, s = this.s;
     const x = this.stageX - 12 * s, y0 = this.H * 0.45, lh = 9 * s;
-    ctx.font = `800 ${Math.round(lh * 0.8)}px Nunito, system-ui, sans-serif`;
+    ctx.font = `800 ${Math.round(lh * 0.8)}px Torus, Outfit, system-ui, sans-serif`;
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     JUDGEMENTS.forEach((jj, i) => {
       ctx.fillStyle = jj.color; ctx.fillText(`${jj.short}  ${counts[i]}`, x, y0 + i * lh);

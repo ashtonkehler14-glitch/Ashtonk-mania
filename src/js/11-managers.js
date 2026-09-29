@@ -160,12 +160,11 @@ const ProfileManager = {
       if (b) this.avatarURL = URL.createObjectURL(b);
     }
   },
-  /** Avatar element (custom image, Neru-inspired motif, or monogram). */
+  /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {
     const p = this.profile;
     const el = h('div.avatar', { style: { width: size + 'px', height: size + 'px' } });
     if (p.avatar === 'custom' && this.avatarURL) el.style.backgroundImage = `url("${this.avatarURL}")`;
-    else if (p.avatar === 'neru') { el.classList.add('avatar-neru'); el.innerHTML = NERU_AVATAR_SVG; }
     else { el.classList.add('avatar-mono'); el.textContent = (p.name || 'A').slice(0, 1).toUpperCase(); el.style.fontSize = size * 0.45 + 'px'; }
     return el;
   },
@@ -181,12 +180,6 @@ const ProfileManager = {
     return { xp, level, into: xp - acc, need, progress: (xp - acc) / need };
   },
 };
-
-const NERU_AVATAR_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="nrg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe98a"/><stop offset="1" stop-color="#f2b705"/></linearGradient></defs>
-<rect width="64" height="64" rx="32" fill="#1a1024"/><path d="M14 40c0-12 8-22 19-22s18 9 18 20c-4-5-9-8-15-8-8 0-15 4-22 10z" fill="url(#nrg)"/>
-<path d="M49 22c6 2 10 8 9 16-3-4-6-6-10-7z" fill="url(#nrg)"/><circle cx="26" cy="42" r="2.3" fill="#2a1a3a"/><circle cx="38" cy="42" r="2.3" fill="#2a1a3a"/>
-<rect x="40" y="46" width="8" height="12" rx="1.5" fill="#b07cff"/><rect x="41.5" y="48" width="5" height="6" rx="1" fill="#1a1024"/>
-<path d="M52 12l1.4 3 3 1.4-3 1.4-1.4 3-1.4-3-3-1.4 3-1.4z" fill="#ffe98a"/></svg>`;
 
 const StatisticsManager = {
   compute() {

@@ -1,4 +1,4 @@
-/* Beatmaps library, Collections, Profile, Statistics, Replays and Skins screens. */
+/* Beatmaps library, Collections, Profile (with statistics), Replays and Skins screens. */
 
 function pageShell(title, sub, actions = []) {
   const body = h('div.screen-body');
@@ -17,21 +17,18 @@ async function importViaPicker(accept, directory = false) {
 const BeatmapsScreen = {
   q: '',
   enter() {
-    const { el, page } = pageShell('Beatmaps', 'Import, validate and manage your local library', [
+    const { el, page } = pageShell('Beatmap library', null, [
       h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'),
       h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
     ]);
     this.page = page;
-    this.summary = h('div.stats-grid');
+    this.summary = h('div.lib-summary');
     const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
     search.addEventListener('input', () => { this.q = search.value.toLowerCase(); this.renderList(); });
     search.addEventListener('keydown', e => e.stopPropagation());
     this.list = h('div.list');
     this.report = h('div');
-    page.append(this.summary, h('div', { style: { height: '18px' } }), this.report,
-      h('div.row', { style: { margin: '6px 0 12px' } }, search, h('span.grow'),
-        h('span.muted', { style: { fontSize: '.8rem' } }, 'Providers: ', BeatmapProviders.list.map(p => p.name).join(', '))),
-      this.list);
+    page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list);
     this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport())];
     this.refresh();
     return el;
@@ -42,12 +39,7 @@ const BeatmapsScreen = {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
     const est = await DB.estimate();
-    const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
-    const keyModes = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(' · ') || '—';
-    clearEl(this.summary).append(
-      card('Beatmap sets', fmtInt(BeatmapManager.sets.length)), card('Difficulties', fmtInt(maps.length), keyModes),
-      card('Unplayable', fmtInt(broken), broken ? 'see details below' : 'all good'),
-      card('Storage used', est ? fmtBytes(est.usage || 0) : 'n/a', est && est.quota ? `of ${fmtBytes(est.quota)} available` : ''));
+    clearEl(this.summary).append(`${fmtInt(BeatmapManager.sets.length)} sets · ${fmtInt(maps.length)} difficulties${broken ? ` · ${broken} unplayable` : ''}${est ? ` · ${fmtBytes(est.usage || 0)} used` : ''}`);
   },
   renderReport() {
     clearEl(this.report);
@@ -96,8 +88,8 @@ const BeatmapsScreen = {
 const CollectionsScreen = {
   sel: null,
   enter() {
-    const { el, page } = pageShell('Collections', 'Group difficulties however you like', [
-      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice, Neru ✦' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')]);
+    const { el, page } = pageShell('Collections', null, [
+      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')]);
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];
@@ -136,7 +128,7 @@ const CollectionsScreen = {
   },
 };
 
-// ─────────────────────────────── Profile ───────────────────────────────
+// ─────────────────────────────── Profile (osu!lazer user profile layout; includes statistics) ───────────────────────────────
 const ProfileScreen = {
   enter() {
     const { el, page } = pageShell('Profile', null);
@@ -155,98 +147,65 @@ const ProfileScreen = {
     const st = StatisticsManager.compute();
     const bestPerMap = new Map();
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || bestPerMap.get(s.mapHash).score < s.score)) bestPerMap.set(s.mapHash, s);
-    const totalScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
+    const rankedScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
     const pp = ScoreManager.totalPp();
     const topPlays = ScoreManager.bestPpPerMap();
-    const banner = h(`div.profile-banner${['neru', 'teto', 'miku'].includes(p.banner) ? '.' + p.banner : ''}`,
-      ProfileManager.avatarEl(110),
-      h('div', { style: { flex: '1', minWidth: '260px' } },
-        h('div.pname', p.name, h('button.icon-btn', { title: 'Rename', onclick: async () => { const n = await Dialog.prompt('Profile name', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')),
-          p.banner === 'neru' ? h('span.gold', { title: 'Neru theme' }, '✦') : null),
-        h('div.plevel', h('div.lvl-badge', String(xp.level)), h('div', h('div.xp-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } })),
-          h('div.muted', { style: { fontSize: '.8rem', marginTop: '4px' } }, `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP to level ${xp.level + 1} · ${fmtInt(xp.xp)} XP total`))),
-        h('div.muted', { style: { marginTop: '8px', fontSize: '.85rem' } }, `Local player since ${new Date(p.created).toLocaleDateString()}`)),
-      h('div.profile-pp', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` },
-        h('div.k', 'Performance'), h('div.v', fmtInt(pp.total), h('span', 'pp')), h('div.sub', `${topPlays.length} ranked play${topPlays.length === 1 ? '' : 's'}`)));
-    const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
-    const stats = h('div.stats-grid', { style: { marginTop: '16px' } },
-      card('Total pp', fmtInt(pp.total) + 'pp', 'weighted top plays + bonus'), card('Total score', fmtInt(totalScore), 'sum of best scores'), card('Accuracy', st.passed ? fmtAcc(st.avgAcc) : '—', 'average of passes'),
-      card('Play count', fmtInt(st.plays), `${st.passed} passed · ${st.failed} failed`), card('Play time', fmtDuration(st.playtime)),
-      card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'));
-    // customisation
-    const avatarOpts = [['default', 'Monogram'], ['neru', 'Neru ✦'], ['custom', 'Custom image']];
-    const picker = h('div.avatar-picker', ...avatarOpts.map(([k, label]) => {
-      const prev = k === 'default' ? h('div.avatar.avatar-mono', { style: { width: '56px', height: '56px', fontSize: '24px' } }, p.name.slice(0, 1).toUpperCase())
-        : k === 'neru' ? h('div.avatar.avatar-neru', { style: { width: '56px', height: '56px' }, html: NERU_AVATAR_SVG })
-          : h('div.avatar', { style: { width: '56px', height: '56px', backgroundImage: ProfileManager.avatarURL ? `url("${ProfileManager.avatarURL}")` : '' } }, ProfileManager.avatarURL ? null : icon('upload'));
-      return h(`button.avatar-opt${p.avatar === k ? '.on' : ''}`, { title: label, onclick: async () => {
-        if (k === 'custom') { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) await ProfileManager.setAvatar('custom', f); }
-        else await ProfileManager.setAvatar(k);
-        if (k === 'neru') neruSparkBurst(document.querySelector('.profile-banner .avatar'), 8);
-        Toolbar.updateProfile();
-      } }, prev, h('div.muted', { style: { fontSize: '.7rem', marginTop: '4px' } }, label));
-    }));
-    const bannerSel = h('div.row', ...[['kori', 'Kori'], ['neru', 'Neru ✦'], ['teto', 'Teto'], ['miku', 'Miku']].map(([k, l]) => h(`button.chip${p.banner === k ? '.on' : ''}`, { onclick: async () => { p.banner = k; await ProfileManager.save(); } }, l)));
-    const custom = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Avatar'), picker,
-      h('div.sp-group', 'Profile theme'), bannerSel);
-    // lists
-    const recent = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Recent plays'), this.scoreList(ScoreManager.recent(10)));
-    const pbs = h('div.panel', { style: { padding: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Top plays (pp)'),
-      topPlays.length ? h('div.list', ...topPlays.slice(0, 15).map((tp, i) => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: tp.score, fromList: true }) },
-        gradeEl(tp.score.grade), h('div.main', h('div.t', `${tp.score.title} [${tp.score.version}]`), h('div.s', `${fmtAcc(tp.score.accuracy)} · ${(tp.score.mods || []).length ? '+' + tp.score.mods.join('') + ' · ' : ''}${fmtDate(tp.score.date)}`)),
-        h('div.pp-cell', h('b', `${fmtInt(tp.pp)}pp`), h('span.muted', `weighted ${Math.round(Math.pow(0.95, i) * 100)}% (${fmtInt(tp.pp * Math.pow(0.95, i))}pp)`))))) : h('div.muted', 'Pass a map to earn pp.'));
-    const favs = BeatmapManager.sets.filter(s => Favorites.has(s.id));
-    const favPanel = h('div.panel', { style: { padding: '16px', marginTop: '16px' } }, h('div.sp-group', { style: { marginTop: 0 } }, `Favorites (${favs.length})`),
-      favs.length ? h('div.list', ...favs.slice(0, 12).map(s => h('div.list-row', h('div.main', h('div.t', `${s.artist} — ${s.title}`), h('div.s', `${s.maps.length} difficulties · ${s.creator}`)),
-        h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: s.maps[0].id }) }, icon('play'), 'Open')))) : h('div.muted', 'No favorites yet.'));
-    page.append(banner, stats, custom, h('div.chart-row', recent, pbs), favPanel);
-  },
-  scoreList(scores) {
-    if (!scores.length) return h('div.muted', 'Nothing here yet.');
-    return h('div.list', ...scores.map(s => h('button.list-row', { style: { textAlign: 'left', width: '100%' }, onclick: () => Screens.go('results', { score: s, fromList: true }) },
-      gradeEl(s.grade), h('div.main', h('div.t', `${s.title} [${s.version}]`), h('div.s', `${fmtScore(s.score)} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'}${s.mods.length ? ' · +' + s.mods.join('') : ''} · ${fmtDate(s.date)}`)))));
-  },
-};
-
-// ─────────────────────────────── Statistics ───────────────────────────────
-const StatsScreen = {
-  enter() {
-    const { el, page } = pageShell('Statistics', 'Everything you have played, locally tracked');
-    const st = StatisticsManager.compute();
-    const card = (k, v, sub) => h('div.panel.big-stat', h('div.k', k), h('div.v', v), sub ? h('div.sub', sub) : null);
-    page.append(h('div.stats-grid',
-      card('Total pp', fmtInt(ScoreManager.totalPp().total) + 'pp'), card('Total plays', fmtInt(st.plays)), card('Play time', fmtDuration(st.playtime)), card('Notes hit', fmtInt(st.notes)),
-      card('Misses', fmtInt(st.misses)), card('Average accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), card('Highest score', fmtInt(st.highestScore)),
-      card('Highest combo', fmtInt(st.highestCombo) + 'x'), card('Best grade', st.bestGrade ? gradeEl(st.bestGrade) : '—'),
-      card('Maps passed', fmtInt(st.passed)), card('Maps failed', fmtInt(st.failed))));
-    if (!st.plays) { page.append(h('div.empty', h('div.big', 'No plays yet'), 'Your graphs will appear here after your first play.')); return el; }
-    const day = 86400000;
-    const perDay = Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })));
-    const accTrend = st.accTrend.length ? Charts.line(st.accTrend.map(a => ({ y: a.acc * 100, tip: `${a.title} [${a.version}] · ${(a.acc * 100).toFixed(2)}% · ${new Date(a.date).toLocaleDateString()}` })), { fmtY: v => v.toFixed(1) + '%' }) : h('div.muted', 'Pass a map to see your accuracy trend.');
+    const avatar = ProfileManager.avatarEl(110);
+    avatar.classList.add('pf-avatar');
+    avatar.title = 'Change avatar';
+    avatar.addEventListener('click', e => showMenu(e.clientX, e.clientY, [
+      { label: 'Upload image…', icon: 'upload', onClick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await ProfileManager.setAvatar('custom', f); Toolbar.updateProfile(); } } },
+      { label: 'Use initial', icon: 'user', onClick: async () => { await ProfileManager.setAvatar('default'); Toolbar.updateProfile(); } },
+    ]));
+    const head = h('div.pf-head',
+      avatar,
+      h('div.pf-id', h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),
+        h('div.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`)),
+      h('div.grow'),
+      h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` }, h('div.pf-lvl-num', String(xp.level)), h('div.pf-lvl-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } }))));
+    const grades = st.grades || {};
+    const gradeCount = (label, ...keys) => h('div.pf-grade', gradeEl(keys[0]), h('span', fmtInt(keys.reduce((a, k) => a + (grades[k] || 0), 0))));
+    const dl = (k, v) => h('div.pf-dl', h('span', k), h('b', v));
+    const bar = h('div.pf-stats',
+      h('div.pf-pp', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp')),
+      h('div.pf-grades', gradeCount('SS', 'XH', 'SS'), gradeCount('S', 'SH', 'S'), gradeCount('A', 'A')),
+      h('div.grow'),
+      h('div.pf-dls',
+        dl('Ranked score', fmtInt(rankedScore)), dl('Hit accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), dl('Play count', fmtInt(st.plays)),
+        dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
+    page.append(head, bar);
+    // historical
     const ppHist = ScoreManager.ppHistory();
-    page.append(h('div.panel.chart-card', { style: { marginTop: '16px' } }, h('h3', 'Performance (total pp) over time', h('span.grow'), h('span', `${fmtInt(ScoreManager.totalPp().total)}pp now`)),
-      ppHist.length ? Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0 }) : h('div.muted', 'Pass a map to start tracking pp.')));
-    page.append(h('div.chart-row',
-      h('div.panel.chart-card', h('h3', 'Plays per day (last 30 days)'), perDay),
-      h('div.panel.chart-card', h('h3', 'Accuracy trend (last 60 passes)'), accTrend)));
-    const gradeOrder = ['XH', 'SS', 'SH', 'S', 'A', 'B', 'C', 'D', 'F'];
-    const gradeData = gradeOrder.filter(g => st.grades[g]).map(g => ({ label: g === 'XH' ? 'SS·H' : g === 'SH' ? 'S·H' : g, value: st.grades[g], tip: `${g}: ${st.grades[g]} play${st.grades[g] === 1 ? '' : 's'}` }));
-    const judgeData = JUDGEMENTS.map((j, i) => ({ label: j.short, value: st.judgements[i], color: j.color, tip: `${j.name}: ${fmtInt(st.judgements[i])}` }));
-    page.append(h('div.chart-row',
-      h('div.panel.chart-card', h('h3', 'Grade distribution'), Charts.bars(gradeData)),
-      h('div.panel.chart-card', h('h3', 'Lifetime judgements'), Charts.bars(judgeData), h('div.chart-legend', ...JUDGEMENTS.map(j => h('span', { style: { '--c': j.color } }, j.name))))));
-    const keys = Object.keys(st.keyModes).map(Number).sort((a, b) => a - b);
-    page.append(h('div.panel.chart-card', { style: { marginTop: '16px' } }, h('h3', 'Key modes'),
-      h('table.table', h('tr', h('th', 'Mode'), h('th', 'Plays'), h('th', 'Passed'), h('th', 'Average accuracy'), h('th', 'Best score'), h('th', 'Play time')),
-        ...keys.map(k => { const m = st.keyModes[k]; return h('tr', h('td', h('span.keys-tag', k + 'K')), h('td', fmtInt(m.plays)), h('td', fmtInt(m.passed)), h('td', m.passed ? fmtAcc(m.accSum / m.passed) : '—'), h('td', fmtInt(m.best)), h('td', fmtDuration(m.playtime))); }))));
-    return el;
+    if (ppHist.length > 1) page.append(h('div.pf-section', h('h2', 'Performance history'),
+      h('div.panel.chart-card', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))));
+    if (st.plays) {
+      const day = 86400000;
+      page.append(h('div.pf-section', h('h2', 'Play history'),
+        h('div.panel.chart-card', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))));
+    }
+    // ranks
+    page.append(h('div.pf-section', h('h2', 'Best performance'),
+      topPlays.length ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, h('div.pf-pp-cell', h('b', `${fmtInt(tp.pp)}pp`), h('span', `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`)))))
+        : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
+    const recent = ScoreManager.recent(10);
+    page.append(h('div.pf-section', h('h2', 'Recent plays'),
+      recent.length ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, h('div.pf-pp-cell', h('b', s.passed ? `${fmtInt(ScoreManager.ppOf(s))}pp` : 'failed')))))
+        : h('div.pf-empty', 'No recent plays.')));
+  },
+  scoreRow(s, right) {
+    return h('button.pf-score', { onclick: () => Screens.go('results', { score: s, fromList: true }) },
+      gradeEl(s.grade),
+      h('div.main', h('div.t', s.title, h('span.muted', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), ` · ${fmtDate(s.date)}`)),
+      h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, true))),
+      h('div.pf-acc', fmtAcc(s.accuracy)),
+      right);
   },
 };
 
 // ─────────────────────────────── Replays ───────────────────────────────
 const ReplaysScreen = {
   enter() {
-    const { el, page } = pageShell('Replays', 'Saved local replays — deterministic re-simulation of your inputs', [
+    const { el, page } = pageShell('Replays', null, [
       h('button.btn', { onclick: () => importViaPicker('.amr,.json') }, icon('upload'), 'Import .amr')]);
     this.list = h('div.list');
     page.append(this.list);
@@ -328,7 +287,7 @@ class SkinPreview {
 const SkinsScreen = {
   sel: null, keys: 4,
   enter() {
-    const { el, page } = pageShell('Skins', 'Import .osk skins — skin.ini [Mania] layouts are applied per key count', [
+    const { el, page } = pageShell('Skins', null, [
       h('button.btn.primary', { onclick: () => importViaPicker('.osk') }, icon('upload'), 'Import .osk')]);
     this.sel = this.sel || SkinManager.current.id;
     this.side = h('div.side-list'); this.main = h('div');
@@ -347,7 +306,6 @@ const SkinsScreen = {
         icon('brush'), h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, s.name),
         s.id === SkinManager.current.id ? h('span.cnt', { style: { color: 'var(--accent)' } }, 'in use') : null));
     }
-    this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px', lineHeight: 1.5 } }, 'Tip: drag Kori 3.0.osk (or any .osk) onto the window. The newest imported skin is selected automatically.'));
     const meta = list.find(s => s.id === this.sel);
     const skin = SkinManager.instance(meta.id);
     clearEl(this.main);
@@ -355,9 +313,6 @@ const SkinsScreen = {
     if (!supported.includes(this.keys)) this.keys = supported.includes(4) ? 4 : supported.includes(7) ? 7 : (supported[0] || 4);
     const canvas = h('canvas');
     const pv = h('div.skin-preview', canvas);
-    const kv = (k, v) => h('div.stat', h('div.k', k), h('div.v', { style: { fontSize: '.95rem' } }, v));
-    const assets = [...new Set((meta.files || []).filter(f => /mania|lighting|^hit|score-|combo-/i.test(f)).map(f => f.replace(/@2x(\.\w+)$/i, '$1')))]
-      .sort((a, b) => (/^mania\//i.test(b) - /^mania\//i.test(a)) || a.localeCompare(b));
     const inUse = SkinManager.current.id === meta.id;
     this.main.append(
       h('div.row', { style: { marginBottom: '12px', flexWrap: 'wrap' } }, h('h2', { style: { margin: 0, fontWeight: 900 } }, skin.name), h('span.grow'),
@@ -367,12 +322,7 @@ const SkinsScreen = {
       h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
         ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
       pv,
-      h('div.skin-meta', kv('Name', skin.name), kv('Author', skin.author), kv('Version', String(skin.version)),
-        kv('Key modes (skin.ini)', meta.builtin ? '1K – 10K (generated)' : (supported.length ? supported.map(k => k + 'K').join(' ') : 'none — defaults')),
-        kv('Files', meta.builtin ? 'procedural' : String((meta.files || []).length)), kv('Mania assets', meta.builtin ? 'procedural' : String(assets.length))),
-      !meta.builtin ? h('div.panel', { style: { padding: '14px' } }, h('div.sp-group', { style: { marginTop: 0 } }, 'Detected mania / judgement assets'),
-        h('div.asset-list', ...assets.slice(0, 400).map(a => h('span.tag', a)), assets.length > 400 ? h('span.muted', `+${assets.length - 400} more`) : null,
-          !assets.length ? h('span.muted', 'No mania-specific assets found; defaults are used.') : null)) : null);
+      h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}`}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     requestAnimationFrame(() => this.preview.show(skin, this.keys));

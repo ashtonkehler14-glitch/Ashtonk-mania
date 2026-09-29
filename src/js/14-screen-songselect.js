@@ -10,22 +10,21 @@ const STATUS_FILTERS = [
   ['all', 'All'], ['favorites', 'Favorites'], ['recent', 'Recent'], ['played', 'Played'], ['unplayed', 'Unplayed'],
   ['passed', 'Passed'], ['failed', 'Failed'], ['pb', 'Has PB'], ['mods', 'Passed with current mods'],
 ];
-const STAR_RANGES = [['', 'Any ★'], ['0-2', '0 – 2★'], ['2-3.5', '2 – 3.5★'], ['3.5-5', '3.5 – 5★'], ['5-6.5', '5 – 6.5★'], ['6.5-99', '6.5★ +']];
-const BPM_RANGES = [['', 'Any BPM'], ['0-120', '< 120'], ['120-160', '120 – 160'], ['160-200', '160 – 200'], ['200-9999', '200 +']];
 
 const SongSelect = {
   tab: 'songselect',
-  query: '', starRange: '', bpmRange: '',
+  query: '',
   selectedId: null, expandedSet: null,
   rows: [], ROW_SET: 92, ROW_DIFF: 64,
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
+    this.mpPick = !!params.mpPick && Multiplayer.inRoom();
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
     const el = h('div.ss');
     this.el = el;
-    this.searchInput = h('input.input', { type: 'search', placeholder: 'Search title, artist, mapper, tags…  (try: keys=7 stars>4 bpm>180)', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
+    this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
     this.searchInput.addEventListener('keydown', e => {
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
@@ -34,24 +33,23 @@ const SongSelect = {
       } else e.stopPropagation();
     });
     this.countEl = h('span.ss-count');
-    const sortSel = h('select.select', { 'aria-label': 'Sort by', title: 'Sort by' }, ...SORTS.map(([v, l]) => h('option', { value: v, selected: Settings.get('songselect.sort') === v }, 'Sort: ' + l)));
-    sortSel.addEventListener('change', () => { Settings.set('songselect.sort', sortSel.value); UISounds.click(); this.rebuild(); });
-    const statusSel = h('select.select', { 'aria-label': 'Filter', title: 'Filter' }, ...STATUS_FILTERS.map(([v, l]) => h('option', { value: v, selected: Settings.get('songselect.filter') === v }, l)));
-    statusSel.addEventListener('change', () => { Settings.set('songselect.filter', statusSel.value); UISounds.click(); this.rebuild(true); });
-    const starSel = h('select.select', { 'aria-label': 'Star range' }, ...STAR_RANGES.map(([v, l]) => h('option', { value: v, selected: this.starRange === v }, l)));
-    starSel.addEventListener('change', () => { this.starRange = starSel.value; this.rebuild(true); });
-    const bpmSel = h('select.select', { 'aria-label': 'BPM range' }, ...BPM_RANGES.map(([v, l]) => h('option', { value: v, selected: this.bpmRange === v }, l)));
-    bpmSel.addEventListener('change', () => { this.bpmRange = bpmSel.value; this.rebuild(true); });
+    const sel = (label, opts, cur, fn) => {
+      const el = h('select.select', { 'aria-label': label, title: label }, ...opts.map(([v, l]) => h('option', { value: v, selected: cur === v }, l)));
+      el.addEventListener('change', () => { UISounds.click(); fn(el.value); });
+      return h('label.ss-sel', h('span', label), el);
+    };
+    const keysNow = (Settings.get('songselect.keys') || [])[0] || '';
     this.collSel = h('select.select', { 'aria-label': 'Collection' });
     this.fillCollections();
     this.collSel.addEventListener('change', () => { Settings.set('songselect.collection', this.collSel.value); UISounds.click(); this.rebuild(true); });
-    const keyChips = h('div.row', { style: { gap: '5px' } });
-    this.keyChips = keyChips;
-    this.renderKeyChips();
-
-    const top = h('div.ss-top',
-      h('div.ss-search', icon('search'), this.searchInput), sortSel, statusSel, this.countEl);
-    const filters = h('div.ss-filters', keyChips, starSel, bpmSel, this.collSel);
+    const filters = h('div.ss-filter',
+      h('div.ss-search', icon('search'), this.searchInput),
+      h('div.ss-filter-row',
+        sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
+        sel('Show', STATUS_FILTERS, Settings.get('songselect.filter'), v => { Settings.set('songselect.filter', v); this.rebuild(true); }),
+        sel('Keys', [['', 'All'], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => [String(k), k === 9 ? '9K+' : k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
+        h('label.ss-sel', h('span', 'Collection'), this.collSel),
+        h('span.grow'), this.countEl));
 
     // left info
     this.info = h('div.ss-info');
@@ -62,22 +60,20 @@ const SongSelect = {
     this.carousel = h('div.carousel', this.scroller);
     this.emptyEl = h('div.ss-empty');
     this.carousel.appendChild(this.emptyEl);
+    const right = h('div.ss-right', filters, this.carousel);
 
     // footer
     this.modsOn = h('div.mods-on');
-    this.pbEl = h('div.muted', { style: { fontSize: '.85rem' } });
-    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
-      h('span.ring'), h('span.face', icon('play', 'fill')));
-    const fb = (label, ic, color, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), label, h('span.kbd', key)));
+    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' }, h('span.ss-cookie-disc', icon('play', 'fill')));
+    const fb = (label, color, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', label));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', 'mods', '#ffcc22', () => ModSelect.open(), 'F1'),
-      fb('Random', 'shuffle', '#88dd44', () => this.random(), 'F2'),
-      fb('Options', 'list', '#aa77ff', e => this.options(e), 'F3'),
-      fb('Practice', 'flag', '#66ccff', () => this.play('practice'), 'F4'),
-      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'PRACTICE MODE') : null, this.pbEl, this.playBtn);
+      fb('Mods', '#ffcc22', () => ModSelect.open(), 'F1'),
+      fb('Random', '#88b300', () => this.random(), 'F2'),
+      fb('Options', '#aa66ff', e => this.options(e), 'F3'),
+      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
-    el.append(top, filters, h('div.ss-main', this.info, this.carousel), footer);
+    el.append(h('div.ss-main', this.info, right), footer);
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild()),
       Bus.on('mods:changed', () => this.renderMods()),
@@ -100,21 +96,6 @@ const SongSelect = {
     clearEl(this.collSel);
     const cur = Settings.get('songselect.collection');
     this.collSel.append(h('option', { value: '' }, 'All collections'), ...Collections.list.map(c => h('option', { value: c.id, selected: c.id === cur }, `▸ ${c.name} (${c.hashes.length})`)));
-  },
-  renderKeyChips() {
-    const keys = Settings.get('songselect.keys') || [];
-    clearEl(this.keyChips);
-    for (let k = 1; k <= 9; k++) {
-      const on = keys.includes(k);
-      this.keyChips.append(h(`button.chip${on ? '.on' : ''}`, {
-        title: k === 9 ? '9K and above' : `${k}K`,
-        onclick: () => {
-          const cur = Settings.get('songselect.keys') || [];
-          Settings.set('songselect.keys', cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]);
-          UISounds.click(); this.renderKeyChips(); this.rebuild(true);
-        },
-      }, k === 9 ? '9K+' : `${k}K`));
-    }
   },
   renderMods() {
     if (!this.modsOn) return;
@@ -163,8 +144,6 @@ const SongSelect = {
     const collId = Settings.get('songselect.collection');
     const coll = collId ? Collections.get(collId) : null;
     const mods = Settings.get('songselect.mods') || [];
-    const [smin, smax] = this.starRange ? this.starRange.split('-').map(Number) : [0, 1e9];
-    const [bmin, bmax] = this.bpmRange ? this.bpmRange.split('-').map(Number) : [0, 1e9];
     const weekAgo = Date.now() - 7 * 86400000;
     const results = [];
     for (const set of BeatmapManager.sets) {
@@ -184,8 +163,6 @@ const SongSelect = {
       const maps = set.maps.filter(m => {
         if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.some(k => k === 9 ? m.keys >= 9 : m.keys === k)) return false;
-        if (m.stars < smin || m.stars >= smax) return false;
-        if (this.bpmRange && (m.bpm < bmin || m.bpm >= bmax)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
         if (status !== 'all' && status !== 'favorites') {
@@ -227,7 +204,7 @@ const SongSelect = {
     this.expandedSet = this.selectedId ? BeatmapManager.maps.get(this.selectedId)?.setId : null;
     this.layoutRows();
     const nDiffs = results.reduce((a, r) => a + r.maps.length, 0);
-    this.countEl.textContent = `${results.length} set${results.length === 1 ? '' : 's'} · ${nDiffs} difficult${nDiffs === 1 ? 'y' : 'ies'}`;
+    this.countEl.textContent = `${fmtInt(nDiffs)} matching beatmap${nDiffs === 1 ? '' : 's'}`;
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);
@@ -265,7 +242,7 @@ const SongSelect = {
     }
   },
   clearFilters() {
-    this.query = ''; this.searchInput.value = ''; this.starRange = ''; this.bpmRange = '';
+    this.query = ''; this.searchInput.value = '';
     Settings.set('songselect.keys', []); Settings.set('songselect.filter', 'all'); Settings.set('songselect.collection', '');
     Screens.go('songselect', { force: true }, { replace: true });
   },
@@ -308,7 +285,7 @@ const SongSelect = {
         oncontextmenu: e => { e.preventDefault(); this.options(e, maps[0]); },
       }, bg, h('div.sp-body',
         h('div.sp-t', set.title),
-        h('div.sp-a', `${set.artist} · mapped by ${set.creator}`),
+        h('div.sp-a', set.artist),
         h('div.sp-dots', ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
           maps.length > 18 ? h('span.muted', { style: { fontSize: '.72rem' } }, `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
@@ -324,10 +301,9 @@ const SongSelect = {
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
       }, h('span.dp-icon', { style: { '--sc': starColour(m.stars) }, title: `${m.stars.toFixed(2)}★` }, `${m.keys}K`),
-      best ? gradeEl(best.grade) : h('span', { style: { width: '34px' } }),
-      h('div.dp-main', h('div.dp-v', m.version), h('div.dp-s', h('span', `${m.keys}K`), h('span', `${Math.round(m.bpm)} BPM`), h('span', fmtTime(m.length)), m.lnCount ? h('span', `${Math.round(m.lnRatio * 100)}% LN`) : null,
-        m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, '⚠ ' + m.problems[0]) : null)),
-      starBadge(m.stars));
+      h('div.dp-main', h('div.dp-top', starBadge(m.stars), h('span.dp-v', m.version)), h('div.dp-s', `mapped by ${m.creator}`,
+        m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, ' · ' + m.problems[0]) : null)),
+      best ? gradeEl(best.grade) : null);
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
     }
@@ -435,7 +411,7 @@ const SongSelect = {
     if (!this.info) return;
     clearEl(this.info);
     const m = this.selectedId && BeatmapManager.maps.get(this.selectedId);
-    if (!m) { this.playBtn && (this.playBtn.disabled = true); this.pbEl.textContent = ''; return; }
+    if (!m) { this.playBtn && (this.playBtn.disabled = true); return; }
     this.playBtn.disabled = m.problems.length > 0;
     const set = BeatmapManager.setById.get(m.setId);
     const bg = h('div.w-bg');
@@ -443,38 +419,34 @@ const SongSelect = {
     const fav = Favorites.has(set.id);
     const favBtn = h(`button.icon-btn${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
     const collBtn = h('button.icon-btn', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
-    const wedge = h('div.wedge', bg, h('div.w-body',
-      h('div.w-top', h('span.keys-tag', `${m.keys}K`), m.lnCount ? h('span.tag', `${Math.round(m.lnRatio * 100)}% LN`) : null,
-        set.storyboard ? h('span.tag', { title: 'Storyboards are detected but not rendered' }, 'Storyboard') : null,
-        m.warnings.length ? h('span.tag.warn', { title: m.warnings.join('\n') }, '⚠') : null, h('span.grow'), collBtn, favBtn),
-      h('div.w-title', m.title), h('div.w-artist', m.artist),
-      h('div.w-diff', starBadge(m.stars), h('span', `[${m.version}]`)),
-      h('div.w-mapper', 'mapped by ', h('b', m.creator), m.source ? ` · ${m.source}` : '')));
-    const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin)}–${Math.round(m.bpmMax)}` : Math.round(m.bpm);
     const mods = Settings.get('songselect.mods') || [];
     const rate = ModSystem.rate(mods);
-    const strip = h('div.stat-strip',
-      ...[['Length', fmtTime(m.length / rate)], ['BPM', rate !== 1 ? Math.round(m.bpm * rate) : bpm], ['Notes', fmtInt(m.noteCount)], ['Long notes', fmtInt(m.lnCount)], ['Keys', m.keys + 'K'], ['NPS', (m.nps * rate).toFixed(1)]]
-        .map(([k, v]) => h('div.stat', h('div.k', k), h('div.v', String(v)))));
-    const bar = (label, v, max = 10) => [h('span.muted', label), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.num', v.toFixed(1))];
-    const diffbars = h('div.panel.diffbars', ...bar('Overall difficulty', m.od), ...bar('HP drain', m.hp), ...bar('Star rating', m.stars));
-    const problems = m.problems.length ? h('div.panel', { style: { padding: '12px 14px', borderColor: 'rgba(255,74,92,.4)' } },
-      h('b', { style: { color: '#ffb3bb' } }, 'This difficulty can\'t be played'), h('div.muted', { style: { fontSize: '.85rem', marginTop: '4px' } }, m.problems.join(' · '))) : null;
-    const lb = h('div.panel.lb', h('div.lb-head', icon('list'), 'Local scores', h('span.grow'), h('span', `${ScoreManager.playCount(m.hash)} plays`)));
+    const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin * rate)}–${Math.round(m.bpmMax * rate)}` : Math.round(m.bpm * rate);
+    const st = (ic, label, v) => h('span.w-stat', { title: label }, icon(ic), String(v));
+    const wedge = h('div.wedge', bg, h('div.w-body',
+      h('div.w-top', starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.grow'), collBtn, favBtn),
+      h('div.w-title', m.title), h('div.w-artist', m.artist),
+      h('div.w-diff', h('b', m.version), h('span.muted', ' mapped by '), h('b', m.creator)),
+      h('div.w-stats', st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm), st('target', 'Notes', fmtInt(m.noteCount)), st('list', 'Long notes', fmtInt(m.lnCount)))));
+    const attr = (k, v, max) => h('div.attr', h('span.k', k), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.v', typeof v === 'number' ? v.toFixed(1) : v));
+    const details = h('div.ss-attrs', attr('Keys', m.keys, 10), attr('Accuracy', m.od, 10), attr('HP drain', m.hp, 10), attr('Star rating', m.stars, 10));
+    const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
+    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', `${ScoreManager.playCount(m.hash)} plays`)));
     const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
     const best = ScoreManager.best(m.hash);
-    if (!scores.length) list.append(h('div.empty', { style: { padding: '20px' } }, 'No scores yet. Be the first!'));
+    if (!scores.length) list.append(h('div.lb-empty', 'No scores yet'));
+    const who = ProfileManager.profile.name;
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
-        h('span.rank', String(i + 1)), gradeEl(s.grade),
-        h('div.main', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x · ${s.passed ? fmtInt(ScoreManager.ppOf(s)) + 'pp' : 'failed'} · ${fmtDate(s.date)}`)),
-        h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true)), s.replayId ? icon('film') : null));
+        h('span.rank', '#' + (i + 1)), gradeEl(s.grade),
+        h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
+        h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
+        h('div.nums', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
       list.append(row);
     });
     lb.append(list);
-    this.info.append(...[wedge, strip, diffbars, problems, lb].filter(Boolean));
-    this.pbEl.textContent = best ? `PB ${fmtScore(best.score)} · ${fmtAcc(best.accuracy)}` : '';
+    this.info.append(...[wedge, details, problems, lb].filter(Boolean));
   },
 
   collectionMenu(e, m) {
@@ -518,6 +490,12 @@ const SongSelect = {
     const m = BeatmapManager.maps.get(this.selectedId);
     if (!m) return;
     if (m.problems.length) { Toast.err('Can\'t play this difficulty', m.problems.join('\n')); return; }
+    if (this.mpPick && Multiplayer.inRoom()) {
+      UISounds.click();
+      Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+      Screens.go('multiplayer', {}, { replace: true });
+      return;
+    }
     UISounds.click();
     const mods = Settings.get('songselect.mods') || [];
     Game.launch({ mapId: m.id, mods: mode === 'auto' ? ModSystem.normalize([...mods.filter(x => !MOD_BY_ID.get('AT').incompatible.includes(x)), 'AT']) : mods, mode: mode === 'auto' ? 'play' : mode });

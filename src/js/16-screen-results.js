@@ -45,7 +45,7 @@ const ResultsScreen = {
     const ring = h('div.res-ring');
     ring.innerHTML = `<svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14"/>
       <circle class="accring" cx="115" cy="115" r="${R}" fill="none" stroke="url(#rg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset calc(1200ms * var(--anim)) cubic-bezier(.16,1,.3,1)"/>
-      <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9c2ff"/><stop offset=".7" stop-color="#8a4dff"/><stop offset="1" stop-color="#ffd54a"/></linearGradient></defs></svg>`;
+      <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" style="stop-color: var(--accent)"/></linearGradient></defs></svg>`;
     ring.append(gradeEl(s.grade));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
     const scoreEl = h('div.res-score', '0');
@@ -68,10 +68,8 @@ const ResultsScreen = {
     else if (s.prevBest && p.fresh && s.passed) card.append(h('div.muted', `Personal best: ${fmtScore(s.prevBest.score)} (${s.score >= s.prevBest.score ? '+' : ''}${fmtInt(s.score - s.prevBest.score)})`));
     const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     card.append(h('div.res-kv',
-      kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'), kv('Rate', `${s.rate || 1}×`),
-      kv('Mean', `${(s.meanError || 0) >= 0 ? '+' : ''}${(s.meanError || 0).toFixed(1)}ms`, 'Average offset: positive = late'),
-      kv('UR', (s.unstableRate || 0).toFixed(1), 'Unstable rate: standard deviation × 10'),
-      kv('Early / Late', `${s.early || 0} / ${s.late || 0}`)));
+      kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),
+      kv('UR', (s.unstableRate || 0).toFixed(1), `Unstable rate · mean ${(s.meanError || 0).toFixed(1)}ms · ${s.early || 0} early / ${s.late || 0} late`)));
     return card;
   },
   rightCol(s) {
@@ -90,20 +88,25 @@ const ResultsScreen = {
     const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
     if (errs.length) {
       hist.append(Charts.histogram(errs.map(e => e[1]), W, s.meanError || 0));
-      hist.append(h('div.chart-legend', h('span', { style: { '--c': 'var(--accent)' } }, 'Hits per 2ms bin (colour = judgement window)'), h('span', { style: { '--c': '#ffffff' } }, 'Centre (0ms)'), h('span', { style: { '--c': '#ffd54a' } }, 'Mean offset')));
       scatter.append(Charts.scatter(s.hitErrors, W));
       scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.name))));
     } else {
       hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
       scatter.style.display = 'none';
     }
-    col.append(hist, scatter);
+    col.append(hist);
+    // Secondary graphs stay folded away to keep the screen simple.
+    const more = h('details.res-more', h('summary', 'More statistics'));
+    if (errs.length) more.append(scatter);
     const hl = s.healthTimeline || [];
     if (hl.length > 2) {
       const step = Math.max(1, Math.floor(hl.length / 240));
       const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([t, v]) => ({ y: v * 100, tip: `${fmtTime(t)} · health ${Math.round(v * 100)}%` }));
-      col.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(Math.min(...hl.map(x => x[1])) * 100)}%`)),
+      more.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(Math.min(...hl.map(x => x[1])) * 100)}%`)),
         Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
+    }
+    if (more.children.length > 1) {
+      col.append(more);
     }
     return col;
   },
@@ -122,13 +125,13 @@ const ResultsScreen = {
     } }, icon('save'), 'Save replay');
     const exp = h('button.btn.ghost', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); } }, icon('download'), 'Export .amr');
     bar.append(
-      h('button.btn.ghost', { onclick: () => this.onBack() }, icon('back'), 'Back', h('span.kbd', 'Esc')),
-      h('button.btn.primary', { onclick: () => this.retry(), disabled: !map }, icon('retry'), 'Retry', h('span.kbd', 'R')));
+      backButton(() => this.onBack()),
+      h('button.btn.primary', { onclick: () => this.retry(), disabled: !map, title: 'Retry (R)' }, icon('retry'), 'Retry'));
     if (replay || s.replayId) bar.append(watch);
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
     if (!map) bar.append(h('span.muted', 'Beatmap no longer in library'));
-    bar.append(h('span.grow'), h('span.muted', { style: { fontSize: '.8rem' } }, `Accuracy mode: ${s.accuracyMode === 'v1' ? 'classic' : 'weighted'}`));
+
     return bar;
   },
   async watch() {
@@ -151,7 +154,7 @@ const Charts = {
     return { wrap, cv, tip };
   },
   _ctx(cv) {
-    const dpr = devicePixelRatio || 1;
+    const dpr = Zoom.dpr();
     const w = cv.clientWidth || 600, hh = cv.clientHeight || 160;
     cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -191,7 +194,7 @@ const Charts = {
       x.fillStyle = '#fff'; x.fillRect(zx - 1, pad.t, 2, ph);
       const mx = pad.l + (mean + range) / (2 * range) * pw;
       x.fillStyle = '#ffd54a'; x.fillRect(mx - 1, pad.t, 2, ph);
-      x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Nunito, system-ui'; x.textAlign = 'center';
+      x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Torus, Outfit, system-ui'; x.textAlign = 'center';
       x.fillText(`-${Math.round(range)}ms (early)`, pad.l + 44, H - 5); x.fillText('0', zx, H - 5); x.fillText(`+${Math.round(range)}ms (late)`, w - pad.r - 44, H - 5);
     };
     requestAnimationFrame(() => draw(-1));
@@ -199,11 +202,11 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo) return;
       const r = cv.getBoundingClientRect();
-      const i = Math.floor((e.clientX - r.left - geo.pad.l) / geo.bw);
+      const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
       if (i < 0 || i >= nb) { tip.hidden = true; draw(-1); return; }
       const lo = -range + i * bin;
       tip.hidden = false; tip.textContent = `${lo.toFixed(0)} to ${(lo + bin).toFixed(0)}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
-      tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px';
+      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(i);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -227,7 +230,7 @@ const Charts = {
       }
       x.globalAlpha = 1;
       x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(pad.l, Y(0) - 0.5, pw, 1);
-      x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Nunito, system-ui'; x.textAlign = 'right';
+      x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Torus, Outfit, system-ui'; x.textAlign = 'right';
       x.fillText(`-${Math.round(range)}`, pad.l - 6, pad.t + 9); x.fillText('0', pad.l - 6, Y(0) + 3); x.fillText(`+${Math.round(range)}`, pad.l - 6, H - pad.b);
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
@@ -243,12 +246,12 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo || !pts.length) return;
       const r = cv.getBoundingClientRect();
-      const t = t0 + (e.clientX - r.left - geo.pad.l) / geo.pw * (t1 - t0);
+      const t = t0 + ((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.pw * (t1 - t0);
       let best = 0, bd = Infinity;
       for (let i = 0; i < pts.length; i++) { const d = Math.abs(pts[i][0] - t); if (d < bd) { bd = d; best = i; } }
       const p = pts[best];
       tip.hidden = false; tip.textContent = `${fmtTime(p[0])} · ${p[1] > 0 ? '+' : ''}${p[1]}ms · ${JUDGEMENTS[p[2]].name}`;
-      tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px';
+      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(best);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -268,7 +271,7 @@ const Charts = {
       const bw = pw / data.length;
       const maxBar = 56;
       geo = { pad, pw, ph, bw };
-      x.strokeStyle = 'rgba(255,255,255,.06)'; x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Nunito, system-ui'; x.textAlign = 'right';
+      x.strokeStyle = 'rgba(255,255,255,.06)'; x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Torus, Outfit, system-ui'; x.textAlign = 'right';
       for (let k = 0; k <= 4; k++) {
         const y = pad.t + ph * (1 - k / 4);
         x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke();
@@ -290,10 +293,10 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo) return;
       const r = cv.getBoundingClientRect();
-      const i = Math.floor((e.clientX - r.left - geo.pad.l) / geo.bw);
+      const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
       if (i < 0 || i >= data.length) { tip.hidden = true; draw(-1); return; }
       tip.hidden = false; tip.textContent = data[i].tip || `${data[i].label}: ${data[i].value}`;
-      tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px';
+      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(i);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -313,7 +316,7 @@ const Charts = {
       const X = i => pad.l + (pts.length < 2 ? pw / 2 : i / (pts.length - 1) * pw);
       const Y = v => pad.t + ph * (1 - (v - lo) / span);
       geo = { pad, pw, X };
-      x.strokeStyle = 'rgba(255,255,255,.06)'; x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Nunito, system-ui'; x.textAlign = 'right';
+      x.strokeStyle = 'rgba(255,255,255,.06)'; x.fillStyle = this._css('--muted') || '#999'; x.font = '700 10px Torus, Outfit, system-ui'; x.textAlign = 'right';
       for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke(); x.fillText(fmtY(v), pad.l - 5, y + 3); }
       const acc = this._css('--accent') || '#b07cff';
       x.strokeStyle = acc; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
@@ -328,11 +331,11 @@ const Charts = {
     new ResizeObserver(() => draw(-1)).observe(cv);
     cv.addEventListener('pointermove', e => {
       if (!geo || !pts.length) return;
-      const r = cv.getBoundingClientRect(), mx = e.clientX - r.left;
+      const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) * Zoom.z;
       let best = 0, bd = Infinity;
       pts.forEach((p, i) => { const d = Math.abs(geo.X(i) - mx); if (d < bd) { bd = d; best = i; } });
       tip.hidden = false; tip.textContent = pts[best].tip;
-      tip.style.left = geo.X(best) + 'px'; tip.style.top = (e.clientY - r.top) + 'px';
+      tip.style.left = geo.X(best) + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(best);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });

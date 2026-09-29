@@ -1,7 +1,9 @@
 // Cloudflare Workers deployment for Ashtonk!mania.
 //  - ./public is served as static assets (index.html + the bundled Kori skin).
-//  - worker/index.js answers /api/* (beatmap explorer search + .osz download proxy) and hands
-//    everything else to the assets.
+//  - worker/index.js answers /api/* (beatmap explorer search + .osz download proxy, online
+//    multiplayer) and hands everything else to the assets.
+//  - Multiplayer uses two Durable Objects (worker/multiplayer.js): MatchRoom (one per room code)
+//    and Matchmaker (quick match). SQLite-backed classes work on the Workers free plan.
 //  - Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app)
 //    to search with the official osu! API instead of the public mirrors.
 // Deploy: npx wrangler deploy
@@ -14,5 +16,14 @@
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "MatchRoom" },
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MatchRoom", "Matchmaker"] }
+  ]
 }

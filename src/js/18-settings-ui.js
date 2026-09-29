@@ -56,8 +56,7 @@ const SettingsPanel = {
       scroll.append(secEl);
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
-    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · local-first, no account needed `,
-      h('span.neru-mark', { title: 'tuned with a little yellow', onclick: e => { neruSparkBurst(e.target, 6); } }, '✦')));
+    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION}`));
     this.syncNav();
   },
   row(it) {
@@ -366,20 +365,11 @@ const ModSelect = {
 
 // ─────────────────────────────── First-run onboarding ───────────────────────────────
 const Onboarding = {
-  THEMES: [['kori', 'Default', '#b07cff'], ['neru', 'Neru', '#ffcf3a'], ['teto', 'Teto', '#ff4d6a'], ['miku', 'Miku', '#39c5bb'], ['midnight', 'Midnight', '#6cb6ff']],
-  /** Ask the player's name (and theme) the first time the client starts. Resolves when finished. */
+  /** Ask the player's name the first time the client starts. Resolves when finished. */
   run() {
     return new Promise(resolve => {
       const p = ProfileManager.profile;
       const name = h('input.input.ob-name', { value: p.onboarded ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
-      let theme = Settings.get('ui.theme');
-      const swatches = h('div.ob-themes', ...this.THEMES.map(([id, label, c]) => {
-        const b = h(`button.ob-theme${id === theme ? '.on' : ''}`, { style: { '--c': c }, title: label, onclick: () => {
-          theme = id; Settings.set('ui.theme', id); UISounds.click();
-          $$('.ob-theme', swatches).forEach(x => x.classList.toggle('on', x === b));
-        } }, h('i'), label);
-        return b;
-      }));
       const err = h('div.ob-err');
       const finish = async () => {
         const n = name.value.trim();
@@ -394,12 +384,10 @@ const Onboarding = {
       };
       name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(); });
       const card = h('div.dialog.onboarding', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome' },
-        h('div.ob-logo', 'Ashtonk', h('span', '!'), h('b', 'mania')),
-        h('h2', 'Welcome!'),
-        h('p.muted', 'What should we call you? Your name appears on scores, replays and your pp profile.'),
+        h('h2', 'Welcome'),
+        h('p.muted', 'What should we call you? Your name appears on your scores, replays and profile.'),
         name, err,
-        h('div.sp-group', 'Pick a theme'), swatches,
-        h('div.actions', h('button.btn.primary.lg', { onclick: finish }, icon('play'), 'Let\'s play')));
+        h('div.actions', h('button.btn.primary', { onclick: finish }, 'Continue')));
       const o = makeOverlay(card, { onKey: e => e.key === 'Escape', dismissable: false });
       setTimeout(() => name.focus(), 60);
     });

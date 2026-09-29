@@ -189,6 +189,7 @@ class Skin {
 
 /** Colours of the built-in skin for each UI theme. */
 const THEME_PALETTES = {
+  lazer: { n1: ['#ffffff', '#d8d8e0'], n2: ['#ff8cc0', '#ff66ab'], s: ['#ffe27a', '#ffcc22'], key: '#ff66ab', glow: [255, 102, 171], glowS: [255, 204, 34] },
   kori: { n1: ['#f4ecff', '#c9b0ff'], n2: ['#b57bff', '#7d3cff'], s: ['#ffe27a', '#f5b700'], key: '#c69bff', glow: [176, 128, 255], glowS: [255, 210, 80] },
   neru: { n1: ['#fffbea', '#ffe9a0'], n2: ['#ffd54a', '#e6a800'], s: ['#d9c2ff', '#8a4dff'], key: '#ffd54a', glow: [255, 207, 58], glowS: [176, 124, 255] },
   teto: { n1: ['#f5f6f8', '#c9ced6'], n2: ['#ff6b84', '#d0213d'], s: ['#ffd0d8', '#ff8fa3'], key: '#ff6b84', glow: [255, 77, 106], glowS: [255, 170, 185] },
@@ -231,7 +232,7 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
-  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori; }
+  static palette() { return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'lazer'] || THEME_PALETTES.lazer; }
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
     const P = DefaultSkin.palette();
@@ -361,7 +362,7 @@ class DefaultSkin extends Skin {
         '200': ['GREAT', ['#b4ffc8', '#38d97a']], '100': ['GOOD', ['#a9e1ff', '#3c9dff']],
         '50': ['BAD', ['#e2c4ff', '#9a64d8']], '0': ['MISS', ['#ffb3b3', '#ff4a5c']],
       }[m[1]];
-      const font = '900 italic 64px "Nunito", system-ui, sans-serif';
+      const font = '900 italic 64px "Torus", "Outfit", system-ui, sans-serif';
       const meas = document.createElement('canvas').getContext('2d'); meas.font = font;
       const tw = Math.ceil(meas.measureText(spec[0]).width) + 40;
       return new Texture([C(tw, 96, (x, w, h) => {

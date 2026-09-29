@@ -24,18 +24,16 @@ const GameplayScreen = {
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');
     this.videoEl = h('video.gp-video', { muted: true, playsinline: true, preload: 'auto' }); this.videoEl.muted = true;
     this.canvas = h('canvas.gp-canvas');
-    this.touchLayer = h('div.gp-touch');
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.touchLayer, this.failEl, this.breakEl, this.hud);
-    this.bindTouch();
-    this.hud.append(h('div.hud-center-msg', { style: { fontSize: '1.4rem' } }, LoadingMessages.pick('Preparing stage…')));
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
+    this.hud.append(h('div.hud-center-msg', { style: { fontSize: '1.4rem' } }, 'Preparing stage…'));
     this.renderer = new ManiaRenderer(this.canvas);
     this.params = params;
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
-    this._blur = () => { if (this.s && this.s.running) this.pause(); };
+    this._blur = () => { if (this.s && this.s.running && !this.s.mp) this.pause(); };
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
@@ -58,7 +56,11 @@ const GameplayScreen = {
     Music.stop(150);
     this.closePause();
   },
-  onBack() { if (this.s) { if (this.s.running) this.pause(); else if (this.pauseEl && !this.s.failed) this.resume(); } return true; },
+  onBack() {
+    if (this.s && this.s.mp) { this.mpQuit(); return true; }
+    if (this.s) { if (this.s.running) this.pause(); else if (this.pauseEl && !this.s.failed) this.resume(); }
+    return true;
+  },
 
   async start(p) {
     const loaded = await BeatmapManager.load(p.mapId);
@@ -68,7 +70,7 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
-    const modConfig = replay ? (replay.modConfig || {}) : ModSystem.config();
+    const modConfig = replay ? (replay.modConfig || {}) : (p.modConfig || ModSystem.config());
     let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
@@ -101,7 +103,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [],
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate,
+      loopA: null, loopB: null, speed: rate, mp: p.mp || null,
       debug: { inputs: 0, lastErr: null },
     };
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
@@ -119,6 +121,7 @@ const GameplayScreen = {
     s.stars = rate === 1 && rec.srVersion === SR_VERSION ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
+    if (s.mp) { await this.mpWait(s); if (this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
@@ -190,10 +193,10 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
+    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     if (s.practice) this.buildPracticeBar();
-    this.applyTouchLayer();
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
   },
@@ -278,12 +281,52 @@ const GameplayScreen = {
     if (tt !== this._lastTT) { this._lastTT = tt; this.timeEl.textContent = tt; }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     this.skipBtn.style.display = canSkip ? '' : 'none';
+    if (s.mp) this.updateMp(e);
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
       const t = `PB ${fmtAcc(pb.accuracy)}`;
       if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
   },
+  /** Multiplayer: send our live score (4×/s) and show both players, highest first (osu!lazer-style board). */
+  updateMp(e) {
+    const t = performance.now();
+    if (t - this._mpSent > 250 && this.s.running) {
+      this._mpSent = t;
+      Multiplayer.send({ t: 'score', score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value });
+    }
+    const opp = Multiplayer.opponent(), o = Multiplayer.opp;
+    const rows = [{ name: ProfileManager.profile.name, score: e.score.score, acc: e.score.accuracy, combo: e.score.combo, me: true }];
+    if (opp) rows.push({ name: opp.name, score: o ? o.score : 0, acc: o ? o.acc : 1, combo: o ? o.combo : 0 });
+    rows.sort((a, b) => b.score - a.score);
+    const key = rows.map(r => `${r.name}:${r.score}:${r.combo}`).join('|');
+    if (key === this._mpKey) return;
+    this._mpKey = key;
+    clearEl(this.mpBoard).append(...rows.map((r, i) => h(`div.hud-mp-row${r.me ? '.me' : ''}`,
+      h('span.pos', String(i + 1)), h('div.nm', h('b', r.name), h('span', `${fmtAcc(r.acc)} · ${fmtInt(r.combo)}x`)), h('span.sc', fmtScore(r.score)))));
+  },
+  /** Wait for the synchronised start; everyone begins at the same moment. */
+  async mpWait(s) {
+    const el = h('div.mp-countdown');
+    this.el.appendChild(el);
+    while (this.s === s) {
+      const left = s.mp.startAt - performance.now();
+      if (left <= 0) break;
+      el.textContent = left > 3000 ? 'Get ready…' : String(Math.ceil(left / 1000));
+      await sleep(Math.min(100, left));
+    }
+    el.remove();
+  },
+  async mpQuit() {
+    const s = this.s;
+    if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
+    if (!(await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true }))) return;
+    if (this.s !== s) return;
+    Multiplayer.send({ t: 'quit' });
+    s.finished = true; s.running = false;
+    Screens.go('multiplayer', {}, { replace: true });
+  },
+
   /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
   livePp(e) {
     const c = e.score.counts, judged = e.score.judged, total = e.totalJudgements;
@@ -340,8 +383,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (Overlays.top()) return;
     if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) this.onBack(); return; }
     if (!s) return;
-    if (e.code === 'Backquote' && !e.repeat) { e.preventDefault(); this._retryHold = setTimeout(() => this.retry(), 450); return; }
-    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); this.retry(); return; }
+    if (e.code === 'Backquote' && !e.repeat && !s.mp) { e.preventDefault(); this._retryHold = setTimeout(() => this.retry(), 450); return; }
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); if (!s.mp) this.retry(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
@@ -494,6 +537,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, now);
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 1600); return; }
     }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
@@ -505,6 +549,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const summary = s.engine.summary();
     if (s.mode === 'play') {
       const { score, replay } = await this.saveScore(true);
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
@@ -573,53 +618,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.breakEl.style.setProperty('--p', (pct * 100).toFixed(1) + '%');
   },
 
-  // ─────────────────────────────── touch & gamepad ───────────────────────────────
-  touchMode() {
-    const m = Settings.get('input.touch');
-    if (m === 'off') return null;
-    if (m === 'auto') return (navigator.maxTouchPoints || 0) > 0 ? 'full' : null;
-    return m;
-  },
-  /** Touch controls: each finger presses the lane under it (full-width mode splits the whole screen). */
-  bindTouch() {
-    const layer = this.touchLayer;
-    this._touches = new Map();
-    const colAt = clientX => {
-      const s = this.s, r = this.renderer;
-      if (!s || !r.colX) return -1;
-      if (this.touchMode() === 'full') return clamp(Math.floor(clientX / innerWidth * s.keys), 0, s.keys - 1);
-      const ratio = r.W / Math.max(1, this.canvas.clientWidth);
-      const x = clientX * ratio - r.stageX;
-      for (let i = 0; i < s.keys; i++) if (x >= r.colX[i] && x < r.colX[i] + r.colW[i]) return i;
-      return -1;
-    };
-    layer.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'mouse' || !this.s || !this.s.running || this.s.feed) return;
-      const col = colAt(e.clientX);
-      if (col < 0) return;
-      e.preventDefault();
-      if (layer.setPointerCapture) layer.setPointerCapture(e.pointerId);
-      this._touches.set(e.pointerId, col);
-      if (![...this._touches.entries()].some(([id, c]) => id !== e.pointerId && c === col)) this.press(col, true, this.inputTime(e));
-    });
-    const up = e => {
-      if (!this._touches.has(e.pointerId)) return;
-      const col = this._touches.get(e.pointerId);
-      this._touches.delete(e.pointerId);
-      if (this.s && this.s.running && ![...this._touches.values()].includes(col)) this.press(col, false, this.inputTime(e));
-    };
-    layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', up);
-    layer.addEventListener('contextmenu', e => e.preventDefault());
-  },
-  applyTouchLayer() {
-    const mode = this.touchMode(), s = this.s;
-    this.touchLayer.classList.toggle('on', !!mode);
-    clearEl(this.touchLayer);
-    if (!mode || !s) return;
-    const op = Settings.get('input.touchOpacity');
-    if (mode === 'full') for (let i = 0; i < s.keys; i++) this.touchLayer.append(h('div.gp-lane', { style: { left: (i / s.keys * 100) + '%', width: (100 / s.keys) + '%', '--o': op } }));
-    this.hud.append(h('button.btn.gp-pausebtn', { onclick: () => this.onBack(), 'aria-label': 'Pause' }, icon('pause')));
-  },
+  // ─────────────────────────────── gamepad ───────────────────────────────
   /** Gamepads: buttons are bound like keys ("Pad0", "Pad1", …) in the key configuration. */
   pollGamepad() {
     if (!navigator.getGamepads) return;
@@ -676,7 +675,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     window.addEventListener('resize', this._prResize);
     // density graph
     requestAnimationFrame(() => {
-      const dpr = devicePixelRatio || 1;
+      const dpr = Zoom.dpr();
       cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
       const x = cv.getContext('2d');
       const bins = new Array(Math.max(10, Math.floor(cv.width / (3 * dpr)))).fill(0);
@@ -771,11 +770,6 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     Settings.set('audio.offset', clamp(Settings.get('audio.offset') + d, -300, 300));
     this.updatePracticeLabels();
   },
-};
-
-/** Loading messages with a rare Neru easter egg. */
-const LoadingMessages = {
-  pick(normal) { return Math.random() < 0.05 ? LOADING_NERU[Math.floor(Math.random() * LOADING_NERU.length)] : normal; },
 };
 
 /** Global frame statistics (FPS counter + debug). */

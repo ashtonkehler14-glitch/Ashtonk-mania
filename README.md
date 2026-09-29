@@ -12,11 +12,24 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 * `worker/index.js` answers `/api/*` for the Beatmap Explorer:
   * `/api/search` uses public mirrors (Mino, NeriNyan, osu.direct), trying each one in turn.
   * `/api/download/:id` proxies the `.osz` from the first mirror that has it (Mino, NeriNyan, osu.direct, SayoBot).
+* `/api/mp/*` runs online 1v1 multiplayer on two Durable Objects (`worker/multiplayer.js`): `MatchRoom` (one per room code, relays the match over WebSockets) and `Matchmaker` (quick match). They are declared in `wrangler.jsonc` as SQLite-backed classes, so they work on the Workers free plan and are created on the first deploy.
 * Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an [osu! OAuth application](https://osu.ppy.sh/home/account/edit#oauth)) make search use the official osu! API.
 
 In the dashboard, leave the build command empty and set the deploy command to `npx wrangler deploy`.
 
 ## What's new
+
+### osu!lazer look, simpler menus, multiplayer
+
+* **The UI now follows osu!lazer.** Neutral dark panels, a pink accent, the lazer toolbar (icon buttons with tooltips, clock, account menu), the main-menu logo with its button bar, the song select layout (info wedge and ranking on the left, filters and carousel on the right, footer with the logo as the Play button), the lazer profile layout and flat controls. The logo no longer changes with the theme, and the theme setting now only changes the accent colour.
+* **Main menu:** the logo sits alone in the middle (nothing overlaps it). Click it or press any key for Settings / Play / Browse / Profile; Play opens Solo / Multi / Practice. The "continue playing" and "recent scores" panels are gone.
+* **Now playing:** hover the song name in the toolbar to see the cover, seek, pause, skip to the next song or go back to the previous one.
+* **Online 1v1 multiplayer:** quick match, or create a room and share its code. The host picks the beatmap and mods in song select, the other player can download a missing beatmap in one click, both press Ready, and the match starts in sync. A live scoreboard shows both scores in game, and the room shows who won. Chat is built in.
+* **Same size at any browser zoom.** Ctrl +/−, Ctrl + wheel and pinch zoom are blocked, and an existing zoom level is detected and compensated, so the client always has the same physical size (use Settings → Interface → UI scale instead).
+* **Simpler screens:** Statistics are part of the profile, results keep the secondary graphs under "More statistics", and the library and skin pages drop their detail panels.
+* **Removed:** touch-screen controls and the Neru easter eggs (the Neru accent colour is still available).
+
+### Earlier
 
 * **Kori 3.0 comes preinstalled.** On the Cloudflare site (or any http server), `public/skins/kori.osk` is installed and selected on first launch. It's a mania-only trim of the skin at 3.2 MB.
 * **The math now matches osu!** Ported from [Web-Osu-Mania](https://github.com/hectickiwi/Web-Osu-Mania) (MIT):
@@ -28,7 +41,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   * pp from ManiaPerformanceCalculator, with profile totals weighted 0.95ⁿ plus the play-count bonus
 * **Skins no longer stretch vertically.** Legacy skin textures are sized in lazer's 768-unit space. Keys, hint lines and lights keep their authored height, and hit lighting scales with column width / 30.
 * **Beatmap Explorer:** search osu!mania beatmaps and download them straight into the library. See *Hosting* below.
-* **Themes:** Default (Kori purple), Neru, Teto, Miku and Midnight. The built-in skin follows the theme and offers bars, circles, diamonds or arrows.
+* **Accent colours:** osu! pink (default), Kori purple, Neru yellow, Teto red, Miku teal and Midnight blue. The built-in skin follows the accent and offers bars, circles, diamonds or arrows.
 * **First launch** asks for your name.
 * **pp:** a live pp counter in gameplay, pp on results, total pp and weighted top plays on your profile, and pp history in Statistics.
 * **In-game HUD:** a song-progress pie (green during the lead-in), a KPS counter and an early/late indicator.
@@ -39,15 +52,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   * retry on fail
   * Shift+Tab to hide the HUD
   * Alt+wheel volume
-* **Touch and gamepad controls.**
+* **Gamepad controls.**
 * **Background videos** (mp4/webm).
 * **New mods:** Perfect (SS), Accuracy Challenge, Difficulty Adjust (OD/HP), Song Speed (0.5–2×), Percy, and coverage amount for Hidden and Fade In.
-* **lazer-style menus:**
-  * a slanted main-menu button bar (Play → Solo / Practice / Quick play)
-  * a pink back button
-  * slanted footer buttons, with the logo as the Play button
-  * a rank-coloured accuracy ring on results
-  * slanted mod panels
 
 ## Getting started
 
@@ -62,9 +69,10 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 
 | Where | Keys |
 |---|---|
-| Global | `Ctrl+O` settings · `Alt+Enter` fullscreen · `Esc` back · `Ctrl+Shift+D` debug overlay |
-| Home | `P`/`Enter` play · `B` beatmaps · `C` collections · `U` profile · `T` statistics · `K` skins · `R` replays |
+| Global | `Ctrl+O` settings · `Alt+Enter` fullscreen · `Esc` back · `Alt+wheel` volume · `Ctrl+Shift+D` debug overlay |
+| Main menu | any key opens the menu · `O` settings · `P` play · `B` browse · `U` profile · in Play: `S` solo · `M` multiplayer · `P` practice |
 | Song select | `↑↓` difficulty · `←→` set · `Enter` play · `Ctrl+Enter` watch Auto · `F1` mods · `F2` random · `F3` options · `F4` practice · typing searches |
+| Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
 | Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro |
 | Practice | `[` / `]` set loop A/B · `\` clear loop · `Backspace` restart section · `←→` seek 5s · `-`/`=` offset |
@@ -88,9 +96,10 @@ The source lives in `src/` and is split into logical systems. `node build.mjs` i
 | `09-gameplay.js` | `GameplayEngine`, judgement, score, health, long notes, Auto input generator, hitsounds |
 | `10-renderer.js` | Canvas stage renderer (skin geometry in 480-space units) |
 | `11-managers.js` | Scores and PBs, replays, favorites, collections, profile and XP, statistics, data import/export |
-| `12`–`18` | UI: screen manager, toolbar, home, song select, gameplay, results, library, collections, profile, stats, replays, skins, settings, key config, calibration, mod select |
-| `19-multiplayer.js` | Room/player/countdown/scoreboard/spectating state model (not in the UI yet) |
-| `20-app.js` | Boot sequence, global input routing, drag & drop, easter eggs |
+| `12`–`18` | UI: screen manager, toolbar and now-playing panel, zoom lock, main menu and menu music, song select, gameplay, results, library, collections, profile (with statistics), replays, skins, beatmap explorer, settings, key config, calibration, mod select |
+| `19-multiplayer.js` | Multiplayer client (WebSocket connection, room state) and the lobby/room screen |
+| `20-app.js` | Boot sequence, global input routing, drag & drop |
+| `worker/` | Cloudflare Worker: beatmap search/download proxy (`index.js`) and multiplayer rooms (`multiplayer.js`) |
 
 ### Timing
 
@@ -123,10 +132,13 @@ osu!standard-only mods such as Relax, Autopilot and Spun Out are left out on pur
 ## Tests
 
 ```bash
-node --test tests/*.test.mjs        # engine and parser unit tests
+node --test tests/*.test.mjs        # engine, parser, Worker and multiplayer room unit tests
 node tests/make-fixtures.mjs        # generate synthetic .osz/.osk fixtures
 node tests/e2e.mjs --shots          # headless Chromium end-to-end run (Playwright)
+MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs   # two browsers play a match against the real Worker + Durable Objects
 ```
+
+`tests/mp-e2e.mjs` needs `miniflare` installed somewhere (`npm i miniflare` in any folder, then point `MINIFLARE_DIR` at it). It runs `worker/index.js` in workerd and checks rooms, chat, map selection, ready/start, the synchronised start, the live scoreboard, results, forfeits, host hand-over and quick match.
 
 The end-to-end run checks:
 
@@ -142,14 +154,16 @@ The end-to-end run checks:
   * The imported skin in use.
   * Practice speed changes.
 * **Persistence:** everything survives a reload.
-* **Layout:** 720p, 16:10 and ultrawide.
+* **Layout:** 720p, 16:10 and ultrawide, plus browser-zoom compensation.
+* **UI:** the lazer toolbar, main menu and the now-playing controls (pause, next, previous).
 
 ## Limits
 
-* Storyboards and videos are detected but not rendered, and video files are not stored.
+* Storyboards are detected but not rendered.
 * Only osu!mania difficulties (`Mode: 3`) can be played. Other modes are listed with an explanation.
-* Online beatmap providers and multiplayer have their architecture in place (`BeatmapProvider`, `MultiplayerRoom`), but they're hidden from the UI until a backend exists.
-* The UI font (Nunito) loads from Google Fonts. When you're offline it falls back to system fonts.
+* The Beatmap Explorer and multiplayer need the Worker, so they only work on the hosted site (or `wrangler dev`), not when `index.html` is opened from disk.
+* Browser-zoom compensation relies on the window/viewport width ratio; with a docked side panel (for example developer tools) the zoom can't be measured, and the page is left as is.
+* The UI font (Outfit, the closest free match to lazer's Torus) loads from Google Fonts; a locally installed Torus is used first. When you're offline it falls back to system fonts.
 
 ## Credits
 

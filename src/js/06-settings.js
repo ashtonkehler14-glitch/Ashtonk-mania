@@ -55,7 +55,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { s: 'Gameplay', g: 'Effects', k: 'gameplay.neruSparkle', l: 'Golden sparkle on Marvelous ✦', t: 'bool', d: false, hint: 'A little yellow flourish. You know who you are.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.errorBarScale', l: 'Hit error bar size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.1, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
@@ -95,16 +94,13 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
-  { s: 'Input', g: 'Touch', k: 'input.touch', l: 'Touch controls', t: 'select', d: 'auto', o: [['auto', 'Automatic (touch devices)'], ['full', 'On — full-width lanes'], ['lanes', 'On — tap the columns'], ['off', 'Off']] },
-  { s: 'Input', g: 'Touch', k: 'input.touchOpacity', l: 'Touch lane borders', t: 'range', d: 0.12, min: 0, max: 0.6, step: 0.02, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Theme', t: 'select', d: 'kori', o: [['kori', 'Default — Kori (purple)'], ['neru', 'Neru (gold)'], ['teto', 'Teto (crimson)'], ['miku', 'Miku (teal)'], ['midnight', 'Midnight (blue)']] },
+  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'lazer', o: [['lazer', 'osu! pink (default)'], ['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal'], ['midnight', 'Midnight blue']] },
   { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
   { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
-  { s: 'Interface', g: 'Style', k: 'ui.homeMessages', l: 'Home screen greetings', t: 'bool', d: true },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -131,6 +127,8 @@ const Settings = {
   async load() {
     const stored = await DB.kvGet('settings', {});
     this.values = stored && typeof stored === 'object' ? stored : {};
+    // v2: osu!lazer look — the old purple default becomes the pink lazer default.
+    if (!this.values['ui.v2']) { if (this.values['ui.theme'] === 'kori') delete this.values['ui.theme']; this.values['ui.v2'] = true; }
     this.applyUI();
   },
   get(k) {

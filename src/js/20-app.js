@@ -1,14 +1,10 @@
-/* Application — boot sequence, global input routing, drag & drop importing, easter eggs. */
+/* Application — boot sequence, global input routing, drag & drop importing. */
 
 const App = {
   lastReport: null,
   async boot() {
     const status = $('.load-status');
-    const say = (msg) => {
-      const neru = Math.random() < 0.06;
-      status.textContent = neru ? LOADING_NERU[Math.floor(Math.random() * LOADING_NERU.length)] : msg;
-      status.classList.toggle('neru', neru);
-    };
+    const say = (msg) => { status.textContent = msg; };
     try {
       say('Opening library…');
       await DB.open();
@@ -26,6 +22,7 @@ const App = {
       await sleep(1500);
     }
     AudioManager.init();
+    Zoom.init();
     Toolbar.build();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
@@ -33,14 +30,15 @@ const App = {
     Screens.register('results', ResultsScreen);
     Screens.register('beatmaps', BeatmapsScreen);
     Screens.register('explore', ExplorerScreen);
+    Screens.register('multiplayer', MultiplayerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
-    Screens.register('stats', StatsScreen);
+    Screens.register('stats', ProfileScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites };
+    window.AshtonkMania = { App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
@@ -104,7 +102,6 @@ const App = {
     });
   },
 
-  neruBuf: '',
   onKey(e) {
     const top = Overlays.top();
     if (top) {
@@ -119,21 +116,9 @@ const App = {
     if (Screens.current === GameplayScreen) return; // gameplay handles its own input (capture listener)
     if (top) return;
     const inField = e.target.closest && e.target.closest('input, textarea, select');
-    if (!inField && e.key.length === 1) {
-      this.neruBuf = (this.neruBuf + e.key.toLowerCase()).slice(-4);
-      if (this.neruBuf === 'neru') { this.neruBuf = ''; this.neruEgg(); }
-    }
     if (Screens.current && Screens.current.onKey && Screens.current.onKey(e)) { e.preventDefault(); return; }
     if (inField) return;
     if (e.key === 'Escape') { e.preventDefault(); Screens.back(); return; }
-  },
-
-  neruEgg() {
-    neruSparkBurst(document.querySelector('.tb-logo') || document.body, 16);
-    UISounds.play('neru-chime');
-    const found = localStorage.getItem('am.neru') === '1';
-    try { localStorage.setItem('am.neru', '1'); } catch (e) { /* ignore */ }
-    Toast.show(found ? '✦ Neru waves again.' : '✦ Neru was here.', found ? 'Still yellow. Still texting.' : 'Unlocked hint: try the Neru theme (Settings → Interface) and the Neru avatar in your profile.', { type: 'neru', timeout: 6000 });
   },
 
   async importFiles(files) {

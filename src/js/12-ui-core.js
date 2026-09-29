@@ -38,6 +38,7 @@ const ICONS = {
   database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   sparkle: '<path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" class="fillme"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z" class="fillme"/>',
   skip: '<path d="M5 5l9 7-9 7zM17 5v14"/>',
+  prev: '<path d="M19 5l-9 7 9 7zM7 5v14"/>',
   bug: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 7V4M4 11h3M17 11h3M4 17h3M17 17h3M8 4l2 3M16 4l-2 3"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -73,8 +74,8 @@ function gradeEl(g, cls = '') {
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
   show(title, body = '', { type = 'info', timeout = 4200 } = {}) {
-    const ico = { info: 'info', ok: 'star', err: 'x', neru: 'sparkle' }[type] || 'info';
-    const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'neru' || type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
+    const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
+    const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     const box = $('#toasts');
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
@@ -163,8 +164,8 @@ function showMenu(x, y, items) {
   setTimeout(() => document.addEventListener('pointerdown', closer, true), 0);
   requestAnimationFrame(() => {
     const r = menu.getBoundingClientRect();
-    menu.style.left = clamp(x, 8, innerWidth - r.width - 8) + 'px';
-    menu.style.top = clamp(y, 8, innerHeight - r.height - 8) + 'px';
+    menu.style.left = clamp(x, 8, innerWidth - r.width - 8) * Zoom.z + 'px';
+    menu.style.top = clamp(y, 8, innerHeight - r.height - 8) * Zoom.z + 'px';
     const f = menu.querySelector('button'); f && f.focus();
   });
   menu.addEventListener('keydown', e => {
@@ -201,40 +202,126 @@ const Background = {
 
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
-  tabs: [
-    ['home', 'Home', 'home'], ['songselect', 'Play', 'play'], ['explore', 'Explore', 'download'], ['beatmaps', 'Beatmaps', 'music'], ['collections', 'Collections', 'folder'],
-    ['replays', 'Replays', 'film'], ['stats', 'Statistics', 'chart'], ['skins', 'Skins', 'brush'],
-  ],
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
+    const btn = (ic, tip, sub, fn, extra = {}) => {
+      const b = h('button.tb-btn', { 'aria-label': tip, onclick: () => { UISounds.click(); fn(); }, ...extra }, icon(ic), h('span.tb-tip', h('b', tip), sub ? h('span', sub) : null));
+      b.addEventListener('pointerenter', () => UISounds.hover());
+      return b;
+    };
+    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'), this.npText = h('span.tb-np-text'));
+    this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
+    this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
     tb.append(
-      h('button.tb-btn', { title: 'Settings (Ctrl+O)', 'aria-label': 'Settings', onclick: () => SettingsPanel.toggle() }, icon('gear')),
-      h('div.tb-logo', { title: APP_NAME }, 'Ashtonk', h('span.bang', '!'), h('span.m', 'mania')),
-      h('div.tb-sep'),
-      ...this.tabs.map(([id, label, ic]) => h('button.tb-btn', { dataset: { tab: id }, onclick: () => Screens.go(id) }, icon(ic), h('span.lbl' + (['collections', 'replays', 'skins'].includes(id) ? '.opt' : ''), label))),
+      h('div.tb-group',
+        btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
+        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
-      this.np = h('div.tb-np'),
-      this.clock = h('div.tb-clock'),
-      this.fsBtn = h('button.tb-btn', { title: 'Toggle fullscreen (F11 / Alt+Enter)', 'aria-label': 'Fullscreen', onclick: () => toggleFullscreen() }, icon('fullscreen')),
-      this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, onclick: () => Screens.go('profile') }),
+      h('div.tb-group',
+        btn('download', 'Beatmap listing', 'Browse and download beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
+        this.npBtn,
+        this.clock = h('div.tb-clock'),
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Account', onclick: e => this.userMenu(e) })),
     );
     this.updateProfile();
     this.tick();
-    setInterval(() => this.tick(), 1000 * 15);
-    document.addEventListener('fullscreenchange', () => { clearEl(this.fsBtn).appendChild(icon(document.fullscreenElement ? 'unfullscreen' : 'fullscreen')); });
+    setInterval(() => this.tick(), 1000);
+    Bus.on('music:changed', () => this.updateNp());
   },
-  tick() { const d = new Date(); this.clock.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); },
+  tick() { this.clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); },
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;
-    clearEl(this.profileBtn).append(ProfileManager.avatarEl(28), h('span.lbl', p.name));
+    clearEl(this.profileBtn).append(ProfileManager.avatarEl(26), h('span.lbl', p.name));
   },
-  setNowPlaying(map) {
-    clearEl(this.np);
-    if (!map) return;
-    this.np.append(icon('music'), h('span.np-text', h('b', map.title), ' — ', map.artist));
-    this.np.title = `${map.artist} - ${map.title}`;
+  userMenu() {
+    const r = this.profileBtn.getBoundingClientRect();
+    const m = showMenu(r.right, r.bottom + 6, [
+      { label: 'Profile', icon: 'user', onClick: () => Screens.go('profile') },
+      { label: 'Replays', icon: 'film', onClick: () => Screens.go('replays') },
+      { sep: true },
+      { label: 'Beatmap library', icon: 'music', onClick: () => Screens.go('beatmaps') },
+      { label: 'Collections', icon: 'folder', onClick: () => Screens.go('collections') },
+      { label: 'Skins', icon: 'brush', onClick: () => Screens.go('skins') },
+      { sep: true },
+      { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
+    ]);
+    return m;
+  },
+  /** Kept for callers that announce the playing track; the panel reads MenuMusic.current. */
+  setNowPlaying(map) { if (map && MenuMusic.current !== map) { MenuMusic.current = map; this.updateNp(); NowPlaying.render(); } else if (!map) this.updateNp(); },
+  updateNp() {
+    const m = MenuMusic.current;
+    this.npText.textContent = m ? `${m.artist} - ${m.title}` : '';
+    this.npBtn.classList.toggle('paused', !Music.playing);
+  },
+};
+
+/** osu!lazer-style now playing panel: cover, title, seekable progress and previous / play-pause / next. */
+const NowPlaying = {
+  el: null, open: false, pinned: false, _t: 0,
+  ensure() {
+    if (this.el) return;
+    this.cover = h('div.np-cover');
+    this.title = h('div.np-title'); this.artist = h('div.np-artist');
+    this.fill = h('i');
+    this.bar = h('div.np-bar', this.fill);
+    this.cur = h('span'); this.dur = h('span');
+    const b = (ic, tip, fn) => h('button.np-ctl', { title: tip, 'aria-label': tip, onclick: e => { e.stopPropagation(); UISounds.click(); fn(); } }, icon(ic));
+    this.playBtn = b('pause', 'Play / pause', () => MenuMusic.toggle());
+    this.el = h('div.np-panel',
+      this.cover,
+      h('div.np-body', this.title, this.artist,
+        h('div.np-ctls', b('prev', 'Previous track', () => MenuMusic.prev()), this.playBtn, b('skip', 'Next track', () => MenuMusic.next())),
+        h('div.np-times', this.cur, this.dur)),
+      this.bar);
+    const seek = e => {
+      const r = this.bar.getBoundingClientRect();
+      if (!Music.buffer) return;
+      const pos = clamp((e.clientX - r.left) / r.width, 0, 1) * Music.duration;
+      if (Music.playing) Music.play(pos, { fadeIn: 60 }); else Music.pausedPos = pos;
+      this.update();
+    };
+    this.bar.addEventListener('pointerdown', e => { seek(e); this.bar.setPointerCapture(e.pointerId); this._drag = true; });
+    this.bar.addEventListener('pointermove', e => { if (this._drag) seek(e); });
+    this.bar.addEventListener('pointerup', () => { this._drag = false; });
+    this.el.addEventListener('pointerenter', () => clearTimeout(this._t));
+    this.el.addEventListener('pointerleave', () => this.hoverClose());
+    $('#app').appendChild(this.el);
+    Bus.on('music:changed', () => this.render());
+    document.addEventListener('pointerdown', e => {
+      if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
+    }, true);
+  },
+  hoverOpen() { clearTimeout(this._t); this.show(); },
+  hoverClose() { if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
+  toggle(pin) { if (this.open && this.pinned) { this.hide(); return; } this.pinned = !!pin; this.show(); },
+  show() {
+    this.ensure();
+    if (this.open) return;
+    this.open = true;
+    this.el.classList.add('show');
+    this.render();
+    const loop = () => { if (!this.open) return; this.update(); this._raf = requestAnimationFrame(loop); };
+    loop();
+  },
+  hide() { if (!this.el) return; this.open = false; this.pinned = false; this.el.classList.remove('show'); cancelAnimationFrame(this._raf); },
+  async render() {
+    if (!this.el) return;
+    const m = MenuMusic.current;
+    this.title.textContent = m ? m.title : 'Nothing playing';
+    this.artist.textContent = m ? m.artist : 'Import some beatmaps to hear music here';
+    const url = m ? await BeatmapManager.bgURL(m).catch(() => null) : null;
+    this.cover.style.backgroundImage = url ? `url("${url}")` : '';
+    this.update();
+  },
+  update() {
+    const d = Music.duration, t = clamp(Music.time, 0, d || 0);
+    this.fill.style.width = d ? (t / d * 100).toFixed(2) + '%' : '0%';
+    this.cur.textContent = fmtTime(t); this.dur.textContent = fmtTime(d);
+    const ic = Music.playing ? 'pause' : 'play';
+    if (this.playBtn.dataset.ic !== ic) { this.playBtn.dataset.ic = ic; clearEl(this.playBtn).append(icon(ic)); }
   },
 };
 
@@ -271,6 +358,46 @@ const VolumeOverlay = {
       this.adjust(e.shiftKey ? 'music' : e.ctrlKey ? 'effects' : 'master', e.deltaY < 0 ? 0.05 : -0.05);
     }, { passive: false });
   },
+};
+
+/**
+ * Keeps the interface the same physical size regardless of browser zoom (like a native client):
+ * zoom shortcuts (Ctrl +/-/0, Ctrl + wheel, pinch) are blocked, and a zoom level that is already set
+ * is detected (outer/inner window width, sanity-checked against the device pixel ratio) and undone by
+ * laying #app out at the un-zoomed size and scaling it back down.
+ */
+const Zoom = {
+  z: 1,
+  LEVELS: [0.25, 0.3, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.2, 1.25, 4 / 3, 1.5, 1.7, 1.75, 2, 2.4, 2.5, 3, 4, 5],
+  BASE_DPR: [1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 3, 3.5, 4],
+  init() {
+    window.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'Digit0', 'Numpad0'].includes(e.code)) e.preventDefault();
+    }, true);
+    window.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) e.preventDefault(); }, { passive: false, capture: true });
+    ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+    window.addEventListener('resize', () => this.update());
+    this.update();
+  },
+  detect() {
+    const ow = window.outerWidth, iw = window.innerWidth;
+    if (!ow || !iw) return 1;
+    const raw = ow / iw;
+    const lvl = this.LEVELS.reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a);
+    if (lvl === 1 || Math.abs(lvl - raw) / lvl > 0.03) return 1; // side panels / devtools make the ratio meaningless
+    const base = (window.devicePixelRatio || 1) / lvl;
+    return this.BASE_DPR.some(b => Math.abs(b - base) < 0.06) ? lvl : 1;
+  },
+  update() {
+    const z = this.detect();
+    if (z === this.z) return;
+    this.z = z;
+    const r = document.documentElement.style;
+    r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
+    $('#app').classList.toggle('zoomfix', z !== 1);
+  },
+  /** Canvas backing-store scale for sizes measured in layout px (clientWidth). */
+  dpr() { return (window.devicePixelRatio || 1) / this.z; },
 };
 
 function toggleFullscreen(force) {

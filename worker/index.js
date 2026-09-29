@@ -147,13 +147,17 @@ export async function handleDownload(id, fetchImpl = fetch) {
   return json({ error: 'No mirror could provide this beatmap set.', errors }, 502);
 }
 
+export { MatchRoom, Matchmaker } from './multiplayer.js';
+import { handleMultiplayer } from './multiplayer.js';
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/api/health') return json({ ok: true, official: !!(env.OSU_CLIENT_ID && env.OSU_CLIENT_SECRET) });
+    if (url.pathname === '/api/health') return json({ ok: true, official: !!(env.OSU_CLIENT_ID && env.OSU_CLIENT_SECRET), multiplayer: !!env.ROOMS });
     if (url.pathname === '/api/search') return handleSearch(url, env);
     const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
     if (dl) return handleDownload(dl[1]);
+    if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
     if (url.pathname.startsWith('/api/')) return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);
   },
