@@ -19,7 +19,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
-### Simpler setup, Custom skin, invites, Zako Neru
+### Cleaner HUD, Neru on the main menu
+
+* **Removed from the HUD:** the keys-per-second counter, the judgement counter and the hit error bar.
+* **Neru on the main menu:** Neru stands in the bottom-left corner of the menu, sways gently and hops when you click her. She has no speech bubbles. The picture comes from **Settings → Interface → Main menu character image**, or from a `neru.png` (or `.webp` / `.gif` / `.jpg`) placed in `public/` next to `index.html`. If there's no picture, nothing is shown. You can turn her off with **Show Neru on the main menu**.
+
+### Simpler setup, Custom skin, invites
 
 * **Simpler first-run setup:** you type your name, then choose **Set it up** or **Skip**. Setting up takes four short steps:
   1. **PC** or **Chromebook**. Chromebook turns on performance mode, lighter backgrounds, no menu blur and a render scale that fits the screen.
@@ -32,7 +37,6 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Custom skin:** the built-in skin is now called Custom. It has the note shapes from Web-Osu-Mania (bars, circles, diamonds and arrows) and a note colour you can pick with a hue slider or match to your accent colour, using Web-Osu-Mania's single-colour lane scheme. You can also turn darker hold notes on or off.
 * **Invites:** the room's **Invite** button lists players who are online right now, marked as online, in a room or playing. You can invite any of them, and they get a **Join** prompt. You can still copy an invite link instead. Presence runs on the existing Matchmaker Durable Object, so no new migration is needed.
 * **Beatmap Explorer ordering like Web-Osu-Mania:** it uses osu!'s categories, and the default is **Has leaderboard**. Sorting uses `criteria_asc/desc` (newest ranked first by default); clicking the active sort flips its direction, and Relevance appears once you type a search. The mirror that served the first page also serves the following pages. Results are re-sorted after each page, so the order stays consistent even when a mirror ignores the sort.
-* **Zako Neru:** a little chibi Neru stands in the corner of the main menu with her flip phone. She teases you ("zako~ ♡") when you click her, and pipes up on her own every so often.
 * **Fixes:** the empty FPS box no longer sits in the bottom-right corner when the FPS counter is off. The explorer's header no longer floats as a dimmed box over the beatmap cards.
 
 ### First-run setup, player loader, new beatmap cards

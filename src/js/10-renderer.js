@@ -188,13 +188,11 @@ class ManiaRenderer {
     if (g.engine) {
       this._drawJudgement(realNow);
       this._drawCombo(g.engine.score.combo, realNow);
-      if (Settings.get('gameplay.hitErrorBar')) this._drawErrorBar(g, realNow);
     }
     ctx.restore();
     if (g.engine) {
       if (Settings.get('gameplay.showHealth')) this._drawHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
-      if (Settings.get('gameplay.judgementCounter')) this._drawCounter(g.engine.score.counts);
     }
   }
 
@@ -408,33 +406,6 @@ class ManiaRenderer {
     ctx.fillStyle = milestone ? '#ffd54a' : (this.layout.skin.builtin ? '#efe6ff' : '#fff');
     ctx.fillText(text, cx, yy);
   }
-  _drawErrorBar(g, realNow) {
-    const eng = g.engine, ctx = this.ctx, s = this.s;
-    const W = eng.W.map(w => w / eng.rate);
-    const width = Math.min(this.stageW * 0.9, 150 * s) * Settings.get('gameplay.errorBarScale');
-    const scale = width / 2 / W[J.BAD];
-    const cx = this.stageW / 2;
-    const y = this.up ? 14 * s : this.H - 8 * s;
-    const hh = 2.4 * s;
-    for (let j = J.BAD; j >= 0; j--) {
-      ctx.fillStyle = JUDGEMENTS[j].color; ctx.globalAlpha = 0.45;
-      ctx.fillRect(cx - W[j] * scale, y - hh / 2, W[j] * 2 * scale, hh);
-    }
-    ctx.globalAlpha = 1;
-    const errs = eng.hitErrors;
-    const nowT = g.now;
-    for (let i = errs.length - 1, k = 0; i >= 0 && k < 40; i--, k++) {
-      const e = errs[i];
-      const age = (nowT - e.t) / eng.rate;
-      if (age > 3000) break;
-      ctx.globalAlpha = clamp(1 - age / 3000, 0, 1);
-      ctx.fillStyle = JUDGEMENTS[e.j].color;
-      ctx.fillRect(cx + clamp(e.err, -W[J.BAD], W[J.BAD]) * scale - 1, y - hh * 2.5, Math.max(2, s * 0.6), hh * 5);
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(cx - 1, y - hh * 3, 2, hh * 6);
-  }
   /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
    *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */
   _drawHealth(v) {
@@ -478,14 +449,5 @@ class ManiaRenderer {
       ctx.fillStyle = g.held[i] ? '#000' : '#ddd';
       ctx.fillText(`${g.keyLabels?.[i] || i + 1}  ${g.engine.pressCounts[i]}`, x0 + size * 1.1, y + size / 2);
     }
-  }
-  _drawCounter(counts) {
-    const ctx = this.ctx, s = this.s;
-    const x = this.stageX - 12 * s, y0 = this.H * 0.45, lh = 9 * s;
-    ctx.font = `800 ${Math.round(lh * 0.8)}px Torus, Outfit, system-ui, sans-serif`;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    JUDGEMENTS.forEach((jj, i) => {
-      ctx.fillStyle = jj.color; ctx.fillText(`${jj.short}  ${counts[i]}`, x, y0 + i * lh);
-    });
   }
 }

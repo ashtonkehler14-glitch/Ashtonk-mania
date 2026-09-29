@@ -335,11 +335,10 @@ const GameplayScreen = {
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
-    this.kpsEl = h('div.hud-kps');
     const pd = Settings.get('gameplay.progressDisplay');
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
-      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl, this.kpsEl),
+      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl),
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
@@ -435,12 +434,6 @@ const GameplayScreen = {
       const t = `${Math.round(pp)}pp`;
       if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
-    if (Settings.get('gameplay.kpsCounter')) {
-      const cutoff = performance.now() - 1000;
-      while (this._kps && this._kps.length && this._kps[0] < cutoff) this._kps.shift();
-      const t = `${(this._kps || []).length} KPS`;
-      if (this.kpsEl.textContent !== t) this.kpsEl.textContent = t;
-    }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
@@ -639,8 +632,6 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
-    } else if (e.type === 'press') {
-      (this._kps || (this._kps = [])).push(realNow);
     } else if (e.type === 'earlyRelease') {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;

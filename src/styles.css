@@ -578,7 +578,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-pie { --p: 0%; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(rgba(255,255,255,.92) var(--p), rgba(255,255,255,.14) 0); box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 10px rgba(0,0,0,.5); }
 .hud-pie.lead { background: conic-gradient(#7ee07a var(--p), rgba(126,224,122,.18) 0); box-shadow: 0 0 0 2px #7ee07a, 0 2px 10px rgba(0,0,0,.5); }
 .hud-pp { font-size: clamp(1rem, 1.5vw, 1.3rem); font-weight: 700; color: var(--accent-3); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-.hud-kps { font-size: .85rem; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .res-pp { font-size: 1.1rem; font-weight: 600; color: var(--text-2); margin-top: -6px; }
 .res-pp b { font-size: 1.9rem; color: var(--accent-3); margin-right: 2px; }
 .res-ppdelta { font-size: .85rem; }
@@ -1168,25 +1167,15 @@ input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; bor
 div.res-calib { display: inline-flex; gap: 6px; align-items: center; font-size: .82rem; }
 div.res-calib .i { color: var(--good); }
 .gameplay.loading .mp-countdown { opacity: 0; }
-/* ── Zako Neru (main menu mascot) */
-.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; width: clamp(160px, 25vh, 260px); aspect-ratio: 230 / 290; padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
-.neru-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; animation: neruBob 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .45)); transition: transform var(--t-med) var(--ease-out); }
-.neru:hover .neru-svg { animation-play-state: paused; transform: rotate(-3deg) scale(1.04); }
-.neru-glow { fill: rgba(var(--accent-rgb), .16); }
-.neru-tail { transform-origin: 152px 70px; animation: neruTail 3.2s ease-in-out infinite; }
-.neru-screen { fill: #ff8cc0; animation: neruScreen 2.4s ease-in-out infinite; }
-.neru-eyes-happy, .neru-mouth-laugh { display: none; }
-.neru.talk .neru-eyes-smug, .neru.talk .neru-mouth-smirk { display: none; }
-.neru.talk .neru-eyes-happy, .neru.talk .neru-mouth-laugh { display: inline; }
-.neru.talk .neru-svg { animation: neruGiggle 450ms ease-in-out 3; }
-.neru-bubble { position: absolute; left: 62%; bottom: 88%; z-index: 1; width: max-content; max-width: 230px; padding: 9px 14px; border-radius: 16px 16px 16px 4px; background: #fff; color: #3a2a4a; font-size: .9rem; font-weight: 700; text-align: left; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); opacity: 0; transform: translateY(8px) scale(.9); transform-origin: 0 100%; pointer-events: none; transition: opacity 200ms, transform 300ms var(--ease-out); }
-.neru.talk .neru-bubble { opacity: 1; transform: none; }
+/* ── Neru (main menu character) */
+.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; height: min(46vh, 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
+.neru[hidden] { display: none; }
+.neru-img { display: block; height: 100%; width: auto; max-width: 32vw; object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
+.neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
 @keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
-@keyframes neruBob { 50% { transform: translateY(-5px) rotate(1deg); } }
-@keyframes neruTail { 50% { transform: rotate(4deg); } }
-@keyframes neruScreen { 50% { fill: #ffb3d6; } }
-@keyframes neruGiggle { 25% { transform: rotate(-4deg) translateY(-3px); } 75% { transform: rotate(4deg) translateY(-3px); } }
-@media (max-height: 520px) { .neru { display: none; } }
+@keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
+@keyframes neruHop { 40% { transform: translateY(-14px) scale(1.02); } }
+@media (max-height: 520px), (max-width: 700px) { .neru { display: none; } }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }

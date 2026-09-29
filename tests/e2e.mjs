@@ -52,6 +52,7 @@ check('first launch asks for a name', await page.evaluate(() => AshtonkMania.Pro
 check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
 check('osu!lazer toolbar: icon buttons only, no text tabs, no beatmap listing', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('KPS counter, judgement counter and hit error bar removed', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.judgementCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && !document.querySelector('.hud-kps')));
 check('touch controls, hitsounds and the old Neru easter-egg settings removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
 check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn').length === 4 && !document.querySelector('.continue, .lz-footer')));
@@ -434,8 +435,13 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   check('setup: skins are Kori / Custom / Import; Custom has shape and colour options', /^Kori,Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
   await sp.click('.setup-next'); await sp.waitForTimeout(600);
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
-  await sp.click('.neru'); await sp.waitForTimeout(200);
-  check('zako Neru sits on the main menu and talks when clicked', await sp.evaluate(() => document.querySelector('.neru').classList.contains('talk') && document.querySelector('.neru-bubble').textContent.length > 3));
+  await sp.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 40; c.height = 80; c.getContext('2d').fillRect(0, 0, 40, 80);
+    await AshtonkMania.NeruMascot.setImage(await new Promise(r => c.toBlob(r, 'image/png')));
+  });
+  await sp.waitForSelector('.home .neru:not([hidden]) img', { timeout: 5000 });
+  await sp.click('.neru');
+  check('Neru shows the chosen picture on the main menu (no speech bubbles)', await sp.evaluate(() => document.querySelector('.neru').classList.contains('hop') && !document.querySelector('.neru-bubble')));
   check('no FPS box in the corner when the FPS counter is off', await sp.evaluate(() => getComputedStyle(document.querySelector('#fps-counter')).display === 'none'));
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });

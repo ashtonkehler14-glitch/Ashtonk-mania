@@ -591,7 +591,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-pie { --p: 0%; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(rgba(255,255,255,.92) var(--p), rgba(255,255,255,.14) 0); box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 10px rgba(0,0,0,.5); }
 .hud-pie.lead { background: conic-gradient(#7ee07a var(--p), rgba(126,224,122,.18) 0); box-shadow: 0 0 0 2px #7ee07a, 0 2px 10px rgba(0,0,0,.5); }
 .hud-pp { font-size: clamp(1rem, 1.5vw, 1.3rem); font-weight: 700; color: var(--accent-3); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-.hud-kps { font-size: .85rem; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .res-pp { font-size: 1.1rem; font-weight: 600; color: var(--text-2); margin-top: -6px; }
 .res-pp b { font-size: 1.9rem; color: var(--accent-3); margin-right: 2px; }
 .res-ppdelta { font-size: .85rem; }
@@ -1181,25 +1180,15 @@ input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; bor
 div.res-calib { display: inline-flex; gap: 6px; align-items: center; font-size: .82rem; }
 div.res-calib .i { color: var(--good); }
 .gameplay.loading .mp-countdown { opacity: 0; }
-/* ── Zako Neru (main menu mascot) */
-.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; width: clamp(160px, 25vh, 260px); aspect-ratio: 230 / 290; padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
-.neru-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; animation: neruBob 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .45)); transition: transform var(--t-med) var(--ease-out); }
-.neru:hover .neru-svg { animation-play-state: paused; transform: rotate(-3deg) scale(1.04); }
-.neru-glow { fill: rgba(var(--accent-rgb), .16); }
-.neru-tail { transform-origin: 152px 70px; animation: neruTail 3.2s ease-in-out infinite; }
-.neru-screen { fill: #ff8cc0; animation: neruScreen 2.4s ease-in-out infinite; }
-.neru-eyes-happy, .neru-mouth-laugh { display: none; }
-.neru.talk .neru-eyes-smug, .neru.talk .neru-mouth-smirk { display: none; }
-.neru.talk .neru-eyes-happy, .neru.talk .neru-mouth-laugh { display: inline; }
-.neru.talk .neru-svg { animation: neruGiggle 450ms ease-in-out 3; }
-.neru-bubble { position: absolute; left: 62%; bottom: 88%; z-index: 1; width: max-content; max-width: 230px; padding: 9px 14px; border-radius: 16px 16px 16px 4px; background: #fff; color: #3a2a4a; font-size: .9rem; font-weight: 700; text-align: left; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); opacity: 0; transform: translateY(8px) scale(.9); transform-origin: 0 100%; pointer-events: none; transition: opacity 200ms, transform 300ms var(--ease-out); }
-.neru.talk .neru-bubble { opacity: 1; transform: none; }
+/* ── Neru (main menu character) */
+.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; height: min(46vh, 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
+.neru[hidden] { display: none; }
+.neru-img { display: block; height: 100%; width: auto; max-width: 32vw; object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
+.neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
 @keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
-@keyframes neruBob { 50% { transform: translateY(-5px) rotate(1deg); } }
-@keyframes neruTail { 50% { transform: rotate(4deg); } }
-@keyframes neruScreen { 50% { fill: #ffb3d6; } }
-@keyframes neruGiggle { 25% { transform: rotate(-4deg) translateY(-3px); } 75% { transform: rotate(4deg) translateY(-3px); } }
-@media (max-height: 520px) { .neru { display: none; } }
+@keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
+@keyframes neruHop { 40% { transform: translateY(-14px) scale(1.02); } }
+@media (max-height: 520px), (max-width: 700px) { .neru { display: none; } }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
@@ -3036,13 +3025,9 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: false },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.errorBarScale', l: 'Hit error bar size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.1, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.kpsCounter', l: 'Keys-per-second counter', t: 'bool', d: false },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Judgement counter', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
@@ -3079,6 +3064,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
+  { s: 'Interface', g: 'Style', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
+  { s: 'Interface', g: 'Style', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
   { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
@@ -4333,13 +4320,11 @@ class ManiaRenderer {
     if (g.engine) {
       this._drawJudgement(realNow);
       this._drawCombo(g.engine.score.combo, realNow);
-      if (Settings.get('gameplay.hitErrorBar')) this._drawErrorBar(g, realNow);
     }
     ctx.restore();
     if (g.engine) {
       if (Settings.get('gameplay.showHealth')) this._drawHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
-      if (Settings.get('gameplay.judgementCounter')) this._drawCounter(g.engine.score.counts);
     }
   }
 
@@ -4553,33 +4538,6 @@ class ManiaRenderer {
     ctx.fillStyle = milestone ? '#ffd54a' : (this.layout.skin.builtin ? '#efe6ff' : '#fff');
     ctx.fillText(text, cx, yy);
   }
-  _drawErrorBar(g, realNow) {
-    const eng = g.engine, ctx = this.ctx, s = this.s;
-    const W = eng.W.map(w => w / eng.rate);
-    const width = Math.min(this.stageW * 0.9, 150 * s) * Settings.get('gameplay.errorBarScale');
-    const scale = width / 2 / W[J.BAD];
-    const cx = this.stageW / 2;
-    const y = this.up ? 14 * s : this.H - 8 * s;
-    const hh = 2.4 * s;
-    for (let j = J.BAD; j >= 0; j--) {
-      ctx.fillStyle = JUDGEMENTS[j].color; ctx.globalAlpha = 0.45;
-      ctx.fillRect(cx - W[j] * scale, y - hh / 2, W[j] * 2 * scale, hh);
-    }
-    ctx.globalAlpha = 1;
-    const errs = eng.hitErrors;
-    const nowT = g.now;
-    for (let i = errs.length - 1, k = 0; i >= 0 && k < 40; i--, k++) {
-      const e = errs[i];
-      const age = (nowT - e.t) / eng.rate;
-      if (age > 3000) break;
-      ctx.globalAlpha = clamp(1 - age / 3000, 0, 1);
-      ctx.fillStyle = JUDGEMENTS[e.j].color;
-      ctx.fillRect(cx + clamp(e.err, -W[J.BAD], W[J.BAD]) * scale - 1, y - hh * 2.5, Math.max(2, s * 0.6), hh * 5);
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(cx - 1, y - hh * 3, 2, hh * 6);
-  }
   /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
    *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */
   _drawHealth(v) {
@@ -4623,15 +4581,6 @@ class ManiaRenderer {
       ctx.fillStyle = g.held[i] ? '#000' : '#ddd';
       ctx.fillText(`${g.keyLabels?.[i] || i + 1}  ${g.engine.pressCounts[i]}`, x0 + size * 1.1, y + size / 2);
     }
-  }
-  _drawCounter(counts) {
-    const ctx = this.ctx, s = this.s;
-    const x = this.stageX - 12 * s, y0 = this.H * 0.45, lh = 9 * s;
-    ctx.font = `800 ${Math.round(lh * 0.8)}px Torus, Outfit, system-ui, sans-serif`;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    JUDGEMENTS.forEach((jj, i) => {
-      ctx.fillStyle = jj.color; ctx.fillText(`${jj.short}  ${counts[i]}`, x, y0 + i * lh);
-    });
   }
 }
 
@@ -5388,14 +5337,14 @@ const HomeScreen = {
     this.leftBtns = h('div.lz-buttons.lz-left');
     this.rightBtns = h('div.lz-buttons.lz-right');
     this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar), ZakoNeru.build());
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar), NeruMascot.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
     this.loop();
     return el;
   },
-  leave() { cancelAnimationFrame(this._raf); ZakoNeru.stop(); },
+  leave() { cancelAnimationFrame(this._raf); NeruMascot.stop(); },
 
   /** Button definitions (colours are osu!lazer's main-menu colours). */
   menuButtons(state) {
@@ -5584,107 +5533,52 @@ const MenuMusic = {
 };
 
 /* ===== 13b-neru.js ===== */
-/* Zako Neru — a little chibi Neru who hangs out in the corner of the main menu, poking at her flip phone and
- * teasing you ("zako~"). Click her for a line; she also pipes up on her own now and then. Pure inline SVG. */
+/* Neru on the main menu: a picture of Neru standing in the bottom-left corner. It shows the image chosen in
+ * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
+ * public/ folder). With no picture nothing is shown. Clicking her makes her hop. */
 
-const ZakoNeru = {
-  LINES: [
-    'zako~ zako~ ♡',
-    'Still no S rank? Zako~',
-    'Your accuracy is sooo cute ♡',
-    'Missed again? Zako zako~',
-    'Hmph. Not bad… for a zako.',
-    'Play a song already, slowpoke~',
-    'Bet you can\'t full combo this one~',
-    'Eh? You\'re still here? ♡',
-    'I\'m busy texting. …Fine, one song.',
-    'Try hitting the notes this time~',
-  ],
-  svg() {
-    const hair = '#f7d64e', hairS = '#e2b52c', hairH = '#fff2a6', skin = '#ffe9de', line = '#4a2c14';
-    return `<svg class="neru-svg" viewBox="0 0 230 290" aria-hidden="true">
-  <ellipse class="neru-glow" cx="112" cy="150" rx="100" ry="112"/>
-  <!-- ponytail (her left) -->
-  <g class="neru-tail">
-    <path d="M150 60 C210 38 232 112 214 172 C204 212 218 242 202 276 C188 244 172 220 177 178 C182 136 170 104 150 92 Z" fill="${hair}"/>
-    <path d="M168 70 C200 70 212 120 202 164 C196 190 200 214 198 236 C188 214 182 196 186 170 C192 128 186 96 168 84 Z" fill="${hairS}" opacity=".55"/>
-    <path d="M176 76 C194 88 200 112 196 140" stroke="${hairH}" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/>
-  </g>
-  <!-- back hair -->
-  <ellipse cx="112" cy="110" rx="72" ry="70" fill="${hairS}"/>
-  <path d="M44 112 C36 160 48 196 60 212 C68 184 66 150 72 122 Z" fill="${hair}"/>
-  <path d="M180 112 C188 160 176 196 164 212 C156 184 158 150 152 122 Z" fill="${hair}"/>
-  <!-- body -->
-  <path d="M68 290 C70 214 84 184 112 182 C140 184 154 214 156 290 Z" fill="#a4a8b3"/>
-  <path d="M84 196 C92 188 102 184 112 184 C122 184 132 188 140 196 L128 206 L112 194 L96 206 Z" fill="#c9ccd4"/>
-  <path d="M108 196 L116 196 L121 238 L112 248 L103 238 Z" fill="#373b46"/>
-  <path d="M104.5 214 L119.5 214" stroke="${hair}" stroke-width="3"/>
-  <rect x="105" y="170" width="14" height="16" rx="5" fill="${skin}"/>
-  <!-- arms + flip phone -->
-  <path d="M80 204 C70 222 78 240 96 238" stroke="#a4a8b3" stroke-width="15" fill="none" stroke-linecap="round"/>
-  <path d="M144 204 C154 222 146 240 128 238" stroke="#a4a8b3" stroke-width="15" fill="none" stroke-linecap="round"/>
-  <g class="neru-phone">
-    <rect x="98" y="206" width="28" height="40" rx="5" fill="#2b2d36"/>
-    <rect x="102" y="211" width="20" height="17" rx="2" class="neru-screen"/>
-    <circle cx="112" cy="236" r="3" fill="#555a68"/>
-    <path d="M104 216 h8 M104 221 h12" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".8"/>
-  </g>
-  <circle cx="98" cy="238" r="8" fill="${skin}"/>
-  <circle cx="126" cy="238" r="8" fill="${skin}"/>
-  <!-- face -->
-  <ellipse cx="112" cy="118" rx="58" ry="55" fill="${skin}"/>
-  <!-- eyes: smug (default) / happy (when teasing) -->
-  <g class="neru-eyes-smug">
-    <ellipse cx="89" cy="124" rx="10" ry="12" fill="#e0a226"/><ellipse cx="89" cy="126" rx="5" ry="7" fill="#6a3b0a"/><circle cx="86" cy="121" r="3" fill="#fff"/>
-    <ellipse cx="135" cy="124" rx="10" ry="12" fill="#e0a226"/><ellipse cx="135" cy="126" rx="5" ry="7" fill="#6a3b0a"/><circle cx="132" cy="121" r="3" fill="#fff"/>
-    <path d="M77 110 L101 110 L101 120 Q89 115 77 120 Z M123 110 L147 110 L147 120 Q135 115 123 120 Z" fill="${skin}"/>
-    <path d="M76 120 Q89 113 102 119 M122 119 Q135 113 148 120" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-    <path d="M78 104 Q89 100 100 105 M124 105 Q135 100 146 104" stroke="${hairS}" stroke-width="3" fill="none" stroke-linecap="round"/>
-  </g>
-  <g class="neru-eyes-happy">
-    <path d="M78 124 Q89 112 100 124 M124 124 Q135 112 146 124" stroke="${line}" stroke-width="4" fill="none" stroke-linecap="round"/>
-  </g>
-  <ellipse cx="78" cy="142" rx="10" ry="5.5" fill="#ff8fa8" opacity=".55"/>
-  <ellipse cx="146" cy="142" rx="10" ry="5.5" fill="#ff8fa8" opacity=".55"/>
-  <g class="neru-mouth-smirk">
-    <path d="M101 146 Q112 154 124 143" stroke="#6a2a1a" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <path d="M117 148 L119.5 154 L122 146.5 Z" fill="#fff" stroke="#6a2a1a" stroke-width="1"/>
-  </g>
-  <g class="neru-mouth-laugh">
-    <path d="M100 143 Q112 162 125 143 Z" fill="#8a2f2a" stroke="#6a2a1a" stroke-width="2.5" stroke-linejoin="round"/>
-    <path d="M116 144 L118.5 150 L121 144 Z" fill="#fff"/>
-  </g>
-  <!-- bangs + ahoge + hair tie -->
-  <path d="M50 110 C46 62 78 38 112 38 C148 38 178 62 174 110 L165 94 L156 114 L146 86 L134 108 L122 82 L111 108 L100 82 L89 108 L79 86 L68 112 L60 94 Z" fill="${hair}"/>
-  <path d="M70 70 C84 52 104 46 124 48" stroke="${hairH}" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/>
-  <path d="M110 40 C100 20 122 12 126 28" stroke="${hair}" stroke-width="6" fill="none" stroke-linecap="round"/>
-  <circle cx="154" cy="70" r="9" fill="#5b4bc4"/><circle cx="151" cy="67" r="3" fill="#8f82ea"/>
-</svg>`;
+const NeruMascot = {
+  FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
+  _probe: null, _blobURL: null,
+  /** URL of the picture to show, or null. */
+  async source() {
+    const blob = await DB.kvGet('mascot.image', null).catch(() => null);
+    if (blob instanceof Blob) {
+      if (this._blobURL) URL.revokeObjectURL(this._blobURL);
+      return (this._blobURL = URL.createObjectURL(blob));
+    }
+    const loads = src => new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = src; });
+    if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(f)) return f; return null; })();
+    return this._probe;
   },
   build() {
-    this.stop();
-    this.bubble = h('div.neru-bubble');
-    this.el = h('button.neru', { 'aria-label': 'Neru', title: 'Neru', onclick: e => { e.stopPropagation(); this.say(); } });
-    this.el.innerHTML = this.svg();
-    this.el.prepend(this.bubble);
-    // say hi shortly after the menu appears, then tease now and then
-    const greet = () => { if (Overlays.top()) { this._t = setTimeout(greet, 1500); return; } this.say(`Hi ${ProfileManager.profile.name || 'zako'}~ ready to lose? ♡`); };
-    this._t = setTimeout(greet, 1800);
-    this._idle = setInterval(() => { if (!document.hidden && !Overlays.top()) this.say(); }, 32000);
-    return this.el;
+    const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', onclick: e => { e.stopPropagation(); this.hop(); } });
+    if (!Settings.get('ui.mascot')) return el;
+    this.source().then(u => {
+      if (!u || this.el !== el) return;
+      el.append(h('img.neru-img', { src: u, alt: '', draggable: 'false' }));
+      el.hidden = false;
+    });
+    return el;
   },
-  say(text) {
+  hop() {
     if (!this.el) return;
-    let line = text;
-    if (!line) { do line = this.LINES[Math.floor(Math.random() * this.LINES.length)]; while (line === this._last && this.LINES.length > 1); }
-    this._last = line;
-    this.bubble.textContent = line;
-    this.el.classList.remove('talk'); void this.el.offsetWidth; this.el.classList.add('talk');
-    clearTimeout(this._hide);
-    this._hide = setTimeout(() => this.el && this.el.classList.remove('talk'), 3200);
+    this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
+    UISounds.click();
   },
-  stop() { clearTimeout(this._t); clearTimeout(this._hide); clearInterval(this._idle); this.el = null; },
+  /** Use a picture the player chose (a File/Blob), or null to go back to the bundled one. */
+  async setImage(file) {
+    await DB.kvSet('mascot.image', file ? new Blob([await file.arrayBuffer()], { type: file.type || 'image/png' }) : null);
+    this._probe = null;
+    const old = document.querySelector('.home .neru');
+    if (old) old.replaceWith(this.build());
+  },
+  stop() { this.el = null; },
 };
+
+Bus.on('settings:changed', k => {
+  if (k === 'ui.mascot' && Screens.currentName === 'home') { const old = document.querySelector('.home .neru'); if (old) old.replaceWith(NeruMascot.build()); }
+});
 
 /* ===== 14-screen-songselect.js ===== */
 /* Song select — virtualized beatmap carousel, instant fuzzy search with filter syntax,
@@ -6533,11 +6427,10 @@ const GameplayScreen = {
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
-    this.kpsEl = h('div.hud-kps');
     const pd = Settings.get('gameplay.progressDisplay');
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
-      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl, this.kpsEl),
+      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl),
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
@@ -6633,12 +6526,6 @@ const GameplayScreen = {
       const t = `${Math.round(pp)}pp`;
       if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
-    if (Settings.get('gameplay.kpsCounter')) {
-      const cutoff = performance.now() - 1000;
-      while (this._kps && this._kps.length && this._kps[0] < cutoff) this._kps.shift();
-      const t = `${(this._kps || []).length} KPS`;
-      if (this.kpsEl.textContent !== t) this.kpsEl.textContent = t;
-    }
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e);
@@ -6837,8 +6724,6 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
-    } else if (e.type === 'press') {
-      (this._kps || (this._kps = [])).push(realNow);
     } else if (e.type === 'earlyRelease') {
       if (this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = 0;
@@ -8363,10 +8248,10 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
-  'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',
+  'input.keybinds', 'ui.scale', 'ui.theme', 'ui.mascot', 'ui.mascotImage', 'skin.current', 'data',
 ]);
 
 const SettingsPanel = {
@@ -8486,6 +8371,9 @@ const SettingsPanel = {
         break;
       }
       case 'data': row = h('div.set-row.col', lbl, DataPanel.build()); break;
+      case 'mascot': row = h('div.set-row', lbl, h('div.ctl',
+        h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
+        h('button.btn.sm.ghost', { onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
       default: row = h('div');
     }
     updReset();
@@ -9584,7 +9472,7 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
