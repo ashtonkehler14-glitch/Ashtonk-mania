@@ -4,7 +4,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp', 'gameplay.leaderboard',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'ui.mascot', 'ui.mascotImage', 'skin.current', 'data',

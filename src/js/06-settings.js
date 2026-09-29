@@ -56,6 +56,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },

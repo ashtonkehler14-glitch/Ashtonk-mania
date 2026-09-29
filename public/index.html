@@ -942,6 +942,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp-row .nm b { font-weight: 600; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud-mp-row .nm span { font-size: .68rem; color: #ccc; }
 .hud-mp-row .sc { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; }
+.hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
+.hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
+.hud-lb { width: 210px; }
+.hud-lb:empty { display: none; }
+.hud-lb .hud-mp-row { background: rgba(0, 0, 0, .42); padding: 5px 10px; }
+.hud-lb .hud-mp-row .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-lb .hud-mp-row.me { background: rgba(var(--accent-rgb), .38); box-shadow: 0 0 14px rgba(var(--accent-rgb), .3); }
 .mp-countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 4rem; font-weight: 600; color: #fff; text-shadow: 0 4px 30px rgba(0, 0, 0, .6); pointer-events: none; z-index: 5; }
 /* overflow: clip (not hidden) so focus()/scrollIntoView can never scroll the whole client out of place */
 #app, #screens, .screen { overflow: clip; }
@@ -3053,6 +3060,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
@@ -6708,6 +6716,8 @@ const GameplayScreen = {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
+    else this.buildLeaderboard();
+    this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
@@ -6820,12 +6830,54 @@ const GameplayScreen = {
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
-    if (s.mp) this.updateMp(e);
+    if (s.mp) this.updateMp(e); else this.updateLeaderboard();
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
       const t = `PB ${fmtAcc(pb.accuracy)}`;
       if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
+  },
+  /** osu!lazer-style in-game leaderboard: this map's local top scores with your live score climbing through them. */
+  buildLeaderboard() {
+    const s = this.s;
+    this.lbEl = h('div.hud-mp.hud-lb'); this.hud.append(this.lbEl);
+    this._lbT = 0; this._lbMe = null;
+    if (s.mode === 'auto' || s.practice) return;
+    const skip = s.replay && s.replay.scoreId;
+    const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
+    const mk = (name, sub, sc, me) => {
+      const r = { pos: h('span.pos'), sub: h('span', sub), sc: h('span.sc', sc) };
+      r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
+      this.lbEl.append(r.el); return r;
+    };
+    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(x.score)), { score: x.score }));
+    this._lbMe = mk(s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name, '', '0', true);
+    this.updateLeaderboard(true);
+  },
+  updateLeaderboard(force) {
+    const me = this._lbMe;
+    if (!me) return;
+    const t = performance.now();
+    if (!force && t - this._lbT < 150) return;
+    this._lbT = t;
+    const e = this.s.engine, sc = Math.round(e.score.score);
+    // ties go to the score that was set first
+    const above = this._lbRows.filter(r => r.score >= sc).length;
+    if (me._pos !== above + 1) {
+      me._pos = above + 1; me.pos.textContent = above + 1; me.el.style.order = above * 2 + 1;
+      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); r.pos.textContent = p; r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
+    }
+    const sub = `${fmtAcc(e.score.accuracy)} · ${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
+    if (me._sub !== sub) { me._sub = sub; me.sub.textContent = sub; }
+    if (me._st !== st) { me._st = st; me.sc.textContent = st; }
+  },
+  /** The board Tab toggles: the multiplayer standings, or the local leaderboard. */
+  board() { return this.mpBoard && this.s.mp ? this.mpBoard : this.lbEl; },
+  toggleLeaderboard() {
+    const on = !Settings.get('gameplay.leaderboard');
+    Settings.set('gameplay.leaderboard', on);
+    this.board().classList.toggle('lb-off', !on);
+    Toast.show(on ? 'Leaderboard shown' : 'Leaderboard hidden', 'Tab');
   },
   /** Multiplayer: send our live score (4×/s) and show both players, highest first (osu!lazer-style board). */
   updateMp(e) {
@@ -6961,6 +7013,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (!s.mp && !e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
       return;
     }
+    if (e.code === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !this.pauseEl) { e.preventDefault(); if (!e.repeat) this.toggleLeaderboard(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)
@@ -8580,7 +8633,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp', 'gameplay.leaderboard',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'ui.mascot', 'ui.mascotImage', 'skin.current', 'data',

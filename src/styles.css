@@ -929,6 +929,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp-row .nm b { font-weight: 600; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud-mp-row .nm span { font-size: .68rem; color: #ccc; }
 .hud-mp-row .sc { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; }
+.hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
+.hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
+.hud-lb { width: 210px; }
+.hud-lb:empty { display: none; }
+.hud-lb .hud-mp-row { background: rgba(0, 0, 0, .42); padding: 5px 10px; }
+.hud-lb .hud-mp-row .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-lb .hud-mp-row.me { background: rgba(var(--accent-rgb), .38); box-shadow: 0 0 14px rgba(var(--accent-rgb), .3); }
 .mp-countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 4rem; font-weight: 600; color: #fff; text-shadow: 0 4px 30px rgba(0, 0, 0, .6); pointer-events: none; z-index: 5; }
 /* overflow: clip (not hidden) so focus()/scrollIntoView can never scroll the whole client out of place */
 #app, #screens, .screen { overflow: clip; }

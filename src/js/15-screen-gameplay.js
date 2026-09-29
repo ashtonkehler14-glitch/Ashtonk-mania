@@ -346,6 +346,8 @@ const GameplayScreen = {
       this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
+    else this.buildLeaderboard();
+    this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
@@ -458,12 +460,54 @@ const GameplayScreen = {
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
-    if (s.mp) this.updateMp(e);
+    if (s.mp) this.updateMp(e); else this.updateLeaderboard();
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
       const t = `PB ${fmtAcc(pb.accuracy)}`;
       if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
+  },
+  /** osu!lazer-style in-game leaderboard: this map's local top scores with your live score climbing through them. */
+  buildLeaderboard() {
+    const s = this.s;
+    this.lbEl = h('div.hud-mp.hud-lb'); this.hud.append(this.lbEl);
+    this._lbT = 0; this._lbMe = null;
+    if (s.mode === 'auto' || s.practice) return;
+    const skip = s.replay && s.replay.scoreId;
+    const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
+    const mk = (name, sub, sc, me) => {
+      const r = { pos: h('span.pos'), sub: h('span', sub), sc: h('span.sc', sc) };
+      r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
+      this.lbEl.append(r.el); return r;
+    };
+    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(x.score)), { score: x.score }));
+    this._lbMe = mk(s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name, '', '0', true);
+    this.updateLeaderboard(true);
+  },
+  updateLeaderboard(force) {
+    const me = this._lbMe;
+    if (!me) return;
+    const t = performance.now();
+    if (!force && t - this._lbT < 150) return;
+    this._lbT = t;
+    const e = this.s.engine, sc = Math.round(e.score.score);
+    // ties go to the score that was set first
+    const above = this._lbRows.filter(r => r.score >= sc).length;
+    if (me._pos !== above + 1) {
+      me._pos = above + 1; me.pos.textContent = above + 1; me.el.style.order = above * 2 + 1;
+      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); r.pos.textContent = p; r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
+    }
+    const sub = `${fmtAcc(e.score.accuracy)} · ${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
+    if (me._sub !== sub) { me._sub = sub; me.sub.textContent = sub; }
+    if (me._st !== st) { me._st = st; me.sc.textContent = st; }
+  },
+  /** The board Tab toggles: the multiplayer standings, or the local leaderboard. */
+  board() { return this.mpBoard && this.s.mp ? this.mpBoard : this.lbEl; },
+  toggleLeaderboard() {
+    const on = !Settings.get('gameplay.leaderboard');
+    Settings.set('gameplay.leaderboard', on);
+    this.board().classList.toggle('lb-off', !on);
+    Toast.show(on ? 'Leaderboard shown' : 'Leaderboard hidden', 'Tab');
   },
   /** Multiplayer: send our live score (4×/s) and show both players, highest first (osu!lazer-style board). */
   updateMp(e) {
@@ -599,6 +643,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       if (!s.mp && !e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
       return;
     }
+    if (e.code === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !this.pauseEl) { e.preventDefault(); if (!e.repeat) this.toggleLeaderboard(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)

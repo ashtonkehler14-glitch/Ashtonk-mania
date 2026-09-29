@@ -173,6 +173,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   * an unpause countdown
   * retry on fail
   * Shift+Tab to hide the HUD
+  * an osu!lazer-style leaderboard on the left in gameplay (your local scores for the map, with your live score climbing through them); Tab shows or hides it
   * Alt+wheel volume
 * **Gamepad controls.**
 * **Background videos** (mp4/webm).
@@ -197,7 +198,7 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 | Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry · `Space` votes to skip the intro (everyone has to) |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
 | Player loader | `Space` start now · `Esc` back to song select · hover the settings to hold |
-| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `R` (or `` ` ``) to retry — a tap does nothing · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
+| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `R` (or `` ` ``) to retry — a tap does nothing · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed · `Tab` leaderboard · `Shift+Tab` HUD |
 | Practice | `[` / `]` set loop A/B · `\` clear loop · `Backspace` restart section · `←→` seek 5s · `-`/`=` offset |
 | Mod select | letter shortcuts shown on each mod · `Backspace` deselect all |
 
