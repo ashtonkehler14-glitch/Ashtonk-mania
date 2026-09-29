@@ -141,56 +141,54 @@ await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.players.some(p => 
 check('room updates don\'t wipe what you are typing', await bob.evaluate(() => document.querySelector('.mp-tabpane input').value === 'half-typed'));
 await alice.click('.mp-ready');
 
-// song search in the room: the guest searches their library and suggests; the host picks the suggestion
-await bob.click('.mp-tab:nth-child(2)');
-await bob.fill('.mp-sr-box input', 'hard');
-await bob.waitForFunction(() => [...document.querySelectorAll('.mp-sr-row')].some(r => r.textContent.includes('7K Hard')), null, { timeout: 5000 });
-check('room search finds songs in the library', true);
-await shot(bob, 'mp-search');
-await bob.evaluate(() => [...document.querySelectorAll('.mp-sr-row')].find(r => r.textContent.includes('7K Hard')).querySelector('button').click());
-await alice.waitForSelector('.mp-msg.suggest button', { timeout: 5000 });
-check('guest suggestions reach the host with a Pick button', true);
-await alice.click('.mp-msg.suggest button');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === '7K Hard', null, { timeout: 5000 });
-check('host picks a suggested beatmap', true);
-
-// online search: the host picks a beatmap nobody has; it downloads for the host, the guest downloads it from the room
+// beatmap search opens the real Browse screen (Beatmap Explorer). Online results are mocked (the mirrors are external).
 const onlineSet = { source: 'mock', page: 0, hasMore: false, sets: [{ id: 424242, title: 'Online Anthem', titleUnicode: '', artist: 'The Test Suite', artistUnicode: '', creator: 'Ashton', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
   diffs: [{ id: 4242420, mode: 3, version: 'Online Easy', stars: 1.5, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }, { id: 4242421, mode: 3, version: 'Online Hard', stars: 1.7, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }] }] };
 for (const p of [alice, bob]) {
   await p.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
   await p.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
   await p.route('https://assets.ppy.sh/**', r => r.abort());
+  await p.route('https://b.ppy.sh/**', r => r.abort());
 }
-// the host opens the beatmap provider from the map panel ("Search beatmaps" popup), searches online and picks
-await alice.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /Search beatmaps/.test(b.textContent)).click());
-await alice.waitForSelector('.mp-search-dlg', { timeout: 5000 });
-check('"Search beatmaps" opens the beatmap provider search in the room', await alice.evaluate(() => document.querySelector('.mp-search-dlg [data-src="online"]').classList.contains('on')));
-await alice.fill('.mp-search-dlg .mp-sr-box input', 'online');
-await alice.waitForFunction(() => [...document.querySelectorAll('.mp-search-dlg .mp-sr-row')].some(r => r.textContent.includes('Online Hard')), null, { timeout: 5000 });
-check('room search finds songs online', true);
-await shot(alice, 'mp-search-popup');
-await alice.evaluate(() => [...document.querySelectorAll('.mp-search-dlg .mp-sr-row')].find(r => r.textContent.includes('Online Hard')).querySelector('button').click());
+check('the room side panel is just chat', await alice.evaluate(() => document.querySelectorAll('.mp-side .mp-tabpane').length === 1 && !document.querySelector('.mp-sr-box') && /Chat/.test(document.querySelector('.mp-side').textContent)));
+const pickFromBrowse = async (p, version) => {
+  await p.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /Search beatmaps/.test(b.textContent)).click());
+  await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'explore' && document.querySelector('.ex-mp'), null, { timeout: 5000 });
+  await p.waitForSelector('.ex-card[data-id="424242"] .ex-action button', { timeout: 10000 });
+  await p.click('.ex-card[data-id="424242"] .ex-action button');
+  await p.waitForSelector('.menu button', { timeout: 3000 });
+  await p.evaluate(v => [...document.querySelectorAll('.menu button')].find(b => b.textContent.includes(v)).click(), version);
+  await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 15000 });
+};
+// the host searches Browse and picks a difficulty; it downloads for the host first
+await pickFromBrowse(alice, 'Online Hard');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Hard', null, { timeout: 15000 });
-await alice.waitForFunction(() => !document.querySelector('.mp-search-dlg'), null, { timeout: 3000 }).catch(() => {});
-check('host picks an online beatmap from the popup (downloaded on pick, popup closes)', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242) && !document.querySelector('.mp-search-dlg')));
+check('"Search beatmaps" opens Browse; the host picks there (downloaded on pick) and returns to the room', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242) && AshtonkMania.Multiplayer.inRoom()));
 // the other player installs it automatically — no click — and only for the room
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 15000 });
 check('the other player installs the room beatmap automatically', await bob.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
 await bob.waitForSelector('.mp-temp', { timeout: 5000 });
 check('it is marked as installed only for this room', await bob.evaluate(() => AshtonkMania.Multiplayer.isTemp()));
 await shot(bob, 'mp-temp');
+// the other player browses and suggests; the host picks the suggestion from chat
+await pickFromBrowse(bob, 'Online Easy');
+await alice.waitForFunction(() => [...document.querySelectorAll('.mp-msg.suggest')].some(m => m.textContent.includes('Online Easy')), null, { timeout: 5000 });
+check('guests suggest from Browse; the suggestion reaches the host with a Pick button', true);
+await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Easy', null, { timeout: 10000 });
+check('host picks a suggested beatmap', true);
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 10000 });
 
 // each player picks their own difficulty
-await bob.selectOption('.mp-diff select', { label: await bob.evaluate(() => [...document.querySelectorAll('.mp-diff option')].find(o => o.textContent.startsWith('Online Easy')).textContent) });
-await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b.diff && b.diff.version === 'Online Easy'; }, null, { timeout: 5000 });
-check('players choose their own difficulty (shown to the room)', await alice.evaluate(() => [...document.querySelectorAll('.mp-pdiff')].some(e => e.textContent.includes('Online Easy'))));
+await bob.selectOption('.mp-diff select', { label: await bob.evaluate(() => [...document.querySelectorAll('.mp-diff option')].find(o => o.textContent.startsWith('Online Hard')).textContent) });
+await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b.diff && b.diff.version === 'Online Hard'; }, null, { timeout: 5000 });
+check('players choose their own difficulty (shown to the room)', await alice.evaluate(() => [...document.querySelectorAll('.mp-pdiff')].some(e => e.textContent.includes('Online Hard'))));
 await alice.click('.mp-ready'); await bob.click('.mp-ready');
 await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
 await alice.click('.mp-start');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s, null, { timeout: 15000 })));
 const played = [await alice.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version), await bob.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version)];
-check('each player plays the difficulty they chose', played[0] === 'Online Hard' && played[1] === 'Online Easy', played.join(' / '));
+check('each player plays the difficulty they chose', played[0] === 'Online Easy' && played[1] === 'Online Hard', played.join(' / '));
 for (const p of [bob, alice]) {
   await p.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 15000 });
   await p.keyboard.press('Escape');
@@ -198,8 +196,8 @@ for (const p of [bob, alice]) {
   if (await p.$('.dialog .btn.danger')) await p.click('.dialog .btn.danger');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 8000 });
 }
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Hard', null, { timeout: 10000 });
-check('results show which difficulty each player played', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.rows.find(r => r.name === 'Bob').diff.version === 'Online Easy'));
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Easy', null, { timeout: 10000 });
+check('results show which difficulty each player played', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.rows.find(r => r.name === 'Bob').diff.version === 'Online Hard'));
 
 // leaving: the other player becomes host
 await alice.evaluate(() => AshtonkMania.Multiplayer.leave());

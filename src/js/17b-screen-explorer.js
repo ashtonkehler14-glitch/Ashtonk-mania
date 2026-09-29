@@ -139,9 +139,11 @@ const ExplorerScreen = {
   downloads: new Map(), // setId -> {progress, state:'downloading'|'done'|'error'}
   audio: null,
 
-  enter() {
+  enter(params = {}) {
     const el = h('div.explorer');
     const st = this.state;
+    // opened from a multiplayer room: every card picks (host) or suggests (other players) a difficulty for the room
+    this.mpPick = !!params.mpPick && typeof Multiplayer !== 'undefined' && Multiplayer.inRoom();
     this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
     let t = 0;
     this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { st.q = this.searchInput.value.trim(); this.newSearch(); }, 420); });
@@ -160,7 +162,10 @@ const ExplorerScreen = {
     this.grid = h('div.ex-grid');
     this.status = h('div.ex-status');
     this.sentinel = h('div.ex-sentinel');
+    const host = this.mpPick && Multiplayer.isHost();
     const header = h('div.ex-header',
+      this.mpPick ? h('div.ex-mp', icon('multi'), h('span', host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and suggest it to the room host.'), h('span.grow'),
+        h('button.btn.sm', { onclick: () => Screens.go('multiplayer', {}, { replace: true }) }, icon('back'), 'Back to room')) : null,
       h('div.ex-title', h('h1', 'Beatmap Explorer'), h('span.muted', 'osu!mania beatmaps, downloaded straight into your library')),
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
@@ -252,7 +257,12 @@ const ExplorerScreen = {
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
     const playBtn = h('button.ex-play', { title: 'Preview', 'aria-label': 'Preview', onclick: e => { e.stopPropagation(); this.togglePreview(set.id, playBtn); } }, icon(this.previewId === set.id ? 'pause' : 'play'));
     let action;
-    if (owned) action = h('button.btn.sm.primary', { onclick: () => Screens.go('songselect', { mapId: (owned.maps.find(m => !m.problems.length) || owned.maps[0]).id }) }, icon('play'), 'Play');
+    if (this.mpPick) {
+      const host = Multiplayer.isHost();
+      action = dl && dl.state === 'downloading'
+        ? h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : '…'))
+        : h('button.btn.sm.primary', { onclick: e => this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Suggest');
+    } else if (owned) action = h('button.btn.sm.primary', { onclick: () => Screens.go('songselect', { mapId: (owned.maps.find(m => !m.problems.length) || owned.maps[0]).id }) }, icon('play'), 'Play');
     else if (dl && dl.state === 'downloading') action = h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
     else action = h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
     const card = h('div.ex-card', { dataset: { id: set.id } },
@@ -287,6 +297,43 @@ const ExplorerScreen = {
       Toast.err(`Couldn't download ${set.title}`, e.message);
     }
     this.refreshCard(set);
+  },
+  /** Multiplayer: choose one of the set's difficulties, then pick it for the room (host) or suggest it. */
+  mpChoose(set, btn) {
+    const r = btn.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, [
+      { header: 'Choose a difficulty' },
+      ...set.diffs.map(d => ({ label: `${d.version} · ${d.keys}K · ★${d.stars.toFixed(2)}`, icon: 'star', onClick: () => this.mpPickDiff(set, d) })),
+    ]);
+  },
+  async mpPickDiff(set, d) {
+    if (!Multiplayer.inRoom()) { Toast.err('You are no longer in a room'); return; }
+    const host = Multiplayer.isHost();
+    const findLocal = () => [...BeatmapManager.maps.values()].find(m => m.onlineId === d.id && !m.problems.length)
+      || (this.owned(set.id)?.maps || []).find(m => m.version === d.version && !m.problems.length) || null;
+    let m = findLocal();
+    try {
+      if (host) {
+        if (!m) {
+          // download (with the card's progress ring) before picking
+          const state = { state: 'downloading', progress: 0, bytes: 0 };
+          this.downloads.set(set.id, state); this.refreshCard(set);
+          try {
+            await OnlineBeatmaps.downloadAndImport(set, p => { state.progress = p; this.refreshCard(set); });
+            state.state = 'done';
+          } catch (e) { state.state = 'error'; throw e; } finally { this.refreshCard(set); }
+          m = findLocal();
+        }
+        if (!m) throw new Error('That difficulty couldn\'t be found after downloading.');
+        Multiplayer.selectMap(m, Settings.get('songselect.mods') || []);
+        Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
+      } else {
+        const info = { title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id };
+        Multiplayer.send({ t: 'suggest', map: m ? { ...info, hash: m.hash, length: m.length } : info });
+        Toast.show('Suggested to the host', `${set.title} [${d.version}]`);
+      }
+      Screens.go('multiplayer', {}, { replace: true });
+    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
