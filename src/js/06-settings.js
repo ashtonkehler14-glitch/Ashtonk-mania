@@ -1,0 +1,151 @@
+/* SettingsManager — schema-driven settings. The schema drives both defaults and the Settings UI,
+ * so every visible control maps to a real stored value that some system reads. */
+
+const DEFAULT_KEYBINDS = {
+  1: [['Space']],
+  2: [['KeyF'], ['KeyJ']],
+  3: [['KeyF'], ['Space'], ['KeyJ']],
+  4: [['KeyD'], ['KeyF'], ['KeyJ'], ['KeyK']],
+  5: [['KeyD'], ['KeyF'], ['Space'], ['KeyJ'], ['KeyK']],
+  6: [['KeyS'], ['KeyD'], ['KeyF'], ['KeyJ'], ['KeyK'], ['KeyL']],
+  7: [['KeyS'], ['KeyD'], ['KeyF'], ['Space'], ['KeyJ'], ['KeyK'], ['KeyL']],
+  8: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  9: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['Space'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+  10: [['KeyA'], ['KeyS'], ['KeyD'], ['KeyF'], ['KeyV'], ['KeyN'], ['KeyJ'], ['KeyK'], ['KeyL'], ['Semicolon']],
+};
+const MAX_KEYS = 10;
+
+function keyLabel(code) {
+  if (!code) return '—';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return 'Num' + code.slice(6);
+  return ({
+    Space: 'Space', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', BracketLeft: '[', BracketRight: ']',
+    Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', ShiftLeft: 'LShift', ShiftRight: 'RShift', ControlLeft: 'LCtrl',
+    ControlRight: 'RCtrl', AltLeft: 'LAlt', AltRight: 'RAlt', CapsLock: 'Caps', Tab: 'Tab', Enter: 'Enter', ArrowLeft: '←',
+    ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', MetaLeft: 'LMeta', MetaRight: 'RMeta', IntlBackslash: '\\',
+  })[code] || code;
+}
+
+/** [section, key, label, type, default, options] */
+const SETTINGS_SCHEMA = [
+  // ── Gameplay
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
+    fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scroll direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM (osu!mania)'], ['svonly', 'SV only'], ['constant', 'Constant']] },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Receptor position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves the judgement line relative to the skin\'s HitPosition.' },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stagePosition', l: 'Stage position', t: 'select', d: 'center', o: [['center', 'Centered'], ['skin', 'Skin (ColumnStart)'], ['left', 'Left'], ['right', 'Right']] },
+  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.barlines', l: 'Show barlines', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0, min: 0, max: 30, step: 1, fmt: v => `${v}px` },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.neruSparkle', l: 'Golden sparkle on Marvelous ✦', t: 'bool', d: false, hint: 'A little yellow flourish. You know who you are.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressBar', l: 'Song progress', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Judgement counter', t: 'bool', d: false },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted (Marvelous > Perfect)'], ['v1', 'Classic (Marvelous = Perfect)']] },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 1500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  // ── Audio
+  { s: 'Audio', g: 'Volume', k: 'audio.master', l: 'Master', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Audio', g: 'Volume', k: 'audio.music', l: 'Music', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effects', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.hitsounds', l: 'Hitsounds', t: 'bool', d: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.beatmapSamples', l: 'Use beatmap samples & keysounds', t: 'bool', d: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Interface sounds', t: 'bool', d: true },
+  // ── Graphics
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS counter', t: 'bool', d: false },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Rendering scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
+  // ── Input
+  { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
+  { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
+  { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
+  { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
+  // ── Interface
+  { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Theme', t: 'select', d: 'kori', o: [['kori', 'Kori (purple)'], ['neru', 'Neru (gold)'], ['midnight', 'Midnight (blue)']] },
+  { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
+  { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
+  { s: 'Interface', g: 'Style', k: 'ui.homeMessages', l: 'Home screen greetings', t: 'bool', d: true },
+  // ── Skin
+  { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
+  { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
+  { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
+  { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
+  // ── Data / maintenance
+  { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
+  { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
+  // hidden (not in UI)
+  { k: 'debug.overlay', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.filter', d: 'all' }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
+  { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
+];
+
+const Settings = {
+  values: {},
+  schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
+  _saveT: 0,
+  async load() {
+    const stored = await DB.kvGet('settings', {});
+    this.values = stored && typeof stored === 'object' ? stored : {};
+    this.applyUI();
+  },
+  get(k) {
+    if (k in this.values) return this.values[k];
+    const s = this.schema.get(k);
+    return s ? (typeof s.d === 'object' && s.d !== null ? structuredClone(s.d) : s.d) : undefined;
+  },
+  async set(k, v) {
+    this.values[k] = v;
+    Bus.emit('settings:changed', k, v);
+    if (k.startsWith('audio.')) AudioManager.applyVolumes();
+    if (k.startsWith('ui.') || k === 'graphics.effects') this.applyUI();
+    clearTimeout(this._saveT);
+    this._saveT = setTimeout(() => DB.kvSet('settings', this.values).catch(e => console.error(e)), 250);
+  },
+  async flush() { clearTimeout(this._saveT); await DB.kvSet('settings', this.values); },
+  reset(k) { delete this.values[k]; Bus.emit('settings:changed', k, this.get(k)); this.set(k, this.get(k)); },
+  export() { return structuredClone(this.values); },
+  async import(obj) { if (obj && typeof obj === 'object') { this.values = { ...obj }; await this.flush(); this.applyUI(); AudioManager.applyVolumes(); Bus.emit('settings:changed', '*'); } },
+
+  keybinds(keys) {
+    const all = this.get('input.keybinds') || {};
+    const kb = all[keys] || DEFAULT_KEYBINDS[keys] || [];
+    const out = [];
+    for (let i = 0; i < keys; i++) out.push((kb[i] && kb[i].length) ? [...kb[i]] : [...(DEFAULT_KEYBINDS[keys]?.[i] || [])]);
+    return out;
+  },
+  setKeybinds(keys, binds) {
+    const all = { ...(this.get('input.keybinds') || {}) };
+    all[keys] = binds; this.set('input.keybinds', all);
+  },
+
+  applyUI() {
+    const r = document.documentElement;
+    r.style.setProperty('--ui-scale', this.get('ui.scale'));
+    const sp = this.get('ui.animSpeed');
+    r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
+    r.dataset.theme = this.get('ui.theme');
+    r.classList.toggle('no-effects', !this.get('graphics.effects'));
+    r.classList.toggle('no-anim', sp <= 0);
+  },
+};
