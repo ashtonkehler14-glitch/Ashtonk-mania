@@ -169,14 +169,48 @@ const Music = {
   playing: false, loop: false, loopStart: 0,
   meta: null,            // {setId, mapId, timing} of the currently loaded track (for UI beat sync)
   onEnded: null,
+  // Menus and song select *stream* the track through an <audio> element (starts instantly, no full decode);
+  // gameplay loads a decoded buffer for a sample-accurate clock. `el` is set while streaming.
+  el: null, elNode: null, elUrl: null,
 
+  /** Something is loaded and can be (re)played. */
+  get loaded() { return !!(this.buffer || this.el); },
   async load(buffer, key, meta) {
     AudioManager.init();
-    if (this.key !== key) this.stop(0);
+    if (this.key !== key || this.el) this.stop(0);
+    this._dropStream();
     this.buffer = buffer; this.key = key; this.meta = meta || null;
     this.stretched = null;
   },
-  get duration() { return this.buffer ? this.buffer.duration * 1000 : 0; },
+  /** Stream a track (Blob) for menus / previews: playback starts as soon as the first bytes are read. */
+  stream(blob, key, meta) {
+    AudioManager.init();
+    this.stop(0);
+    this._dropStream();
+    const el = this._audioEl || (this._audioEl = new Audio());
+    el.preload = 'auto';
+    if (!this.elNode) {
+      this.elNode = AudioManager.ctx.createMediaElementSource(el);
+      this.elGain = AudioManager.ctx.createGain();
+      this.elNode.connect(this.elGain); this.elGain.connect(AudioManager.musicBus);
+    }
+    this.elUrl = URL.createObjectURL(blob);
+    el.src = this.elUrl;
+    el.onended = () => { if (this.el === el && this.playing) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
+    this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
+    this.rate = 1; this.pausedPos = 0;
+  },
+  _dropStream() {
+    if (!this.el) return;
+    this.el.pause(); this.el.onended = null;
+    this.el.removeAttribute('src'); this.el.load();
+    if (this.elUrl) URL.revokeObjectURL(this.elUrl);
+    this.el = null; this.elUrl = null;
+  },
+  get duration() {
+    if (this.el) return isFinite(this.el.duration) ? this.el.duration * 1000 : 0;
+    return this.buffer ? this.buffer.duration * 1000 : 0;
+  },
 
   /** Prepare playback rate. preservePitch -> WSOLA-stretched buffer, otherwise resampling (pitch shifts). */
   async setRate(rate, preservePitch, onProgress) {
@@ -187,6 +221,7 @@ const Music = {
   /** Current song position in ms (can be negative during lead-in). */
   get time() {
     if (!this.playing) return this.pausedPos;
+    if (this.el) return this.el.currentTime * 1000;
     return this.startPos + (AudioManager.now() - this.startCtx) * 1000 * this.rate;
   },
   /** Song position at a given audio-clock time (seconds). */
@@ -194,6 +229,7 @@ const Music = {
 
   /** Start playing at song position `pos` ms (negative = delay). */
   play(pos = 0, { fadeIn = 0, volume = 1, loop = false } = {}) {
+    if (this.el) return this._playStream(pos, fadeIn, volume, loop);
     if (!this.buffer) return;
     AudioManager.init();
     this._kill();
@@ -217,13 +253,34 @@ const Music = {
     this.source = src; this.gain = g; this.playing = true; this.loop = loop;
     src.onended = () => { if (this.source === src) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
   },
+  _playStream(pos, fadeIn, volume, loop) {
+    const el = this.el, g = this.elGain, t = AudioManager.ctx.currentTime;
+    const seek = () => { try { el.currentTime = Math.max(0, pos) / 1000; } catch (e) { /* not seekable yet */ } };
+    if (el.readyState >= 1) seek(); else el.addEventListener('loadedmetadata', seek, { once: true });
+    el.loop = loop;
+    g.gain.cancelScheduledValues(t);
+    if (fadeIn > 0) { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(volume, t + fadeIn / 1000); } else g.gain.setValueAtTime(volume, t);
+    this.playing = true; this.loop = loop; this.gain = g; this.source = null;
+    el.play().catch(() => { if (this.el === el) this.playing = false; });
+  },
   pause() {
     if (!this.playing) return;
     this.pausedPos = this.time;
+    if (this.el) { this.el.pause(); this.playing = false; return; }
     this._kill();
     this.playing = false;
   },
   stop(fadeOut = 0) {
+    if (this.el) {
+      const el = this.el, g = this.elGain;
+      this.playing = false;
+      if (fadeOut > 0 && g) {
+        const t = AudioManager.ctx.currentTime;
+        g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + fadeOut / 1000);
+        setTimeout(() => { if (this.el === el && !this.playing) el.pause(); }, fadeOut + 20);
+      } else el.pause();
+      return;
+    }
     const src = this.source, g = this.gain;
     this.source = null; this.gain = null; this.playing = false;
     if (!src) return;
@@ -236,6 +293,7 @@ const Music = {
   },
   _kill() { this.stop(0); },
   setVolume(v, ms = 150) {
+    if (this.el && this.elGain) this.gain = this.elGain;
     if (!this.gain) return;
     const t = AudioManager.ctx.currentTime;
     this.gain.gain.cancelScheduledValues(t); this.gain.gain.setValueAtTime(this.gain.gain.value, t);

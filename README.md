@@ -19,6 +19,16 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### BPM scrolling from Web-Osu-Mania, instant previews, better breaks
+
+* **BPM / SV scrolling now uses Web-Osu-Mania's logic** (MIT): the "main" BPM is the one that lasts longest *between the first and last note* (intros and outros at other BPMs no longer skew it), red lines scroll at main-beat-length ÷ beat-length, green lines multiply the last red line's speed by 100 ÷ −beat-length, and nothing is capped, so SV teleports and stops play as mapped.
+* **Song previews start instantly.** Menus and song select stream the track instead of decoding the whole file first (about 80 ms from click to sound). The full decode for gameplay happens in the background once you stay on a song.
+* **No more songs starting in the wrong place:** a slow earlier preview can no longer start the next song at its own position. Songs start at their PreviewTime (40% in when the map doesn't set one, as in osu!).
+* **Breaks** only show for gaps of 10 seconds or more, with an osu!lazer-style overlay: countdown, a bar that shrinks to the centre, and your current accuracy and rank.
+* **Defaults:** hit error bar off, background dim 50%, background blur 50% (blur is now a percentage and is baked into the image once instead of re-blurred every frame).
+* **FPS counter** in the bottom right, styled like osu!lazer's (frame rate + frame time, colour-coded).
+* The settings panel can no longer be scrolled sideways.
+
 ### Scroll velocity fixes
 
 * **SV lines are read the way osu! reads them:** a timing point with a negative beat length is always a scroll-velocity (green) line, even when the file flags it as a BPM line; before, those SV changes were ignored. Green lines with a positive beat length reset SV to 1×.

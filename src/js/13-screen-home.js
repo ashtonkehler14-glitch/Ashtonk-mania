@@ -141,35 +141,43 @@ const HomeScreen = {
     if (!map) { Background.set(null); return; }
     const url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
     Background.set(url);
-    if (Music.meta && Music.buffer && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
+    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
     await MenuMusic.play(map);
   },
 };
+
+/** Where menu music / song-select previews start: the beatmap's PreviewTime, or 40% in (as osu! does) when
+ *  the map doesn't set one. */
+function previewStart(map) { return map.previewTime > 0 ? map.previewTime : Math.round((map.length || 0) * 0.4); }
+/** Red-line timing for the menu beat pulse (parsed after playback has started). */
+async function beatTiming(map) {
+  const parsed = await BeatmapManager.load(map.id).catch(() => null);
+  return parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
+}
 
 /** Background music (main menu / everywhere outside gameplay) with previous / pause / next. */
 const MenuMusic = {
   paused: false, current: null, history: [],
   async play(map, { fromPreview = true } = {}) {
     if (!map) return;
+    const tok = this._tok = {};
     try {
       await AudioManager.resume();
-      const buf = await TrackCache.get(map.setId, map.audioFile);
-      const parsed = await BeatmapManager.load(map.id).catch(() => null);
-      const timing = parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
-      if (Music.playing) Music.stop(200);
-      await Music.load(buf, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing });
-      await Music.setRate(1, false);
-      const start = fromPreview && map.previewTime > 0 ? map.previewTime : 0;
-      Music.play(start, { fadeIn: 600 });
+      const blob = await BeatmapManager.getFile(map.setId, map.audioFile);
+      if (tok !== this._tok) return; // another track was requested meanwhile
+      if (!blob) throw new Error('missing audio');
+      Music.stream(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
       Music.onEnded = () => this.next();
       this.paused = false;
       this.setCurrent(map);
+      beatTiming(map).then(timing => { if (tok === this._tok && Music.meta && Music.meta.mapId === map.id) Music.meta.timing = timing; });
     } catch (e) { console.warn('menu music', e); }
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   toggle() {
     if (Music.playing) { Music.pause(); this.paused = true; }
-    else if (Music.buffer) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
+    else if (Music.loaded) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
     Bus.emit('music:changed', this.current);
   },
   /** Switching tracks also switches the selected beatmap when song select is open (like lazer). */
@@ -192,7 +200,7 @@ const MenuMusic = {
     if (Music.playing && Music.time > 4000) { Music.play(0, { fadeIn: 150 }); return; }
     const id = this.history.pop();
     const map = id && BeatmapManager.maps.get(id);
-    if (!map) { if (Music.buffer) Music.play(0, { fadeIn: 150 }); return; }
+    if (!map) { if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
     this.go(map, false);
   },
 };

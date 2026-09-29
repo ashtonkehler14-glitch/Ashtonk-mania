@@ -45,17 +45,17 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Visual note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Shifts where notes are drawn relative to the receptors (visual only).' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.5, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten background during breaks', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.video', l: 'Background video', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.videoImport', l: 'Store videos when importing (.mp4 / .webm)', t: 'bool', d: true, hint: 'Videos can be large; turn off to save storage.' },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0, min: 0, max: 30, step: 1, fmt: v => `${v}px` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: false },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.errorBarScale', l: 'Hit error bar size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.1, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
@@ -67,7 +67,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted (Marvelous > Perfect)'], ['v1', 'Classic (Marvelous = Perfect)']] },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
-  { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 5000, min: 2000, max: 15000, step: 500, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Retry automatically on fail', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 1500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
@@ -127,6 +127,10 @@ const Settings = {
     this.values = stored && typeof stored === 'object' ? stored : {};
     // v2: osu!lazer look — the old purple default becomes the pink lazer default.
     if (!this.values['ui.v2']) { if (this.values['ui.theme'] === 'kori') delete this.values['ui.theme']; this.values['ui.v2'] = true; }
+    // v3: background blur is a percentage (was px); breaks are 10s or longer
+    const v = this.values;
+    if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
+    if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     this.applyUI();
   },
   get(k) {

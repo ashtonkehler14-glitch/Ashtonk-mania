@@ -385,25 +385,29 @@ const SongSelect = {
   // ── preview audio & background
   schedulePreview(m) {
     clearTimeout(this._previewT);
-    this._previewT = setTimeout(() => this.preview(m), 180);
+    this._previewT = setTimeout(() => this.preview(m), 60);
   },
   async preview(m) {
     const url = await BeatmapManager.bgURL(m) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
     if (this.selectedId === m.id || BeatmapManager.maps.get(this.selectedId)?.setId === m.setId) Background.set(url);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
+    // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
+    // slower earlier request could start the new song at the old song's preview point)
+    const tok = this._previewTok = {};
     try {
       await AudioManager.resume();
-      const buf = await TrackCache.get(m.setId, m.audioFile);
-      if (BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
-      const parsed = await BeatmapManager.load(m.id).catch(() => null);
-      const timing = parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
-      if (Music.playing) Music.stop(250);
-      await Music.load(buf, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing });
-      await Music.setRate(1, false);
-      const start = m.previewTime >= 0 ? m.previewTime : Math.round(buf.duration * 400);
-      Music.play(start, { fadeIn: 600 });
-      Music.onEnded = () => { if (Screens.currentName === 'songselect') Music.play(start, { fadeIn: 600 }); };
-      Toolbar.setNowPlaying(m);
+      const blob = await BeatmapManager.getFile(m.setId, m.audioFile);
+      if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
+      if (!blob) return;
+      Music.stream(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      const start = previewStart(m);
+      Music.play(start, { fadeIn: 400 });
+      Music.onEnded = () => { if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(start, { fadeIn: 600 }); };
+      MenuMusic.setCurrent(m);
+      beatTiming(m).then(timing => { if (tok === this._previewTok && Music.meta && Music.meta.setId === m.setId) Music.meta.timing = timing; });
+      // decode the full track in the background once the player lingers, so pressing Play starts quickly
+      clearTimeout(this._warmT);
+      this._warmT = setTimeout(() => { if (tok === this._previewTok) TrackCache.get(m.setId, m.audioFile).catch(() => {}); }, 900);
     } catch (e) { console.warn('preview failed', e); }
   },
 

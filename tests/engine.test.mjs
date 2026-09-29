@@ -279,3 +279,14 @@ test('SV: BPM changes scale the scroll relative to the main BPM', () => {
   assert.equal(velAt(segs, 7000), 2 * 0.5, 'double BPM × half SV');
   assert.equal(velAt(BeatmapParser.scrollSegments(bm, { useSV: true, useBPM: false }), 7000), 0.5);
 });
+
+test('SV/BPM follow Web-Osu-Mania: main BPM from the playable part only, no speed caps', () => {
+  // a 250ms-beat intro before the first note must not become the "main" BPM
+  const bm = BeatmapParser.parse(osu([note(0, 20000), note(1, 30000)]).replace('[TimingPoints]\n0,500,4,1,0,100,1,0',
+    '[TimingPoints]\n0,250,4,1,0,100,1,0\n19000,500,4,1,0,100,1,0\n25000,-5,4,1,0,100,0,0\n26000,500,4,1,0,100,1,0'));
+  assert.equal(BeatmapParser.mostCommonBeatLength(bm), 500);
+  const segs = BeatmapParser.scrollSegments(bm);
+  assert.equal(velAt(segs, 21000), 1);
+  assert.equal(velAt(segs, 25500), 20, 'SV 20× is not capped (teleport)');
+  assert.equal(velAt(segs, 1000), 2, 'the intro still scrolls at its own BPM');
+});

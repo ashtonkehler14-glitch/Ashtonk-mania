@@ -12,6 +12,29 @@ const Game = {
   },
 };
 
+/** A blurred copy of an image (blob URL), cached. `amount` 0–1 ≈ osu!lazer's blur (up to 25px at 1080p). */
+const _blurCache = new Map();
+function blurredImage(url, amount) {
+  const key = url + '|' + amount;
+  if (_blurCache.has(key)) return _blurCache.get(key);
+  const p = (async () => {
+    const img = new Image(); img.src = url; await img.decode();
+    const scale = Math.min(1, 960 / Math.max(1, img.naturalWidth)); // blurred anyway: half-ish resolution is plenty
+    const w = Math.max(1, Math.round(img.naturalWidth * scale)), hh = Math.max(1, Math.round(img.naturalHeight * scale));
+    const px = amount * 25 * (w / 1920) * 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = hh;
+    const x = c.getContext('2d');
+    x.filter = `blur(${px.toFixed(1)}px)`;
+    const pad = px * 3; // draw oversized so the edges don't fade to transparent
+    x.drawImage(img, -pad, -pad, w + pad * 2, hh + pad * 2);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    return URL.createObjectURL(blob);
+  })();
+  _blurCache.set(key, p);
+  while (_blurCache.size > 6) { const k = _blurCache.keys().next().value; _blurCache.get(k).then(u => URL.revokeObjectURL(u)).catch(() => {}); _blurCache.delete(k); }
+  return p;
+}
+
 /** Gamepads are only polled while one is actually connected (navigator.getGamepads() isn't free). */
 const GamepadWatch = {
   connected: 0,
@@ -151,11 +174,12 @@ const GameplayScreen = {
     const show = Settings.get('gameplay.showBackground');
     this.baseDim = show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    this.bgEl.style.filter = Settings.get('gameplay.bgBlur') ? `blur(${Settings.get('gameplay.bgBlur')}px)` : '';
-    this.bgEl.style.inset = Settings.get('gameplay.bgBlur') ? '-30px' : '0';
     const set = BeatmapManager.setById.get(s.rec.setId);
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(u => {
-      this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
+    const blur = Settings.get('gameplay.bgBlur');
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(async u => {
+      // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
+      if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
+      if (this.s === s) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
     });
     this.loadVideo();
   },
@@ -628,7 +652,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
   updateBreak(now) {
     const s = this.s;
-    if (!s.running || s.practice) { this.breakEl.hidden = true; return; }
+    if (!s.running || s.practice) { if (this._inBreak) { this._inBreak = false; this.breakEl.classList.remove('show'); } return; }
     if (!s.gaps) {
       const minGap = Settings.get('gameplay.breakMin');
       const times = s.baseNotes.map(n => [n.time, n.end]).sort((a, b) => a[0] - b[0]);
@@ -639,18 +663,27 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         lastEnd = Math.max(lastEnd, times[i][1]);
       }
     }
-    const g = s.gaps.find(([a, b]) => now > a + 600 * s.rate && now < b - 300 * s.rate);
+    const g = s.gaps.find(([a, b]) => now > a + 800 * s.rate && now < b - 800 * s.rate);
     if (!!g !== this._inBreak) {
       this._inBreak = !!g;
-      this.breakEl.hidden = !g;
+      if (g) {
+        // osu!lazer-style: countdown, a bar shrinking to the centre, and your current accuracy / rank
+        const e = s.engine, grade = ScoreSystem.gradeFor(e.score.accuracy, false, s.mods, e.score.counts);
+        this.brkCount = h('div.brk-count'); this.brkBar = h('i');
+        clearEl(this.breakEl).append(this.brkCount, h('div.brk-bar', h('span.brk-arrow.l', '›'), h('div.brk-track', this.brkBar), h('span.brk-arrow.r', '‹')),
+          h('div.brk-info', h('div', h('span', 'Accuracy'), h('b', fmtAcc(e.score.accuracy))), h('div', h('span', 'Rank'), gradeEl(grade))));
+        this._brkLeft = this._brkQ = null;
+      }
+      this.breakEl.classList.toggle('show', !!g);
+      this.breakEl.hidden = false;
       if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
     }
     if (!g) return;
-    const left = Math.ceil((g[1] - now) / 1000 / s.rate);
-    const pct = clamp((now - g[0]) / (g[1] - g[0]), 0, 1);
-    const txt = `BREAK · ${left}s`;
-    if (this.breakEl.dataset.t !== txt) { this.breakEl.dataset.t = txt; this.breakEl.textContent = txt; }
-    this.breakEl.style.setProperty('--p', (pct * 100).toFixed(1) + '%');
+    const left = Math.max(0, Math.ceil((g[1] - 800 * s.rate - now) / 1000 / s.rate));
+    if (left !== this._brkLeft) { this._brkLeft = left; this.brkCount.textContent = left; }
+    const rem = clamp((g[1] - 800 * s.rate - now) / (g[1] - g[0] - 1600 * s.rate), 0, 1);
+    const q = Math.round(rem * 300);
+    if (q !== this._brkQ) { this._brkQ = q; this.brkBar.style.transform = `scaleX(${q / 300})`; }
   },
 
   // ─────────────────────────────── gamepad ───────────────────────────────
@@ -818,7 +851,15 @@ const FPS = {
       if (this.acc >= 500) {
         this.fps = this.n * 1000 / this.acc; this.acc = 0; this.n = 0;
         const el = $('#fps-counter');
-        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else if (!el.hidden) el.hidden = true;
+        if (Settings.get('graphics.showFps')) {
+          // osu!lazer style: big fps number + frame time, tinted by how healthy the frame rate is
+          if (!this.fpsEl) { this.fpsEl = h('b'); this.msEl = h('i'); clearEl(el).append(h('span.fc-fps', this.fpsEl, h('small', 'fps')), this.msEl); }
+          el.hidden = false;
+          this.fpsEl.textContent = this.fps.toFixed(0);
+          this.msEl.textContent = `${this.frameMs.toFixed(1)}ms`;
+          const lvl = this.fps >= 55 ? 'good' : this.fps >= 30 ? 'ok' : 'bad';
+          if (el.dataset.lvl !== lvl) el.dataset.lvl = lvl;
+        } else if (!el.hidden) el.hidden = true;
       }
     }
     this.last = now;

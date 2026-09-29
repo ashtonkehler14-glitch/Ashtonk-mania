@@ -307,7 +307,7 @@ const ExplorerScreen = {
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
     this.previewId = null;
-    if (this._resumeMusic && Music.buffer && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
+    if (this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
     this._resumeMusic = false;
   },
 };

@@ -267,8 +267,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .load-status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
 
 /* ── FPS counter */
-#fps-counter { position: absolute; right: 10px; bottom: 10px; z-index: 80; padding: 4px 9px; border-radius: 8px; background: rgba(0, 0, 0, .6); font: 800 .75rem/1.2 ui-monospace, monospace; color: #9ff5b5; pointer-events: none; }
-#app.in-game #fps-counter { bottom: auto; top: 10px; }
 
 /* ── overlays / dialogs */
 #overlay-root { position: absolute; inset: 0; z-index: 60; pointer-events: none; }
@@ -304,7 +302,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .sp-head h2 { margin: 0; font-size: 1.6rem; font-weight: 700; }
 .sp-head .sub { color: var(--muted); font-size: .85rem; margin-top: 2px; }
 .sp-search { margin-top: 12px; width: 100%; }
-.sp-scroll { flex: 1; overflow: auto; padding: 0 22px 60px; scroll-behavior: smooth; }
+.sp-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 22px 60px; scroll-behavior: smooth; }
 .sp-section { padding-top: 18px; }
 .sp-section > h3 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
 .sp-section > h3 .i { color: var(--accent); }
@@ -662,8 +660,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── mod config / gameplay extras */
 .gp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
 .gp-video.on { display: block; }
-.gp-break { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: 10px 22px 14px; border-radius: 14px; background: rgba(0, 0, 0, .55); font-weight: 700; letter-spacing: .12em; font-size: 1.1rem; pointer-events: none; }
-.gp-break::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 6px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), rgba(255, 255, 255, .15) var(--p, 0%)); }
 .gp-hud.hidden-hud > *:not(.hud-replay) { visibility: hidden; }
 
 .volume-overlay { position: absolute; right: 18px; top: 50%; transform: translate(20px, -50%); opacity: 0; z-index: 92; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: rgba(12, 8, 20, .9); border: 1px solid var(--line-2); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
@@ -959,6 +955,39 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-msg.suggest .btn { margin-left: auto; }
 .gp-speed { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); padding: 8px 18px; border-radius: 99px; background: rgba(0, 0, 0, .7); font-weight: 600; font-size: 1rem; pointer-events: none; opacity: 0; transition: opacity var(--t-med); z-index: 5; }
 .gp-speed.show { opacity: 1; transition-duration: 60ms; }
+
+/* settings rows never overflow sideways */
+.set-row .lbl { min-width: 0; flex: 1 1 110px; }
+.set-row .ctl { flex: 0 1 auto; min-width: 0; }
+.set-row .ctl .select { max-width: 190px; min-width: 0; }
+.sp-section, .sp-group, .keycfg { min-width: 0; max-width: 100%; }
+
+/* ── break overlay (osu!lazer BreakOverlay) */
+.gp-break { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; opacity: 0; transition: opacity 400ms ease; z-index: 3; }
+.gp-break.show { opacity: 1; }
+.brk-count { font-size: 3.2rem; font-weight: 300; font-variant-numeric: tabular-nums; text-shadow: 0 2px 20px rgba(0, 0, 0, .6); }
+.brk-bar { display: flex; align-items: center; gap: 14px; width: min(520px, 60vw); }
+.brk-track { flex: 1; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.brk-track i { display: block; height: 100%; background: #fff; transform-origin: 50% 50%; box-shadow: 0 0 12px rgba(255, 255, 255, .6); }
+.brk-arrow { font-size: 2rem; font-weight: 300; color: rgba(255, 255, 255, .8); animation: brkArrow 1s ease-in-out infinite; }
+.brk-arrow.r { animation-name: brkArrowR; }
+@keyframes brkArrow { 50% { transform: translateX(6px); opacity: .4; } }
+@keyframes brkArrowR { 50% { transform: translateX(-6px); opacity: .4; } }
+.gp-break.show .brk-bar { animation: brkIn 500ms var(--ease-out) both; }
+@keyframes brkIn { from { transform: scaleX(.6); opacity: 0; } }
+.brk-info { display: flex; gap: 28px; padding: 8px 22px; border-radius: 10px; background: rgba(0, 0, 0, .45); }
+.brk-info > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.brk-info span { font-size: .7rem; color: #bbb; letter-spacing: .06em; text-transform: uppercase; }
+.brk-info b { font-weight: 600; font-size: 1.15rem; }
+.brk-info .grade { font-size: 1.4rem; }
+
+/* ── FPS counter (osu!lazer style, bottom right) */
+#fps-counter { position: absolute; right: 8px; bottom: 8px; z-index: 80; display: flex; align-items: baseline; gap: 8px; padding: 4px 10px; border-radius: 6px; background: rgba(0, 0, 0, .7); color: #fff; pointer-events: none; font-variant-numeric: tabular-nums; box-shadow: inset 0 -2px 0 var(--fc, #88b300); }
+#fps-counter[data-lvl="ok"] { --fc: #ffcc22; }
+#fps-counter[data-lvl="bad"] { --fc: #ed1121; }
+#fps-counter .fc-fps b { font-size: 1rem; font-weight: 600; color: var(--fc, #88b300); }
+#fps-counter .fc-fps small { font-size: .65rem; margin-left: 2px; color: #bbb; }
+#fps-counter i { font-style: normal; font-size: .7rem; color: #bbb; }
 
 </style>
 </head>
@@ -1622,17 +1651,7 @@ const BeatmapParser = {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);
     if (!red.length) red.push({ time: 0, beatLength: 500, meter: 4, uninherited: true, sampleSet: 0, sampleIndex: 0, volume: 100 });
-    // dominant BPM = the beat length that lasts longest (time-weighted)
-    const lastTime = bm.hitObjects.length ? Math.max(...bm.hitObjects.slice(-50).map(h => Math.max(h.time, h.endTime))) : red[red.length - 1].time;
-    const dur = new Map();
-    for (let i = 0; i < red.length; i++) {
-      const start = i === 0 ? Math.min(red[0].time, 0) : red[i].time;
-      const end = i + 1 < red.length ? red[i + 1].time : Math.max(lastTime, red[i].time);
-      const bl = Math.round(red[i].beatLength * 1000) / 1000;
-      dur.set(bl, (dur.get(bl) || 0) + Math.max(0, end - start));
-    }
-    let dominant = red[0].beatLength, best = -1;
-    for (const [bl, d] of dur) if (d > best) { best = d; dominant = bl; }
+    const dominant = this.mostCommonBeatLength(bm, red);
     const bpms = red.map(r => 60000 / r.beatLength);
     return {
       red, dominantBeatLength: dominant,
@@ -1640,24 +1659,45 @@ const BeatmapParser = {
     };
   },
 
-  /** Scroll segments: [{time, pos, vel}] where pos is integrated scroll distance (ms-equivalent at 1x). */
+  /** The beat length that lasts longest between the first and last hit object (Web-Osu-Mania's
+   *  getMostCommonBeatLength, MIT © 2024 Danny Duong): BPM sections before the first note or after the
+   *  last one don't count. */
+  mostCommonBeatLength(bm, red = this.timing(bm).red) {
+    const objs = bm.hitObjects;
+    const startTime = objs.length ? Math.min(...objs.slice(0, 50).map(o => o.time)) : 0;
+    const endTime = objs.length ? Math.max(...objs.slice(-50).map(o => Math.max(o.time, o.endTime || 0))) : 0;
+    const durations = new Map();
+    for (let i = 0; i < red.length; i++) {
+      const cur = red[i], next = red[i + 1];
+      const start = Math.max(cur.time, startTime), end = next ? Math.min(next.time, endTime) : endTime;
+      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + (end - start));
+    }
+    let best = 0, max = 0;
+    durations.forEach((d, bl) => { if (d > max) { best = bl; max = d; } });
+    return best > 0 ? best : red[0].beatLength;
+  },
+
+  /** Scroll segments: [{time, pos, vel}] where pos is integrated scroll distance (ms-equivalent at 1x).
+   *  Speeds follow Web-Osu-Mania's parseTimingPoints (MIT © 2024 Danny Duong), i.e. osu!mania:
+   *  a red line scrolls at mostCommonBeatLength / beatLength; a green line multiplies the last red line's
+   *  speed by 100 / -beatLength. No clamping, so teleports and stops behave as mapped. */
   scrollSegments(bm, { useSV = true, useBPM = true } = {}) {
     const tps = bm.timingPoints;
-    const { dominantBeatLength } = this.timing(bm);
-    const segs = [];
-    let curBeat = dominantBeatLength, curSV = 1;
+    const red = this.timing(bm).red;
+    const common = this.mostCommonBeatLength(bm, red);
     const changes = [];
+    let redSpeed = 1;
     for (const tp of tps) {
-      if (tp.uninherited) { curBeat = tp.beatLength; curSV = 1; }
-      else curSV = tp.beatLength < 0 ? clamp(-100 / tp.beatLength, 0.01, 10) : 1;
-      let vel = 1;
-      if (useSV) vel *= curSV;
-      if (useBPM) vel *= dominantBeatLength / curBeat;
-      vel = clamp(vel, 0, 20);
+      let vel;
+      if (tp.uninherited) { vel = redSpeed = useBPM ? common / tp.beatLength : 1; }
+      else vel = redSpeed * (useSV && tp.beatLength < 0 ? 100 / -tp.beatLength : 1);
+      if (!isFinite(vel) || vel < 0) continue;
       if (changes.length && changes[changes.length - 1].time === tp.time) changes[changes.length - 1].vel = vel;
       else changes.push({ time: tp.time, vel });
     }
-    if (!changes.length || changes[0].time > -1e7) changes.unshift({ time: -1e7, vel: changes.length ? changes[0].vel : 1 });
+    // before the first timing point the first speed applies (WOM moves the first point to time 0)
+    changes.unshift({ time: -1e7, vel: changes.length ? changes[0].vel : 1 });
+    const segs = [];
     let pos = 0;
     for (let i = 0; i < changes.length; i++) {
       if (i > 0) pos += (changes[i].time - changes[i - 1].time) * changes[i - 1].vel;
@@ -2531,14 +2571,48 @@ const Music = {
   playing: false, loop: false, loopStart: 0,
   meta: null,            // {setId, mapId, timing} of the currently loaded track (for UI beat sync)
   onEnded: null,
+  // Menus and song select *stream* the track through an <audio> element (starts instantly, no full decode);
+  // gameplay loads a decoded buffer for a sample-accurate clock. `el` is set while streaming.
+  el: null, elNode: null, elUrl: null,
 
+  /** Something is loaded and can be (re)played. */
+  get loaded() { return !!(this.buffer || this.el); },
   async load(buffer, key, meta) {
     AudioManager.init();
-    if (this.key !== key) this.stop(0);
+    if (this.key !== key || this.el) this.stop(0);
+    this._dropStream();
     this.buffer = buffer; this.key = key; this.meta = meta || null;
     this.stretched = null;
   },
-  get duration() { return this.buffer ? this.buffer.duration * 1000 : 0; },
+  /** Stream a track (Blob) for menus / previews: playback starts as soon as the first bytes are read. */
+  stream(blob, key, meta) {
+    AudioManager.init();
+    this.stop(0);
+    this._dropStream();
+    const el = this._audioEl || (this._audioEl = new Audio());
+    el.preload = 'auto';
+    if (!this.elNode) {
+      this.elNode = AudioManager.ctx.createMediaElementSource(el);
+      this.elGain = AudioManager.ctx.createGain();
+      this.elNode.connect(this.elGain); this.elGain.connect(AudioManager.musicBus);
+    }
+    this.elUrl = URL.createObjectURL(blob);
+    el.src = this.elUrl;
+    el.onended = () => { if (this.el === el && this.playing) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
+    this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
+    this.rate = 1; this.pausedPos = 0;
+  },
+  _dropStream() {
+    if (!this.el) return;
+    this.el.pause(); this.el.onended = null;
+    this.el.removeAttribute('src'); this.el.load();
+    if (this.elUrl) URL.revokeObjectURL(this.elUrl);
+    this.el = null; this.elUrl = null;
+  },
+  get duration() {
+    if (this.el) return isFinite(this.el.duration) ? this.el.duration * 1000 : 0;
+    return this.buffer ? this.buffer.duration * 1000 : 0;
+  },
 
   /** Prepare playback rate. preservePitch -> WSOLA-stretched buffer, otherwise resampling (pitch shifts). */
   async setRate(rate, preservePitch, onProgress) {
@@ -2549,6 +2623,7 @@ const Music = {
   /** Current song position in ms (can be negative during lead-in). */
   get time() {
     if (!this.playing) return this.pausedPos;
+    if (this.el) return this.el.currentTime * 1000;
     return this.startPos + (AudioManager.now() - this.startCtx) * 1000 * this.rate;
   },
   /** Song position at a given audio-clock time (seconds). */
@@ -2556,6 +2631,7 @@ const Music = {
 
   /** Start playing at song position `pos` ms (negative = delay). */
   play(pos = 0, { fadeIn = 0, volume = 1, loop = false } = {}) {
+    if (this.el) return this._playStream(pos, fadeIn, volume, loop);
     if (!this.buffer) return;
     AudioManager.init();
     this._kill();
@@ -2579,13 +2655,34 @@ const Music = {
     this.source = src; this.gain = g; this.playing = true; this.loop = loop;
     src.onended = () => { if (this.source === src) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
   },
+  _playStream(pos, fadeIn, volume, loop) {
+    const el = this.el, g = this.elGain, t = AudioManager.ctx.currentTime;
+    const seek = () => { try { el.currentTime = Math.max(0, pos) / 1000; } catch (e) { /* not seekable yet */ } };
+    if (el.readyState >= 1) seek(); else el.addEventListener('loadedmetadata', seek, { once: true });
+    el.loop = loop;
+    g.gain.cancelScheduledValues(t);
+    if (fadeIn > 0) { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(volume, t + fadeIn / 1000); } else g.gain.setValueAtTime(volume, t);
+    this.playing = true; this.loop = loop; this.gain = g; this.source = null;
+    el.play().catch(() => { if (this.el === el) this.playing = false; });
+  },
   pause() {
     if (!this.playing) return;
     this.pausedPos = this.time;
+    if (this.el) { this.el.pause(); this.playing = false; return; }
     this._kill();
     this.playing = false;
   },
   stop(fadeOut = 0) {
+    if (this.el) {
+      const el = this.el, g = this.elGain;
+      this.playing = false;
+      if (fadeOut > 0 && g) {
+        const t = AudioManager.ctx.currentTime;
+        g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + fadeOut / 1000);
+        setTimeout(() => { if (this.el === el && !this.playing) el.pause(); }, fadeOut + 20);
+      } else el.pause();
+      return;
+    }
     const src = this.source, g = this.gain;
     this.source = null; this.gain = null; this.playing = false;
     if (!src) return;
@@ -2598,6 +2695,7 @@ const Music = {
   },
   _kill() { this.stop(0); },
   setVolume(v, ms = 150) {
+    if (this.el && this.elGain) this.gain = this.elGain;
     if (!this.gain) return;
     const t = AudioManager.ctx.currentTime;
     this.gain.gain.cancelScheduledValues(t); this.gain.gain.setValueAtTime(this.gain.gain.value, t);
@@ -2705,17 +2803,17 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Visual note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Shifts where notes are drawn relative to the receptors (visual only).' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.5, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten background during breaks', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.video', l: 'Background video', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.videoImport', l: 'Store videos when importing (.mp4 / .webm)', t: 'bool', d: true, hint: 'Videos can be large; turn off to save storage.' },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0, min: 0, max: 30, step: 1, fmt: v => `${v}px` },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorBar', l: 'Hit error bar', t: 'bool', d: false },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.errorBarScale', l: 'Hit error bar size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.1, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
@@ -2727,7 +2825,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted (Marvelous > Perfect)'], ['v1', 'Classic (Marvelous = Perfect)']] },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
-  { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 5000, min: 2000, max: 15000, step: 500, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Retry automatically on fail', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 1500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
@@ -2787,6 +2885,10 @@ const Settings = {
     this.values = stored && typeof stored === 'object' ? stored : {};
     // v2: osu!lazer look — the old purple default becomes the pink lazer default.
     if (!this.values['ui.v2']) { if (this.values['ui.theme'] === 'kori') delete this.values['ui.theme']; this.values['ui.v2'] = true; }
+    // v3: background blur is a percentage (was px); breaks are 10s or longer
+    const v = this.values;
+    if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
+    if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     this.applyUI();
   },
   get(k) {
@@ -4853,7 +4955,7 @@ const NowPlaying = {
       this.bar);
     const seek = e => {
       const r = this.bar.getBoundingClientRect();
-      if (!Music.buffer) return;
+      if (!Music.loaded) return;
       const pos = clamp((e.clientX - r.left) / r.width, 0, 1) * Music.duration;
       if (Music.playing) Music.play(pos, { fadeIn: 60 }); else Music.pausedPos = pos;
       this.update();
@@ -5175,35 +5277,43 @@ const HomeScreen = {
     if (!map) { Background.set(null); return; }
     const url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
     Background.set(url);
-    if (Music.meta && Music.buffer && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
+    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
     await MenuMusic.play(map);
   },
 };
+
+/** Where menu music / song-select previews start: the beatmap's PreviewTime, or 40% in (as osu! does) when
+ *  the map doesn't set one. */
+function previewStart(map) { return map.previewTime > 0 ? map.previewTime : Math.round((map.length || 0) * 0.4); }
+/** Red-line timing for the menu beat pulse (parsed after playback has started). */
+async function beatTiming(map) {
+  const parsed = await BeatmapManager.load(map.id).catch(() => null);
+  return parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
+}
 
 /** Background music (main menu / everywhere outside gameplay) with previous / pause / next. */
 const MenuMusic = {
   paused: false, current: null, history: [],
   async play(map, { fromPreview = true } = {}) {
     if (!map) return;
+    const tok = this._tok = {};
     try {
       await AudioManager.resume();
-      const buf = await TrackCache.get(map.setId, map.audioFile);
-      const parsed = await BeatmapManager.load(map.id).catch(() => null);
-      const timing = parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
-      if (Music.playing) Music.stop(200);
-      await Music.load(buf, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing });
-      await Music.setRate(1, false);
-      const start = fromPreview && map.previewTime > 0 ? map.previewTime : 0;
-      Music.play(start, { fadeIn: 600 });
+      const blob = await BeatmapManager.getFile(map.setId, map.audioFile);
+      if (tok !== this._tok) return; // another track was requested meanwhile
+      if (!blob) throw new Error('missing audio');
+      Music.stream(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
       Music.onEnded = () => this.next();
       this.paused = false;
       this.setCurrent(map);
+      beatTiming(map).then(timing => { if (tok === this._tok && Music.meta && Music.meta.mapId === map.id) Music.meta.timing = timing; });
     } catch (e) { console.warn('menu music', e); }
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   toggle() {
     if (Music.playing) { Music.pause(); this.paused = true; }
-    else if (Music.buffer) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
+    else if (Music.loaded) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
     Bus.emit('music:changed', this.current);
   },
   /** Switching tracks also switches the selected beatmap when song select is open (like lazer). */
@@ -5226,7 +5336,7 @@ const MenuMusic = {
     if (Music.playing && Music.time > 4000) { Music.play(0, { fadeIn: 150 }); return; }
     const id = this.history.pop();
     const map = id && BeatmapManager.maps.get(id);
-    if (!map) { if (Music.buffer) Music.play(0, { fadeIn: 150 }); return; }
+    if (!map) { if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
     this.go(map, false);
   },
 };
@@ -5619,25 +5729,29 @@ const SongSelect = {
   // ── preview audio & background
   schedulePreview(m) {
     clearTimeout(this._previewT);
-    this._previewT = setTimeout(() => this.preview(m), 180);
+    this._previewT = setTimeout(() => this.preview(m), 60);
   },
   async preview(m) {
     const url = await BeatmapManager.bgURL(m) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
     if (this.selectedId === m.id || BeatmapManager.maps.get(this.selectedId)?.setId === m.setId) Background.set(url);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
+    // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
+    // slower earlier request could start the new song at the old song's preview point)
+    const tok = this._previewTok = {};
     try {
       await AudioManager.resume();
-      const buf = await TrackCache.get(m.setId, m.audioFile);
-      if (BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
-      const parsed = await BeatmapManager.load(m.id).catch(() => null);
-      const timing = parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
-      if (Music.playing) Music.stop(250);
-      await Music.load(buf, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing });
-      await Music.setRate(1, false);
-      const start = m.previewTime >= 0 ? m.previewTime : Math.round(buf.duration * 400);
-      Music.play(start, { fadeIn: 600 });
-      Music.onEnded = () => { if (Screens.currentName === 'songselect') Music.play(start, { fadeIn: 600 }); };
-      Toolbar.setNowPlaying(m);
+      const blob = await BeatmapManager.getFile(m.setId, m.audioFile);
+      if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
+      if (!blob) return;
+      Music.stream(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      const start = previewStart(m);
+      Music.play(start, { fadeIn: 400 });
+      Music.onEnded = () => { if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(start, { fadeIn: 600 }); };
+      MenuMusic.setCurrent(m);
+      beatTiming(m).then(timing => { if (tok === this._previewTok && Music.meta && Music.meta.setId === m.setId) Music.meta.timing = timing; });
+      // decode the full track in the background once the player lingers, so pressing Play starts quickly
+      clearTimeout(this._warmT);
+      this._warmT = setTimeout(() => { if (tok === this._previewTok) TrackCache.get(m.setId, m.audioFile).catch(() => {}); }, 900);
     } catch (e) { console.warn('preview failed', e); }
   },
 
@@ -5750,6 +5864,29 @@ const Game = {
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
   },
 };
+
+/** A blurred copy of an image (blob URL), cached. `amount` 0–1 ≈ osu!lazer's blur (up to 25px at 1080p). */
+const _blurCache = new Map();
+function blurredImage(url, amount) {
+  const key = url + '|' + amount;
+  if (_blurCache.has(key)) return _blurCache.get(key);
+  const p = (async () => {
+    const img = new Image(); img.src = url; await img.decode();
+    const scale = Math.min(1, 960 / Math.max(1, img.naturalWidth)); // blurred anyway: half-ish resolution is plenty
+    const w = Math.max(1, Math.round(img.naturalWidth * scale)), hh = Math.max(1, Math.round(img.naturalHeight * scale));
+    const px = amount * 25 * (w / 1920) * 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = hh;
+    const x = c.getContext('2d');
+    x.filter = `blur(${px.toFixed(1)}px)`;
+    const pad = px * 3; // draw oversized so the edges don't fade to transparent
+    x.drawImage(img, -pad, -pad, w + pad * 2, hh + pad * 2);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    return URL.createObjectURL(blob);
+  })();
+  _blurCache.set(key, p);
+  while (_blurCache.size > 6) { const k = _blurCache.keys().next().value; _blurCache.get(k).then(u => URL.revokeObjectURL(u)).catch(() => {}); _blurCache.delete(k); }
+  return p;
+}
 
 /** Gamepads are only polled while one is actually connected (navigator.getGamepads() isn't free). */
 const GamepadWatch = {
@@ -5890,11 +6027,12 @@ const GameplayScreen = {
     const show = Settings.get('gameplay.showBackground');
     this.baseDim = show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    this.bgEl.style.filter = Settings.get('gameplay.bgBlur') ? `blur(${Settings.get('gameplay.bgBlur')}px)` : '';
-    this.bgEl.style.inset = Settings.get('gameplay.bgBlur') ? '-30px' : '0';
     const set = BeatmapManager.setById.get(s.rec.setId);
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(u => {
-      this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
+    const blur = Settings.get('gameplay.bgBlur');
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(s.rec)).then(async u => {
+      // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
+      if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
+      if (this.s === s) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
     });
     this.loadVideo();
   },
@@ -6367,7 +6505,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
   updateBreak(now) {
     const s = this.s;
-    if (!s.running || s.practice) { this.breakEl.hidden = true; return; }
+    if (!s.running || s.practice) { if (this._inBreak) { this._inBreak = false; this.breakEl.classList.remove('show'); } return; }
     if (!s.gaps) {
       const minGap = Settings.get('gameplay.breakMin');
       const times = s.baseNotes.map(n => [n.time, n.end]).sort((a, b) => a[0] - b[0]);
@@ -6378,18 +6516,27 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         lastEnd = Math.max(lastEnd, times[i][1]);
       }
     }
-    const g = s.gaps.find(([a, b]) => now > a + 600 * s.rate && now < b - 300 * s.rate);
+    const g = s.gaps.find(([a, b]) => now > a + 800 * s.rate && now < b - 800 * s.rate);
     if (!!g !== this._inBreak) {
       this._inBreak = !!g;
-      this.breakEl.hidden = !g;
+      if (g) {
+        // osu!lazer-style: countdown, a bar shrinking to the centre, and your current accuracy / rank
+        const e = s.engine, grade = ScoreSystem.gradeFor(e.score.accuracy, false, s.mods, e.score.counts);
+        this.brkCount = h('div.brk-count'); this.brkBar = h('i');
+        clearEl(this.breakEl).append(this.brkCount, h('div.brk-bar', h('span.brk-arrow.l', '›'), h('div.brk-track', this.brkBar), h('span.brk-arrow.r', '‹')),
+          h('div.brk-info', h('div', h('span', 'Accuracy'), h('b', fmtAcc(e.score.accuracy))), h('div', h('span', 'Rank'), gradeEl(grade))));
+        this._brkLeft = this._brkQ = null;
+      }
+      this.breakEl.classList.toggle('show', !!g);
+      this.breakEl.hidden = false;
       if (Settings.get('gameplay.lightenBreaks')) this.dimEl.style.opacity = g ? this.baseDim * 0.55 : this.baseDim;
     }
     if (!g) return;
-    const left = Math.ceil((g[1] - now) / 1000 / s.rate);
-    const pct = clamp((now - g[0]) / (g[1] - g[0]), 0, 1);
-    const txt = `BREAK · ${left}s`;
-    if (this.breakEl.dataset.t !== txt) { this.breakEl.dataset.t = txt; this.breakEl.textContent = txt; }
-    this.breakEl.style.setProperty('--p', (pct * 100).toFixed(1) + '%');
+    const left = Math.max(0, Math.ceil((g[1] - 800 * s.rate - now) / 1000 / s.rate));
+    if (left !== this._brkLeft) { this._brkLeft = left; this.brkCount.textContent = left; }
+    const rem = clamp((g[1] - 800 * s.rate - now) / (g[1] - g[0] - 1600 * s.rate), 0, 1);
+    const q = Math.round(rem * 300);
+    if (q !== this._brkQ) { this._brkQ = q; this.brkBar.style.transform = `scaleX(${q / 300})`; }
   },
 
   // ─────────────────────────────── gamepad ───────────────────────────────
@@ -6557,7 +6704,15 @@ const FPS = {
       if (this.acc >= 500) {
         this.fps = this.n * 1000 / this.acc; this.acc = 0; this.n = 0;
         const el = $('#fps-counter');
-        if (Settings.get('graphics.showFps')) { el.hidden = false; el.textContent = `${this.fps.toFixed(0)} fps · ${this.frameMs.toFixed(1)}ms`; } else if (!el.hidden) el.hidden = true;
+        if (Settings.get('graphics.showFps')) {
+          // osu!lazer style: big fps number + frame time, tinted by how healthy the frame rate is
+          if (!this.fpsEl) { this.fpsEl = h('b'); this.msEl = h('i'); clearEl(el).append(h('span.fc-fps', this.fpsEl, h('small', 'fps')), this.msEl); }
+          el.hidden = false;
+          this.fpsEl.textContent = this.fps.toFixed(0);
+          this.msEl.textContent = `${this.frameMs.toFixed(1)}ms`;
+          const lvl = this.fps >= 55 ? 'good' : this.fps >= 30 ? 'ok' : 'bad';
+          if (el.dataset.lvl !== lvl) el.dataset.lvl = lvl;
+        } else if (!el.hidden) el.hidden = true;
       }
     }
     this.last = now;
@@ -7552,7 +7707,7 @@ const ExplorerScreen = {
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
     this.previewId = null;
-    if (this._resumeMusic && Music.buffer && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
+    if (this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
     this._resumeMusic = false;
   },
 };
@@ -7564,7 +7719,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',

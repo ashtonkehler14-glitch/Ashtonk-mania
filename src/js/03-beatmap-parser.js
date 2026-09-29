@@ -128,17 +128,7 @@ const BeatmapParser = {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);
     if (!red.length) red.push({ time: 0, beatLength: 500, meter: 4, uninherited: true, sampleSet: 0, sampleIndex: 0, volume: 100 });
-    // dominant BPM = the beat length that lasts longest (time-weighted)
-    const lastTime = bm.hitObjects.length ? Math.max(...bm.hitObjects.slice(-50).map(h => Math.max(h.time, h.endTime))) : red[red.length - 1].time;
-    const dur = new Map();
-    for (let i = 0; i < red.length; i++) {
-      const start = i === 0 ? Math.min(red[0].time, 0) : red[i].time;
-      const end = i + 1 < red.length ? red[i + 1].time : Math.max(lastTime, red[i].time);
-      const bl = Math.round(red[i].beatLength * 1000) / 1000;
-      dur.set(bl, (dur.get(bl) || 0) + Math.max(0, end - start));
-    }
-    let dominant = red[0].beatLength, best = -1;
-    for (const [bl, d] of dur) if (d > best) { best = d; dominant = bl; }
+    const dominant = this.mostCommonBeatLength(bm, red);
     const bpms = red.map(r => 60000 / r.beatLength);
     return {
       red, dominantBeatLength: dominant,
@@ -146,24 +136,45 @@ const BeatmapParser = {
     };
   },
 
-  /** Scroll segments: [{time, pos, vel}] where pos is integrated scroll distance (ms-equivalent at 1x). */
+  /** The beat length that lasts longest between the first and last hit object (Web-Osu-Mania's
+   *  getMostCommonBeatLength, MIT © 2024 Danny Duong): BPM sections before the first note or after the
+   *  last one don't count. */
+  mostCommonBeatLength(bm, red = this.timing(bm).red) {
+    const objs = bm.hitObjects;
+    const startTime = objs.length ? Math.min(...objs.slice(0, 50).map(o => o.time)) : 0;
+    const endTime = objs.length ? Math.max(...objs.slice(-50).map(o => Math.max(o.time, o.endTime || 0))) : 0;
+    const durations = new Map();
+    for (let i = 0; i < red.length; i++) {
+      const cur = red[i], next = red[i + 1];
+      const start = Math.max(cur.time, startTime), end = next ? Math.min(next.time, endTime) : endTime;
+      durations.set(cur.beatLength, (durations.get(cur.beatLength) || 0) + (end - start));
+    }
+    let best = 0, max = 0;
+    durations.forEach((d, bl) => { if (d > max) { best = bl; max = d; } });
+    return best > 0 ? best : red[0].beatLength;
+  },
+
+  /** Scroll segments: [{time, pos, vel}] where pos is integrated scroll distance (ms-equivalent at 1x).
+   *  Speeds follow Web-Osu-Mania's parseTimingPoints (MIT © 2024 Danny Duong), i.e. osu!mania:
+   *  a red line scrolls at mostCommonBeatLength / beatLength; a green line multiplies the last red line's
+   *  speed by 100 / -beatLength. No clamping, so teleports and stops behave as mapped. */
   scrollSegments(bm, { useSV = true, useBPM = true } = {}) {
     const tps = bm.timingPoints;
-    const { dominantBeatLength } = this.timing(bm);
-    const segs = [];
-    let curBeat = dominantBeatLength, curSV = 1;
+    const red = this.timing(bm).red;
+    const common = this.mostCommonBeatLength(bm, red);
     const changes = [];
+    let redSpeed = 1;
     for (const tp of tps) {
-      if (tp.uninherited) { curBeat = tp.beatLength; curSV = 1; }
-      else curSV = tp.beatLength < 0 ? clamp(-100 / tp.beatLength, 0.01, 10) : 1;
-      let vel = 1;
-      if (useSV) vel *= curSV;
-      if (useBPM) vel *= dominantBeatLength / curBeat;
-      vel = clamp(vel, 0, 20);
+      let vel;
+      if (tp.uninherited) { vel = redSpeed = useBPM ? common / tp.beatLength : 1; }
+      else vel = redSpeed * (useSV && tp.beatLength < 0 ? 100 / -tp.beatLength : 1);
+      if (!isFinite(vel) || vel < 0) continue;
       if (changes.length && changes[changes.length - 1].time === tp.time) changes[changes.length - 1].vel = vel;
       else changes.push({ time: tp.time, vel });
     }
-    if (!changes.length || changes[0].time > -1e7) changes.unshift({ time: -1e7, vel: changes.length ? changes[0].vel : 1 });
+    // before the first timing point the first speed applies (WOM moves the first point to time 0)
+    changes.unshift({ time: -1e7, vel: changes.length ? changes[0].vel : 1 });
+    const segs = [];
     let pos = 0;
     for (let i = 0; i < changes.length; i++) {
       if (i > 0) pos += (changes[i].time - changes[i - 1].time) * changes[i - 1].vel;

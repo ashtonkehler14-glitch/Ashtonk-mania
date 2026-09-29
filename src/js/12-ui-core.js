@@ -281,7 +281,7 @@ const NowPlaying = {
       this.bar);
     const seek = e => {
       const r = this.bar.getBoundingClientRect();
-      if (!Music.buffer) return;
+      if (!Music.loaded) return;
       const pos = clamp((e.clientX - r.left) / r.width, 0, 1) * Music.duration;
       if (Music.playing) Music.play(pos, { fadeIn: 60 }); else Music.pausedPos = pos;
       this.update();
