@@ -134,6 +134,10 @@ const GameplayScreen = {
     await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
+    // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
+    const hs = Settings.get('gameplay.healthStyle');
+    this.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : 'lazer';
+    this.renderer.healthMode = this.healthMode === 'lazer' ? null : this.healthMode;
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -348,6 +352,13 @@ const GameplayScreen = {
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
+    // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
+    this.hpEl = this._hpQ = this._hpLow = null;
+    if (this.healthMode === 'lazer') {
+      this.hpFill = h('i.hp-fill'); this.hpTrail = h('i.hp-trail');
+      this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
+      this.hud.append(this.hpEl);
+    }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
@@ -461,6 +472,15 @@ const GameplayScreen = {
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
+    if (this.hpEl) {
+      const q = Math.round(clamp(e.health.value, 0, 1) * 400);
+      if (q !== this._hpQ) {
+        this._hpQ = q;
+        this.hpEl.style.setProperty('--hp', q / 400);
+        const low = q < 120;
+        if (low !== this._hpLow) { this._hpLow = low; this.hpEl.classList.toggle('low', low); }
+      }
+    }
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
       const t = `PB ${fmtAcc(pb.accuracy)}`;

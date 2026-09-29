@@ -41,6 +41,33 @@ test('search sends osu!-style sort, filters "has leaderboard" and pins the mirro
   assert.ok(calls[2].includes('sort=ranked_desc'));
 });
 
+test('rating sort: a mirror that rejects it is asked again in its default order and the page is sorted by rating', async () => {
+  const calls = [];
+  const sets = [{ ...osuSet(1), rating: 6.1 }, { ...osuSet(2), ratings: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9] }, { ...osuSet(3), rating: 8 }];
+  const fetchImpl = async url => { calls.push(url); return url.includes('sort=rating') ? res({ error: 'invalid sort' }, 400) : res(sets); };
+  const d = await (await handleSearch(new URL('https://x/api/search?sort=rating_desc'), {}, fetchImpl)).json();
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].includes('sort=rating_desc') && !calls[1].includes('sort='));
+  assert.deepEqual(d.sets.map(s => s.id), [2, 3, 1]);
+  assert.equal(d.sortedLocally, true);
+  // a mirror that answers 200 with an error body counts as a failure too
+  const calls2 = [];
+  await handleSearch(new URL('https://x/api/search?sort=rating_asc'), {}, async url => { calls2.push(url); return url.includes('sort=') ? res({ error: 'bad' }) : res(sets); });
+  assert.equal(calls2.length, 2);
+});
+
+test('relevance sort: uses the mirror\'s own order for a text search and ranks the best matches first', async () => {
+  const calls = [];
+  const sets = [{ ...osuSet(1), title: 'Other thing' }, { ...osuSet(2), title: 'Zako' }, { ...osuSet(3), title: 'Zako Zako Remix' }];
+  const d = await (await handleSearch(new URL('https://x/api/search?q=zako&sort=relevance_desc'), {}, async url => { calls.push(url); return res(sets); })).json();
+  assert.equal(calls.length, 1);
+  assert.ok(!calls[0].includes('sort='));
+  assert.deepEqual(d.sets.map(s => s.id), [2, 3, 1]);
+  // relevance without words falls back to newest ranked
+  await handleSearch(new URL('https://x/api/search?sort=relevance_desc'), {}, async url => { calls.push(url); return res(sets); });
+  assert.ok(calls[1].includes('sort=ranked_desc'));
+});
+
 test('search reports every provider failure', async () => {
   const r = await handleSearch(new URL('https://x/api/search?q=a'), {}, async () => { throw new Error('offline'); });
   assert.equal(r.status, 502);

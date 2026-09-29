@@ -13,9 +13,9 @@ const UA = { 'User-Agent': 'Ashtonk!mania beatmap explorer (+https://github.com/
 export const MIRRORS = {
   search: [
     // (sort is osu!'s "<criteria>_<asc|desc>", e.g. ranked_desc — the default, as on osu! and Web-Osu-Mania)
-    { name: 'Mino (catboy.best)', url: p => `https://catboy.best/api/v2/search?q=${enc(p.q)}&query=${enc(p.q)}&mode=3&m=3&limit=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}&s=${p.status}` : ''}&sort=${p.sort}` },
-    { name: 'NeriNyan', url: p => `https://api.nerinyan.moe/search?q=${enc(p.q)}&m=3&ps=${PAGE_SIZE}&p=${p.page}${specificStatus(p) ? `&s=${p.status}` : p.status === 'leaderboard' ? '&s=ranked,approved,qualified,loved' : '&s=all'}&sort=${p.sort}&nsfw=true` },
-    { name: 'osu.direct', url: p => `https://osu.direct/api/v2/search?query=${enc(p.q)}&q=${enc(p.q)}&mode=3&amount=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}` : ''}&sort=${p.sort}` },
+    { name: 'Mino (catboy.best)', url: p => `https://catboy.best/api/v2/search?q=${enc(p.q)}&query=${enc(p.q)}&mode=3&m=3&limit=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}&s=${p.status}` : ''}${sortQ(p)}` },
+    { name: 'NeriNyan', url: p => `https://api.nerinyan.moe/search?q=${enc(p.q)}&m=3&ps=${PAGE_SIZE}&p=${p.page}${specificStatus(p) ? `&s=${p.status}` : p.status === 'leaderboard' ? '&s=ranked,approved,qualified,loved' : '&s=all'}${sortQ(p)}&nsfw=true` },
+    { name: 'osu.direct', url: p => `https://osu.direct/api/v2/search?query=${enc(p.q)}&q=${enc(p.q)}&mode=3&amount=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}` : ''}${sortQ(p)}` },
   ],
   download: [
     { name: 'Mino (catboy.best)', url: id => `https://catboy.best/d/${id}` },
@@ -26,6 +26,7 @@ export const MIRRORS = {
 };
 
 const enc = s => encodeURIComponent(s || '');
+const sortQ = p => p.sort ? `&sort=${p.sort}` : '';
 const STATUS_NUM = { ranked: 1, approved: 2, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 };
 const statusNum = s => STATUS_NUM[s] ?? 1;
 /** "Has leaderboard" (osu!'s default category) and "Any" aren't a single status on the mirrors. */
@@ -62,14 +63,28 @@ export function normalizeSet(raw) {
     video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw,
     rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? raw.ApprovedDate ?? null,
     lastUpdated: raw.last_updated ?? raw.LastUpdate ?? raw.submitted_date ?? null,
-    rating: Number(raw.rating ?? raw.Rating ?? 0),
+    rating: setRating(raw),
     diffs,
   };
+}
+/** Average user rating (0–10). osu! sends `rating`, some mirrors only the vote counts (`ratings`, index = score). */
+function setRating(raw) {
+  const r = Number(raw.rating ?? raw.Rating);
+  if (r > 0) return r;
+  const v = raw.ratings;
+  if (Array.isArray(v)) {
+    let n = 0, sum = 0;
+    v.forEach((c, i) => { if (i > 0) { n += Number(c) || 0; sum += i * (Number(c) || 0); } });
+    if (n) return sum / n;
+  }
+  return 0;
 }
 export function normalizeList(data) {
   const arr = Array.isArray(data) ? data : (data && (data.beatmapsets || data.data || data.results || data.sets)) || [];
   return arr.map(normalizeSet).filter(Boolean);
 }
+
+const timeout = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
 let officialToken = null;
 async function getOfficialToken(env, fetchImpl) {
@@ -109,6 +124,39 @@ export function validSort(s) {
   const m = /^([a-z]+)_(asc|desc)$/.exec(s || '');
   return m && SORT_CRITERIA.includes(m[1]) ? s : 'ranked_desc';
 }
+/** How well a set matches the search words (for "relevance" when a mirror can't order by it). */
+export function relevance(set, q) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(w => w && !/[<>=]/.test(w));
+  if (!words.length) return 0;
+  const title = `${set.title} ${set.titleUnicode}`.toLowerCase(), artist = `${set.artist} ${set.artistUnicode}`.toLowerCase();
+  const other = `${set.creator} ${set.source} ${set.diffs.map(d => d.version).join(' ')}`.toLowerCase();
+  const phrase = words.join(' ');
+  let score = set.title.toLowerCase() === phrase ? 40 : title.includes(phrase) ? 20 : artist.includes(phrase) ? 12 : 0;
+  for (const w of words) score += title.includes(w) ? 6 : artist.includes(w) ? 4 : other.includes(w) ? 2 : 0;
+  return score;
+}
+/** Order a page ourselves when the mirror couldn't sort by the chosen criterion (stable). */
+export function localSort(sets, sort, q) {
+  const [crit, dir] = sort.split('_');
+  const date = s => Date.parse(s.rankedDate || s.lastUpdated || '') || 0;
+  const key = {
+    title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(), difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0,
+    ranked: date, rating: s => s.rating || 0, plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
+    relevance: s => relevance(s, q),
+  }[crit];
+  if (!key) return sets;
+  const sign = dir === 'asc' ? 1 : -1;
+  return sets.map((s, i) => [s, key(s), i]).sort((a, b) => {
+    const c = typeof a[1] === 'string' ? a[1].localeCompare(b[1]) : a[1] - b[1];
+    return c ? c * sign : a[2] - b[2];
+  }).map(e => e[0]);
+}
+/** Sorts to try on a mirror: the chosen one, then one every mirror accepts. Mirrors differ on "rating" and
+ *  "relevance" (some reject them outright); relevance is their default order for a text search anyway. */
+export function sortAttempts(p) {
+  if (p.sort.startsWith('relevance')) return p.rawQ ? [null, 'ranked_desc'] : ['ranked_desc'];
+  return p.sort === 'ranked_desc' ? ['ranked_desc'] : [p.sort, null];
+}
 export function postFilter(sets, p) {
   const statusOk = s => p.status === 'any' ? true : p.status === 'leaderboard' ? LEADERBOARD.has(s.status)
     : p.status === 'ranked' ? s.status === 'ranked' || s.status === 'approved' : s.status === p.status;
@@ -135,16 +183,26 @@ export async function handleSearch(url, env, fetchImpl = fetch) {
     } catch (e) { errors.push(`osu! API: ${e.message}`); }
   }
   const order = MIRRORS.search.map((_, i) => (i + p.provider) % MIRRORS.search.length);
-  for (const i of order) {
+  const attempts = sortAttempts(p);
+  for (const [n, i] of order.entries()) {
     const m = MIRRORS.search[i];
-    try {
-      const r = await fetchImpl(m.url(p), { headers: { Accept: 'application/json', ...UA } });
-      if (!r.ok) { errors.push(`${m.name}: HTTP ${r.status}`); continue; }
-      const raw = normalizeList(await r.json());
-      const sets = postFilter(raw, p);
-      if (!raw.length && errors.length < MIRRORS.search.length - 1 && p.page === 0 && p.rawQ) { errors.push(`${m.name}: no results`); continue; }
-      return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
-    } catch (e) { errors.push(`${m.name}: ${e.message}`); }
+    for (const [k, sort] of attempts.entries()) {
+      const tag = `${m.name}${sort === p.sort ? '' : ` (${sort || 'default order'})`}`;
+      try {
+        const r = await fetchImpl(m.url({ ...p, sort }), { headers: { Accept: 'application/json', ...UA }, signal: timeout(9000) });
+        if (!r.ok) { errors.push(`${tag}: HTTP ${r.status}`); continue; }
+        const data = await r.json();
+        const raw = normalizeList(data);
+        if (!raw.length && data && !Array.isArray(data) && data.error) { errors.push(`${tag}: ${String(data.error).slice(0, 80)}`); continue; }
+        // an empty first page: a sort the mirror ignored or rejected quietly, or this mirror just has nothing —
+        // try the next order, then the next mirror
+        if (!raw.length && p.page === 0 && k < attempts.length - 1) { errors.push(`${tag}: no results`); continue; }
+        if (!raw.length && p.page === 0 && p.rawQ && n < order.length - 1) { errors.push(`${tag}: no results`); break; }
+        let sets = postFilter(raw, p);
+        if (sort !== p.sort) sets = localSort(sets, p.sort, p.rawQ);
+        return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, sortedLocally: sort !== p.sort, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
+      } catch (e) { errors.push(`${tag}: ${e.message}`); }
+    }
   }
   return json({ sets: [], page: p.page, hasMore: false, source: null, errors, error: 'All beatmap search providers failed.' }, 502);
 }

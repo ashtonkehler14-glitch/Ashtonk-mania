@@ -19,6 +19,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Search sorting fixed, osu!lazer health bar, sharper Neru, full beatmap covers
+
+* **Rating and Relevance sorting work again:** the mirrors don't all accept those sorts, and some reject them outright, which made every provider fail. Now, if a mirror refuses a sort, the Worker asks it again in its default order and sorts that page itself. Rating is worked out from the vote counts when a mirror doesn't send it. Relevance uses the mirror's own order for a text search and puts the best title/artist matches first. Each mirror request also times out after 9 seconds, so one slow mirror can't hold up the others. The explorer does the same when it talks to the mirrors directly.
+* **osu!lazer health bar:** a thin glowing bar in the top-left corner. It eases to the new value, a red trail shows what a miss just took, and it turns red and pulses when health is low.
+* **Skin health bars:** a skin with its own `scorebar-bg` / `scorebar-colour` (animated frames too) gets its health bar drawn the way osu!stable does in mania: standing upright beside the stage and filling upwards. **Settings → Gameplay → Health bar style** picks between the skin's own bar (the osu!lazer one if the skin has none, the default), always osu!lazer, or the old slim bar beside the stage.
+* **Sharper Neru:** both menu pictures were upscaled with an anime line-art upscaler (Real-ESRGAN anime model, about 2.4× the old size) and cut out again along her outlines. The whole figure is kept (hands and cardigan included), the edges are anti-aliased without a pink fringe, and where the original picture cuts her off at the sides she fades out instead of ending in a hard edge.
+* **Full beatmap covers:** explorer cards now show the whole cover at its real 20:7 shape instead of cropping it, and hovering brightens it instead of zooming in. Covers fall back through the smaller sizes when a set has no high-res one. The beatmap set overlay shows more of its cover too.
+
 ### Hold R to retry
 
 * Retrying mid-play needs a hold: keep **R** (or `` ` ``) down for half a second while the retry bar fills, and let go early to cancel. A quick tap, or Ctrl+R, no longer restarts instantly (Ctrl+R counts as holding R and doesn't reload the page). If R is bound to a lane, it stays a lane key.

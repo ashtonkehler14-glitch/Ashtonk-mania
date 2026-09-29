@@ -478,6 +478,12 @@ const ManiaLayout = {
     L.tex.stageHint = await load('StageHint', 'mania-stage-hint');
     L.tex.stageLight = await load('StageLight', 'mania-stage-light');
     L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
+    // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
+    if (!skin.builtin) {
+      L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
+      L.tex.scorebarBg = L.tex.scorebarColour ? await skin.texture('scorebar-bg').catch(() => null) : null;
+      L.scorebarNewStyle = !!(L.tex.scorebarColour && await skin.texture('scorebar-marker').catch(() => null));
+    }
     L.tex.lightingL = await load('LightingL', 'lightingL', { fps: L.lightFPS });
     for (const [j, name] of [['300g', 'Hit300g'], ['300', 'Hit300'], ['200', 'Hit200'], ['100', 'Hit100'], ['50', 'Hit50'], ['0', 'Hit0']]) {
       L.judgement[j] = await load(name, `mania-hit${j}`, { fps: 20 });

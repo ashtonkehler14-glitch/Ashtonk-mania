@@ -396,6 +396,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.waitForTimeout(250);
   check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 2 && !!document.querySelector('.gp-loader .pl-tag.retry')));
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 8000 });
+  check('osu!lazer-style health bar in the top left (the skin has no scorebar of its own)', await page.evaluate(() => { const b = document.querySelector('.hud-hp'); return !!b && AshtonkMania.GameplayScreen.healthMode === 'lazer' && AshtonkMania.GameplayScreen.renderer.healthMode === null && b.getBoundingClientRect().top < 60 && +b.style.getPropertyValue('--hp') > 0; }));
   check('in-game leaderboard on the left with your live row', await page.evaluate(() => { const b = document.querySelector('.hud-lb'); return !!b && !b.classList.contains('lb-off') && !!b.querySelector('.hud-mp-row.me') && b.getBoundingClientRect().left < innerWidth / 3; }));
   await page.keyboard.press('Tab'); await page.waitForTimeout(100);
   const lbOff = await page.evaluate(() => document.querySelector('.hud-lb').classList.contains('lb-off') && AshtonkMania.Settings.get('gameplay.leaderboard') === false);

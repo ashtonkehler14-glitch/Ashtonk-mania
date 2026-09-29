@@ -39,6 +39,7 @@ class ManiaRenderer {
     this.lastCombo = 0;
     this.keyLight = [];         // release time per column for stage light fade
     this.fontCache = new Map();
+    this.healthMode = 'stage';  // 'stage' | 'skin' | null (drawn by the HUD instead)
   }
   setLayout(layout) {
     this.layout = layout;
@@ -246,7 +247,9 @@ class ManiaRenderer {
     }
     ctx.restore();
     if (g.engine) {
-      if (Settings.get('gameplay.showHealth')) this._drawHealth(g.engine.health.value);
+      // (the osu!lazer-style bar is part of the HUD, not the canvas)
+      if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
+      else if (this.healthMode === 'skin') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
   }
@@ -524,6 +527,28 @@ class ManiaRenderer {
     ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9 * pulse;
     ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
+  }
+  /** The skin's scorebar, as osu!stable draws it in mania: turned upright beside the stage, filling upwards. */
+  _drawSkinHealth(v) {
+    const L = this.layout, col = L.tex.scorebarColour, bg = L.tex.scorebarBg;
+    if (!col) return;
+    const ctx = this.ctx, now = performance.now();
+    const dt = Math.min(100, now - (this._hpT || now)); this._hpT = now;
+    this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
+    const hp = clamp(this._hp, 0, 1);
+    const ref = bg || col;
+    const k = Math.min(this.s, this.H * 0.94 / ref.w); // screen px per skin px
+    ctx.save();
+    ctx.translate(Math.round(this.stageX + this.stageW + 2 * this.s), this.H);
+    ctx.rotate(-Math.PI / 2);
+    if (bg) ctx.drawImage(bg.img, 0, 0, bg.w * k, bg.h * k);
+    // fill offset inside the background (osu!: 4.8,16 for old-style skins, 12,12.5 with a scorebar-marker)
+    const [ox, oy] = !bg ? [0, 0] : L.scorebarNewStyle ? [12, 12.5] : [4.8, 16];
+    if (hp > 0) {
+      const f = col.frameAt(now);
+      ctx.drawImage(f, 0, 0, f.width * hp, f.height, ox * k, oy * k, col.w * k * hp, col.h * k);
+    }
+    ctx.restore();
   }
   _drawKeyOverlay(g) {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;

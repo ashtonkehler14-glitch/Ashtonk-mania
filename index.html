@@ -631,10 +631,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-card::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0); pointer-events: none; transition: box-shadow var(--t-fast); }
 .ex-card:hover, .ex-card:focus-visible { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(0, 0, 0, .45); }
 .ex-card:hover::after, .ex-card:focus-visible::after { box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), .6); }
-.ex-cover-wrap { position: relative; height: 124px; flex: none; overflow: hidden; background: linear-gradient(135deg, #3b3744, #1f1d24); }
-.ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 300ms ease, transform 700ms var(--ease-out); }
+.ex-cover-wrap { position: relative; aspect-ratio: 20 / 7; flex: none; overflow: hidden; background: linear-gradient(135deg, #3b3744, #1f1d24); }
+.ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 300ms ease, filter 300ms ease; }
 .ex-cover.loaded { opacity: 1; }
-.ex-card:hover .ex-cover { transform: scale(1.07); }
+.ex-card:hover .ex-cover { filter: brightness(1.12) saturate(1.1); }
 .ex-cover-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 38%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, .55) 100%); }
 .ex-badges { position: absolute; left: 10px; top: 10px; display: flex; gap: 5px; align-items: center; }
 .ex-statuspill { display: inline-flex; align-items: center; height: 20px; }
@@ -672,9 +672,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── Beatmap set overlay */
 .dialog.ex-set { width: min(860px, calc(100vw - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
-.ex-set-head { position: relative; min-height: 250px; display: flex; align-items: flex-end; overflow: hidden; }
+.ex-set-head { position: relative; min-height: 250px; aspect-ratio: 18 / 5; display: flex; align-items: flex-end; overflow: hidden; }
 .ex-set-cover { position: absolute; inset: 0; background: #3b3744 center / cover no-repeat; transition: background-image 300ms; }
-.ex-set-head .ex-cover-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0%, rgba(20, 18, 26, .55) 45%, rgba(38, 36, 44, 1) 100%); }
+.ex-set-head .ex-cover-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, 0) 35%, rgba(20, 18, 26, .55) 72%, rgba(38, 36, 44, .97) 100%); }
 .ex-set-close { position: absolute; right: 12px; top: 12px; z-index: 2; background: rgba(0, 0, 0, .5); }
 .ex-set-info { position: relative; flex: 1; min-width: 0; padding: 22px 26px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-set-info .ex-badges { position: static; margin-bottom: 8px; }
@@ -945,6 +945,14 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
 .hud-lb { width: 210px; }
+/* osu!lazer (Argon) health bar */
+.hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(34vw, 380px); pointer-events: none; }
+.hp-track { position: relative; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .05); }
+.hp-fill, .hp-trail { position: absolute; inset: 0; border-radius: inherit; transform-origin: left center; transform: scaleX(var(--hp)); will-change: transform; }
+.hp-fill { background: linear-gradient(90deg, rgba(var(--accent-rgb), .95), #fff 92%); box-shadow: 0 0 10px rgba(var(--accent-rgb), .75), 0 0 2px #fff; transition: transform 180ms var(--ease-out), background 300ms; }
+.hp-trail { background: #ff5577; opacity: .9; transition: transform 520ms ease-in 320ms; }
+.hud-hp.low .hp-fill { background: linear-gradient(90deg, #ff3355, #ff9f8f); box-shadow: 0 0 12px rgba(255, 60, 90, .8); animation: hpLow 500ms ease-in-out infinite alternate; }
+@keyframes hpLow { to { opacity: .6; } }
 .hud-lb:empty { display: none; }
 .hud-lb .hud-mp-row { background: rgba(0, 0, 0, .42); padding: 5px 10px; }
 .hud-lb .hud-mp-row .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2475,6 +2483,12 @@ const ManiaLayout = {
     L.tex.stageHint = await load('StageHint', 'mania-stage-hint');
     L.tex.stageLight = await load('StageLight', 'mania-stage-light');
     L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
+    // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
+    if (!skin.builtin) {
+      L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
+      L.tex.scorebarBg = L.tex.scorebarColour ? await skin.texture('scorebar-bg').catch(() => null) : null;
+      L.scorebarNewStyle = !!(L.tex.scorebarColour && await skin.texture('scorebar-marker').catch(() => null));
+    }
     L.tex.lightingL = await load('LightingL', 'lightingL', { fps: L.lightFPS });
     for (const [j, name] of [['300g', 'Hit300g'], ['300', 'Hit300'], ['200', 'Hit200'], ['100', 'Hit100'], ['50', 'Hit50'], ['0', 'Hit0']]) {
       L.judgement[j] = await load(name, `mania-hit${j}`, { fps: 20 });
@@ -3062,6 +3076,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'Skin\'s own (osu!lazer if it has none)'], ['lazer', 'osu!lazer'], ['stage', 'Slim bar beside the stage']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
@@ -4223,6 +4238,7 @@ class ManiaRenderer {
     this.lastCombo = 0;
     this.keyLight = [];         // release time per column for stage light fade
     this.fontCache = new Map();
+    this.healthMode = 'stage';  // 'stage' | 'skin' | null (drawn by the HUD instead)
   }
   setLayout(layout) {
     this.layout = layout;
@@ -4430,7 +4446,9 @@ class ManiaRenderer {
     }
     ctx.restore();
     if (g.engine) {
-      if (Settings.get('gameplay.showHealth')) this._drawHealth(g.engine.health.value);
+      // (the osu!lazer-style bar is part of the HUD, not the canvas)
+      if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
+      else if (this.healthMode === 'skin') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
   }
@@ -4708,6 +4726,28 @@ class ManiaRenderer {
     ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9 * pulse;
     ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
+  }
+  /** The skin's scorebar, as osu!stable draws it in mania: turned upright beside the stage, filling upwards. */
+  _drawSkinHealth(v) {
+    const L = this.layout, col = L.tex.scorebarColour, bg = L.tex.scorebarBg;
+    if (!col) return;
+    const ctx = this.ctx, now = performance.now();
+    const dt = Math.min(100, now - (this._hpT || now)); this._hpT = now;
+    this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
+    const hp = clamp(this._hp, 0, 1);
+    const ref = bg || col;
+    const k = Math.min(this.s, this.H * 0.94 / ref.w); // screen px per skin px
+    ctx.save();
+    ctx.translate(Math.round(this.stageX + this.stageW + 2 * this.s), this.H);
+    ctx.rotate(-Math.PI / 2);
+    if (bg) ctx.drawImage(bg.img, 0, 0, bg.w * k, bg.h * k);
+    // fill offset inside the background (osu!: 4.8,16 for old-style skins, 12,12.5 with a scorebar-marker)
+    const [ox, oy] = !bg ? [0, 0] : L.scorebarNewStyle ? [12, 12.5] : [4.8, 16];
+    if (hp > 0) {
+      const f = col.frameAt(now);
+      ctx.drawImage(f, 0, 0, f.width * hp, f.height, ox * k, oy * k, col.w * k * hp, col.h * k);
+    }
+    ctx.restore();
   }
   _drawKeyOverlay(g) {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;
@@ -6504,6 +6544,10 @@ const GameplayScreen = {
     await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
+    // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
+    const hs = Settings.get('gameplay.healthStyle');
+    this.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : 'lazer';
+    this.renderer.healthMode = this.healthMode === 'lazer' ? null : this.healthMode;
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -6718,6 +6762,13 @@ const GameplayScreen = {
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
+    // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
+    this.hpEl = this._hpQ = this._hpLow = null;
+    if (this.healthMode === 'lazer') {
+      this.hpFill = h('i.hp-fill'); this.hpTrail = h('i.hp-trail');
+      this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
+      this.hud.append(this.hpEl);
+    }
     this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
@@ -6831,6 +6882,15 @@ const GameplayScreen = {
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
+    if (this.hpEl) {
+      const q = Math.round(clamp(e.health.value, 0, 1) * 400);
+      if (q !== this._hpQ) {
+        this._hpQ = q;
+        this.hpEl.style.setProperty('--hp', q / 400);
+        const low = q < 120;
+        if (low !== this._hpLow) { this._hpLow = low; this.hpEl.classList.toggle('low', low); }
+      }
+    }
     const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
     if (pb && s.mode === 'play') {
       const t = `PB ${fmtAcc(pb.accuracy)}`;
@@ -8175,8 +8235,8 @@ const OnlineBeatmaps = {
   apiAvailable: null,
   PAGE: 40,
   DIRECT_SEARCH: [
-    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}&sort=${p.sort}`,
-    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}&sort=${p.sort}`,
+    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
+    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
   ],
   DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
 
@@ -8212,8 +8272,15 @@ const OnlineBeatmaps = {
       status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
-      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0),
+      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
     };
+  },
+  /** Average rating from vote counts (index = score), for sources that don't send the average. */
+  ratingOf(v) {
+    if (!Array.isArray(v)) return 0;
+    let n = 0, sum = 0;
+    v.forEach((c, i) => { if (i > 0) { n += +c || 0; sum += i * (+c || 0); } });
+    return n ? sum / n : 0;
   },
   async search(p) {
     p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
@@ -8232,12 +8299,16 @@ const OnlineBeatmaps = {
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
     const errors = [];
-    for (const u of this.DIRECT_SEARCH) {
+    // mirrors differ on "rating" and "relevance": if one rejects the sort, ask again in its default order
+    // (the explorer sorts what comes back itself)
+    const sorts = p.sort.startsWith('relevance') ? [null] : p.sort === 'ranked_desc' ? [p.sort] : [p.sort, null];
+    for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
       try {
-        const r = await fetch(u({ ...p, q }));
+        const r = await fetch(u({ ...p, q, sort }));
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
+        if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
         const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
@@ -8286,6 +8357,17 @@ const OnlineBeatmaps = {
     return report;
   },
   coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
+  /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
+  loadCover(el, id, kinds, done) {
+    const next = i => {
+      if (i >= kinds.length) return;
+      const img = new Image();
+      img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
+      img.onerror = () => next(i + 1);
+      img.src = this.coverURL(id, kinds[i]);
+    };
+    next(0);
+  },
   previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
 };
 
@@ -8453,9 +8535,7 @@ const ExplorerScreen = {
   card(set) {
     const owned = this.owned(set.id);
     const cover = h('div.ex-cover');
-    const img = new Image();
-    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; cover.classList.add('loaded'); };
-    img.src = OnlineBeatmaps.coverURL(set.id, 'card@2x');
+    OnlineBeatmaps.loadCover(cover, set.id, ['card@2x', 'card', 'cover', 'list@2x'], () => cover.classList.add('loaded'));
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
     const stars = set.diffs.map(d => d.stars);
     const minS = Math.min(...stars), maxS = Math.max(...stars);
@@ -8515,9 +8595,7 @@ const ExplorerScreen = {
     const { set, diff } = this.setView;
     const d = diff;
     const cover = h('div.ex-set-cover');
-    const img = new Image();
-    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; };
-    img.src = OnlineBeatmaps.coverURL(set.id, 'cover@2x');
+    OnlineBeatmaps.loadCover(cover, set.id, ['cover@2x', 'cover', 'card@2x', 'card']);
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
     const playing = this.previewId === set.id;
@@ -8633,7 +8711,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp', 'gameplay.leaderboard',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp', 'gameplay.healthStyle',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'ui.mascot', 'ui.mascotImage', 'skin.current', 'data',

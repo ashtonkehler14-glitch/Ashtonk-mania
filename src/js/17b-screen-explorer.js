@@ -7,8 +7,8 @@ const OnlineBeatmaps = {
   apiAvailable: null,
   PAGE: 40,
   DIRECT_SEARCH: [
-    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}&sort=${p.sort}`,
-    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}&sort=${p.sort}`,
+    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
+    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
   ],
   DIRECT_DOWNLOAD: [id => `https://catboy.best/d/${id}`, id => `https://api.nerinyan.moe/d/${id}?noVideo=true`, id => `https://osu.direct/api/d/${id}`],
 
@@ -44,8 +44,15 @@ const OnlineBeatmaps = {
       status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
-      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0),
+      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
     };
+  },
+  /** Average rating from vote counts (index = score), for sources that don't send the average. */
+  ratingOf(v) {
+    if (!Array.isArray(v)) return 0;
+    let n = 0, sum = 0;
+    v.forEach((c, i) => { if (i > 0) { n += +c || 0; sum += i * (+c || 0); } });
+    return n ? sum / n : 0;
   },
   async search(p) {
     p = { status: 'leaderboard', ...p, sort: p.sort || 'ranked_desc' };
@@ -64,12 +71,16 @@ const OnlineBeatmaps = {
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
     const errors = [];
-    for (const u of this.DIRECT_SEARCH) {
+    // mirrors differ on "rating" and "relevance": if one rejects the sort, ask again in its default order
+    // (the explorer sorts what comes back itself)
+    const sorts = p.sort.startsWith('relevance') ? [null] : p.sort === 'ranked_desc' ? [p.sort] : [p.sort, null];
+    for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
       try {
-        const r = await fetch(u({ ...p, q }));
+        const r = await fetch(u({ ...p, q, sort }));
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
+        if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
         const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
@@ -118,6 +129,17 @@ const OnlineBeatmaps = {
     return report;
   },
   coverURL(id, kind = 'card') { return `https://assets.ppy.sh/beatmaps/${id}/covers/${kind}.jpg`; },
+  /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
+  loadCover(el, id, kinds, done) {
+    const next = i => {
+      if (i >= kinds.length) return;
+      const img = new Image();
+      img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
+      img.onerror = () => next(i + 1);
+      img.src = this.coverURL(id, kinds[i]);
+    };
+    next(0);
+  },
   previewURL(id) { return `https://b.ppy.sh/preview/${id}.mp3`; },
 };
 
@@ -285,9 +307,7 @@ const ExplorerScreen = {
   card(set) {
     const owned = this.owned(set.id);
     const cover = h('div.ex-cover');
-    const img = new Image();
-    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; cover.classList.add('loaded'); };
-    img.src = OnlineBeatmaps.coverURL(set.id, 'card@2x');
+    OnlineBeatmaps.loadCover(cover, set.id, ['card@2x', 'card', 'cover', 'list@2x'], () => cover.classList.add('loaded'));
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
     const stars = set.diffs.map(d => d.stars);
     const minS = Math.min(...stars), maxS = Math.max(...stars);
@@ -347,9 +367,7 @@ const ExplorerScreen = {
     const { set, diff } = this.setView;
     const d = diff;
     const cover = h('div.ex-set-cover');
-    const img = new Image();
-    img.onload = () => { cover.style.backgroundImage = `url("${img.src}")`; };
-    img.src = OnlineBeatmaps.coverURL(set.id, 'cover@2x');
+    OnlineBeatmaps.loadCover(cover, set.id, ['cover@2x', 'cover', 'card@2x', 'card']);
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
     const playing = this.previewId === set.id;

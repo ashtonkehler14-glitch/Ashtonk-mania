@@ -618,10 +618,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-card::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0); pointer-events: none; transition: box-shadow var(--t-fast); }
 .ex-card:hover, .ex-card:focus-visible { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(0, 0, 0, .45); }
 .ex-card:hover::after, .ex-card:focus-visible::after { box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), .6); }
-.ex-cover-wrap { position: relative; height: 124px; flex: none; overflow: hidden; background: linear-gradient(135deg, #3b3744, #1f1d24); }
-.ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 300ms ease, transform 700ms var(--ease-out); }
+.ex-cover-wrap { position: relative; aspect-ratio: 20 / 7; flex: none; overflow: hidden; background: linear-gradient(135deg, #3b3744, #1f1d24); }
+.ex-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 300ms ease, filter 300ms ease; }
 .ex-cover.loaded { opacity: 1; }
-.ex-card:hover .ex-cover { transform: scale(1.07); }
+.ex-card:hover .ex-cover { filter: brightness(1.12) saturate(1.1); }
 .ex-cover-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 38%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, .55) 100%); }
 .ex-badges { position: absolute; left: 10px; top: 10px; display: flex; gap: 5px; align-items: center; }
 .ex-statuspill { display: inline-flex; align-items: center; height: 20px; }
@@ -659,9 +659,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── Beatmap set overlay */
 .dialog.ex-set { width: min(860px, calc(100vw - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
-.ex-set-head { position: relative; min-height: 250px; display: flex; align-items: flex-end; overflow: hidden; }
+.ex-set-head { position: relative; min-height: 250px; aspect-ratio: 18 / 5; display: flex; align-items: flex-end; overflow: hidden; }
 .ex-set-cover { position: absolute; inset: 0; background: #3b3744 center / cover no-repeat; transition: background-image 300ms; }
-.ex-set-head .ex-cover-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0%, rgba(20, 18, 26, .55) 45%, rgba(38, 36, 44, 1) 100%); }
+.ex-set-head .ex-cover-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, 0) 35%, rgba(20, 18, 26, .55) 72%, rgba(38, 36, 44, .97) 100%); }
 .ex-set-close { position: absolute; right: 12px; top: 12px; z-index: 2; background: rgba(0, 0, 0, .5); }
 .ex-set-info { position: relative; flex: 1; min-width: 0; padding: 22px 26px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-set-info .ex-badges { position: static; margin-bottom: 8px; }
@@ -932,6 +932,14 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
 .hud-lb { width: 210px; }
+/* osu!lazer (Argon) health bar */
+.hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(34vw, 380px); pointer-events: none; }
+.hp-track { position: relative; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .05); }
+.hp-fill, .hp-trail { position: absolute; inset: 0; border-radius: inherit; transform-origin: left center; transform: scaleX(var(--hp)); will-change: transform; }
+.hp-fill { background: linear-gradient(90deg, rgba(var(--accent-rgb), .95), #fff 92%); box-shadow: 0 0 10px rgba(var(--accent-rgb), .75), 0 0 2px #fff; transition: transform 180ms var(--ease-out), background 300ms; }
+.hp-trail { background: #ff5577; opacity: .9; transition: transform 520ms ease-in 320ms; }
+.hud-hp.low .hp-fill { background: linear-gradient(90deg, #ff3355, #ff9f8f); box-shadow: 0 0 12px rgba(255, 60, 90, .8); animation: hpLow 500ms ease-in-out infinite alternate; }
+@keyframes hpLow { to { opacity: .6; } }
 .hud-lb:empty { display: none; }
 .hud-lb .hud-mp-row { background: rgba(0, 0, 0, .42); padding: 5px 10px; }
 .hud-lb .hud-mp-row .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
