@@ -236,3 +236,46 @@ test('health multiplier is finite and misses hurt more than holds', () => {
   e.advance(1200);
   assert.ok(e.health.value < 1);
 });
+
+// ── scroll velocity (SV) — green lines multiply the scroll speed, red lines reset it and scale it by BPM
+function svMap(tps) {
+  return osu([note(0, 1000), note(1, 9000)]).replace('[TimingPoints]\n0,500,4,1,0,100,1,0', '[TimingPoints]\n' + tps.join('\n'));
+}
+const velAt = (segs, t) => { let v = segs[0].vel; for (const s of segs) if (s.time <= t) v = s.vel; return v; };
+const posAt = (segs, t) => { let g = segs[0]; for (const s of segs) if (s.time <= t) g = s; return g.pos + (t - g.time) * g.vel; };
+
+test('SV: green lines change the scroll speed and red lines reset it', () => {
+  const bm = BeatmapParser.parse(svMap(['0,500,4,1,0,100,1,0', '2000,-50,4,1,0,100,0,0', '4000,-200,4,1,0,100,0,0', '6000,500,4,1,0,100,1,0']));
+  const segs = BeatmapParser.scrollSegments(bm);
+  assert.equal(velAt(segs, 1000), 1);
+  assert.equal(velAt(segs, 3000), 2);
+  assert.equal(velAt(segs, 5000), 0.5);
+  assert.equal(velAt(segs, 7000), 1, 'a red line resets SV');
+  // integrated distance: 2000 @1 + 2000 @2 + 2000 @0.5
+  assert.equal(posAt(segs, 6000) - posAt(segs, 0), 2000 + 4000 + 1000);
+  const constant = BeatmapParser.scrollSegments(bm, { useSV: false, useBPM: false });
+  assert.equal(velAt(constant, 3000), 1);
+});
+
+test('SV: real-map quirks (old format, same-time red + green in either order, spaces, malformed flags)', () => {
+  // old format (no uninherited field): negative beat length = green line
+  let segs = BeatmapParser.scrollSegments(BeatmapParser.parse(svMap(['0,500,4,1,0,100', '2000,-25,4,1,0,100'])));
+  assert.equal(velAt(segs, 3000), 4);
+  // green written before the red at the same time still applies
+  segs = BeatmapParser.scrollSegments(BeatmapParser.parse(svMap(['0,500,4,1,0,100,1,0', '2000,-50,4,1,0,100,0,0', '2000,500,4,1,0,100,1,0'])));
+  assert.equal(velAt(segs, 3000), 2);
+  // spaces around values
+  segs = BeatmapParser.scrollSegments(BeatmapParser.parse(svMap(['0, 500, 4, 1, 0, 100, 1, 0', '2000 , -50 , 4 , 1 , 0 , 100 , 0 , 0'])));
+  assert.equal(velAt(segs, 3000), 2);
+  // negative beat length flagged as uninherited: still an SV change (osu! treats negative beat lengths as SV)
+  segs = BeatmapParser.scrollSegments(BeatmapParser.parse(svMap(['0,500,4,1,0,100,1,0', '2000,-50,4,1,0,100,1,0'])));
+  assert.equal(velAt(segs, 3000), 2);
+  assert.equal(BeatmapParser.timing(BeatmapParser.parse(svMap(['0,500,4,1,0,100,1,0', '2000,-50,4,1,0,100,1,0']))).red.length, 1);
+});
+
+test('SV: BPM changes scale the scroll relative to the main BPM', () => {
+  const bm = BeatmapParser.parse(svMap(['0,500,4,1,0,100,1,0', '6000,250,4,1,0,100,1,0', '6000,-200,4,1,0,100,0,0']));
+  const segs = BeatmapParser.scrollSegments(bm);
+  assert.equal(velAt(segs, 7000), 2 * 0.5, 'double BPM × half SV');
+  assert.equal(velAt(BeatmapParser.scrollSegments(bm, { useSV: true, useBPM: false }), 7000), 0.5);
+});

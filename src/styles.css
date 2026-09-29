@@ -944,3 +944,5 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-msg.suggest { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(var(--accent-rgb), .12); }
 .mp-msg.suggest i { color: var(--text); font-style: normal; font-weight: 600; }
 .mp-msg.suggest .btn { margin-left: auto; }
+.gp-speed { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); padding: 8px 18px; border-radius: 99px; background: rgba(0, 0, 0, .7); font-weight: 600; font-size: 1rem; pointer-events: none; opacity: 0; transition: opacity var(--t-med); z-index: 5; }
+.gp-speed.show { opacity: 1; transition-duration: 60ms; }

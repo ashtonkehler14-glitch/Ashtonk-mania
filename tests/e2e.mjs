@@ -224,6 +224,15 @@ await page.waitForTimeout(1200);
 const pr = await page.evaluate(() => ({ rate: AshtonkMania.Music.rate, stretched: !!AshtonkMania.Music.stretched }));
 check('practice speed change (pitch-preserving time stretch)', pr.rate === 1.5 && pr.stretched, JSON.stringify(pr));
 await shot('10-practice');
+{
+  const before = await page.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed'));
+  await page.keyboard.press('F4'); await page.keyboard.press('F4');
+  const up = await page.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed'));
+  await page.keyboard.press('Control+Minus');
+  const down = await page.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed'));
+  check('scroll speed changes in game (F3/F4, Ctrl −/+) with an on-screen popup', up === before + 2 && down === before + 1 && await page.evaluate(() => /Scroll speed/.test(document.querySelector('.gp-speed')?.textContent || '')), `${before} → ${up} → ${down}`);
+  await page.keyboard.press('F3');
+}
 await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
 await page.evaluate(() => AshtonkMania.Settings.set('practice.speed', 1));
 await page.waitForTimeout(400);
@@ -241,7 +250,7 @@ const simple = await page.evaluate(() => document.querySelectorAll('.settings-pa
 await page.click('.sp-more');
 await page.waitForTimeout(200);
 const full = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
-check('settings show the essentials first, everything behind "Show all settings"', simple <= 22 && full > simple + 20, `${simple} → ${full}`);
+check('settings show the essentials first, everything behind "Show all settings"', simple <= 23 && full > simple + 20, `${simple} → ${full}`);
 await page.click('.sp-more');
 await page.fill('.sp-search', 'unpause');
 await page.waitForTimeout(200);

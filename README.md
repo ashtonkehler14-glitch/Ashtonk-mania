@@ -19,6 +19,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Scroll velocity fixes
+
+* **SV lines are read the way osu! reads them:** a timing point with a negative beat length is always a scroll-velocity (green) line, even when the file flags it as a BPM line; before, those SV changes were ignored. Green lines with a positive beat length reset SV to 1×.
+* **Scroll speed in game:** `F3`/`F4` (osu!stable) or `Ctrl −`/`Ctrl +` (osu!lazer) change the scroll speed while playing, with a small popup.
+* "Scroll speed changes" (SV + BPM / SV only / Constant) is now one of the essential settings.
+
 ### Cleaner gameplay HUD
 
 * **No hitsounds.** Notes no longer play hit samples (the sound settings for them are gone); skin sounds such as combo break and fail still play.
@@ -88,7 +94,7 @@ All data is stored locally in IndexedDB, so it survives a refresh. That includes
 | Song select | `↑↓` difficulty · `←→` set · `Enter` play · `Ctrl+Enter` watch Auto · `F1` mods · `F2` random · `F3` options · `F4` practice · typing searches |
 | Multiplayer match | `Esc` quit the match (counts as a loss) — there is no pause or retry |
 | Search syntax | `keys=7 stars>4 bpm>=180 length<120 od>8 ln>30 played=0 creator=name` |
-| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro |
+| Gameplay | lane keys (default 4K `D F J K`, 7K `S D F Space J K L`, 8K `A S D F J K L ;`) · `Esc` pause · hold `` ` `` or `Ctrl+R` retry · `Space` skip intro · `F3`/`F4` or `Ctrl −`/`Ctrl +` scroll speed |
 | Practice | `[` / `]` set loop A/B · `\` clear loop · `Backspace` restart section · `←→` seek 5s · `-`/`=` offset |
 | Mod select | letter shortcuts shown on each mod · `Backspace` deselect all |
 

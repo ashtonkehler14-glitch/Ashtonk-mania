@@ -957,6 +957,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-msg.suggest { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(var(--accent-rgb), .12); }
 .mp-msg.suggest i { color: var(--text); font-style: normal; font-weight: 600; }
 .mp-msg.suggest .btn { margin-left: auto; }
+.gp-speed { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); padding: 8px 18px; border-radius: 99px; background: rgba(0, 0, 0, .7); font-weight: 600; font-size: 1rem; pointer-events: none; opacity: 0; transition: opacity var(--t-med); z-index: 5; }
+.gp-speed.show { opacity: 1; transition-duration: 60ms; }
 
 </style>
 </head>
@@ -1531,7 +1533,8 @@ const BeatmapParser = {
             sampleSet: p[3] ? parseInt(p[3], 10) || 0 : 0,
             sampleIndex: p[4] ? parseInt(p[4], 10) || 0 : 0,
             volume: p[5] ? parseInt(p[5], 10) : 100,
-            uninherited: p[6] !== undefined ? p[6].trim() === '1' : beatLength > 0,
+            // like osu!: a negative beat length is always an SV (green) line, whatever the flag says
+            uninherited: beatLength > 0 && (p[6] === undefined || p[6].trim() !== '0'),
             effects: p[7] ? parseInt(p[7], 10) || 0 : 0,
           });
           break;
@@ -1645,9 +1648,8 @@ const BeatmapParser = {
     let curBeat = dominantBeatLength, curSV = 1;
     const changes = [];
     for (const tp of tps) {
-      if (tp.uninherited && tp.beatLength > 0) { curBeat = tp.beatLength; curSV = 1; }
-      else if (!tp.uninherited && tp.beatLength < 0) curSV = clamp(-100 / tp.beatLength, 0.01, 10);
-      else if (!tp.uninherited && tp.beatLength > 0) continue;
+      if (tp.uninherited) { curBeat = tp.beatLength; curSV = 1; }
+      else curSV = tp.beatLength < 0 ? clamp(-100 / tp.beatLength, 0.01, 10) : 1;
       let vel = 1;
       if (useSV) vel *= curSV;
       if (useBPM) vel *= dominantBeatLength / curBeat;
@@ -5767,7 +5769,7 @@ const GameplayScreen = {
 
   enter(params) {
     const el = h('div.gameplay');
-    this.el = el;
+    this.el = el; this.speedEl = null;
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');
     this.videoEl = h('video.gp-video', { muted: true, playsinline: true, preload: 'auto' }); this.videoEl.muted = true;
     this.canvas = h('canvas.gp-canvas');
@@ -5786,7 +5788,7 @@ const GameplayScreen = {
     window.addEventListener('blur', this._blur);
     this._mm = () => { el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500); };
     el.addEventListener('pointermove', this._mm);
-    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
+    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', e.message); Screens.go('songselect', {}, { replace: true }); }));
     return el;
@@ -6086,6 +6088,15 @@ const GameplayScreen = {
     Screens.go('multiplayer', {}, { replace: true });
   },
 
+  changeScrollSpeed(d) {
+    const v = clamp(Settings.get('gameplay.scrollSpeed') + d, 1, 40);
+    Settings.set('gameplay.scrollSpeed', v);
+    if (!this.speedEl) { this.speedEl = h('div.gp-speed'); this.el.appendChild(this.speedEl); }
+    this.speedEl.textContent = `Scroll speed ${v} (${Math.round(11485 / v)}ms)`;
+    this.speedEl.classList.remove('show'); void this.speedEl.offsetWidth; this.speedEl.classList.add('show');
+    clearTimeout(this._speedT); this._speedT = setTimeout(() => this.speedEl && this.speedEl.classList.remove('show'), 1200);
+  },
+
   /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
   livePp(e) {
     const c = e.score.counts, judged = e.score.judged, total = e.totalJudgements;
@@ -6146,6 +6157,13 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); if (!s.mp) this.retry(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
+    // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.code === 'F3' || e.code === 'F4' || (ctrl && ['Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'].includes(e.code))) {
+      e.preventDefault(); e.stopPropagation();
+      this.changeScrollSpeed(e.code === 'F4' || e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
+      return;
+    }
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
     if (col !== undefined) {
@@ -7546,7 +7564,7 @@ const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle'
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
+  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.hitErrorBar', 'gameplay.progressDisplay', 'gameplay.showPp',
   'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
   'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
   'input.keybinds', 'ui.scale', 'ui.theme', 'skin.current', 'data',

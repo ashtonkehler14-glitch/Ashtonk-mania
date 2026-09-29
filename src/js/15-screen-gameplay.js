@@ -30,7 +30,7 @@ const GameplayScreen = {
 
   enter(params) {
     const el = h('div.gameplay');
-    this.el = el;
+    this.el = el; this.speedEl = null;
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');
     this.videoEl = h('video.gp-video', { muted: true, playsinline: true, preload: 'auto' }); this.videoEl.muted = true;
     this.canvas = h('canvas.gp-canvas');
@@ -49,7 +49,7 @@ const GameplayScreen = {
     window.addEventListener('blur', this._blur);
     this._mm = () => { el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500); };
     el.addEventListener('pointermove', this._mm);
-    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
+    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', e.message); Screens.go('songselect', {}, { replace: true }); }));
     return el;
@@ -349,6 +349,15 @@ const GameplayScreen = {
     Screens.go('multiplayer', {}, { replace: true });
   },
 
+  changeScrollSpeed(d) {
+    const v = clamp(Settings.get('gameplay.scrollSpeed') + d, 1, 40);
+    Settings.set('gameplay.scrollSpeed', v);
+    if (!this.speedEl) { this.speedEl = h('div.gp-speed'); this.el.appendChild(this.speedEl); }
+    this.speedEl.textContent = `Scroll speed ${v} (${Math.round(11485 / v)}ms)`;
+    this.speedEl.classList.remove('show'); void this.speedEl.offsetWidth; this.speedEl.classList.add('show');
+    clearTimeout(this._speedT); this._speedT = setTimeout(() => this.speedEl && this.speedEl.classList.remove('show'), 1200);
+  },
+
   /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
   livePp(e) {
     const c = e.score.counts, judged = e.score.judged, total = e.totalJudgements;
@@ -409,6 +418,13 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyR') { e.preventDefault(); if (!s.mp) this.retry(); return; }
     if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
+    // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.code === 'F3' || e.code === 'F4' || (ctrl && ['Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'].includes(e.code))) {
+      e.preventDefault(); e.stopPropagation();
+      this.changeScrollSpeed(e.code === 'F4' || e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
+      return;
+    }
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
     if (col !== undefined) {

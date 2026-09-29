@@ -39,7 +39,8 @@ const BeatmapParser = {
             sampleSet: p[3] ? parseInt(p[3], 10) || 0 : 0,
             sampleIndex: p[4] ? parseInt(p[4], 10) || 0 : 0,
             volume: p[5] ? parseInt(p[5], 10) : 100,
-            uninherited: p[6] !== undefined ? p[6].trim() === '1' : beatLength > 0,
+            // like osu!: a negative beat length is always an SV (green) line, whatever the flag says
+            uninherited: beatLength > 0 && (p[6] === undefined || p[6].trim() !== '0'),
             effects: p[7] ? parseInt(p[7], 10) || 0 : 0,
           });
           break;
@@ -153,9 +154,8 @@ const BeatmapParser = {
     let curBeat = dominantBeatLength, curSV = 1;
     const changes = [];
     for (const tp of tps) {
-      if (tp.uninherited && tp.beatLength > 0) { curBeat = tp.beatLength; curSV = 1; }
-      else if (!tp.uninherited && tp.beatLength < 0) curSV = clamp(-100 / tp.beatLength, 0.01, 10);
-      else if (!tp.uninherited && tp.beatLength > 0) continue;
+      if (tp.uninherited) { curBeat = tp.beatLength; curSV = 1; }
+      else curSV = tp.beatLength < 0 ? clamp(-100 / tp.beatLength, 0.01, 10) : 1;
       let vel = 1;
       if (useSV) vel *= curSV;
       if (useBPM) vel *= dominantBeatLength / curBeat;
