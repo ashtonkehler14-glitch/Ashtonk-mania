@@ -31,6 +31,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * Primary buttons inside a page take that page's colour, as lazer's rounded buttons do.
 * **Song select's footer** has lazer's new footer buttons: slanted tiles (Mods, Random, Options) standing up out of the footer bar, each with an icon, its label and a coloured bar (lime, blue, purple). The **back** button everywhere uses lazer's pink.
 * **The player loader is lazer's**: the logo, then the title and artist in big italics. A rounded cover strip underneath shows the loading state; below it sit the difficulty with its star rating, a Source / Mapper / Length / BPM / Notes list, and your mods. All of it is centred on screen. The settings on the right are lazer's see-through toolbox groups ("Visual Settings", "Audio Settings") with yellow sliders.
+* Notifications step out of the way while the now-playing panel or a menu is open at the top right, as lazer's toast tray does. The now-playing panel shows the track's cover brighter, with lazer's yellow progress bar.
 * **The first-run setup** looks like lazer's: a "first-run setup" header, the step's title, a slanted grey Back button and a wide purple **Next (Appearance)** button that names the next step.
 
 ### osu!lazer-style overlays: library, collections, profile, replays, skins, beatmap listing, multiplayer

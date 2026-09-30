@@ -1646,3 +1646,10 @@ div.res-calib .i { color: var(--good); }
 .pl-group input[type=range].slider::-moz-range-progress { background: #ffcc22; }
 .pl-group input[type=range].slider::-moz-range-thumb { border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; }
 @media (max-width: 800px) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
+/* like lazer's toast tray, notifications step aside while the now-playing panel or a menu is open at the top right */
+#toasts { transition: opacity 200ms; }
+body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
+/* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
+.np-panel { border-radius: 5px; }
+.np-cover { opacity: .62; }
+.np-bar i { background: #ffcc22; }
