@@ -7,6 +7,10 @@
 <meta name="theme-color" content="#18171c">
 <title>Ashtonk!mania</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23ff66ab' stroke='%23fff' stroke-width='6'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ashtonk!mania">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -9600,7 +9604,9 @@ const DataPanel = {
         btn('Export settings', 'download', () => DataManager.exportSettings()),
         btn('Import settings', 'upload', async () => { const [f] = await pickFiles({ accept: '.json', multiple: false }); if (!f) return; try { const o = JSON.parse(await f.text()); await DataManager.importAll({ ...o, kind: 'settings' }); Toast.ok('Settings imported'); SettingsPanel.o && SettingsPanel.build(''); } catch (e) { Toast.err('Import failed', e.message); } }),
         btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); }),
-        btn('Run first-run setup', 'sparkle', () => { SettingsPanel.close && SettingsPanel.close(); Onboarding.run({ again: true }); })),
+        btn('Run first-run setup', 'sparkle', () => { SettingsPanel.close && SettingsPanel.close(); Onboarding.run({ again: true }); }),
+        App.installPrompt ? btn('Install as an app', 'download', async () => { await App.install(); SettingsPanel.o && SettingsPanel.build(''); }, '.primary') : null),
+      App.installed ? null : h('div.muted', { style: { fontSize: '.8rem' } }, 'Tip: install Ashtonk!mania as an app (the install icon in the address bar, or the button above when the browser offers it) for its own full-screen window. Once opened, it plays offline, and the installed app opens .osz / .osk files directly.'),
       h('div.row.wrap',
         btn('Clear scores', 'trash', () => confirmClear('scores', () => ScoreManager.clear()), '.danger'),
         btn('Clear replays', 'trash', () => confirmClear('replays', () => ReplayManager.clear()), '.danger'),
@@ -10635,6 +10641,7 @@ const App = {
     if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
     else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
+    this.initPWA();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
     Presence.start();
@@ -10778,6 +10785,31 @@ const App = {
       else if (Screens.currentName === 'home') Screens.go('songselect', { mapId: map.id }, { transition: 'zoom' });
     }
     return report;
+  },
+
+  /** Installable, offline-capable app: the service worker (public/sw.js) keeps the game for offline play,
+   *  the manifest lets browsers install it, and the installed app opens .osz / .osk / .amr files directly. */
+  installPrompt: null,
+  initPWA() {
+    if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
+      navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
+    window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
+    if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {
+      if (!params.files || !params.files.length) return;
+      const files = await Promise.all(params.files.map(f => f.getFile()));
+      this.importFiles(files);
+    });
+  },
+  get installed() { return ['fullscreen', 'standalone', 'minimal-ui'].some(m => window.matchMedia && matchMedia(`(display-mode: ${m})`).matches); },
+  async install() {
+    const p = this.installPrompt;
+    if (!p) return false;
+    this.installPrompt = null;
+    p.prompt();
+    const r = await p.userChoice.catch(() => null);
+    Bus.emit('install:available', false);
+    return !!(r && r.outcome === 'accepted');
   },
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low

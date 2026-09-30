@@ -1,6 +1,7 @@
 // Ashtonk!mania build: inlines src/styles.css and src/js/*.js into a single index.html (+ public/index.html for hosting).
 // Usage: node build.mjs
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,4 +18,7 @@ writeFileSync(join(root, 'index.html'), out);
 // public/ is what Cloudflare serves (see wrangler.jsonc): only the built client, never sources or tests.
 mkdirSync(join(root, 'public'), { recursive: true });
 writeFileSync(join(root, 'public', 'index.html'), out);
+// the service worker (offline play) carries the build's hash, so browsers update it after each deploy
+const version = createHash('sha256').update(out).digest('hex').slice(0, 12);
+writeFileSync(join(root, 'public', 'sw.js'), readFileSync(join(root, 'src/sw.js'), 'utf8').replace('__VERSION__', version));
 console.log(`index.html written (${(out.length / 1024).toFixed(1)} KiB)`);

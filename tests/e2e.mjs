@@ -19,7 +19,7 @@ const server = createServer((req, res) => {
   try {
     let data;
     try { data = readFileSync(file); } catch { data = readFileSync(join(root, 'public', p)); } // bundled assets (neru.png…)
-    res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript' }[extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
 }).listen(0);
@@ -30,7 +30,8 @@ const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
+// (service workers off here: the API is mocked with page.route; the offline app is checked in its own context)
+const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -553,6 +554,38 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   check('Ctrl + / Ctrl - zoom shortcuts are blocked', prevented);
   await zctx.close();
+}
+
+// installable app: manifest + icons, and once opened it loads and plays offline (service worker)
+{
+  const octx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const op = await octx.newPage();
+  const oErr = [];
+  op.on('pageerror', e => oErr.push(e.message));
+  await op.goto(url);
+  await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  const man = await op.evaluate(async () => {
+    const m = await (await fetch(document.querySelector('link[rel=manifest]').href)).json();
+    const icons = await Promise.all(m.icons.map(async i => { const r = await fetch(i.src); return r.ok && (await r.blob()).size > 1000; }));
+    return { name: m.name, display: m.display, start: m.start_url, icons: icons.every(Boolean) && m.icons.some(i => i.purpose === 'maskable') && m.icons.some(i => i.sizes === '512x512'), files: !!(m.file_handlers && m.file_handlers[0].accept) };
+  });
+  check('installable: a web app manifest with name, full-screen display, icons (incl. maskable) and .osz/.osk file handling', man.name === 'Ashtonk!mania' && man.display === 'fullscreen' && man.icons && man.files, JSON.stringify(man));
+  await op.evaluate(() => navigator.serviceWorker.ready);
+  await op.reload();
+  await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  check('a service worker controls the page after the first visit', await op.evaluate(() => !!navigator.serviceWorker.controller));
+  if (await op.$('.onboarding')) { await op.fill('.onboarding .ob-name', 'Offline'); await op.keyboard.press('Enter'); await op.waitForSelector('.setup-step-ask'); await op.click('.onboarding .ob-skip'); await op.waitForTimeout(300); }
+  await op.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
+  await octx.setOffline(true);
+  await op.reload();
+  await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  check('offline: the game still opens with your library (served by the service worker)', await op.evaluate(() => AshtonkMania.BeatmapManager.sets.length === 1 && !navigator.onLine && ['home', 'songselect'].includes(AshtonkMania.Screens.currentName)));
+  await op.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); });
+  await op.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
+  check('offline: beatmaps play', await op.waitForFunction(() => AshtonkMania.GameplayScreen.s.engine.score.judged > 0, null, { timeout: 15000 }).then(() => true, () => false));
+  check('offline: no page errors', oErr.length === 0, oErr.join(' | '));
+  await octx.setOffline(false);
+  await octx.close();
 }
 
 // storage blocked (IndexedDB refuses to open): the game still boots, says so, and works for the session

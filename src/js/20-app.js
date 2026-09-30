@@ -50,6 +50,7 @@ const App = {
     if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
     else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
+    this.initPWA();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
     Presence.start();
@@ -193,6 +194,31 @@ const App = {
       else if (Screens.currentName === 'home') Screens.go('songselect', { mapId: map.id }, { transition: 'zoom' });
     }
     return report;
+  },
+
+  /** Installable, offline-capable app: the service worker (public/sw.js) keeps the game for offline play,
+   *  the manifest lets browsers install it, and the installed app opens .osz / .osk / .amr files directly. */
+  installPrompt: null,
+  initPWA() {
+    if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
+      navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
+    window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
+    if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {
+      if (!params.files || !params.files.length) return;
+      const files = await Promise.all(params.files.map(f => f.getFile()));
+      this.importFiles(files);
+    });
+  },
+  get installed() { return ['fullscreen', 'standalone', 'minimal-ui'].some(m => window.matchMedia && matchMedia(`(display-mode: ${m})`).matches); },
+  async install() {
+    const p = this.installPrompt;
+    if (!p) return false;
+    this.installPrompt = null;
+    p.prompt();
+    const r = await p.userChoice.catch(() => null);
+    Bus.emit('install:available', false);
+    return !!(r && r.outcome === 'accepted');
   },
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low

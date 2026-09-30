@@ -8,7 +8,7 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 
 `wrangler.jsonc` deploys a Worker named `beta-ashtonkmania`:
 
-* `public/` is served as static assets (the built `index.html` and `skins/kori.osk`).
+* `public/` is served as static assets (the built `index.html`, `sw.js` for offline play, `manifest.webmanifest` + `icons/`, and `skins/kori.osk`). `node build.mjs` writes `index.html` and `sw.js`; `python3 tools/make-icons.py` redraws the icons.
 * `worker/index.js` answers `/api/*` for the Beatmap Explorer:
   * `/api/search` uses the official osu! API when a key is set (below), otherwise public mirrors (Mino, NeriNyan, osu.direct), trying each one in turn.
   * `/api/download/:id` proxies the `.osz` from the first mirror that has it (Mino, NeriNyan, osu.direct, SayoBot, Nekoha; `?provider=` picks which goes first).
@@ -21,6 +21,12 @@ A browser-based mania rhythm-game client: beatmap library, song select, gameplay
 In the dashboard, leave the build command empty and set the deploy command to `npx wrangler deploy`.
 
 ## What's new
+
+### Install it, play offline
+
+* **Installable app**: Ashtonk!mania now has an app manifest and icons, so Chrome, Edge and ChromeOS offer to install it (the install icon in the address bar, or **Settings → Maintenance → Install as an app** when the browser offers it). The installed app opens in its own full-screen window.
+* **Plays offline**: once the game has been opened, a service worker keeps it, so it opens and plays your library with no connection. Online, the page is always fetched fresh first, so a new deploy still shows up on the next load. Searches, downloads and multiplayer (`/api/*`) are never cached.
+* **Open beatmaps with it**: the installed app is registered for `.osz`, `.osk` and `.amr` files; opening one (for example by double-clicking in the ChromeOS Files app) imports it.
 
 ### Replay controls
 
