@@ -357,6 +357,13 @@ await page.evaluate(() => [...document.querySelectorAll('.mod-p')].find(b => b.t
 await page.waitForTimeout(200);
 check('mod select: lazer columns, toggling a mod and its customise panel', await page.evaluate(() => document.querySelectorAll('.modcol-h').length >= 5 && document.querySelector('.mod-p.on').textContent.includes('Hidden') && !!document.querySelector('.mod-config .slider') && AshtonkMania.Settings.get('songselect.mods').includes('HD')));
 await page.keyboard.press('Backspace');
+await page.evaluate(() => [...document.querySelectorAll('.mod-p')].find(b => b.textContent.includes('Invert')).click());
+await page.waitForTimeout(150);
+check('mod select: osu!lazer\'s Invert and No Release are there, and Invert rules out Hold Off / No Release', await page.evaluate(() => {
+  const p = name => [...document.querySelectorAll('.mod-p')].find(b => b.textContent.includes(name));
+  return !!p('No Release') && p('Invert').classList.contains('on') && p('Hold Off').classList.contains('blocked') && p('No Release').classList.contains('blocked');
+}));
+await page.keyboard.press('Backspace');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 await page.evaluate(() => AshtonkMania.Settings.set('gameplay.scrollSpeed', 27));

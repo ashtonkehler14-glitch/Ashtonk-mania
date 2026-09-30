@@ -5,7 +5,7 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = '2129ab226d28';
+const VERSION = 'b8fe1f302016';
 const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 

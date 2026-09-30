@@ -1,6 +1,6 @@
 /* ModSystem — modular, data-driven mods. Only mods that make sense for mania are offered
  * (osu!standard-only mods such as Relax / Autopilot / Spun Out are intentionally excluded).
- * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN 0.9, Difficulty Adjust 0.5, others 1.0.
+ * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN/NR 0.9, Difficulty Adjust 0.5, others 1.0.
  * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
@@ -12,6 +12,8 @@ const MODS = [
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
   { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
+  { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#7ee07a', incompatible: ['NLN', 'IN'],
+    desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
   { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
     desc: 'Timing windows 1.4× tighter, health drains 1.4× harder.' },
   { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
@@ -36,8 +38,10 @@ const MODS = [
     desc: 'Columns are shuffled (seeded — replays stay reproducible).' },
   { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#b28bff', incompatible: [],
     desc: 'No more tricky speed changes: ignores SV and BPM scroll changes.' },
-  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: [],
+  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: ['IN', 'NR'],
     desc: 'Long notes become regular notes.' },
+  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#b28bff', incompatible: ['NLN', 'NR'],
+    desc: 'Hold the keys. To the beat. Every gap between notes becomes a long note.' },
   { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#b28bff', incompatible: ['NLN'], config: 'percy',
     desc: 'Long note tails are drawn shorter (visual only).' },
   { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#b28bff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',

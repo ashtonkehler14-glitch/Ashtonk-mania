@@ -37,6 +37,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Plays offline**: once the game has been opened, a service worker keeps it, so it opens and plays your library with no connection. Online, the page is always fetched fresh first, so a new deploy still shows up on the next load. Searches, downloads and multiplayer (`/api/*`) are never cached.
 * **Open beatmaps with it**: the installed app is registered for `.osz`, `.osk` and `.amr` files; opening one (for example by double-clicking in the ChromeOS Files app) imports it.
 
+### Invert and No Release mods
+
+* **Invert** (IN, osu!lazer): "Hold the keys. To the beat." In each column every note becomes a long note that lasts until the next one, shortened by a quarter beat (at most by half) so there's always a moment to let go; the last note of each column is dropped, and the map has no breaks.
+* **No Release** (NR, osu!lazer, ×0.9): no more timing the end of long notes. Keep holding through the end for a MAX; a hold you let go of and grabbed again still gets a 50.
+* Both follow osu!lazer's own code, and star rating and pp for Invert and Hold Off plays are now worked out on the converted notes.
+
 ### Keyboard shortcuts list
 
 * Press **?** anywhere outside a text field (or **Settings → Input → Keyboard shortcuts**) for every shortcut in one place: anywhere, main menu, song select, playing, practice, watching replays and results.

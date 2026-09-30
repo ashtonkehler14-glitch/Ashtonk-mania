@@ -475,3 +475,40 @@ test('the engine summary carries both scores', () => {
   assert.equal(s.score, 1000000);
   assert.equal(s.scoreStd, 1000000);
 });
+
+test('No Release (osu!lazer): a hold still held at its end is a MAX with no release timing; broken holds get a 50', () => {
+  const e = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['NR'] });
+  e.input(0, true, 1000);
+  e.advance(2000); assert.equal(e.score.judged, 1, 'not before the end');
+  e.advance(2001); assert.equal(e.score.counts[J.MARV], 2, 'head + tail MAX once the end is reached');
+  e.input(0, false, 2600); // letting go long after changes nothing
+  assert.equal(e.score.judged, 2); assert.equal(e.score.counts[J.MISS], 0);
+  // without NR, the same hold held that long is a missed tail
+  const f = engineRules(osu([ln(0, 1000, 2000)]));
+  f.input(0, true, 1000); f.advance(2600);
+  assert.equal(f.score.counts[J.MISS], 1);
+  // let go early and grab again: capped at 50
+  const g = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['NR'] });
+  g.input(0, true, 1000); g.input(0, false, 1400); g.input(0, true, 1500); g.advance(2001);
+  assert.equal(g.score.counts[J.BAD], 1);
+  // releasing inside the tail window before the end is judged as usual
+  const h = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['NR'] });
+  h.input(0, true, 1000); h.input(0, false, 1950);
+  assert.equal(h.score.counts[J.PERF] + h.score.counts[J.MARV] + h.score.counts[J.GREAT], 2);
+});
+
+test('Invert (osu!lazer): gaps become holds shortened by a quarter beat (at most by half), last note dropped', () => {
+  // 120 BPM (500 ms beats): notes in column 0 at 1000, 2000, 2200, 3000
+  const text = osu([note(0, 1000), note(0, 2000), note(0, 2200), ln(0, 3000, 3400), note(1, 1500)]);
+  const bm = BeatmapParser.parse(text);
+  const red = BeatmapParser.timing(bm).red;
+  const n = prepareNotes(BeatmapParser.toManiaNotes(bm), 4, ['IN'], 1, { red });
+  const c0 = n.filter(x => x.col === 0);
+  assert.equal(JSON.stringify(c0.map(x => [x.time, x.end, x.isLN])), JSON.stringify([[1000, 1875, true], [2000, 2100, true], [2200, 2875, true]]));
+  assert.equal(n.filter(x => x.col === 1).length, 0, 'a column with one note has nothing to hold to');
+  // Auto still plays it perfectly
+  const eng = new GameplayEngine({ notes: n, keys: 4, windows: timingWindows({ od: 8 }), mods: ['IN'] });
+  for (const [t, c, d] of generateAutoInputs(eng.notes, 4)) eng.input(c, d === 1, t);
+  eng.advance(1e9);
+  assert.equal(eng.summary().score, 1000000);
+});

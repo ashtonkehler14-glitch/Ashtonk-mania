@@ -3742,7 +3742,7 @@ const BeatmapProviders = {
 /* ===== 08-mods.js ===== */
 /* ModSystem — modular, data-driven mods. Only mods that make sense for mania are offered
  * (osu!standard-only mods such as Relax / Autopilot / Spun Out are intentionally excluded).
- * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN 0.9, Difficulty Adjust 0.5, others 1.0.
+ * Score multipliers follow osu!mania: EZ/NF/HT 0.5, CS/NLN/NR 0.9, Difficulty Adjust 0.5, others 1.0.
  * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
@@ -3754,6 +3754,8 @@ const MODS = [
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
   { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
+  { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#7ee07a', incompatible: ['NLN', 'IN'],
+    desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
   { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
     desc: 'Timing windows 1.4× tighter, health drains 1.4× harder.' },
   { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
@@ -3778,8 +3780,10 @@ const MODS = [
     desc: 'Columns are shuffled (seeded — replays stay reproducible).' },
   { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#b28bff', incompatible: [],
     desc: 'No more tricky speed changes: ignores SV and BPM scroll changes.' },
-  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: [],
+  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: ['IN', 'NR'],
     desc: 'Long notes become regular notes.' },
+  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#b28bff', incompatible: ['NLN', 'NR'],
+    desc: 'Hold the keys. To the beat. Every gap between notes becomes a long note.' },
   { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#b28bff', incompatible: ['NLN'], config: 'percy',
     desc: 'Long note tails are drawn shorter (visual only).' },
   { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#b28bff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',
@@ -3974,6 +3978,8 @@ class GameplayEngine {
   constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.rules = rules; this.lazer = rules >= 2;
+    // No Release (osu!lazer ManiaModNoRelease): a hold still held when its end arrives is a MAX (a 50 if it broke)
+    this.noRelease = this.lazer && mods.includes('NR');
     // Windows in song time. In osu!mania they scale with the playback rate, so the real-time window never changes
     // (IManiaRateAdjustmentMod); osu!lazer floors each one and adds half a millisecond (ManiaHitWindows).
     this.W = this.lazer ? windows.map(w => Math.floor(w * rate + 1e-9) + 0.5) : windows.map(w => w * rate);
@@ -4035,6 +4041,7 @@ class GameplayEngine {
    *  tail once it's later than 1.5× that. Resolved in time order across all columns. */
   _expiry(n) {
     if (n.state === NS.PENDING) return n.time + this.W[J.BAD];
+    if (this.noRelease && n.state === NS.HOLDING) return n.end;
     return n.end + this.TW[J.BAD]; // HOLDING (held too long) or DROPPED (let go / head missed)
   }
   _advanceLazer(t) {
@@ -4052,6 +4059,12 @@ class GameplayEngine {
         n.headJ = J.MISS;
         if (n.isLN) { n.state = NS.DROPPED; n.capped = true; } else { n.state = NS.MISSED; this.ptr[best]++; }
         this._judge(n, J.MISS, bestT, null, false);
+      } else if (this.noRelease && n.state === NS.HOLDING) {
+        // held through to the end: no release timing needed
+        if (this.holding[best] === n) this.holding[best] = null;
+        const j = n.capped ? J.BAD : J.MARV;
+        n.tailJ = j; n.state = NS.DONE; this.ptr[best]++;
+        this._judge(n, j, bestT, null, true);
       } else {
         if (this.holding[best] === n) this.holding[best] = null;
         n.tailJ = J.MISS; n.state = NS.MISSED; this.ptr[best]++;
@@ -4236,10 +4249,35 @@ class GameplayEngine {
 }
 
 /** Prepare notes for a play: apply column map (MR/RD) and NLN. */
-function prepareNotes(notes, keys, mods, seed) {
+function prepareNotes(notes, keys, mods, seed, { red = null } = {}) {
   const map = ModSystem.columnMap(mods, keys, seed);
   const nln = mods.includes('NLN');
-  return notes.map(n => ({ ...n, col: map[n.col], isLN: nln ? false : n.isLN, end: nln ? n.time : n.end }));
+  const out = notes.map(n => ({ ...n, col: map[n.col], isLN: nln ? false : n.isLN, end: nln ? n.time : n.end }));
+  return mods.includes('IN') ? invertNotes(out, keys, red) : out;
+}
+
+/** osu!lazer's Invert (ManiaModInvert): in each column, every note (or hold head) becomes a hold lasting until
+ *  the next one starts, shortened by a quarter beat (at most by half) so there's always a gap to press again.
+ *  The last note of each column has nothing to hold to and is dropped. red: uninherited timing points. */
+function invertNotes(notes, keys, red) {
+  const beatAt = t => {
+    if (!red || !red.length) return 500;
+    let bl = red[0].beatLength;
+    for (const r of red) { if (r.time <= t) bl = r.beatLength; else break; }
+    return bl;
+  };
+  const out = [];
+  for (let c = 0; c < keys; c++) {
+    const col = notes.filter(n => n.col === c).sort((a, b) => a.time - b.time);
+    for (let i = 0; i < col.length - 1; i++) {
+      const n = col[i], next = col[i + 1];
+      let dur = next.time - n.time;
+      dur = Math.max(dur / 2, dur - beatAt(next.time) / 4);
+      if (!(dur > 0)) continue;
+      out.push({ ...n, isLN: true, end: n.time + dur });
+    }
+  }
+  return out.sort((a, b) => a.time - b.time || a.col - b.col);
 }
 
 /** Auto: generate a perfect input stream. Returns flat events [t, col, down(1/0)] sorted. */
@@ -6790,6 +6828,8 @@ GamepadWatch.init();
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
+/** Mods that change which notes there are (their star rating is worked out on the converted notes, as in osu!lazer). */
+const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -6972,7 +7012,8 @@ const GameplayScreen = {
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
-    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed);
+    const redTiming = BeatmapParser.timing(bm);
+    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
@@ -6980,7 +7021,6 @@ const GameplayScreen = {
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = baseNotes.length ? Math.max(...baseNotes.map(n => n.end)) : 0;
-    const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
@@ -7004,7 +7044,7 @@ const GameplayScreen = {
     const startPos = Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
-    s.stars = rate === 1 && rec.srVersion === SR_VERSION ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -7123,7 +7163,7 @@ const GameplayScreen = {
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
     s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
-      breaks: s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules });
+      breaks: s.mods.includes('IN') ? [] : s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules }); // (Invert has no breaks)
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
   },
@@ -7736,7 +7776,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   buildScore(passed, summary) {
     const s = this.s;
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
-    const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
+    const stars = s.stars;
     const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
     if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5), scoreStd: Math.round(summary.scoreStd * 0.5) };
     return {

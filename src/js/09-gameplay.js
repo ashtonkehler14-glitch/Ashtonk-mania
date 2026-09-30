@@ -129,6 +129,8 @@ class GameplayEngine {
   constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.rules = rules; this.lazer = rules >= 2;
+    // No Release (osu!lazer ManiaModNoRelease): a hold still held when its end arrives is a MAX (a 50 if it broke)
+    this.noRelease = this.lazer && mods.includes('NR');
     // Windows in song time. In osu!mania they scale with the playback rate, so the real-time window never changes
     // (IManiaRateAdjustmentMod); osu!lazer floors each one and adds half a millisecond (ManiaHitWindows).
     this.W = this.lazer ? windows.map(w => Math.floor(w * rate + 1e-9) + 0.5) : windows.map(w => w * rate);
@@ -190,6 +192,7 @@ class GameplayEngine {
    *  tail once it's later than 1.5× that. Resolved in time order across all columns. */
   _expiry(n) {
     if (n.state === NS.PENDING) return n.time + this.W[J.BAD];
+    if (this.noRelease && n.state === NS.HOLDING) return n.end;
     return n.end + this.TW[J.BAD]; // HOLDING (held too long) or DROPPED (let go / head missed)
   }
   _advanceLazer(t) {
@@ -207,6 +210,12 @@ class GameplayEngine {
         n.headJ = J.MISS;
         if (n.isLN) { n.state = NS.DROPPED; n.capped = true; } else { n.state = NS.MISSED; this.ptr[best]++; }
         this._judge(n, J.MISS, bestT, null, false);
+      } else if (this.noRelease && n.state === NS.HOLDING) {
+        // held through to the end: no release timing needed
+        if (this.holding[best] === n) this.holding[best] = null;
+        const j = n.capped ? J.BAD : J.MARV;
+        n.tailJ = j; n.state = NS.DONE; this.ptr[best]++;
+        this._judge(n, j, bestT, null, true);
       } else {
         if (this.holding[best] === n) this.holding[best] = null;
         n.tailJ = J.MISS; n.state = NS.MISSED; this.ptr[best]++;
@@ -391,10 +400,35 @@ class GameplayEngine {
 }
 
 /** Prepare notes for a play: apply column map (MR/RD) and NLN. */
-function prepareNotes(notes, keys, mods, seed) {
+function prepareNotes(notes, keys, mods, seed, { red = null } = {}) {
   const map = ModSystem.columnMap(mods, keys, seed);
   const nln = mods.includes('NLN');
-  return notes.map(n => ({ ...n, col: map[n.col], isLN: nln ? false : n.isLN, end: nln ? n.time : n.end }));
+  const out = notes.map(n => ({ ...n, col: map[n.col], isLN: nln ? false : n.isLN, end: nln ? n.time : n.end }));
+  return mods.includes('IN') ? invertNotes(out, keys, red) : out;
+}
+
+/** osu!lazer's Invert (ManiaModInvert): in each column, every note (or hold head) becomes a hold lasting until
+ *  the next one starts, shortened by a quarter beat (at most by half) so there's always a gap to press again.
+ *  The last note of each column has nothing to hold to and is dropped. red: uninherited timing points. */
+function invertNotes(notes, keys, red) {
+  const beatAt = t => {
+    if (!red || !red.length) return 500;
+    let bl = red[0].beatLength;
+    for (const r of red) { if (r.time <= t) bl = r.beatLength; else break; }
+    return bl;
+  };
+  const out = [];
+  for (let c = 0; c < keys; c++) {
+    const col = notes.filter(n => n.col === c).sort((a, b) => a.time - b.time);
+    for (let i = 0; i < col.length - 1; i++) {
+      const n = col[i], next = col[i + 1];
+      let dur = next.time - n.time;
+      dur = Math.max(dur / 2, dur - beatAt(next.time) / 4);
+      if (!(dur > 0)) continue;
+      out.push({ ...n, isLN: true, end: n.time + dur });
+    }
+  }
+  return out.sort((a, b) => a.time - b.time || a.col - b.col);
 }
 
 /** Auto: generate a perfect input stream. Returns flat events [t, col, down(1/0)] sorted. */

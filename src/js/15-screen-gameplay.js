@@ -48,6 +48,8 @@ GamepadWatch.init();
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
+/** Mods that change which notes there are (their star rating is worked out on the converted notes, as in osu!lazer). */
+const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -230,7 +232,8 @@ const GameplayScreen = {
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
-    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed);
+    const redTiming = BeatmapParser.timing(bm);
+    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
@@ -238,7 +241,6 @@ const GameplayScreen = {
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
     const endTime = baseNotes.length ? Math.max(...baseNotes.map(n => n.end)) : 0;
-    const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
@@ -262,7 +264,7 @@ const GameplayScreen = {
     const startPos = Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
-    s.stars = rate === 1 && rec.srVersion === SR_VERSION ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -381,7 +383,7 @@ const GameplayScreen = {
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
     s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
-      breaks: s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules });
+      breaks: s.mods.includes('IN') ? [] : s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules }); // (Invert has no breaks)
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
   },
@@ -994,7 +996,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   buildScore(passed, summary) {
     const s = this.s;
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
-    const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
+    const stars = s.stars;
     const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
     if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5), scoreStd: Math.round(summary.scoreStd * 0.5) };
     return {
