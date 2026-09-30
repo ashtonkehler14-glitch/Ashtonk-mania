@@ -459,7 +459,7 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
-    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
+    if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
     // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
@@ -689,38 +689,60 @@ const GameplayScreen = {
     this.board().classList.toggle('lb-off', !on);
     Toast.show(on ? 'Leaderboard shown' : 'Leaderboard hidden', 'Tab');
   },
-  /** Multiplayer: send our live score (4×/s) and show both players, highest first (osu!lazer-style board). */
+  /** Multiplayer: send our live score (4×/s) and show everyone in the match, ranked by the room's win condition
+   *  (osu!lazer-style board). Team Versus adds lazer's red-vs-blue totals at the top. */
   updateMp(e) {
-    const t = performance.now();
-    if (t - this._mpSent > 250 && this.s.running) {
+    const t = performance.now(), s = this.s, room = Multiplayer.room;
+    const sc = Math.round(e.score.score * this.mpFactor());
+    if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
       this._myPp = this.livePp(e) * this.mpFactor();
-      Multiplayer.send({ t: 'score', score: Math.round(e.score.score * this.mpFactor()), acc: e.score.accuracy, combo: e.score.combo, hp: e.health.value, pp: this._myPp });
+      Multiplayer.send({ t: 'score', score: sc, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: this._myPp });
     }
-    // the opponent's score arrives 4×/s; ease the displayed value towards it so it counts up smoothly
-    const o = Multiplayer.opp;
-    // matches are won on pp, so the board ranks and shows live pp (score underneath)
-    const target = o ? (o.pp || 0) : 0;
-    this._oppShown = this._oppShown == null ? target : this._oppShown + (target - this._oppShown) * Math.min(1, (t - (this._mpT || t)) / 180);
+    const set = (room && room.settings) || {}, win = set.win || 'pp', teams = set.type === 'teams';
+    const pick = v => win === 'score' ? v.score : win === 'accuracy' ? v.acc : win === 'combo' ? v.maxCombo : v.pp;
+    const fmt = v => win === 'score' ? fmtScore(v) : win === 'accuracy' ? fmtAcc(v) : win === 'combo' ? `${fmtInt(v)}x` : `${Math.round(v)}pp`;
+    if (!this._mpRows) {
+      const ids = (s.mp.players && s.mp.players.length ? s.mp.players : room ? room.players.map(p => p.id) : [Multiplayer.me]);
+      this._mpRows = ids.map(id => {
+        const me = id === Multiplayer.me, p = room && room.players.find(x => x.id === id);
+        const team = teams && p ? p.team : null;
+        const r = { id, me, team, pos: h('span.pos'), sub: h('span'), sc: h('span.sc'), shown: null };
+        r.el = h(`div.hud-mp-row${me ? '.me' : ''}${team === 0 ? '.red' : team === 1 ? '.blue' : ''}`, r.pos, h('div.nm', h('b', me ? ProfileManager.profile.name : p ? p.name : 'Player'), r.sub), r.sc);
+        return r;
+      });
+      this.mpBoard.append(...this._mpRows.map(r => r.el));
+      if (teams) {
+        this.mpTeams = { red: h('span.tv-n'), blue: h('span.tv-n'), bar: h('i'), diff: h('span.tv-diff') };
+        this.hud.append(h('div.hud-teams', h('div.tv-side.red', h('span.tv-l', 'Red'), this.mpTeams.red), h('div.tv-mid', h('div.tv-bar', this.mpTeams.bar), this.mpTeams.diff), h('div.tv-side.blue', this.mpTeams.blue, h('span.tv-l', 'Blue'))));
+      }
+    }
+    // everyone else's numbers arrive 4×/s: ease what's shown towards them so they count up smoothly
+    const k = Math.min(1, (t - (this._mpT || t)) / 180);
     this._mpT = t;
+    for (const r of this._mpRows) {
+      const v = r.me ? { pp: this._myPp || 0, score: sc, acc: e.score.accuracy, maxCombo: e.score.maxCombo } : Multiplayer.opps.get(r.id) || { pp: 0, score: 0, acc: 1, maxCombo: 0 };
+      const target = pick(v) || 0;
+      r.shown = r.shown == null || r.me ? target : r.shown + (target - r.shown) * k;
+      r.v = v;
+    }
     if (t - (this._mpDrawn || 0) < 100) return;
     this._mpDrawn = t;
-    if (!this._mpRows) {
-      const opp = Multiplayer.opponent();
-      const mk = (name, me) => { const r = { pos: h('span.pos'), sub: h('span'), sc: h('span.sc') }; r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc); return r; };
-      this._mpRows = [mk(ProfileManager.profile.name, true), opp ? mk(opp.name, false) : null].filter(Boolean);
-      this.mpBoard.append(...this._mpRows.map(r => r.el));
-    }
-    const vals = [[this._myPp || 0, Math.round(e.score.score * this.mpFactor()), e.score.accuracy], [this._oppShown, o ? o.score : 0, o ? o.acc : 1]];
-    const first = vals[1] && this._mpRows[1] && (vals[1][0] > vals[0][0] || (vals[1][0] === vals[0][0] && vals[1][1] > vals[0][1])) ? 1 : 0;
-    this._mpRows.forEach((r, i) => {
-      const [pp, sc, acc] = vals[i];
-      const pos = i === first ? 1 : 2;
-      const sub = `${fmtScore(sc)} · ${fmtAcc(acc)}`, st = `${Math.round(pp)}pp`;
+    const order = [...this._mpRows].sort((a, b) => (b.shown - a.shown) || ((b.v.score || 0) - (a.v.score || 0)));
+    order.forEach((r, i) => {
+      const pos = i + 1, sub = win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
       if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
       if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
       if (r._st !== st) { r._st = st; r.sc.textContent = st; }
     });
+    if (this.mpTeams) {
+      const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
+      const red = tot(0), blue = tot(1), T = this.mpTeams;
+      T.red.textContent = fmt(red); T.blue.textContent = fmt(blue);
+      const f = red + blue > 0 ? red / (red + blue) : 0.5;
+      T.bar.style.transform = `scaleX(${f.toFixed(3)})`;
+      T.diff.textContent = red === blue ? '' : `${red > blue ? '◀' : ''} ${fmt(Math.abs(red - blue))} ${blue > red ? '▶' : ''}`;
+    }
   },
   /** Score / pp multiplier for the "can't die in multiplayer" rule. */
   mpFactor() { return this.s && this.s.mpDied ? 0.5 : 1; },

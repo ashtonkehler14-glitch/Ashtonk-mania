@@ -22,6 +22,20 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Multiplayer: Quick Play, Team Versus, rooms of up to 8
+
+* **Quick Play** (osu!lazer's new matchmaking mode). Pick 4K or 7K and press Play to join a lobby of up to 8.
+  * The first round starts shortly after a second player arrives. There are 5 rounds.
+  * Each round offers a pool of ranked maps around the lobby's usual star rating. It's drawn from the online listing, or from players' own maps when offline.
+  * Everyone picks one, and a roulette lands on one of the picks. The map downloads automatically.
+  * Placements score 8 / 6 / 5 / 4 / 3 / 2 / 1 points, standings update after every round, and the most points wins, shown on a podium.
+* **Rooms hold up to 8 players**, with lazer-style **Match settings** for the host:
+  * **Head to Head** or **Team Versus**: red vs blue, the team total wins. There's a live team score display in game.
+  * **Win by** pp, score, accuracy or max combo.
+  * Room size.
+  * **Host rotates**: the host role passes to the next player after each match.
+* The in-game board shows every player, and results show placements.
+
 ### Gameplay HUD blends in
 
 * **The numbers form one right-hand stack**: score, accuracy, pp, then mods. The mod badges no longer sit on top of other text.

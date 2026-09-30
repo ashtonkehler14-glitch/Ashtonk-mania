@@ -1,12 +1,13 @@
-/* Online 1v1 multiplayer (osu!lazer-style room). Talks to the Worker's Durable Objects over a
- * WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and room rules. */
+/* Online multiplayer (osu!lazer-style rooms of up to 8, Head to Head or Team Versus, and Quick Play). Talks to the
+ * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules. */
 
 /** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
 const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
 
 const Multiplayer = {
   ws: null, room: null, me: null, code: null, quick: false,
-  chat: [], opp: null, lastResults: null, rtt: 80, _keep: 0,
+  chat: [], opps: new Map(), lastResults: null, rtt: 80, _keep: 0,
+  qpEndAt: 0,        // when the current Quick Play phase ends (performance.now() time)
   temp: new Set(),   // beatmap sets downloaded automatically for this room (removed again when leaving)
   fetch: null,       // {onlineSetId, progress, error, done} — the automatic download of the room's beatmap
   myDiffId: null,    // the difficulty (local map id) this player chose from the room's beatmap set
@@ -16,6 +17,12 @@ const Multiplayer = {
   inRoom() { return !!(this.room && (this.ws || this.reconnecting)); },
   isHost() { return !!this.room && this.room.host === this.me; },
   opponent() { return this.room ? this.room.players.find(p => p.id !== this.me) || null : null; },
+  isQP() { return !!(this.room && this.room.qp); },
+  /** A player's usual star rating (the median of their recent passed plays), so Quick Play pools suit the lobby. */
+  skillSR() {
+    const stars = ScoreManager.recent(30).filter(s => s.passed).map(s => { const m = BeatmapManager.mapByHash(s.mapHash); return m ? m.stars : 0; }).filter(x => x > 0).sort((a, b) => a - b);
+    return stars.length ? stars[Math.floor(stars.length / 2)] : 2.5;
+  },
   self() { return this.room ? this.room.players.find(p => p.id === this.me) || null : null; },
 
   async api(path, body) {
@@ -25,32 +32,41 @@ const Multiplayer = {
     return d;
   },
   async create() { const { code } = await this.api('api/mp/new'); return this.connect(code, true); },
+  /** Quick Play (osu!lazer's matchmaking): join the lobby that's filling up for this key count, or open one. */
+  async quickPlay(keys = 4) {
+    let last = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { code, host } = await this.api('api/mp/quickplay', { keys, not: last });
+      try { await this.connect(code, host, false, false, { mode: 'qp', keys }); return; } catch (e) { if (host) throw e; last = code; }
+    }
+    throw new Error('Couldn\'t find a Quick Play lobby — try again.');
+  },
   join(code) { return this.connect(String(code).trim().toUpperCase(), false); },
   /** Quick match: host a waiting room or join the one someone else is waiting in. */
   async quickMatch() {
     let last = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       const { code, host } = await this.api('api/mp/quick', { not: last });
-      try { await this.connect(code, host, true); return; } catch (e) { if (host) throw e; last = code; }
+      try { await this.connect(code, host, true, false, { size: 2 }); return; } catch (e) { if (host) throw e; last = code; }
     }
     throw new Error('Couldn\'t find a match — try again.');
   },
 
-  connect(code, create, quick = false, rejoin = false) {
+  connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
     return new Promise((resolve, reject) => {
       const u = new URL(`api/mp/room/${encodeURIComponent(code)}`, location.href);
       u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
-      this.ws = ws; this.code = code; this.quick = quick; this.opp = null;
+      this.ws = ws; this.code = code; this.quick = quick; this.opps = new Map(); this.opts = opts;
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, create })); this.ping(); };
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, create, sr: this.skillSR(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -70,11 +86,11 @@ const Multiplayer = {
   startReconnect() {
     if (this.reconnecting) return;
     const me = this.self();
-    const rc = this.reconnecting = { code: this.code, quick: this.quick, tries: 0, create: false, mods: (me && me.mods) || [], diff: this.myDiffId, timer: 0 };
+    const rc = this.reconnecting = { code: this.code, quick: this.quick, opts: this.opts || {}, tries: 0, create: false, mods: (me && me.mods) || [], diff: this.myDiffId, timer: 0 };
     const attempt = async () => {
       if (this.reconnecting !== rc) return;
       try {
-        await this.connect(rc.code, rc.create, rc.quick, true);
+        await this.connect(rc.code, rc.create, rc.quick, true, rc.opts);
         if (this.reconnecting !== rc) return;
         this.reconnecting = null;
         this.syncHasMap();
@@ -84,6 +100,8 @@ const Multiplayer = {
         Bus.emit('mp:changed');
       } catch (e) {
         if (this.reconnecting !== rc) return;
+        // a Quick Play round moved on without us: there's no way back in
+        if (rc.opts.mode === 'qp' && /already started|full/i.test(e.message)) { this.leave(); Toast.err('Lost the Quick Play match', 'The connection dropped and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
         rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
@@ -98,7 +116,7 @@ const Multiplayer = {
     if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
-    this.ws = null; this.room = null; this.me = null; this.opp = null;
+    this.ws = null; this.room = null; this.me = null; this.opps = new Map();
     if (ws) { try { ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
   },
@@ -116,19 +134,21 @@ const Multiplayer = {
   onMessage(m) {
     switch (m.t) {
       case 'room': {
-        const hadOpp = !!this.opponent();
-        const prevHash = this.room && this.room.map && this.room.map.hash;
+        const had = this.room ? this.room.players.length : 0;
+        const key = map => map ? map.hash || 'o' + map.onlineId : null, prev = key(this.room && this.room.map);
         this.room = m.room;
-        if ((m.room.map && m.room.map.hash) !== prevHash) this.myDiffId = null;
+        this.qpClock(m.room);
+        if (key(m.room.map) !== prev) this.myDiffId = null;
         this.syncHasMap();
         this.autoFetch();
-        if (!hadOpp && this.opponent()) UISounds.click();
+        if (m.room.players.length > had && had) UISounds.click();
         Bus.emit('mp:changed');
         break;
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opp = m; break;
+      case 'opp': this.opps.set(m.id, m); break;
+      case 'qpPool': this.buildPool(m); break;
       case 'start': this.launch(m); break;
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
@@ -136,7 +156,7 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          Toast.show(won ? 'Your opponent left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
         }
         Bus.emit('mp:changed');
         break;
@@ -171,7 +191,7 @@ const Multiplayer = {
    *  room: `cleanupTemp()` removes it when they leave (unless they choose to keep it). */
   autoFetch() {
     const map = this.room && this.room.map;
-    if (!map || this.isHost() || this.localMap(map) || !(map.onlineSetId > 0)) return;
+    if (!map || (this.isHost() && !this.isQP()) || this.localMap(map) || !(map.onlineSetId > 0)) return;
     if (this.fetch && this.fetch.onlineSetId === map.onlineSetId && !this.fetch.error) return;
     const f = this.fetch = { onlineSetId: map.onlineSetId, progress: 0 };
     const before = new Set(BeatmapManager.sets.map(x => x.id));
@@ -222,14 +242,50 @@ const Multiplayer = {
       onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => x !== 'AT'), modConfig: ModSystem.config() });
   },
   launch(m) {
+    if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
     const local = this.localMap(m.map) && this.myMap();
     if (!local) { Toast.err('Missing beatmap', 'You need the beatmap to play this match.'); this.send({ t: 'quit' }); return; }
-    this.opp = null;
+    this.opps = new Map();
     const startAt = performance.now() + m.delay - this.rtt / 2;
     // the room's speed mod (everyone accepted it) plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
-    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt } });
+    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null } });
   },
+  qpClock(room) { this.qpEndAt = room && room.qp && room.qp.left ? performance.now() + room.qp.left - this.rtt / 2 : 0; },
+  /** Quick Play host: this round's pool — ranked maps for the lobby's key count around its typical star rating from
+   *  the online listing, topped up from this player's own library (offline, or when the search finds too few). */
+  async buildPool(m) {
+    const keys = m.keys === 7 ? 7 : 4, sr = m.sr > 0 ? m.sr : this.skillSR();
+    const lo = Math.max(0, sr - 0.75), hi = sr + 0.75, pool = [], seen = new Set();
+    const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    try {
+      const search = OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: Math.floor(Math.random() * 4), nsfw: false });
+      const d = await Promise.race([search, new Promise((_, rej) => setTimeout(() => rej(new Error('search timed out')), 7000))]);
+      for (const set of shuffle([...(d.sets || [])])) {
+        const diffs = set.diffs.filter(x => x.keys === keys && x.stars >= lo && x.stars <= hi && x.id > 0);
+        if (!diffs.length || seen.has(set.id)) continue;
+        seen.add(set.id);
+        const x = diffs[Math.floor(Math.random() * diffs.length)];
+        pool.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id });
+        if (pool.length >= 5) break;
+      }
+    } catch (e) { console.warn('Quick Play pool: online search failed', e); }
+    if (pool.length < 3) {
+      const local = [...BeatmapManager.maps.values()].filter(x => x.keys === keys && !x.problems.length).sort((a, b) => Math.abs(a.stars - sr) - Math.abs(b.stars - sr));
+      for (const x of shuffle(local.slice(0, 12))) {
+        const set = BeatmapManager.setById.get(x.setId);
+        const onlineSetId = set && set.onlineId > 0 ? set.onlineId : -1;
+        if (seen.has(onlineSetId > 0 ? onlineSetId : 'l' + x.setId)) continue;
+        seen.add(onlineSetId > 0 ? onlineSetId : 'l' + x.setId);
+        pool.push({ hash: x.hash, title: x.title, artist: x.artist, version: x.version, creator: x.creator, keys, stars: x.stars, length: x.length, onlineSetId, onlineId: x.onlineId > 0 ? x.onlineId : -1 });
+        if (pool.length >= 5) break;
+      }
+    }
+    if (pool.length && this.room && this.room.qp && this.room.qp.round === m.round) this.send({ t: 'pool', maps: pool });
+  },
+  pick(i) { this.send({ t: 'pick', i }); },
+  setSettings(o) { this.send({ t: 'settings', settings: o }); },
+  setTeam(t) { this.send({ t: 'team', team: t }); },
   /** Invite link for the current room: opening it joins the room directly. */
   inviteLink() {
     const u = new URL(location.href);
@@ -359,11 +415,12 @@ const MultiplayerScreen = {
     this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
-    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => this.updateFetch())];
+    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); })];
+    this._qpInt = setInterval(() => this.qpTick(), 250);
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; },
   onBack() {
     if (Multiplayer.inRoom()) {
       Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
@@ -394,12 +451,22 @@ const MultiplayerScreen = {
     const joinBtn = h('button.btn', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
     const card = (ic, title, sub, ...rest) => h('div.mp-card', h('div.mp-card-ico', icon(ic)), h('div.mp-card-t', title), h('div.mp-card-s', sub), ...rest);
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: 'Play the same beatmap head-to-head against one other player.' }), h('div.mp-lobby',
+    // Quick Play (osu!lazer's matchmaking): the featured way in, with a 4K / 7K pool
+    const qpKeys = Settings.get('mp.qpKeys') === 7 ? 7 : 4;
+    const keyBtn = k => h(`button.qp-key${k === qpKeys ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('mp.qpKeys', k); this.render(); } }, `${k}K`);
+    const qp = h('div.qp-banner',
+      h('div.qp-banner-art', icon('bolt')),
+      h('div.qp-banner-body', h('div.qp-banner-t', 'Quick Play', h('span.qp-new', 'NEW')),
+        h('div.qp-banner-s', 'osu!lazer\'s matchmaking: up to 8 players, 5 rounds. Everyone votes on the next beatmap, a roulette picks one of the votes, and placements score points.')),
+      h('div.qp-banner-go', h('div.qp-keys', keyBtn(4), keyBtn(7)),
+        h('button.btn.primary.qp-play', { disabled: offline, onclick: () => busy('Finding a Quick Play lobby…', () => Multiplayer.quickPlay(qpKeys)) }, icon('play'), 'Play')));
+    this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: 'Quick Play, head-to-head, or teams — rooms hold up to 8 players.' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
+      qp,
       h('div.mp-cards',
-        card('shuffle', 'Quick match', 'Get paired with the next player who is looking for a match.',
+        card('shuffle', 'Quick 1v1', 'Get paired with the next player who is looking for a one-on-one match.',
           h('button.btn.primary', { disabled: offline, onclick: () => busy('Looking for an opponent…', () => Multiplayer.quickMatch()) }, 'Find match')),
-        card('plus', 'Create room', 'Make a private room and send the code to a friend.',
+        card('plus', 'Create room', 'A private room for up to 8: Head to Head or Team Versus, you set the rules.',
           h('button.btn', { disabled: offline, onclick: () => busy('Creating room…', () => Multiplayer.create()) }, 'Create')),
         card('multi', 'Join room', 'Enter the code your friend gave you.',
           h('div.row', code, joinBtn))),
@@ -431,11 +498,22 @@ const MultiplayerScreen = {
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
   },
   refreshRoom() {
-    const r = Multiplayer.room, me = Multiplayer.self(), opp = Multiplayer.opponent(), host = Multiplayer.isHost();
+    if (Multiplayer.isQP()) { this.refreshQP(); return; }
+    this._qpKey = null;
+    const r = Multiplayer.room, me = Multiplayer.self(), host = Multiplayer.isHost();
+    const st = r.settings || { type: 'h2h', win: 'pp', size: 2, queue: 'host' };
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
     const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, h('div.grow'), invite, copy].filter(Boolean));
+    // the room's rules at a glance (lazer's match settings); the host can change them
+    const WIN = { pp: 'pp', score: 'Score', accuracy: 'Accuracy', combo: 'Max combo' };
+    const rules = h('div.mp-rules',
+      h('span.mp-rule', icon(st.type === 'teams' ? 'multi' : 'user'), st.type === 'teams' ? 'Team Versus' : 'Head to Head'),
+      h('span.mp-rule', icon('trophy'), `Win by ${WIN[st.win] || 'pp'}`),
+      h('span.mp-rule', `${r.players.length}/${st.size} players`),
+      st.queue === 'rotate' ? h('span.mp-rule', icon('retry'), 'Host rotates') : null,
+      host ? h('button.btn.sm.mp-settings-btn', { onclick: () => { UISounds.click(); this.openSettings(); } }, icon('gear'), 'Settings') : null);
+    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick 1v1' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, rules, h('div.grow'), invite, copy].filter(Boolean));
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -495,27 +573,37 @@ const MultiplayerScreen = {
 
     // players
     const slot = p => {
-      if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', 'Waiting for an opponent…'), h('span.spinner'));
+      if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', r.players.length < 2 ? 'Waiting for an opponent…' : `${st.size - r.players.length} open slot${st.size - r.players.length > 1 ? 's' : ''}`), r.players.length < 2 ? h('span.spinner') : null);
       const isMe = p.id === Multiplayer.me;
       const state = !r.map ? '' : !p.hasMap ? 'Missing beatmap' : p.ready ? 'Ready' : 'Not ready';
-      return h(`div.mp-player${p.ready ? '.ready' : ''}`,
+      return h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         isMe ? ProfileManager.avatarEl(44) : h('div.avatar.avatar-mono', { style: { width: '44px', height: '44px', fontSize: '20px' } }, (p.name || '?').slice(0, 1).toUpperCase()),
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
           r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
             ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
         h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
-    clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), slot(me), slot(opp)));
+    const open = r.players.length < st.size ? slot(null) : null;
+    if (st.type === 'teams') {
+      // Team Versus: red and blue lists, each with a button to move over
+      const team = t => {
+        const list = r.players.filter(p => p.team === t);
+        const mine = me && me.team === t;
+        return h(`div.mp-team.${t ? 'blue' : 'red'}`, h('div.mp-team-h', h('span', t ? 'Blue team' : 'Red team'), h('span.muted', `${list.length}`), h('span.grow'),
+          mine || !me ? null : h('button.btn.sm.mp-team-join', { onclick: () => { UISounds.click(); Multiplayer.setTeam(t); } }, 'Join')), ...list.map(slot));
+      };
+      clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), h('div.mp-teams', team(0), team(1)), open));
+    } else clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), ...r.players.map(slot), open));
 
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    const allReady = r.players.length === 2 && r.players.every(p => p.ready && p.hasMap);
+    const allReady = r.players.length >= 2 && r.players.every(p => p.ready && p.hasMap);
     const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
       disabled: !r.map || !me || !me.hasMap,
       onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
     }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Both players must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
+    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
     clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
   },
 
@@ -552,14 +640,171 @@ const MultiplayerScreen = {
     if (scroll) this.chatList.scrollTop = this.chatList.scrollHeight;
   },
   resultsPanel(res) {
-    const meId = Multiplayer.me;
-    const verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
-    const row = x => h(`div.mp-res-row${x.id === res.winner ? '.win' : ''}`,
+    const meId = Multiplayer.me, mine = res.rows.find(x => x.id === meId);
+    const WIN = { pp: 'pp', score: 'score', accuracy: 'accuracy', combo: 'max combo' };
+    const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+    let verdict, cls;
+    if (res.teams) {
+      const my = mine ? mine.team : null;
+      verdict = res.winnerTeam === null ? 'Draw' : res.winnerTeam === my ? 'Your team wins!' : my == null ? `${res.winnerTeam ? 'Blue' : 'Red'} team wins` : 'Your team lost';
+      cls = res.winnerTeam === null ? 'draw' : res.winnerTeam === my ? 'won' : 'lost';
+    } else if (res.rows.length > 2 && mine) {
+      verdict = mine.place === 1 && res.winner === meId ? 'You win!' : `You placed ${ord(mine.place)}`;
+      cls = mine.place === 1 ? 'won' : mine.place <= Math.ceil(res.rows.length / 2) ? 'draw' : 'lost';
+    } else {
+      verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
+      cls = res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost';
+    }
+    const val = x => res.win === 'score' ? fmtScore(x.score) : res.win === 'accuracy' ? fmtAcc(x.accuracy) : res.win === 'combo' ? `${fmtInt(x.maxCombo)}x` : `${fmtInt(x.pp || 0)}pp`;
+    const row = x => h(`div.mp-res-row${x.id === res.winner || (res.teams && x.team === res.winnerTeam) ? '.win' : ''}${x.team === 0 ? '.red' : x.team === 1 ? '.blue' : ''}`,
+      res.rows.length > 2 || res.teams ? h('span.mp-res-place', `#${x.place || '–'}`) : null,
       x.pending ? h('span.grade', '—') : rankPill(x.forfeit ? 'F' : x.grade || 'D'),
       h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtScore(x.score)} · ${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
-      h('div.mp-res-score', `${fmtInt(x.pp || 0)}pp`));
-    return h(`div.mp-results.${res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost'}`,
+      x.points != null ? h('span.mp-res-pts', `+${x.points}`) : null,
+      h('div.mp-res-score', val(x)));
+    const fmtT = v => res.win === 'score' ? fmtScore(v) : res.win === 'accuracy' ? fmtAcc(v) : res.win === 'combo' ? `${fmtInt(v)}x` : `${fmtInt(v)}pp`;
+    const teamBar = res.teams ? h('div.mp-res-teams', h('span.red', 'Red ', h('b', fmtT(res.teams[0].total))), h('span.muted', `by ${WIN[res.win] || 'pp'}`), h('span.blue', h('b', fmtT(res.teams[1].total)), ' Blue')) : null;
+    return h(`div.mp-results.${cls}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
-      ...res.rows.map(row));
+      teamBar, ...res.rows.map(row));
+  },
+
+  /** Match settings (osu!lazer's MatchSettingsOverlay, host only): match type, win condition, room size, queue mode.
+   *  Every change goes to the room straight away. */
+  openSettings() {
+    const r = Multiplayer.room;
+    if (!r) return;
+    const body = h('div.mp-set');
+    const seg = (label, key, opts) => {
+      const cur = (Multiplayer.room.settings || {})[key];
+      return h('div.mp-set-row', h('div.mp-set-l', label), h('div.mp-seg', ...opts.map(([v, t, sub]) => h(`button.mp-seg-b${cur === v ? '.on' : ''}`, {
+        onclick: () => { UISounds.click(); Multiplayer.setSettings({ [key]: v }); } }, h('b', t), sub ? h('small', sub) : null))));
+    };
+    const paint = () => {
+      if (!Multiplayer.room) return;
+      const st = Multiplayer.room.settings || {};
+      const size = h('select.select', { 'aria-label': 'Room size' }, ...[2, 3, 4, 5, 6, 7, 8].map(n => h('option', { value: n, selected: n === st.size, disabled: n < Multiplayer.room.players.length }, `${n} players`)));
+      size.addEventListener('change', () => { UISounds.click(); Multiplayer.setSettings({ size: +size.value }); });
+      size.addEventListener('keydown', e => e.stopPropagation());
+      clearEl(body).append(
+        seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, totals win']]),
+        seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
+        seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
+        h('div.mp-set-row', h('div.mp-set-l', 'Room size'), size));
+    };
+    paint();
+    const off = Bus.on('mp:changed', paint);
+    const o = Dialog.custom('Match settings', body, [{ label: 'Done' }]);
+    const close = o.close; o.close = () => { off(); close(); };
+  },
+
+  // ── Quick Play: one screen that follows the round (lobby → pool → pick → roulette → load → play → standings)
+  refreshQP() {
+    const r = Multiplayer.room, q = r.qp;
+    const PH = { gather: 'Waiting for players', pool: 'Preparing beatmaps', pick: 'Pick a beatmap', reveal: 'Rolling…', load: 'Getting ready', playing: 'Match in progress', standings: 'Round results', final: 'Final standings' };
+    this.qpTimer = h('span.qp-timer');
+    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
+    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `Quick Play · ${q.keys}K`), h('div.mp-room-code.qp-round', q.phase === 'gather' ? 'Lobby' : q.phase === 'final' ? 'Finished' : `Round ${q.round} / ${q.rounds}`)),
+      reconnecting, h('div.grow'), h('div.qp-phase', PH[q.phase] || '', this.qpTimer)].filter(Boolean));
+    const key = `${q.round}|${q.phase}`;
+    if (this._qpKey !== key || !this.qpStage || !this.qpStage.isConnected) {
+      this._qpKey = key;
+      this.qpStage = h(`div.qp-stage.${q.phase}`);
+      clearEl(this.mapEl).append(this.qpStage);
+      this.qpBuild(r);
+    } else this.qpUpdate(r);
+    // standings, with this round's points while its results are up
+    const res = Multiplayer.lastResults && Multiplayer.lastResults.qp && Multiplayer.lastResults.qp.round === q.round ? Multiplayer.lastResults : null;
+    const gained = res && (q.phase === 'standings' || q.phase === 'final') ? Object.fromEntries(res.rows.map(x => [x.id, x.points])) : {};
+    const list = r.players.map(p => ({ ...p, points: q.points[p.id] || 0 })).sort((a, b) => b.points - a.points);
+    clearEl(this.playersEl).append(h('div.mp-players.qp-standings', h('h3', 'Standings'), ...list.map((p, i) => h(`div.qp-st-row${p.id === Multiplayer.me ? '.me' : ''}`,
+      h('span.qp-st-pos', `#${i + 1}`), h('span.qp-av', (p.name || '?').slice(0, 1).toUpperCase()), h('span.qp-st-name', p.name, p.id === Multiplayer.me ? h('span.muted', ' (you)') : null),
+      gained[p.id] != null ? h('span.qp-st-gain', `+${gained[p.id]}`) : null, h('span.qp-st-pts', `${p.points}`, h('small', ' pts'))))));
+    clearEl(this.resEl);
+    if (res && q.phase === 'standings') this.resEl.append(this.resultsPanel(res));
+    const again = h('button.mp-start.qp-again', { onclick: () => { UISounds.click(); const k = q.keys; Multiplayer.leave(true); this.render(); Multiplayer.quickPlay(k).catch(e => Toast.err('Couldn\'t find a lobby', e.message)).finally(() => this.render()); } }, 'Queue again');
+    const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
+    clearEl(this.footEl).append(...(q.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', q.phase === 'gather' ? 'The first round starts once enough players are in.' : 'Leaving forfeits the rest of the match.'), h('div.grow')]));
+    this.qpTick();
+  },
+  /** The per-second countdown in the header (and the pick timer bar). */
+  qpTick() {
+    const left = Math.max(0, (Multiplayer.qpEndAt - performance.now()) / 1000);
+    if (this.qpTimer && this.qpTimer.isConnected) this.qpTimer.textContent = Multiplayer.qpEndAt && left > 0 ? `${Math.ceil(left)}s` : '';
+  },
+  qpCard(m, i) {
+    const local = Multiplayer.localMap(m);
+    const bg = h('div.qp-card-bg');
+    if (m.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
+    else if (local) BeatmapManager.bgURL(local).then(u => u && (bg.style.backgroundImage = `url("${u}")`));
+    const len = m.length > 0 ? `${Math.floor(m.length / 60000)}:${String(Math.floor(m.length / 1000) % 60).padStart(2, '0')}` : '';
+    return h('button.qp-card', { 'data-i': i, onclick: () => { if (Multiplayer.room && Multiplayer.room.qp.phase === 'pick') { UISounds.click(); Multiplayer.pick(i); } } }, bg,
+      h('div.qp-card-body', h('div.qp-card-top', starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), len ? h('span.qp-len', len) : null),
+        h('div.qp-card-t', m.title), h('div.qp-card-a', m.artist), h('div.qp-card-v', m.version)),
+      h('div.qp-pickers'));
+  },
+  qpBuild(r) {
+    const q = r.qp, st = this.qpStage;
+    if (q.phase === 'pick' || q.phase === 'reveal') {
+      this.qpCards = (q.pool || []).map((m, i) => this.qpCard(m, i));
+      st.append(h('div.qp-hint', q.phase === 'pick' ? 'Pick the beatmap you want to play — a roulette chooses between everyone\'s picks.' : 'Rolling between everyone\'s picks…'), h('div.qp-grid', ...this.qpCards));
+      this.qpUpdate(r);
+      if (q.phase === 'reveal') this.qpRoulette(q);
+      return;
+    }
+    this.qpUpdate(r);
+  },
+  qpUpdate(r) {
+    const q = r.qp, st = this.qpStage, me = Multiplayer.me;
+    if (q.phase === 'pick' || q.phase === 'reveal') {
+      (this.qpCards || []).forEach((c, i) => {
+        const who = r.players.filter(p => q.picks[p.id] === i);
+        c.classList.toggle('mine', q.picks[me] === i);
+        c.classList.toggle('picked', who.length > 0);
+        clearEl(c.querySelector('.qp-pickers')).append(...who.map(p => h('span.qp-av', { title: p.name }, (p.name || '?').slice(0, 1).toUpperCase())));
+      });
+      return;
+    }
+    const n = r.players.length;
+    const avatars = h('div.qp-avatars', ...r.players.map(p => h(`span.qp-av.lg${p.id === me ? '.me' : ''}`, { title: p.name }, (p.name || '?').slice(0, 1).toUpperCase())));
+    if (q.phase === 'gather') {
+      clearEl(st).append(h('div.qp-big', h('span.spinner'), n < 2 ? 'Looking for players…' : 'Starting soon'),
+        h('div.qp-sub', `${n} of 8 in the lobby${n < 2 ? ' — the countdown starts when someone else joins' : ''}`), avatars);
+    } else if (q.phase === 'pool') {
+      clearEl(st).append(h('div.qp-big', h('span.spinner'), 'Preparing beatmaps…'), h('div.qp-sub', `${(r.players.find(p => p.id === r.host) || {}).name || 'The host'} is finding ${q.keys}K maps that suit the lobby`));
+    } else if (q.phase === 'load' || q.phase === 'playing') {
+      const m = r.map, card = m ? this.qpCard(m, q.chosen) : null;
+      if (card) card.classList.add('chosen', 'wide');
+      const f = Multiplayer.fetch;
+      const mineTxt = !m ? '' : Multiplayer.localMap(m) ? 'Ready' : f && f.error ? `Download failed: ${f.error}` : f && f.progress != null ? `Downloading… ${Math.round(f.progress * 100)}%` : 'Getting the beatmap…';
+      clearEl(st).append(card, q.phase === 'playing' ? h('div.qp-big', 'Match in progress') : h('div.qp-sub', mineTxt),
+        h('div.qp-load', ...r.players.map(p => h(`div.qp-load-row${p.hasMap ? '.ok' : ''}`, h('span.qp-av', (p.name || '?').slice(0, 1).toUpperCase()), h('span', p.name), h('span.grow'), h('span.qp-load-st', q.phase === 'playing' ? (p.playing ? 'Playing' : 'Sitting out') : p.hasMap ? 'Ready' : 'Downloading…')))));
+    } else if (q.phase === 'standings') {
+      clearEl(st).append(h('div.qp-big', q.round >= q.rounds ? 'Last round done!' : `Round ${q.round} done`), h('div.qp-sub', q.round >= q.rounds ? 'Final standings in a moment…' : 'The next round starts in a moment.'));
+    } else if (q.phase === 'final') {
+      const list = r.players.map(p => ({ ...p, points: q.points[p.id] || 0 })).sort((a, b) => b.points - a.points);
+      const myPlace = list.findIndex(p => p.id === me) + 1;
+      const step = (p, place) => p ? h(`div.qp-podium-step.p${place}${p.id === me ? '.me' : ''}`, h('span.qp-av.lg', (p.name || '?').slice(0, 1).toUpperCase()), h('b', p.name), h('span', `${p.points} pts`), h('div.qp-podium-block', `${place}`)) : h('div.qp-podium-step.empty');
+      clearEl(st).append(h('div.qp-big', myPlace === 1 ? 'You won Quick Play!' : myPlace ? `You finished #${myPlace}` : 'Quick Play is over'),
+        h('div.qp-podium', step(list[1], 2), step(list[0], 1), step(list[2], 3)));
+    }
+  },
+  /** lazer's roulette: the highlight runs across the picked maps, slowing down until it lands on the chosen one. */
+  qpRoulette(q) {
+    const cards = this.qpCards || [];
+    const cand = [...new Set(Object.values(q.picks))].sort((a, b) => a - b);
+    const list = cand.length ? cand : cards.map((_, i) => i);
+    const steps = list.length > 1 ? 16 + list.length : 1;
+    const at = list.indexOf(q.chosen), start = ((at - (steps - 1)) % list.length + list.length * 64) % list.length;
+    let n = 0;
+    const tok = this._qpRoll = {};
+    const step = () => {
+      if (this._qpRoll !== tok || !cards.length || !cards[0].isConnected) return;
+      const i = list[(start + n) % list.length];
+      cards.forEach((c, k) => c.classList.toggle('hl', k === i));
+      if (++n < steps) { UISounds.hover(); setTimeout(step, 55 + 360 * (n / steps) ** 2.4); }
+      else { cards[q.chosen] && cards[q.chosen].classList.add('chosen'); UISounds.play('check-on'); }
+    };
+    step();
   },
 };

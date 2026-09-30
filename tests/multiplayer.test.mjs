@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET } from '../worker/multiplayer.js';
+import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS } from '../worker/multiplayer.js';
 
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
@@ -44,12 +44,15 @@ test('room codes use the unambiguous alphabet', () => {
 test('joining: create vs join, full rooms, host', () => {
   const r = new RoomLogic('X');
   assert.equal(r.join('b', 'Bob', false).ok, false, 'cannot join a room nobody created');
-  const a = r.join('a', 'Alice', true);
+  const a = r.join('a', 'Alice', true, { size: 2 }); // a quick 1v1 match opens a room for two
   assert.ok(a.ok);
   assert.equal(msgs(a.out, 'welcome')[0].to, 'a');
-  assert.ok(r.join('b', 'Bob', false).ok);
+  assert.ok(r.join('b', 'Bob', false, { size: 8 }).ok, 'only the opener sets the room up');
   assert.equal(r.join('c', 'Cat', false).error, 'This room is full.');
   assert.equal(r.hostId, 'a');
+  const big = new RoomLogic('Y');
+  for (let i = 0; i < 8; i++) assert.ok(big.join('p' + i, 'P' + i, i === 0).ok);
+  assert.equal(big.join('p9', 'Late', false).error, 'This room is full.', 'rooms hold up to 8');
 });
 
 test('map selection is host-only, strips Auto and resets ready', () => {
@@ -216,4 +219,152 @@ test('the intro is skipped only when every player votes', () => {
   assert.deepEqual(r.message('a', { t: 'skip' }), []);
   assert.equal(r.message('b', { t: 'skip' })[0].msg.t, 'skip');
   assert.deepEqual(r.message('b', { t: 'skip' }), []);
+});
+
+const fin = (r, id, res) => r.message(id, { t: 'finish', result: { passed: true, grade: 'A', ...res } });
+function bigRoom(n, clock = { t: 0 }) {
+  const r = new RoomLogic('ROOM', () => clock.t);
+  for (let i = 0; i < n; i++) r.join('p' + i, 'P' + i, i === 0);
+  r.message('p0', { t: 'map', map: MAP });
+  for (let i = 0; i < n; i++) { r.message('p' + i, { t: 'hasMap', has: true }); r.message('p' + i, { t: 'ready', ready: true }); }
+  return r;
+}
+
+test('room settings are the host\'s; win conditions rank by pp, score, accuracy or max combo with placements', () => {
+  const r = bigRoom(3);
+  assert.deepEqual(r.message('p1', { t: 'settings', settings: { win: 'score' } }), [], 'host only');
+  const out = r.message('p0', { t: 'settings', settings: { win: 'accuracy', size: 1, queue: 'bogus' } });
+  assert.equal(r.settings.win, 'accuracy');
+  assert.equal(r.settings.size, 3, 'never smaller than the players already in');
+  assert.equal(r.settings.queue, 'host');
+  assert.match(msgs(out, 'chat')[0].msg.text, /win by accuracy/);
+  assert.ok(r.players.every(p => !p.ready), 'changing the rules un-readies everyone');
+  for (const p of r.players) r.message(p.id, { t: 'ready', ready: true });
+  r.message('p0', { t: 'start' });
+  fin(r, 'p0', { score: 900000, accuracy: 0.95, pp: 200, maxCombo: 500 });
+  fin(r, 'p1', { score: 800000, accuracy: 0.99, pp: 100, maxCombo: 100 });
+  const res = msgs(fin(r, 'p2', { score: 700000, accuracy: 0.99, pp: 90, maxCombo: 50 }), 'results')[0].msg.results;
+  assert.deepEqual(res.rows.map(x => [x.id, x.place]), [['p1', 1], ['p2', 2], ['p0', 3]], 'equal accuracy: score breaks the tie');
+  assert.equal(res.winner, 'p1');
+  assert.equal(res.win, 'accuracy');
+});
+
+test('Team Versus: balanced teams, switching, team totals decide the winner', () => {
+  const r = bigRoom(4);
+  r.message('p0', { t: 'settings', settings: { type: 'teams', win: 'score' } });
+  assert.deepEqual(r.players.map(p => p.team), [0, 1, 0, 1]);
+  r.join('p4', 'P4', false);
+  assert.equal(r.get('p4').team, 0, 'newcomers join the smaller team (red first)');
+  r.message('p4', { t: 'team', team: 1 });
+  assert.equal(r.get('p4').team, 1);
+  r.leave('p4');
+  for (const p of r.players) { r.message(p.id, { t: 'ready', ready: true }); }
+  r.message('p0', { t: 'start' });
+  fin(r, 'p0', { score: 900000 }); fin(r, 'p2', { score: 100000 }); // red 1,000,000
+  fin(r, 'p1', { score: 600000 });
+  const res = msgs(fin(r, 'p3', { score: 500000 }), 'results')[0].msg.results; // blue 1,100,000
+  assert.deepEqual(res.teams.map(t => t.total), [1000000, 1100000]);
+  assert.equal(res.winnerTeam, 1);
+  assert.equal(res.winner, null);
+  assert.equal(res.rows[0].id, 'p0', 'individual placements still listed');
+  r.message('p0', { t: 'settings', settings: { type: 'h2h' } });
+  assert.ok(r.players.every(p => p.team === null));
+});
+
+test('host rotation passes the host to the next player after each match', () => {
+  const r = bigRoom(3);
+  r.message('p0', { t: 'settings', settings: { queue: 'rotate' } });
+  for (const p of r.players) r.message(p.id, { t: 'ready', ready: true });
+  r.message('p0', { t: 'start' });
+  for (const p of r.players) fin(r, p.id, { score: 1 });
+  assert.equal(r.hostId, 'p1');
+});
+
+test('a match with more players ends when everyone still in has finished', () => {
+  const r = bigRoom(3);
+  r.message('p0', { t: 'start' });
+  fin(r, 'p0', { score: 5, pp: 5 });
+  assert.equal(msgs(r.leave('p1'), 'results').length, 0, 'p2 still playing');
+  const res = msgs(fin(r, 'p2', { score: 9, pp: 9 }), 'results')[0].msg.results;
+  assert.deepEqual(res.rows.map(x => x.id), ['p2', 'p0', 'p1']);
+  assert.ok(res.rows[2].forfeit && res.rows[2].left);
+});
+
+test('Quick Play: gather, pool, picks, roulette, load, play, points, rounds and the final', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('QP', () => clock.t, () => 0.99);
+  r.join('a', 'Alice', true, { mode: 'qp', keys: 7, sr: 3 });
+  assert.equal(r.snapshot().mode, 'qp');
+  assert.equal(r.qp.keys, 7);
+  assert.equal(r.qp.deadline, 0, 'alone: no countdown');
+  r.join('b', 'Bob', false, { sr: 5 });
+  assert.equal(r.qp.deadline, QP.GATHER);
+  assert.deepEqual(r.message('a', { t: 'map', map: MAP }), [], 'no host picks in Quick Play');
+  clock.t = QP.GATHER;
+  let out = r.tick();
+  const ask = msgs(out, 'qpPool')[0];
+  assert.equal(ask.to, 'a');
+  assert.deepEqual([ask.msg.round, ask.msg.keys], [1, 7]);
+  assert.ok(ask.msg.sr >= 3 && ask.msg.sr <= 5);
+  assert.equal(r.qp.round, 1);
+  assert.deepEqual(r.message('b', { t: 'pool', maps: [MAP] }), [], 'only the host sends the pool');
+  const pool = [MAP, { ...MAP, hash: '', title: 'Online', onlineSetId: 7, onlineId: 70 }, { title: 'bad' }];
+  r.message('a', { t: 'pool', maps: pool });
+  assert.equal(r.qp.phase, 'pick');
+  assert.equal(r.qp.pool.length, 2, 'invalid entries dropped');
+  assert.deepEqual(r.message('a', { t: 'pick', i: 9 }), []);
+  r.message('a', { t: 'pick', i: 0 });
+  r.message('b', { t: 'pick', i: 1 });
+  assert.ok(r.qp.deadline <= clock.t + 1500, 'everyone picked: spin soon');
+  clock.t += 1500; r.tick();
+  assert.equal(r.qp.phase, 'reveal');
+  assert.equal(r.qp.chosen, 1, 'lands on one of the picked maps');
+  assert.equal(r.map.title, 'Online');
+  clock.t += QP.REVEAL; r.tick();
+  assert.equal(r.qp.phase, 'load');
+  r.message('a', { t: 'hasMap', has: true });
+  assert.equal(r.state, 'lobby', 'waits for everyone to have the map');
+  out = r.message('b', { t: 'hasMap', has: true });
+  const st = msgs(out, 'start')[0].msg;
+  assert.deepEqual(st.players, ['a', 'b']);
+  assert.deepEqual(st.playerMods, {});
+  fin(r, 'a', { score: 700000 });
+  const res = msgs(fin(r, 'b', { score: 900000 }), 'results')[0].msg.results;
+  assert.deepEqual(res.rows.map(x => [x.id, x.points]), [['b', QP_POINTS[0]], ['a', QP_POINTS[1]]], 'Quick Play is won on score');
+  assert.equal(res.qp.round, 1);
+  assert.equal(r.qp.phase, 'standings');
+  // round 2: the host never sends a pool → the next player is asked
+  clock.t += QP.STANDINGS; out = r.tick();
+  assert.equal(r.qp.round, 2);
+  clock.t += QP.POOL; out = r.tick();
+  assert.equal(msgs(out, 'qpPool')[0].to, 'b');
+  assert.equal(r.hostId, 'b');
+  r.message('b', { t: 'pool', maps: [MAP] });
+  clock.t += QP.PICK; r.tick(); // nobody picked: any map in the pool
+  assert.equal(r.qp.chosen, 0);
+  clock.t += QP.REVEAL; r.tick();
+  r.message('a', { t: 'hasMap', has: true });
+  clock.t += QP.LOAD; out = r.tick(); // b never got it: a plays alone
+  assert.deepEqual(msgs(out, 'start')[0].msg.players, ['a']);
+  assert.match(msgs(out, 'chat')[0].msg.text, /Bob couldn't load/);
+  fin(r, 'a', { score: 1 });
+  assert.deepEqual(r.snapshot().qp.points, { a: QP_POINTS[1] + QP_POINTS[0], b: QP_POINTS[0] });
+  // late arrivals are turned away once it has started
+  assert.equal(r.join('c', 'Cat', false).ok, false);
+  // play out the remaining rounds quickly: the final
+  r.qp.round = r.qp.rounds;
+  clock.t += QP.STANDINGS; out = r.tick();
+  assert.equal(r.qp.phase, 'final');
+  assert.match(msgs(out, 'chat')[0].msg.text, /Alice wins with 14 points/);
+});
+
+test('Quick Play: a full lobby starts almost at once; everyone else leaving ends it', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('QP', () => clock.t);
+  for (let i = 0; i < 8; i++) r.join('p' + i, 'P' + i, i === 0, { mode: 'qp' });
+  assert.equal(r.qp.deadline, QP.FULL);
+  clock.t = QP.FULL; r.tick();
+  assert.equal(r.qp.phase, 'pool');
+  for (let i = 1; i < 8; i++) r.leave('p' + i);
+  assert.equal(r.qp.phase, 'final');
 });
