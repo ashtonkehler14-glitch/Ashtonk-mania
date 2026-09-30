@@ -97,6 +97,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
   // ── Input
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
+  { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },

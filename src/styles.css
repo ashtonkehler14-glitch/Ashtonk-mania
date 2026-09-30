@@ -1259,3 +1259,11 @@ div.res-calib .i { color: var(--good); }
 /* results: share card preview */
 .share-card { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0, 0, 0, .4); }
 .dialog:has(.share-card) { width: min(780px, calc(100vw - 32px)); }
+/* keyboard shortcuts list */
+.dialog:has(.shortcuts) { width: min(860px, calc(100vw - 32px)); }
+.shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 6px 28px; color: var(--text); }
+.sc-group h3 { margin: 12px 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-3, var(--accent)); }
+.sc-row { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
+.sc-keys { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: baseline; }
+.sc-keys .muted { font-size: .78rem; }
+.sc-what { color: var(--text-2); }

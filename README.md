@@ -37,6 +37,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Plays offline**: once the game has been opened, a service worker keeps it, so it opens and plays your library with no connection. Online, the page is always fetched fresh first, so a new deploy still shows up on the next load. Searches, downloads and multiplayer (`/api/*`) are never cached.
 * **Open beatmaps with it**: the installed app is registered for `.osz`, `.osk` and `.amr` files; opening one (for example by double-clicking in the ChromeOS Files app) imports it.
 
+### Keyboard shortcuts list
+
+* Press **?** anywhere outside a text field (or **Settings → Input → Keyboard shortcuts**) for every shortcut in one place: anywhere, main menu, song select, playing, practice, watching replays and results.
+
 ### Replay controls
 
 * **Watch replays (and Auto) like osu!lazer's replay player**: a bar at the bottom (it appears when you move the mouse) with a timeline showing the note density.

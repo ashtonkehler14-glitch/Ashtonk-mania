@@ -496,6 +496,10 @@ await waitBoot();
 const after = await page.evaluate(() => ({ scores: AshtonkMania.ScoreManager.scores.length, sets: AshtonkMania.BeatmapManager.sets.length, fav: AshtonkMania.Favorites.set.size, skin: AshtonkMania.SkinManager.current.id, replays: AshtonkMania.ReplayManager.list.length, speed: AshtonkMania.Settings.get('gameplay.scrollSpeed') }));
 check('scores, beatmaps, favorites, replays and skin survive refresh', JSON.stringify({ ...after, speed: undefined }) === JSON.stringify({ ...before, speed: undefined }) && before.scores > 0, JSON.stringify(after));
 check('settings survive refresh', after.speed === 27);
+await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+await page.keyboard.press('Shift+Slash'); await page.waitForTimeout(300);
+check('? opens the keyboard shortcuts list (every screen\'s keys in one place)', await page.evaluate(() => document.querySelectorAll('.shortcuts .sc-group').length >= 6 && /Retry/.test(document.querySelector('.shortcuts').textContent)));
+await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 await shot('13-home-after-reload');
 
 // responsiveness: 720p and ultrawide

@@ -158,6 +158,7 @@ const App = {
     if (Screens.current === GameplayScreen) return; // gameplay handles its own input (capture listener)
     if (top) return;
     const inField = e.target.closest && e.target.closest('input, textarea, select');
+    if (e.key === '?' && !inField && !e.ctrlKey && !e.altKey) { e.preventDefault(); Shortcuts.open(); return; }
     if (Screens.current && Screens.current.onKey && Screens.current.onKey(e)) { e.preventDefault(); return; }
     if (inField) return;
     if (e.key === 'Escape') { e.preventDefault(); Screens.back(); return; }

@@ -132,6 +132,7 @@ const SettingsPanel = {
         break;
       }
       case 'data': row = h('div.set-row.col', lbl, DataPanel.build()); break;
+      case 'shortcuts': row = h('div.set-row', lbl, h('div.ctl', h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all'))); break;
       case 'mascot': row = h('div.set-row', lbl, h('div.ctl',
         h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
         h('button.btn.sm.ghost', { onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
@@ -280,6 +281,43 @@ const Calibration = {
     ]);
     const origClose = o.close;
     o.close = () => { stopped = true; window.removeEventListener('keydown', kd, true); origClose(); };
+  },
+};
+
+// ─────────────────────────────── Keyboard shortcuts ───────────────────────────────
+/** Every shortcut in one place (press ? anywhere outside a text field, or Settings → Input). */
+const Shortcuts = {
+  // keys: each entry is a key cap; "~text" is plain text between them
+  GROUPS: [
+    ['Anywhere', [
+      [['Ctrl', 'O'], 'Settings'], [['Esc'], 'Back / close'], [['Alt', 'Enter'], 'Fullscreen'],
+      [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
+    ['Main menu', [
+      [['P'], 'Play'], [['S', 'M', 'P'], 'Solo, Multi, Practice (after Play)'], [['B'], 'Browse beatmaps online'],
+      [['U'], 'Profile'], [['O'], 'Settings'], [['←', '→', 'Enter'], 'Move and press']]],
+    ['Song select', [
+      [['~type'], 'Search — filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30'], [['↑', '↓'], 'Difficulty'], [['←', '→'], 'Beatmap set'],
+      [['PgUp', 'PgDn'], 'Jump 5 sets'], [['Enter'], 'Play'], [['Ctrl', 'Enter'], 'Watch Auto'], [['F1'], 'Mods (each has a letter; Backspace clears)'],
+      [['F2'], 'Random'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set']]],
+    ['Playing', [
+      [['~your lane keys'], 'Settings → Input → Key configuration'], [['Esc'], 'Pause'], [['~hold', 'R', '~or', '`'], 'Retry'],
+      [['Space'], 'Skip the intro'], [['Tab'], 'Leaderboard on / off'], [['Shift', 'Tab'], 'Hide the HUD'], [['F3', 'F4', '~or', 'Ctrl', '−', '+'], 'Scroll speed']]],
+    ['Practice', [
+      [['[', ']'], 'Loop start / end'], [['\\'], 'Clear the loop'], [['Backspace'], 'Restart the section'], [['−', '='], 'Audio offset −5 / +5 ms'], [['←', '→'], 'Seek 5 seconds']]],
+    ['Watching a replay or Auto', [
+      [['Space'], 'Pause / play'], [['←', '→'], 'Seek 5 seconds'], [['↓', '↑'], 'Playback speed'], [['Esc'], 'Pause menu']]],
+    ['Results', [
+      [['R', 'Enter', 'Space'], 'Retry'], [['Esc'], 'Back to song select']]],
+  ],
+  open() {
+    if (this.o) return;
+    UISounds.click();
+    const keys = list => h('span.sc-keys', ...list.map(k => k[0] === '~' ? h('span.muted', k.slice(1)) : h('span.kbd', k)));
+    const body = h('div.shortcuts', ...this.GROUPS.map(([title, rows]) => h('div.sc-group', h('h3', title),
+      ...rows.map(([k, what]) => h('div.sc-row', keys(k), h('span.sc-what', what))))));
+    this.o = Dialog.custom('Keyboard shortcuts', body, [{ label: 'Close', primary: true }]);
+    const close = this.o.close;
+    this.o.close = () => { this.o = null; close(); };
   },
 };
 
