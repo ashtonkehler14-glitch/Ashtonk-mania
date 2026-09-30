@@ -28,6 +28,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ### osu!lazer dialogs, notifications, menus and mod select
 
+* **Tooltips are lazer's**: a dark grey box with rounded corners that follows the mouse. The first one waits a moment, and moving to the next button shows its tooltip straight away. The browser's own yellow tooltips no longer appear.
+* **Basic controls follow lazer everywhere**: thin rounded grey scrollbars that turn white on hover; text boxes with an italic placeholder and a yellow outline while typing (the page's colour inside a page); buttons with 5px corners and bold text; switches and slider handles drawn as lazer's white-bordered "nub" pills.
 * **Dialogs are lazer's popup dialogs**: a dark plum box with faint triangles and a white icon ring (trash for deletions, a pencil for names, a question mark otherwise). Under the title and text sit big slanted buttons that widen and glow at the sides when hovered: pink to confirm, blue to cancel, red for anything destructive.
 * **Notifications drop in at the top right**, under the toolbar, like lazer's toasts. Each has an icon column and a glowing light on the left edge: blue for info, green for success, red for errors.
 * **Right-click menus** use lazer's dark teal-grey context menu. Items go bold when hovered, and "Delete" shows in red.

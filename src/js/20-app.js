@@ -28,6 +28,7 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    Tooltip.init();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);

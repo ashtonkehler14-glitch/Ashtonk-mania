@@ -1685,6 +1685,37 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .mp-results .rank-pill { flex: none; }
 .mp.ov .mp-footer { padding-right: 34px; }
 
+/* ── osu!lazer basic controls, everywhere */
+/* OsuTooltipContainer: Gray3 at 90%, 5px corners, regular 14px text, a soft shadow; it follows the cursor */
+.lz-tip { position: fixed; left: 0; top: 0; z-index: 200; max-width: 500px; padding: 5px 9px; border-radius: 5px; background: rgba(51, 51, 51, .9); color: #fff; font-size: .875rem; font-weight: 400; line-height: 1.35; white-space: pre-line; box-shadow: 0 2px 10px rgba(0, 0, 0, .16); pointer-events: none; opacity: 0; transition: opacity 150ms; }
+.lz-tip.show { opacity: 1; }
+/* OsuScrollContainer: a 10px rounded scrollbar (3px margin), grey, white on hover */
+* { scrollbar-width: thin; scrollbar-color: #888 transparent; }
+::-webkit-scrollbar { width: 16px; height: 16px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 8px; background: #888 padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #fff padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+/* OsuTextBox: 5px corners, a dark field, an italic grey placeholder and a 3px yellow border while typing
+   (the overlay's Highlight1 inside overlays) */
+.input { border-radius: 5px; background-color: rgba(0, 0, 0, .5); }
+.input::placeholder { font-style: italic; color: #b4b4b4; opacity: 1; }
+.input:focus { border-color: #ffcc22; box-shadow: 0 0 0 2px #ffcc22; }
+.ov .input:focus, .settings-panel .input:focus, .setup .input:focus { border-color: var(--ohl, hsl(var(--o-h, 255) 100% 70%)); box-shadow: 0 0 0 2px var(--ohl, hsl(var(--o-h, 255) 100% 70%)); }
+.settings-panel .fsel .input:focus { box-shadow: none; }
+/* OsuButton: 5px corners, bold text */
+.btn { border-radius: 5px; font-weight: 700; }
+.btn.sm { border-radius: 5px; }
+/* Nub (lazer's checkbox / switch outside settings): a 15px-tall pill with a 3px border, filled with the accent when on */
+.toggle { width: 42px; height: 18px; border-radius: 9px; background: transparent; box-shadow: inset 0 0 0 3px #fff; }
+.toggle::after { content: none; }
+.toggle.on { background: var(--accent); box-shadow: inset 0 0 0 3px #fff, 0 0 10px rgba(var(--accent-rgb), .6); }
+/* OsuSliderBar: a thin bar (accent on the left, dimmed on the right) and a nub pill with a white 3px border */
+input[type=range].slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) var(--p), rgba(var(--accent-rgb), .3) var(--p)); }
+input[type=range].slider::-webkit-slider-thumb { width: 26px; height: 15px; margin-top: -5.5px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), .5); }
+input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); }
+.settings-panel .toggle::after { content: ""; }
+
 </style>
 </head>
 <body>
@@ -6041,6 +6072,40 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** osu!lazer's tooltips (OsuTooltipContainer): a dark grey box with 5px corners following the cursor. Elements keep
+ *  using the plain `title` attribute; on first hover it moves to data-tip so the browser's own tooltip never shows.
+ *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */
+const Tooltip = {
+  init() {
+    this.el = h('div.lz-tip', { role: 'tooltip' });
+    document.body.appendChild(this.el);
+    document.addEventListener('pointerover', e => {
+      const t = e.target.closest && e.target.closest('[title], [data-tip]');
+      if (t === this.cur) return;
+      clearTimeout(this._t);
+      this.cur = t;
+      if (!t) { this.hide(); return; }
+      if (t.hasAttribute('title')) { const v = t.getAttribute('title'); if (v) t.dataset.tip = v; t.removeAttribute('title'); }
+      const tip = t.dataset.tip;
+      if (!tip || e.pointerType === 'touch' || document.getElementById('app').classList.contains('in-game')) { this.hide(); return; }
+      const show = () => { this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
+      if (this.visible) show(); else this._t = setTimeout(show, 450);
+    });
+    document.addEventListener('pointermove', e => { this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    document.addEventListener('pointerleave', () => { this.cur = null; this.hide(); });
+    document.addEventListener('pointerdown', () => { clearTimeout(this._t); this.hide(); }, true);
+    document.addEventListener('keydown', () => this.hide(), true);
+  },
+  hide() { clearTimeout(this._t); if (this.visible) { this.visible = false; this.el.classList.remove('show'); } },
+  place() {
+    const r = this.el.getBoundingClientRect();
+    let x = (this.x || 0) + 14, y = (this.y || 0) + 18;
+    if (x + r.width > innerWidth - 6) x = innerWidth - r.width - 6;
+    if (y + r.height > innerHeight - 6) y = (this.y || 0) - r.height - 10;
+    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  },
+};
+
 /** osu!lazer's rank colours (OsuColour.ForRank) and the ink its rank pills (DrawableRank) write the letter in: gold for
  *  SS / S, silver-blue for their Hidden variants (XH / SH). */
 const RANK_COLOURS = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
@@ -11480,6 +11545,7 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    Tooltip.init();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);

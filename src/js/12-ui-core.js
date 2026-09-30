@@ -99,6 +99,40 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** osu!lazer's tooltips (OsuTooltipContainer): a dark grey box with 5px corners following the cursor. Elements keep
+ *  using the plain `title` attribute; on first hover it moves to data-tip so the browser's own tooltip never shows.
+ *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */
+const Tooltip = {
+  init() {
+    this.el = h('div.lz-tip', { role: 'tooltip' });
+    document.body.appendChild(this.el);
+    document.addEventListener('pointerover', e => {
+      const t = e.target.closest && e.target.closest('[title], [data-tip]');
+      if (t === this.cur) return;
+      clearTimeout(this._t);
+      this.cur = t;
+      if (!t) { this.hide(); return; }
+      if (t.hasAttribute('title')) { const v = t.getAttribute('title'); if (v) t.dataset.tip = v; t.removeAttribute('title'); }
+      const tip = t.dataset.tip;
+      if (!tip || e.pointerType === 'touch' || document.getElementById('app').classList.contains('in-game')) { this.hide(); return; }
+      const show = () => { this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
+      if (this.visible) show(); else this._t = setTimeout(show, 450);
+    });
+    document.addEventListener('pointermove', e => { this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    document.addEventListener('pointerleave', () => { this.cur = null; this.hide(); });
+    document.addEventListener('pointerdown', () => { clearTimeout(this._t); this.hide(); }, true);
+    document.addEventListener('keydown', () => this.hide(), true);
+  },
+  hide() { clearTimeout(this._t); if (this.visible) { this.visible = false; this.el.classList.remove('show'); } },
+  place() {
+    const r = this.el.getBoundingClientRect();
+    let x = (this.x || 0) + 14, y = (this.y || 0) + 18;
+    if (x + r.width > innerWidth - 6) x = innerWidth - r.width - 6;
+    if (y + r.height > innerHeight - 6) y = (this.y || 0) - r.height - 10;
+    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  },
+};
+
 /** osu!lazer's rank colours (OsuColour.ForRank) and the ink its rank pills (DrawableRank) write the letter in: gold for
  *  SS / S, silver-blue for their Hidden variants (XH / SH). */
 const RANK_COLOURS = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
