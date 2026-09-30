@@ -1911,7 +1911,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
-.nf-panel { position: fixed; top: calc(var(--toolbar-h) * var(--zoom-inv, 1)); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
   transform: translateX(105%); transition: transform 300ms var(--ease-out); }
 .nf-panel.open { transform: none; }
 .nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
@@ -1976,3 +1976,28 @@ body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cur
 .dc-empty { margin-top: 24px; padding: 30px; border-radius: 10px; background: rgba(255, 255, 255, .03); text-align: center; color: var(--muted); }
 body.lz-cursor .gameplay:not(.show-cursor), body.lz-cursor .gameplay:not(.show-cursor) * { cursor: none; }
 body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
+
+/* osu!lazer mod icons */
+.mod-icon { display: inline-block; flex: none; line-height: 0; }
+.mod-icon svg { width: 100%; height: 100%; overflow: visible; }
+.mod-icon .mi-bg { fill: var(--mod); }
+.mod-icon .mi-g { fill: none; stroke: rgba(20, 16, 24, .88); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.mod-icon .mi-fill { fill: rgba(20, 16, 24, .88); stroke: none; }
+.mod-icon .mi-t { fill: rgba(20, 16, 24, .88); font-size: 15px; font-weight: 800; }
+.mod-badge { gap: 4px; min-width: 0; height: auto; padding: 0 6px 0 0; border: 0; border-radius: 0; background: none; color: color-mix(in srgb, var(--mod) 55%, white); display: inline-flex; align-items: center; }
+.mod-badge .mb-t { font-size: .68rem; font-weight: 800; letter-spacing: .02em; }
+.mod-badge.small { height: auto; padding-right: 3px; }
+.mod-badge.small .mb-t { font-size: .6rem; }
+.hud-mods .mod-badge { min-width: 0; height: auto; padding: 0; background: none; box-shadow: none; }
+.hud-mods .mod-badge .mb-t { display: none; }
+.pl-mods .mod-badge .mb-t, .rs-mods .mod-badge .mb-t { display: none; }
+.mod-p .mod-ac { background: none !important; }
+.mod-p .mod-ac > .mod-icon { transform: skewX(11.31deg); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
+.mod-p:not(.on) .mod-ac .mi-bg { fill: hsl(var(--o-h) 10% 15%); stroke: var(--mod); stroke-width: 2; }
+.mod-p:not(.on) .mod-ac .mi-g { stroke: var(--mod); }
+.mod-p:not(.on) .mod-ac .mi-fill, .mod-p:not(.on) .mod-ac .mi-t { fill: var(--mod); }
+.mod-p.on .mod-ac .mi-bg { fill: rgba(0, 0, 0, .78); }
+.mod-p.on .mod-ac .mi-g { stroke: var(--mod); } .mod-p.on .mod-ac .mi-fill, .mod-p.on .mod-ac .mi-t { fill: var(--mod); }
+.mod-id { margin-left: 6px; font-size: .7em; font-weight: 700; opacity: .55; }
+body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
+.lz-tip { transform-origin: 0 0; }

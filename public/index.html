@@ -1928,7 +1928,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
-.nf-panel { position: fixed; top: calc(var(--toolbar-h) * var(--zoom-inv, 1)); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
   transform: translateX(105%); transition: transform 300ms var(--ease-out); }
 .nf-panel.open { transform: none; }
 .nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
@@ -1993,6 +1993,31 @@ body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cur
 .dc-empty { margin-top: 24px; padding: 30px; border-radius: 10px; background: rgba(255, 255, 255, .03); text-align: center; color: var(--muted); }
 body.lz-cursor .gameplay:not(.show-cursor), body.lz-cursor .gameplay:not(.show-cursor) * { cursor: none; }
 body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
+
+/* osu!lazer mod icons */
+.mod-icon { display: inline-block; flex: none; line-height: 0; }
+.mod-icon svg { width: 100%; height: 100%; overflow: visible; }
+.mod-icon .mi-bg { fill: var(--mod); }
+.mod-icon .mi-g { fill: none; stroke: rgba(20, 16, 24, .88); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.mod-icon .mi-fill { fill: rgba(20, 16, 24, .88); stroke: none; }
+.mod-icon .mi-t { fill: rgba(20, 16, 24, .88); font-size: 15px; font-weight: 800; }
+.mod-badge { gap: 4px; min-width: 0; height: auto; padding: 0 6px 0 0; border: 0; border-radius: 0; background: none; color: color-mix(in srgb, var(--mod) 55%, white); display: inline-flex; align-items: center; }
+.mod-badge .mb-t { font-size: .68rem; font-weight: 800; letter-spacing: .02em; }
+.mod-badge.small { height: auto; padding-right: 3px; }
+.mod-badge.small .mb-t { font-size: .6rem; }
+.hud-mods .mod-badge { min-width: 0; height: auto; padding: 0; background: none; box-shadow: none; }
+.hud-mods .mod-badge .mb-t { display: none; }
+.pl-mods .mod-badge .mb-t, .rs-mods .mod-badge .mb-t { display: none; }
+.mod-p .mod-ac { background: none !important; }
+.mod-p .mod-ac > .mod-icon { transform: skewX(11.31deg); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
+.mod-p:not(.on) .mod-ac .mi-bg { fill: hsl(var(--o-h) 10% 15%); stroke: var(--mod); stroke-width: 2; }
+.mod-p:not(.on) .mod-ac .mi-g { stroke: var(--mod); }
+.mod-p:not(.on) .mod-ac .mi-fill, .mod-p:not(.on) .mod-ac .mi-t { fill: var(--mod); }
+.mod-p.on .mod-ac .mi-bg { fill: rgba(0, 0, 0, .78); }
+.mod-p.on .mod-ac .mi-g { stroke: var(--mod); } .mod-p.on .mod-ac .mi-fill, .mod-p.on .mod-ac .mi-t { fill: var(--mod); }
+.mod-id { margin-left: 6px; font-size: .7em; font-weight: 700; opacity: .55; }
+body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
+.lz-tip { transform-origin: 0 0; }
 
 </style>
 </head>
@@ -4120,7 +4145,7 @@ const SETTINGS_SCHEMA = [
   // ── Gameplay
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
     fmt: v => `${v} (${Math.round(11485 / v)}ms)`, hint: 'How long notes are visible before reaching the receptors.' },
-  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scroll direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
+  { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollDirection', l: 'Scrolling direction', t: 'select', d: 'down', o: [['down', 'Down'], ['up', 'Up']] },
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollMode', l: 'Scroll speed changes', t: 'select', d: 'sv', o: [['sv', 'SV + BPM'], ['svonly', 'SV only'], ['constant', 'Constant']], hint: 'SV + BPM is how osu!mania scrolls.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Lane width', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Receptor position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves the judgement line relative to the skin\'s HitPosition.' },
@@ -4131,8 +4156,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Visual note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Shifts where notes are drawn relative to the receptors (visual only).' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.5, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten background during breaks', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'Background', k: 'gameplay.video', l: 'Background video', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten during breaks', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Background', k: 'gameplay.video', l: 'Storyboard / video', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.videoImport', l: 'Store videos when importing (.mp4 / .webm)', t: 'bool', d: true, hint: 'Videos can be large; turn off to save storage.' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
@@ -4140,11 +4165,11 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.scoring', l: 'Score display', t: 'select', d: 'classic', o: [['classic', 'Classic (ScoreV1)'], ['standardised', 'osu!lazer standardised']], hint: 'Classic is osu!stable\'s ScoreV1 for mania. Standardised is osu!lazer\'s: 150,000 for combo and 850,000 for accuracy, so accuracy counts most. Every play records both, and leaderboards and personal bests follow this choice (scores from before it existed keep their classic score). Multiplayer matches always use classic.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress display', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.scoring', l: 'Score display mode', t: 'select', d: 'classic', o: [['classic', 'Classic (ScoreV1)'], ['standardised', 'osu!lazer standardised']], hint: 'Classic is osu!stable\'s ScoreV1 for mania. Standardised is osu!lazer\'s: 150,000 for combo and 850,000 for accuracy, so accuracy counts most. Every play records both, and leaderboards and personal bests follow this choice (scores from before it existed keep their classic score). Multiplayer matches always use classic.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'From the skin'], ['skinstage', 'Skin, beside stage'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
@@ -4152,12 +4177,12 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted'], ['v1', 'Classic']], hint: 'Weighted counts MAX slightly above 300 (osu!lazer); Classic counts them the same.' },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
-  { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Retry automatically on fail', t: 'bool', d: false },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Automatically retry on fail', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 2500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
   { s: 'Audio', g: 'Volume', k: 'audio.master', l: 'Master', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.music', l: 'Music', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effects', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effect', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
   { s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
@@ -4165,9 +4190,9 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Interface sounds', t: 'bool', d: true },
   // ── Graphics
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS counter', t: 'bool', d: false },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Rendering scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting, stage light and UI blur for low-end devices.' },
   { s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
@@ -4175,31 +4200,31 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
-  { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
+  { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
   { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
-  { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
+  { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Always show key overlay', t: 'bool', d: false },
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
-  { s: 'Interface', g: 'Layout', k: 'ui.scale', l: 'UI scale', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
-  { s: 'Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
-  { s: 'Interface', g: 'Style', k: 'ui.parallax', l: 'Background parallax', t: 'bool', d: true },
-  { s: 'Interface', g: 'Style', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
-  { s: 'Interface', g: 'Style', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
-  { s: 'Interface', g: 'Layout', k: 'ui.unicodeMetadata', l: 'Show song metadata in its original language', t: 'bool', d: false },
+  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
+  { s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
+  { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
+  { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
-  { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
-  { s: 'Skin', g: 'Skin', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
-  { s: 'Skin', g: 'Skin', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
-  { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
+  { s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
+  { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
+  { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Custom skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.hue', l: 'Note colour (Custom skin)', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Accent colour' : `hue ${v}` },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true },
-  { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'High resolution (@2x) assets', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
+  { s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
   // beatmap sources, as in Web-Osu-Mania's "Sources" settings
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Download source', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['mino', 'Mino'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from. The chosen one is tried first, then the others.' },
@@ -4209,7 +4234,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customPreview', l: 'Custom preview URL', t: 'text', d: '', hint: 'e.g. https://b.ppy.sh/preview/$setId.mp3', when: () => Settings.get('online.previewSource') === 'custom' },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.coverSource', l: 'Cover image source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customCover', l: 'Custom cover URL', t: 'text', d: '', hint: 'e.g. https://assets.ppy.sh/beatmaps/$setId/covers/cover.jpg', when: () => Settings.get('online.coverSource') === 'custom' },
-  { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Automatically save replays', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
+  { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Save replays automatically', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
@@ -4271,7 +4296,8 @@ const Settings = {
 
   applyUI() {
     const r = document.documentElement;
-    r.style.setProperty('--ui-scale', this.get('ui.scale'));
+    r.style.setProperty('--ui-scale', 1); // (UI scaling scales the whole app: see Zoom.update)
+    if (typeof Zoom !== 'undefined' && Zoom.z !== undefined) Zoom.update();
     const sp = this.get('ui.animSpeed');
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
     r.dataset.theme = this.get('ui.theme');
@@ -4660,54 +4686,92 @@ const BeatmapProviders = {
  * Configurable mods (AC, DA, RT, HD/FI coverage, Percy) read their values from `mods.config`. */
 
 const MODS = [
-  { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#7ee07a', incompatible: ['HR', 'DA'],
+  { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#b2ff66', incompatible: ['HR', 'DA'],
     desc: 'Timing windows 1.4× wider, health drains half as much.' },
-  { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#7ee07a', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
+  { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
-  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
+  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
-  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#7ee07a', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
+  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
-  { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#7ee07a', incompatible: ['NLN', 'IN'],
+  { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#b2ff66', incompatible: ['NLN', 'IN'],
     desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
-  { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff7a8a', incompatible: ['EZ', 'DA'],
+  { id: 'HR', name: 'Hard Rock', group: 'increase', key: 'KeyA', mult: 1.0, color: '#ff6666', incompatible: ['EZ', 'DA'],
     desc: 'Timing windows 1.4× tighter, health drains 1.4× harder.' },
-  { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'PF', 'PSS', 'AT'],
+  { id: 'SD', name: 'Sudden Death', group: 'increase', key: 'KeyS', mult: 1.0, color: '#ff6666', incompatible: ['NF', 'PF', 'PSS', 'AT'],
     desc: 'Miss once (or let go of a hold early) and fail.' },
-  { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PSS', 'AT'],
+  { id: 'PF', name: 'Perfect', group: 'increase', key: 'KeyD', mult: 1.0, color: '#ff6666', incompatible: ['NF', 'SD', 'PSS', 'AT'],
     desc: 'Anything below 300 (or letting go of a hold early) fails you.' },
-  { id: 'PSS', name: 'Perfect (SS)', group: 'increase', key: 'KeyP', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'SD', 'PF', 'AT'],
+  { id: 'PSS', name: 'Perfect (SS)', group: 'increase', key: 'KeyP', mult: 1.0, color: '#ff6666', incompatible: ['NF', 'SD', 'PF', 'AT'],
     desc: 'Only MAX judgements allowed.' },
-  { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff7a8a', incompatible: ['NF', 'AT'], config: 'acc',
+  { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff6666', incompatible: ['NF', 'AT'], config: 'acc',
     desc: 'Fail if your accuracy drops below the target.' },
-  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'NC', 'RT'], rate: 1.5,
+  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'NC', 'RT'], rate: 1.5,
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
-  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff7a8a', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
+  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
-  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff7a8a', incompatible: ['FI'], config: 'cover',
+  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
-  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff7a8a', incompatible: ['HD'], config: 'cover',
+  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD'], config: 'cover',
     desc: 'Notes appear out of nowhere near the receptors.' },
-  { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#b28bff', incompatible: ['RD'],
+  { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#8c66ff', incompatible: ['RD'],
     desc: 'Columns are mirrored left ↔ right.' },
-  { id: 'RD', name: 'Random', group: 'conversion', key: 'KeyX', mult: 1.0, color: '#b28bff', incompatible: ['MR'],
+  { id: 'RD', name: 'Random', group: 'conversion', key: 'KeyX', mult: 1.0, color: '#8c66ff', incompatible: ['MR'],
     desc: 'Columns are shuffled (seeded — replays stay reproducible).' },
-  { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#b28bff', incompatible: [],
+  { id: 'CS', name: 'Constant Speed', group: 'conversion', key: 'KeyC', mult: 0.9, color: '#8c66ff', incompatible: [],
     desc: 'No more tricky speed changes: ignores SV and BPM scroll changes.' },
-  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#b28bff', incompatible: ['IN', 'NR'],
+  { id: 'NLN', name: 'Hold Off', group: 'conversion', key: 'KeyV', mult: 0.9, color: '#8c66ff', incompatible: ['IN', 'NR'],
     desc: 'Long notes become regular notes.' },
-  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#b28bff', incompatible: ['NLN', 'NR'],
+  { id: 'IN', name: 'Invert', group: 'conversion', key: 'KeyI', mult: 1.0, color: '#8c66ff', incompatible: ['NLN', 'NR'],
     desc: 'Hold the keys. To the beat. Every gap between notes becomes a long note.' },
-  { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#b28bff', incompatible: ['NLN'], config: 'percy',
+  { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#8c66ff', incompatible: ['NLN'], config: 'percy',
     desc: 'Long note tails are drawn shorter (visual only).' },
-  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#b28bff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',
+  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#8c66ff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',
     desc: 'Any playback rate from 0.5× to 2×.' },
-  { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#b28bff', incompatible: ['EZ', 'HR'], config: 'da',
+  { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
-  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#6cc6ff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
+  { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
 ];
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
+/** A glyph for every mod (24×24, stroked), in the spirit of osu!lazer's mod icons. */
+const MOD_GLYPHS = {
+  EZ: '<path d="M19 4C9 4 5 10 5 20c3-5 7-8 12-9M5 20l6-6"/>',
+  NF: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  HT: '<path d="M14 6l-6 6 6 6M20 6l-6 6 6 6"/>',
+  DC: '<path d="M14 6l-6 6 6 6"/><path d="M3 19c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
+  NR: '<rect x="4" y="9" width="16" height="6" rx="3"/><path d="M5 20L19 4"/>',
+  HR: '<path d="M12 21c-4 0-7-3-7-7 0-4 3-5 4-10 2 2 3 4 3 6 1-1 2-2 2-4 3 2 5 5 5 8 0 4-3 7-7 7z"/>',
+  SD: '<path d="M12 3a7 7 0 00-7 7c0 2.5 1.2 4.3 3 5.3V19h8v-3.7c1.8-1 3-2.8 3-5.3a7 7 0 00-7-7z"/><circle cx="9.5" cy="10.5" r="1.3" class="fillme"/><circle cx="14.5" cy="10.5" r="1.3" class="fillme"/><path d="M11 19v-2M13 19v-2"/>',
+  PF: '<circle cx="12" cy="12" r="8"/><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"/>',
+  PSS: '<circle cx="12" cy="12" r="8"/><path d="M11 9h-2a1.5 1.5 0 000 3h1a1.5 1.5 0 010 3H8M17 9h-2a1.5 1.5 0 000 3h1a1.5 1.5 0 010 3h-2"/>',
+  AC: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" class="fillme"/>',
+  DT: '<path d="M4 6l6 6-6 6M10 6l6 6-6 6M16 6l4 6-4 6"/>',
+  NC: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
+  HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
+  FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
+  RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
+  CS: '<path d="M3 12h18"/><path d="M7 8v8M12 8v8M17 8v8"/>',
+  NLN: '<rect x="6" y="9" width="12" height="6" rx="2"/><path d="M12 3v3M12 18v3"/>',
+  IN: '<path d="M7 4v16M17 4v16"/><path d="M4 8l3-4 3 4M14 16l3 4 3-4"/>',
+  PC: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 17M8 15.5L20 7"/>',
+  RT: '<path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/>',
+  DA: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" class="fillme"/><circle cx="15" cy="12" r="2" class="fillme"/><circle cx="7" cy="17" r="2" class="fillme"/>',
+  AT: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01"/><circle cx="12" cy="3.5" r="1.2" class="fillme"/>',
+};
+/** osu!lazer's mod icon: a rounded hexagon in the mod type's colour with the mod's glyph on it. */
+function modIcon(id, size = 36) {
+  const m = MOD_BY_ID.get(id), c = m ? m.color : '#888';
+  const el = h('span.mod-icon', { style: { '--mod': c, width: size + 'px', height: Math.round(size * 0.72) + 'px' }, title: m ? m.name : id });
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 50 36');
+  svg.innerHTML = `<path d="M10 2h30a4 4 0 013.4 1.9l5.2 9a10 10 0 010 10.2l-5.2 9A4 4 0 0140 34H10a4 4 0 01-3.4-1.9l-5.2-9a10 10 0 010-10.2l5.2-9A4 4 0 0110 2z" class="mi-bg"/>`
+    + `<g transform="translate(15 8) scale(.83)" class="mi-g">${(MOD_GLYPHS[id] || '').replace(/class="fillme"/g, 'class="mi-fill"')}</g>`
+    + (MOD_GLYPHS[id] ? '' : `<text x="25" y="23" text-anchor="middle" class="mi-t">${id}</text>`);
+  el.append(svg);
+  return el;
+}
 const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
 const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 };
 
@@ -4756,7 +4820,8 @@ const ModSystem = {
   badge(id, small = false, cfg = null) {
     const m = MOD_BY_ID.get(id);
     const d = cfg ? this.describe(id, cfg) : '';
-    return h(`span.mod-badge${small ? '.small' : ''}`, { style: { '--mod': m ? m.color : '#888' }, title: m ? `${m.name}${d ? ' ' + d : ''}` : id }, id);
+    return h(`span.mod-badge${small ? '.small' : ''}`, { style: { '--mod': m ? m.color : '#888' }, title: m ? `${m.name}${d ? ' ' + d : ''}` : id },
+      modIcon(id, small ? 24 : 30), h('span.mb-t', id));
   },
 };
 
@@ -6575,7 +6640,7 @@ const Tooltip = {
     let x = (this.x || 0) + 14, y = (this.y || 0) + 18;
     if (x + r.width > innerWidth - 6) x = innerWidth - r.width - 6;
     if (y + r.height > innerHeight - 6) y = (this.y || 0) - r.height - 10;
-    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${(1 / Zoom.z).toFixed(3)})`;
   },
 };
 
@@ -7075,7 +7140,7 @@ const Notifications = {
       this.el = h('div.nf-panel', { role: 'dialog', 'aria-label': 'Notifications' },
         h('div.nf-head', h('div.nf-title', 'notifications'), h('div.nf-sub', 'waiting for \'ya'), h('button.btn.sm.nf-clear', { onclick: () => this.clear() }, 'Clear all')),
         this.listEl);
-      document.body.appendChild(this.el);
+      $('#app').appendChild(this.el);
       document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
     }
     this.render();
@@ -7124,13 +7189,20 @@ const Zoom = {
     const base = (window.devicePixelRatio || 1) / lvl;
     return this.BASE_DPR.some(b => Math.abs(b - base) < 0.06) ? lvl : 1;
   },
+  /** The whole interface is laid out for a 1366×768 space and scaled to fit the window (as lazer's scaling container
+   *  does), times the "UI scaling" setting — so it looks the same at any resolution and any browser zoom, and UI
+   *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
-    const z = this.detect();
+    const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.8, 2.5) : 1;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 1, 0.5, 2) : 1;
+    const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     if (z === this.z) return;
     this.z = z;
     const r = document.documentElement.style;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
     $('#app').classList.toggle('zoomfix', z !== 1);
+    Bus.emit('ui:scaled', 1 / z);
   },
   /** Canvas backing-store scale for sizes measured in layout px (clientWidth). */
   dpr() { return (window.devicePixelRatio || 1) / this.z; },
@@ -10997,7 +11069,7 @@ const ExplorerScreen = {
 /* ===== 18-settings-ui.js ===== */
 /* Settings panel (schema-driven), key configuration, offset calibration and the mod select overlay. */
 
-const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', Interface: 'home', Skin: 'brush', Maintenance: 'database' };
+const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', 'User Interface': 'home', Skin: 'brush', Maintenance: 'database' };
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
@@ -11405,7 +11477,7 @@ const ModSelect = {
         const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
           'aria-pressed': String(on), onclick: () => this.toggle(m.id),
           title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
-        }, h('span.mod-ac', h('span', m.id)), h('span.mod-txt', h('b', m.name), h('span', m.desc)));
+        }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);
       }

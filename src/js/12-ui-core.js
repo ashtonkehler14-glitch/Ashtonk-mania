@@ -154,7 +154,7 @@ const Tooltip = {
     let x = (this.x || 0) + 14, y = (this.y || 0) + 18;
     if (x + r.width > innerWidth - 6) x = innerWidth - r.width - 6;
     if (y + r.height > innerHeight - 6) y = (this.y || 0) - r.height - 10;
-    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${(1 / Zoom.z).toFixed(3)})`;
   },
 };
 
@@ -654,7 +654,7 @@ const Notifications = {
       this.el = h('div.nf-panel', { role: 'dialog', 'aria-label': 'Notifications' },
         h('div.nf-head', h('div.nf-title', 'notifications'), h('div.nf-sub', 'waiting for \'ya'), h('button.btn.sm.nf-clear', { onclick: () => this.clear() }, 'Clear all')),
         this.listEl);
-      document.body.appendChild(this.el);
+      $('#app').appendChild(this.el);
       document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
     }
     this.render();
@@ -703,13 +703,20 @@ const Zoom = {
     const base = (window.devicePixelRatio || 1) / lvl;
     return this.BASE_DPR.some(b => Math.abs(b - base) < 0.06) ? lvl : 1;
   },
+  /** The whole interface is laid out for a 1366×768 space and scaled to fit the window (as lazer's scaling container
+   *  does), times the "UI scaling" setting — so it looks the same at any resolution and any browser zoom, and UI
+   *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
-    const z = this.detect();
+    const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.8, 2.5) : 1;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 1, 0.5, 2) : 1;
+    const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     if (z === this.z) return;
     this.z = z;
     const r = document.documentElement.style;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
     $('#app').classList.toggle('zoomfix', z !== 1);
+    Bus.emit('ui:scaled', 1 / z);
   },
   /** Canvas backing-store scale for sizes measured in layout px (clientWidth). */
   dpr() { return (window.devicePixelRatio || 1) / this.z; },

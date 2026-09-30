@@ -22,6 +22,15 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Mod icons, lazer setting names, one UI scale
+
+* **Mods have icons.** Each mod has a glyph on lazer's hexagon mod icon, in lazer's type colours: lime (difficulty reduction), red (difficulty increase), purple (conversion) and blue (automation). They show in mod select, song select, the loader, results and in game.
+* **Settings use osu!lazer's names**, for example Scrolling direction, Lighten during breaks, Storyboard / video, Score display mode, Always show key overlay, Show FPS, UI scaling and Parallax. "Interface" is now "User Interface".
+* **The interface looks the same at every resolution and browser zoom.**
+  * It's laid out for 1366×768 and scaled to fit the window, as lazer does.
+  * Settings → Graphics → UI scaling is the one way to make everything bigger or smaller.
+  * Phones keep their own layout.
+
 ### osu!lazer toolbar, notifications, volume and cursor
 
 * **The top bar follows lazer's layout.**

@@ -1,6 +1,6 @@
 /* Settings panel (schema-driven), key configuration, offset calibration and the mod select overlay. */
 
-const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', Interface: 'home', Skin: 'brush', Maintenance: 'database' };
+const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', 'User Interface': 'home', Skin: 'brush', Maintenance: 'database' };
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const ESSENTIAL_SETTINGS = new Set([
@@ -408,7 +408,7 @@ const ModSelect = {
         const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
           'aria-pressed': String(on), onclick: () => this.toggle(m.id),
           title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
-        }, h('span.mod-ac', h('span', m.id)), h('span.mod-txt', h('b', m.name), h('span', m.desc)));
+        }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);
       }

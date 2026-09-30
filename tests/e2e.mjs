@@ -655,7 +655,11 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await zp.goto(url);
   await zp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   const z = await zp.evaluate(() => { const a = document.querySelector('#app').getBoundingClientRect(), t = document.querySelector('#toolbar').getBoundingClientRect(); return { cls: document.querySelector('#app').classList.contains('zoomfix'), w: a.width, h: a.height, tb: t.height, zoom: AshtonkMania.Zoom.z }; });
-  check('browser zoom is compensated (UI keeps its physical size)', z.cls && z.zoom === 1.25 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 32) < 1, JSON.stringify(z));
+  // the UI fits a 1366×768 layout to the real (unzoomed) 1600×900 window, whatever the browser zoom
+  const fit = Math.min(1600 / 1366, 900 / 768);
+  check('browser zoom is compensated and the UI scales with the window (1366×768 reference)', z.cls && Math.abs(z.zoom - 1.25 / fit) < 1e-6 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 40 * fit / 1.25) < 0.5, JSON.stringify(z));
+  const z2 = await zp.evaluate(async () => { AshtonkMania.Settings.set('ui.scale', 1.2); await new Promise(r => setTimeout(r, 50)); const t = document.querySelector('#toolbar').getBoundingClientRect().height; AshtonkMania.Settings.set('ui.scale', 1); return t; });
+  check('UI scaling scales everything (toolbar 20% taller at 120%)', Math.abs(z2 - 40 * fit / 1.25 * 1.2) < 0.5, String(z2));
   const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   check('Ctrl + / Ctrl - zoom shortcuts are blocked', prevented);
   await zctx.close();
