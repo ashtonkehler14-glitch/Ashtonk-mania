@@ -76,8 +76,18 @@ class SkinHealthBar {
     this.el = h('canvas.hud-skinhp');
     this.shown = 1; this.value = 1; this.t = 0; this.bulgeT = -1e9; this.drawn = null; this.size = 0;
   }
+  /** The container's height, kept by a ResizeObserver: reading clientHeight every frame forced a layout per frame. */
+  _height() {
+    const p = this.el.parentElement;
+    if (!p) return innerHeight;
+    if (this._ro !== p) {
+      this._ro = p; this._ph = p.clientHeight;
+      new ResizeObserver(es => { if (this._ro === p) this._ph = es[0].contentRect.height; }).observe(p);
+    }
+    return this._ph || innerHeight;
+  }
   resize() {
-    const H = (this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight;
+    const H = this._height();
     const u = H / 768, dpr = Zoom.dpr();
     const w = Math.max(this.bg ? this.bg.w : 0, this.fx + this.fill.w) + this.pad, hh = Math.max(this.bg ? this.bg.h : 0, this.fy + this.fill.h) + this.pad;
     this.u = u; this.k = u * dpr;
@@ -87,7 +97,7 @@ class SkinHealthBar {
   }
   update(v, now) {
     v = clamp(v, 0, 1);
-    if (!this.size || Math.abs(((this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight) - this.size) > 1) this.resize();
+    if (!this.size || Math.abs(this._height() - this.size) > 1) this.resize();
     const dt = clamp(now - (this.t || now), 0, 200); this.t = now;
     if (v > this.value + 1e-6) this.bulgeT = now; // HealthChanged(increase): the marker bulges
     this.value = v;
@@ -228,6 +238,7 @@ const GameplayScreen = {
     await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
+    this.initAutoScale();
     // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
     this.healthMode = healthModeFor(layout);
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
@@ -517,6 +528,7 @@ const GameplayScreen = {
       if (this.replayBar) this.updateReplayBar(now);
       const lim = Settings.get('graphics.fpsLimit');
       if (lim > 0 && realNow - this.lastRender < 1000 / lim - 0.6) return;
+      if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
       this.lastRender = realNow;
       const L = s.layout;
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
@@ -535,6 +547,44 @@ const GameplayScreen = {
       void L;
     };
     frame();
+  },
+
+  // ─────────────────────────────── automatic resolution ───────────────────────────────
+  /** Slow devices: most of a frame's cost is the canvas's pixel count (profiled on a throttled Chromebook-sized
+   *  run: 75% resolution took 31 fps to 47). While playing, every 2 s the median frame time is checked; two slow
+   *  windows in a row (under ~45 fps, or the FPS limit) lower the playfield's resolution by 10%, down to 60%.
+   *  The device remembers it, and after a play that ran smoothly it starts 5% higher next time. */
+  AUTO_SCALE_MIN: 0.6,
+  initAutoScale() {
+    const on = Settings.get('graphics.autoScale');
+    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.AUTO_SCALE_MIN, 1) : 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 };
+    this.renderer.autoScale = this._as.scale;
+  },
+  adaptResolution(dt, realNow, lim) {
+    const a = this._as;
+    if (!a || !a.on || document.hidden || !(dt > 0) || dt > 250) return; // (skip pauses, tab switches, hitches)
+    a.times.push(dt);
+    if (!a.t0) a.t0 = realNow;
+    if (realNow - a.t0 < 2000) return;
+    const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
+    a.times.length = 0; a.t0 = realNow; a.windows++;
+    const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
+    a.bad = med > target * 1.33 ? a.bad + 1 : 0;           // slower than ~45 fps
+    if (med < target * 1.08) a.smooth++;                    // comfortably at full speed
+    if (a.bad >= 2 && a.scale > this.AUTO_SCALE_MIN + 1e-6) {
+      a.bad = 0;
+      a.scale = Math.max(this.AUTO_SCALE_MIN, Math.round((a.scale - 0.1) * 100) / 100);
+      this.renderer.autoScale = a.scale;
+      this.renderer.resize(true);
+      Settings.set('perf.autoScale', a.scale);
+      if (!this._asToast) { this._asToast = true; Toast.show('Lowered the resolution to keep up', `Playfield at ${Math.round(a.scale * 100)}% · Settings → Graphics → Automatic resolution`); }
+    }
+  },
+  /** End of a play: if it ran smoothly all the way, try a little higher next time. */
+  settleAutoScale() {
+    const a = this._as;
+    if (!a || !a.on || a.windows < 5 || a.scale >= 1) return;
+    if (a.smooth >= a.windows - 1) Settings.set('perf.autoScale', Math.min(1, Math.round((a.scale + 0.05) * 100) / 100));
   },
 
   updateHud(now) {
@@ -985,6 +1035,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   async complete() {
     const s = this.s;
     s.finished = true; s.running = false;
+    this.settleAutoScale();
     this.releaseAll();
     const summary = s.engine.summary();
     if (s.mode === 'play') {
@@ -1115,7 +1166,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.rpPlay = h('button.btn.sm.rp-play', { onclick: () => this.replayToggle(), title: 'Pause / play (Space)' }, icon('pause'));
     this.rpTime = h('span.rp-time');
     this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
-    const bar = h('div.replay-bar',
+    this._rpHover = false;
+    const bar = h('div.replay-bar', { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
       tl,
       h('div.rp-controls',
         this.rpPlay,
@@ -1146,7 +1198,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const wall = performance.now();
     if (!force && wall - this._rpT < 100) return;
     // hidden (no mouse movement, playing, not hovered): nothing to update
-    if (!force && s.running && !this.el.classList.contains('show-cursor') && !this.replayBar.matches(':hover')) return;
+    if (!force && s.running && !this.el.classList.contains('show-cursor') && !this._rpHover) return;
     this._rpT = wall;
     const a = Math.min(0, s.startPos), p = clamp((now - a) / Math.max(1, s.endTime - a), 0, 1);
     this.rpFill.style.transform = `scaleX(${p})`;

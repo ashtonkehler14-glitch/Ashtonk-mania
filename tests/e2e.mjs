@@ -537,6 +537,14 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
     return b[0][2] === 1 && b[b.length - 1][2] < 0.1 && f[0][2] < 0.1 && f[f.length - 1][2] === 1 && b.every(x => x[1] > x[0]);
   }));
   check('Space starts from the loader; the beatmap offset is applied', await page.evaluate(() => AshtonkMania.GameplayScreen.s.mapOffset === 20 && AshtonkMania.GameplayScreen.offsetMs() === AshtonkMania.Settings.get('audio.offset') + 20));
+  check('automatic resolution: two slow 2-second windows lower the playfield resolution by 10% and remember it', await page.evaluate(() => {
+    const G = AshtonkMania.GameplayScreen, S = AshtonkMania.Settings, r0 = G.renderer.autoScale, w0 = G.renderer.canvas.width;
+    let t = performance.now();
+    for (let i = 0; i < 300; i++) { t += 30; G.adaptResolution(30, t, 0); } // ~33 fps for 9 s
+    const r1 = G.renderer.autoScale, w1 = G.renderer.canvas.width, saved = S.get('perf.autoScale');
+    G._as.scale = 1; G.renderer.autoScale = 1; G.renderer.resize(true); S.set('perf.autoScale', 1);
+    return r0 === 1 && r1 < 0.95 && r1 >= 0.6 && w1 < w0 && saved === r1;
+  }));
   await page.keyboard.down('KeyR'); await page.waitForTimeout(120); await page.keyboard.up('KeyR'); await page.waitForTimeout(600);
   check('a quick tap of R does not retry (you have to hold it)', await page.evaluate(() => !AshtonkMania.GameplayScreen.retryCount && AshtonkMania.GameplayScreen.loaderGone));
   await page.keyboard.down('KeyR'); await page.waitForTimeout(700); await page.keyboard.up('KeyR');

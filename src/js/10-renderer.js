@@ -54,7 +54,8 @@ class ManiaRenderer {
   get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
-    const dpr = Zoom.dpr() * Settings.get('graphics.renderScale');
+    // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
+    const dpr = Zoom.dpr() * Settings.get('graphics.renderScale') * (this.autoScale || 1);
     if (this.crop) {
       const host = c.parentElement;
       const cw = this._hostW ?? (host ? host.clientWidth : c.clientWidth), ch = this._hostH ?? (host ? host.clientHeight : c.clientHeight);
@@ -141,9 +142,9 @@ class ManiaRenderer {
     }
     return c;
   }
-  /** A pre-scaled sprite cropped to its visible pixels: glow textures are mostly empty padding (Kori's lighting is
-   *  92–97% fully transparent), and blending those empty pixels additively every frame was most of the canvas's
-   *  raster time. Returns { c, dx, dy }: the cropped canvas and where it sits inside the w×h sprite. */
+  /** A pre-scaled sprite cropped to its visible pixels: skin textures are often mostly empty padding (Kori's
+   *  lighting is 92–97% fully transparent, its keys 89–91%), and blending those empty pixels every frame was most of
+   *  the canvas's raster time. Returns { c, dx, dy }: the cropped canvas and where it sits inside the w×h sprite. */
   _cropSprite(img, w, h) {
     const full = this._sprite(img, w, h, false);
     let m = this._crop.get(full);
@@ -163,7 +164,7 @@ class ManiaRenderer {
     this._crop.set(full, m);
     return m;
   }
-  _lightImg(img, x, yTop, w, h) {
+  _cropImg(img, x, yTop, w, h) {
     if (!img || w <= 0 || h <= 0) return;
     if (this.up) yTop = this.H - yTop - h;
     const tx = this._tx, m = this._cropSprite(img, w, h);
@@ -224,7 +225,7 @@ class ManiaRenderer {
         ctx.globalAlpha = a;
         const h = t.h * (this.legacy ? this.u : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
-        this._lightImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
+        this._cropImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
         ctx.globalAlpha = 1;
       }
     }
@@ -240,7 +241,7 @@ class ManiaRenderer {
         if (this.legacy) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
-          this._spriteImg(t.img, this.colX[i], H - h, this.colW[i], h);
+          this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h);
         } else {
           // built-in keys: receptor (25% down the texture) centred on where notes are hit
           const h = t.h * (this.colW[i] / t.w);
@@ -437,7 +438,7 @@ class ManiaRenderer {
       if (!t) continue;
       const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
-      this._lightImg(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._cropImg(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
     // hit lighting (effects are compacted in place: no new array every frame)
     let keep = 0;
@@ -457,7 +458,7 @@ class ManiaRenderer {
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
       ctx.globalAlpha = multi ? 1 : 1 - el / dur;
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
-      this._lightImg(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._cropImg(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
       ctx.globalAlpha = 1;
       fx[keep++] = e;
     }
