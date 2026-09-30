@@ -461,7 +461,33 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.waitForTimeout(250);
   check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 2 && !!document.querySelector('.gp-loader .pl-tag.retry')));
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 8000 });
-  check('osu!lazer-style health bar in the top left (the skin has no scorebar of its own)', await page.evaluate(() => { const b = document.querySelector('.hud-hp'); return !!b && AshtonkMania.GameplayScreen.healthMode === 'lazer' && AshtonkMania.GameplayScreen.renderer.healthMode === null && b.getBoundingClientRect().top < 60 && +b.style.getPropertyValue('--hp') > 0; }));
+  check('osu!lazer-style health bar in the top left (the stand-in skin has no scorebar of its own)', await page.evaluate(() => { const b = document.querySelector('.hud-hp'); return !!b && AshtonkMania.GameplayScreen.healthMode === 'lazer' && AshtonkMania.GameplayScreen.renderer.healthMode === null && !document.querySelector('.hud-skinhp') && b.getBoundingClientRect().top < 60 && +b.style.getPropertyValue('--hp') > 0; }));
+  const hpStyles = await page.evaluate(async () => {
+    const A = AshtonkMania, S = A.Settings, f = A.healthModeFor;
+    const meta = A.SkinManager.skins.find(m => /Kori 3\.0$/.test(A.SkinManager.instance(m.id).name)); if (!meta) return { names: A.SkinManager.skins.map(m => A.SkinManager.instance(m.id).name), bar: [], modes: [] };
+    const K = await A.SkinManager.instance(meta.id).mania(4), bare = await A.SkinManager.current.mania(4);
+    const bar = new A.SkinHealthBar(K); document.body.append(bar.el); bar.update(0.5, performance.now()); bar.update(0.5, performance.now() + 400);
+    const r = { bar: [bar.el.width > 100, bar.el.height > 10, Math.abs(bar.shown - 0.5) < 0.01, !!K.tex.scorebarBg] };
+    bar.el.remove();
+    r.modes = [f(K), f(bare)];
+    await S.set('gameplay.healthStyle', 'skinstage'); r.modes.push(f(K), f(bare));
+    await S.set('gameplay.healthStyle', 'stage'); r.modes.push(f(K));
+    await S.set('gameplay.healthStyle', 'lazer'); r.modes.push(f(K));
+    await S.set('gameplay.showHealth', false); r.modes.push(f(K));
+    S.reset('gameplay.healthStyle'); S.reset('gameplay.showHealth');
+    return r;
+  });
+  check('the bundled Kori uses its own health bar (scorebar images), eased like osu!lazer', hpStyles.bar.every(Boolean) && hpStyles.modes[0] === 'skin', JSON.stringify(hpStyles));
+  check('health bar styles: skin top-left / skin beside stage / osu!lazer / slim; skins without a scorebar fall back to osu!lazer', hpStyles.modes.join() === 'skin,lazer,skinstage,lazer,stage,lazer,', JSON.stringify(hpStyles.modes));
+  check('older installs of the bundled Kori get its health bar images once (upgrade)', await page.evaluate(async () => {
+    const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(m => /Kori 3\.0$/.test(m.name));
+    meta.files = meta.files.filter(f => !/^scorebar-/i.test(f)); await A.DB.put('skins', meta);
+    await A.DB.kvSet('bundled.kori.v', 1);
+    const gone = !(await SM.instance(meta.id).mania(4)).tex.scorebarColour;
+    await A.App.upgradeBundledSkin();
+    const m2 = SM.skins.find(m => m.id === meta.id);
+    return gone && m2.files.includes('scorebar-colour.png') && !!(await SM.instance(meta.id).mania(4)).tex.scorebarColour && (await A.DB.kvGet('bundled.kori.v', 1)) >= 2;
+  }));
   check('in-game leaderboard on the left with your live row', await page.evaluate(() => { const b = document.querySelector('.hud-lb'); return !!b && !b.classList.contains('lb-off') && !!b.querySelector('.hud-mp-row.me') && b.getBoundingClientRect().left < innerWidth / 3; }));
   await page.keyboard.press('Tab'); await page.waitForTimeout(100);
   const lbOff = await page.evaluate(() => document.querySelector('.hud-lb').classList.contains('lb-off') && AshtonkMania.Settings.get('gameplay.leaderboard') === false);

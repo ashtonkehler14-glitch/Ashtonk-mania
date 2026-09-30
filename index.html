@@ -950,6 +950,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
 .hud-lb { width: 210px; }
+/* the skin's own health bar (osu!lazer LegacyHealthDisplay): top-left corner */
+.hud-skinhp { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* osu!lazer (Argon) health bar */
 .hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(34vw, 380px); pointer-events: none; }
 .hp-track { position: relative; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .05); }
@@ -2494,9 +2496,15 @@ const ManiaLayout = {
     L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
+      const tx = n => skin.texture(n).catch(() => null);
       L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
-      L.tex.scorebarBg = L.tex.scorebarColour ? await skin.texture('scorebar-bg').catch(() => null) : null;
-      L.scorebarNewStyle = !!(L.tex.scorebarColour && await skin.texture('scorebar-marker').catch(() => null));
+      if (L.tex.scorebarColour) {
+        L.tex.scorebarBg = await tx('scorebar-bg');
+        // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
+        L.tex.scorebarMarker = await tx('scorebar-marker');
+        L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
+      }
+      L.scorebarNewStyle = !!L.tex.scorebarMarker;
     }
     L.tex.lightingL = await load('LightingL', 'lightingL', { fps: L.lightFPS });
     for (const [j, name] of [['300g', 'Hit300g'], ['300', 'Hit300'], ['200', 'Hit200'], ['100', 'Hit100'], ['50', 'Hit50'], ['0', 'Hit0']]) {
@@ -2610,6 +2618,17 @@ const SkinManager = {
     this.skins = this.skins.filter(s => s.id !== id).concat(meta);
     Bus.emit('skins:changed');
     return meta;
+  },
+
+  /** Add files to an installed skin ([{ rel, data }]); used to complete older copies of the bundled Kori. */
+  async addFiles(id, files) {
+    const meta = this.skins.find(s => s.id === id);
+    if (!meta || !files.length) return;
+    await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
+    meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
+    await DB.put('skins', meta);
+    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    Bus.emit('skins:changed');
   },
 
   async remove(id) {
@@ -3094,7 +3113,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'From the skin'], ['lazer', 'osu!lazer'], ['stage', 'Beside the stage']], hint: 'From the skin uses its scorebar images, or the osu!lazer bar when it has none.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'From the skin'], ['skinstage', 'Skin, beside stage'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
@@ -4587,7 +4606,7 @@ class ManiaRenderer {
     if (g.engine) {
       // (the osu!lazer-style bar is part of the HUD, not the canvas)
       if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
-      else if (this.healthMode === 'skin') this._drawSkinHealth(g.engine.health.value);
+      else if (this.healthMode === 'skinstage') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
   }
@@ -4897,7 +4916,8 @@ class ManiaRenderer {
     this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
     const hp = clamp(this._hp, 0, 1);
     const ref = bg || col;
-    const k = Math.min(this.s, this.H * 0.94 / ref.w); // screen px per skin px
+    // screen px per skin px: the bar spans most of the height at most, and stays inside the room beside the stage
+    const k = Math.min(this.s, this.H * 0.94 / ref.w, 66 * this.s / ref.h);
     ctx.save();
     ctx.translate(Math.round(this.stageX + this.stageW + 2 * this.s), this.H);
     ctx.rotate(-Math.PI / 2);
@@ -5370,9 +5390,11 @@ function starColour(sr) {
   return '#' + x.map((v, k) => Math.round(lerp(v, y[k], t)).toString(16).padStart(2, '0')).join('');
 }
 /** Text drawn with a skin's number font (score-0.png … score-comma, -dot, -percent, -x) on a canvas that sits
- *  where the text was. Characters the font doesn't have are skipped. */
-function skinDigits(font, cssH) {
+ *  where the text was. Characters the font doesn't have are skipped. The canvas only ever grows (in steps) and
+ *  the digits are aligned inside it, so a score changing 20 times a second doesn't re-layout the page each time. */
+function skinDigits(font, cssH, { align = 'right' } = {}) {
   const c = h('canvas.skin-digits');
+  c.width = 1; c.height = 1;
   let last = null;
   const set = text => {
     text = String(text);
@@ -5381,14 +5403,16 @@ function skinDigits(font, cssH) {
     const glyphs = [...text].map(ch => font.glyphs[ch]).filter(Boolean);
     const dpr = Zoom.dpr(), H = Math.max(1, Math.round(cssH * dpr));
     const ref = font.glyphs['0'] || glyphs[0];
-    if (!ref || !glyphs.length) { c.width = 1; return; }
+    const x = c.getContext('2d');
+    if (!ref || !glyphs.length) { x.clearRect(0, 0, c.width, c.height); return; }
     const k = H / ref.h, ov = font.overlap * k;
     const widths = glyphs.map(g => g.w * k);
     const W = Math.max(1, Math.ceil(widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1)));
-    c.width = W; c.height = H;
-    c.style.height = cssH + 'px'; c.style.width = (W / dpr) + 'px';
-    const x = c.getContext('2d');
-    let px = 0;
+    if (c.height !== H || W > c.width) {
+      c.width = Math.ceil(W / 32) * 32; c.height = H;
+      c.style.height = cssH + 'px'; c.style.width = (c.width / dpr) + 'px';
+    } else x.clearRect(0, 0, c.width, c.height);
+    let px = align === 'right' ? c.width - W : align === 'center' ? Math.round((c.width - W) / 2) : 0;
     glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, H - gh, widths[i], gh); px += widths[i] - ov; });
   };
   return { el: c, set };
@@ -6619,6 +6643,85 @@ GamepadWatch.init();
 
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
+/** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
+ *  or none. A skin without scorebar images gets the osu!lazer bar. */
+function healthModeFor(layout) {
+  if (!Settings.get('gameplay.showHealth')) return null;
+  const hs = Settings.get('gameplay.healthStyle');
+  if (hs === 'stage') return 'stage';
+  if ((hs === 'skin' || hs === 'skinstage') && layout && layout.tex.scorebarColour) return hs;
+  return 'lazer';
+}
+
+/** The skin's own health bar, as osu!lazer draws it (LegacyHealthDisplay): scorebar-bg in the top-left corner,
+ *  scorebar-colour cut to the current health and eased towards it, and the ki / marker sprite riding the end of
+ *  the fill (it bulges when health goes up). Legacy HUD art is authored for a 768-pixel-tall screen. */
+class SkinHealthBar {
+  constructor(L) {
+    const t = L.tex;
+    this.bg = t.scorebarBg || null; this.fill = t.scorebarColour; this.marker = t.scorebarMarker || null;
+    this.ki = t.scorebarKi || []; this.newStyle = !!this.marker;
+    // fill offset inside the background: (3, 10) or (7.5, 7.8) stable units × 1.6
+    this.fx = this.bg ? (this.newStyle ? 12 : 4.8) : 0; this.fy = this.bg ? (this.newStyle ? 12.48 : 16) : 0;
+    const marks = [this.marker, ...this.ki].filter(Boolean);
+    this.pad = marks.length ? Math.max(...marks.map(m => Math.max(m.w, m.h))) * 0.7 : 0;
+    this.el = h('canvas.hud-skinhp');
+    this.shown = 1; this.value = 1; this.t = 0; this.bulgeT = -1e9; this.drawn = null; this.size = 0;
+  }
+  resize() {
+    const H = (this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight;
+    const u = H / 768, dpr = Zoom.dpr();
+    const w = Math.max(this.bg ? this.bg.w : 0, this.fx + this.fill.w) + this.pad, hh = Math.max(this.bg ? this.bg.h : 0, this.fy + this.fill.h) + this.pad;
+    this.u = u; this.k = u * dpr;
+    this.el.width = Math.ceil(w * this.k); this.el.height = Math.ceil(hh * this.k);
+    this.el.style.width = (w * u) + 'px'; this.el.style.height = (hh * u) + 'px';
+    this.size = H; this.drawn = null;
+  }
+  update(v, now) {
+    v = clamp(v, 0, 1);
+    if (!this.size || Math.abs(((this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight) - this.size) > 1) this.resize();
+    const dt = clamp(now - (this.t || now), 0, 200); this.t = now;
+    if (v > this.value + 1e-6) this.bulgeT = now; // HealthChanged(increase): the marker bulges
+    this.value = v;
+    // osu!lazer: fill width = ValueAt(elapsed, width, target, 0, 200, OutQuint)
+    const p = 1 - Math.pow(1 - dt / 200, 5);
+    this.shown += (v - this.shown) * p;
+    if (Math.abs(this.shown - v) < 1e-4) this.shown = v;
+    const bulging = now - this.bulgeT < 160, animated = this.fill.frames.length > 1;
+    const key = Math.round(this.shown * this.fill.w * this.k * 2);
+    if (key === this.drawn && !bulging && !animated) return;
+    this.drawn = key;
+    this.draw(now);
+  }
+  draw(now) {
+    const c = this.el.getContext('2d'), hp = this.shown;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.el.width, this.el.height);
+    c.setTransform(this.k, 0, 0, this.k, 0, 0);
+    if (this.bg) c.drawImage(this.bg.img, 0, 0, this.bg.w, this.bg.h);
+    const f = this.fill.frameAt(now), fw = this.fill.w * hp;
+    if (fw > 0.01) {
+      c.drawImage(f, 0, 0, f.width * hp, f.height, this.fx, this.fy, fw, this.fill.h);
+      // new-style fills darken below half health and turn red below 20% (LegacyHealthDisplay.getFillColour)
+      if (this.newStyle && hp < 0.5) {
+        c.save();
+        c.globalCompositeOperation = 'source-atop';
+        c.globalAlpha = hp < 0.2 ? 1 : (0.5 - hp) / 0.5;
+        c.fillStyle = hp < 0.2 ? `rgb(${Math.round(255 * (0.2 - hp) / 0.2)},0,0)` : '#000';
+        c.fillRect(this.fx, this.fy, fw, this.fill.h);
+        c.restore();
+      }
+    }
+    const m = this.newStyle ? this.marker : (hp < 0.2 ? this.ki[2] : hp < 0.5 ? this.ki[1] : this.ki[0]) || this.ki[0];
+    if (m) {
+      const el = now - this.bulgeT, sc = el < 150 ? 1.2 - 0.4 * (el / 150) : this.bulgeT > 0 ? 0.8 : 1;
+      const mw = m.w * sc, mh = m.h * sc, mx = this.fx + fw, my = this.fy + (this.newStyle ? this.fill.h / 2 : 0);
+      if (this.newStyle && hp >= 0.5) c.globalCompositeOperation = 'lighter';
+      c.drawImage(m.frameAt(now), mx - mw / 2, my - mh / 2, mw, mh);
+      c.globalCompositeOperation = 'source-over';
+    }
+  }
+}
+
 const GameplayScreen = {
   inGame: true, transient: true, tab: 'songselect',
   s: null, // session
@@ -6708,9 +6811,9 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
     // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
-    const hs = Settings.get('gameplay.healthStyle');
-    this.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : 'lazer';
-    this.renderer.healthMode = this.healthMode === 'lazer' ? null : this.healthMode;
+    this.healthMode = healthModeFor(layout);
+    // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
+    this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -6929,6 +7032,11 @@ const GameplayScreen = {
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
     // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
     this.hpEl = this._hpQ = this._hpLow = null;
+    this.skinHp = null;
+    if (this.healthMode === 'skin') {
+      this.skinHp = new SkinHealthBar(s.layout);
+      this.hud.append(this.skinHp.el);
+    }
     if (this.healthMode === 'lazer') {
       this.hpFill = h('i.hp-fill'); this.hpTrail = h('i.hp-trail');
       this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
@@ -7047,6 +7155,7 @@ const GameplayScreen = {
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
+    if (this.skinHp) this.skinHp.update(e.health.value, performance.now());
     if (this.hpEl) {
       const q = Math.round(clamp(e.health.value, 0, 1) * 400);
       if (q !== this._hpQ) {
@@ -7766,7 +7875,7 @@ const ResultsScreen = {
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
     const scoreEl = h('div.res-score', '0');
     let digits = null; // the skin's number font, once loaded
-    SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
+    SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44, { align: 'center' }); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
     let shown = 0;
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
     const tick = () => {
@@ -8316,8 +8425,8 @@ class SkinPreview {
     this.renderer.setLayout(layout);
     // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
     // lives in the gameplay HUD, so the preview shows none for it
-    const hs = Settings.get('gameplay.healthStyle');
-    this.renderer.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : null;
+    const hm = healthModeFor(layout);
+    this.renderer.healthMode = hm === 'stage' || hm === 'skinstage' ? hm : null;
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;
@@ -10238,6 +10347,9 @@ const MultiplayerScreen = {
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
+/** Version of public/skins/kori.osk: 2 added its health bar (scorebar-bg / scorebar-colour). */
+const BUNDLED_KORI_VERSION = 2;
+
 const App = {
   lastReport: null,
   async boot() {
@@ -10278,7 +10390,7 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
@@ -10296,7 +10408,7 @@ const App = {
    *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
   async installBundledSkin(say) {
     if (!/^https?:/.test(location.protocol)) return;
-    if (await DB.kvGet('bundled.kori', false)) return;
+    if (await DB.kvGet('bundled.kori', false)) { await this.upgradeBundledSkin(); return; }
     const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
     if (existing) {
       await DB.kvSet('bundled.kori', true);
@@ -10313,9 +10425,27 @@ const App = {
         const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
         if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });
         await DB.kvSet('bundled.kori', true);
+        await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
         return;
       } catch (e) { /* not bundled */ }
     }
+  },
+
+  /** Copies of the bundled Kori installed before version 2 lack its health bar (scorebar-*): add those files once. */
+  async upgradeBundledSkin() {
+    if ((await DB.kvGet('bundled.kori.v', 1)) >= BUNDLED_KORI_VERSION) return;
+    try {
+      const kori = SkinManager.skins.find(sk => (sk.source === 'kori.osk' || /kori 3\.0$/i.test(sk.name || '')) && !sk.files.some(f => /^scorebar-colour/i.test(f)));
+      if (kori) {
+        const r = await fetch('skins/kori.osk', { cache: 'no-cache' });
+        if (!r.ok) return; // try again next launch
+        const zip = new ZipReader(await r.arrayBuffer());
+        const files = [];
+        for (const e of zip.entries) if (/^scorebar-[^/]+\.png$/i.test(e.name)) files.push({ rel: e.name, data: await zip.read(e) });
+        await SkinManager.addFiles(kori.id, files);
+      }
+      await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
+    } catch (e) { /* offline or blocked: try again next launch */ }
   },
 
   bindGlobal() {

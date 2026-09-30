@@ -240,8 +240,8 @@ class SkinPreview {
     this.renderer.setLayout(layout);
     // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
     // lives in the gameplay HUD, so the preview shows none for it
-    const hs = Settings.get('gameplay.healthStyle');
-    this.renderer.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : null;
+    const hm = healthModeFor(layout);
+    this.renderer.healthMode = hm === 'stage' || hm === 'skinstage' ? hm : null;
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;

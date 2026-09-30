@@ -1,5 +1,8 @@
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
+/** Version of public/skins/kori.osk: 2 added its health bar (scorebar-bg / scorebar-colour). */
+const BUNDLED_KORI_VERSION = 2;
+
 const App = {
   lastReport: null,
   async boot() {
@@ -40,7 +43,7 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar };
     await Screens.go('home');
     await sleep(250);
     $('#loading-screen').classList.add('done');
@@ -58,7 +61,7 @@ const App = {
    *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
   async installBundledSkin(say) {
     if (!/^https?:/.test(location.protocol)) return;
-    if (await DB.kvGet('bundled.kori', false)) return;
+    if (await DB.kvGet('bundled.kori', false)) { await this.upgradeBundledSkin(); return; }
     const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
     if (existing) {
       await DB.kvSet('bundled.kori', true);
@@ -75,9 +78,27 @@ const App = {
         const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
         if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });
         await DB.kvSet('bundled.kori', true);
+        await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
         return;
       } catch (e) { /* not bundled */ }
     }
+  },
+
+  /** Copies of the bundled Kori installed before version 2 lack its health bar (scorebar-*): add those files once. */
+  async upgradeBundledSkin() {
+    if ((await DB.kvGet('bundled.kori.v', 1)) >= BUNDLED_KORI_VERSION) return;
+    try {
+      const kori = SkinManager.skins.find(sk => (sk.source === 'kori.osk' || /kori 3\.0$/i.test(sk.name || '')) && !sk.files.some(f => /^scorebar-colour/i.test(f)));
+      if (kori) {
+        const r = await fetch('skins/kori.osk', { cache: 'no-cache' });
+        if (!r.ok) return; // try again next launch
+        const zip = new ZipReader(await r.arrayBuffer());
+        const files = [];
+        for (const e of zip.entries) if (/^scorebar-[^/]+\.png$/i.test(e.name)) files.push({ rel: e.name, data: await zip.read(e) });
+        await SkinManager.addFiles(kori.id, files);
+      }
+      await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
+    } catch (e) { /* offline or blocked: try again next launch */ }
   },
 
   bindGlobal() {

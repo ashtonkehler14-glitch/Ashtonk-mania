@@ -937,6 +937,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
 .hud-lb { width: 210px; }
+/* the skin's own health bar (osu!lazer LegacyHealthDisplay): top-left corner */
+.hud-skinhp { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* osu!lazer (Argon) health bar */
 .hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(34vw, 380px); pointer-events: none; }
 .hp-track { position: relative; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .05); }

@@ -480,9 +480,15 @@ const ManiaLayout = {
     L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
+      const tx = n => skin.texture(n).catch(() => null);
       L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
-      L.tex.scorebarBg = L.tex.scorebarColour ? await skin.texture('scorebar-bg').catch(() => null) : null;
-      L.scorebarNewStyle = !!(L.tex.scorebarColour && await skin.texture('scorebar-marker').catch(() => null));
+      if (L.tex.scorebarColour) {
+        L.tex.scorebarBg = await tx('scorebar-bg');
+        // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
+        L.tex.scorebarMarker = await tx('scorebar-marker');
+        L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
+      }
+      L.scorebarNewStyle = !!L.tex.scorebarMarker;
     }
     L.tex.lightingL = await load('LightingL', 'lightingL', { fps: L.lightFPS });
     for (const [j, name] of [['300g', 'Hit300g'], ['300', 'Hit300'], ['200', 'Hit200'], ['100', 'Hit100'], ['50', 'Hit50'], ['0', 'Hit0']]) {
@@ -596,6 +602,17 @@ const SkinManager = {
     this.skins = this.skins.filter(s => s.id !== id).concat(meta);
     Bus.emit('skins:changed');
     return meta;
+  },
+
+  /** Add files to an installed skin ([{ rel, data }]); used to complete older copies of the bundled Kori. */
+  async addFiles(id, files) {
+    const meta = this.skins.find(s => s.id === id);
+    if (!meta || !files.length) return;
+    await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
+    meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
+    await DB.put('skins', meta);
+    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    Bus.emit('skins:changed');
   },
 
   async remove(id) {

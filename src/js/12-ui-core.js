@@ -66,9 +66,11 @@ function starColour(sr) {
   return '#' + x.map((v, k) => Math.round(lerp(v, y[k], t)).toString(16).padStart(2, '0')).join('');
 }
 /** Text drawn with a skin's number font (score-0.png … score-comma, -dot, -percent, -x) on a canvas that sits
- *  where the text was. Characters the font doesn't have are skipped. */
-function skinDigits(font, cssH) {
+ *  where the text was. Characters the font doesn't have are skipped. The canvas only ever grows (in steps) and
+ *  the digits are aligned inside it, so a score changing 20 times a second doesn't re-layout the page each time. */
+function skinDigits(font, cssH, { align = 'right' } = {}) {
   const c = h('canvas.skin-digits');
+  c.width = 1; c.height = 1;
   let last = null;
   const set = text => {
     text = String(text);
@@ -77,14 +79,16 @@ function skinDigits(font, cssH) {
     const glyphs = [...text].map(ch => font.glyphs[ch]).filter(Boolean);
     const dpr = Zoom.dpr(), H = Math.max(1, Math.round(cssH * dpr));
     const ref = font.glyphs['0'] || glyphs[0];
-    if (!ref || !glyphs.length) { c.width = 1; return; }
+    const x = c.getContext('2d');
+    if (!ref || !glyphs.length) { x.clearRect(0, 0, c.width, c.height); return; }
     const k = H / ref.h, ov = font.overlap * k;
     const widths = glyphs.map(g => g.w * k);
     const W = Math.max(1, Math.ceil(widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1)));
-    c.width = W; c.height = H;
-    c.style.height = cssH + 'px'; c.style.width = (W / dpr) + 'px';
-    const x = c.getContext('2d');
-    let px = 0;
+    if (c.height !== H || W > c.width) {
+      c.width = Math.ceil(W / 32) * 32; c.height = H;
+      c.style.height = cssH + 'px'; c.style.width = (c.width / dpr) + 'px';
+    } else x.clearRect(0, 0, c.width, c.height);
+    let px = align === 'right' ? c.width - W : align === 'center' ? Math.round((c.width - W) / 2) : 0;
     glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, H - gh, widths[i], gh); px += widths[i] - ov; });
   };
   return { el: c, set };

@@ -47,6 +47,85 @@ GamepadWatch.init();
 
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
+/** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
+ *  or none. A skin without scorebar images gets the osu!lazer bar. */
+function healthModeFor(layout) {
+  if (!Settings.get('gameplay.showHealth')) return null;
+  const hs = Settings.get('gameplay.healthStyle');
+  if (hs === 'stage') return 'stage';
+  if ((hs === 'skin' || hs === 'skinstage') && layout && layout.tex.scorebarColour) return hs;
+  return 'lazer';
+}
+
+/** The skin's own health bar, as osu!lazer draws it (LegacyHealthDisplay): scorebar-bg in the top-left corner,
+ *  scorebar-colour cut to the current health and eased towards it, and the ki / marker sprite riding the end of
+ *  the fill (it bulges when health goes up). Legacy HUD art is authored for a 768-pixel-tall screen. */
+class SkinHealthBar {
+  constructor(L) {
+    const t = L.tex;
+    this.bg = t.scorebarBg || null; this.fill = t.scorebarColour; this.marker = t.scorebarMarker || null;
+    this.ki = t.scorebarKi || []; this.newStyle = !!this.marker;
+    // fill offset inside the background: (3, 10) or (7.5, 7.8) stable units × 1.6
+    this.fx = this.bg ? (this.newStyle ? 12 : 4.8) : 0; this.fy = this.bg ? (this.newStyle ? 12.48 : 16) : 0;
+    const marks = [this.marker, ...this.ki].filter(Boolean);
+    this.pad = marks.length ? Math.max(...marks.map(m => Math.max(m.w, m.h))) * 0.7 : 0;
+    this.el = h('canvas.hud-skinhp');
+    this.shown = 1; this.value = 1; this.t = 0; this.bulgeT = -1e9; this.drawn = null; this.size = 0;
+  }
+  resize() {
+    const H = (this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight;
+    const u = H / 768, dpr = Zoom.dpr();
+    const w = Math.max(this.bg ? this.bg.w : 0, this.fx + this.fill.w) + this.pad, hh = Math.max(this.bg ? this.bg.h : 0, this.fy + this.fill.h) + this.pad;
+    this.u = u; this.k = u * dpr;
+    this.el.width = Math.ceil(w * this.k); this.el.height = Math.ceil(hh * this.k);
+    this.el.style.width = (w * u) + 'px'; this.el.style.height = (hh * u) + 'px';
+    this.size = H; this.drawn = null;
+  }
+  update(v, now) {
+    v = clamp(v, 0, 1);
+    if (!this.size || Math.abs(((this.el.parentElement && this.el.parentElement.clientHeight) || innerHeight) - this.size) > 1) this.resize();
+    const dt = clamp(now - (this.t || now), 0, 200); this.t = now;
+    if (v > this.value + 1e-6) this.bulgeT = now; // HealthChanged(increase): the marker bulges
+    this.value = v;
+    // osu!lazer: fill width = ValueAt(elapsed, width, target, 0, 200, OutQuint)
+    const p = 1 - Math.pow(1 - dt / 200, 5);
+    this.shown += (v - this.shown) * p;
+    if (Math.abs(this.shown - v) < 1e-4) this.shown = v;
+    const bulging = now - this.bulgeT < 160, animated = this.fill.frames.length > 1;
+    const key = Math.round(this.shown * this.fill.w * this.k * 2);
+    if (key === this.drawn && !bulging && !animated) return;
+    this.drawn = key;
+    this.draw(now);
+  }
+  draw(now) {
+    const c = this.el.getContext('2d'), hp = this.shown;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.el.width, this.el.height);
+    c.setTransform(this.k, 0, 0, this.k, 0, 0);
+    if (this.bg) c.drawImage(this.bg.img, 0, 0, this.bg.w, this.bg.h);
+    const f = this.fill.frameAt(now), fw = this.fill.w * hp;
+    if (fw > 0.01) {
+      c.drawImage(f, 0, 0, f.width * hp, f.height, this.fx, this.fy, fw, this.fill.h);
+      // new-style fills darken below half health and turn red below 20% (LegacyHealthDisplay.getFillColour)
+      if (this.newStyle && hp < 0.5) {
+        c.save();
+        c.globalCompositeOperation = 'source-atop';
+        c.globalAlpha = hp < 0.2 ? 1 : (0.5 - hp) / 0.5;
+        c.fillStyle = hp < 0.2 ? `rgb(${Math.round(255 * (0.2 - hp) / 0.2)},0,0)` : '#000';
+        c.fillRect(this.fx, this.fy, fw, this.fill.h);
+        c.restore();
+      }
+    }
+    const m = this.newStyle ? this.marker : (hp < 0.2 ? this.ki[2] : hp < 0.5 ? this.ki[1] : this.ki[0]) || this.ki[0];
+    if (m) {
+      const el = now - this.bulgeT, sc = el < 150 ? 1.2 - 0.4 * (el / 150) : this.bulgeT > 0 ? 0.8 : 1;
+      const mw = m.w * sc, mh = m.h * sc, mx = this.fx + fw, my = this.fy + (this.newStyle ? this.fill.h / 2 : 0);
+      if (this.newStyle && hp >= 0.5) c.globalCompositeOperation = 'lighter';
+      c.drawImage(m.frameAt(now), mx - mw / 2, my - mh / 2, mw, mh);
+      c.globalCompositeOperation = 'source-over';
+    }
+  }
+}
+
 const GameplayScreen = {
   inGame: true, transient: true, tab: 'songselect',
   s: null, // session
@@ -136,9 +215,9 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
     // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
-    const hs = Settings.get('gameplay.healthStyle');
-    this.healthMode = !Settings.get('gameplay.showHealth') ? null : hs === 'stage' ? 'stage' : hs === 'skin' && layout.tex.scorebarColour ? 'skin' : 'lazer';
-    this.renderer.healthMode = this.healthMode === 'lazer' ? null : this.healthMode;
+    this.healthMode = healthModeFor(layout);
+    // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
+    this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -357,6 +436,11 @@ const GameplayScreen = {
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
     // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
     this.hpEl = this._hpQ = this._hpLow = null;
+    this.skinHp = null;
+    if (this.healthMode === 'skin') {
+      this.skinHp = new SkinHealthBar(s.layout);
+      this.hud.append(this.skinHp.el);
+    }
     if (this.healthMode === 'lazer') {
       this.hpFill = h('i.hp-fill'); this.hpTrail = h('i.hp-trail');
       this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
@@ -475,6 +559,7 @@ const GameplayScreen = {
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
     if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
+    if (this.skinHp) this.skinHp.update(e.health.value, performance.now());
     if (this.hpEl) {
       const q = Math.round(clamp(e.health.value, 0, 1) * 400);
       if (q !== this._hpQ) {

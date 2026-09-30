@@ -252,7 +252,7 @@ class ManiaRenderer {
     if (g.engine) {
       // (the osu!lazer-style bar is part of the HUD, not the canvas)
       if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
-      else if (this.healthMode === 'skin') this._drawSkinHealth(g.engine.health.value);
+      else if (this.healthMode === 'skinstage') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
   }
@@ -562,7 +562,8 @@ class ManiaRenderer {
     this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
     const hp = clamp(this._hp, 0, 1);
     const ref = bg || col;
-    const k = Math.min(this.s, this.H * 0.94 / ref.w); // screen px per skin px
+    // screen px per skin px: the bar spans most of the height at most, and stays inside the room beside the stage
+    const k = Math.min(this.s, this.H * 0.94 / ref.w, 66 * this.s / ref.h);
     ctx.save();
     ctx.translate(Math.round(this.stageX + this.stageW + 2 * this.s), this.H);
     ctx.rotate(-Math.PI / 2);
