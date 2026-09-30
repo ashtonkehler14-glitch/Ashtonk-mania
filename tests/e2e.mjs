@@ -634,6 +634,10 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   if (await bp.$('.onboarding')) { await bp.fill('.onboarding .ob-name', 'Guest'); await bp.keyboard.press('Enter'); await bp.waitForSelector('.setup-step-ask'); await bp.click('.onboarding .ob-skip'); await bp.waitForTimeout(400); }
   const toastText = await bp.$$eval('.toast', a => a.map(t => t.textContent).join(' | '));
   check('storage blocked: the game still boots and says nothing will be saved', await bp.evaluate(() => !!AshtonkMania.DB.memory && AshtonkMania.Screens.currentName === 'home') && /Storage is blocked/.test(toastText), toastText);
+  await bp.evaluate(() => AshtonkMania.Screens.go('songselect')); await bp.waitForSelector('.ss-browse');
+  await bp.click('.ss-browse'); await bp.waitForTimeout(400);
+  check('an empty library offers "Browse beatmaps online" (the Beatmap Explorer)', await bp.evaluate(() => AshtonkMania.Screens.currentName === 'explore'));
+  await bp.evaluate(() => AshtonkMania.Screens.go('home')); await bp.waitForTimeout(300);
   await bp.evaluate(async () => {
     const dt = new DataTransfer(), b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); dt.items.add(new File([b], 'test-set.osz'));
     window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, cancelable: true }));

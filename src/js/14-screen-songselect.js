@@ -233,9 +233,10 @@ const SongSelect = {
     if (this.results.length) return;
     if (!BeatmapManager.sets.length) {
       this.emptyEl.append(h('div.box', h('h2', 'Your library is empty'),
-        h('p', 'Drag & drop .osz files (or a folder of beatmaps) anywhere on this window, or import them here.'),
-        h('div.row', { style: { justifyContent: 'center', marginTop: '14px' } },
-          h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json') }, icon('upload'), 'Import files'),
+        h('p', 'Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.'),
+        h('div.row.wrap', { style: { justifyContent: 'center', marginTop: '14px' } },
+          h('button.btn.primary.ss-browse', { onclick: () => { UISounds.click(); Screens.go('explore'); } }, icon('search'), 'Browse beatmaps online'),
+          h('button.btn', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json') }, icon('upload'), 'Import files'),
           h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'))));
     } else {
       this.emptyEl.append(h('div.box', h('h2', 'No matches'), h('p', 'Nothing matches your search and filters.'),
