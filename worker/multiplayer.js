@@ -606,8 +606,8 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
-  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; }
-  /** Tell the lobby's room list about this room (on change, and every 30 s while anyone is in it). */
+  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; this.seen = new Map(); this.kick = new Map(); }
+  /** Tell the lobby's room list about this room (on change, and every 15 s while anyone is in it). */
   announce(force = false) {
     const l = this.logic && this.logic.listing(), body = JSON.stringify(l ? { room: l } : { remove: this.logic && this.logic.code });
     if (!force && body === this._listed) return;
@@ -616,8 +616,17 @@ export class MatchRoom {
     if (!this.env.MATCHMAKER) return;
     const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
     stub.fetch('https://mm/api/mp/rooms/update', { method: 'POST', body, headers: { 'content-type': 'application/json' } }).catch(() => {});
-    if (l && !this.beat) this.beat = setInterval(() => this.announce(true), 30000);
+    if (l && !this.beat) this.beat = setInterval(() => { this.dropSilent(); this.announce(true); }, 15000);
     if (!l && this.beat) { clearInterval(this.beat); this.beat = null; }
+  }
+  /** Players ping every 15 s: a connection silent for 90 s has dropped without closing, so close it (they leave). */
+  dropSilent() {
+    const t = Date.now();
+    for (const [id, at] of this.seen) if (t - at > 90000) {
+      const ws = this.socks.get(id);
+      if (ws) { try { ws.close(4002, 'timeout'); } catch { /* closed */ } }
+      (this.kick.get(id) || (() => this.seen.delete(id)))(); // (a dead connection may never report the close)
+    }
   }
   async fetch(request) {
     const url = new URL(request.url);
@@ -636,20 +645,23 @@ export class MatchRoom {
         if (msg.t !== 'hello') return;
         const r = this.logic.join(id, msg.name, !!msg.create, msg);
         if (!r.ok) { try { server.send(JSON.stringify({ t: 'error', msg: r.error, fatal: true })); server.close(4000, 'rejected'); } catch { /* closed */ } return; }
-        joined = true; this.socks.set(id, server);
+        joined = true; this.socks.set(id, server); this.seen.set(id, Date.now());
         this.dispatch(r.out);
         this.schedule();
         return;
       }
+      this.seen.set(id, Date.now());
       this.dispatch(this.logic.message(id, msg));
       this.schedule();
     });
     const gone = () => {
       if (!joined) return;
-      joined = false; this.socks.delete(id);
+      joined = false; this.socks.delete(id); this.seen.delete(id); this.kick.delete(id);
       this.dispatch(this.logic.leave(id));
+      this.announce(); // (the last one out leaves nothing to dispatch, but the room must leave the list)
       this.schedule();
     };
+    this.kick.set(id, gone);
     server.addEventListener('close', gone);
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
@@ -678,16 +690,29 @@ export class MatchRoom {
  *  invite {from: {id, name}, code}, invited {to}, error {msg}. Plain JS so it can be unit-tested. */
 export class PresenceLogic {
   constructor(now = () => Date.now()) { this.now = now; this.users = new Map(); this.lastInvite = new Map(); }
+  static STALE = 70000; // clients ping every 10 s (a background tab maybe once a minute); silent this long = gone (a dropped connection may never say so)
   list() { return [...this.users.entries()].map(([id, u]) => ({ id, name: u.name, status: u.status, avatar: u.avatar })); }
   join(id, msg) {
-    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar) });
+    // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
+    const cid = str(msg && msg.cid, 40), gone = [];
+    if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { this.users.delete(oid); gone.push(oid); }
+    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid, seen: this.now() });
+    this.dropped = gone;
     return [{ to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
+  }
+  /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
+  prune() {
+    const t = this.now(), gone = [];
+    for (const [id, u] of this.users) if (t - u.seen > PresenceLogic.STALE) { this.users.delete(id); this.lastInvite.delete(id); gone.push(id); }
+    return { gone, out: gone.length ? [this.broadcast()] : [] };
   }
   leave(id) { if (!this.users.delete(id)) return []; this.lastInvite.delete(id); return [this.broadcast()]; }
   broadcast() { return { to: 'all', msg: { t: 'online', players: this.list() } }; }
   message(id, msg) {
     const u = this.users.get(id);
     if (!u || !msg || typeof msg !== 'object') return [];
+    u.seen = this.now();
+    if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
     if (msg.t === 'status') {
       const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       if (st === u.status && name === u.name && av === u.avatar) return [];
@@ -723,9 +748,13 @@ export class Matchmaker {
       if (!joined) {
         if (msg.t !== 'hello') return;
         joined = true; this.socks.set(id, server);
-        this.send(this.presence.join(id, msg));
+        const out = this.presence.join(id, msg);
+        this.closeGone(this.presence.dropped);
+        this.send(out);
+        if (!this.sweep) this.sweep = setInterval(() => { const r = this.presence.prune(); this.closeGone(r.gone); this.send(r.out); if (!this.socks.size) { clearInterval(this.sweep); this.sweep = null; } }, 10000);
         return;
       }
+      if (!this.presence.users.has(id)) { try { server.close(4001, 'stale'); } catch { /* closed */ } return; } // pruned: the client reconnects
       this.send(this.presence.message(id, msg));
     });
     const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
@@ -733,6 +762,7 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
   send(out) {
     for (const { to, msg } of out || []) {
       const data = JSON.stringify(msg);
@@ -753,7 +783,7 @@ export class Matchmaker {
       return json({ ok: true });
     }
     if (url.pathname.endsWith('/rooms')) {
-      for (const [c, r] of this.rooms) if (now - r.at > 75000) this.rooms.delete(c);
+      for (const [c, r] of this.rooms) if (now - r.at > 40000) this.rooms.delete(c); // (live rooms check in every 15 s)
       return json({ rooms: [...this.rooms.values()].sort((a, b) => (a.state === 'playing') - (b.state === 'playing') || b.players - a.players).slice(0, 50) });
     }
     if (url.pathname.endsWith('/ranked')) {

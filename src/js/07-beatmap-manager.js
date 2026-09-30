@@ -90,6 +90,12 @@ const BeatmapManager = {
         if (ext === 'osz') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'osk') { Bus.emit('import:status', `Importing skin ${f.name}…`); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
+        else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
+          // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
+          const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });
+          report.sets.push(...r.sets); report.errors.push(...r.errors); report.wom = r;
+        }
+        else if (ext === 'zip') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'json' && !name.includes('/')) {
           const obj = JSON.parse(await f.text());
           if (obj && obj.app === APP_NAME && obj.kind === 'replay') report.replays.push(await ReplayManager.importObject(obj));

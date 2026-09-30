@@ -18,6 +18,7 @@ const OnlineBeatmaps = {
   },
   PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
   COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
+  _covers: new Map(),
   fill(tpl, id, kind = 'cover') { return String(tpl).split('$setId').join(id).split('$kind').join(kind); },
   /** Where to download a set from, in the order to try (chosen provider first, then the rest). */
   downloadURLs(id, viaServer) {
@@ -163,10 +164,13 @@ const OnlineBeatmaps = {
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
   loadCover(el, id, kinds, done) {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
+    // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
+    const known = this._covers.get(urls.join('|'));
+    if (known) { el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
     const next = i => {
       if (i >= urls.length) return;
       const img = new Image();
-      img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
+      img.onload = () => { this._covers.set(urls.join('|'), img.src); el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -248,16 +252,17 @@ const ExplorerScreen = {
     this.renderFilters = () => {
       clearEl(this.filters).append(...[
         // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
-        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
+        // the common key counts; the rest (1–18, as on Web-Osu-Mania) and the rarer filters are under "More filters"
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`]).filter(([k]) => st.more || (k >= 4 && k <= 10) || st.keys.includes(k))], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
         // clicking a sort picks it newest/highest first; clicking it again flips the direction (as on WOM and osu!)
         chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
           v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = 'desc'; } }),
-        h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
+        st.more || st.minStars > 0 || st.maxStars < 20 ? h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()) : null,
         st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
         st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
         st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
-        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips',
+        h('div.ex-filter', h('span.ex-flabel', ''), h('div.ex-chips',
           h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
           h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
           this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null))].filter(Boolean));
@@ -276,7 +281,12 @@ const ExplorerScreen = {
       h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel)));
     // "back to top" appears once you've scrolled a good way down
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
-    scroller.addEventListener('scroll', () => this.topBtn.classList.toggle('show', scroller.scrollTop > 900), { passive: true });
+    // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
+    // and hover sounds flickering past); they do again a moment after it stops
+    scroller.addEventListener('scroll', () => {
+      this.topBtn.classList.toggle('show', scroller.scrollTop > 900);
+      el.classList.add('scrolling'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => el.classList.remove('scrolling'), 160);
+    }, { passive: true });
     el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
     this.io.observe(this.sentinel);
@@ -367,12 +377,24 @@ const ExplorerScreen = {
     // keep the scroll position: re-rendering (more results, a finished download) must not jump to the top
     const scroller = this.grid.closest('.screen-body');
     const top = scroller ? scroller.scrollTop : 0;
-    clearEl(this.grid);
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
-    for (const set of list) this.grid.append(this.card(set));
+    // cards that haven't changed are kept as they are (rebuilding every card made the whole page flash
+    // each time another page of results came in)
+    const old = this._cards || new Map(), next = new Map();
+    const cards = list.map(set => {
+      const sig = this.cardSig(set), c = old.get(set.id);
+      const card = c && c.sig === sig && c.set === set ? c.el : this.card(set);
+      next.set(set.id, { el: card, sig, set });
+      return card;
+    });
+    this._cards = next;
+    const kids = this.grid.children;
+    if (kids.length !== cards.length || cards.some((c, i) => kids[i] !== c)) this.grid.replaceChildren(...cards);
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
   },
+  /** What a card shows that can change without a new search. */
+  cardSig(set) { const dl = this.downloads.get(set.id); return [!!this.owned(set.id), dl ? dl.state : '', this.liked().has(set.id), !!this.mpPick, Settings.get('ui.unicodeMetadata')].join(); },
   /** Only swap the play/pause icons — previewing never re-renders the list. */
   syncPreviewButtons() {
     if (!this.grid) return;
@@ -481,41 +503,40 @@ const ExplorerScreen = {
     else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Suggest to the room'), h('small', d.version));
     else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
     else main = h('button.bso-dl', { onclick: () => this.download(set) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'), h('small', set.video ? 'with video' : 'osu!mania beatmap'));
-    const stat = (ic, label, v) => h('div.bso-stat', { title: label }, icon(ic), h('b', v));
-    const info = [['Source', set.source], ['Genre', set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null], ['Language', set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null],
-      ['Submitted', date(set.lastUpdated)], ['Ranked', ['ranked', 'approved', 'loved', 'qualified'].includes(set.status) ? date(set.rankedDate) : null]].filter(([, v]) => v);
-    const localScores = owned ? ScoreManager.forMap((owned.maps.find(x => x.onlineId === d.id) || {}).hash).slice(0, 8) : [];
+    const genre = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
+    const lang = set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null;
+    const when = date(set.rankedDate || set.lastUpdated);
+    const localMap = owned ? owned.maps.find(x => x.onlineId === d.id) : null;
+    const localScores = localMap ? ScoreManager.forMap(localMap.hash).slice(0, 8) : [];
+    const basic = (ic, label, v) => h('div.bso-basic', icon(ic), h('span', label), h('b', v));
+    // one calm page: the cover with the title, who mapped it and the buttons; a single details card on the right;
+    // below, only what there is (tags, and your scores once it's in your library)
     clearEl(this.setEl).append(h('div.bso-scroll',
-      h('div.ov-head.bso-ovhead', h('div.ov-titlebar', h('div.ov-inner', h('div.ov-titleicon', icon('music')), h('div.ov-title', 'beatmap info'), h('span.grow'),
-        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x'))))),
       h('div.bso-header', cover, h('div.bso-shade'),
+        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
         h('div.bso-inner',
           h('div.bso-left',
-            diffs, hover,
+            h('div.bso-diffline', diffs, hover),
             h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null),
             h('div.bso-artist', artist),
-            h('div.bso-mapper', h('div.avatar.avatar-mono.bso-mav', (set.creator || '?').slice(0, 1).toUpperCase()),
-              h('div', h('div', 'mapped by ', h('b', set.creator)), date(set.rankedDate || set.lastUpdated) ? h('div.bso-mdate', `${set.status === 'ranked' ? 'ranked' : 'updated'} ${date(set.rankedDate || set.lastUpdated)}`) : null)),
-            h('div.bso-status', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase())),
+            h('div.bso-meta', ...[h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()),
+              h('span', 'mapped by ', h('b', set.creator)),
+              when ? h('span.dim', when) : null,
+              h('span.dim.bso-stat', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)),
+              h('span.dim.bso-stat', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites))].filter(Boolean)),
             h('div.bso-buttons',
               h('button.bso-fav', { title: 'Preview', 'aria-label': 'Preview', onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play')),
               main)),
-          h('div.bso-right',
-            h('div.bso-counts', stat('play', 'Play count', fmtInt(set.playCount)), stat('heart', 'Favourites', fmtInt(set.favourites))),
-            h('div.bso-box',
-              h('div.bso-basics', h('div', icon('clock'), h('span', 'Length'), h('b', fmtTime(d.length * 1000))), h('div', icon('music'), h('span', 'BPM'), h('b', String(Math.round(d.bpm)))),
-                h('div', icon('target'), h('span', 'Notes'), h('b', fmtInt(d.notes))), h('div', icon('list'), h('span', 'Long notes'), h('b', fmtInt(d.lns))))),
-            h('div.bso-box',
-              bar('Key count', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Star rating', d.stars, 10, x => x.toFixed(2), '.sr')),
-            set.rating ? h('div.bso-box', h('div.bso-boxt', 'User rating'), bar('', set.rating, 10, x => x.toFixed(2), '.rating')) : null))),
-      h('div.bso-body',
-        h('div.bso-info',
-          h('div.bso-sec', h('h3', 'Info'), info.length ? h('dl.bso-dl-list', ...info.flatMap(([k, v]) => [h('dt', k), h('dd', v)])) : h('div.muted', 'No extra info for this beatmap.')),
-          h('div.bso-sec', h('h3', 'Difficulties'), h('div.bso-difflist', ...set.diffs.map(x => h(`button.bso-diffrow${x === d ? '.on' : ''}`, { onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } },
-            h('i', { style: { '--sc': starColour(x.stars) } }), h('span', x.version), h('span.keys-tag', `${x.keys}K`), h('span.grow'), starBadge(x.stars)))))),
-        h('div.bso-sec.bso-scores', h('h3', 'Scoreboard'),
-          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', owned ? 'No scores on this difficulty yet — go set one!' : 'Download this beatmap to start setting scores.')))));
+          h('div.bso-card',
+            h('div.bso-basics', basic('clock', 'Length', fmtTime(d.length * 1000)), basic('music', 'BPM', String(Math.round(d.bpm))),
+              basic('target', 'Notes', fmtInt(d.notes)), basic('list', 'Long notes', fmtInt(d.lns))),
+            h('div.bso-bars', ...[bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Stars', d.stars, 10, x => x.toFixed(2), '.sr'),
+              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean))))),
+      h('div.bso-body', ...[
+        [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
+        owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
+          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
+            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean))));
     const sc = this.setEl.querySelector('.bso-scroll');
     if (sc) sc.scrollTop = top;
   },
@@ -578,7 +599,7 @@ const ExplorerScreen = {
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
-    if (old) old.replaceWith(this.card(set));
+    if (old) { const card = this.card(set); old.replaceWith(card); if (this._cards) this._cards.set(set.id, { el: card, sig: this.cardSig(set), set }); }
     if (this.setView && this.setView.set.id === set.id) this.renderSet();
   },
   togglePreview(id) {

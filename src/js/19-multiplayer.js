@@ -103,6 +103,8 @@ const Multiplayer = {
     if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
+    // the room list may still carry the room we just left for a moment: the lobby hides it if we were alone in it
+    if (this.room) this.lastLeft = { code: this.room.code, alone: this.room.players.length <= 1, at: Date.now() };
     this.ws = null; this.room = null; this.me = null; this.opps = new Map();
     if (ws) { try { ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
@@ -347,8 +349,12 @@ const Presence = {
     ws.onopen = () => {
       this.retry = 0;
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av }));
-      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: 'ping' }), 25000);
+      // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
+      if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid }));
+      // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
+      // looking at who's online, asks for the list again
+      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -374,6 +380,9 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
+  /** Is a list of online players on screen (Discover, the invite dialog)? */
+  watching() { return Screens.currentName === 'discover' || !!document.querySelector('.inv-list'); },
+  refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
     const a = p && typeof p.avatar === 'string' ? p.avatar : '';
@@ -398,6 +407,7 @@ const Presence = {
   /** The room's Invite button: invite someone who's online, or share a link. */
   openInvite() {
     if (!Multiplayer.inRoom()) return;
+    this.refresh();
     const invited = new Set();
     const list = h('div.inv-list');
     const paint = () => {
@@ -512,6 +522,8 @@ const MultiplayerScreen = {
     let rooms = null;
     try { const r = await fetch('api/mp/rooms', { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
+    const left = Multiplayer.lastLeft;
+    if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));
     clearEl(el).append(...(rooms && rooms.length ? rooms.map(r => {
       const bg = h('div.mp-rbg');
       if (r.map && r.map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card')}")`;
@@ -530,7 +542,7 @@ const MultiplayerScreen = {
       row.addEventListener('pointerenter', () => UISounds.hover());
       return row;
     }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Couldn\'t load the room list.')]));
-    this._roomsT = setTimeout(() => this.pollRooms(), 5000);
+    this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 
   // ── room: the chat panel is built once per room and survives updates, so a half-typed message is
@@ -941,7 +953,7 @@ const DiscoverScreen = {
   enter() {
     const { el, page } = pageShell('Discover', 'Players online right now', [], { icon: 'social', hue: 'pink', wide: true });
     this.page = page;
-    Presence.start();
+    Presence.start(); Presence.refresh();
     this._unsub = [Bus.on('presence:changed', () => this.render()), Bus.on('mp:changed', () => this.render()), Bus.on('presence:invited', () => this.render())];
     this.invited = new Set();
     this.render();

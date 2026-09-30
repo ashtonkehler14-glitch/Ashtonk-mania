@@ -871,11 +871,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .gp-video.on { display: block; }
 .gp-hud.hidden-hud > *:not(.hud-replay) { visibility: hidden; }
 
-.volume-overlay { position: absolute; right: 18px; top: 50%; transform: translate(20px, -50%); opacity: 0; z-index: 92; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: rgba(12, 8, 20, .9); border: 1px solid var(--line-2); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
-.volume-overlay.show { opacity: 1; transform: translate(0, -50%); }
-.vo-row { display: flex; align-items: center; gap: 12px; }
-.vo-ring { --p: 50%; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: radial-gradient(closest-side, rgb(12 8 20) 78%, transparent 80% 100%), conic-gradient(var(--accent) var(--p), rgba(255, 255, 255, .12) 0); }
-.vo-l { font-weight: 600; color: var(--text-2); min-width: 60px; }
 
 /* ── back button (osu!lazer: pink, slanted, bottom-left) */
 .lz-back { --c: var(--accent); position: relative; height: 50px; min-width: 130px; border: 0; padding: 0 22px 0 18px; margin-left: -30px; margin-right: 6px; background: var(--c); color: #fff; font-size: .95rem; transform: skewX(-12deg); transition: min-width var(--t-med) var(--ease-out), background var(--t-fast); }
@@ -1889,7 +1884,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .pause-box h2 { margin-bottom: 30px; }
 
 /* main menu: triangles behind everything; lazer's sway-and-bounce on the hovered button's icon */
-.lz-tri { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; opacity: .82; pointer-events: none; }
+.lz-tri { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; opacity: 1; pointer-events: none; }
 .lz-menu > .lz-stage { position: relative; z-index: 3; } /* the button bar stays in front of the mascot */
 .lz-menu > .lz-stage { pointer-events: none; } .lz-menu > .lz-stage .lz-bar { pointer-events: auto; }
 .lz-ico { display: grid; place-items: center; transition: transform var(--bt, 400ms) cubic-bezier(.45, 0, .55, 1); }
@@ -1950,23 +1945,28 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .nf-x .i { width: 14px; height: 14px; }
 .nf-empty { padding: 40px 10px; text-align: center; color: var(--muted); }
 
-/* volume (osu!lazer's VolumeOverlay): effects / master / music dials at the right edge */
-.volume-overlay { position: absolute; right: 0; top: 50%; z-index: 150; transform: translate(40px, -50%); opacity: 0; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding: 26px 26px 26px 70px;
-  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .55) 60%); transition: opacity 250ms, transform 300ms var(--ease-out); }
-.volume-overlay.show { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
-.vo-meter { display: flex; flex-direction: row-reverse; align-items: center; gap: 12px; cursor: default; }
-.vo-dial { position: relative; display: grid; place-items: center; }
-.vo-dial svg { display: block; }
-.vo-bg { fill: rgba(0, 0, 0, .5); stroke: rgba(255, 255, 255, .12); stroke-width: 6; }
-.vo-fg { fill: none; stroke: #66ccff; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 150ms; }
-.vo-meter.master .vo-fg { stroke: #ff66ab; }
-.vo-meter.big .vo-bg, .vo-meter.big .vo-fg { stroke-width: 8; }
-.vo-num { position: absolute; font-weight: 600; font-size: 1rem; font-variant-numeric: tabular-nums; }
-.vo-meter.big .vo-num { font-size: 1.5rem; }
-.vo-label { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255, 255, 255, .55); transition: color 150ms; }
+/* volume (osu!lazer's VolumeOverlay): a dark fade in from the left edge, the mute button, then the effects /
+   master / music dials, each with its name in a dark pill beside it */
+.volume-overlay { position: absolute; left: 0; top: 0; bottom: 0; z-index: 150; width: 340px; opacity: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 6px; padding: 0 0 0 22px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .75), transparent); transform: translateX(-30px); transition: opacity 250ms, transform 300ms var(--ease-out); }
+.volume-overlay.show { opacity: 1; transform: none; pointer-events: auto; }
+.vo-meter { display: flex; align-items: center; gap: 10px; cursor: default; }
+.vo-meter:not(.big) { margin-left: 12px; }
+.vo-dial { position: relative; display: grid; place-items: center; transition: transform 200ms var(--ease-out); }
+.vo-meter.sel .vo-dial { transform: scale(1.06); }
+.vo-dial svg { display: block; overflow: visible; }
+.vo-bg { fill: rgba(0, 0, 0, .7); stroke: rgba(255, 255, 255, .1); stroke-width: 7; }
+.vo-fg { fill: none; stroke: #3d8fb8; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 150ms, stroke 200ms, filter 200ms; }
+.vo-meter.master .vo-fg { stroke: #c23d7c; }
+.vo-meter.sel .vo-fg { stroke: #66ccff; filter: drop-shadow(0 0 5px rgba(102, 204, 255, .8)); }
+.vo-meter.master.sel .vo-fg { stroke: #ff66ab; filter: drop-shadow(0 0 6px rgba(255, 102, 171, .8)); }
+.vo-meter.big .vo-bg, .vo-meter.big .vo-fg { stroke-width: 9; }
+.vo-num { position: absolute; font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px rgba(255, 255, 255, .35); }
+.vo-meter.big .vo-num { font-size: 1.55rem; }
+.vo-label { min-width: 104px; padding: 3px 14px; border-radius: 999px; background: rgba(0, 0, 0, .85); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); transition: color 150ms; }
 .vo-meter.sel .vo-label { color: #fff; }
-.vo-meter.sel .vo-bg { stroke: rgba(255, 255, 255, .3); }
-.vo-mute { width: 36px; height: 36px; margin-right: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; cursor: pointer; }
+.vo-mute { width: 38px; height: 38px; margin: 0 0 6px 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .7); color: #fff; cursor: pointer; transition: background 150ms; }
+.vo-mute:hover { background: rgba(255, 255, 255, .15); }
 .vo-mute.on { background: #ed1121; }
 .vo-mute .i { width: 18px; height: 18px; }
 
@@ -2075,70 +2075,63 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 @keyframes bsoIn { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes bsoOut { to { transform: translateY(40px); opacity: 0; } }
 .bso-scroll { position: absolute; inset: 0; overflow: auto; padding-top: var(--toolbar-h); }
-.bso-ovhead .ov-inner { display: flex; align-items: center; gap: 12px; }
-.bso-close { margin-left: auto; }
-.bso-header { position: relative; isolation: isolate; min-height: 380px; }
+.bso-header { position: relative; isolation: isolate; min-height: 360px; }
 .bso-cover { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat, hsl(var(--o-h, 200) 20% 18%); }
-.bso-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, hsl(var(--o-h, 200) 10% 10% / .92) 30%, hsl(var(--o-h, 200) 10% 10% / .55)), linear-gradient(0deg, hsl(var(--o-h, 200) 10% 10%), transparent 40%); }
-.bso-inner { display: flex; gap: 30px; padding: 24px max(50px, calc((100% - 1300px) / 2)) 30px; }
-.bso-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.bso-diffs { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; margin-left: -4px; width: max-content; max-width: 100%; border-radius: 10px; background: rgba(0, 0, 0, .35); }
-.bso-diff { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; color: var(--sc); cursor: pointer; transition: background 120ms; }
-.bso-diff .i { width: 22px; height: 22px; filter: drop-shadow(0 0 3px var(--sc)); }
+.bso-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, hsl(var(--o-h, 200) 10% 8% / .88) 25%, hsl(var(--o-h, 200) 10% 8% / .35) 75%), linear-gradient(0deg, hsl(var(--o-h, 200) 10% 10%), transparent 45%); }
+.bso-close { position: absolute; top: 16px; right: 20px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; background: rgba(0, 0, 0, .45); }
+.bso-close:hover { background: rgba(255, 255, 255, .15); }
+.bso-inner { display: flex; align-items: flex-end; gap: 40px; padding: 60px max(56px, calc((100% - 1200px) / 2)) 36px; min-height: 360px; }
+.bso-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bso-diffline { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.bso-diffs { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, .4); }
+.bso-diff { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; color: var(--sc); cursor: pointer; transition: background 120ms; }
+.bso-diff .i { width: 20px; height: 20px; filter: drop-shadow(0 0 3px var(--sc)); }
 .bso-diff:hover { background: rgba(255, 255, 255, .1); }
 .bso-diff.on { background: rgba(255, 255, 255, .16); box-shadow: inset 0 0 0 2px var(--sc); }
-.bso-diffhover { display: flex; align-items: center; gap: 10px; min-height: 26px; font-size: 1.05rem; }
-.bso-title { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 2rem; font-weight: 700; line-height: 1.15; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
-.bso-artist { font-size: 1.2rem; color: rgba(255, 255, 255, .85); }
-.bso-mapper { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .88rem; }
-.bso-mav { width: 40px; height: 40px; border-radius: 10px; font-size: 18px; }
-.bso-mapper b { color: hsl(var(--o-h, 200) 70% 80%); }
-.bso-mdate { font-size: .74rem; color: rgba(255, 255, 255, .55); }
-.bso-status { margin-top: 8px; }
-.bso-buttons { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-.bso-fav { width: 50px; height: 50px; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(0, 0, 0, .4); color: #fff; cursor: pointer; }
+.bso-diffhover { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+.bso-title { display: flex; align-items: center; gap: 10px; font-size: 2.1rem; font-weight: 700; line-height: 1.15; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); overflow-wrap: anywhere; }
+.bso-artist { font-size: 1.15rem; color: rgba(255, 255, 255, .8); }
+.bso-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: .86rem; }
+.bso-meta b { color: hsl(var(--o-h, 200) 70% 80%); font-weight: 600; }
+.bso-meta .dim, .bso .dim { color: rgba(255, 255, 255, .55); }
+.bso-stat { display: inline-flex; align-items: center; gap: 5px; }
+.bso-stat .i { width: 13px; height: 13px; }
+.bso-buttons { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.bso-fav { width: 48px; height: 48px; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(0, 0, 0, .45); color: #fff; cursor: pointer; transition: background 150ms; }
 .bso-fav:hover { background: rgba(255, 255, 255, .15); }
-.bso-dl { position: relative; overflow: hidden; height: 50px; min-width: 200px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 10px; padding: 0 18px; border: 0; border-radius: 10px; background: #66ccff; color: #0f2530; text-align: left; cursor: pointer; transition: filter 120ms; }
+.bso-dl { position: relative; overflow: hidden; height: 48px; min-width: 190px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 10px; padding: 0 18px; border: 0; border-radius: 10px; background: #66ccff; color: #0d2230; text-align: left; cursor: pointer; transition: filter 150ms; }
 .bso-dl:hover { filter: brightness(1.1); }
-.bso-dl .i { grid-row: 1 / 3; width: 22px; height: 22px; }
-.bso-dl span { font-weight: 800; font-size: 1rem; }
-.bso-dl small { font-size: .72rem; opacity: .75; }
+.bso-dl .i { grid-row: 1 / 3; width: 20px; height: 20px; }
+.bso-dl span { font-weight: 800; font-size: .98rem; }
+.bso-dl small { font-size: .7rem; opacity: .75; }
 .bso-dl.play { background: #88b300; color: #16210a; }
-.bso-dl.busy { background: rgba(102, 204, 255, .25); color: #fff; cursor: default; }
+.bso-dl.busy { background: rgba(102, 204, 255, .25); color: #fff; cursor: default; isolation: isolate; grid-template-columns: 1fr; }
 .bso-dl.busy > i { position: absolute; inset: 0 auto 0 0; width: var(--p); background: rgba(102, 204, 255, .45); z-index: -1; }
-.bso-dl.busy { isolation: isolate; grid-template-columns: 1fr; }
-.bso-right { flex: none; width: 300px; display: flex; flex-direction: column; gap: 8px; }
-.bso-counts { display: flex; gap: 14px; justify-content: flex-end; font-size: .85rem; }
-.bso-stat { display: inline-flex; align-items: center; gap: 6px; }
-.bso-stat .i { width: 14px; height: 14px; }
-.bso-box { padding: 12px 14px; border-radius: 10px; background: rgba(0, 0, 0, .45); backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 6px; }
-.bso-boxt { font-size: .75rem; color: rgba(255, 255, 255, .6); }
-.bso-basics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-.bso-basics > div { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; }
-.bso-basics .i { grid-row: 1 / 3; width: 18px; height: 18px; color: #66ccff; }
-.bso-basics span { font-size: .68rem; color: rgba(255, 255, 255, .55); text-transform: uppercase; letter-spacing: .05em; }
-.bso-basics b { font-size: .95rem; }
-.bso-attr { display: grid; grid-template-columns: 90px 1fr 36px; align-items: center; gap: 8px; font-size: .8rem; }
-.bso-attr .bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.bso-card { flex: none; width: 290px; padding: 16px 18px; border-radius: 14px; background: rgba(10, 10, 14, .6); backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 14px; }
+.bso-basics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bso-basic { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; }
+.bso-basic .i { grid-row: 1 / 3; width: 17px; height: 17px; color: #66ccff; }
+.bso-basic span { font-size: .66rem; color: rgba(255, 255, 255, .5); text-transform: uppercase; letter-spacing: .06em; }
+.bso-basic b { font-size: .95rem; font-variant-numeric: tabular-nums; }
+.bso-bars { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.bso-attr { display: grid; grid-template-columns: 72px 1fr 34px; align-items: center; gap: 10px; font-size: .78rem; color: rgba(255, 255, 255, .7); }
+.bso-attr .bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .bso-attr .bar i { display: block; height: 100%; border-radius: 3px; background: #fff; }
 .bso-attr.sr .bar i { background: #ffcc22; }
 .bso-attr.rating .bar i { background: #b3d944; }
-.bso-attr b { text-align: right; font-variant-numeric: tabular-nums; }
-.bso-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 26px max(50px, calc((100% - 1300px) / 2)) 60px; }
-.bso-info { display: flex; flex-direction: column; gap: 20px; }
-.bso-sec h3 { margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
-.bso-dl-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: .88rem; }
-.bso-dl-list dt { color: rgba(255, 255, 255, .55); }
-.bso-dl-list dd { margin: 0; }
-.bso-difflist { display: flex; flex-direction: column; gap: 4px; }
-.bso-diffrow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .04); color: #fff; text-align: left; cursor: pointer; }
-.bso-diffrow:hover { background: rgba(255, 255, 255, .08); }
-.bso-diffrow.on { background: rgba(255, 255, 255, .12); }
-.bso-diffrow > i { width: 8px; height: 18px; border-radius: 4px; background: var(--sc); box-shadow: 0 0 5px var(--sc); }
+.bso-attr b { text-align: right; color: #fff; font-variant-numeric: tabular-nums; }
+.bso-body { display: flex; flex-direction: column; gap: 22px; padding: 22px max(56px, calc((100% - 1200px) / 2)) 60px; }
+.bso-body:empty { display: none; }
+.bso-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.bso-tag { display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .05); font-size: .85rem; }
+.bso-tag small { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: rgba(255, 255, 255, .45); }
+.bso-sec { max-width: 760px; }
+.bso-sec h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
+.bso-sec h3 small { font-size: .78rem; font-weight: 500; color: rgba(255, 255, 255, .5); }
 .bso-scorelist { display: flex; flex-direction: column; gap: 4px; }
 .bso-score { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); font-size: .88rem; }
 .bso-rank { width: 28px; color: rgba(255, 255, 255, .55); font-weight: 700; }
-@media (max-width: 900px) { .bso-inner, .bso-body { flex-direction: column; grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; } .bso-right { width: auto; } }
+@media (max-width: 900px) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
 .bso-scroll { padding-top: 0; }
@@ -2308,6 +2301,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 700px) { .mp-cr-row { grid-template-columns: 1fr; } }
 .dialog:has(.mp-cr) { width: min(700px, calc(94 * var(--vw))) !important; max-width: none !important; }
 .mp-cr { min-width: 0; }
+
+/* beatmap listing: nothing reacts to the pointer while the list is scrolling */
+.explorer.scrolling .ex-grid { pointer-events: none; }
+/* setup: bring over a Web-Osu-Mania backup */
+.setup-wom { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 40px; margin-top: 18px; font-size: .9rem; color: var(--text-2); }
+.setup-wom > .i { width: 18px; height: 18px; color: #88b300; }
+.setup-wom-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .06); color: var(--text-2); font: inherit; cursor: pointer; transition: background 150ms, color 150ms; }
+.setup-wom-btn:hover { background: rgba(255, 255, 255, .12); color: #fff; }
+.setup-wom-btn b { color: var(--accent); }
+.setup-wom-btn .i { width: 16px; height: 16px; }
 
 </style>
 </head>
@@ -4562,7 +4565,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
-  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.8, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
@@ -4628,6 +4631,7 @@ const Settings = {
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
     // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
     if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
+    if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
@@ -4767,6 +4771,12 @@ const BeatmapManager = {
         if (ext === 'osz') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'osk') { Bus.emit('import:status', `Importing skin ${f.name}…`); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
+        else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
+          // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
+          const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });
+          report.sets.push(...r.sets); report.errors.push(...r.errors); report.wom = r;
+        }
+        else if (ext === 'zip') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'json' && !name.includes('/')) {
           const obj = JSON.parse(await f.text());
           if (obj && obj.app === APP_NAME && obj.kind === 'replay') report.replays.push(await ReplayManager.importObject(obj));
@@ -7234,12 +7244,15 @@ const Toolbar = {
       b.addEventListener('pointerenter', () => UISounds.hover());
       return b;
     };
-    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'), this.npText = h('span.tb-np-text'));
+    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'));
+    this.npText = h('span'); // (lazer's toolbar shows just the note; the title is in the panel)
     this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
     this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
     this.bellCount = h('span.tb-badge');
     this.bell = btn('bell', 'Notifications', 'Waiting for \'ya', () => Notifications.toggle(), { dataset: { tab: 'notifications' } });
     this.bell.append(this.bellCount);
+    // like lazer's toolbar toggles: a page's button closes that page when it's already open
+    const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
     this.clock = h('button.tb-btn.tb-clock', { 'aria-label': 'Clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     tb.append(
       h('div.tb-group',
@@ -7247,11 +7260,11 @@ const Toolbar = {
         btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
-        btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
-        btn('globe', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
+        btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
+        btn('globe', 'Discover', 'See who\'s online and play together', page('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.bell),
     );
@@ -7365,9 +7378,11 @@ const NowPlaying = {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
   },
-  hoverOpen() { clearTimeout(this._t); this.show(); },
-  hoverClose() { if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
-  toggle(pin) { if (this.open && this.pinned) { this.hide(); return; } this.pinned = !!pin; this.show(); },
+  hoverOpen() { clearTimeout(this._t); if (!this._shut) this.show(); },
+  hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
+  /** The toolbar button: opens the panel (and keeps it open), or closes it if it's showing — hovering doesn't
+   *  bring it straight back until the pointer has left the button. */
+  toggle(pin) { if (this.open) { this.hide(); this._shut = true; return; } this.pinned = !!pin; this.show(); },
   show() {
     this.ensure();
     if (this.open) return;
@@ -7404,7 +7419,7 @@ function backButton(onClick) {
 }
 
 /** osu!lazer's VolumeOverlay: the mouse wheel changes the volume on the main menu and in game (anywhere with Alt),
- *  shown at the right edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
+ *  shown at the left edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
  *  one the wheel changes; the overlay fades away a moment after the last change. */
 const VolumeOverlay = {
   el: null, hideT: 0, sel: 'master', hover: false,
@@ -7429,7 +7444,7 @@ const VolumeOverlay = {
     this.meters = [this.ring('effects', 'Effects'), this.ring('master', 'Master', true), this.ring('music', 'Music')];
     this.muteBtn = h('button.vo-mute', { title: 'Mute', 'aria-label': 'Mute', onclick: () => this.toggleMute() }, icon('volume'));
     this.el = h('div.volume-overlay', { onpointerenter: () => { this.hover = true; clearTimeout(this.hideT); }, onpointerleave: () => { this.hover = false; this.later(); } },
-      ...this.meters, this.muteBtn);
+      this.muteBtn, ...this.meters);
     $('#app').appendChild(this.el);
   },
   toggleMute() {
@@ -7592,7 +7607,7 @@ const Zoom = {
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
     const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
-    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.8, 0.5, 2) : 0.8;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
     // (vw / vh inside the app mean the app's layout size, not the window's)
@@ -10917,14 +10932,19 @@ const SkinsScreen = {
 // ─────────────────────────────── What's new ───────────────────────────────
 /** Updates, newest first. Returning players see the newest entries they haven't seen once, after the game loads
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
+// What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.2', title: 'Polish', sections: [
+    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date'] },
+  ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [
-    { icon: 'home', title: 'Main menu', items: ['Settings sits left of the logo; Play, Edit and Browse to its right, as in osu!lazer', 'Edit holds Skins, Import, Beatmaps, Collections and Replays', 'The big logo comes back after 15 idle seconds', 'Hovered icons sway and bounce to the beat', 'lazer\'s triangles background, coloured to match the playing song', 'Menu music plays through every song before repeating one'] },
-    { icon: 'bell', title: 'Top bar', items: ['lazer\'s toolbar: beatmap listing, Discover, notifications, now playing, a clock and your profile', 'Notifications keep every pop-up until you clear them', 'Click the clock to switch between full, digital and analog', 'Scroll the mouse wheel on the menu or in game to change the volume (lazer\'s volume overlay)', 'lazer\'s cursor, with a size setting'] },
-    { icon: 'download', title: 'Beatmap listing', items: ['lazer\'s beatmap cards', 'Clicking a beatmap opens its info page: difficulties, details, download or play, and your scores'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with a hand of beatmap cards; the lower score takes the difference as damage, first to 0 HP loses; a rating and tiers', 'Create room asks two things: Regular or Ranked, then Public or Private', 'Regular rooms follow osu! rules: Head to Head, up to 16 players, highest score wins', 'Ranked rooms are 1v1 Ranked Play', 'Every public room, ranked ones included, is listed under Open rooms; click one to join', 'Everyone sees each other\'s profile pictures', 'Discover: see who\'s online and play together in a click'] },
-    { icon: 'brush', title: 'Skins', items: ['The Custom skin is rebuilt, and you can customise its shape, colours, size, receptors, key area, holds and glow', '4K-only skins play every key count', 'Skins keep their own health bar', 'Upscroll lines up on every skin'] },
-    { icon: 'mods', title: 'Everything else', items: ['Mods have icons', 'Settings use lazer\'s names', 'The interface looks the same at every resolution and zoom; UI scaling is the one size setting', 'A cleaner gameplay HUD and pause menu', 'More time to look at the loader before the song starts'] },
+    { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
+    { icon: 'bell', title: 'Top bar', items: ['Notifications, a clock and a now playing panel', 'Scroll on the menu to change the volume'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['New beatmap cards; click one for its info page'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby', 'Discover: see who\'s online'] },
+    { icon: 'brush', title: 'Skins', items: ['A better-looking Custom skin you can customise'] },
+    { icon: 'mods', title: 'Everything else', items: ['Mod icons', 'Looks the same at every resolution'] },
   ] },
 ];
 const WhatsNew = {
@@ -10974,6 +10994,7 @@ const OnlineBeatmaps = {
   },
   PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
   COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
+  _covers: new Map(),
   fill(tpl, id, kind = 'cover') { return String(tpl).split('$setId').join(id).split('$kind').join(kind); },
   /** Where to download a set from, in the order to try (chosen provider first, then the rest). */
   downloadURLs(id, viaServer) {
@@ -11119,10 +11140,13 @@ const OnlineBeatmaps = {
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
   loadCover(el, id, kinds, done) {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
+    // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
+    const known = this._covers.get(urls.join('|'));
+    if (known) { el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
     const next = i => {
       if (i >= urls.length) return;
       const img = new Image();
-      img.onload = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
+      img.onload = () => { this._covers.set(urls.join('|'), img.src); el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -11204,16 +11228,17 @@ const ExplorerScreen = {
     this.renderFilters = () => {
       clearEl(this.filters).append(...[
         // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
-        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
+        // the common key counts; the rest (1–18, as on Web-Osu-Mania) and the rarer filters are under "More filters"
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`]).filter(([k]) => st.more || (k >= 4 && k <= 10) || st.keys.includes(k))], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
         // clicking a sort picks it newest/highest first; clicking it again flips the direction (as on WOM and osu!)
         chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
           v => st.sort === v, v => { if (st.sort === v) st.dir = st.dir === 'desc' ? 'asc' : 'desc'; else { st.sort = v; st.dir = 'desc'; } }),
-        h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()),
+        st.more || st.minStars > 0 || st.maxStars < 20 ? h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()) : null,
         st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
         st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
         st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
-        h('div.ex-filter', h('span.ex-flabel', 'Extra'), h('div.ex-chips',
+        h('div.ex-filter', h('span.ex-flabel', ''), h('div.ex-chips',
           h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
           h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
           this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null))].filter(Boolean));
@@ -11232,7 +11257,12 @@ const ExplorerScreen = {
       h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel)));
     // "back to top" appears once you've scrolled a good way down
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
-    scroller.addEventListener('scroll', () => this.topBtn.classList.toggle('show', scroller.scrollTop > 900), { passive: true });
+    // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
+    // and hover sounds flickering past); they do again a moment after it stops
+    scroller.addEventListener('scroll', () => {
+      this.topBtn.classList.toggle('show', scroller.scrollTop > 900);
+      el.classList.add('scrolling'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => el.classList.remove('scrolling'), 160);
+    }, { passive: true });
     el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
     this.io.observe(this.sentinel);
@@ -11323,12 +11353,24 @@ const ExplorerScreen = {
     // keep the scroll position: re-rendering (more results, a finished download) must not jump to the top
     const scroller = this.grid.closest('.screen-body');
     const top = scroller ? scroller.scrollTop : 0;
-    clearEl(this.grid);
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
-    for (const set of list) this.grid.append(this.card(set));
+    // cards that haven't changed are kept as they are (rebuilding every card made the whole page flash
+    // each time another page of results came in)
+    const old = this._cards || new Map(), next = new Map();
+    const cards = list.map(set => {
+      const sig = this.cardSig(set), c = old.get(set.id);
+      const card = c && c.sig === sig && c.set === set ? c.el : this.card(set);
+      next.set(set.id, { el: card, sig, set });
+      return card;
+    });
+    this._cards = next;
+    const kids = this.grid.children;
+    if (kids.length !== cards.length || cards.some((c, i) => kids[i] !== c)) this.grid.replaceChildren(...cards);
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
   },
+  /** What a card shows that can change without a new search. */
+  cardSig(set) { const dl = this.downloads.get(set.id); return [!!this.owned(set.id), dl ? dl.state : '', this.liked().has(set.id), !!this.mpPick, Settings.get('ui.unicodeMetadata')].join(); },
   /** Only swap the play/pause icons — previewing never re-renders the list. */
   syncPreviewButtons() {
     if (!this.grid) return;
@@ -11437,41 +11479,40 @@ const ExplorerScreen = {
     else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Suggest to the room'), h('small', d.version));
     else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
     else main = h('button.bso-dl', { onclick: () => this.download(set) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'), h('small', set.video ? 'with video' : 'osu!mania beatmap'));
-    const stat = (ic, label, v) => h('div.bso-stat', { title: label }, icon(ic), h('b', v));
-    const info = [['Source', set.source], ['Genre', set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null], ['Language', set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null],
-      ['Submitted', date(set.lastUpdated)], ['Ranked', ['ranked', 'approved', 'loved', 'qualified'].includes(set.status) ? date(set.rankedDate) : null]].filter(([, v]) => v);
-    const localScores = owned ? ScoreManager.forMap((owned.maps.find(x => x.onlineId === d.id) || {}).hash).slice(0, 8) : [];
+    const genre = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
+    const lang = set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null;
+    const when = date(set.rankedDate || set.lastUpdated);
+    const localMap = owned ? owned.maps.find(x => x.onlineId === d.id) : null;
+    const localScores = localMap ? ScoreManager.forMap(localMap.hash).slice(0, 8) : [];
+    const basic = (ic, label, v) => h('div.bso-basic', icon(ic), h('span', label), h('b', v));
+    // one calm page: the cover with the title, who mapped it and the buttons; a single details card on the right;
+    // below, only what there is (tags, and your scores once it's in your library)
     clearEl(this.setEl).append(h('div.bso-scroll',
-      h('div.ov-head.bso-ovhead', h('div.ov-titlebar', h('div.ov-inner', h('div.ov-titleicon', icon('music')), h('div.ov-title', 'beatmap info'), h('span.grow'),
-        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x'))))),
       h('div.bso-header', cover, h('div.bso-shade'),
+        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
         h('div.bso-inner',
           h('div.bso-left',
-            diffs, hover,
+            h('div.bso-diffline', diffs, hover),
             h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null),
             h('div.bso-artist', artist),
-            h('div.bso-mapper', h('div.avatar.avatar-mono.bso-mav', (set.creator || '?').slice(0, 1).toUpperCase()),
-              h('div', h('div', 'mapped by ', h('b', set.creator)), date(set.rankedDate || set.lastUpdated) ? h('div.bso-mdate', `${set.status === 'ranked' ? 'ranked' : 'updated'} ${date(set.rankedDate || set.lastUpdated)}`) : null)),
-            h('div.bso-status', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase())),
+            h('div.bso-meta', ...[h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()),
+              h('span', 'mapped by ', h('b', set.creator)),
+              when ? h('span.dim', when) : null,
+              h('span.dim.bso-stat', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)),
+              h('span.dim.bso-stat', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites))].filter(Boolean)),
             h('div.bso-buttons',
               h('button.bso-fav', { title: 'Preview', 'aria-label': 'Preview', onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play')),
               main)),
-          h('div.bso-right',
-            h('div.bso-counts', stat('play', 'Play count', fmtInt(set.playCount)), stat('heart', 'Favourites', fmtInt(set.favourites))),
-            h('div.bso-box',
-              h('div.bso-basics', h('div', icon('clock'), h('span', 'Length'), h('b', fmtTime(d.length * 1000))), h('div', icon('music'), h('span', 'BPM'), h('b', String(Math.round(d.bpm)))),
-                h('div', icon('target'), h('span', 'Notes'), h('b', fmtInt(d.notes))), h('div', icon('list'), h('span', 'Long notes'), h('b', fmtInt(d.lns))))),
-            h('div.bso-box',
-              bar('Key count', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Star rating', d.stars, 10, x => x.toFixed(2), '.sr')),
-            set.rating ? h('div.bso-box', h('div.bso-boxt', 'User rating'), bar('', set.rating, 10, x => x.toFixed(2), '.rating')) : null))),
-      h('div.bso-body',
-        h('div.bso-info',
-          h('div.bso-sec', h('h3', 'Info'), info.length ? h('dl.bso-dl-list', ...info.flatMap(([k, v]) => [h('dt', k), h('dd', v)])) : h('div.muted', 'No extra info for this beatmap.')),
-          h('div.bso-sec', h('h3', 'Difficulties'), h('div.bso-difflist', ...set.diffs.map(x => h(`button.bso-diffrow${x === d ? '.on' : ''}`, { onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } },
-            h('i', { style: { '--sc': starColour(x.stars) } }), h('span', x.version), h('span.keys-tag', `${x.keys}K`), h('span.grow'), starBadge(x.stars)))))),
-        h('div.bso-sec.bso-scores', h('h3', 'Scoreboard'),
-          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', owned ? 'No scores on this difficulty yet — go set one!' : 'Download this beatmap to start setting scores.')))));
+          h('div.bso-card',
+            h('div.bso-basics', basic('clock', 'Length', fmtTime(d.length * 1000)), basic('music', 'BPM', String(Math.round(d.bpm))),
+              basic('target', 'Notes', fmtInt(d.notes)), basic('list', 'Long notes', fmtInt(d.lns))),
+            h('div.bso-bars', ...[bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Stars', d.stars, 10, x => x.toFixed(2), '.sr'),
+              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean))))),
+      h('div.bso-body', ...[
+        [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
+        owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
+          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
+            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean))));
     const sc = this.setEl.querySelector('.bso-scroll');
     if (sc) sc.scrollTop = top;
   },
@@ -11534,7 +11575,7 @@ const ExplorerScreen = {
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
-    if (old) old.replaceWith(this.card(set));
+    if (old) { const card = this.card(set); old.replaceWith(card); if (this._cards) this._cards.set(set.id, { el: card, sig: this.cardSig(set), set }); }
     if (this.setView && this.setView.set.id === set.id) this.renderSet();
   },
   togglePreview(id) {
@@ -11908,6 +11949,7 @@ const DataPanel = {
       h('div.row.wrap',
         btn('Export all data', 'download', () => DataManager.exportAll()),
         btn('Import data', 'upload', () => importViaPicker('.json')),
+        btn('Import Web-Osu-Mania backup', 'upload', () => WomImport.pickAndImport()),
         btn('Export settings', 'download', () => DataManager.exportSettings()),
         btn('Import settings', 'upload', async () => { const [f] = await pickFiles({ accept: '.json', multiple: false }); if (!f) return; try { const o = JSON.parse(await f.text()); await DataManager.importAll({ ...o, kind: 'settings' }); Toast.ok('Settings imported'); SettingsPanel.o && SettingsPanel.build(''); } catch (e) { Toast.err('Import failed', e.message); } }),
         btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); }),
@@ -12167,7 +12209,23 @@ const Onboarding = {
       h('div.setup-choices.two',
         h('button.setup-choice.primary', { onclick: () => this.go(2) }, h('span.setup-choice-ic', icon('sparkle')), h('span.setup-choice-t', 'Set it up'), h('span.setup-choice-s', 'Pick your device, colours, speed and skin')),
         h('button.setup-choice.ob-skip', { onclick: () => this.finish() }, h('span.setup-choice-ic', icon('play')), h('span.setup-choice-t', 'Skip'), h('span.setup-choice-s', 'Use the default settings'))),
+      this.womEl = h('div.setup-wom', this.womDone
+        ? [icon('check'), h('span', `Web-Osu-Mania backup imported: ${this.womDone}.`)]
+        : h('button.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), h('span', 'Coming from Web-Osu-Mania? ', h('b', 'Import your backup')))),
     ];
+  },
+  /** Web-Osu-Mania's backup .zip: beatmaps, settings, keybinds, scores and collections in one go. */
+  async importWom() {
+    const [f] = await pickFiles({ accept: '.zip', multiple: false });
+    if (!f || !this.o) return;
+    clearEl(this.womEl).append(h('span.spinner'), this.womStatus = h('span', 'Reading backup…'));
+    try {
+      const r = await WomImport.run(f, { onStatus: m => { if (m && this.womStatus) this.womStatus.textContent = m; } });
+      this.womDone = WomImport.summary(r);
+      if (r.errors.length) Toast.err('Some of it couldn\'t be imported', r.errors.slice(0, 5).join('\n'));
+      UISounds.play('check-on');
+    } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
+    if (this.o && this.step.id === 'ask') this.render();
   },
 
   step_device() {
@@ -12332,6 +12390,200 @@ const Onboarding = {
   },
 };
 
+/* ===== 18c-wom-import.js ===== */
+/* Web-Osu-Mania backups — the .zip from WOM's Settings → Backup & Restore — brought into Ashtonk!mania:
+ * the stored beatmaps (beatmapFiles/*.osz), settings and keybinds (settings.json), high scores (highScores.json)
+ * and collections (collections.json, or the older savedBeatmapSets.json). WOM's .womr replays and custom sounds
+ * have no counterpart here, so scores arrive without their replays. */
+
+const WomImport = {
+  /** Does this zip look like a WOM backup (rather than a beatmap or skin archive)? */
+  looksLike(zip) {
+    return zip.entries.some(e => /^(settings|highScores|collections|storedBeatmapSets|savedBeatmapSets)\.json$/.test(e.name) || /^beatmapFiles\/\d+/.test(e.name));
+  },
+  /** WOM's zustand stores are saved as {state, version}; older ones as the bare object. */
+  state(text) { const o = JSON.parse(text); return o && typeof o === 'object' && 'state' in o ? o.state : o; },
+
+  /** Import a backup file. Returns what came across: {sets, scores, settings, collections, skipped, errors}. */
+  async run(file, { onStatus = () => {} } = {}) {
+    const zip = new ZipReader(await file.arrayBuffer());
+    if (!this.looksLike(zip)) throw new Error('This isn\'t a Web-Osu-Mania backup. In Web-Osu-Mania, open Settings → Backup & Restore and export one.');
+    const out = { sets: [], scores: 0, settings: false, collections: 0, skipped: 0, errors: [] };
+    const byName = new Map(zip.entries.map(e => [e.name, e]));
+    const json = async name => byName.has(name) ? this.state(await zip.readText(byName.get(name))) : null;
+
+    // beatmaps first: scores and collections point at them
+    const osz = zip.entries.filter(e => /^beatmapFiles\/\d+.*\.osz$/i.test(e.name));
+    const report = { sets: [], skins: [], replays: [], errors: [], warnings: [] };
+    for (let i = 0; i < osz.length; i++) {
+      const e = osz[i], setId = Number(/^beatmapFiles\/(\d+)/.exec(e.name)[1]);
+      onStatus(`Importing beatmaps… ${i + 1}/${osz.length}`);
+      try {
+        const f = new File([await zip.read(e)], e.name.split('/').pop(), { type: 'application/zip' });
+        const sets = await BeatmapManager.importOsz(f, report);
+        for (const s of sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = setId; await DB.put('sets', { ...s, maps: undefined }); }
+        out.sets.push(...sets);
+      } catch (err) { out.errors.push(`${e.name.split('/').pop()}: ${friendlyError(err)}`); }
+    }
+    out.errors.push(...report.errors);
+    if (out.sets.length) Bus.emit('library:changed');
+
+    onStatus('Importing settings…');
+    try { const st = await json('settings.json'); if (st) out.settings = this.applySettings(st); } catch (err) { out.errors.push(`settings.json: ${friendlyError(err)}`); }
+
+    onStatus('Importing scores…');
+    try { const hs = await json('highScores.json'); if (hs) Object.assign(out, await this.importScores(hs.highScores || hs, out)); } catch (err) { out.errors.push(`highScores.json: ${friendlyError(err)}`); }
+
+    onStatus('Importing collections…');
+    try {
+      const cols = await json('collections.json');
+      const saved = await json('savedBeatmapSets.json');
+      const all = { ...(cols && typeof cols === 'object' ? cols : {}) };
+      if (saved && Array.isArray(saved.savedBeatmapSets)) all.Saved = saved.savedBeatmapSets;
+      out.collections = await this.importCollections(all);
+    } catch (err) { out.errors.push(`collections: ${friendlyError(err)}`); }
+    onStatus(null);
+    return out;
+  },
+
+  /** The WOM settings that mean the same thing here (volumes, scroll, background, offset, keys, a few toggles). */
+  applySettings(w) {
+    const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : null;
+    const set = (k, v) => { if (v !== null && v !== undefined) Settings.set(k, v); };
+    set('audio.master', num(w.volume, 0, 1));
+    set('audio.music', num(w.musicVolume, 0, 1));
+    set('audio.effects', num(w.sfxVolume, 0, 1));
+    set('audio.offset', num(w.audioOffset, -300, 300)); // (same sign: positive makes notes arrive later)
+    set('gameplay.scrollSpeed', num(w.scrollSpeed, 1, 40) && Math.round(w.scrollSpeed)); // the same scale as WOM's
+    set('gameplay.bgDim', num(w.backgroundDim, 0, 1));
+    set('gameplay.bgBlur', num(w.backgroundBlur, 0, 1));
+    if (typeof w.upscroll === 'boolean') set('gameplay.scrollDirection', w.upscroll ? 'up' : 'down');
+    if (typeof w.show300g === 'boolean') set('gameplay.showMax', w.show300g);
+    if (typeof w.showFpsCounter === 'boolean') set('graphics.showFps', w.showFpsCounter);
+    if (typeof w.performanceMode === 'boolean') set('graphics.performanceMode', w.performanceMode);
+    if (typeof w.preferMetadataInOriginalLanguage === 'boolean') set('ui.unicodeMetadata', w.preferMetadataInOriginalLanguage);
+    // keybinds: WOM's keyModes[keyCount - 1][column] = [first key, second key] (KeyboardEvent.code, like ours)
+    const km = w.keybinds && Array.isArray(w.keybinds.keyModes) ? w.keybinds.keyModes : null;
+    if (km) {
+      const binds = { ...Settings.get('input.keybinds') };
+      km.forEach((cols, i) => {
+        if (!Array.isArray(cols) || cols.length !== i + 1) return;
+        const b = cols.map(c => (Array.isArray(c) ? c : [c]).filter(k => typeof k === 'string' && k).slice(0, 2));
+        if (b.every(c => c.length)) binds[i + 1] = b;
+      });
+      Settings.set('input.keybinds', binds);
+    }
+    return true;
+  },
+
+  /** WOM mod names → ours (and the playback rate they imply). */
+  mods(list) {
+    const mods = [], names = { 'Easy': 'EZ', 'No Fail': 'NF', 'Half Time': 'HT', 'Hard Rock': 'HR', 'Sudden Death': 'SD', 'Perfect': 'PF', 'Perfect (SS)': 'PSS',
+      'Double Time': 'DT', 'Autoplay': 'AT', 'Random': 'RD', 'Mirror': 'MR', 'Constant Speed': 'CS', 'Hold Off': 'NLN' };
+    let rate = 1;
+    for (const m of Array.isArray(list) ? list : []) {
+      if (typeof m !== 'string') continue;
+      if (names[m]) mods.push(names[m]);
+      else if (m.startsWith('Accuracy Challenge')) mods.push('AC');
+      else if (m.startsWith('Fade In')) mods.push('FI');
+      else if (m.startsWith('Fade Out')) mods.push('HD');
+      else if (m.startsWith('Percy')) mods.push('PC');
+      else if (/Override/.test(m)) mods.push('DA');
+      else if (m.startsWith('Song Speed')) { const r = parseFloat(m.split(':')[1]); if (r > 0) { rate = r; mods.push('RT'); } }
+    }
+    if (mods.includes('DT')) rate = 1.5;
+    if (mods.includes('HT')) rate = 0.75;
+    return { mods: [...new Set(mods)], rate };
+  },
+
+  /** highScores[setId][beatmapId] = [{timestamp, mods, results, replayId}] → scores on the matching difficulties. */
+  async importScores(hs, out) {
+    let scores = 0, skipped = 0;
+    const have = new Set(ScoreManager.scores.map(s => s.id));
+    for (const [setId, maps] of Object.entries(hs || {})) {
+      for (const [mapId, list] of Object.entries(maps || {})) {
+        const set = BeatmapManager.sets.find(s => s.onlineId === Number(setId));
+        const map = BeatmapManager.sets.flatMap(s => s.maps).find(m => m.onlineId === Number(mapId)) || (set && set.maps.length === 1 ? set.maps[0] : null);
+        for (const h of Array.isArray(list) ? list : [list]) {
+          const r = h && h.results;
+          if (!r) continue;
+          if (!map) { skipped++; continue; }
+          const id = `sc-wom-${h.replayId || h.timestamp || uid()}`;
+          if (have.has(id)) continue;
+          const counts = [r[320], r[300], r[200], r[100], r[50], r[0]].map(n => Math.max(0, Math.round(Number(n) || 0)));
+          const acc = Number(r.accuracy) > 1 ? Number(r.accuracy) / 100 : Number(r.accuracy) || OsuMath.accuracy(counts);
+          const { mods, rate } = this.mods(h.mods);
+          const stars = map.stars || 0;
+          const score = {
+            id, mapHash: map.hash, mapId: map.id, setId: map.setId,
+            title: map.title, artist: map.artist, version: map.version, creator: map.creator,
+            keys: map.keys, stars, mods, rate, score: Math.round(Number(r.score) || 0), accuracy: acc, maxCombo: Math.round(Number(r.maxCombo) || 0),
+            counts, grade: ScoreSystem.gradeFor(acc, false, mods, counts), passed: true, date: Number(h.timestamp) || Date.now(),
+            player: ProfileManager.profile.name, replayId: null, imported: 'wom', srVersion: SR_VERSION,
+          };
+          score.pp = mods.includes('AT') ? 0 : OsuMath.pp(stars, counts, mods);
+          await DB.put('scores', score);
+          ScoreManager.scores.push(score); have.add(id);
+          scores++;
+        }
+      }
+    }
+    if (scores) { ScoreManager.scores.sort((a, b) => a.date - b.date); ScoreManager._reindex(); Bus.emit('scores:changed'); }
+    return { scores, skipped: out.skipped + skipped };
+  },
+
+  /** WOM collections hold online beatmap sets: the ones in the library go into a collection of the same name. */
+  async importCollections(all) {
+    let n = 0;
+    for (const [name, sets] of Object.entries(all)) {
+      if (!Array.isArray(sets)) continue;
+      const hashes = [];
+      for (const ws of sets) {
+        const local = ws && BeatmapManager.sets.find(s => s.onlineId === Number(ws.id));
+        if (local) hashes.push(...local.maps.map(m => m.hash));
+      }
+      let c = Collections.list.find(x => x.name === name);
+      if (!c) { if (!hashes.length && !sets.length) continue; c = await Collections.create(name); }
+      c.hashes = [...new Set([...c.hashes, ...hashes])];
+      n++;
+    }
+    if (n) await Collections.save();
+    return n;
+  },
+
+  /** A short "what came across" line for toasts and the setup screen. */
+  summary(r) {
+    const parts = [];
+    if (r.sets.length) parts.push(plural(r.sets.length, 'beatmap set'));
+    if (r.scores) parts.push(plural(r.scores, 'score'));
+    if (r.collections) parts.push(plural(r.collections, 'collection'));
+    if (r.settings) parts.push('settings and keybinds');
+    return parts.length ? parts.join(', ') : 'nothing new';
+  },
+
+  /** Pick a backup and import it, with the usual import pill and a toast. */
+  async pickAndImport() {
+    const [f] = await pickFiles({ accept: '.zip', multiple: false });
+    if (f) return this.importFile(f);
+    return null;
+  },
+  async importFile(f) {
+    await AudioManager.resume();
+    const pill = h('div.import-pill', h('span.spinner'), h('span', 'Reading backup…'));
+    $('#app').appendChild(pill);
+    try {
+      const r = await this.run(f, { onStatus: m => { if (m) pill.lastChild.textContent = m; } });
+      Toast.ok('Web-Osu-Mania backup imported', WomImport.summary(r) + (r.skipped ? ` (${plural(r.skipped, 'score')} for beatmaps that weren't in the backup were left out)` : ''));
+      if (r.errors.length) Toast.err('Some of it couldn\'t be imported', r.errors.slice(0, 5).join('\n'));
+      if (r.sets.length) App.keepStorage && App.keepStorage();
+      return r;
+    } catch (e) {
+      Toast.err('Couldn\'t import the backup', friendlyError(e));
+      return null;
+    } finally { pill.remove(); }
+  },
+};
+
 /* ===== 19-multiplayer.js ===== */
 /* Online multiplayer (osu!lazer-style rooms of up to 8, Head to Head or Team Versus, and Quick Play). Talks to the
  * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules. */
@@ -12438,6 +12690,8 @@ const Multiplayer = {
     if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
+    // the room list may still carry the room we just left for a moment: the lobby hides it if we were alone in it
+    if (this.room) this.lastLeft = { code: this.room.code, alone: this.room.players.length <= 1, at: Date.now() };
     this.ws = null; this.room = null; this.me = null; this.opps = new Map();
     if (ws) { try { ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
@@ -12682,8 +12936,12 @@ const Presence = {
     ws.onopen = () => {
       this.retry = 0;
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av }));
-      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: 'ping' }), 25000);
+      // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
+      if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid }));
+      // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
+      // looking at who's online, asks for the list again
+      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -12709,6 +12967,9 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
+  /** Is a list of online players on screen (Discover, the invite dialog)? */
+  watching() { return Screens.currentName === 'discover' || !!document.querySelector('.inv-list'); },
+  refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
     const a = p && typeof p.avatar === 'string' ? p.avatar : '';
@@ -12733,6 +12994,7 @@ const Presence = {
   /** The room's Invite button: invite someone who's online, or share a link. */
   openInvite() {
     if (!Multiplayer.inRoom()) return;
+    this.refresh();
     const invited = new Set();
     const list = h('div.inv-list');
     const paint = () => {
@@ -12847,6 +13109,8 @@ const MultiplayerScreen = {
     let rooms = null;
     try { const r = await fetch('api/mp/rooms', { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
+    const left = Multiplayer.lastLeft;
+    if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));
     clearEl(el).append(...(rooms && rooms.length ? rooms.map(r => {
       const bg = h('div.mp-rbg');
       if (r.map && r.map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card')}")`;
@@ -12865,7 +13129,7 @@ const MultiplayerScreen = {
       row.addEventListener('pointerenter', () => UISounds.hover());
       return row;
     }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Couldn\'t load the room list.')]));
-    this._roomsT = setTimeout(() => this.pollRooms(), 5000);
+    this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 
   // ── room: the chat panel is built once per room and survives updates, so a half-typed message is
@@ -13276,7 +13540,7 @@ const DiscoverScreen = {
   enter() {
     const { el, page } = pageShell('Discover', 'Players online right now', [], { icon: 'social', hue: 'pink', wide: true });
     this.page = page;
-    Presence.start();
+    Presence.start(); Presence.refresh();
     this._unsub = [Bus.on('presence:changed', () => this.render()), Bus.on('mp:changed', () => this.render()), Bus.on('presence:invited', () => this.render())];
     this.invited = new Set();
     this.render();
@@ -13536,6 +13800,7 @@ const App = {
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
+    if (report.wom) parts.push(`a Web-Osu-Mania backup (${WomImport.summary(report.wom)})`);
     if (parts.length) Toast.ok('Imported ' + parts.join(', '));
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
     if (report.sets.length || report.skins.length) this.keepStorage();

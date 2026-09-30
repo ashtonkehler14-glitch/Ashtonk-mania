@@ -383,14 +383,19 @@ const SkinsScreen = {
 // ─────────────────────────────── What's new ───────────────────────────────
 /** Updates, newest first. Returning players see the newest entries they haven't seen once, after the game loads
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
+// What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.2', title: 'Polish', sections: [
+    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date'] },
+  ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [
-    { icon: 'home', title: 'Main menu', items: ['Settings sits left of the logo; Play, Edit and Browse to its right, as in osu!lazer', 'Edit holds Skins, Import, Beatmaps, Collections and Replays', 'The big logo comes back after 15 idle seconds', 'Hovered icons sway and bounce to the beat', 'lazer\'s triangles background, coloured to match the playing song', 'Menu music plays through every song before repeating one'] },
-    { icon: 'bell', title: 'Top bar', items: ['lazer\'s toolbar: beatmap listing, Discover, notifications, now playing, a clock and your profile', 'Notifications keep every pop-up until you clear them', 'Click the clock to switch between full, digital and analog', 'Scroll the mouse wheel on the menu or in game to change the volume (lazer\'s volume overlay)', 'lazer\'s cursor, with a size setting'] },
-    { icon: 'download', title: 'Beatmap listing', items: ['lazer\'s beatmap cards', 'Clicking a beatmap opens its info page: difficulties, details, download or play, and your scores'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with a hand of beatmap cards; the lower score takes the difference as damage, first to 0 HP loses; a rating and tiers', 'Create room asks two things: Regular or Ranked, then Public or Private', 'Regular rooms follow osu! rules: Head to Head, up to 16 players, highest score wins', 'Ranked rooms are 1v1 Ranked Play', 'Every public room, ranked ones included, is listed under Open rooms; click one to join', 'Everyone sees each other\'s profile pictures', 'Discover: see who\'s online and play together in a click'] },
-    { icon: 'brush', title: 'Skins', items: ['The Custom skin is rebuilt, and you can customise its shape, colours, size, receptors, key area, holds and glow', '4K-only skins play every key count', 'Skins keep their own health bar', 'Upscroll lines up on every skin'] },
-    { icon: 'mods', title: 'Everything else', items: ['Mods have icons', 'Settings use lazer\'s names', 'The interface looks the same at every resolution and zoom; UI scaling is the one size setting', 'A cleaner gameplay HUD and pause menu', 'More time to look at the loader before the song starts'] },
+    { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
+    { icon: 'bell', title: 'Top bar', items: ['Notifications, a clock and a now playing panel', 'Scroll on the menu to change the volume'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['New beatmap cards; click one for its info page'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby', 'Discover: see who\'s online'] },
+    { icon: 'brush', title: 'Skins', items: ['A better-looking Custom skin you can customise'] },
+    { icon: 'mods', title: 'Everything else', items: ['Mod icons', 'Looks the same at every resolution'] },
   ] },
 ];
 const WhatsNew = {

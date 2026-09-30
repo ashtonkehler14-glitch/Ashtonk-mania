@@ -338,6 +338,7 @@ const DataPanel = {
       h('div.row.wrap',
         btn('Export all data', 'download', () => DataManager.exportAll()),
         btn('Import data', 'upload', () => importViaPicker('.json')),
+        btn('Import Web-Osu-Mania backup', 'upload', () => WomImport.pickAndImport()),
         btn('Export settings', 'download', () => DataManager.exportSettings()),
         btn('Import settings', 'upload', async () => { const [f] = await pickFiles({ accept: '.json', multiple: false }); if (!f) return; try { const o = JSON.parse(await f.text()); await DataManager.importAll({ ...o, kind: 'settings' }); Toast.ok('Settings imported'); SettingsPanel.o && SettingsPanel.build(''); } catch (e) { Toast.err('Import failed', e.message); } }),
         btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); }),

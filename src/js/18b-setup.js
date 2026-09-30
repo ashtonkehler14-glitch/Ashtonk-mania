@@ -140,7 +140,23 @@ const Onboarding = {
       h('div.setup-choices.two',
         h('button.setup-choice.primary', { onclick: () => this.go(2) }, h('span.setup-choice-ic', icon('sparkle')), h('span.setup-choice-t', 'Set it up'), h('span.setup-choice-s', 'Pick your device, colours, speed and skin')),
         h('button.setup-choice.ob-skip', { onclick: () => this.finish() }, h('span.setup-choice-ic', icon('play')), h('span.setup-choice-t', 'Skip'), h('span.setup-choice-s', 'Use the default settings'))),
+      this.womEl = h('div.setup-wom', this.womDone
+        ? [icon('check'), h('span', `Web-Osu-Mania backup imported: ${this.womDone}.`)]
+        : h('button.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), h('span', 'Coming from Web-Osu-Mania? ', h('b', 'Import your backup')))),
     ];
+  },
+  /** Web-Osu-Mania's backup .zip: beatmaps, settings, keybinds, scores and collections in one go. */
+  async importWom() {
+    const [f] = await pickFiles({ accept: '.zip', multiple: false });
+    if (!f || !this.o) return;
+    clearEl(this.womEl).append(h('span.spinner'), this.womStatus = h('span', 'Reading backup…'));
+    try {
+      const r = await WomImport.run(f, { onStatus: m => { if (m && this.womStatus) this.womStatus.textContent = m; } });
+      this.womDone = WomImport.summary(r);
+      if (r.errors.length) Toast.err('Some of it couldn\'t be imported', r.errors.slice(0, 5).join('\n'));
+      UISounds.play('check-on');
+    } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
+    if (this.o && this.step.id === 'ask') this.render();
   },
 
   step_device() {

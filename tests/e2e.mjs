@@ -474,7 +474,7 @@ check('beatmap cards have lazer\'s hover panel with like and download', await pa
 // as in lazer: clicking the card opens the beatmap info page, and that's where it's downloaded
 await page.click('.ex-card[data-id="777"] .ex-t');
 await page.waitForSelector('.bso .bso-dl', { timeout: 5000 });
-check('clicking a beatmap card opens the lazer beatmap info page (difficulties, details, download)', await page.evaluate(() => !!document.querySelector('.bso-diffs .bso-diff') && !!document.querySelector('.bso-box') && /Download/.test(document.querySelector('.bso-dl').textContent)));
+check('clicking a beatmap card opens the lazer beatmap info page (difficulties, details, download)', await page.evaluate(() => !!document.querySelector('.bso-diffs .bso-diff') && !!document.querySelector('.bso-card') && /Download/.test(document.querySelector('.bso-dl').textContent)));
 await page.click('.bso .bso-dl');
 await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 2, null, { timeout: 15000 });
 check('explorer download imports the .osz into the library', true);
@@ -665,7 +665,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const z = await zp.evaluate(() => { const a = document.querySelector('#app').getBoundingClientRect(), t = document.querySelector('#toolbar').getBoundingClientRect(); return { cls: document.querySelector('#app').classList.contains('zoomfix'), w: a.width, h: a.height, tb: t.height, zoom: AshtonkMania.Zoom.z }; });
   // the UI fits a 1366×768 layout to the real (unzoomed) 1600×900 window, whatever the browser zoom
   const fit = Math.min(1600 / 1366, 900 / 768);
-  check('browser zoom is compensated and the UI scales with the window (1366×768 reference, 80% by default)', z.cls && Math.abs(z.zoom - 1.25 / (fit * 0.8)) < 1e-6 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 40 * fit * 0.8 / 1.25) < 0.5, JSON.stringify(z));
+  check('browser zoom is compensated and the UI scales with the window (1366×768 reference, 90% by default)', z.cls && Math.abs(z.zoom - 1.25 / (fit * 0.9)) < 1e-6 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 40 * fit * 0.9 / 1.25) < 0.5, JSON.stringify(z));
   // zooming the browser afterwards (devicePixelRatio 1.25 → 1.5, window unchanged) is followed exactly
   const zz = await zp.evaluate(() => { Object.defineProperty(window, 'devicePixelRatio', { get: () => 1.5, configurable: true }); AshtonkMania.Zoom.update(); return AshtonkMania.Zoom.detect(); });
   check('a later browser zoom change is detected from devicePixelRatio', Math.abs(zz - 1.5) < 1e-6, String(zz));

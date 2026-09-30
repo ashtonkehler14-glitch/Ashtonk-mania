@@ -367,12 +367,15 @@ const Toolbar = {
       b.addEventListener('pointerenter', () => UISounds.hover());
       return b;
     };
-    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'), this.npText = h('span.tb-np-text'));
+    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'));
+    this.npText = h('span'); // (lazer's toolbar shows just the note; the title is in the panel)
     this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
     this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
     this.bellCount = h('span.tb-badge');
     this.bell = btn('bell', 'Notifications', 'Waiting for \'ya', () => Notifications.toggle(), { dataset: { tab: 'notifications' } });
     this.bell.append(this.bellCount);
+    // like lazer's toolbar toggles: a page's button closes that page when it's already open
+    const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
     this.clock = h('button.tb-btn.tb-clock', { 'aria-label': 'Clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     tb.append(
       h('div.tb-group',
@@ -380,11 +383,11 @@ const Toolbar = {
         btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
-        btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
-        btn('globe', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
+        btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
+        btn('globe', 'Discover', 'See who\'s online and play together', page('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.bell),
     );
@@ -498,9 +501,11 @@ const NowPlaying = {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
   },
-  hoverOpen() { clearTimeout(this._t); this.show(); },
-  hoverClose() { if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
-  toggle(pin) { if (this.open && this.pinned) { this.hide(); return; } this.pinned = !!pin; this.show(); },
+  hoverOpen() { clearTimeout(this._t); if (!this._shut) this.show(); },
+  hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
+  /** The toolbar button: opens the panel (and keeps it open), or closes it if it's showing — hovering doesn't
+   *  bring it straight back until the pointer has left the button. */
+  toggle(pin) { if (this.open) { this.hide(); this._shut = true; return; } this.pinned = !!pin; this.show(); },
   show() {
     this.ensure();
     if (this.open) return;
@@ -537,7 +542,7 @@ function backButton(onClick) {
 }
 
 /** osu!lazer's VolumeOverlay: the mouse wheel changes the volume on the main menu and in game (anywhere with Alt),
- *  shown at the right edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
+ *  shown at the left edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
  *  one the wheel changes; the overlay fades away a moment after the last change. */
 const VolumeOverlay = {
   el: null, hideT: 0, sel: 'master', hover: false,
@@ -562,7 +567,7 @@ const VolumeOverlay = {
     this.meters = [this.ring('effects', 'Effects'), this.ring('master', 'Master', true), this.ring('music', 'Music')];
     this.muteBtn = h('button.vo-mute', { title: 'Mute', 'aria-label': 'Mute', onclick: () => this.toggleMute() }, icon('volume'));
     this.el = h('div.volume-overlay', { onpointerenter: () => { this.hover = true; clearTimeout(this.hideT); }, onpointerleave: () => { this.hover = false; this.later(); } },
-      ...this.meters, this.muteBtn);
+      this.muteBtn, ...this.meters);
     $('#app').appendChild(this.el);
   },
   toggleMute() {
@@ -725,7 +730,7 @@ const Zoom = {
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
     const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
-    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.8, 0.5, 2) : 0.8;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
     // (vw / vh inside the app mean the app's layout size, not the window's)

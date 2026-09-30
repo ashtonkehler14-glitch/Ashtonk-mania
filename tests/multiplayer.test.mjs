@@ -21,6 +21,23 @@ test('presence: online list, statuses and invites between players', () => {
   assert.deepEqual(left[0].msg.players.map(x => x.id), ['a']);
 });
 
+test('presence: silent players drop off, a reconnecting tab replaces its old entry, list on request', () => {
+  const clock = { t: 0 };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', cid: 'tab1' }); p.join('b', { name: 'Bob', cid: 'tab2' });
+  clock.t = 20000; p.message('a', { t: 'ping' });
+  assert.deepEqual(p.prune().gone, []);
+  clock.t = 80000;
+  const r = p.prune();
+  assert.deepEqual(r.gone, ['b']); // Bob went quiet
+  assert.deepEqual(r.out[0].msg.players.map(x => x.name), ['Alice']);
+  p.join('a2', { name: 'Alice', cid: 'tab1' }); // Alice's tab reconnects
+  assert.deepEqual(p.dropped, ['a']);
+  assert.deepEqual(p.list().map(x => x.id), ['a2']);
+  const l = p.message('a2', { t: 'list' });
+  assert.deepEqual(l, [{ to: 'a2', msg: { t: 'online', players: p.list() } }]);
+});
+
 const MAP = { hash: 'abc123', title: 'Song', artist: 'Artist', version: '4K Hard', creator: 'M', keys: 4, stars: 3.2, length: 120000, onlineSetId: 42, onlineId: 420 };
 const msgs = (out, t) => out.filter(o => o.msg.t === t);
 function room(clock = { t: 0 }) {

@@ -221,6 +221,7 @@ const App = {
     if (report.skins.length) parts.push(`skin ${report.skins.map(s => s.name).join(', ')}`);
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
+    if (report.wom) parts.push(`a Web-Osu-Mania backup (${WomImport.summary(report.wom)})`);
     if (parts.length) Toast.ok('Imported ' + parts.join(', '));
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
     if (report.sets.length || report.skins.length) this.keepStorage();

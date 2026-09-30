@@ -22,6 +22,18 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Polish pass
+
+* **Main menu:** the triangles are fully solid (the song no longer shows through) and take the song's average colour. The top bar's music button shows only the note icon.
+* **Interface size** defaults to 90%.
+* **Volume overlay** moved to the left edge, as in lazer: mute button, then Effects, Master and Music dials with name pills.
+* **Beatmap listing:** no more flicker while scrolling (cards are kept and covers cached; hover effects pause while the list moves). Only the common filters show (4K–10K, category, sort); the rest are under "More filters".
+* **Beatmap info page** redesigned: one header with the difficulty picker, title, mapper line and buttons; a single details card; tags and your scores below. No more duplicate difficulty list.
+* **Top bar buttons toggle:** clicking the beatmap listing, Discover, your profile or the music button again closes it.
+* **Online lists stay fresh:** players who go quiet drop off, a reconnecting tab replaces its old entry, rooms leave the list as soon as they empty, and the lobby refreshes every 3 s.
+* **Web-Osu-Mania backups:** import the .zip from WOM's Backup & Restore (in setup, Settings → Maintenance, or by dropping it on the game). Beatmaps, settings, keybinds, high scores and collections come across; WOM replays can't be played here.
+* **What's new** lists only what you'll notice.
+
 ### Simpler multiplayer
 
 * **Create room asks two questions:** Regular or Ranked, then Public or Private. There are no other options to set.
