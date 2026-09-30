@@ -96,7 +96,8 @@ class SkinHealthBar {
     const key = Math.round(this.shown * this.fill.w * this.k * 2);
     if (key === this.drawn && !bulging && !animated) return;
     this.drawn = key;
-    this.draw(now);
+    // (a skin unloaded mid-draw leaves closed images behind: stop drawing instead of throwing every frame)
+    try { this.draw(now); } catch (e) { this.update = () => {}; console.warn('health bar', e); }
   }
   draw(now) {
     const c = this.el.getContext('2d'), hp = this.shown;

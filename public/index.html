@@ -732,6 +732,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-error { text-align: left; padding: 16px 18px; border-color: rgba(255, 74, 92, .45); max-width: 760px; margin: 0 auto; }
 .ex-error pre { white-space: pre-wrap; color: var(--text-2); font-size: .8rem; margin: 8px 0 0; }
 .ex-error .ex-retry { margin-top: 12px; }
+.ex-error p { margin: 8px 0 0; color: var(--text-2); }
+.ex-error details { margin-top: 10px; font-size: .8rem; color: var(--text-3, var(--text-2)); }
+.ex-error summary { cursor: pointer; }
 .ex-source { font-size: .8rem; }
 .ex-sentinel { height: 1px; }
 
@@ -945,7 +948,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-ready:hover, .mp-start:hover { filter: brightness(1.12); }
 .mp-ready:active, .mp-start:active { transform: scale(.97); }
 .mp-ready[disabled], .mp-start[disabled] { opacity: .4; pointer-events: none; }
-.mp .page-back { bottom: 5px; }
+.mp:has(.mp-footer) .page-back { bottom: 5px; } /* centred in a room's 60px footer */
 .mp-results { border-radius: 10px; padding: 14px 16px; background: var(--panel-solid); display: flex; flex-direction: column; gap: 6px; animation: wedgeIn var(--t-med) var(--ease-out); }
 .mp-results.won { box-shadow: inset 0 3px 0 #88b300; }
 .mp-results.lost { box-shadow: inset 0 3px 0 #ed1121; }
@@ -6811,7 +6814,8 @@ class SkinHealthBar {
     const key = Math.round(this.shown * this.fill.w * this.k * 2);
     if (key === this.drawn && !bulging && !animated) return;
     this.drawn = key;
-    this.draw(now);
+    // (a skin unloaded mid-draw leaves closed images behind: stop drawing instead of throwing every frame)
+    try { this.draw(now); } catch (e) { this.update = () => {}; console.warn('health bar', e); }
   }
   draw(now) {
     const c = this.el.getContext('2d'), hp = this.shown;
@@ -8783,14 +8787,17 @@ class SkinPreview {
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
+    // (the previous skin may be unloaded while the new one loads: stop drawing its health bar now)
+    if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; }
     const layout = await skin.mania(keys);
     if (tok !== this.token) return;
     this.keys = keys;
     this.renderer.setLayout(layout);
-    // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
-    // lives in the gameplay HUD, so the preview shows none for it
+    // show the health bar the way gameplay will: the skin's own bar in the corner, the skin's or the slim bar beside
+    // the stage (the osu!lazer bar lives in the gameplay HUD, so the preview shows none for it)
     const hm = healthModeFor(layout);
     this.renderer.healthMode = hm === 'stage' || hm === 'skinstage' ? hm : null;
+    if (hm === 'skin' && this.canvas.parentElement) { this.hpBar = new SkinHealthBar(layout); this.canvas.parentElement.append(this.hpBar.el); }
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;
@@ -8829,10 +8836,12 @@ class SkinPreview {
       }
       this.engine.advance(now);
       this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: (this.useSpeed ? this.renderer.scrollLength : this.renderer.hitY) / (this.useSpeed ? 11485 / Settings.get('gameplay.scrollSpeed') : 520), engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
+      // (Auto never loses health: the demo bar rises and falls so the skin's low-health look shows too)
+      if (this.hpBar) this.hpBar.update(0.6 + 0.4 * Math.cos(now / 1800), performance.now());
     };
     frame();
   }
-  stop() { this.running = false; cancelAnimationFrame(this._raf); }
+  stop() { this.running = false; cancelAnimationFrame(this._raf); if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; } }
 }
 
 const SkinsScreen = {
@@ -8975,7 +8984,7 @@ const OnlineBeatmaps = {
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error ? `${d.error}\n${(d.errors || []).join('\n')}` : `Search failed (${r.status})`);
+      if (!r.ok) throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), { details: [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])].join('\n') });
       return d;
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
@@ -8997,8 +9006,8 @@ const OnlineBeatmaps = {
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
       } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
     }
-    throw new Error('Online search is unavailable here.\n' + errors.join('\n') +
-      '\nTip: the explorer works fully on the Cloudflare deployment (it proxies the mirrors).');
+    throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
+      details: errors.join('\n') + '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).' });
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
@@ -9226,7 +9235,7 @@ const ExplorerScreen = {
       this.error = null;
     } catch (e) {
       if (tok !== this.token) return;
-      this.error = friendlyError(e); this.hasMore = false;
+      this.error = friendlyError(e); this.errorDetails = e.details || null; this.hasMore = false;
     } finally {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
@@ -9235,7 +9244,8 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('pre', this.error),
+    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('p', this.error),
+      this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
       h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
@@ -9467,17 +9477,22 @@ const SettingsPanel = {
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     scroll.addEventListener('scroll', () => this.syncNav());
     this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); } });
-    if (section) requestAnimationFrame(() => this.scrollTo(section));
+    requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
   },
   close() { if (this.o) { UISounds.back(); this.o.close(); } },
   scrollTo(sec) {
     const el = this.scrollEl && this.scrollEl.querySelector(`[data-section="${sec}"]`);
     if (el) this.scrollEl.scrollTo({ top: el.offsetTop - 8, behavior: 'smooth' });
   },
+  /** Highlight the section being read. (Measured on screen: before the panel is shown every section sits at 0,
+   *  which used to light up the last icon.) */
   syncNav() {
-    const secs = $$('.sp-section', this.scrollEl);
+    const el = this.scrollEl, secs = $$('.sp-section', el);
     let cur = secs[0]?.dataset.section;
-    for (const s of secs) if (s.offsetTop - this.scrollEl.scrollTop < 80) cur = s.dataset.section;
+    if (el.isConnected && el.clientHeight) {
+      const top = el.getBoundingClientRect().top;
+      for (const s of secs) if (s.getBoundingClientRect().top - top < 80) cur = s.dataset.section;
+    }
     $$('[data-sec]', this.nav).forEach(b => b.classList.toggle('active', b.dataset.sec === cur));
   },
   build(q) {

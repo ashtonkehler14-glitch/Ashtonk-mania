@@ -58,6 +58,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 * **Health bars come from the skin**: a skin with `scorebar-bg` / `scorebar-colour` gets its own bar in the top-left corner, the way osu!lazer shows legacy skins. The fill eases to the new value, and the marker (`scorebar-marker`, or `scorebar-ki` / `kidanger` / `kidanger2` for older skins) rides its end and swells when health goes up.
 * **Kori 3.0 now has its health bar**: the bundled copy includes Kori's scorebar images. Kori installed before this update gets them added automatically once, the next time the game opens online.
+* **The skin preview shows it too** (Skins screen and setup), rising and falling so the skin's low-health look is visible.
 * **Settings → Gameplay → Health bar style**: *From the skin* (the default; skins without one use the osu!lazer bar), *Skin, beside stage* (upright next to the stage, like osu!stable mania), *osu!lazer*, or *Slim, beside stage*.
 * **Smoother HUD**: the skin-font score and accuracy no longer resize their canvas every time a digit is added, which cut layout work during play from about 84 to 3 per 5 seconds.
 

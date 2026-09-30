@@ -28,17 +28,22 @@ const SettingsPanel = {
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     scroll.addEventListener('scroll', () => this.syncNav());
     this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); } });
-    if (section) requestAnimationFrame(() => this.scrollTo(section));
+    requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
   },
   close() { if (this.o) { UISounds.back(); this.o.close(); } },
   scrollTo(sec) {
     const el = this.scrollEl && this.scrollEl.querySelector(`[data-section="${sec}"]`);
     if (el) this.scrollEl.scrollTo({ top: el.offsetTop - 8, behavior: 'smooth' });
   },
+  /** Highlight the section being read. (Measured on screen: before the panel is shown every section sits at 0,
+   *  which used to light up the last icon.) */
   syncNav() {
-    const secs = $$('.sp-section', this.scrollEl);
+    const el = this.scrollEl, secs = $$('.sp-section', el);
     let cur = secs[0]?.dataset.section;
-    for (const s of secs) if (s.offsetTop - this.scrollEl.scrollTop < 80) cur = s.dataset.section;
+    if (el.isConnected && el.clientHeight) {
+      const top = el.getBoundingClientRect().top;
+      for (const s of secs) if (s.getBoundingClientRect().top - top < 80) cur = s.dataset.section;
+    }
     $$('[data-sec]', this.nav).forEach(b => b.classList.toggle('active', b.dataset.sec === cur));
   },
   build(q) {

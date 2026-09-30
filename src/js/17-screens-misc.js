@@ -234,14 +234,17 @@ class SkinPreview {
   async show(skin, keys) {
     this.token = {};
     const tok = this.token;
+    // (the previous skin may be unloaded while the new one loads: stop drawing its health bar now)
+    if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; }
     const layout = await skin.mania(keys);
     if (tok !== this.token) return;
     this.keys = keys;
     this.renderer.setLayout(layout);
-    // show the health bar the way gameplay will: the skin's own scorebar, or the slim stage bar — the osu!lazer bar
-    // lives in the gameplay HUD, so the preview shows none for it
+    // show the health bar the way gameplay will: the skin's own bar in the corner, the skin's or the slim bar beside
+    // the stage (the osu!lazer bar lives in the gameplay HUD, so the preview shows none for it)
     const hm = healthModeFor(layout);
     this.renderer.healthMode = hm === 'stage' || hm === 'skinstage' ? hm : null;
+    if (hm === 'skin' && this.canvas.parentElement) { this.hpBar = new SkinHealthBar(layout); this.canvas.parentElement.append(this.hpBar.el); }
     // demo pattern: stairs, chords, jacks and long notes
     const notes = [];
     let t = 800;
@@ -280,10 +283,12 @@ class SkinPreview {
       }
       this.engine.advance(now);
       this.renderer.render({ now, posNow: now, scroll: { pos: t => t, posAt: t => t }, pxPerMs: (this.useSpeed ? this.renderer.scrollLength : this.renderer.hitY) / (this.useSpeed ? 11485 / Settings.get('gameplay.scrollSpeed') : 520), engine: this.engine, held: this.held, hidden: null, realNow: performance.now() });
+      // (Auto never loses health: the demo bar rises and falls so the skin's low-health look shows too)
+      if (this.hpBar) this.hpBar.update(0.6 + 0.4 * Math.cos(now / 1800), performance.now());
     };
     frame();
   }
-  stop() { this.running = false; cancelAnimationFrame(this._raf); }
+  stop() { this.running = false; cancelAnimationFrame(this._raf); if (this.hpBar) { this.hpBar.el.remove(); this.hpBar = null; } }
 }
 
 const SkinsScreen = {

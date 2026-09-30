@@ -700,7 +700,8 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sctx.close();
 }
 
-check('no uncaught page errors', errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e)).length === 0, errors.slice(0, 8).join('\n'));
+const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
+check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();
 server.close();
 const failed = results.filter(r => !r.ok);

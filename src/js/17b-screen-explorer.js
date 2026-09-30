@@ -92,7 +92,7 @@ const OnlineBeatmaps = {
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error ? `${d.error}\n${(d.errors || []).join('\n')}` : `Search failed (${r.status})`);
+      if (!r.ok) throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), { details: [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])].join('\n') });
       return d;
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
@@ -114,8 +114,8 @@ const OnlineBeatmaps = {
         return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
       } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
     }
-    throw new Error('Online search is unavailable here.\n' + errors.join('\n') +
-      '\nTip: the explorer works fully on the Cloudflare deployment (it proxies the mirrors).');
+    throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
+      details: errors.join('\n') + '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).' });
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
@@ -343,7 +343,7 @@ const ExplorerScreen = {
       this.error = null;
     } catch (e) {
       if (tok !== this.token) return;
-      this.error = friendlyError(e); this.hasMore = false;
+      this.error = friendlyError(e); this.errorDetails = e.details || null; this.hasMore = false;
     } finally {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
@@ -352,7 +352,8 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('pre', this.error),
+    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('p', this.error),
+      this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
       h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
