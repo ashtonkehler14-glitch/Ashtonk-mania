@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Share your results
+
+* **Share** on the results screen makes a 1200×630 picture of the play: the beatmap's background, grade, score, accuracy, max combo, pp, UR, every judgement count, mods and who played it. **Copy image** puts it on the clipboard to paste into Discord or anywhere else; **Save PNG** downloads it; **Share…** opens the system share sheet where the browser has one.
+
 ### osu!lazer standardised score
 
 * **Settings → Gameplay → Score display** (under *Show all settings*): *Classic (ScoreV1)*, as before, or *osu!lazer standardised*: 150,000 for combo (each hit's score × log₄ of the combo, capped at 400) and 850,000 × accuracy^(2 + 2·accuracy) — the formula from osu!lazer's mania score processor.

@@ -147,6 +147,7 @@ const ResultsScreen = {
     if (replay || s.replayId) bar.append(watch);
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
+    bar.append(h('button.btn.ghost.res-share', { onclick: () => ShareCard.open(s), title: 'A picture of this result to copy or save' }, icon('upload'), 'Share'));
     if (!map) bar.append(h('span.muted', 'Beatmap no longer in library'));
 
     return bar;
@@ -158,6 +159,106 @@ const ResultsScreen = {
     const map = BeatmapManager.mapByHash(replay.mapHash);
     if (!map) { Toast.err('Beatmap not found', 'Import the beatmap to watch this replay.'); return; }
     Game.launch({ mapId: map.id, mode: 'replay', replay, returnTo: { ...this.p } });
+  },
+};
+
+/** A 1200×630 picture of a result (the size link previews use), to copy, save or share anywhere. */
+const ShareCard = {
+  W: 1200, H: 630,
+  GRADE_FILL: { XH: ['#ffffff', '#b8c4d8'], SH: ['#ffffff', '#b8c4d8'], SS: ['#fff3a6', '#ffc31f'], S: ['#fff3a6', '#ffc31f'], A: ['#6ef08e'], B: ['#5cb3ff'], C: ['#c68bff'], D: ['#ff6b7a'], F: ['#ff3b4f'] },
+  async render(s) {
+    const W = this.W, H = this.H;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const F = (w, px) => `${w} ${px}px Outfit, "Segoe UI", system-ui, sans-serif`;
+    try { await Promise.all([800, 700, 500].map(w => document.fonts.load(F(w, 40)))); } catch (e) { /* system font */ }
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ff66ab';
+    // background: the beatmap's picture, blurred and darkened
+    x.fillStyle = '#18171c'; x.fillRect(0, 0, W, H);
+    const map = BeatmapManager.mapByHash(s.mapHash);
+    const url = map ? await BeatmapManager.bgURL(map).catch(() => null) : null;
+    const img = url ? await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = url; }) : null;
+    if (img && img.naturalWidth) {
+      const k = Math.max(W / img.naturalWidth, H / img.naturalHeight) * 1.08;
+      const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+      x.save(); x.filter = 'blur(8px)'; x.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih); x.restore();
+    }
+    let g = x.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, 'rgba(14,11,22,.93)'); g.addColorStop(0.55, 'rgba(14,11,22,.78)'); g.addColorStop(1, 'rgba(14,11,22,.62)');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.fillStyle = accent; x.fillRect(0, 0, W, 6);
+    const text = (t, px, y, { w = 700, color = '#fff', align = 'left', max = 0, xPos = 60 } = {}) => {
+      x.font = F(w, px); x.fillStyle = color; x.textAlign = align; x.textBaseline = 'alphabetic';
+      let str = String(t);
+      if (max) while (str.length > 1 && x.measureText(str).width > max) str = str.slice(0, -2) + '…';
+      x.fillText(str, xPos, y);
+      return x.measureText(str).width;
+    };
+    const pill = (label, px, y, bg, fg = '#fff', h = 30, font = 16) => {
+      x.font = F(700, font); const w = x.measureText(label).width + 22;
+      x.fillStyle = bg; x.beginPath(); x.roundRect ? x.roundRect(px, y, w, h, h / 2) : x.rect(px, y, w, h); x.fill();
+      x.fillStyle = fg; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(label, px + 11, y + h / 2 + 1); x.textBaseline = 'alphabetic';
+      return w;
+    };
+    // beatmap
+    text(s.title || 'Unknown', 44, 92, { w: 800, max: 760 });
+    text(`${s.artist || ''}${s.creator ? ` · mapped by ${s.creator}` : ''}`, 24, 128, { w: 500, color: 'rgba(255,255,255,.75)', max: 760 });
+    let px = 60;
+    const sr = s.stars || 0, sc = starColour(sr);
+    px += pill(`★ ${sr.toFixed(2)}`, px, 150, sc, sr >= 6.5 ? '#ffd966' : '#1a1a1a') + 8;
+    px += pill(`[${s.version}]`, px, 150, 'rgba(255,255,255,.12)') + 8;
+    px += pill(`${s.keys}K`, px, 150, 'rgba(255,255,255,.12)') + 8;
+    for (const m of s.mods || []) { const d = MOD_BY_ID.get(m); px += pill(m, px, 150, d ? d.color : accent, '#1a1a1a') + 6; }
+    // grade
+    const label = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
+    const fill = this.GRADE_FILL[s.grade] || ['#fff'];
+    x.font = F(800, 210); x.textAlign = 'center';
+    g = x.createLinearGradient(0, 250, 0, 450); g.addColorStop(0, fill[0]); g.addColorStop(1, fill[1] || fill[0]);
+    x.save(); x.shadowColor = fill[fill.length - 1]; x.shadowBlur = 40; x.fillStyle = g; x.fillText(label, 200, 440); x.restore();
+    if (!s.passed) pill('FAILED', 150, 470, '#ff3b4f');
+    // score and stats
+    text(fmtScore(ScoreManager.value(s)), 76, 300, { w: 800, xPos: 380 });
+    const stat = (k, v, i) => { const sx = 380 + i * 190; text(k, 17, 350, { w: 600, color: 'rgba(255,255,255,.6)', xPos: sx }); text(v, 34, 390, { w: 700, xPos: sx }); };
+    const pp = ScoreManager.ppOf(s);
+    stat('Accuracy', fmtAcc(s.accuracy), 0); stat('Max combo', fmtInt(s.maxCombo) + 'x', 1); stat('pp', fmtInt(pp), 2);
+    if (s.unstableRate) stat('UR', s.unstableRate.toFixed(1), 3);
+    // judgements
+    const counts = s.counts || [0, 0, 0, 0, 0, 0];
+    JUDGEMENTS.forEach((j, i) => {
+      const jx = 380 + (i % 3) * 250, jy = 450 + Math.floor(i / 3) * 44;
+      x.fillStyle = j.color; x.beginPath(); x.arc(jx + 7, jy - 7, 7, 0, Math.PI * 2); x.fill();
+      text(j.name, 20, jy, { w: 600, color: 'rgba(255,255,255,.8)', xPos: jx + 24 });
+      text(fmtInt(counts[i]), 22, jy, { w: 800, xPos: jx + 215, align: 'right' });
+    });
+    // footer
+    x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(0, H - 64, W, 64);
+    text(`played by ${s.player || 'Player'} · ${new Date(s.date).toLocaleDateString()}`, 20, H - 25, { w: 600, color: 'rgba(255,255,255,.8)' });
+    const bw = text('mania', 22, H - 25, { w: 500, color: 'rgba(255,255,255,.85)', xPos: W - 60, align: 'right' });
+    text('ashtonk!', 30, H - 25, { w: 800, color: accent, xPos: W - 64 - bw, align: 'right' });
+    return new Promise(r => c.toBlob(r, 'image/png'));
+  },
+  fileName(s) { return `${s.artist} - ${s.title} [${s.version}] ${fmtAcc(s.accuracy)}.png`.replace(/[\\/:*?"<>|]/g, '_'); },
+  /** Preview with Copy / Save / Share (the system share sheet, where the browser has one). */
+  async open(s) {
+    UISounds.click();
+    const blob = await this.render(s);
+    if (!blob) { Toast.err('Couldn\'t draw the result card'); return; }
+    const url = URL.createObjectURL(blob);
+    const file = new File([blob], this.fileName(s), { type: 'image/png' });
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    const copy = async () => {
+      try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); Toast.ok('Result card copied', 'Paste it anywhere.'); }
+      catch (e) { Toast.err('Couldn\'t copy the image', 'Your browser blocked it — use Save instead.'); }
+    };
+    const o = Dialog.custom('Share your result', h('img.share-card', { src: url, alt: 'Result card' }), [
+      { label: 'Close' },
+      ...(canShare ? [{ label: 'Share…', onClick: () => navigator.share({ files: [file], title: `${s.title} [${s.version}]` }).catch(() => {}) }] : []),
+      { label: 'Save PNG', onClick: () => downloadBlob(blob, file.name) },
+      ...(navigator.clipboard && window.ClipboardItem ? [{ label: 'Copy image', primary: true, onClick: copy }] : []),
+    ]);
+    const close = o.close;
+    o.close = () => { URL.revokeObjectURL(url); close(); };
+    return o;
   },
 };
 

@@ -1251,3 +1251,6 @@ div.res-calib .i { color: var(--good); }
 .skinned { line-height: 0; text-shadow: none; }
 .skin-digits { display: inline-block; vertical-align: bottom; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .5)); }
 .res-score.skinned { margin: 6px 0 4px; }
+/* results: share card preview */
+.share-card { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0, 0, 0, .4); }
+.dialog:has(.share-card) { width: min(780px, calc(100vw - 32px)); }
