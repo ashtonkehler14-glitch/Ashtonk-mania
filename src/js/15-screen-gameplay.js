@@ -374,7 +374,7 @@ const GameplayScreen = {
   /** Keep the loader up for a moment (shorter on retries) and while the player is in its settings. */
   async loaderFinish(tok) {
     const p = this.params, s = this.s;
-    const min = p.quick ? 350 : 1600;
+    const min = p.quick ? 350 : 3500; // time to read the map info and adjust the settings before it starts
     this.loaderStatus('Ready!', 1);
     this.loaderEl.classList.add('ready');
     if (s && s.mp) {
@@ -984,7 +984,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     const el = h('div.pause-menu', h('div.pause-box',
       h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
-      h('div.pm-desc', failed ? 'you\'re dead, try again?' : 'you\'re not going to do what i think you\'re going to do, are ya?'),
       h('div.pm-buttons', ...btns),
       this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'} in this session`) : null,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),

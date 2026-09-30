@@ -22,6 +22,19 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Main menu like osu!lazer
+
+* **The button bar follows lazer's layout.** Settings sits left of the logo; Play, Edit and Browse sit to its right.
+* **Play** leads to Solo and Multi. Practice and Profile are gone from the menu.
+* **Edit** (where lazer's editor button is) leads to Skins, Import, Beatmaps, Collections and Replays.
+* **Idle for 15 seconds** and the menu goes back to the big logo, as when the game opens.
+* **The hovered button's icon sways and bounces** to the song's beat.
+* **lazer's triangles background** drifts behind the menu, coloured to match the playing song's background.
+* **Menu music plays through every song in a shuffled order** before repeating any. Small libraries no longer loop the same one or two.
+* **More time before a map starts:** the loader stays for 3.5s and the lead-in is 2.5s.
+* **The pause menu** no longer shows the taglines or the boxes behind its buttons.
+* **Clicking your name in the top bar** opens your profile. Right-click it for the old menu.
+
 ### Multiplayer: Quick Play, Team Versus, rooms of up to 8
 
 * **Quick Play** (osu!lazer's new matchmaking mode). Pick 4K or 7K and press Play to join a lobby of up to 8.

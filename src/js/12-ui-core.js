@@ -315,6 +315,7 @@ const Background = {
     return p;
   },
   set(url, { blur = Settings.get('graphics.menuBlur'), dim = 0 } = {}) {
+    if (url !== this.current) Bus.emit('bg:changed', url);
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);
     const a = $('#bg-a'), b = $('#bg-b');
@@ -369,7 +370,8 @@ const Toolbar = {
       h('div.tb-group',
         this.npBtn,
         this.clock = h('div.tb-clock'),
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Account', onclick: e => this.userMenu(e) })),
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
+          oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } })),
     );
     this.updateProfile();
     this.tick();

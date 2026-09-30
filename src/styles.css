@@ -1864,3 +1864,20 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .qp-podium-step.me b { color: var(--accent-3); }
 @keyframes qpRise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .qp-foot-note { color: var(--muted); font-size: .82rem; }
+
+/* pause / fail menu: only the slanted bands, no box behind each button */
+.pm-btn { background: none; overflow: visible; box-shadow: none; border-radius: 0; }
+.pm-btn:focus, .pm-btn:focus-visible { outline: none; box-shadow: none; }
+.pause-box h2 { margin-bottom: 30px; }
+
+/* main menu: triangles behind everything; lazer's sway-and-bounce on the hovered button's icon */
+.lz-tri { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; opacity: .82; pointer-events: none; }
+.lz-menu > .lz-stage { position: relative; z-index: 3; } /* the button bar stays in front of the mascot */
+.lz-menu > .lz-stage { pointer-events: none; } .lz-menu > .lz-stage .lz-bar { pointer-events: auto; }
+.lz-ico { display: grid; place-items: center; transition: transform var(--bt, 400ms) cubic-bezier(.45, 0, .55, 1); }
+.lz-btn:hover .lz-ico.bl { transform: rotate(-10deg); }
+.lz-btn:hover .lz-ico.br { transform: rotate(10deg); }
+.lz-btn:hover .lz-ico.bounce .i { animation: lzBounce var(--bt, 400ms) cubic-bezier(.2, .8, .3, 1); }
+@keyframes lzBounce { 0% { transform: translateY(-5px) scale(1.12, .9); } 100% { transform: none; } }
+.lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
+.lz-menu[data-state="edit"] { --shift: 330px; }

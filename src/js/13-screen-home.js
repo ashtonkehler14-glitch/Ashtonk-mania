@@ -1,41 +1,59 @@
-/* Main menu (osu!lazer style): the logo sits in the middle of the screen; clicking it (or pressing
- * any key) opens a slanted button bar — Play → Solo / Multiplayer / Practice. Music keeps playing
- * in the background and can be controlled from the toolbar's now-playing panel. */
+/* Main menu (osu!lazer's ButtonSystem): the logo sits in the middle of the screen; clicking it (or pressing any key)
+ * opens the slanted button bar — Settings to the left of the logo; Play (→ Solo / Multi), Edit (→ skins, importing
+ * and the library) and Browse to its right. Fifteen idle seconds bring the big logo back. Behind it all, lazer's
+ * triangles drift upwards in the colour of the playing song's background. */
 
 const HomeScreen = {
   tab: 'home',
   menuState: 'initial',
+  IDLE_MS: 15000,
   enter() {
     this.logo = this.buildLogo();
     this.leftBtns = h('div.lz-buttons.lz-left');
     this.rightBtns = h('div.lz-buttons.lz-right');
     this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, h('div.lz-stage', this.bar), NeruMascot.build());
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), h('div.lz-stage', this.bar), NeruMascot.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
+    this._idleAt = performance.now();
+    this._poke = () => { this._idleAt = performance.now(); };
+    for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
     this.loop();
     return el;
   },
-  leave() { cancelAnimationFrame(this._raf); NeruMascot.stop(); },
+  leave() {
+    cancelAnimationFrame(this._raf); NeruMascot.stop(); MenuTriangles.stop();
+    for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
+  },
 
   /** Button definitions (colours are osu!lazer's main-menu colours). */
   menuButtons(state) {
+    const back = ['Back', 'back', '#555555', () => this.setState('top'), 'Esc'];
     if (state === 'play') return {
-      left: [['Back', 'back', '#555555', () => this.setState('top'), 'Esc']],
+      left: [back],
       right: [
         ['Solo', 'user', '#6644cc', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'S'],
         ['Multi', 'multi', '#5e3fba', () => Screens.go('multiplayer'), 'M'],
-        ['Practice', 'flag', '#5e3fba', () => Screens.go('songselect', { practice: true }, { transition: 'zoom' }), 'P'],
+      ],
+    };
+    // where lazer has Edit (beatmap / skin editor): everything for changing what's installed
+    if (state === 'edit') return {
+      left: [back],
+      right: [
+        ['Skins', 'brush', '#eeaa00', () => Screens.go('skins'), 'S'],
+        ['Import', 'upload', '#dca000', () => importViaPicker('.osz,.osk,.zip,.osu,.osr'), 'I'],
+        ['Beatmaps', 'music', '#eeaa00', () => Screens.go('beatmaps'), 'B'],
+        ['Collections', 'folder', '#dca000', () => Screens.go('collections'), 'C'],
+        ['Replays', 'film', '#eeaa00', () => Screens.go('replays'), 'R'],
       ],
     };
     return {
-      left: [],
+      left: [['Settings', 'gear', '#555555', () => SettingsPanel.open(), 'O']],
       right: [
-        ['Settings', 'gear', '#555555', () => SettingsPanel.open(), 'O'],
         ['Play', 'play', '#6644cc', () => this.setState('play'), 'P'],
+        ['Edit', 'edit', '#eeaa00', () => this.setState('edit'), 'E'],
         ['Browse', 'download', '#a5cc00', () => Screens.go('explore'), 'B'],
-        ['Profile', 'user', '#ee3399', () => Screens.go('profile'), 'U'],
       ],
     };
   },
@@ -45,13 +63,23 @@ const HomeScreen = {
     this.el.classList.toggle('lz-instant', instant);
     const mk = ([label, ic, color, fn, key]) => {
       const b = h('button.lz-btn', { style: { '--c': color }, 'aria-label': label, title: key ? `${label} (${key})` : label, onclick: () => { UISounds.click(); fn(); } },
-        h('span.lz-inner', icon(ic), h('span.lz-label', label)));
+        h('span.lz-inner', h('span.lz-ico', icon(ic)), h('span.lz-label', label)));
       b.addEventListener('pointerenter', () => UISounds.hover());
       return b;
     };
     const d = this.menuButtons(state);
     clearEl(this.leftBtns).append(...d.left.map(mk));
     clearEl(this.rightBtns).append(...d.right.map(mk));
+  },
+  /** lazer's MainMenuButton: the hovered button's icon sways from side to side and bounces with the beat. */
+  onBeat(len) {
+    this._beatN = (this._beatN || 0) ^ 1;
+    const b = this.el && this.el.querySelector('.lz-btn:hover');
+    if (!b) return;
+    const ico = b.querySelector('.lz-ico');
+    ico.style.setProperty('--bt', `${Math.round(clamp(len, 250, 900))}ms`);
+    ico.classList.toggle('bl', !this._beatN); ico.classList.toggle('br', !!this._beatN);
+    ico.classList.remove('bounce'); void ico.offsetWidth; ico.classList.add('bounce');
   },
   onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
@@ -73,7 +101,7 @@ const HomeScreen = {
     return false;
   },
   onBack() {
-    if (this.menuState === 'play') { UISounds.back(); this.setState('top'); return true; }
+    if (this.menuState === 'play' || this.menuState === 'edit') { UISounds.back(); this.setState('top'); return true; }
     if (this.menuState === 'top') { UISounds.back(); this.setState('initial'); return true; }
     return true;
   },
@@ -127,8 +155,10 @@ const HomeScreen = {
       if (tm && Music.playing) {
         const t = Music.time, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
         const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
-        if (key !== lastBeat && t >= tp.time) { lastBeat = key; pulseT = now; }
-      }
+        if (key !== lastBeat && t >= tp.time) { lastBeat = key; pulseT = now; this.onBeat(tp.beatLength); }
+      } else if (now - pulseT > 600) { pulseT = now; this.onBeat(600); } // no beat to follow: sway at a steady pace
+      // idle for a while: back to the big logo, as when the game opens
+      if (this.menuState !== 'initial' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !(NowPlaying.open)) this.setState('initial');
       const k = clamp((now - pulseT) / 260, 0, 1);
       this.cookie.style.transform = `scale(${1 + 0.035 * (1 - k) * (1 - k)})`;
     };
@@ -145,6 +175,78 @@ const HomeScreen = {
     await MenuMusic.play(map);
   },
 };
+
+/** osu!lazer's triangles behind the main menu: triangles in shades of one colour drift upwards, and the colour
+ *  follows the playing song's background (its average colour, saturated a little), fading over a second when the
+ *  song changes. Drawn at half resolution, 30 times a second, and only while the menu is on screen. */
+const MenuTriangles = {
+  tris: [], col: [250, 0.45, 0.36], target: [250, 0.45, 0.36], running: false,
+  mount() {
+    this.cv = h('canvas.lz-tri', { 'aria-hidden': 'true' });
+    this.running = true; this._last = 0;
+    if (!this._sub) this._sub = Bus.on('bg:changed', url => this.fromImage(url));
+    this.fromImage(Background.current);
+    const tick = now => {
+      if (!this.running) return;
+      this._raf = requestAnimationFrame(tick);
+      if (now - this._last < 33 || document.hidden) return;
+      const dt = Math.min(100, now - (this._last || now)); this._last = now;
+      this.draw(dt);
+    };
+    this._raf = requestAnimationFrame(tick);
+    return this.cv;
+  },
+  stop() { this.running = false; cancelAnimationFrame(this._raf); },
+  /** Average colour of the background image → the triangles' hue and saturation. */
+  async fromImage(url) {
+    if (!url) { this.target = [250, 0.45, 0.36]; return; }
+    try {
+      const img = new Image(); img.crossOrigin = 'anonymous'; img.src = url; await img.decode();
+      const c = document.createElement('canvas'); c.width = c.height = 12;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, 12, 12);
+      const d = x.getImageData(0, 0, 12, 12).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { const w = 0.2 + Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; n += w; }
+      const [hh, ss] = rgbToHsl(r / n, g / n, b / n);
+      if (Background.current === url) this.target = [hh, clamp(ss * 1.25 + 0.1, 0.18, 0.75), 0.36];
+    } catch (e) { /* unreadable image: keep the colour */ }
+  },
+  draw(dt) {
+    const cv = this.cv;
+    if (!cv || !cv.isConnected) return;
+    const W = Math.max(1, Math.round(cv.clientWidth / 2)), H = Math.max(1, Math.round(cv.clientHeight / 2));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; this.tris = []; this._seeded = false; }
+    // ease the colour towards the song's (hue the short way round the wheel)
+    const k = Math.min(1, dt / 900), c = this.col, t = this.target;
+    let dh = ((t[0] - c[0] + 540) % 360) - 180;
+    c[0] = (c[0] + dh * k + 360) % 360; c[1] += (t[1] - c[1]) * k; c[2] += (t[2] - c[2]) * k;
+    const want = Settings.get('graphics.performanceMode') ? 26 : 60;
+    while (this.tris.length < want) this.tris.push(this.spawn(W, H, !this._seeded)); // (the first fill covers the screen)
+    this._seeded = true;
+    const x = cv.getContext('2d');
+    x.fillStyle = `hsl(${c[0].toFixed(1)} ${(c[1] * 100 * 0.7).toFixed(1)}% ${(c[2] * 100 * 0.42).toFixed(1)}%)`;
+    x.fillRect(0, 0, W, H);
+    for (const tr of this.tris) {
+      tr.y -= tr.v * dt;
+      const s = tr.s;
+      if (tr.y + s < 0) Object.assign(tr, this.spawn(W, H, false));
+      x.fillStyle = `hsl(${c[0].toFixed(1)} ${(c[1] * 100).toFixed(1)}% ${(c[2] * 100 * tr.l).toFixed(1)}% / ${tr.a})`;
+      x.beginPath(); x.moveTo(tr.x, tr.y); x.lineTo(tr.x + s * 0.577, tr.y + s); x.lineTo(tr.x - s * 0.577, tr.y + s); x.closePath(); x.fill();
+    }
+  },
+  spawn(W, H, anywhere) {
+    const s = (18 + Math.random() ** 2 * 110) * Math.max(0.6, H / 540);
+    return { x: Math.random() * W, y: anywhere ? Math.random() * H : H + Math.random() * 40, s, v: (0.004 + 0.016 * (1 - s / 160)) * Math.max(0.6, H / 540), l: 0.55 + Math.random() * 0.9, a: (0.35 + Math.random() * 0.5).toFixed(2) };
+  },
+};
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  const hh = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [hh * 60, s, l];
+}
 
 /** Where menu music / song-select previews start: the beatmap's PreviewTime, or 40% in (as osu! does) when
  *  the map doesn't set one. */
@@ -188,12 +290,20 @@ const MenuMusic = {
     Background.set(await BeatmapManager.bgURL(map));
     this.play(map, { fromPreview });
   },
+  /** Next track: a shuffled run through every set, so a small library plays each song once before any repeats
+   *  (picking at random kept landing on the same one or two). */
   async next() {
     const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
     if (!sets.length) return;
     if (this.current) this.history.push(this.current.id);
-    const pool = sets.length > 1 && this.current ? sets.filter(s => s.id !== this.current.setId) : sets;
-    const set = pool[Math.floor(Math.random() * pool.length)];
+    const have = new Set(sets.map(s => s.id));
+    this.queue = (this.queue || []).filter(id => have.has(id) && (!this.current || id !== this.current.setId));
+    if (!this.queue.length) {
+      const ids = sets.map(s => s.id).filter(id => sets.length < 2 || !this.current || id !== this.current.setId);
+      for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+      this.queue = ids;
+    }
+    const set = BeatmapManager.setById.get(this.queue.shift());
     this.go(set.maps.find(m => !m.problems.length), false);
   },
   async prev() {
