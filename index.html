@@ -1887,6 +1887,10 @@ function writeZip(files) {
 /* ===== 03-beatmap-parser.js ===== */
 /* BeatmapParser — independent .osu parser + Mania note conversion + difficulty calculation. */
 
+/** Times further out than this (6 hours) are corrupt data: such lines are skipped instead of making the game
+ *  build hour-by-hour structures for a map that can't exist. */
+const MAX_MAP_TIME = 6 * 3600 * 1000;
+
 const BeatmapParser = {
   /** Parse .osu text into a structured object. Throws BeatmapError on unusable input. */
   parse(text) {
@@ -1919,7 +1923,7 @@ const BeatmapParser = {
           const p = line.split(',');
           if (p.length < 2) break;
           const time = parseFloat(p[0]), beatLength = parseFloat(p[1]);
-          if (!isFinite(time) || !isFinite(beatLength)) break;
+          if (!isFinite(time) || !isFinite(beatLength) || Math.abs(time) > MAX_MAP_TIME) break;
           bm.timingPoints.push({
             time, beatLength,
             meter: p[2] ? parseInt(p[2], 10) || 4 : 4,
@@ -1936,7 +1940,7 @@ const BeatmapParser = {
           const p = line.split(',');
           if (p.length < 4) break;
           const x = parseFloat(p[0]), y = parseFloat(p[1]), time = parseInt(p[2], 10), type = parseInt(p[3], 10);
-          if (!isFinite(x) || !isFinite(time) || !isFinite(type)) break;
+          if (!isFinite(x) || !isFinite(time) || !isFinite(type) || Math.abs(time) > MAX_MAP_TIME) break;
           const ho = { x, y, time, type, hitSound: parseInt(p[4], 10) || 0, endTime: 0, sample: null, raw: p };
           if (type & 128) {
             // Mania hold: endTime:hitSample
@@ -1952,6 +1956,7 @@ const BeatmapParser = {
           } else {
             ho.sample = (p[5] || '').split(':');
           }
+          if (!(Math.abs(ho.endTime) <= MAX_MAP_TIME)) ho.endTime = time;
           bm.hitObjects.push(ho);
           break;
         }
@@ -1964,8 +1969,11 @@ const BeatmapParser = {
     bm.previewTime = parseInt(g.PreviewTime ?? '-1', 10);
     bm.audioLeadIn = parseInt(g.AudioLeadIn || '0', 10) || 0;
     bm.sampleSetName = (g.SampleSet || 'Normal').toLowerCase();
-    bm.od = parseFloat(d.OverallDifficulty ?? '5');
-    bm.hp = parseFloat(d.HPDrainRate ?? '5');
+    // (osu!'s editor keeps these within 0–10; out-of-range or garbage values from broken files would give
+    // negative or NaN hit windows, so they're clamped, and unreadable ones fall back to 5)
+    const diff = (v, dflt) => { const n = parseFloat(v ?? dflt); return Number.isFinite(n) ? clamp(n, 0, 10) : +dflt; };
+    bm.od = diff(d.OverallDifficulty, '5');
+    bm.hp = diff(d.HPDrainRate, '5');
     bm.cs = parseFloat(d.CircleSize ?? '4');
     bm.sliderMultiplier = parseFloat(d.SliderMultiplier ?? '1.4');
     bm.timingPoints.sort((a, b) => a.time - b.time || (b.uninherited - a.uninherited));
@@ -1986,7 +1994,11 @@ const BeatmapParser = {
   },
 
   /** Key count for a mania map (CircleSize). */
-  keyCount(bm) { return clamp(Math.round(bm.cs), 1, 18); },
+  keyCount(bm) {
+    const k = Math.round(bm.cs);
+    if (!Number.isFinite(k)) throw new BeatmapError('The key count (CircleSize) isn\'t a number');
+    return clamp(k, 1, 18);
+  },
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time. */
   toManiaNotes(bm) {

@@ -46,6 +46,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ### Sturdier: storage, errors, offline
 
+* **Broken beatmap files can't crash the game**: 8,000 randomly corrupted `.osu` files were run through everything from parsing to scoring. Two crashes and one silent problem turned up and are fixed: a garbage key count is now reported as a problem, notes timed hours past anything real are dropped (one could freeze the star rating), and OD / HP outside 0–10 are clamped like osu!'s editor does (OD 81.5 used to make every note a miss). The fuzz test now runs with the unit tests.
+
 * **Works even when the browser blocks storage** (some private windows, or site data blocked): the game boots, says clearly that nothing will be saved, and keeps beatmaps, scores and settings in memory for the session instead of failing.
 * **One broken record can't break the library**: each part of the saved data (settings, skins, beatmaps, scores, replays, collections, profile) loads on its own. If one fails, the rest still load and a notice says which part failed.
 * **Reconnects to storage** if the browser closes the database connection in the background (it used to fail until reload).
@@ -323,7 +325,7 @@ osu!standard-only mods such as Relax, Autopilot and Spun Out are left out on pur
 ## Tests
 
 ```bash
-node --test tests/*.test.mjs        # engine, parser, Worker and multiplayer room unit tests
+node --test tests/*.test.mjs        # engine, parser (incl. corrupted-file fuzzing), Worker and multiplayer room unit tests
 node tests/make-fixtures.mjs        # generate synthetic .osz/.osk fixtures
 node tests/e2e.mjs --shots          # headless Chromium end-to-end run (Playwright)
 MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs   # two browsers play a match against the real Worker + Durable Objects
