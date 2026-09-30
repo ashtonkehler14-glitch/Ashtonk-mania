@@ -519,29 +519,46 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── RESULTS */
 .results { padding-top: var(--toolbar-h); }
 .res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, 3vw, 48px) 26px; }
-.res-grid { max-width: 1380px; margin: 0 auto; display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; }
-@media (max-width: 1000px) { .res-grid { grid-template-columns: 1fr; } }
-.res-head { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
-.res-head .t { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
-.res-head .a { color: var(--text-2); font-weight: 700; }
-.res-head .d { color: var(--muted); font-weight: 700; }
-.res-grade-card { padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; overflow: hidden; }
-.res-ring { position: relative; width: 230px; height: 230px; }
-.res-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
-.res-ring .grade { position: absolute; inset: 0; display: grid; place-items: center; font-size: 6.5rem; animation: gradeIn 700ms var(--ease-out) 300ms both; }
+.res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
+@media (max-width: 1000px) { .res-grid { grid-template-columns: minmax(0, 440px); } }
+/* osu!lazer's expanded score panel */
+.sp { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: spIn 500ms var(--ease-out) both; }
+@keyframes spIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+.sp-top { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--rc) 38%, #2b2931), #24232a 70%); }
+.sp-top .avatar, .sp-top > :first-child { flex: none; }
+.sp-initial { width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); font-size: 1.8rem; font-weight: 700; }
+.sp-who { min-width: 0; flex: 1; }
+.sp-name { font-size: 1.3rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-when { font-size: .8rem; color: var(--text-2); margin-top: 2px; }
+.sp-tag { padding: 3px 10px; border-radius: 99px; background: rgba(0, 0, 0, .35); font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
+.sp-mid { padding: 18px 22px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.sp-map { width: 100%; min-width: 0; }
+.sp-title { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-artist { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-diff { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: .85rem; }
+.sp-version { font-weight: 600; }
+.sp-ring { position: relative; width: 230px; height: 230px; margin: 22px 0 14px; }
+.sp-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.sp-grade { position: absolute; inset: 0; display: grid; place-items: center; font-size: 5.4rem; font-weight: 700; color: var(--rc); text-shadow: 0 0 28px color-mix(in srgb, var(--rc) 70%, transparent); animation: gradeIn 700ms var(--ease-out) 300ms both; }
+.sp-badge { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 16px; padding: 0 6px; display: grid; place-items: center; border-radius: 99px; font-size: .66rem; font-weight: 800; line-height: 1; color: var(--rt); background: var(--rc); animation: spBadge 500ms var(--ease-out) both; }
+@keyframes spBadge { from { opacity: 0; box-shadow: 0 0 0 0 var(--rc); } 10% { opacity: 1; box-shadow: 0 0 22px 4px var(--rc); } }
+.sp-badge.on { box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 60%, transparent); }
+.sp-mods { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.sp-failed { color: #ff5a5a; font-weight: 800; letter-spacing: .12em; font-size: .85rem; }
+.sp .res-score { font-size: 2.8rem; font-weight: 300; letter-spacing: .03em; line-height: 1.1; }
+.sp-stats { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 4px; }
+.sp-stat .k, .sp-j .k { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.sp-stat .v { font-size: 1.3rem; font-weight: 600; margin-top: 2px; }
+.sp-judges { width: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px 0 2px; border-top: 1px solid rgba(255, 255, 255, .07); }
+.sp-j .v { font-size: 1.02rem; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.sp .res-pb { margin-top: 4px; }
+.res-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; background: rgba(22, 21, 27, .88); border-radius: 20px; padding: 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: spIn 500ms var(--ease-out) 120ms both; }
+.rs-head { font-size: 1.15rem; font-weight: 600; margin: 2px 2px 4px; }
+.res-right .chart-card { background: rgba(255, 255, 255, .03); box-shadow: none; }
 @keyframes gradeIn { from { opacity: 0; transform: scale(1.8) rotate(-10deg); filter: blur(8px); } }
 .res-score { font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .res-pb { padding: 5px 14px; border-radius: 99px; font-weight: 700; font-size: .85rem; background: linear-gradient(90deg, #ffe07a, #f2b705); color: #2a1d00; animation: pbPulse 1.6s ease-in-out infinite; }
 @keyframes pbPulse { 50% { box-shadow: 0 0 24px rgba(255, 213, 74, .6); } }
-.res-kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
-.res-kv .stat { text-align: center; }
-.res-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.res-judge { padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.jrow { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
-.jrow .jn { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.jrow .jc { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.jrow .jb { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .06); overflow: hidden; }
-.jrow .jb i { display: block; height: 100%; background: var(--jc); width: 0; transition: width 900ms var(--ease-out); }
 .chart-card { padding: 16px; }
 .chart-card h3 { margin: 0 0 10px; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: center; }
 .chart-card h3 .grow { flex: 1; }
@@ -894,10 +911,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .screen-title h1 { font-weight: 600; }
 .list-row { border: 0; border-radius: 8px; }
 .side-item { border-radius: 6px; }
-.res-judge { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
-.res-head .t { font-weight: 600; }
-.res-head .a, .res-head .d { font-weight: 400; }
-.res-grade-card { justify-content: center; }
 .set-row .lbl { min-width: 140px; }
 .set-row .ctl .select { max-width: 210px; text-overflow: ellipsis; }
 /* browser-zoom compensation (see Zoom in 12-ui-core.js) */
@@ -1294,6 +1307,7 @@ div.res-calib .i { color: var(--good); }
 .sc-keys { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: baseline; }
 .sc-keys .muted { font-size: .78rem; }
 .sc-what { color: var(--text-2); }
+@media (max-height: 820px) { .sp-ring { width: 190px; height: 190px; margin: 18px 0 10px; } .sp-grade { font-size: 4.4rem; } .sp-mid { gap: 8px; padding-top: 14px; } .sp-top { padding: 12px 18px; } }
 
 </style>
 </head>
@@ -8343,15 +8357,7 @@ const ResultsScreen = {
     if (map) BeatmapManager.bgURL(map).then(u => Background.set(u, { blur: Settings.get('graphics.menuBlur') + 6, dim: 0.35 }));
     const body = h('div.res-body');
     const grid = h('div.res-grid');
-    const head = h('div.res-head',
-      h('div', { style: { flex: '1', minWidth: '0' } },
-        h('div.t', s.title), h('div.a', `${s.artist} · mapped by ${s.creator || '?'}`),
-        h('div.d', `[${s.version}] · ${s.keys}K · played by ${s.player} · ${new Date(s.date).toLocaleString()}`)),
-      starBadge(s.stars || 0),
-      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, false, s.modConfig || null))),
-      p.watched ? h('span.tag.accent', p.watched === 'auto' ? 'AUTO PLAY' : 'REPLAY') : null,
-      !s.passed ? h('span.tag.warn', 'FAILED') : null);
-    grid.append(head, this.gradeCard(s, p), this.rightCol(s));
+    grid.append(this.gradeCard(s, p), this.rightCol(s));
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
@@ -8372,16 +8378,45 @@ const ResultsScreen = {
     UISounds.click();
     Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), mode: 'play' });
   },
+  /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
+   *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
   gradeCard(s, p) {
-    const R = 100, C = 2 * Math.PI * R;
-    const ring = h('div.res-ring');
-    ring.innerHTML = `<svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14"/>
-      <circle class="accring" cx="115" cy="115" r="${R}" fill="none" stroke="url(#rg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset calc(1200ms * var(--anim)) cubic-bezier(.16,1,.3,1)"/>
-      <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" style="stop-color: var(--accent)"/></linearGradient></defs></svg>`;
-    ring.append(gradeEl(s.grade));
-    requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
+    const RANK = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+    const letter = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
+    const rc = RANK[s.grade] || '#fff';
+    // the player
+    const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.sp-initial', (s.player || '?')[0].toUpperCase());
+    const top = h('div.sp-top', av, h('div.sp-who', h('div.sp-name', s.player || 'Player'), h('div.sp-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+      p.watched ? h('span.sp-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+    // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
+    // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
+    // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
+    const VSS = 0.01, GAP = 2 / 360, R = 108, W = 0.2 * 120, C = 2 * Math.PI * R, R2 = 0.8 * 120 - 2.5 - 2.4, C2 = 2 * Math.PI * R2;
+    const segs = [[0, 0.7, RANK.D], [0.7, 0.8, RANK.C], [0.8, 0.9, RANK.B], [0.9, 0.95, RANK.A], [0.95, 1 - VSS, RANK.S], [1 - VSS, 1, RANK.X]];
+    const arc = (a, b, col) => `<circle cx="120" cy="120" r="${R2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="4.8" stroke-dasharray="${Math.max(0.5, (b - a - GAP) * C2).toFixed(2)} ${C2.toFixed(2)}" stroke-dashoffset="${(-(a + GAP / 2) * C2).toFixed(2)}"/>`;
+    const acc = s.accuracy >= 1 ? 1 : Math.min(s.accuracy, 1 - VSS);
+    const fillMs = 1400 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
+    const ring = h('div.sp-ring');
+    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
+      <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
+      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#spg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
+      ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
+    // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
+    const INK = { SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525' };
+    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
+    for (const [g, cut, at] of badges) {
+      if (s.accuracy < cut || (g === 'SS' && s.accuracy < 1)) continue;
+      const ang = (at * 360 - 90) * Math.PI / 180;
+      // when the (eased) fill reaches this rank's cutoff
+      const t = cut <= 0 ? 0 : 1 - Math.pow(1 - Math.min(1, cut / acc), 1 / 5);
+      ring.append(h(`span.sp-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
+    }
+    ring.append(h('div.sp-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
+    requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - acc); }));
+    // score, counted up (in the skin's number font when it has one)
     const scoreEl = h('div.res-score', '0');
-    let digits = null; // the skin's number font, once loaded
+    let digits = null;
     SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44, { align: 'center' }); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
     let shown = 0;
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
@@ -8393,44 +8428,44 @@ const ResultsScreen = {
     };
     tick();
     const pp = ScoreManager.ppOf(s);
-    const ppEl = h('div.res-pp', h('b', fmtInt(pp)), 'pp');
-    if (!s.passed || (s.mods || []).includes('AT')) ppEl.title = 'pp is only awarded for passes (not Auto)';
-    const card = h('div.panel.glass.res-grade-card', ring, scoreEl, ppEl);
+    const stat = (k, v, title) => h('div.sp-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
+    const counts = s.counts || [0, 0, 0, 0, 0, 0];
+    const mid = h('div.sp-mid',
+      h('div.sp-map',
+        h('div.sp-title', s.title), h('div.sp-artist', s.artist),
+        h('div.sp-diff', starBadge(s.stars || 0), h('span.sp-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+      ring,
+      (s.mods || []).length ? h('div.sp-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
+      !s.passed ? h('div.sp-failed', 'FAILED') : null,
+      scoreEl,
+      h('div.sp-stats',
+        stat('Accuracy', fmtAcc(s.accuracy)),
+        stat('Max combo', fmtInt(s.maxCombo) + 'x'),
+        stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
+      h('div.sp-judges', ...JUDGEMENTS.map((j, i) => h('div.sp-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
       const d = s.totalPpAfter - s.totalPpBefore;
-      card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+      mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
     }
-    if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
+    if (s.isPB && p.fresh) mid.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) {
-      const mine = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
-      card.append(h('div.muted', `Personal best: ${fmtScore(best)} (${mine >= best ? '+' : ''}${fmtInt(mine - best)})`));
+      const me = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
+      mid.append(h('div.muted.res-prev', `Personal best: ${fmtScore(best)} (${me >= best ? '+' : ''}${fmtInt(me - best)})`));
     }
-    const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
-    card.append(h('div.res-kv',
-      kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),
-      kv('UR', (s.unstableRate || 0).toFixed(1), `Unstable rate · mean ${(s.meanError || 0).toFixed(1)}ms · ${s.early || 0} early / ${s.late || 0} late`)));
     // osu!lazer: calibrate this beatmap's offset from the play you just finished
     const sug = p.fresh ? MapOffsets.suggestion(s.mapHash) : null;
     if (sug != null) {
       const cur = MapOffsets.get(s.mapHash);
-      card.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
+      mid.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
         const btn = e.currentTarget;
         await MapOffsets.set(s.mapHash, cur + sug); MapOffsets.last = null; UISounds.click();
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return card;
+    return h('div.sp', { style: { '--rc': rc } }, top, mid);
   },
   rightCol(s) {
-    const col = h('div.res-right');
-    const counts = s.counts || [0, 0, 0, 0, 0, 0];
-    const total = Math.max(1, counts.reduce((a, b) => a + b, 0));
-    const judge = h('div.panel.glass.res-judge', ...JUDGEMENTS.map((j, i) => {
-      const bar = h('i', { style: { '--jc': j.color } });
-      requestAnimationFrame(() => requestAnimationFrame(() => bar.style.width = (counts[i] / total * 100) + '%'));
-      return h('div.jrow', h('div.jn', { style: { color: j.color } }, j.name), h('div.jc', fmtInt(counts[i])), h('div.jb', bar));
-    }));
-    col.append(judge);
+    const col = h('div.res-right', h('div.rs-head', 'Statistics'));
     const errs = (s.hitErrors || []).filter(e => !e[3]);
     const W = (s.windows || timingWindows({ od: s.od ?? 8 })).slice();
     const hist = h('div.panel.glass.chart-card', h('h3', 'Hit distribution', h('span.grow'), h('span', `${errs.length} hits · mean ${(s.meanError || 0).toFixed(1)}ms · UR ${(s.unstableRate || 0).toFixed(1)}`)));

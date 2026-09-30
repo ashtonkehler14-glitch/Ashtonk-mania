@@ -22,6 +22,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer-style results
+
+* The results screen is now lazer's score panel: your name and picture on a strip coloured by your grade, then the beatmap, the **accuracy circle**, mods, the score counting up, accuracy / max combo / pp and every judgement count.
+* The accuracy circle follows osu!lazer's layout. Your accuracy fills the thick outer ring in lazer's cyan-to-green. The grade thresholds are coloured segments just inside it, with SS shown as a 1% sliver so it's visible. Each rank's badge pops in as the fill passes it, so only the ranks you reached appear. The grade then lands in the middle in its lazer colour (SS pink, S teal, A green, B gold, C orange, D red).
+* The hit distribution and the other graphs sit in a **Statistics** panel beside it (below it on narrow screens). Everything fits on a 1366×768 laptop screen.
+
 ### Chemuss mixed edit comes with the game
 
 * **A second built-in skin: "Chemuss mixed edit"** (Quadrasphinix by [LS]Cr1tikal with Chemuss's orb mania edit). It installs on its own the next time the game opens (Kori stays selected; pick it in **Skins** or Settings → Skin). It ships as a 350 KB mania-only trim (`public/skins/chemuss.osk`).

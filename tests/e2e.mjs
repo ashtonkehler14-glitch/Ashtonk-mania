@@ -181,6 +181,15 @@ const live = await livePlay({ version: '4K Normal' });
 check('live keyboard play is judged from the audio clock (no misses, ≥ 95% acc)', live.counts[5] === 0 && live.acc > 0.95, JSON.stringify(live));
 check('live play becomes a personal best with an auto-saved replay', live.pb && !!live.replayId);
 await shot('05-results-live');
+await page.waitForTimeout(1600);
+const panel = await page.evaluate(() => {
+  const g = document.querySelector('.sp .sp-ring .sp-grade'), ring = document.querySelector('.sp .accring');
+  return { grade: g && g.textContent, badges: [...document.querySelectorAll('.sp-badge')].map(b => b.textContent), on: document.querySelector('.sp-badge.on')?.textContent,
+    filled: ring ? 1 - parseFloat(ring.style.strokeDashoffset) / parseFloat(ring.getAttribute('stroke-dasharray')) : 0, hist: !!document.querySelector('.res-right canvas') };
+});
+const shown = { XH: 'SS', X: 'SS', SH: 'S' }[live.grade] || live.grade;
+check('results: lazer score panel — accuracy circle filled to the accuracy, rank badges up to the grade, hit distribution beside it',
+  panel.grade === shown && panel.on === shown && panel.badges[0] === 'D' && panel.badges.includes(shown) && Math.abs(panel.filled - (live.acc >= 1 ? 1 : Math.min(live.acc, 0.99))) < 0.01 && panel.hist, JSON.stringify(panel));
 await page.click('.res-share');
 await page.waitForSelector('.share-card');
 await page.waitForFunction(() => document.querySelector('.share-card').naturalWidth > 0);

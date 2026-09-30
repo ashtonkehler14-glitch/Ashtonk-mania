@@ -11,15 +11,7 @@ const ResultsScreen = {
     if (map) BeatmapManager.bgURL(map).then(u => Background.set(u, { blur: Settings.get('graphics.menuBlur') + 6, dim: 0.35 }));
     const body = h('div.res-body');
     const grid = h('div.res-grid');
-    const head = h('div.res-head',
-      h('div', { style: { flex: '1', minWidth: '0' } },
-        h('div.t', s.title), h('div.a', `${s.artist} · mapped by ${s.creator || '?'}`),
-        h('div.d', `[${s.version}] · ${s.keys}K · played by ${s.player} · ${new Date(s.date).toLocaleString()}`)),
-      starBadge(s.stars || 0),
-      h('div.row', { style: { gap: '4px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, false, s.modConfig || null))),
-      p.watched ? h('span.tag.accent', p.watched === 'auto' ? 'AUTO PLAY' : 'REPLAY') : null,
-      !s.passed ? h('span.tag.warn', 'FAILED') : null);
-    grid.append(head, this.gradeCard(s, p), this.rightCol(s));
+    grid.append(this.gradeCard(s, p), this.rightCol(s));
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
@@ -40,16 +32,45 @@ const ResultsScreen = {
     UISounds.click();
     Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), mode: 'play' });
   },
+  /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
+   *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
   gradeCard(s, p) {
-    const R = 100, C = 2 * Math.PI * R;
-    const ring = h('div.res-ring');
-    ring.innerHTML = `<svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14"/>
-      <circle class="accring" cx="115" cy="115" r="${R}" fill="none" stroke="url(#rg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset calc(1200ms * var(--anim)) cubic-bezier(.16,1,.3,1)"/>
-      <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" style="stop-color: var(--accent)"/></linearGradient></defs></svg>`;
-    ring.append(gradeEl(s.grade));
-    requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - s.accuracy); }));
+    const RANK = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+    const letter = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
+    const rc = RANK[s.grade] || '#fff';
+    // the player
+    const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.sp-initial', (s.player || '?')[0].toUpperCase());
+    const top = h('div.sp-top', av, h('div.sp-who', h('div.sp-name', s.player || 'Player'), h('div.sp-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+      p.watched ? h('span.sp-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+    // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
+    // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
+    // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
+    const VSS = 0.01, GAP = 2 / 360, R = 108, W = 0.2 * 120, C = 2 * Math.PI * R, R2 = 0.8 * 120 - 2.5 - 2.4, C2 = 2 * Math.PI * R2;
+    const segs = [[0, 0.7, RANK.D], [0.7, 0.8, RANK.C], [0.8, 0.9, RANK.B], [0.9, 0.95, RANK.A], [0.95, 1 - VSS, RANK.S], [1 - VSS, 1, RANK.X]];
+    const arc = (a, b, col) => `<circle cx="120" cy="120" r="${R2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="4.8" stroke-dasharray="${Math.max(0.5, (b - a - GAP) * C2).toFixed(2)} ${C2.toFixed(2)}" stroke-dashoffset="${(-(a + GAP / 2) * C2).toFixed(2)}"/>`;
+    const acc = s.accuracy >= 1 ? 1 : Math.min(s.accuracy, 1 - VSS);
+    const fillMs = 1400 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
+    const ring = h('div.sp-ring');
+    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
+      <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
+      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#spg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
+      ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
+    // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
+    const INK = { SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525' };
+    const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
+    for (const [g, cut, at] of badges) {
+      if (s.accuracy < cut || (g === 'SS' && s.accuracy < 1)) continue;
+      const ang = (at * 360 - 90) * Math.PI / 180;
+      // when the (eased) fill reaches this rank's cutoff
+      const t = cut <= 0 ? 0 : 1 - Math.pow(1 - Math.min(1, cut / acc), 1 / 5);
+      ring.append(h(`span.sp-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
+    }
+    ring.append(h('div.sp-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
+    requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - acc); }));
+    // score, counted up (in the skin's number font when it has one)
     const scoreEl = h('div.res-score', '0');
-    let digits = null; // the skin's number font, once loaded
+    let digits = null;
     SkinManager.scoreFont().then(f => { if (!f) return; digits = skinDigits(f, 44, { align: 'center' }); scoreEl.classList.add('skinned'); scoreEl.replaceChildren(digits.el); digits.set(fmtScore(shown)); }).catch(() => {});
     let shown = 0;
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
@@ -61,44 +82,44 @@ const ResultsScreen = {
     };
     tick();
     const pp = ScoreManager.ppOf(s);
-    const ppEl = h('div.res-pp', h('b', fmtInt(pp)), 'pp');
-    if (!s.passed || (s.mods || []).includes('AT')) ppEl.title = 'pp is only awarded for passes (not Auto)';
-    const card = h('div.panel.glass.res-grade-card', ring, scoreEl, ppEl);
+    const stat = (k, v, title) => h('div.sp-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
+    const counts = s.counts || [0, 0, 0, 0, 0, 0];
+    const mid = h('div.sp-mid',
+      h('div.sp-map',
+        h('div.sp-title', s.title), h('div.sp-artist', s.artist),
+        h('div.sp-diff', starBadge(s.stars || 0), h('span.sp-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+      ring,
+      (s.mods || []).length ? h('div.sp-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
+      !s.passed ? h('div.sp-failed', 'FAILED') : null,
+      scoreEl,
+      h('div.sp-stats',
+        stat('Accuracy', fmtAcc(s.accuracy)),
+        stat('Max combo', fmtInt(s.maxCombo) + 'x'),
+        stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
+      h('div.sp-judges', ...JUDGEMENTS.map((j, i) => h('div.sp-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
       const d = s.totalPpAfter - s.totalPpBefore;
-      card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+      mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
     }
-    if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
+    if (s.isPB && p.fresh) mid.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) {
-      const mine = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
-      card.append(h('div.muted', `Personal best: ${fmtScore(best)} (${mine >= best ? '+' : ''}${fmtInt(mine - best)})`));
+      const me = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
+      mid.append(h('div.muted.res-prev', `Personal best: ${fmtScore(best)} (${me >= best ? '+' : ''}${fmtInt(me - best)})`));
     }
-    const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
-    card.append(h('div.res-kv',
-      kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),
-      kv('UR', (s.unstableRate || 0).toFixed(1), `Unstable rate · mean ${(s.meanError || 0).toFixed(1)}ms · ${s.early || 0} early / ${s.late || 0} late`)));
     // osu!lazer: calibrate this beatmap's offset from the play you just finished
     const sug = p.fresh ? MapOffsets.suggestion(s.mapHash) : null;
     if (sug != null) {
       const cur = MapOffsets.get(s.mapHash);
-      card.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
+      mid.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
         const btn = e.currentTarget;
         await MapOffsets.set(s.mapHash, cur + sug); MapOffsets.last = null; UISounds.click();
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return card;
+    return h('div.sp', { style: { '--rc': rc } }, top, mid);
   },
   rightCol(s) {
-    const col = h('div.res-right');
-    const counts = s.counts || [0, 0, 0, 0, 0, 0];
-    const total = Math.max(1, counts.reduce((a, b) => a + b, 0));
-    const judge = h('div.panel.glass.res-judge', ...JUDGEMENTS.map((j, i) => {
-      const bar = h('i', { style: { '--jc': j.color } });
-      requestAnimationFrame(() => requestAnimationFrame(() => bar.style.width = (counts[i] / total * 100) + '%'));
-      return h('div.jrow', h('div.jn', { style: { color: j.color } }, j.name), h('div.jc', fmtInt(counts[i])), h('div.jb', bar));
-    }));
-    col.append(judge);
+    const col = h('div.res-right', h('div.rs-head', 'Statistics'));
     const errs = (s.hitErrors || []).filter(e => !e[3]);
     const W = (s.windows || timingWindows({ od: s.od ?? 8 })).slice();
     const hist = h('div.panel.glass.chart-card', h('h3', 'Hit distribution', h('span.grow'), h('span', `${errs.length} hits · mean ${(s.meanError || 0).toFixed(1)}ms · UR ${(s.unstableRate || 0).toFixed(1)}`)));
