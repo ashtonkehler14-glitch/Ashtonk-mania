@@ -57,6 +57,9 @@ const SongSelect = {
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
     this.scroller.addEventListener('scroll', () => this.renderVisible(), { passive: true });
+    // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
+    this._vh = 0;
+    new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);
     this.carousel = h('div.carousel', this.scroller);
     this.emptyEl = h('div.ss-empty');
     this.carousel.appendChild(this.emptyEl);
@@ -250,7 +253,7 @@ const SongSelect = {
   },
   renderVisible(force = false) {
     if (!this.rows) return;
-    const st = this.scroller.scrollTop, vh = this.scroller.clientHeight || 600;
+    const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
     const center = st + vh / 2;
     const needed = new Set();
@@ -264,11 +267,20 @@ const SongSelect = {
         el = this.renderRow(row);
         this.pool.set(key, el);
         this.inner.appendChild(el);
-      }
+      } else this.refreshRow(el, row);
       const d = (row.y + row.h / 2 - center) / vh;
       el.style.transform = `translate(${Math.round(d * d * 70)}px, ${row.y}px)`;
     }
     for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
+  },
+  /** A row that's already on screen only needs its selection state (and height) brought up to date. */
+  refreshRow(el, row) {
+    const hh = row.h + 'px';
+    if (el.style.height !== hh) el.style.height = hh;
+    const b = el.firstChild;
+    if (!b) return;
+    if (row.type === 'set') b.classList.toggle('expanded', row.r.set.id === this.expandedSet);
+    else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
   renderRow(row) {
     const wrap = h('div.c-item', { style: { height: row.h + 'px' } });
@@ -319,18 +331,19 @@ const SongSelect = {
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
     this.layoutRows();
-    this.renderVisible(true);
-    if (scroll) this.scrollToSelected(true);
+    // rows already on screen are updated in place (only their selection changes); new ones are built once, after
+    // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices)
+    if (scroll) this.scrollToSelected(true); else this.renderVisible();
     this.updateInfo();
     if (setChanged || !Music.meta || Music.meta.setId !== m.setId) this.schedulePreview(m);
   },
-  scrollToSelected(smooth) {
+  scrollToSelected(smooth, force = false) {
     const row = this.rows.find(r => r.type === 'diff' && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
-    if (!row) return;
-    const vh = this.scroller.clientHeight || 600;
+    if (!row) { if (force) this.renderVisible(true); return; }
+    const vh = this._vh || this.scroller.clientHeight || 600;
     const top = Math.max(0, row.y - vh / 2 + row.h / 2);
     this.scroller.scrollTo({ top, behavior: smooth && Settings.get('ui.animSpeed') > 0 ? 'smooth' : 'auto' });
-    this.renderVisible();
+    this.renderVisible(force);
   },
   // keyboard navigation
   flatMaps() { return this.results ? this.results.flatMap(r => r.maps) : []; },

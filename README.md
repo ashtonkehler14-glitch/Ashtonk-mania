@@ -30,6 +30,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Results on the simulated slow device** (1366×768, Kori, a dense 7K stream, CPU slowed with Chrome's throttling): at 4× slower, **16 fps → 55 fps**; at 6× slower, **10 fps → 50 fps** (settling at 70% resolution). At full speed it's a steady 60.
 * No more forced page layouts during play: the skin health bar measured its container every frame, and the replay bar checked hover state every frame.
 * The hidden replay bar no longer re-lays out the page 10 times a second while watching Auto or a replay.
+* **Smoother menus**: the loading screen's logo kept its "breathing" animation running forever after the game had loaded, restyling the page every frame on every screen (gameplay included); it's removed after the fade. Changing beatmap in song select updates the rows already on screen instead of rebuilding them twice (4.3 → 1.6 ms of script per change).
 
 ### Share your results
 

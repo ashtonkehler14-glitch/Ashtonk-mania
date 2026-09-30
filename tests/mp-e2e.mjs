@@ -138,7 +138,8 @@ check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.S
 await alice.evaluate(() => AshtonkMania.Multiplayer.setMods(['DT', 'HD']));
 await bob.waitForSelector('.mp-vote .mp-accept', { timeout: 5000 });
 await shot(bob, 'mp-vote');
-check('a speed mod (DT) needs the other player to accept', await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return !r.mods.length && r.vote && r.vote.mods[0] === 'DT' && /Waiting for everyone/.test(document.querySelector('.mp-vote').textContent); }));
+// (Alice's copy of the room arrives on its own socket message: wait for it rather than checking the instant Bob sees the vote)
+check('a speed mod (DT) needs the other player to accept', await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room, v = document.querySelector('.mp-vote'); return !r.mods.length && r.vote && r.vote.mods[0] === 'DT' && v && /Waiting for everyone/.test(v.textContent); }, null, { timeout: 5000 }).then(() => true, async () => { console.log('  alice:', await alice.evaluate(() => JSON.stringify({ mods: AshtonkMania.Multiplayer.room.mods, vote: AshtonkMania.Multiplayer.room.vote, text: document.querySelector('.mp-vote')?.textContent }))); return false; }));
 await bob.evaluate(() => AshtonkMania.Multiplayer.setMods(['MR']));
 await bob.click('.mp-vote .mp-accept');
 await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return !r.vote && r.mods[0] === 'DT'; }, null, { timeout: 5000 });
