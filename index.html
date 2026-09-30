@@ -2259,6 +2259,25 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-menu[data-state="play"] { --shift: 0px; }
 .lz-menu[data-state="edit"] { --shift: 150px; }
 
+/* beatmap listing: three columns; lazer's hover panel slides out on the card's right with like / download */
+.ex-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .ex-grid { grid-template-columns: 1fr; } }
+.ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
+.ex-card:hover .ex-cb, .ex-card:focus-within .ex-cb { padding-right: 52px; }
+.ex-side { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; background: hsl(var(--o-h) 10% 10% / .92); transform: translateX(100%); transition: transform 250ms var(--ease-out); }
+.ex-card:hover .ex-side, .ex-card:focus-within .ex-side { transform: none; }
+.ex-side-btn { flex: 1; display: grid; place-items: center; border: 0; background: none; color: rgba(255, 255, 255, .85); cursor: pointer; transition: background 120ms, color 120ms; }
+.ex-side-btn + .ex-side-btn { border-top: 1px solid rgba(255, 255, 255, .06); }
+.ex-side-btn .i { width: 18px; height: 18px; }
+.ex-side-btn:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.ex-side-btn.like.on { color: #ff66ab; }
+.ex-side-btn.dl:hover { background: #66ccff; color: #0f2530; }
+.ex-side-btn.play { color: #b3d944; }
+.ex-side-btn.play:hover { background: #88b300; color: #16210a; }
+.ex-side-btn.busy { cursor: default; background: linear-gradient(0deg, rgba(102, 204, 255, .35) var(--p), transparent var(--p)); }
+.ex-card .ex-counts { transition: opacity 150ms; }
+
 </style>
 </head>
 <body>
@@ -11254,6 +11273,9 @@ const ExplorerScreen = {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
   },
+  /** Beatmap sets you've liked in the listing (kept in this browser). */
+  liked() { if (!this._liked) { try { this._liked = new Set(JSON.parse(localStorage.getItem('am.likedSets') || '[]')); } catch { this._liked = new Set(); } } return this._liked; },
+  toggleLike(id) { const l = this.liked(); l.has(id) ? l.delete(id) : l.add(id); try { localStorage.setItem('am.likedSets', JSON.stringify([...l])); } catch { /* private mode */ } },
   imported: new Map(), // online set id -> local set ids it was imported as (an archive may carry other ids inside)
   owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || (this.imported.get(id) || []).map(x => BeatmapManager.setById.get(x)).find(Boolean) || null; },
   renderStatus() {
@@ -11263,7 +11285,7 @@ const ExplorerScreen = {
       this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
       h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
-    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
+    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.source ? ` · via ${this.source}` : ''}${this.hasMore ? '' : ' · end of results'}`));
   },
   renderResults() {
     if (!this.grid) return;
@@ -11302,6 +11324,14 @@ const ExplorerScreen = {
     const spectrum = set.diffs.length > 10
       ? h('span.ex-spec-more', ...[...new Set(set.diffs.map(d => starColour(d.stars)))].slice(0, 1).map(c => h('i', { style: { '--sc': c } })), `${set.diffs.length}`)
       : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
+    // lazer's hover panel on the card's right edge: like and download (or play when it's already in the library)
+    const liked = this.liked().has(set.id);
+    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
+    const sideAct = dl && dl.state === 'downloading'
+      ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
+      : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
+        : this.mpPick ? h('button.ex-side-btn', { title: 'Choose a difficulty', 'aria-label': 'Choose a difficulty', onclick: e => { e.stopPropagation(); this.openSet(set); } }, icon('multi'))
+          : h('button.ex-side-btn.dl', { title: 'Download', 'aria-label': 'Download', onclick: e => { e.stopPropagation(); this.download(set); } }, icon('download'));
     const card = h(`div.ex-card${owned ? '.owned' : ''}`, { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
       bg, h('div.ex-cardshade'),
@@ -11316,7 +11346,8 @@ const ExplorerScreen = {
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
           owned ? h('span.ex-owned', { title: 'In your library' }, icon('check')) : null,
-          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))));
+          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))),
+      h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
     return card;
   },

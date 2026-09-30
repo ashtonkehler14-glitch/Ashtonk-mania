@@ -348,6 +348,9 @@ const ExplorerScreen = {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
   },
+  /** Beatmap sets you've liked in the listing (kept in this browser). */
+  liked() { if (!this._liked) { try { this._liked = new Set(JSON.parse(localStorage.getItem('am.likedSets') || '[]')); } catch { this._liked = new Set(); } } return this._liked; },
+  toggleLike(id) { const l = this.liked(); l.has(id) ? l.delete(id) : l.add(id); try { localStorage.setItem('am.likedSets', JSON.stringify([...l])); } catch { /* private mode */ } },
   imported: new Map(), // online set id -> local set ids it was imported as (an archive may carry other ids inside)
   owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || (this.imported.get(id) || []).map(x => BeatmapManager.setById.get(x)).find(Boolean) || null; },
   renderStatus() {
@@ -357,7 +360,7 @@ const ExplorerScreen = {
       this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
       h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
-    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
+    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.source ? ` · via ${this.source}` : ''}${this.hasMore ? '' : ' · end of results'}`));
   },
   renderResults() {
     if (!this.grid) return;
@@ -396,6 +399,14 @@ const ExplorerScreen = {
     const spectrum = set.diffs.length > 10
       ? h('span.ex-spec-more', ...[...new Set(set.diffs.map(d => starColour(d.stars)))].slice(0, 1).map(c => h('i', { style: { '--sc': c } })), `${set.diffs.length}`)
       : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
+    // lazer's hover panel on the card's right edge: like and download (or play when it's already in the library)
+    const liked = this.liked().has(set.id);
+    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
+    const sideAct = dl && dl.state === 'downloading'
+      ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
+      : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
+        : this.mpPick ? h('button.ex-side-btn', { title: 'Choose a difficulty', 'aria-label': 'Choose a difficulty', onclick: e => { e.stopPropagation(); this.openSet(set); } }, icon('multi'))
+          : h('button.ex-side-btn.dl', { title: 'Download', 'aria-label': 'Download', onclick: e => { e.stopPropagation(); this.download(set); } }, icon('download'));
     const card = h(`div.ex-card${owned ? '.owned' : ''}`, { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
       bg, h('div.ex-cardshade'),
@@ -410,7 +421,8 @@ const ExplorerScreen = {
           h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
           h('span.grow'),
           owned ? h('span.ex-owned', { title: 'In your library' }, icon('check')) : null,
-          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))));
+          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))),
+      h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
     return card;
   },

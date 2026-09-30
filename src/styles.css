@@ -2241,3 +2241,22 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-menu { --shift: 40px; }
 .lz-menu[data-state="play"] { --shift: 0px; }
 .lz-menu[data-state="edit"] { --shift: 150px; }
+
+/* beatmap listing: three columns; lazer's hover panel slides out on the card's right with like / download */
+.ex-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .ex-grid { grid-template-columns: 1fr; } }
+.ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
+.ex-card:hover .ex-cb, .ex-card:focus-within .ex-cb { padding-right: 52px; }
+.ex-side { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; background: hsl(var(--o-h) 10% 10% / .92); transform: translateX(100%); transition: transform 250ms var(--ease-out); }
+.ex-card:hover .ex-side, .ex-card:focus-within .ex-side { transform: none; }
+.ex-side-btn { flex: 1; display: grid; place-items: center; border: 0; background: none; color: rgba(255, 255, 255, .85); cursor: pointer; transition: background 120ms, color 120ms; }
+.ex-side-btn + .ex-side-btn { border-top: 1px solid rgba(255, 255, 255, .06); }
+.ex-side-btn .i { width: 18px; height: 18px; }
+.ex-side-btn:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.ex-side-btn.like.on { color: #ff66ab; }
+.ex-side-btn.dl:hover { background: #66ccff; color: #0f2530; }
+.ex-side-btn.play { color: #b3d944; }
+.ex-side-btn.play:hover { background: #88b300; color: #16210a; }
+.ex-side-btn.busy { cursor: default; background: linear-gradient(0deg, rgba(102, 204, 255, .35) var(--p), transparent var(--p)); }
+.ex-card .ex-counts { transition: opacity 150ms; }

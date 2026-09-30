@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Beatmap listing in three columns
+
+* **The listing shows three cards per row.**
+* **Hovering a card slides out lazer's side panel** with Like and Download, or Play if it's already in your library. Clicking the card still opens the beatmap info page.
+
 ### Same look at every resolution, 80% interface, black lazer cursor
 
 * **The interface is 80% by default**; 100% felt zoomed in. Anyone still on the old default moves to 80% once.

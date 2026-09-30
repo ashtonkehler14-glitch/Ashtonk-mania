@@ -470,6 +470,7 @@ await page.waitForTimeout(300);
 check('previewing a song keeps the list in place (no re-render / jump to top)', await page.evaluate(() => window.__card.isConnected && window.__card.querySelector('.ex-play').dataset.ic === 'pause'));
 await page.click('.ex-card[data-id="777"] .ex-play');
 await shot('11b-explorer');
+check('beatmap cards have lazer\'s hover panel with like and download', await page.evaluate(() => !!document.querySelector('.ex-card[data-id="777"] .ex-side .like') && !!document.querySelector('.ex-card[data-id="777"] .ex-side .dl')));
 // as in lazer: clicking the card opens the beatmap info page, and that's where it's downloaded
 await page.click('.ex-card[data-id="777"] .ex-t');
 await page.waitForSelector('.bso .bso-dl', { timeout: 5000 });
