@@ -2230,3 +2230,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-rplayers .avatar, .mp-rplayers img { border-radius: 50%; object-fit: cover; }
 .mp-rjoin { padding: 7px 16px; border-radius: 8px; background: rgba(255, 102, 171, .9); font-weight: 700; font-size: .85rem; }
 .mp-room-row:disabled .mp-rjoin { background: rgba(255, 255, 255, .12); }
+.mp-left, .qp-stage { min-width: 0; }
+.rp-vs { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.qp-stage.rp .qp-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
