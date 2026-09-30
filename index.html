@@ -298,24 +298,71 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .menu .hdr { padding: 6px 12px 4px; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .menu .check { margin-left: auto; color: var(--accent); }
 
-/* ── settings panel (slides in from the left, like a game client) */
-.settings-panel { position: absolute; top: 0; bottom: 0; left: 0; width: min(560px, 100vw); display: flex; background: var(--panel-solid); border-right: 1px solid var(--line-2); box-shadow: 20px 0 60px rgba(0, 0, 0, .5); animation: slideInL var(--t-med) var(--ease-out) both; }
+/* ── settings panel — osu!lazer's SettingsOverlay: a 60px icon sidebar and a 400px panel, lowercase "settings" header,
+   sections under a 2px separator with 30px titles, and every setting a form control (a rounded box with its caption
+   inside, 4px apart). Colours are lazer's OverlayColourProvider, Purple scheme (hue 255). */
+.settings-panel { --o-h: 255; --ob6: hsl(var(--o-h) 10% 10%); --ob5: hsl(var(--o-h) 10% 15%); --ob4: hsl(var(--o-h) 10% 20%); --ob3: hsl(var(--o-h) 10% 25%); --ob1: hsl(var(--o-h) 10% 40%); --od4: hsl(var(--o-h) 20% 20%); --od3: hsl(var(--o-h) 20% 25%); --ol4: hsl(var(--o-h) 40% 50%); --ohl: hsl(var(--o-h) 100% 70%); --oc2: hsl(var(--o-h) 40% 90%);
+  position: absolute; top: 0; bottom: 0; left: 0; width: min(460px, 100vw); display: flex; background: var(--ob4); box-shadow: 20px 0 60px rgba(0, 0, 0, .5); animation: slideInL calc(600ms * var(--anim)) var(--ease-out); }
 .settings-panel.out { animation: slideOutL calc(200ms * var(--anim)) ease both; }
 @keyframes slideInL { from { transform: translateX(-100%); } }
 @keyframes slideOutL { to { transform: translateX(-100%); } }
-.sp-nav { width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 6px; background: rgba(0, 0, 0, .25); border-right: 1px solid var(--line); }
-.sp-nav .icon-btn { width: 44px; height: 44px; border-radius: 12px; }
-.sp-nav .icon-btn.active { background: rgba(var(--accent-rgb), .2); color: var(--accent-3); }
+.sp-nav { width: 60px; flex: none; display: flex; flex-direction: column; align-items: stretch; padding: 10px 0; gap: 2px; background: var(--ob5); }
+.sp-nav .icon-btn { width: 100%; height: 48px; border-radius: 0; color: var(--oc2); opacity: .6; transition: opacity var(--t-fast), color var(--t-fast); }
+.sp-nav .icon-btn:hover { opacity: 1; background: transparent; }
+.sp-nav .icon-btn.active { opacity: 1; color: #fff; box-shadow: inset 4px 0 0 var(--ohl); background: linear-gradient(90deg, hsl(var(--o-h) 100% 70% / .12), transparent); }
 .sp-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.sp-head { padding: 20px 22px 12px; }
-.sp-head h2 { margin: 0; font-size: 1.6rem; font-weight: 700; }
-.sp-head .sub { color: var(--muted); font-size: .85rem; margin-top: 2px; }
-.sp-search { margin-top: 12px; width: 100%; }
-.sp-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 22px 60px; scroll-behavior: smooth; }
-.sp-section { padding-top: 18px; }
-.sp-section > h3 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
-.sp-section > h3 .i { color: var(--accent); }
-.sp-group { margin: 12px 0 4px; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.sp-head { position: relative; padding: 22px 22px 14px 12px; }
+.sp-head > .row > .icon-btn { position: absolute; top: 12px; right: 10px; }
+.sp-head h2 { margin: 0; font-size: 2.5rem; font-weight: 400; line-height: 1; letter-spacing: -.01em; }
+.sp-head .sub { color: var(--oc2); font-size: 1rem; margin-top: 4px; }
+.sp-searchbox { position: relative; margin-top: 16px; }
+.sp-searchbox .i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--oc2); pointer-events: none; }
+.sp-search { width: 100%; height: 40px; padding-left: 38px; border-radius: 5px; border: 2.5px solid transparent; background: var(--ob5); font-size: .95rem; }
+.sp-search:hover { border-color: transparent; background: var(--ob6); }
+.sp-search:focus { border-color: var(--ohl); background: linear-gradient(var(--ob5), var(--od3)); }
+.sp-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 0 60px; scroll-behavior: smooth; }
+.sp-section { padding: 24px 22px 32px 12px; border-top: 2px solid var(--ob6); min-width: 0; }
+.sp-section > h3 { margin: 0 0 6px; font-size: 1.875rem; font-weight: 400; line-height: 1.1; }
+.sp-group { margin: 18px 0 4px 5px; font-size: 1.25rem; font-weight: 500; color: #fff; min-width: 0; }
+.settings-panel .set-row.form { position: relative; display: flex; align-items: center; gap: 10px; text-align: left; margin: 0 0 4px; padding: 9px; border-radius: 5px; background: hsl(var(--o-h) 10% 18%); box-shadow: inset 0 0 0 2.5px transparent; transition: box-shadow 250ms var(--ease-out), background 250ms var(--ease-out); cursor: default; }
+.settings-panel .set-row.form:hover { background: linear-gradient(var(--ob5), var(--od4)); box-shadow: inset 0 0 0 2.5px var(--ol4); }
+.settings-panel .set-row.form:focus-within { background: linear-gradient(var(--ob5), var(--od3)); box-shadow: inset 0 0 0 2.5px var(--ohl); }
+.settings-panel .set-row.form .lbl { flex: 1; min-width: 0; font-size: .8125rem; font-weight: 600; color: var(--oc2); }
+.settings-panel .set-row.form .lbl .hint { margin-top: 2px; font-size: .75rem; font-weight: 400; color: hsl(var(--o-h) 20% 70%); }
+.settings-panel .fbool { cursor: pointer; min-height: 52px; }
+.settings-panel .fbool .toggle, .settings-panel .fbool > .btn { flex: none; }
+/* SwitchButton: an outlined pill that fills in Highlight1 when on */
+.settings-panel .toggle { width: 44px; height: 22px; background: transparent; box-shadow: inset 0 0 0 2.5px var(--ol4); transition: background 200ms, box-shadow 200ms; }
+.settings-panel .toggle::after { top: 5px; left: 5px; width: 12px; height: 12px; background: var(--ol4); transition: transform 200ms var(--ease-out), background 200ms; }
+.settings-panel .toggle.on { background: var(--ohl); box-shadow: inset 0 0 0 2.5px var(--ohl); }
+.settings-panel .toggle.on::after { transform: translateX(22px); background: var(--ob5); }
+/* FormSliderBar: caption and value on the left half, a 40px rounded track with a 10px nub on the right half */
+.settings-panel .frange { padding: 5px 5px 5px 9px; }
+.settings-panel .frange .fleft { width: 50%; flex: none; min-width: 0; padding: 4px 10px 4px 0; display: flex; flex-direction: column; gap: 4px; }
+.settings-panel .frange .val { min-width: 0; text-align: left; font-weight: 400; font-size: .875rem; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-panel .frange .fcal { align-self: flex-start; }
+.settings-panel .frange .fright { flex: 1; min-width: 0; }
+.settings-panel input[type=range].slider { display: block; width: 100%; height: 40px; margin: 0; background: transparent; }
+.settings-panel input[type=range].slider::-webkit-slider-runnable-track { height: 40px; border-radius: 5px; background: linear-gradient(90deg, var(--ol4) var(--p), var(--ob5) var(--p)); }
+.settings-panel input[type=range].slider::-webkit-slider-thumb { width: 10px; height: 40px; margin-top: 0; border-radius: 5px; border: 0; background: var(--ohl); box-shadow: 0 0 0 1px rgba(0, 0, 0, .15); }
+.settings-panel input[type=range].slider::-moz-range-track { height: 40px; border-radius: 5px; background: var(--ob5); }
+.settings-panel input[type=range].slider::-moz-range-progress { height: 40px; border-radius: 5px 0 0 5px; background: var(--ol4); }
+.settings-panel input[type=range].slider::-moz-range-thumb { width: 10px; height: 40px; border-radius: 5px; border: 0; background: var(--ohl); }
+/* FormDropdown / FormTextBox: caption on top, the value underneath */
+.settings-panel .set-row.fsel, .settings-panel .set-row.fwide { flex-direction: column; align-items: stretch; gap: 4px; }
+.settings-panel .fsel .lbl, .settings-panel .fwide .lbl { flex: none; }
+.settings-panel .fsel .select, .settings-panel .fsel .input { width: 100%; max-width: none; height: 28px; padding: 0 28px 0 0; border: 0; background-color: transparent; box-shadow: none; font-size: .875rem; color: #fff; background-position: calc(100% - 13px) 12px, calc(100% - 8px) 12px; }
+.settings-panel .fsel .input { padding-right: 0; }
+.settings-panel .fline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.settings-panel .fline .select { flex: 1; min-width: 0; }
+.settings-panel .fwide .keycfg { min-width: 0; max-width: 100%; }
+/* SettingsRevertToDefaultButton: a slim pill just right of the box */
+.settings-panel .set-row .reset { position: absolute; top: 0; bottom: 0; right: -16px; width: 8px; padding: 0; border: 0; border-radius: 4px; background: var(--ohl); opacity: 0; pointer-events: none; transform: scaleY(.6); transition: opacity 200ms, transform 200ms var(--ease-out); cursor: pointer; }
+.settings-panel .set-row .reset.show { opacity: .75; pointer-events: auto; transform: none; }
+.settings-panel .set-row .reset.show:hover { opacity: 1; }
+.settings-panel .sp-section { padding-right: 34px; }
+.sp-more { width: calc(100% - 46px); margin: 22px 34px 0 12px; }
+.sp-footer { padding: 16px 0 0; color: var(--oc2); opacity: .6; font-size: .78rem; text-align: center; }
 .set-row { display: flex; align-items: center; gap: 14px; padding: 9px 10px; margin: 0 -10px; border-radius: 10px; transition: background var(--t-fast); }
 .set-row:hover { background: rgba(255, 255, 255, .035); }
 .set-row .lbl { flex: 1; min-width: 0; }
@@ -326,7 +373,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .set-row .val { min-width: 74px; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-3); font-weight: 600; font-size: .85rem; }
 .set-row .reset { opacity: 0; transition: opacity var(--t-fast); }
 .set-row:hover .reset.show { opacity: 1; }
-.sp-footer { padding: 16px 0 0; color: var(--muted); font-size: .78rem; text-align: center; }
 
 /* key config */
 .keycfg { display: flex; flex-direction: column; gap: 12px; }
@@ -949,12 +995,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .toggle.on::after { transform: translateX(20px); }
 .set-row .lbl .hint { font-weight: 400; }
 .set-row .val { color: var(--text-2); font-weight: 400; }
-.settings-panel { width: min(470px, 100vw); background: #24222a; border-right: 0; }
-.sp-nav { background: #18171c; border-right: 0; }
-.sp-nav .icon-btn.active { background: transparent; color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); border-radius: 0; }
-.sp-head h2 { font-weight: 600; }
-.sp-section > h3 { font-weight: 600; }
-.sp-group { color: var(--accent-3); letter-spacing: .06em; }
 .toast { border: 0; border-radius: 8px; background: #302e38; }
 .dialog { border: 0; border-radius: 10px; background: #302e38; }
 .menu { border: 0; border-radius: 8px; background: #302e38; }
@@ -1069,7 +1109,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* in game nothing behind the playfield is drawn: the blurred menu background and hidden toolbar cost GPU time every frame */
 #app.in-game #bg-layer, #app.in-game #toolbar, #app.in-game .np-panel { visibility: hidden; }
 .hud-mp { display: flex; }
-.sp-more { width: 100%; margin-top: 22px; }
 
 /* ── mod select (osu!lazer ModSelectOverlay) */
 .modsel { position: absolute; left: 0; right: 0; bottom: 0; height: min(620px, 82vh); display: flex; flex-direction: column; background: #1c1b21; box-shadow: 0 -10px 40px rgba(0, 0, 0, .5); animation: sheetIn var(--t-med) var(--ease-out) both; }
@@ -1123,7 +1162,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .set-row .lbl { min-width: 0; flex: 1 1 110px; }
 .set-row .ctl { flex: 0 1 auto; min-width: 0; }
 .set-row .ctl .select { max-width: 190px; min-width: 0; }
-.sp-section, .sp-group, .keycfg { min-width: 0; max-width: 100%; }
 
 /* ── break overlay (osu!lazer BreakOverlay) */
 .gp-break { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; opacity: 0; transition: opacity 400ms ease; z-index: 3; }
@@ -9820,8 +9858,8 @@ const SettingsPanel = {
     const search = h('input.input.sp-search', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
     const scroll = h('div.sp-scroll');
     const panel = h('div.settings-panel', { role: 'dialog', 'aria-label': 'Settings' }, nav,
-      h('div.sp-main', h('div.sp-head', h('div.row', h('h2', 'Settings'), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
-        search), scroll));
+      h('div.sp-main', h('div.sp-head', h('div.row', h('div', h('h2', 'settings'), h('div.sub', `change the way ${APP_NAME} behaves`)), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
+        h('div.sp-searchbox', icon('search'), search)), scroll));
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
@@ -9863,7 +9901,7 @@ const SettingsPanel = {
       g.get(it.g).push(it);
     }
     for (const [sec, groups] of bySec) {
-      const secEl = h('div.sp-section', { dataset: { section: sec } }, h('h3', icon(SECTION_ICONS[sec] || 'gear'), sec));
+      const secEl = h('div.sp-section', { dataset: { section: sec } }, h('h3', sec));
       for (const [g, items] of groups) {
         secEl.append(h('div.sp-group', g));
         for (const it of items) secEl.append(this.row(it));
@@ -9880,32 +9918,38 @@ const SettingsPanel = {
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },
+  /** One setting as osu!lazer's form controls (SettingsItemV2): a rounded box with the caption inside, the control on
+   *  the right (switch), right half (slider) or underneath (dropdown / text), and the slim revert-to-default pill just
+   *  outside the box on the right when the value isn't the default. */
   row(it) {
     const val = () => Settings.get(it.k);
     const isDefault = () => JSON.stringify(Settings.get(it.k)) === JSON.stringify(it.d);
-    const reset = h('button.icon-btn.reset', { title: 'Reset to default', onclick: () => { Settings.set(it.k, structuredClone(it.d)); rebuild(); } }, icon('retry'));
+    const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, structuredClone(it.d)); UISounds.click(); rebuild(); } });
     const updReset = () => reset.classList.toggle('show', !isDefault());
-    const lbl = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
+    const cap = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
     let row;
     const rebuild = () => { const n = this.row(it); row.replaceWith(n); };
+    const form = (cls, ...kids) => h(`div.set-row.form.${cls}`, ...kids, reset);
     if (it.when && !it.when()) return h('div', { hidden: true });
     switch (it.t) {
       case 'bool': {
-        const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: () => {
+        const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: e => {
+          e.stopPropagation();
           const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset();
         } });
-        row = h('div.set-row', lbl, h('div.ctl', reset, t));
+        row = form('fbool', cap, t);
+        row.addEventListener('click', () => t.click());
         break;
       }
       case 'range': {
         const s = h('input.slider', { type: 'range', min: it.min, max: it.max, step: it.step, value: val(), 'aria-label': it.l });
-        const v = h('span.val');
+        const v = h('div.val');
         const upd = () => { const x = parseFloat(s.value); v.textContent = it.fmt ? it.fmt(x) : x; s.style.setProperty('--p', ((x - it.min) / (it.max - it.min) * 100) + '%'); };
         s.addEventListener('input', () => { Settings.set(it.k, parseFloat(s.value)); upd(); updReset(); });
         s.addEventListener('keydown', e => e.stopPropagation());
         upd();
-        row = h('div.set-row.col', h('div.row', lbl, v, reset), h('div.ctl', s,
-          it.calibrate ? h('button.btn.sm', { onclick: () => Calibration.open() }, 'Calibrate') : null));
+        row = form('frange', h('div.fleft', cap, v,
+          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));
         break;
       }
       case 'select': {
@@ -9914,26 +9958,26 @@ const SettingsPanel = {
           Settings.set(it.k, it.num ? Number(sel.value) : sel.value); UISounds.click(); updReset();
           if (SETTINGS_SCHEMA.some(x => x.when && x.s === it.s)) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; }
         });
-        row = h('div.set-row', lbl, h('div.ctl', reset, sel));
+        row = form('fsel', cap, sel);
         break;
       }
       case 'text': {
-        const inp = h('input.input', { value: val(), style: { width: '100%' } });
+        const inp = h('input.input', { value: val() });
         inp.addEventListener('change', () => { Settings.set(it.k, inp.value); updReset(); });
         inp.addEventListener('keydown', e => e.stopPropagation());
-        row = h('div.set-row.col', h('div.row', lbl, reset), h('div.ctl', inp));
+        row = form('fsel', cap, inp);
         break;
       }
-      case 'keybinds': row = h('div.set-row.col', lbl, KeyConfig.build()); break;
+      case 'keybinds': row = form('fwide', cap, KeyConfig.build()); break;
       case 'skin': {
         const sel = h('select.select', { 'aria-label': 'Skin' }, ...SkinManager.list().map(s => h('option', { value: s.id, selected: s.id === SkinManager.current.id }, s.name)));
         sel.addEventListener('change', async () => { await SkinManager.select(sel.value); Toast.ok('Skin selected', SkinManager.current.name); });
-        row = h('div.set-row', lbl, h('div.ctl', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
+        row = form('fsel', cap, h('div.fline', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
         break;
       }
-      case 'data': row = h('div.set-row.col', lbl, DataPanel.build()); break;
-      case 'shortcuts': row = h('div.set-row', lbl, h('div.ctl', h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all'))); break;
-      case 'mascot': row = h('div.set-row', lbl, h('div.ctl',
+      case 'data': row = form('fwide', cap, DataPanel.build()); break;
+      case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
+      case 'mascot': row = form('fwide', cap, h('div.fline',
         h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
         h('button.btn.sm.ghost', { onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
       default: row = h('div');

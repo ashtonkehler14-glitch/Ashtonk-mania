@@ -22,6 +22,18 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer-style settings
+
+* The settings panel follows osu!lazer's current settings, in lazer's purple settings colours:
+  * a 60px icon sidebar that marks the section you're reading;
+  * a big lowercase **settings** header with "change the way Ashtonk!mania behaves" under it;
+  * sections under a thin separator, with large titles and lazer-sized group headings.
+* **Every setting is one of lazer's form controls**: a rounded box with its caption (and hint) inside, 4px apart. It gets a border on hover and a bright one while you're using it.
+  * Switches are lazer's outlined pill, which fills in when on. Clicking anywhere on the box flips it.
+  * Sliders show the caption and value on the left and a tall rounded track with a slim nub on the right.
+  * Dropdowns and text fields show the caption on top and the value underneath.
+* **Revert to default** is lazer's slim pill just right of any setting you've changed; click it to put the default back.
+
 ### osu!lazer-style song select
 
 * Song select now copies osu!lazer's new song select, using its sizes, offsets and colours (the blue-grey "Blue" overlay scheme).

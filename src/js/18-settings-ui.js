@@ -20,8 +20,8 @@ const SettingsPanel = {
     const search = h('input.input.sp-search', { type: 'search', placeholder: 'Search settings…', 'aria-label': 'Search settings' });
     const scroll = h('div.sp-scroll');
     const panel = h('div.settings-panel', { role: 'dialog', 'aria-label': 'Settings' }, nav,
-      h('div.sp-main', h('div.sp-head', h('div.row', h('h2', 'Settings'), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
-        search), scroll));
+      h('div.sp-main', h('div.sp-head', h('div.row', h('div', h('h2', 'settings'), h('div.sub', `change the way ${APP_NAME} behaves`)), h('span.grow'), h('button.icon-btn', { title: 'Close (Esc)', onclick: () => this.close() }, icon('x'))),
+        h('div.sp-searchbox', icon('search'), search)), scroll));
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
@@ -63,7 +63,7 @@ const SettingsPanel = {
       g.get(it.g).push(it);
     }
     for (const [sec, groups] of bySec) {
-      const secEl = h('div.sp-section', { dataset: { section: sec } }, h('h3', icon(SECTION_ICONS[sec] || 'gear'), sec));
+      const secEl = h('div.sp-section', { dataset: { section: sec } }, h('h3', sec));
       for (const [g, items] of groups) {
         secEl.append(h('div.sp-group', g));
         for (const it of items) secEl.append(this.row(it));
@@ -80,32 +80,38 @@ const SettingsPanel = {
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },
+  /** One setting as osu!lazer's form controls (SettingsItemV2): a rounded box with the caption inside, the control on
+   *  the right (switch), right half (slider) or underneath (dropdown / text), and the slim revert-to-default pill just
+   *  outside the box on the right when the value isn't the default. */
   row(it) {
     const val = () => Settings.get(it.k);
     const isDefault = () => JSON.stringify(Settings.get(it.k)) === JSON.stringify(it.d);
-    const reset = h('button.icon-btn.reset', { title: 'Reset to default', onclick: () => { Settings.set(it.k, structuredClone(it.d)); rebuild(); } }, icon('retry'));
+    const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, structuredClone(it.d)); UISounds.click(); rebuild(); } });
     const updReset = () => reset.classList.toggle('show', !isDefault());
-    const lbl = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
+    const cap = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
     let row;
     const rebuild = () => { const n = this.row(it); row.replaceWith(n); };
+    const form = (cls, ...kids) => h(`div.set-row.form.${cls}`, ...kids, reset);
     if (it.when && !it.when()) return h('div', { hidden: true });
     switch (it.t) {
       case 'bool': {
-        const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: () => {
+        const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: e => {
+          e.stopPropagation();
           const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset();
         } });
-        row = h('div.set-row', lbl, h('div.ctl', reset, t));
+        row = form('fbool', cap, t);
+        row.addEventListener('click', () => t.click());
         break;
       }
       case 'range': {
         const s = h('input.slider', { type: 'range', min: it.min, max: it.max, step: it.step, value: val(), 'aria-label': it.l });
-        const v = h('span.val');
+        const v = h('div.val');
         const upd = () => { const x = parseFloat(s.value); v.textContent = it.fmt ? it.fmt(x) : x; s.style.setProperty('--p', ((x - it.min) / (it.max - it.min) * 100) + '%'); };
         s.addEventListener('input', () => { Settings.set(it.k, parseFloat(s.value)); upd(); updReset(); });
         s.addEventListener('keydown', e => e.stopPropagation());
         upd();
-        row = h('div.set-row.col', h('div.row', lbl, v, reset), h('div.ctl', s,
-          it.calibrate ? h('button.btn.sm', { onclick: () => Calibration.open() }, 'Calibrate') : null));
+        row = form('frange', h('div.fleft', cap, v,
+          it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));
         break;
       }
       case 'select': {
@@ -114,26 +120,26 @@ const SettingsPanel = {
           Settings.set(it.k, it.num ? Number(sel.value) : sel.value); UISounds.click(); updReset();
           if (SETTINGS_SCHEMA.some(x => x.when && x.s === it.s)) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; }
         });
-        row = h('div.set-row', lbl, h('div.ctl', reset, sel));
+        row = form('fsel', cap, sel);
         break;
       }
       case 'text': {
-        const inp = h('input.input', { value: val(), style: { width: '100%' } });
+        const inp = h('input.input', { value: val() });
         inp.addEventListener('change', () => { Settings.set(it.k, inp.value); updReset(); });
         inp.addEventListener('keydown', e => e.stopPropagation());
-        row = h('div.set-row.col', h('div.row', lbl, reset), h('div.ctl', inp));
+        row = form('fsel', cap, inp);
         break;
       }
-      case 'keybinds': row = h('div.set-row.col', lbl, KeyConfig.build()); break;
+      case 'keybinds': row = form('fwide', cap, KeyConfig.build()); break;
       case 'skin': {
         const sel = h('select.select', { 'aria-label': 'Skin' }, ...SkinManager.list().map(s => h('option', { value: s.id, selected: s.id === SkinManager.current.id }, s.name)));
         sel.addEventListener('change', async () => { await SkinManager.select(sel.value); Toast.ok('Skin selected', SkinManager.current.name); });
-        row = h('div.set-row', lbl, h('div.ctl', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
+        row = form('fsel', cap, h('div.fline', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
         break;
       }
-      case 'data': row = h('div.set-row.col', lbl, DataPanel.build()); break;
-      case 'shortcuts': row = h('div.set-row', lbl, h('div.ctl', h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all'))); break;
-      case 'mascot': row = h('div.set-row', lbl, h('div.ctl',
+      case 'data': row = form('fwide', cap, DataPanel.build()); break;
+      case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
+      case 'mascot': row = form('fwide', cap, h('div.fline',
         h('button.btn.sm', { onclick: async () => { const [f] = await pickFiles({ accept: 'image/*', multiple: false }); if (f) { await NeruMascot.setImage(f); Toast.ok('Main menu character updated'); } } }, icon('upload'), 'Choose image'),
         h('button.btn.sm.ghost', { onclick: async () => { await NeruMascot.setImage(null); Toast.show('Main menu character reset'); } }, 'Reset'))); break;
       default: row = h('div');
