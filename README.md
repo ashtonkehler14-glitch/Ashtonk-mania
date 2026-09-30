@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Runs much better on slow devices
+
+* **Gameplay drawing is about 5× cheaper.** On a slow Chromebook-sized setup (1366×768, CPU slowed 4×, the Kori skin, a dense 7K stream), the playfield canvas took 8.4 ms of pixel work per frame, and the game's own JavaScript was only a small part of that. Over half the time went on hit lighting: Kori's glow images are 92–97% fully transparent padding, and they were rescaled and blended at 368×446 px up to six times a frame. Lighting and the stage light are now drawn from pre-scaled copies cropped to their visible pixels: **8.4 ms → 1.75 ms per frame**, with the same picture (mean pixel difference 0.08 / 255).
+* The hidden replay bar no longer re-lays out the page 10 times a second while watching Auto or a replay.
+
 ### Share your results
 
 * **Share** on the results screen makes a 1200×630 picture of the play: the beatmap's background, grade, score, accuracy, max combo, pp, UR, every judgement count, mods and who played it. **Copy image** puts it on the clipboard to paste into Discord or anywhere else; **Save PNG** downloads it; **Share…** opens the system share sheet where the browser has one.

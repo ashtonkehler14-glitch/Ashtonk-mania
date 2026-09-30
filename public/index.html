@@ -4560,7 +4560,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
     this.crop = crop; this.cropX = 0;
-    this._spr = new WeakMap(); this._tx = 0; this._noteRefW = 0;
+    this._spr = new WeakMap(); this._crop = new WeakMap(); this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
@@ -4676,6 +4676,34 @@ class ManiaRenderer {
     }
     return c;
   }
+  /** A pre-scaled sprite cropped to its visible pixels: glow textures are mostly empty padding (Kori's lighting is
+   *  92–97% fully transparent), and blending those empty pixels additively every frame was most of the canvas's
+   *  raster time. Returns { c, dx, dy }: the cropped canvas and where it sits inside the w×h sprite. */
+  _cropSprite(img, w, h) {
+    const full = this._sprite(img, w, h, false);
+    let m = this._crop.get(full);
+    if (m) return m;
+    m = { c: full, dx: 0, dy: 0 };
+    try {
+      const W = full.width, Hh = full.height, d = full.getContext('2d').getImageData(0, 0, W, Hh).data;
+      let x0 = W, y0 = Hh, x1 = -1, y1 = -1;
+      for (let y = 0; y < Hh; y++) for (let x = 0, i = y * W * 4 + 3; x < W; x++, i += 4) if (d[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 < 0) m = { c: null, dx: 0, dy: 0 }; // nothing visible
+      else if ((x1 - x0 + 1) * (y1 - y0 + 1) < W * Hh * 0.9) {
+        const c = document.createElement('canvas'); c.width = x1 - x0 + 1; c.height = y1 - y0 + 1;
+        c.getContext('2d').drawImage(full, -x0, -y0);
+        m = { c, dx: x0, dy: y0 };
+      }
+    } catch (e) { /* unreadable: draw it uncropped */ }
+    this._crop.set(full, m);
+    return m;
+  }
+  _lightImg(img, x, yTop, w, h) {
+    if (!img || w <= 0 || h <= 0) return;
+    if (this.up) yTop = this.H - yTop - h;
+    const tx = this._tx, m = this._cropSprite(img, w, h);
+    if (m.c) this.ctx.drawImage(m.c, Math.round(x + tx) - tx + m.dx, Math.round(yTop) + m.dy);
+  }
   /** Like _img for fixed-size textures (notes, keys): drawn from a pre-scaled sprite, snapped to whole pixels. */
   _spriteImg(img, x, yTop, w, h, flipY = false) {
     if (!img || w <= 0 || h <= 0) return;
@@ -4731,7 +4759,7 @@ class ManiaRenderer {
         ctx.globalAlpha = a;
         const h = t.h * (this.legacy ? this.u : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
-        this._img(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
+        this._lightImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
         ctx.globalAlpha = 1;
       }
     }
@@ -4931,6 +4959,8 @@ class ManiaRenderer {
   }
   onRelease(col, realNow) { this.keyLight[col] = realNow; }
 
+  /** Hit and hold lighting, drawn additively. Every frame comes from a pre-scaled sprite: resampling these big
+   *  textures on every frame was over half of the canvas's raster time on devices that draw it in software. */
   _drawLighting(g, realNow) {
     const L = this.layout, ctx = this.ctx, s = this.s;
     ctx.globalCompositeOperation = 'lighter';
@@ -4942,7 +4972,7 @@ class ManiaRenderer {
       if (!t) continue;
       const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
-      this._img(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._lightImg(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
     }
     // hit lighting (effects are compacted in place: no new array every frame)
     let keep = 0;
@@ -4958,11 +4988,11 @@ class ManiaRenderer {
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
       if (el > dur) continue;
       const w0 = this._lightW(t, e.col, L.lightingNWidth);
-      const sc = multi ? 1 : 1 + el / dur * 0.25;
+      const sc = multi ? 1 : 1 + Math.round(el / dur * 4) / 16; // (grows in 1/16 steps: each size is cached)
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
       ctx.globalAlpha = multi ? 1 : 1 - el / dur;
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
-      this._img(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._lightImg(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
       ctx.globalAlpha = 1;
       fx[keep++] = e;
     }
