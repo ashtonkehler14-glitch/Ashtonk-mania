@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play rework
+
+* **No rating or tiers.** Ranked Play is just a way to play: 1v1 with beatmap cards and HP.
+* **Skill levels:** each player picks a level (Beginner to Master, or fine-tuned in stars) while waiting, then presses Ready. The deck is built between the two levels, nearer the lower one (30% of the way up, ±0.6★).
+* **Fairer cards:** hands of five, dealt in pairs of matching difficulty, so both hands have the same spread. Once a round, each player can reroll any of their cards (or the whole hand). The damage multiplier grows more gently: ×1, ×1.5, ×2…
+* **Leaving a song** (Esc) in Ranked Play gives that round to your opponent. You both go back to the room and the match carries on. The leaver takes at least 250,000 damage before the multiplier.
+* **Failing in multiplayer works like lazer:** running out of health marks the play failed (F, no pp) but you keep playing, and your score still counts for the match. The old "score halved" rule is gone.
+
 ### Polish pass
 
 * **Main menu:** the triangles are fully solid (the song no longer shows through) and take the song's average colour. The top bar's music button shows only the note icon.

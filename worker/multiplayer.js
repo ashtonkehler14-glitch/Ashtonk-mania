@@ -32,10 +32,20 @@ export const WIN_CONDITIONS = ['pp', 'score', 'accuracy', 'combo'];
 export const QP = { GATHER: 20000, FULL: 3000, POOL: 15000, PICK: 25000, REVEAL: 5000, LOAD: 90000, STANDINGS: 12000, ROUNDS: 5 };
 export const QP_POINTS = [8, 6, 5, 4, 3, 2, 1, 0];
 const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'settings', 'team'];
-/** Ranked Play (osu!lazer's 1v1 ranked mode): both players start with HP and a hand of beatmap cards; each round the
- *  picker plays one of their cards, the lower score takes (score difference × round number) damage, and the round's
- *  loser picks next. First to 0 HP loses. */
-export const RP = { HP: 1000000, HAND: 3, GATHER: 5000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000 };
+/** Ranked Play (osu!lazer's 1v1 card mode — a way to play, no rating): each player picks a skill level and the deck is
+ *  built between the two, leaning towards the lower one. Both start with HP and a hand of five cards dealt in pairs of
+ *  matching difficulty; once a round each player may reroll any of their cards. The picker plays a card, the lower score
+ *  takes (score difference × the round's multiplier) damage, and the round's loser picks next. Leaving mid-song
+ *  forfeits the round. First to 0 HP loses. */
+export const RP = { HP: 1000000, HAND: 5, DECK: 16, GATHER: 45000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000, FORFEIT: 250000 };
+/** Damage multiplier of a round: 1, 1.5, 2, 2.5… */
+export const rpMult = round => 1 + 0.5 * Math.max(0, round - 1);
+/** The deck's star range for two skill levels: between them, leaning towards the lower. */
+export function rpRange(a, b) {
+  const lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
+  return { sr: Math.round(c * 100) / 100, lo: Math.max(0.5, Math.round((c - 0.6) * 100) / 100), hi: Math.round((c + 0.6) * 100) / 100 };
+}
+const cleanSkill = v => Math.round(num(v, 0.5, 10, 2.5) * 10) / 10;
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';
@@ -101,18 +111,19 @@ export class RoomLogic {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
       mode: this.mode, settings: { ...this.settings },
       rp: this.rp ? { keys: this.rp.keys, round: this.rp.round, phase: this.rp.phase, left: this.rp.deadline ? Math.max(0, this.rp.deadline - this.now()) : 0, pool: this.rp.pool,
-        hands: JSON.parse(JSON.stringify(this.rp.hands)), picker: this.rp.picker, chosen: this.rp.chosen, hp: { ...this.rp.hp }, last: this.rp.last, winner: this.rp.winner } : null,
+        hands: JSON.parse(JSON.stringify(this.rp.hands)), picker: this.rp.picker, chosen: this.rp.chosen, hp: { ...this.rp.hp }, last: this.rp.last, winner: this.rp.winner,
+        mult: rpMult(this.rp.round), ready: { ...this.rp.ready }, rerolled: Object.fromEntries(Object.entries(this.rp.rerolled).map(([k, v]) => [k, v === this.rp.round])), range: this.rp.range } : null,
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, rating: p.rating, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team })),
+      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, skill: p.skill, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
   listing() {
     if (!this.created || this.mode === 'qp' || !this.settings.public || !this.players.length) return null;
     const host = this.get(this.hostId), m = this.map, ranked = this.mode === 'rp';
-    return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'ranked match' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', rating: ranked && host ? host.rating : null,
+    return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'ranked match' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', skill: ranked && host ? host.skill : null,
       players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null,
       state: ranked ? (this.rp.phase === 'gather' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,
       map: m ? { title: m.title, artist: m.artist, version: m.version, stars: m.stars, keys: m.keys, onlineSetId: m.onlineSetId } : null };
@@ -136,7 +147,8 @@ export class RoomLogic {
       this.created = true;
       if (opts.mode === 'rp') {
         this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2, public: opts.public !== false };
-        this.rp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, phase: 'gather', deadline: 0, pool: [], deck: [], hands: {}, picker: null, chosen: -1, hp: {}, last: null, winner: null, fails: 0 };
+        this.rp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, phase: 'gather', deadline: 0, pool: [], deck: [], hands: {}, picker: null, chosen: -1, hp: {}, last: null, winner: null, fails: 0,
+          ready: {}, rerolled: {}, range: null, forfeitBy: null };
       } else if (opts.mode === 'qp') {
         this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score', size: 8 };
         this.qp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, rounds: QP.ROUNDS, phase: 'gather', deadline: 0, pool: null, picks: {}, chosen: -1, points: {}, fails: 0 };
@@ -147,11 +159,11 @@ export class RoomLogic {
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), rating: Math.round(num(opts.rating, 0, 5000, 1000)) };
+      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), skill: cleanSkill(opts.skill ?? opts.sr) };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
-    if (this.rp) { this.rp.hp[id] = RP.HP; this.rp.hands[id] = []; if (this.players.length === 2) this.rp.deadline = this.now() + RP.GATHER; }
+    if (this.rp) { this.rp.hp[id] = RP.HP; this.rp.hands[id] = []; this.rp.ready[id] = false; if (this.players.length === 2) this.rp.deadline = this.now() + RP.GATHER; }
     return { ok: true, out: [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot() } }, this.roomMsg(), this.system(`${p.name} joined the room`)] };
   }
 
@@ -174,7 +186,7 @@ export class RoomLogic {
     out.push(this.system(`${p.name} left the room`));
     const r = this.rp;
     if (r && r.phase !== 'final') {
-      if (r.phase === 'gather') r.deadline = 0;
+      if (r.phase === 'gather') { r.deadline = 0; delete r.ready[id]; for (const k in r.ready) r.ready[k] = false; }
       else if (this.state !== 'playing') out.push(...this.rpFinal(this.players[0] ? this.players[0].id : null, `${p.name} left the match`));
     }
     const q = this.qp;
@@ -240,6 +252,22 @@ export class RoomLogic {
         if (this.players.every(x => q.picks[x.id] != null)) q.deadline = Math.min(q.deadline, this.now() + 1500);
         return [this.roomMsg()];
       }
+      case 'skill': {
+        // Ranked Play: your skill level, while the players are still gathering
+        if (!this.rp || this.rp.phase !== 'gather') return [];
+        p.skill = cleanSkill(m.skill);
+        for (const k in this.rp.ready) this.rp.ready[k] = false; // a change means both confirm again
+        return [this.roomMsg()];
+      }
+      case 'rpready': {
+        const r = this.rp;
+        if (!r || r.phase !== 'gather') return [];
+        r.ready[id] = !!m.ready;
+        // both ready: deal in a moment
+        if (this.players.length === 2 && this.players.every(x => r.ready[x.id])) r.deadline = this.now() + 1500;
+        return [this.roomMsg()];
+      }
+      case 'reroll': return this.rpReroll(id, m.cards);
       case 'ping': return [{ to: id, msg: { t: 'pong', c: m.c, s: this.now() } }];
       case 'chat': {
         const text = str(m.text, 300);
@@ -324,6 +352,7 @@ export class RoomLogic {
         return this.checkFinished();
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
+        if (this.rp && this.players.length === 2) return this.rpForfeit(p);
         p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
         return [this.system(`${p.name} quit the match`), ...this.checkFinished()];
     }
@@ -427,20 +456,24 @@ export class RoomLogic {
   rpAskPool() {
     const r = this.rp;
     r.phase = 'pool'; r.deadline = this.now() + RP.POOL;
-    const srs = this.players.map(x => x.sr).filter(x => x > 0).sort((a, b) => a - b);
-    return [{ to: this.hostId, msg: { t: 'qpPool', round: r.round, keys: r.keys, sr: srs.length ? srs[Math.floor(srs.length / 2)] : 0, count: 8 } }, this.roomMsg()];
+    const [a, b] = this.players;
+    r.range = rpRange(a ? a.skill : 2.5, b ? b.skill : a ? a.skill : 2.5);
+    return [{ to: this.hostId, msg: { t: 'qpPool', round: r.round, keys: r.keys, ...r.range, count: RP.DECK } }, this.roomMsg()];
   }
-  /** The host's pool arrives: shuffle it into a deck, top everyone's hand up to three cards, and play on. */
+  /** The host's pool arrives: a deck of cards in pairs of matching difficulty (dealt one to each player, so both hands
+   *  hold the same spread from easy to hard), then everyone's hand is topped up and play goes on. */
   rpPool(list) {
     const r = this.rp;
     if (r.phase !== 'pool' || !Array.isArray(list)) return [];
-    const maps = list.slice(0, 10).map(cleanSuggestion).filter(Boolean);
+    const maps = list.slice(0, RP.DECK + 4).map(cleanSuggestion).filter(Boolean);
     if (!maps.length) return [];
     const base = r.pool.length;
     r.pool = r.pool.concat(maps);
-    const idx = maps.map((_, i) => base + i);
-    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(this.rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
-    r.deck = r.deck.concat(idx);
+    const sorted = maps.map((m, i) => [base + i, m.stars]).sort((x, y) => x[1] - y[1]).map(x => x[0]);
+    const pairs = [];
+    for (let i = 0; i < sorted.length; i += 2) pairs.push(this.rnd() < 0.5 ? sorted.slice(i, i + 2) : sorted.slice(i, i + 2).reverse());
+    for (let i = pairs.length - 1; i > 0; i--) { const j = Math.floor(this.rnd() * (i + 1)); [pairs[i], pairs[j]] = [pairs[j], pairs[i]]; }
+    r.deck = r.deck.concat(pairs.flat());
     this.rpDeal();
     if (!r.picker) r.picker = this.players[Math.min(this.players.length - 1, Math.floor(this.rnd() * this.players.length))].id;
     return this.rpNextRound();
@@ -464,7 +497,32 @@ export class RoomLogic {
     this.map = null;
     for (const x of this.players) { x.hasMap = false; x.ready = false; }
     const p = this.get(r.picker);
-    return [this.system(`Round ${r.round} — ${p ? p.name : 'The picker'} chooses the beatmap (damage ×${r.round})`), this.roomMsg()];
+    return [this.system(`Round ${r.round} — ${p ? p.name : 'The picker'} chooses the beatmap (damage ×${rpMult(r.round)})`), this.roomMsg()];
+  }
+  /** Once a round, each player may swap any of their cards (all of them if none are named) for new ones from the deck;
+   *  the old ones go to the bottom of the deck. */
+  rpReroll(id, cards) {
+    const r = this.rp;
+    if (!r || r.phase !== 'pick' || r.rerolled[id] === r.round) return [];
+    const hand = r.hands[id] || [];
+    let out = Array.isArray(cards) ? [...new Set(cards.map(Number))].filter(i => hand.includes(i)) : [];
+    if (!out.length) out = [...hand];
+    if (!out.length || !r.deck.length) return [];
+    const n = Math.min(out.length, r.deck.length);
+    out = out.slice(0, n);
+    r.hands[id] = hand.filter(i => !out.includes(i)).concat(r.deck.splice(0, n));
+    r.deck.push(...out);
+    r.rerolled[id] = r.round;
+    const p = this.get(id);
+    return [this.system(`${p ? p.name : 'Someone'} rerolled ${n === 1 ? 'a card' : `${n} cards`}`), this.roomMsg()];
+  }
+  /** Leaving the song in Ranked Play: the round ends for both, and the other player wins it. */
+  rpForfeit(p) {
+    const r = this.rp;
+    for (const x of this.players) if (x.playing && !x.finished) x.finished = { ...cleanResult(x.live ? { score: x.live.score, accuracy: x.live.acc, pp: x.live.pp } : {}), forfeit: x === p };
+    p.finished.forfeit = true;
+    r.forfeitBy = p.id;
+    return [{ to: 'all', msg: { t: 'abort', by: p.id, name: p.name } }, this.system(`${p.name} left the song — the round goes to their opponent`), ...this.checkFinished()];
   }
   rpChoose(i) {
     const r = this.rp, hand = r.hands[r.picker];
@@ -486,10 +544,13 @@ export class RoomLogic {
     const [a, b] = this.players.length === 2 ? this.players : [this.players[0], null];
     if (!b) return this.rpFinal(a ? a.id : null);
     for (const x of rows) if (x.left) r.hp[x.id] = 0;
-    const sa = sc(a.id), sb = sc(b.id), loser = sa === sb ? null : sa < sb ? a.id : b.id;
-    const dmg = loser ? Math.round(Math.abs(sa - sb) * r.round) : 0;
+    const sa = sc(a.id), sb = sc(b.id);
+    // a forfeited round is lost outright: at least RP.FORFEIT before the multiplier
+    const loser = r.forfeitBy && this.get(r.forfeitBy) ? r.forfeitBy : sa === sb ? null : sa < sb ? a.id : b.id;
+    const diff = Math.abs(sa - sb), dmg = loser ? Math.round((r.forfeitBy ? Math.max(RP.FORFEIT, diff) : diff) * rpMult(r.round)) : 0;
+    r.forfeitBy = null;
     if (loser) r.hp[loser] = Math.max(0, r.hp[loser] - dmg);
-    r.last = { round: r.round, loser, damage: dmg, scores: { [a.id]: sa, [b.id]: sb } };
+    r.last = { round: r.round, loser, damage: dmg, scores: { [a.id]: sa, [b.id]: sb }, forfeit: rows.some(x => x.forfeit && !x.left) };
     const dead = this.players.find(x => r.hp[x.id] <= 0);
     if (dead) return this.rpFinal(this.players.find(x => x !== dead).id);
     if (loser) r.picker = loser; // the round's loser picks the next beatmap
@@ -506,7 +567,7 @@ export class RoomLogic {
     const r = this.rp;
     if (!r || !r.deadline || this.now() < r.deadline || this.state !== 'lobby') return [];
     switch (r.phase) {
-      case 'gather': return this.players.length === 2 ? this.rpAskPool() : (r.deadline = 0, []);
+      case 'gather': return this.players.length === 2 ? this.rpAskPool() : (r.deadline = 0, []); // (both ready, or the wait ran out)
       case 'pool':
         if (++r.fails >= 3) return this.rpFinal(null, 'Couldn\'t find beatmaps');
         this.hostId = this.nextAfter(this.hostId);

@@ -592,17 +592,18 @@ const GameplayScreen = {
 
   updateHud(now) {
     const s = this.s, e = s.engine;
-    // multiplayer: health can reach 0 without failing — from then on score and pp count half
-    if (s.mp && !s.mpDied && e.health.value <= 0) {
-      s.mpDied = true;
-      this.hud.append(h('div.hud-mpdied', 'Health reached 0 — score and pp halved'));
+    // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
+    // and your score still counts for the match
+    if (s.mp && !s.mpFailed && e.health.value <= 0) {
+      s.mpFailed = true;
+      this.hud.append(h('div.hud-mpfailed', 'Failed'));
     }
     // score / accuracy text at most ~20× a second: on dense charts they change every frame, and each text
     // change costs a style + layout pass
     const wall0 = performance.now();
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
-      const sc = Math.round((s.mp ? e.score.score : ScoreManager.value(e.score)) * this.mpFactor());
+      const sc = s.mp ? e.score.score : ScoreManager.value(e.score);
       if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
       const acc = e.score.accuracy;
       if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
@@ -693,10 +694,10 @@ const GameplayScreen = {
    *  (osu!lazer-style board). Team Versus adds lazer's red-vs-blue totals at the top. */
   updateMp(e) {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
-    const sc = Math.round(e.score.score * this.mpFactor());
+    const sc = e.score.score;
     if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
-      this._myPp = this.livePp(e) * this.mpFactor();
+      this._myPp = s.mpFailed ? 0 : this.livePp(e);
       Multiplayer.send({ t: 'score', score: sc, acc: e.score.accuracy, combo: e.score.combo, maxCombo: e.score.maxCombo, hp: e.health.value, pp: this._myPp });
     }
     const set = (room && room.settings) || {}, win = set.win || 'pp', teams = set.type === 'teams';
@@ -744,8 +745,6 @@ const GameplayScreen = {
       T.diff.textContent = red === blue ? '' : `${red > blue ? '◀' : ''} ${fmt(Math.abs(red - blue))} ${blue > red ? '▶' : ''}`;
     }
   },
-  /** Score / pp multiplier for the "can't die in multiplayer" rule. */
-  mpFactor() { return this.s && this.s.mpDied ? 0.5 : 1; },
   /** Wait for the synchronised start; everyone begins at the same moment. */
   async mpWait(s) {
     const el = h('div.mp-countdown');
@@ -763,10 +762,14 @@ const GameplayScreen = {
   async mpQuit() {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
-    if (!(await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true }))) return;
-    if (this.s !== s) return;
+    // Ranked Play: leaving the song gives this round to the opponent (both go back to the room; the match goes on)
+    const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
+    const ok = ranked ? await Dialog.confirm('Leave the song?', `${opp ? opp.name : 'Your opponent'} wins this round. You both go back to the room and the match carries on.`, { ok: 'Leave song', danger: true })
+      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true });
+    if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
+    Music.stop(150);
     Screens.go('multiplayer', {}, { replace: true });
   },
 
@@ -1064,7 +1067,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const summary = s.engine.summary();
     if (s.mode === 'play') {
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
-      const { score, replay } = await this.saveScore(true);
+      const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
@@ -1076,8 +1079,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const s = this.s;
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
     const stars = s.stars;
-    const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
-    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5), scoreStd: Math.round(summary.scoreStd * 0.5) };
+    const pp = passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0;
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
@@ -1088,7 +1090,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
       hitErrors: summary.hitErrors, totalJudgements: summary.totalJudgements, accuracyMode: s.accuracyMode,
       windows: s.windows, od: s.bm.od, replayId: null, modConfig: s.modConfig,
-      healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION, healthPenalty: !!s.mpDied,
+      healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION,
     };
   },
   async saveScore(passed) {

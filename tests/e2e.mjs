@@ -801,6 +801,33 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sctx.close();
 }
 
+{
+  // a Web-Osu-Mania backup, imported from the first-run setup: beatmaps, settings, keybinds, scores and collections
+  const wctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  const wp = await wctx.newPage();
+  wp.on('pageerror', e => errors.push('wom: ' + e.message));
+  await wp.goto(url);
+  await wp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
+  await wp.fill('.ob-name', 'Kiwi'); await wp.keyboard.press('Enter');
+  await wp.waitForSelector('.setup-step-ask .setup-wom-btn');
+  const [chooser] = await Promise.all([wp.waitForEvent('filechooser'), wp.click('.setup-wom-btn')]);
+  await chooser.setFiles(join(root, 'tests', 'fixtures', 'wom-backup.zip'));
+  await wp.waitForFunction(() => /imported/.test(document.querySelector('.setup-wom')?.textContent || ''), null, { timeout: 20000 });
+  const w = await wp.evaluate(async () => {
+    const S = AshtonkMania.Settings, sc = AshtonkMania.ScoreManager.scores.find(s => s.imported === 'wom');
+    return { text: document.querySelector('.setup-wom').textContent, sets: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 424242).length,
+      vol: S.get('audio.master'), speed: S.get('gameplay.scrollSpeed'), dir: S.get('gameplay.scrollDirection'), off: S.get('audio.offset'), k4: S.get('input.keybinds')[4],
+      score: sc && { v: sc.version, mods: sc.mods, rate: sc.rate, acc: sc.accuracy, grade: sc.grade, counts: sc.counts, n: AshtonkMania.ScoreManager.scores.length },
+      col: (await AshtonkMania.DB.kvGet('collections')).find(c => c.name === 'WOM favourites') };
+  });
+  check('Web-Osu-Mania backup: its stored beatmaps are imported', w.sets === 1, JSON.stringify(w));
+  check('Web-Osu-Mania backup: settings and keybinds carry over', w.vol === 0.6 && w.speed === 27 && w.dir === 'up' && w.off === 12 && JSON.stringify(w.k4) === JSON.stringify([['KeyA', 'KeyZ'], ['KeyS'], ['KeyK'], ['KeyL']]), JSON.stringify(w));
+  check('Web-Osu-Mania backup: high scores land on the right difficulty (mods, rate, judgements); ones for missing maps are left out', w.score && w.score.v === 'Online Hard' && w.score.mods.join() === 'DT,MR' && w.score.rate === 1.5 && w.score.counts.join() === '300,40,5,2,1,3' && w.score.n === 1, JSON.stringify(w.score));
+  check('Web-Osu-Mania backup: collections keep the beatmaps you have', w.col && w.col.hashes.length === 2, JSON.stringify(w.col));
+  check('the setup screen says what came across', /1 beatmap set, 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);
+  await wctx.close();
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

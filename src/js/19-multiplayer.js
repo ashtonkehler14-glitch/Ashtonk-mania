@@ -35,9 +35,9 @@ const Multiplayer = {
   /** Open a room: regular (osu!-style head to head, up to 16) or ranked (1v1 Ranked Play), public or private. */
   async create({ ranked = false, isPublic = true, keys = 4 } = {}) {
     const { code } = await this.api('api/mp/new');
-    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, rating: RankedRating.get() } : { public: isPublic });
+    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, skill: RankedSkill.get() } : { public: isPublic });
   },
-  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { rating: RankedRating.get() }); },
+  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { skill: RankedSkill.get() }); },
 
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
@@ -127,7 +127,6 @@ const Multiplayer = {
         const key = map => map ? map.hash || 'o' + map.onlineId : null, prev = key(this.room && this.room.map);
         this.room = m.room;
         this.qpClock(m.room);
-        if (m.room.rp && m.room.rp.phase === 'final') RankedRating.settle(m.room, this.me);
         if (key(m.room.map) !== prev) this.myDiffId = null;
         this.syncHasMap();
         this.autoFetch();
@@ -139,6 +138,15 @@ const Multiplayer = {
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
       case 'opp': this.opps.set(m.id, m); break;
       case 'qpPool': this.buildPool(m); break;
+      case 'abort':
+        // Ranked Play: the other player left the song — the round is ours, back to the room
+        if (m.by !== this.me && Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
+          const s = GameplayScreen.s; s.finished = true; s.running = false;
+          Music.stop(150);
+          Toast.show(`${m.name || 'Your opponent'} left the song`, 'You win the round.');
+          Screens.go('multiplayer', {}, { replace: true });
+        }
+        break;
       case 'start': this.launch(m); break;
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
@@ -245,12 +253,15 @@ const Multiplayer = {
   /** Quick Play host: this round's pool — ranked maps for the lobby's key count around its typical star rating from
    *  the online listing, topped up from this player's own library (offline, or when the search finds too few). */
   async buildPool(m) {
-    const keys = m.keys === 7 ? 7 : 4, sr = m.sr > 0 ? m.sr : this.skillSR(), want = clamp(m.count || 5, 1, 10);
-    const lo = Math.max(0, sr - 0.75), hi = sr + 0.75, pool = [], seen = new Set();
+    // Ranked Play sends the deck's star range (between both players' levels); Quick Play a typical star rating
+    const keys = m.keys === 7 ? 7 : 4, sr = m.sr > 0 ? m.sr : this.skillSR(), want = clamp(m.count || 5, 1, 20);
+    const lo = m.lo > 0 ? m.lo : Math.max(0, sr - 0.75), hi = m.hi > 0 ? m.hi : sr + 0.75, pool = [], seen = new Set();
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     try {
-      const search = OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: Math.floor(Math.random() * 4), nsfw: false });
-      const d = await Promise.race([search, new Promise((_, rej) => setTimeout(() => rej(new Error('search timed out')), 7000))]);
+      const page = Math.floor(Math.random() * 4);
+      const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
+      const search = Promise.all(want > 8 ? [one(page), one(page + 1)] : [one(page)]).then(ds => ({ sets: ds.flatMap(d => d.sets || []) }));
+      const d = await Promise.race([search, new Promise((_, rej) => setTimeout(() => rej(new Error('search timed out')), 8000))]);
       for (const set of shuffle([...(d.sets || [])])) {
         const diffs = set.diffs.filter(x => x.keys === keys && x.stars >= lo && x.stars <= hi && x.id > 0);
         if (!diffs.length || seen.has(set.id)) continue;
@@ -262,7 +273,7 @@ const Multiplayer = {
     } catch (e) { console.warn('Quick Play pool: online search failed', e); }
     if (pool.length < Math.min(3, want)) {
       const local = [...BeatmapManager.maps.values()].filter(x => x.keys === keys && !x.problems.length).sort((a, b) => Math.abs(a.stars - sr) - Math.abs(b.stars - sr));
-      for (const x of shuffle(local.slice(0, 12))) {
+      for (const x of shuffle(local.slice(0, Math.max(12, want + 4)))) {
         const set = BeatmapManager.setById.get(x.setId);
         const onlineSetId = set && set.onlineId > 0 ? set.onlineId : -1;
         if (seen.has(onlineSetId > 0 ? onlineSetId : 'l' + x.setId)) continue;
@@ -306,24 +317,26 @@ const Multiplayer = {
   },
 };
 
-/** Ranked Play rating (Elo, kept on this device): 1000 to start; a win against a stronger player is worth more. */
-const RankedRating = {
-  get() { try { const v = +localStorage.getItem('am.rp.rating'); return Number.isFinite(v) && v > 0 ? v : 1000; } catch { return 1000; } },
-  games() { try { return +localStorage.getItem('am.rp.games') || 0; } catch { return 0; } },
-  TIERS: [[0, 'Iron', '#9aa0a6'], [900, 'Bronze', '#cd7f32'], [1050, 'Silver', '#c9d1d9'], [1200, 'Gold', '#ffcc22'], [1350, 'Platinum', '#66e0c8'], [1500, 'Diamond', '#66ccff'], [1700, 'Master', '#ff66ab'], [1900, 'Grandmaster', '#ff4f4f']],
-  tier(r = this.get()) { let t = this.TIERS[0]; for (const x of this.TIERS) if (r >= x[0]) t = x; return { name: t[1], colour: t[2] }; },
-  /** Called when a match ends (once per match): moves this player's rating towards the result. */
-  settle(room, me) {
-    const key = `${room.code}|${room.rp.round}|${room.rp.winner}`;
-    if (this._settled === key || !room.rp.winner && room.players.length < 2) return;
-    this._settled = key;
-    const opp = room.players.find(p => p.id !== me), mine = this.get();
-    if (!opp && room.rp.winner !== me) return;
-    const theirs = opp ? opp.rating || 1000 : mine;
-    const exp = 1 / (1 + 10 ** ((theirs - mine) / 400)), res = room.rp.winner === me ? 1 : room.rp.winner ? 0 : 0.5;
-    const next = Math.max(100, Math.round(mine + 32 * (res - exp)));
-    this.last = { before: mine, after: next, delta: next - mine, key };
-    try { localStorage.setItem('am.rp.rating', String(next)); localStorage.setItem('am.rp.games', String(this.games() + 1)); } catch { /* private mode */ }
+/** Ranked Play skill level (in stars, kept on this device): the deck is dealt between both players' levels. Until one is
+ *  chosen it's the median star rating of the player's recent passes. */
+const RankedSkill = {
+  LEVELS: [['Beginner', 1.5], ['Casual', 2.5], ['Intermediate', 3.5], ['Advanced', 4.5], ['Expert', 5.5], ['Master', 6.5]],
+  get() { try { const v = +localStorage.getItem('am.rp.skill'); if (v >= 0.5 && v <= 10) return v; } catch { /* private mode */ } return Math.round(clamp(Multiplayer.skillSR(), 0.5, 10) * 10) / 10; },
+  set(v) { v = Math.round(clamp(v, 0.5, 10) * 10) / 10; try { localStorage.setItem('am.rp.skill', String(v)); } catch { /* private mode */ } return v; },
+  name(v) { let n = this.LEVELS[0][0]; for (const [l, s] of this.LEVELS) if (v >= s - 0.5) n = l; return n; },
+  /** Level buttons and a fine slider; onChange(v) after each change. */
+  picker(value, onChange) {
+    const el = h('div.rk-skill');
+    const paint = () => {
+      const chips = h('div.rk-levels', ...this.LEVELS.map(([l, s]) => h(`button.rk-level${Math.abs(value - s) < 0.5 ? '.on' : ''}`, { onclick: () => { UISounds.click(); value = s; onChange(value); paint(); } }, h('b', l), h('span', `~${s}★`))));
+      const slider = h('input.rk-slider', { type: 'range', min: 0.5, max: 10, step: 0.1, value, 'aria-label': 'Skill level (stars)' });
+      const out = h('span.rk-val', `${value.toFixed(1)}★`);
+      slider.addEventListener('input', () => { value = +slider.value; out.textContent = `${value.toFixed(1)}★`; });
+      slider.addEventListener('change', () => { onChange(value); paint(); });
+      clearEl(el).append(chips, h('div.rk-fine', h('span', 'Fine-tune'), slider, out));
+    };
+    paint();
+    return el;
   },
 };
 
@@ -479,14 +492,12 @@ const MultiplayerScreen = {
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
     const online = Presence.ws ? Presence.players.length : null;
-    const rating = RankedRating.get(), tier = RankedRating.tier(rating);
     this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: online != null ? `${online} player${online === 1 ? '' : 's'} online` : 'Play with other people' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn),
         h('span.grow'),
-        h('div.mp-myrank', { title: 'Your Ranked Play rating' }, icon('trophy'), h('b', String(rating)), h('span.rp-tier', { style: { '--tc': tier.colour } }, tier.name)),
         h('button.btn.sm', { onclick: () => Screens.go('discover') }, icon('globe'), 'Who\'s online')),
       status,
       h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join')),
@@ -496,15 +507,17 @@ const MultiplayerScreen = {
   },
   /** Create room: regular or ranked, then public or private — nothing else to set (rooms play by osu!'s rules). */
   openCreate() {
-    const st = { ranked: false, isPublic: true, keys: Settings.get('mp.qpKeys') === 7 ? 7 : 4 };
+    const st = { ranked: false, isPublic: true, keys: Settings.get('mp.qpKeys') === 7 ? 7 : 4, skill: RankedSkill.get() };
     const body = h('div.mp-cr');
     const choice = (cls, key, v, ic, title, sub) => h(`button.mp-cr-card.${cls}${st[key] === v ? '.on' : ''}`, { dataset: { v: String(v) }, onclick: () => { UISounds.click(); st[key] = v; paint(); } },
       h('div.mp-cr-ico', icon(ic)), h('div', h('b', title), h('span', sub)));
     const paint = () => clearEl(body).append(...[
       h('div.mp-cr-l', '1. Match type'),
       h('div.mp-cr-row', choice('type', 'ranked', false, 'multi', 'Regular', 'Head to head for up to 16 players — the highest score wins, like osu! multiplayer.'),
-        choice('type', 'ranked', true, 'trophy', 'Ranked', '1v1 Ranked Play: beatmap cards and HP. The result counts towards your rating.')),
+        choice('type', 'ranked', true, 'trophy', 'Ranked Play', '1v1 with beatmap cards and HP: the lower score takes the damage.')),
       st.ranked ? h('div.mp-cr-keys', h('span', 'Key count'), h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
+      st.ranked ? h('div.mp-cr-l', 'Your skill level', h('small', 'the cards land between yours and your opponent\'s, nearer the lower')) : null,
+      st.ranked ? RankedSkill.picker(st.skill, v => { st.skill = RankedSkill.set(v); }) : null,
       h('div.mp-cr-l', '2. Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', 'Listed under Open rooms for anyone to join.'),
         choice('vis', 'isPublic', false, 'save', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -532,11 +545,11 @@ const MultiplayerScreen = {
         UISounds.click(); row.disabled = true;
         try { await Multiplayer.join(r.code); } catch (e) { Toast.err('Couldn\'t join', friendlyError(e)); row.disabled = false; this.pollRooms(); }
       } }, bg, h('div.mp-rshade'),
-        h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked · playing' : 'Ranked') : playing ? 'Playing' : 'Open'),
+        h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
-          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play · ${r.keys || 4}K${r.rating ? ` · host rating ${r.rating}` : ''}`))
+          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play · ${r.keys || 4}K${r.skill ? ` · ${RankedSkill.name(r.skill)} (~${r.skill}★)` : ''}`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
-          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · HP · rating' : 'Head to Head · highest score wins'))),
+          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · HP · you pick your level when you join' : 'Head to Head · highest score wins'))),
         h('div.mp-rplayers', Presence.avatarEl({ name: r.host, avatar: r.avatar }, 32), h('b', `${r.players}/${r.size}`)),
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
@@ -802,39 +815,59 @@ const MultiplayerScreen = {
   // ── Ranked Play: the two players with their HP up top; their hands of beatmap cards; the round as it plays out
   refreshRP() {
     const r = Multiplayer.room, g = r.rp, me = Multiplayer.me;
-    const PH = { gather: r.players.length < 2 ? 'Finding an opponent' : 'Match found!', pool: 'Dealing cards', pick: g.picker === me ? 'Your pick' : 'Opponent is picking', reveal: 'Card played', load: 'Getting ready', playing: 'Match in progress', damage: 'Round results', final: 'Match over' };
+    const PH = { gather: r.players.length < 2 ? 'Finding an opponent' : 'Choose your level', pool: 'Dealing cards', pick: g.picker === me ? 'Your pick' : 'Opponent is picking', reveal: 'Card played', load: 'Getting ready', playing: 'Match in progress', damage: 'Round results', final: 'Match over' };
     this.qpTimer = h('span.qp-timer');
     const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
+    const mult = g.mult || 1;
     clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `Ranked Play · ${g.keys}K`), h('div.mp-room-code.qp-round', g.phase === 'gather' || g.phase === 'pool' ? r.code : g.phase === 'final' ? 'Finished' : `Round ${g.round}`)),
-      reconnecting, h('div.grow'), g.round > 0 && g.phase !== 'final' ? h('span.rp-mult', `damage ×${g.round}`) : null, h('div.qp-phase', PH[g.phase] || '', this.qpTimer)].filter(Boolean));
-    // versus bar
+      reconnecting, h('div.grow'), g.round > 0 && g.phase !== 'final' ? h('span.rp-mult', `damage ×${mult}`) : null, h('div.qp-phase', PH[g.phase] || '', this.qpTimer)].filter(Boolean));
+    // versus bar: picture, name, skill level and HP
     const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
     const side = (p, mine) => {
       if (!p) return h('div.rp-side.empty', h('div.rp-av', h('span.spinner')), h('div.rp-name', 'Waiting…'));
-      const hp = g.hp[p.id] ?? 1000000, t = RankedRating.tier(p.rating || 1000), hit = g.last && g.last.loser === p.id && (g.phase === 'damage' || g.phase === 'final');
+      const hp = g.hp[p.id] ?? 1000000, hit = g.last && g.last.loser === p.id && (g.phase === 'damage' || g.phase === 'final');
+      const ready = g.phase === 'gather' && g.ready && g.ready[p.id];
       return h(`div.rp-side${mine ? '.me' : ''}${g.picker === p.id && g.phase === 'pick' ? '.picking' : ''}${hit ? '.hit' : ''}`,
         h('div.rp-av', mine ? ProfileManager.avatarEl(56) : Presence.avatarEl(p, 56)),
-        h('div.rp-info', h('div.rp-name', p.name, mine ? h('span.muted', ' (you)') : null), h('div.rp-rt', { style: { '--tc': t.colour } }, `${t.name} · ${p.rating || 1000}`),
+        h('div.rp-info', h('div.rp-name', p.name, mine ? h('span.muted', ' (you)') : null, ready ? h('span.rp-ready', icon('check'), 'Ready') : null),
+          h('div.rp-rt', `${RankedSkill.name(p.skill || 2.5)} · ${(p.skill || 2.5).toFixed(1)}★`),
           h('div.rp-hp', h('i', { style: { width: (hp / 10000).toFixed(2) + '%' } }), h('span', `${fmtInt(hp)} HP`)),
           hit ? h('div.rp-dmg', `−${fmtInt(g.last.damage)}`) : null));
     };
     this._qpKey = null; // (rebuilt on every update: nothing here animates across updates)
     this.qpStage = h(`div.qp-stage.rp.${g.phase}`, h('div.rp-vs', side(meP, true), h('div.rp-vsmid', 'VS'), side(opp, false)));
     const st = this.qpStage, cards = id => (g.hands[id] || []).map(i => this.qpCard(g.pool[i], i));
-    if (g.phase === 'gather') st.append(h('div.qp-big', r.players.length < 2 ? [h('span.spinner'), 'Waiting for an opponent…'] : 'Opponent found!'),
-      h('div.qp-sub', r.players.length < 2 ? (r.settings && r.settings.public === false ? `Private room — share the code ${r.code} or invite someone.` : `Listed under Open rooms — or share the code ${r.code}.`) : 'The cards are dealt in a moment…'),
-      r.players.length < 2 ? h('div.row', { style: { gap: '8px', justifyContent: 'center' } },
+    if (g.phase === 'gather' && r.players.length < 2) st.append(h('div.qp-big', h('span.spinner'), 'Waiting for an opponent…'),
+      h('div.qp-sub', r.settings && r.settings.public === false ? `Private room — share the code ${r.code} or invite someone.` : `Listed under Open rooms — or share the code ${r.code}.`),
+      h('div.row', { style: { gap: '8px', justifyContent: 'center' } },
         h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite'),
-        h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code')) : null);
-    else if (g.phase === 'pool') st.append(h('div.qp-big', h('span.spinner'), 'Dealing cards…'), h('div.qp-sub', 'Finding beatmaps that suit you both'));
+        h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code')),
+      this.rpLevel(meP));
+    else if (g.phase === 'gather') {
+      // both here: each picks a level; the cards are dealt once both are ready
+      const a = meP ? meP.skill : 2.5, b = opp ? opp.skill : a, lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
+      const ready = !!(g.ready && g.ready[me]);
+      st.append(h('div.qp-big', 'Opponent found!'), this.rpLevel(meP),
+        h('div.rp-range', icon('target'), h('span', 'Cards will be around ', h('b', `${Math.max(0.5, c - 0.6).toFixed(1)}–${(c + 0.6).toFixed(1)}★`), ' — between your levels, nearer the lower')),
+        h(`button.mp-start.rp-readybtn${ready ? '.on' : ''}`, { onclick: () => { UISounds.click(); Multiplayer.send({ t: 'rpready', ready: !ready }); } }, ready ? 'Ready — waiting for your opponent' : 'Ready'));
+    } else if (g.phase === 'pool') st.append(h('div.qp-big', h('span.spinner'), 'Dealing cards…'), h('div.qp-sub', `Finding beatmaps between ${g.range ? `${g.range.lo}★ and ${g.range.hi}★` : 'your levels'}`));
     else if (g.phase === 'pick') {
-      const mine = g.picker === me;
+      const mine = g.picker === me, key = `${r.code}|${g.round}`;
+      if (this._rrKey !== key) { this._rrKey = key; this._rr = new Set(); }
+      const sel = this._rr, used = !!(g.rerolled && g.rerolled[me]);
       const hand = cards(me);
-      if (mine) hand.forEach(c => c.addEventListener('click', () => { UISounds.click(); Multiplayer.pick(+c.dataset.i); }));
-      else hand.forEach(c => c.classList.add('dim'));
-      st.append(h('div.qp-hint', mine ? 'Your pick: play one of your cards. Pick one you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
+      hand.forEach(c => {
+        const i = +c.dataset.i;
+        if (mine) c.addEventListener('click', () => { UISounds.click(); Multiplayer.pick(i); });
+        else c.classList.add('dim');
+        if (!used) c.append(h(`span.rp-rr${sel.has(i) ? '.on' : ''}`, { title: 'Mark for reroll', role: 'button', onclick: e => { e.stopPropagation(); UISounds.click(); sel.has(i) ? sel.delete(i) : sel.add(i); this.render(); } }, icon('retry')));
+        if (sel.has(i)) c.classList.add('marked');
+      });
+      const reroll = h('button.btn.sm.rp-reroll', { disabled: used, title: used ? 'You\'ve rerolled this round' : 'Swap cards for new ones from the deck (once a round)',
+        onclick: () => { UISounds.click(); Multiplayer.send({ t: 'reroll', cards: [...sel] }); sel.clear(); } }, icon('retry'), used ? 'Rerolled' : sel.size ? `Reroll ${sel.size} card${sel.size === 1 ? '' : 's'}` : 'Reroll hand');
+      st.append(h('div.qp-hint', mine ? 'Your pick: play a card you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
         !mine && opp ? h('div.rp-hand.theirs', h('div.rp-hand-l', `${opp.name}'s hand`), h('div.qp-grid', ...cards(opp.id))) : null,
-        h('div.rp-hand', h('div.rp-hand-l', 'Your hand'), h('div.qp-grid', ...hand)));
+        h('div.rp-hand', h('div.rp-hand-l', 'Your hand', h('span.grow'), reroll), h('div.qp-grid', ...hand)));
     } else if (['reveal', 'load', 'playing'].includes(g.phase)) {
       const m = r.map, c = m ? this.qpCard(m, g.chosen) : null;
       if (c) c.classList.add('chosen', 'wide', 'flip');
@@ -845,24 +878,31 @@ const MultiplayerScreen = {
     } else if (g.phase === 'damage' && g.last) {
       const L = g.last, lose = r.players.find(p => p.id === L.loser);
       st.append(h('div.qp-big', !L.loser ? 'Draw — no damage' : lose && lose.id === me ? `You took ${fmtInt(L.damage)} damage` : `${lose ? lose.name : 'They'} took ${fmtInt(L.damage)} damage`),
+        L.forfeit ? h('div.qp-sub', `${lose ? (lose.id === me ? 'You' : lose.name) : 'Someone'} left the song — the round went to ${lose && lose.id === me ? 'your opponent' : 'you'}`) : null,
         h('div.rp-scores', ...r.players.map(p => h('div', h('span', p.name), h('b', fmtScore(L.scores[p.id] || 0))))),
-        h('div.qp-sub', `Next round: ×${g.round + 1} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`));
+        h('div.qp-sub', `Next round: ×${1 + 0.5 * g.round} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`));
     } else if (g.phase === 'final') {
-      const won = g.winner === me, R = RankedRating.last;
+      const won = g.winner === me;
       st.append(h(`div.rp-final${won ? '.won' : ''}`, h('div.rp-final-t', won ? 'Victory' : g.winner ? 'Defeat' : 'Match over'),
-        R && R.key && R.key.startsWith(r.code) ? h('div.rp-final-r', h('span', `${R.before} → `), h('b', String(R.after)), h(`span.rp-delta${R.delta >= 0 ? '.up' : ''}`, `${R.delta >= 0 ? '+' : ''}${R.delta}`)) : null));
+        h('div.rp-final-r', h('span', `${g.round} round${g.round === 1 ? '' : 's'}`))));
     }
     clearEl(this.mapEl).append(st);
     clearEl(this.playersEl).append(h('div.mp-players.rp-help', h('h3', 'How Ranked Play works'), h('ul',
-      h('li', 'You both start with 1,000,000 HP and a hand of three beatmap cards.'),
-      h('li', 'Each round the picker plays one of their cards and you both play it.'),
-      h('li', 'The lower score takes the score difference as damage — ×1 in round 1, ×2 in round 2, and so on.'),
-      h('li', 'Whoever lost the round picks next. First to 0 HP loses.'))));
+      h('li', 'You each pick a skill level; the cards are between the two, nearer the lower.'),
+      h('li', 'You both start with 1,000,000 HP and five cards, dealt in pairs of matching difficulty.'),
+      h('li', 'Once a round you can reroll any of your cards.'),
+      h('li', 'The picker plays a card and you both play it. The lower score takes the difference as damage: ×1, then ×1.5, ×2…'),
+      h('li', 'Whoever lost the round picks next. Leaving the song gives the round away. First to 0 HP loses.'))));
     clearEl(this.resEl);
     const again = h('button.mp-start', { onclick: () => { UISounds.click(); Multiplayer.leave(true); this.render(); this.openCreate(); } }, 'New match');
     const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
-    clearEl(this.footEl).append(...(g.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', 'Leaving forfeits the match.'), h('div.grow')]));
+    clearEl(this.footEl).append(...(g.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', 'Leaving the room forfeits the match.'), h('div.grow')]));
     this.qpTick();
+  },
+  /** Your Ranked Play skill level (while gathering): changing it tells the room. */
+  rpLevel(meP) {
+    return h('div.rp-level', h('div.rp-level-t', 'Your level'),
+      RankedSkill.picker(meP && meP.skill ? meP.skill : RankedSkill.get(), v => { Multiplayer.send({ t: 'skill', skill: RankedSkill.set(v) }); }));
   },
   /** The per-second countdown in the header (and the pick timer bar). */
   qpTick() {

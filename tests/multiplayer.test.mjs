@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar } from '../worker/multiplayer.js';
+import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, rpRange, cleanAvatar } from '../worker/multiplayer.js';
 
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
@@ -398,48 +398,88 @@ test('Quick Play: a full lobby starts almost at once; everyone else leaving ends
   assert.equal(r.qp.phase, 'final');
 });
 
-test('Ranked Play: hands of cards, the picker plays one, the lower score takes difference × round as damage', () => {
+test('Ranked Play: skill levels set the deck, paired hands of five, reroll once a round, damage × 1, 1.5, 2…', () => {
   const clock = { t: 0 };
   const r = new RoomLogic('RP', () => clock.t, () => 0);
-  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rating: 1200 });
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, skill: 2 });
   assert.equal(r.rp.deadline, 0, 'waits for an opponent');
-  r.join('b', 'Bob', false, { rating: 900 });
+  r.join('b', 'Bob', false, { skill: 5 });
   assert.equal(r.join('c', 'Cat', false).ok, false, 'two players only');
-  assert.deepEqual(r.snapshot().players.map(p => p.rating), [1200, 900]);
-  clock.t = RP.GATHER; let out = r.tick();
-  assert.equal(msgs(out, 'qpPool')[0].msg.count, 8);
-  const pool = Array.from({ length: 8 }, (_, i) => ({ ...MAP, hash: 'h' + i, title: 'Song ' + i }));
+  assert.deepEqual(r.snapshot().players.map(p => p.skill), [2, 5]);
+  assert.equal(r.snapshot().players[0].rating, undefined, 'no rating');
+  // both confirm their level: the cards are dealt straight away (a changed level asks again)
+  r.message('a', { t: 'rpready', ready: true });
+  r.message('b', { t: 'skill', skill: 4 });
+  assert.equal(r.rp.ready.a, false, 'changing a level un-readies both');
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  clock.t = 1500; let out = r.tick();
+  const ask = msgs(out, 'qpPool')[0].msg;
+  assert.equal(ask.count, RP.DECK);
+  assert.deepEqual([ask.sr, ask.lo, ask.hi], [2.6, 2, 3.2], 'between 2★ and 4★, leaning to the lower');
+  assert.deepEqual(rpRange(6, 1), rpRange(1, 6));
+  const pool = Array.from({ length: 16 }, (_, i) => ({ ...MAP, hash: 'h' + i, title: 'Song ' + i, stars: 2 + i * 0.08 }));
   r.message('a', { t: 'pool', maps: pool });
   assert.equal(r.rp.phase, 'pick');
-  assert.equal(r.rp.hands.a.length, 3); assert.equal(r.rp.hands.b.length, 3);
+  assert.equal(r.rp.hands.a.length, RP.HAND); assert.equal(r.rp.hands.b.length, RP.HAND);
+  // dealt in pairs of matching difficulty: every card in one hand has a partner of (almost) the same stars in the other
+  const st = i => pool[i].stars, hb = r.rp.hands.b.map(st);
+  for (const x of r.rp.hands.a.map(st)) assert.ok(hb.some(y => Math.abs(x - y) < 0.09), `a partner for ${x}★`);
   assert.equal(r.rp.picker, 'a');
+  // reroll: named cards (or the whole hand), once a round
+  const before = [...r.rp.hands.b];
+  r.message('b', { t: 'reroll', cards: [before[0], before[1]] });
+  assert.equal(r.rp.hands.b.length, RP.HAND);
+  assert.ok(!r.rp.hands.b.includes(before[0]) && !r.rp.hands.b.includes(before[1]) && r.rp.hands.b.includes(before[2]));
+  assert.equal(r.snapshot().rp.rerolled.b, true);
+  assert.deepEqual(r.message('b', { t: 'reroll' }), [], 'only once a round');
   const other = r.rp.hands.b[0];
   assert.deepEqual(r.message('a', { t: 'pick', i: other }), [], 'only cards in your own hand');
   assert.deepEqual(r.message('b', { t: 'pick', i: r.rp.hands.a[0] }), [], 'only the picker picks');
   const card = r.rp.hands.a[1];
   r.message('a', { t: 'pick', i: card });
-  assert.equal(r.rp.chosen, card); assert.equal(r.rp.hands.a.length, 2);
+  assert.equal(r.rp.chosen, card); assert.equal(r.rp.hands.a.length, RP.HAND - 1);
   assert.equal(r.map.title, pool[card].title);
   clock.t += RP.REVEAL; r.tick();
   r.message('a', { t: 'hasMap', has: true });
   out = r.message('b', { t: 'hasMap', has: true });
   assert.equal(msgs(out, 'start').length, 1);
   fin(r, 'a', { score: 900000 });
-  fin(r, 'b', { score: 700000 });
+  fin(r, 'b', { score: 700000, passed: false }); // a failed play still counts its score (as in lazer)
   assert.equal(r.rp.hp.b, RP.HP - 200000, 'round 1: ×1');
   assert.equal(r.rp.last.loser, 'b');
   assert.equal(r.rp.picker, 'b', 'the round\'s loser picks next');
   clock.t += RP.DAMAGE; r.tick();
-  assert.equal(r.rp.round, 2); assert.equal(r.rp.hands.a.length, 3, 'hands are topped up');
+  assert.equal(r.rp.round, 2); assert.equal(r.rp.hands.a.length, RP.HAND, 'hands are topped up');
+  assert.equal(r.snapshot().rp.mult, 1.5);
+  assert.equal(r.snapshot().rp.rerolled.b, false, 'a new round, a new reroll');
   clock.t += RP.PICK; r.tick(); // b doesn't pick in time: a random card from b's hand
   assert.equal(r.rp.phase, 'reveal');
   clock.t += RP.REVEAL; r.tick();
   r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
   fin(r, 'a', { score: 100000 });
-  fin(r, 'b', { score: 600000 });
-  assert.equal(r.rp.hp.a, RP.HP - 1000000, 'round 2: ×2');
-  assert.equal(r.rp.phase, 'final');
-  assert.equal(r.rp.winner, 'b');
+  fin(r, 'b', { score: 700000 });
+  assert.equal(r.rp.hp.a, RP.HP - 900000, 'round 2: ×1.5');
+  assert.equal(r.rp.phase, 'damage');
+});
+
+test('Ranked Play: leaving the song ends the round for both, and the other player wins it', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RP', () => clock.t, () => 0);
+  r.join('a', 'A', true, { mode: 'rp' }); r.join('b', 'B', false);
+  clock.t = RP.GATHER; r.tick();
+  r.message('a', { t: 'pool', maps: Array.from({ length: 10 }, (_, i) => ({ ...MAP, hash: 'h' + i })) });
+  r.message('a', { t: 'pick', i: r.rp.hands.a[0] });
+  clock.t += RP.REVEAL; r.tick();
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'score', score: 400000, acc: 0.98, combo: 100 });
+  r.message('b', { t: 'score', score: 100000, acc: 0.9, combo: 20 });
+  const out = r.message('a', { t: 'quit' }); // a is ahead, but leaves the song
+  assert.deepEqual(msgs(out, 'abort')[0].msg.by, 'a', 'the other player is sent back to the room');
+  assert.equal(r.state, 'lobby');
+  assert.equal(r.rp.last.loser, 'a');
+  assert.equal(r.rp.hp.a, RP.HP - RP.FORFEIT, 'at least the forfeit damage');
+  assert.equal(r.rp.phase, 'damage', 'the match goes on');
+  assert.equal(r.players.length, 2);
 });
 
 test('Ranked Play: leaving hands the match to the other player', () => {
@@ -476,9 +516,9 @@ test('room listing: public custom rooms only; private, quick 1v1, Quick Play and
   assert.equal(r.listing(), null);
   const q = new RoomLogic('Q'); q.join('a', 'A', true, { size: 2 }); assert.equal(q.listing(), null);
   const p = new RoomLogic('P'); p.join('a', 'A', true, { mode: 'qp' }); assert.equal(p.listing(), null);
-  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp', rating: 1234 });
+  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp', skill: 3.4 });
   assert.equal(k.listing().ranked, true, 'public ranked rooms are listed, open while waiting for an opponent');
-  assert.equal(k.listing().rating, 1234);
+  assert.equal(k.listing().skill, 3.4);
   assert.equal(k.listing().state, 'lobby');
   const k2 = new RoomLogic('K2'); k2.join('a', 'A', true, { mode: 'rp', public: false }); assert.equal(k2.listing(), null);
 });
