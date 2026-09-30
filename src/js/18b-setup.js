@@ -254,7 +254,7 @@ const Onboarding = {
     let last = null;
     for (const f of files) {
       try { last = await SkinManager.importOsk(f); Toast.ok('Skin imported', last.name); }
-      catch (e) { Toast.err(`Couldn't import ${f.name}`, e.message); }
+      catch (e) { Toast.err(`Couldn't import ${f.name}`, friendlyError(e)); }
     }
     if (last) { if (this.preview) this.preview.renderer.layout = null; await SkinManager.select(last.id, { silent: true }); }
     if (this.step.id === 'skin') { paint(); show(); }

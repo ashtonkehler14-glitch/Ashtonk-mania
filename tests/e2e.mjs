@@ -344,6 +344,13 @@ await page.route('https://assets.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { AshtonkMania.OnlineBeatmaps.apiAvailable = null; AshtonkMania.ExplorerScreen.results = []; AshtonkMania.Screens.go('explore'); });
 await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 10000 });
 check('beatmap explorer lists online results', true);
+await context.setOffline(true);
+await page.evaluate(() => AshtonkMania.ExplorerScreen.newSearch());
+await page.waitForSelector('.ex-error .ex-retry', { timeout: 5000 });
+check('explorer offline: says you\'re offline, with a Try again button', /You're offline/.test(await page.textContent('.ex-error')));
+await context.setOffline(false);
+await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 5000 });
+check('explorer: searches again by itself once back online', !(await page.$('.ex-error')));
 check('explorer filters show no stray "null" text (More filters closed)', !(await page.$eval('.ex-filters', el => /\bnull\b/.test(el.innerText))));
 await page.route('https://b.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { window.__card = document.querySelector('.ex-card[data-id="777"]'); });
@@ -510,6 +517,35 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   check('Ctrl + / Ctrl - zoom shortcuts are blocked', prevented);
   await zctx.close();
+}
+
+// storage blocked (IndexedDB refuses to open): the game still boots, says so, and works for the session
+{
+  const bctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await bctx.addInitScript(() => { IDBFactory.prototype.open = function () { throw new DOMException('The user denied permission to access the database.', 'SecurityError'); }; });
+  const bp = await bctx.newPage();
+  const bErr = [];
+  bp.on('pageerror', e => bErr.push(e.message));
+  await bp.goto(url);
+  await bp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  await bp.waitForTimeout(300);
+  if (await bp.$('.onboarding')) { await bp.fill('.onboarding .ob-name', 'Guest'); await bp.keyboard.press('Enter'); await bp.waitForSelector('.setup-step-ask'); await bp.click('.onboarding .ob-skip'); await bp.waitForTimeout(400); }
+  const toastText = await bp.$$eval('.toast', a => a.map(t => t.textContent).join(' | '));
+  check('storage blocked: the game still boots and says nothing will be saved', await bp.evaluate(() => !!AshtonkMania.DB.memory && AshtonkMania.Screens.currentName === 'home') && /Storage is blocked/.test(toastText), toastText);
+  await bp.evaluate(async () => {
+    const dt = new DataTransfer(), b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); dt.items.add(new File([b], 'test-set.osz'));
+    window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, cancelable: true }));
+  });
+  await bp.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
+  const memOk = await bp.evaluate(async () => { const A = AshtonkMania; await A.Settings.set('gameplay.scrollSpeed', 31); await A.Settings.flush(); return (await A.DB.kvGet('settings', {}))['gameplay.scrollSpeed'] === 31 && (await A.DB.getAll('maps')).length === 4; });
+  check('storage blocked: beatmaps import and settings work in memory for the session', memOk);
+  const msgs = await bp.evaluate(() => { const f = AshtonkMania.friendlyError; return [f(new DOMException('x', 'QuotaExceededError')), f(new TypeError('Failed to fetch')), f(new DOMException('Unable to decode audio data', 'EncodingError'))]; });
+  check('error messages people can act on (storage full, network, audio)', /storage is full/i.test(msgs[0]) && /reach the server|offline/i.test(msgs[1]) && /decode/i.test(msgs[2]), msgs.join(' / '));
+  await bp.evaluate(() => { setTimeout(() => { throw new Error('boom from a test'); }); });
+  await bp.waitForTimeout(300);
+  check('an unexpected error is reported to the player instead of failing silently', await bp.$$eval('.toast', a => a.some(t => /Something went wrong/.test(t.textContent) && /boom from a test/.test(t.textContent))));
+  check('storage blocked: no other page errors', bErr.filter(m => !/boom from a test/.test(m)).length === 0, bErr.join(' | '));
+  await bctx.close();
 }
 
 // first-run setup wizard on a fresh profile, on a Chromebook

@@ -159,11 +159,12 @@ const GameplayScreen = {
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
+    this._audioSub = Bus.on('audio:state', st => { if (st !== 'running') this._blur(); });
     this._mm = () => { el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500); };
     el.addEventListener('pointermove', this._mm);
     this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
-    requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', e.message); Screens.go('songselect', {}, { replace: true }); }));
+    requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
     return el;
   },
   leave() {
@@ -175,6 +176,7 @@ const GameplayScreen = {
     if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
     window.removeEventListener('keyup', this._keyup, true);
     window.removeEventListener('blur', this._blur);
+    this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
     this._settingsSub && this._settingsSub();
     if (this.s) { this.s.running = false; this.s = null; }

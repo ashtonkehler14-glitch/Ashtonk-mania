@@ -22,6 +22,16 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Sturdier: storage, errors, offline
+
+* **Works even when the browser blocks storage** (some private windows, or site data blocked): the game boots, says clearly that nothing will be saved, and keeps beatmaps, scores and settings in memory for the session instead of failing.
+* **One broken record can't break the library**: each part of the saved data (settings, skins, beatmaps, scores, replays, collections, profile) loads on its own. If one fails, the rest still load and a notice says which part failed.
+* **Reconnects to storage** if the browser closes the database connection in the background (it used to fail until reload).
+* **Clear error messages**: storage full, no connection, audio a browser can't decode and unreadable files now say what happened and what to do, instead of showing raw browser errors. Anything unexpected shows a short "Something went wrong" notice (never during play) instead of failing silently.
+* **Keeps your library**: after your first import the game asks the browser to keep its storage (so it isn't cleared when the disk gets full).
+* **Offline explorer**: the Beatmap Explorer says you're offline, has a *Try again* button, and searches again by itself when the connection comes back.
+* **Audio interruptions pause the game**: if the browser suspends audio mid-song (another app takes the output), a solo play pauses instead of the notes freezing. Hiding the tab in a multiplayer match no longer pauses you out of sync with the room.
+
 ### The skin's own health bar
 
 * **Health bars come from the skin**: a skin with `scorebar-bg` / `scorebar-colour` gets its own bar in the top-left corner, the way osu!lazer shows legacy skins. The fill eases to the new value, and the marker (`scorebar-marker`, or `scorebar-ki` / `kidanger` / `kidanger2` for older skins) rides its end and swells when health goes up.

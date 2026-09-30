@@ -252,7 +252,7 @@ const Multiplayer = {
     if (!/^[A-Za-z0-9]{4,8}$/.test(code) || !this.available()) return;
     await Screens.go('multiplayer');
     try { await this.join(code); Toast.ok('Joined the room', code.toUpperCase()); }
-    catch (e) { Toast.err('Couldn\'t join the room', e.message); }
+    catch (e) { Toast.err('Couldn\'t join the room', friendlyError(e)); }
   },
   finish(score, forfeit = false) {
     this.send({ t: 'finish', result: { score: score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
@@ -320,7 +320,7 @@ const Presence = {
     const ok = await Dialog.confirm(`${from} invited you!`, `Join their multiplayer room (${m.code})?${Multiplayer.inRoom() ? ' You\'ll leave your current room.' : ''}`, { ok: 'Join', cancel: 'Not now' });
     if (!ok) return;
     try { await Multiplayer.join(m.code); if (Screens.currentName !== 'multiplayer') await Screens.go('multiplayer'); Toast.ok('Joined the room', m.code); }
-    catch (e) { Toast.err('Couldn\'t join the room', e.message); }
+    catch (e) { Toast.err('Couldn\'t join the room', friendlyError(e)); }
   },
   /** The room's Invite button: invite someone who's online, or share a link. */
   openInvite() {

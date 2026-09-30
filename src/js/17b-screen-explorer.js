@@ -78,6 +78,7 @@ const OnlineBeatmaps = {
     // like Web-Osu-Mania, "sort" is only sent when it isn't the default: osu! then picks its own order (relevance
     // for a text search, last update for pending / WIP / graveyard, newest ranked otherwise)
     p = { status: 'leaderboard', ...p };
+    if (navigator.onLine === false) throw new Error('You\'re offline. Connect to the internet to browse and download beatmaps — this page searches again by itself once you\'re back online.');
     const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
     if (p.keys.length) params.set('keys', p.keys.join(','));
     if (p.sort) params.set('sort', p.sort);
@@ -279,7 +280,10 @@ const ExplorerScreen = {
     el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
     this.io.observe(this.sentinel);
-    this._unsub = [Bus.on('library:changed', () => this.renderResults())];
+    // back online after an offline error: search again by itself
+    const online = () => { if (this.error) this.newSearch(); };
+    window.addEventListener('online', online);
+    this._unsub = [Bus.on('library:changed', () => this.renderResults()), () => window.removeEventListener('online', online)];
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
@@ -339,7 +343,7 @@ const ExplorerScreen = {
       this.error = null;
     } catch (e) {
       if (tok !== this.token) return;
-      this.error = e.message; this.hasMore = false;
+      this.error = friendlyError(e); this.hasMore = false;
     } finally {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
@@ -348,7 +352,8 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', 'Couldn\'t reach the beatmap servers'), h('pre', this.error)));
+    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('pre', this.error),
+      h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'} · via ${this.source}${this.hasMore ? '' : ' · end of results'}`));
   },
@@ -482,7 +487,7 @@ const ExplorerScreen = {
       state.state = 'done';
     } catch (e) {
       state.state = 'error';
-      Toast.err(`Couldn't download ${set.title}`, e.message);
+      Toast.err(`Couldn't download ${set.title}`, friendlyError(e));
     }
     this.refreshCard(set);
   },

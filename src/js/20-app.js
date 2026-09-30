@@ -8,24 +8,23 @@ const App = {
   async boot() {
     const status = $('.load-status');
     const say = (msg) => { status.textContent = msg; };
-    try {
-      say('Opening library…');
-      await DB.open();
-      await Settings.load();
-      say('Loading skin…');
-      await SkinManager.init();
-      await this.installBundledSkin(say);
-      say('Loading beatmaps…');
-      await BeatmapManager.init();
-      await BeatmapManager.pruneUnplayable().catch(e => console.warn('prune', e)); // older versions kept them
-      await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
-      await Promise.all([ScoreManager.init(), ReplayManager.init(), Favorites.init(), Collections.init(), ProfileManager.init(), MapOffsets.init()]);
-      say('Preparing stage…');
-    } catch (e) {
-      console.error(e);
-      status.textContent = 'Storage unavailable: ' + e.message + ' — running without persistence.';
-      await sleep(1500);
-    }
+    // each step on its own, so one broken record can't leave the rest of the library unloaded
+    const failed = [];
+    const step = async (label, fn) => { try { await fn(); } catch (e) { console.error(label, e); failed.push(label); } };
+    say('Opening library…');
+    await step('storage', () => DB.open());
+    await step('settings', () => Settings.load());
+    say('Loading skin…');
+    await step('skins', () => SkinManager.init());
+    if (!SkinManager.current) { SkinManager.defaultSkin = SkinManager.defaultSkin || new DefaultSkin(); SkinManager.current = SkinManager.defaultSkin; }
+    await step('the bundled skin', () => this.installBundledSkin(say));
+    say('Loading beatmaps…');
+    await step('beatmaps', () => BeatmapManager.init());
+    await BeatmapManager.pruneUnplayable().catch(e => console.warn('prune', e)); // older versions kept them
+    await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
+    await Promise.all([['scores', ScoreManager], ['replays', ReplayManager], ['favourites', Favorites], ['collections', Collections], ['profile', ProfileManager], ['beatmap offsets', MapOffsets]]
+      .map(([label, m]) => step(label, () => m.init())));
+    say('Preparing stage…');
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
@@ -43,10 +42,13 @@ const App = {
     Screens.register('skins', SkinsScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar };
-    await Screens.go('home');
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError };
+    try { await Screens.go('home'); }
+    catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
     $('#loading-screen').classList.add('done');
+    if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
+    else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
@@ -102,13 +104,27 @@ const App = {
   },
 
   bindGlobal() {
+    // anything that slips through: log it and tell the player (at most every 10 s, and never mid-play)
+    let lastErr = -1e9;
+    const report = err => {
+      const e = err && (err instanceof Error || err.message) ? err : new Error(String(err));
+      if (/ResizeObserver loop|^Script error\.?$|play\(\) request was interrupted/i.test(e.message || '') || /^(AbortError|NotAllowedError)$/.test(e.name)) return;
+      console.error(e);
+      const now = performance.now();
+      if (now - lastErr < 10000 || (Screens.current === GameplayScreen && GameplayScreen.s && GameplayScreen.s.running)) return;
+      lastErr = now;
+      Toast.err('Something went wrong', friendlyError(e));
+    };
+    window.addEventListener('error', ev => { if (ev.error || ev.message) report(ev.error || ev.message); });
+    window.addEventListener('unhandledrejection', ev => report(ev.reason));
     const resume = () => AudioManager.resume();
     window.addEventListener('pointerdown', resume, { capture: true });
     window.addEventListener('keydown', resume, { capture: true });
     window.addEventListener('pointermove', e => Background.parallax(e), { passive: true });
     window.addEventListener('keydown', e => this.onKey(e));
     window.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden && Screens.current === GameplayScreen) GameplayScreen.pause(); });
+    // hiding the tab pauses a solo play (a match keeps going, like losing focus)
+    document.addEventListener('visibilitychange', () => { if (document.hidden && Screens.current === GameplayScreen && GameplayScreen._blur) GameplayScreen._blur(); });
     // hover sounds for all buttons
     document.addEventListener('pointerover', e => { const b = e.target.closest && e.target.closest('.btn, .chip, .tb-btn, .side-item, .lb-row, .list-row button'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
     // drag & drop
@@ -154,7 +170,7 @@ const App = {
     const off = Bus.on('import:status', m => { if (m) pill.lastChild.textContent = m; });
     let report;
     try { report = await BeatmapManager.importFiles(files); }
-    catch (e) { report = { sets: [], skins: [], replays: [], errors: [e.message], warnings: [] }; }
+    catch (e) { report = { sets: [], skins: [], replays: [], errors: [friendlyError(e)], warnings: [] }; }
     finally { off(); pill.remove(); }
     this.lastReport = report;
     Bus.emit('import:report', report);
@@ -165,6 +181,7 @@ const App = {
     if (report.data) parts.push('data backup');
     if (parts.length) Toast.ok('Imported ' + parts.join(', '));
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
+    if (report.sets.length || report.skins.length) this.keepStorage();
     if (report.skins.length) await SkinManager.select(report.skins[report.skins.length - 1].id);
     if (report.data) Toolbar.updateProfile();
     const firstSet = report.sets.find(s => s.maps.some(m => !m.problems.length));
@@ -176,6 +193,17 @@ const App = {
       else if (Screens.currentName === 'home') Screens.go('songselect', { mapId: map.id }, { transition: 'zoom' });
     }
     return report;
+  },
+
+  /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low
+   *  (Chrome decides silently; Firefox asks once). */
+  async keepStorage() {
+    try {
+      if (DB.memory || !navigator.storage || !navigator.storage.persisted || await navigator.storage.persisted()) return;
+      if (await DB.kvGet('storage.persistAsked', false)) return;
+      await DB.kvSet('storage.persistAsked', true);
+      await DB.persist();
+    } catch (e) { /* not supported */ }
   },
 
   globalLoop() {

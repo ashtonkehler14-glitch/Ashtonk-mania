@@ -223,3 +223,16 @@ function parseColour(str, fallback = null) {
   return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] / 255 : 1 };
 }
 const rgba = (c, mul = 1) => c ? `rgba(${c.r},${c.g},${c.b},${(c.a ?? 1) * mul})` : 'transparent';
+
+/** A message people can act on for the errors browsers throw (storage full, network down, unreadable files, audio). */
+function friendlyError(e) {
+  const name = e && e.name, msg = (e && e.message) || String(e || 'Unknown error');
+  if (name === 'QuotaExceededError' || /quota|storage full/i.test(msg))
+    return 'Browser storage is full. Delete beatmaps or replays you don\'t need (Settings → Maintenance shows how much is used), then try again.';
+  if (name === 'TypeError' && /failed to fetch|networkerror|load failed|network connection/i.test(msg))
+    return navigator.onLine === false ? 'You\'re offline. Connect to the internet and try again.' : 'Couldn\'t reach the server. Check your connection and try again.';
+  if (name === 'EncodingError' || /unable to decode|decodeaudiodata/i.test(msg))
+    return 'This browser can\'t decode that audio file (it may be damaged or in an unsupported format).';
+  if (name === 'NotReadableError') return 'The file couldn\'t be read. Was it moved, deleted, or is it still downloading?';
+  return msg;
+}

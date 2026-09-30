@@ -701,6 +701,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-loading { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-2); }
 .ex-error { text-align: left; padding: 16px 18px; border-color: rgba(255, 74, 92, .45); max-width: 760px; margin: 0 auto; }
 .ex-error pre { white-space: pre-wrap; color: var(--text-2); font-size: .8rem; margin: 8px 0 0; }
+.ex-error .ex-retry { margin-top: 12px; }
 .ex-source { font-size: .8rem; }
 .ex-sentinel { height: 1px; }
 

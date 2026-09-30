@@ -98,7 +98,7 @@ const BeatmapManager = {
         }
         else loose.push({ path: normPath(name), file: f });
       } catch (e) {
-        console.warn(e); report.errors.push(`${f.name}: ${e.message}`);
+        console.warn(e); report.errors.push(`${f.name}: ${friendlyError(e)}`);
       }
     }
     // Loose files / folders: group by directory that contains .osu files
@@ -127,7 +127,7 @@ const BeatmapManager = {
         try {
           Bus.emit('import:status', `Importing folder ${dir || '(files)'}…`);
           report.sets.push(...await this._importEntries(entries, dir.split('/').pop() || 'Imported files', report));
-        } catch (e) { report.errors.push(`${dir || 'files'}: ${e.message}`); }
+        } catch (e) { report.errors.push(`${dir || 'files'}: ${friendlyError(e)}`); }
       }
     }
     Bus.emit('import:status', null);

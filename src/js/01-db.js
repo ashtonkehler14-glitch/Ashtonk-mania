@@ -8,15 +8,39 @@
  *   skins     installed skins (parsed skin.ini + asset index)
  *   kv        settings, profile, favorites, collections, misc  */
 
+/** Key paths of the stores that key their records by `id` (the rest take explicit keys). */
+const DB_KEYPATH = { sets: 'id', maps: 'id', scores: 'id', replays: 'id', skins: 'id' };
+
+/** In-memory stand-in used when IndexedDB can't be opened (storage blocked, some private windows):
+ *  everything still works for the session, nothing is saved. Records are copied like IndexedDB does. */
+const MemoryDB = {
+  stores: new Map(),
+  s(name) { if (!this.stores.has(name)) this.stores.set(name, new Map()); return this.stores.get(name); },
+  copy(v) { try { return typeof structuredClone === 'function' ? structuredClone(v) : v; } catch (e) { return v; } },
+  keyOf(store, value, key) { return key !== undefined ? key : value[DB_KEYPATH[store]]; },
+  sortedKeys(m) { return [...m.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); },
+  withPrefix(m, prefix) { return this.sortedKeys(m).filter(k => typeof k === 'string' && k.startsWith(prefix)); },
+};
+
 const DB = {
   name: 'ashtonk-mania',
   version: 1,
   db: null,
+  /** Set (to the reason) when IndexedDB is unavailable and data only lives in memory for this session. */
+  memory: null,
+  _opening: null,
 
   open() {
-    if (this.db) return Promise.resolve(this.db);
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(this.name, this.version);
+    if (this.db || this.memory) return Promise.resolve(this.db);
+    if (this._opening) return this._opening;
+    const fallback = (why) => {
+      console.warn('IndexedDB unavailable, keeping data in memory:', why);
+      this.memory = (why && why.message) || String(why || 'unavailable');
+      return null;
+    };
+    return (this._opening = new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(this.name, this.version); } catch (e) { reject(e); return; }
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains('sets')) db.createObjectStore('sets', { keyPath: 'id' });
@@ -37,52 +61,89 @@ const DB = {
         if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
       };
       req.onsuccess = () => {
-        this.db = req.result;
-        this.db.onversionchange = () => { this.db.close(); this.db = null; };
-        resolve(this.db);
+        const db = req.result;
+        this.db = db;
+        // another tab upgrading, or the browser closing the connection (e.g. storage cleared): reopen on next use
+        db.onversionchange = () => { db.close(); if (this.db === db) this.db = null; };
+        db.onclose = () => { if (this.db === db) this.db = null; };
+        resolve(db);
       };
       req.onerror = () => reject(req.error);
       req.onblocked = () => console.warn('IndexedDB upgrade blocked by another tab');
-    });
+    }).then(db => db, e => (this.db ? this.db : fallback(e))).finally(() => { this._opening = null; }));
   },
 
   _req(r) { return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  _store(name, mode = 'readonly') { return this.db.transaction(name, mode).objectStore(name); },
+  /** A transaction, reopening the database once if the browser closed the connection in the meantime. */
+  async _tx(names, mode = 'readonly') {
+    await this.open();
+    try { return this.db.transaction(names, mode); }
+    catch (e) {
+      if (e.name !== 'InvalidStateError' || !this.db) throw e;
+      this.db = null; await this.open();
+      return this.db.transaction(names, mode);
+    }
+  },
+  async _store(name, mode) { return (await this._tx(name, mode)).objectStore(name); },
+  async _mem() { await this.open(); return this.memory ? MemoryDB : null; },
 
-  async get(store, key) { await this.open(); return this._req(this._store(store).get(key)); },
-  async getAll(store) { await this.open(); return this._req(this._store(store).getAll()); },
-  async getAllKeys(store) { await this.open(); return this._req(this._store(store).getAllKeys()); },
-  async byIndex(store, index, value) { await this.open(); return this._req(this._store(store).index(index).getAll(value)); },
-  async put(store, value, key) { await this.open(); return this._req(key === undefined ? this._store(store, 'readwrite').put(value) : this._store(store, 'readwrite').put(value, key)); },
-  async del(store, key) { await this.open(); return this._req(this._store(store, 'readwrite').delete(key)); },
-  async clear(store) { await this.open(); return this._req(this._store(store, 'readwrite').clear()); },
+  async get(store, key) {
+    const M = await this._mem(); if (M) return M.copy(M.s(store).get(key));
+    return this._req((await this._store(store)).get(key));
+  },
+  async getAll(store) {
+    const M = await this._mem(); if (M) { const m = M.s(store); return M.sortedKeys(m).map(k => M.copy(m.get(k))); }
+    return this._req((await this._store(store)).getAll());
+  },
+  async getAllKeys(store) {
+    const M = await this._mem(); if (M) return M.sortedKeys(M.s(store));
+    return this._req((await this._store(store)).getAllKeys());
+  },
+  async byIndex(store, index, value) {
+    const M = await this._mem(); if (M) return [...M.s(store).values()].filter(v => v && v[index] === value).map(v => M.copy(v));
+    return this._req((await this._store(store)).index(index).getAll(value));
+  },
+  async put(store, value, key) {
+    const M = await this._mem(); if (M) { const k = M.keyOf(store, value, key); M.s(store).set(k, M.copy(value)); return k; }
+    const s = await this._store(store, 'readwrite');
+    return this._req(key === undefined ? s.put(value) : s.put(value, key));
+  },
+  async del(store, key) {
+    const M = await this._mem(); if (M) { M.s(store).delete(key); return; }
+    return this._req((await this._store(store, 'readwrite')).delete(key));
+  },
+  async clear(store) {
+    const M = await this._mem(); if (M) { M.s(store).clear(); return; }
+    return this._req((await this._store(store, 'readwrite')).clear());
+  },
 
   /** Put many records in one transaction. items: [{store, value, key?}] */
   async putMany(items) {
-    await this.open();
+    const M = await this._mem();
+    if (M) { for (const it of items) M.s(it.store).set(M.keyOf(it.store, it.value, it.key), M.copy(it.value)); return; }
     const stores = [...new Set(items.map(i => i.store))];
+    const tx = await this._tx(stores, 'readwrite');
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(stores, 'readwrite');
       for (const it of items) {
         const s = tx.objectStore(it.store);
         if (it.key === undefined) s.put(it.value); else s.put(it.value, it.key);
       }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error('Transaction aborted (storage quota?)'));
+      tx.onabort = () => reject(tx.error || new DOMException('Transaction aborted (storage full?)', 'QuotaExceededError'));
     });
   },
 
   /** Delete every key in `store` that starts with prefix (used for per-set / per-skin file blobs). */
   async delPrefix(store, prefix) {
-    await this.open();
-    const range = IDBKeyRange.bound(prefix, prefix + '￿');
-    return this._req(this._store(store, 'readwrite').delete(range));
+    const M = await this._mem(); if (M) { const m = M.s(store); for (const k of M.withPrefix(m, prefix)) m.delete(k); return; }
+    const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+    return this._req((await this._store(store, 'readwrite')).delete(range));
   },
   async keysWithPrefix(store, prefix) {
-    await this.open();
-    const range = IDBKeyRange.bound(prefix, prefix + '￿');
-    return this._req(this._store(store).getAllKeys(range));
+    const M = await this._mem(); if (M) return M.withPrefix(M.s(store), prefix);
+    const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+    return this._req((await this._store(store)).getAllKeys(range));
   },
 
   async kvGet(key, fallback) { const v = await this.get('kv', key); return v === undefined ? fallback : v; },

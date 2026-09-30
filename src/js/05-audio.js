@@ -12,6 +12,8 @@ const AudioManager = {
     if (this.ctx) return this.ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     this.ctx = new AC({ latencyHint: 'interactive' });
+    // the browser can suspend audio on its own (another app takes the output, Safari's "interrupted"): gameplay pauses
+    this.ctx.onstatechange = () => Bus.emit('audio:state', this.ctx.state);
     this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
     this.musicBus = this.ctx.createGain();
     this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 256; this.analyser.smoothingTimeConstant = 0.7;
@@ -310,7 +312,9 @@ const TrackCache = {
     const p = (async () => {
       const blob = await BeatmapManager.getFile(setId, audioFile);
       if (!blob) throw new Error(`Missing audio: ${audioFile}`);
-      return AudioManager.decode(await blob.arrayBuffer());
+      return AudioManager.decode(await blob.arrayBuffer()).catch(e => {
+        throw new Error(`Can't play the song's audio (${audioFile}): ${friendlyError(e)}`);
+      });
     })();
     this.map.set(key, p);
     p.catch(() => this.map.delete(key));
