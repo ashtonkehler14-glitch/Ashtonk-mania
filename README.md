@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### A "What's new" screen
+
+* **Returning players see a lazer-style changelog once after an update**, listing what was added. New players skip it.
+* It's always there from the profile menu (right-click your name in the top bar) and at the bottom of Settings.
+
 ### Beatmap listing like osu!lazer
 
 * **Beatmap cards follow lazer's card layout.** Each has the cover as a thumbnail (with the preview button), the title, artist and mapper over the faded cover, and the status, difficulty spectrum, key counts, favourites, plays and length. They're in two columns.

@@ -76,7 +76,7 @@ const SettingsPanel = {
       scroll.append(h('button.btn.sp-more', { onclick: () => { Settings.set('ui.allSettings', !more); UISounds.click(); this.build(''); } },
         more ? 'Show fewer settings' : `Show all settings (${hiddenCount} more)`));
     }
-    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION}`));
+    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },

@@ -2124,3 +2124,26 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
 .bso-scroll { padding-top: 0; }
+
+/* What's new (lazer's changelog) */
+.cl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, 94vw); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: hsl(255 10% 12%); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); animation: clIn 320ms var(--ease-out) both; --o-h: 255; }
+@keyframes clIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.97); } }
+.cl.out { animation: fadeOut 200ms ease both; }
+.cl-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 22px 26px; background: linear-gradient(120deg, hsl(255 45% 30%), hsl(320 45% 30%)); overflow: hidden; }
+.cl-head::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-60deg, rgba(255, 255, 255, .04) 0 14px, transparent 14px 28px); pointer-events: none; }
+.cl-hicon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .3); }
+.cl-hicon .i { width: 26px; height: 26px; }
+.cl-title { font-size: 1.6rem; font-weight: 300; }
+.cl-sub { font-size: .85rem; color: rgba(255, 255, 255, .75); }
+.cl-x { position: relative; z-index: 1; margin-left: auto; }
+.cl-body { flex: 1; overflow: auto; padding: 18px 26px; display: flex; flex-direction: column; gap: 18px; }
+.cl-ver { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 1.15rem; }
+.cl-pill { padding: 3px 10px; border-radius: 99px; background: #ff66ab; color: #fff; font-size: .75rem; font-weight: 800; }
+.cl-sec { margin-top: 12px; animation: rowIn 350ms var(--ease-out) both; }
+.cl-sech { display: flex; align-items: center; gap: 8px; font-weight: 700; color: hsl(255 70% 82%); }
+.cl-sech .i { width: 18px; height: 18px; }
+.cl-sec ul { margin: 6px 0 0; padding-left: 34px; display: flex; flex-direction: column; gap: 4px; color: rgba(255, 255, 255, .85); font-size: .9rem; }
+.cl-sec li::marker { color: #ff66ab; }
+.cl-foot { display: flex; justify-content: flex-end; padding: 14px 26px; background: hsl(255 10% 9%); }
+.sp-footer { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+body:has(.cl) #toasts { opacity: 0; pointer-events: none; }

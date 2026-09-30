@@ -379,3 +379,42 @@ const SkinsScreen = {
     requestAnimationFrame(() => this.preview.show(skin, this.keys));
   },
 };
+
+// ─────────────────────────────── What's new ───────────────────────────────
+/** Updates, newest first. Returning players see the newest entries they haven't seen once, after the game loads
+ *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
+const CHANGELOG = [
+  { id: '2026.10.1', title: 'The lazer update', sections: [
+    { icon: 'home', title: 'Main menu', items: ['Settings sits left of the logo; Play, Edit and Browse to its right, as in osu!lazer', 'Edit holds Skins, Import, Beatmaps, Collections and Replays', 'The big logo comes back after 15 idle seconds', 'Hovered icons sway and bounce to the beat', 'lazer\'s triangles background, coloured to match the playing song', 'Menu music plays through every song before repeating one'] },
+    { icon: 'bell', title: 'Top bar', items: ['lazer\'s toolbar: beatmap listing, Discover, notifications, now playing, a clock and your profile', 'Notifications keep every pop-up until you clear them', 'Click the clock to switch between full, digital and analog', 'Scroll the mouse wheel on the menu or in game to change the volume (lazer\'s volume overlay)', 'lazer\'s cursor, with a size setting'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['lazer\'s beatmap cards', 'Clicking a beatmap opens its info page: difficulties, details, download or play, and your scores'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Quick Play: matchmaking for up to 8, five rounds, vote on maps, a roulette picks one', 'Rooms of up to 8, Head to Head or Team Versus, win by pp, score, accuracy or combo', 'Discover: see who\'s online and play together in a click'] },
+    { icon: 'brush', title: 'Skins', items: ['The Custom skin is rebuilt, and you can customise its shape, colours, size, receptors, key area, holds and glow', '4K-only skins play every key count', 'Skins keep their own health bar', 'Upscroll lines up on every skin'] },
+    { icon: 'mods', title: 'Everything else', items: ['Mods have icons', 'Settings use lazer\'s names', 'The interface looks the same at every resolution and zoom; UI scaling is the one size setting', 'A cleaner gameplay HUD and pause menu', 'More time to look at the loader before the song starts'] },
+  ] },
+];
+const WhatsNew = {
+  latest() { return CHANGELOG[0].id; },
+  /** After the game loads: a returning player gets the entries they haven't seen yet. */
+  async maybeShow() {
+    const seen = await DB.kvGet('changelog.seen', null).catch(() => null);
+    if (seen === this.latest()) return;
+    await DB.kvSet('changelog.seen', this.latest()).catch(() => {});
+    if (!seen && !ProfileManager.profile.onboarded) return; // brand new: nothing to catch up on
+    const i = CHANGELOG.findIndex(e => e.id === seen);
+    this.show(i < 0 ? CHANGELOG.slice(0, 1) : CHANGELOG.slice(0, i));
+  },
+  show(entries = CHANGELOG) {
+    const el = h('div.cl', { role: 'dialog', 'aria-label': 'What\'s new' },
+      h('div.cl-head', h('div.cl-hicon', icon('sparkle')), h('div', h('div.cl-title', 'changelog'), h('div.cl-sub', 'what\'s new in Ashtonk!mania')),
+        h('button.icon-btn.cl-x', { title: 'Close', 'aria-label': 'Close', onclick: () => o.close() }, icon('x'))),
+      h('div.cl-body', ...entries.map(e => h('div.cl-entry',
+        h('div.cl-ver', h('span.cl-pill', e.id), h('b', e.title)),
+        ...e.sections.map((sec, si) => h('div.cl-sec', { style: { animationDelay: `${si * 60}ms` } }, h('div.cl-sech', icon(sec.icon), sec.title),
+          h('ul', ...sec.items.map(t => h('li', t)))))))),
+      h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
+    const o = makeOverlay(el);
+    UISounds.play('check-on');
+    return o;
+  },
+};

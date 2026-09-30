@@ -447,6 +447,7 @@ const Toolbar = {
       { label: 'Collections', icon: 'folder', onClick: () => Screens.go('collections') },
       { label: 'Skins', icon: 'brush', onClick: () => Screens.go('skins') },
       { sep: true },
+      { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
     ]);
     return m;

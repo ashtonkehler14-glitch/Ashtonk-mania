@@ -56,7 +56,9 @@ const App = {
     this.globalLoop();
     this.initPWA();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
-    if (!ProfileManager.profile.onboarded) await Onboarding.run();
+    const returning = !!ProfileManager.profile.onboarded;
+    if (!returning) { await Onboarding.run(); DB.kvSet('changelog.seen', WhatsNew.latest()).catch(() => {}); }
+    else setTimeout(() => WhatsNew.maybeShow(), 1200);
     Multiplayer.joinFromLink();
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);

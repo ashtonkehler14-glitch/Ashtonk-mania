@@ -2142,6 +2142,29 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
 .bso-scroll { padding-top: 0; }
 
+/* What's new (lazer's changelog) */
+.cl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, 94vw); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: hsl(255 10% 12%); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); animation: clIn 320ms var(--ease-out) both; --o-h: 255; }
+@keyframes clIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.97); } }
+.cl.out { animation: fadeOut 200ms ease both; }
+.cl-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 22px 26px; background: linear-gradient(120deg, hsl(255 45% 30%), hsl(320 45% 30%)); overflow: hidden; }
+.cl-head::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-60deg, rgba(255, 255, 255, .04) 0 14px, transparent 14px 28px); pointer-events: none; }
+.cl-hicon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .3); }
+.cl-hicon .i { width: 26px; height: 26px; }
+.cl-title { font-size: 1.6rem; font-weight: 300; }
+.cl-sub { font-size: .85rem; color: rgba(255, 255, 255, .75); }
+.cl-x { position: relative; z-index: 1; margin-left: auto; }
+.cl-body { flex: 1; overflow: auto; padding: 18px 26px; display: flex; flex-direction: column; gap: 18px; }
+.cl-ver { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 1.15rem; }
+.cl-pill { padding: 3px 10px; border-radius: 99px; background: #ff66ab; color: #fff; font-size: .75rem; font-weight: 800; }
+.cl-sec { margin-top: 12px; animation: rowIn 350ms var(--ease-out) both; }
+.cl-sech { display: flex; align-items: center; gap: 8px; font-weight: 700; color: hsl(255 70% 82%); }
+.cl-sech .i { width: 18px; height: 18px; }
+.cl-sec ul { margin: 6px 0 0; padding-left: 34px; display: flex; flex-direction: column; gap: 4px; color: rgba(255, 255, 255, .85); font-size: .9rem; }
+.cl-sec li::marker { color: #ff66ab; }
+.cl-foot { display: flex; justify-content: flex-end; padding: 14px 26px; background: hsl(255 10% 9%); }
+.sp-footer { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
+
 </style>
 </head>
 <body>
@@ -7132,6 +7155,7 @@ const Toolbar = {
       { label: 'Collections', icon: 'folder', onClick: () => Screens.go('collections') },
       { label: 'Skins', icon: 'brush', onClick: () => Screens.go('skins') },
       { sep: true },
+      { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
     ]);
     return m;
@@ -10714,6 +10738,45 @@ const SkinsScreen = {
   },
 };
 
+// ─────────────────────────────── What's new ───────────────────────────────
+/** Updates, newest first. Returning players see the newest entries they haven't seen once, after the game loads
+ *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
+const CHANGELOG = [
+  { id: '2026.10.1', title: 'The lazer update', sections: [
+    { icon: 'home', title: 'Main menu', items: ['Settings sits left of the logo; Play, Edit and Browse to its right, as in osu!lazer', 'Edit holds Skins, Import, Beatmaps, Collections and Replays', 'The big logo comes back after 15 idle seconds', 'Hovered icons sway and bounce to the beat', 'lazer\'s triangles background, coloured to match the playing song', 'Menu music plays through every song before repeating one'] },
+    { icon: 'bell', title: 'Top bar', items: ['lazer\'s toolbar: beatmap listing, Discover, notifications, now playing, a clock and your profile', 'Notifications keep every pop-up until you clear them', 'Click the clock to switch between full, digital and analog', 'Scroll the mouse wheel on the menu or in game to change the volume (lazer\'s volume overlay)', 'lazer\'s cursor, with a size setting'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['lazer\'s beatmap cards', 'Clicking a beatmap opens its info page: difficulties, details, download or play, and your scores'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Quick Play: matchmaking for up to 8, five rounds, vote on maps, a roulette picks one', 'Rooms of up to 8, Head to Head or Team Versus, win by pp, score, accuracy or combo', 'Discover: see who\'s online and play together in a click'] },
+    { icon: 'brush', title: 'Skins', items: ['The Custom skin is rebuilt, and you can customise its shape, colours, size, receptors, key area, holds and glow', '4K-only skins play every key count', 'Skins keep their own health bar', 'Upscroll lines up on every skin'] },
+    { icon: 'mods', title: 'Everything else', items: ['Mods have icons', 'Settings use lazer\'s names', 'The interface looks the same at every resolution and zoom; UI scaling is the one size setting', 'A cleaner gameplay HUD and pause menu', 'More time to look at the loader before the song starts'] },
+  ] },
+];
+const WhatsNew = {
+  latest() { return CHANGELOG[0].id; },
+  /** After the game loads: a returning player gets the entries they haven't seen yet. */
+  async maybeShow() {
+    const seen = await DB.kvGet('changelog.seen', null).catch(() => null);
+    if (seen === this.latest()) return;
+    await DB.kvSet('changelog.seen', this.latest()).catch(() => {});
+    if (!seen && !ProfileManager.profile.onboarded) return; // brand new: nothing to catch up on
+    const i = CHANGELOG.findIndex(e => e.id === seen);
+    this.show(i < 0 ? CHANGELOG.slice(0, 1) : CHANGELOG.slice(0, i));
+  },
+  show(entries = CHANGELOG) {
+    const el = h('div.cl', { role: 'dialog', 'aria-label': 'What\'s new' },
+      h('div.cl-head', h('div.cl-hicon', icon('sparkle')), h('div', h('div.cl-title', 'changelog'), h('div.cl-sub', 'what\'s new in Ashtonk!mania')),
+        h('button.icon-btn.cl-x', { title: 'Close', 'aria-label': 'Close', onclick: () => o.close() }, icon('x'))),
+      h('div.cl-body', ...entries.map(e => h('div.cl-entry',
+        h('div.cl-ver', h('span.cl-pill', e.id), h('b', e.title)),
+        ...e.sections.map((sec, si) => h('div.cl-sec', { style: { animationDelay: `${si * 60}ms` } }, h('div.cl-sech', icon(sec.icon), sec.title),
+          h('ul', ...sec.items.map(t => h('li', t)))))))),
+      h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));
+    const o = makeOverlay(el);
+    UISounds.play('check-on');
+    return o;
+  },
+};
+
 /* ===== 17b-screen-explorer.js ===== */
 /* Beatmap Explorer — search osu!mania beatmaps online and download them straight into the library.
  * On the Cloudflare deployment it talks to the same-origin Worker (/api/search, /api/download/:id),
@@ -11395,7 +11458,7 @@ const SettingsPanel = {
       scroll.append(h('button.btn.sp-more', { onclick: () => { Settings.set('ui.allSettings', !more); UISounds.click(); this.build(''); } },
         more ? 'Show fewer settings' : `Show all settings (${hiddenCount} more)`));
     }
-    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION}`));
+    scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.icon-btn', { title: sec, 'aria-label': sec, dataset: { sec }, onclick: () => this.scrollTo(sec) }, icon(SECTION_ICONS[sec] || 'gear'))));
     this.syncNav();
   },
@@ -13001,7 +13064,9 @@ const App = {
     this.globalLoop();
     this.initPWA();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
-    if (!ProfileManager.profile.onboarded) await Onboarding.run();
+    const returning = !!ProfileManager.profile.onboarded;
+    if (!returning) { await Onboarding.run(); DB.kvSet('changelog.seen', WhatsNew.latest()).catch(() => {}); }
+    else setTimeout(() => WhatsNew.maybeShow(), 1200);
     Multiplayer.joinFromLink();
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
