@@ -913,37 +913,78 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-menu.lz-instant * { transition: none !important; animation: none !important; }
 
 /* ── profile (osu!lazer user profile) */
-.pf-head { display: flex; align-items: center; gap: 22px; padding: 24px 28px; border-radius: 10px 10px 0 0; background: linear-gradient(180deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .55)), var(--panel-2); }
-.pf-avatar { border-radius: 20%; cursor: pointer; box-shadow: 0 4px 16px rgba(0, 0, 0, .4); }
-.pf-name { display: flex; align-items: center; gap: 6px; font-size: 1.9rem; font-weight: 600; }
-.pf-since { color: var(--muted); font-size: .85rem; margin-top: 2px; }
-.pf-level { display: flex; align-items: center; gap: 10px; }
-.pf-lvl-num { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--gold); font-weight: 700; }
-.pf-lvl-bar { width: 160px; height: 6px; border-radius: 6px; background: rgba(255, 255, 255, .12); overflow: hidden; }
-.pf-lvl-bar i { display: block; height: 100%; background: var(--gold); }
-.pf-stats { display: flex; align-items: center; gap: 30px; flex-wrap: wrap; padding: 18px 28px; border-radius: 0 0 10px 10px; background: var(--panel-solid); }
-.pf-pp span, .pf-dl span { display: block; font-size: .75rem; color: var(--muted); }
-.pf-pp b { font-size: 1.7rem; font-weight: 600; }
-.pf-grades { display: flex; gap: 18px; }
-.pf-grade { display: flex; flex-direction: column; align-items: center; font-size: .85rem; }
-.pf-grade .grade { font-size: 1.5rem; }
-.pf-dls { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 32px; }
-.pf-dl b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.pf-section { margin-top: 24px; }
-.pf-section h2 { margin: 0 0 10px; font-size: 1.1rem; font-weight: 600; padding-bottom: 6px; border-bottom: 2px solid var(--accent); display: inline-block; }
+/* ── profile — osu!lazer's UserProfileOverlay (Pink scheme via .ov): cover + avatar + name, a centre strip with the
+   level badge, the detail area (performance, accuracy, rank counts, stat list), a sticky section tab bar, sections */
+.pf-header, .pf-tabs { --pf-pad: max(50px, calc((100vw - 1400px) / 2)); }
+.pf-header { margin: -24px -50px 0; }
+.pf-top { position: relative; height: 230px; overflow: hidden; }
+.pf-cover { position: absolute; inset: 0; background: linear-gradient(120deg, hsl(var(--o-h) 45% 35%), hsl(var(--o-h) 35% 18%)) center / cover; }
+.pf-cover.img { filter: saturate(1.05); }
+.pf-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .55) 75%, var(--od5)); }
+.pf-top-in { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 22px; padding: 0 var(--pf-pad) 18px; }
+.pf-avatar { flex: none; border-radius: 22px; cursor: pointer; box-shadow: 0 6px 24px rgba(0, 0, 0, .5); transition: transform var(--t-fast); }
+.pf-avatar:hover { transform: scale(1.03); }
+.pf-id { min-width: 0; padding-bottom: 6px; }
+.pf-name { display: flex; align-items: center; gap: 6px; font-size: 1.9rem; font-weight: 600; line-height: 1.1; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.pf-name .icon-btn { opacity: .6; }
+.pf-name .icon-btn:hover { opacity: 1; }
+.pf-tags { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.pf-tag { padding: 2px 10px; border-radius: 99px; background: var(--ohl); color: var(--ob6); font-size: .72rem; font-weight: 700; }
+.pf-since { color: var(--oc2); font-size: .85rem; text-shadow: 0 1px 6px rgba(0, 0, 0, .5); }
+.pf-centre { display: flex; align-items: center; gap: 8px; padding: 10px var(--pf-pad); background: var(--od5); }
+.pf-chip { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px; border-radius: 99px; background: var(--ob4); font-size: .85rem; font-weight: 600; }
+.pf-chip .i { width: 13px; height: 13px; color: var(--ohl); }
+.pf-level { display: flex; align-items: center; gap: 12px; }
+/* LevelBadge: a gold hexagon with the level in it */
+.pf-hex { position: relative; width: 44px; height: 48px; display: grid; place-items: center; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(160deg, #ffe07a, #e0a400); }
+.pf-hex::before { content: ""; position: absolute; inset: 3px; clip-path: inherit; background: var(--od6); }
+.pf-hex span { position: relative; font-weight: 700; font-size: 1.05rem; }
+.pf-lvl { display: flex; align-items: center; gap: 10px; font-size: .78rem; color: var(--oc2); }
+.pf-lvl-bar { width: 200px; height: 5px; border-radius: 5px; background: var(--ob6); overflow: hidden; }
+.pf-lvl-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #ffe07a, #ffcc22); }
+.pf-detail { display: flex; gap: 30px; flex-wrap: wrap; padding: 22px var(--pf-pad) 24px; background: var(--ob4); }
+.pf-detail-l { flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 18px; }
+.pf-bigs { display: flex; gap: 40px; }
+.pf-big span { display: block; font-size: .8rem; color: var(--oc2); }
+.pf-big b { font-size: 2rem; font-weight: 300; line-height: 1.15; }
+.pf-ranks { display: flex; gap: 22px; }
+.pf-rank { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .85rem; }
+.pf-rank .rank-pill { min-width: 40px; height: 20px; font-size: .8rem; }
+.pf-detail-r { display: grid; grid-template-columns: auto auto; gap: 6px 26px; align-content: start; padding: 14px 22px; border-radius: 10px; background: var(--ob5); }
+.pf-dl { display: contents; }
+.pf-dl span { font-size: .8rem; color: var(--oc2); }
+.pf-dl b { font-size: .85rem; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pf-tabs { position: sticky; top: 0; z-index: 3; display: flex; gap: 22px; margin: 0 -50px 8px; padding: 0 var(--pf-pad); background: var(--od4); box-shadow: 0 4px 12px rgba(0, 0, 0, .25); }
+.pf-sec { scroll-margin-top: 56px; padding: 20px 0 10px; }
+.pf-sec + .pf-sec { border-top: 2px solid var(--ob6); }
+.pf-sec > h2 { margin: 0 0 14px; font-size: 1.5rem; font-weight: 400; }
+.pf-subsec { margin-bottom: 18px; }
+.pf-subsec > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
+.pf-count { padding: 1px 9px; border-radius: 99px; background: var(--ob6); color: var(--oc2); font-size: .75rem; font-weight: 600; }
+.pf-chart { padding: 14px 16px; border-radius: 10px; background: var(--ob4); }
 .pf-scores { display: flex; flex-direction: column; gap: 4px; }
-.pf-score { display: flex; align-items: center; gap: 14px; padding: 8px 14px; border: 0; border-radius: 8px; background: var(--panel-solid); color: var(--text); text-align: left; transition: background var(--t-fast); }
-.pf-score:hover { background: var(--panel-2); }
-.pf-score .grade { font-size: 1.4rem; width: 34px; text-align: center; }
+.pf-score { position: relative; display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 0 0 14px; border: 0; border-radius: 8px; overflow: hidden; background: var(--ob4); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-fast); }
+.pf-score:hover { background: var(--ob3); }
+.pf-score .rank-pill { min-width: 38px; height: 18px; font-size: .74rem; }
 .pf-score .main { flex: 1; min-width: 0; }
-.pf-score .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pf-score .s { font-size: .78rem; color: var(--muted); }
-.pf-score .s .v { color: var(--gold); }
-.pf-acc { color: var(--gold); font-weight: 600; min-width: 70px; text-align: right; }
-.pf-pp-cell { min-width: 110px; text-align: right; display: flex; flex-direction: column; }
-.pf-pp-cell b { color: var(--accent); font-weight: 600; }
-.pf-pp-cell span { font-size: .72rem; color: var(--muted); }
+.pf-score .t { font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-score .t .a { color: var(--oc2); opacity: .75; font-size: .8rem; }
+.pf-score .s { display: flex; gap: 10px; margin-top: 1px; font-size: .75rem; }
+.pf-score .s .v { color: #ffcc22; font-weight: 600; }
+.pf-score .s .d { color: var(--oc2); opacity: .6; }
+.pf-mods { display: flex; gap: 3px; }
+.pf-acc { min-width: 64px; text-align: right; color: #ffcc22; font-weight: 600; font-size: .9rem; }
+.pf-weight { min-width: 90px; display: flex; flex-direction: column; align-items: flex-end; font-size: .72rem; color: var(--oc2); }
+.pf-weight b { font-size: .85rem; color: #fff; font-weight: 600; }
+/* the pp sits in a darker block with lazer's slanted left edge */
+.pf-ppblock { position: relative; align-self: stretch; min-width: 96px; display: grid; place-items: center; padding: 0 18px 0 26px; color: var(--ohl); font-weight: 700; }
+.pf-ppblock::before { content: ""; position: absolute; inset: 0 -20px 0 0; z-index: 0; background: var(--ob5); transform: skewX(-11.31deg); transform-origin: bottom left; }
+.pf-ppblock > * { position: relative; }
+.pf-ppblock small { font-size: .7em; margin-left: 1px; opacity: .8; }
+.pf-ppblock.failed { color: #ff6b77; font-size: .8rem; }
+.pf-ppblock.failed::after { content: ""; }
 .pf-empty { color: var(--muted); padding: 16px 4px; }
+@media (max-width: 700px) { .pf-header { margin: -16px -16px 0; } .pf-tabs { margin: 0 -16px 8px; } .pf-header, .pf-tabs { --pf-pad: 16px; } .pf-top { height: 190px; } .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; } .pf-weight, .pf-mods { display: none; } .pf-lvl-bar { width: 90px; } }
 .lib-summary { color: var(--muted); font-size: .85rem; }
 
 .res-more { border-radius: 10px; }
@@ -1381,3 +1422,67 @@ div.res-calib .i { color: var(--good); }
 .sc-keys .muted { font-size: .78rem; }
 .sc-what { color: var(--text-2); }
 @media (max-height: 820px) { .rs-ring { width: 190px; height: 190px; margin: 18px 0 10px; } .rs-grade { font-size: 4.4rem; } .rs-mid { gap: 8px; padding-top: 14px; } .rs-top { padding: 12px 18px; } }
+
+/* ── osu!lazer overlays (library, collections, profile, replays, skins, explorer, multiplayer): an OverlayHeader
+   — a cover strip, then a title band in the scheme's Dark5 with the icon and lowercase title, optional tabs on
+   Dark4 — over a solid Background5 body. The panel/line/muted tokens are redefined from the overlay's hue so every
+   card, row, input and button inside takes on that overlay's colour scheme (lazer: OverlayColourProvider). */
+.ov { --o-h: 255;
+  --ob6: hsl(var(--o-h) 10% 10%); --ob5: hsl(var(--o-h) 10% 15%); --ob4: hsl(var(--o-h) 10% 20%); --ob3: hsl(var(--o-h) 10% 25%); --ob2: hsl(var(--o-h) 10% 30%);
+  --od6: hsl(var(--o-h) 20% 10%); --od5: hsl(var(--o-h) 20% 15%); --od4: hsl(var(--o-h) 20% 20%); --od3: hsl(var(--o-h) 20% 25%);
+  --ol4: hsl(var(--o-h) 40% 50%); --ol2: hsl(var(--o-h) 40% 75%); --ohl: hsl(var(--o-h) 100% 70%); --oc2: hsl(var(--o-h) 40% 90%); --oc1: #fff;
+  --panel: var(--ob4); --panel-solid: var(--ob4); --panel-2: var(--ob3); --panel-3: var(--ob2); --bg-2: var(--ob4);
+  --line: hsl(var(--o-h) 30% 80% / .07); --line-2: hsl(var(--o-h) 30% 80% / .14); --muted: hsl(var(--o-h) 15% 66%); --text-2: var(--oc2);
+  background: var(--ob5); }
+.ov > .screen-body { padding: 0; scroll-behavior: smooth; }
+.ov-head { position: relative; }
+.ov-head::before { content: ""; display: block; height: 64px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='64'%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.05' d='M20 64 52 8l32 56z'/%3E%3Cpath opacity='.035' d='M96 64l20-35 20 35z'/%3E%3Cpath opacity='.06' d='M150 64l40-70 40 70z'/%3E%3Cpath opacity='.03' d='M-10 30l14-24 14 24z'/%3E%3Cpath opacity='.04' d='M120 22l10-17 10 17z'/%3E%3C/g%3E%3C/svg%3E") repeat-x left bottom / auto 100%,
+    linear-gradient(100deg, hsl(var(--o-h) 45% 38%), hsl(var(--o-h) 40% 26%) 55%, hsl(var(--o-h) 35% 18%)); }
+.ov-titlebar { background: var(--od5); }
+.ov-tabs { background: var(--od4); }
+.ov-inner { max-width: 1500px; margin: 0 auto; padding: 0 50px; display: flex; align-items: center; gap: 10px; min-height: 64px; }
+.ov-tabs .ov-inner { min-height: 47px; gap: 20px; }
+.ov-icon { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 2px 0 -5px; border-radius: 50%; background: hsl(var(--o-h) 30% 22%); color: var(--ohl); }
+.ov-icon .i { width: 20px; height: 20px; }
+.ov-head h1 { margin: 0; font-size: 1.25rem; font-weight: 400; text-transform: lowercase; letter-spacing: .01em; }
+.ov-sub { color: var(--oc2); opacity: .65; font-size: .9rem; margin-left: 4px; }
+.ov-head .grow { flex: 1; }
+.ov-head .btn:not(.primary) { background: var(--ob3); }
+.ov-head .btn:not(.primary):hover { background: var(--ob2); }
+.ov-content { padding: 24px 50px 90px; }
+.ov .page { max-width: 1400px; }
+.ov-wide .page { max-width: none; }
+.ov-wide .pf-sec { max-width: 1400px; margin-left: auto; margin-right: auto; }
+.ov .empty { color: var(--muted); }
+.ov .input, .ov .select { background-color: var(--ob6); }
+.ov .btn:not(.primary):not(.danger) { background: var(--ob3); }
+.ov .btn:not(.primary):not(.danger):hover { background: var(--ob2); }
+.ov .btn.ghost { background: transparent; }
+.ov .btn.ghost:hover { background: var(--ob3); }
+.ov .chip { background: var(--ob3); }
+.ov .chip:hover { background: var(--ob2); }
+.ov .list-row, .ov .side-item { background: var(--ob4); border: 0; }
+.ov .list-row:hover, .ov .side-item:hover { background: var(--ob3); }
+.ov .side-item.active { background: var(--ob3); box-shadow: inset 3px 0 0 var(--ohl); color: #fff; }
+/* lazer's OverlayTabControl: 14px items, the active one bold with a Highlight1 bar */
+.ov-tab { position: relative; height: 47px; padding: 0; border: 0; background: none; color: var(--oc2); font-size: .875rem; cursor: pointer; }
+.ov-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--ohl); transform: scaleX(0); transition: transform 200ms var(--ease-out); }
+.ov-tab:hover::after { transform: scaleX(.6); opacity: .6; }
+.ov-tab.on { color: #fff; font-weight: 700; }
+.ov-tab.on::after { transform: none; opacity: 1; }
+@media (max-width: 700px) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
+/* beatmap listing (explorer): lazer's BeatmapListingSearchControl — a full-width Dark6 band with the big search box
+   and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
+.explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
+.explorer.ov .ex-search { background: var(--ob4); border-color: transparent; border-radius: 8px; }
+.explorer.ov .ex-search:focus { border-color: var(--ohl); box-shadow: none; }
+.explorer.ov .ex-flabel { color: var(--ol2); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: .8rem; }
+.explorer.ov .ex-chip { position: relative; color: var(--oc2); font-weight: 400; background: none; border-radius: 0; padding: 4px 1px; margin-right: 12px; }
+.explorer.ov .ex-chip:hover { color: #fff; background: none; }
+.explorer.ov .ex-chip.on { color: #fff; font-weight: 700; }
+.explorer.ov .ex-chip.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--ohl); }
+.explorer.ov .ex-chip.ex-reset { color: #ff8d95; }
+.mp.ov .mp-lobby { padding-top: 26px; }
+.mp.ov .mp-card { background: var(--ob4); }
+.mp.ov .mp-card-ico { background: hsl(var(--o-h) 30% 25%); color: var(--ohl); }

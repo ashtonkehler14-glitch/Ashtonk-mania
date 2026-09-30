@@ -356,7 +356,7 @@ Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap()
 const MultiplayerScreen = {
   tab: 'multiplayer',
   enter() {
-    this.el = h('div.mp');
+    this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
     this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => this.updateFetch())];
@@ -394,8 +394,7 @@ const MultiplayerScreen = {
     const joinBtn = h('button.btn', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
     const card = (ic, title, sub, ...rest) => h('div.mp-card', h('div.mp-card-ico', icon(ic)), h('div.mp-card-t', title), h('div.mp-card-s', sub), ...rest);
     const offline = !Multiplayer.available();
-    this.body.append(h('div.mp-lobby',
-      h('h1', 'Multiplayer'), h('div.mp-sub', 'Play the same beatmap head-to-head against one other player.'),
+    this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: 'Play the same beatmap head-to-head against one other player.' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       h('div.mp-cards',
         card('shuffle', 'Quick match', 'Get paired with the next player who is looking for a match.',

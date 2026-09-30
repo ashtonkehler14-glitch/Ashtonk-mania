@@ -1,11 +1,21 @@
 /* Beatmaps library, Collections, Profile (with statistics), Replays and Skins screens. */
 
-function pageShell(title, sub, actions = []) {
+/** A page laid out like an osu!lazer overlay (OverlayHeader): a title band in the overlay's Dark5 with its icon and
+ *  lowercase title, the actions on the right, optional tabs on Dark4 underneath, then the body in Background5.
+ *  `hue` picks the overlay colour scheme (lazer: Blue 200, Pink 333, Plum 320, Orange 45, Aquamarine 160, …). */
+const OVERLAY_HUES = { red: 0, orange: 45, lime: 90, green: 125, aquamarine: 160, blue: 200, purple: 255, plum: 320, pink: 333 };
+function overlayHeader(title, { icon: ic = 'star', sub = null, actions = [], tabs = null } = {}) {
+  return h('div.ov-head',
+    h('div.ov-titlebar', h('div.ov-inner',
+      h('span.ov-icon', icon(ic)), h('h1', title), sub ? h('span.ov-sub', sub) : null, h('div.grow'), ...actions)),
+    tabs ? h('div.ov-tabs', h('div.ov-inner', tabs)) : null);
+}
+function pageShell(title, sub, actions = [], { icon: ic = 'star', hue = 'purple', tabs = null, wide = false } = {}) {
   const body = h('div.screen-body');
   const page = h('div.page');
-  page.append(h('div.screen-title', h('div', h('h1', title), sub ? h('div.sub', sub) : null), h('div.grow'), ...actions));
-  body.append(page);
-  return { el: h('div', body, h('div.page-back', backButton(() => Screens.back()))), page };
+  body.append(overlayHeader(title, { icon: ic, sub, actions, tabs }), h('div.ov-content', page));
+  const el = h(`div.ov${wide ? '.ov-wide' : ''}`, { style: { '--o-h': OVERLAY_HUES[hue] ?? hue } }, body, h('div.page-back', backButton(() => Screens.back())));
+  return { el, page };
 }
 
 async function importViaPicker(accept, directory = false) {
@@ -20,7 +30,7 @@ const BeatmapsScreen = {
     const { el, page } = pageShell('Beatmap library', null, [
       h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'),
       h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
-    ]);
+    ], { icon: 'music', hue: 'blue' });
     this.page = page;
     this.summary = h('div.lib-summary');
     const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
@@ -89,7 +99,7 @@ const CollectionsScreen = {
   sel: null,
   enter() {
     const { el, page } = pageShell('Collections', null, [
-      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')]);
+      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')], { icon: 'folder', hue: 'aquamarine' });
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];
@@ -131,7 +141,7 @@ const CollectionsScreen = {
 // ─────────────────────────────── Profile (osu!lazer user profile layout; includes statistics) ───────────────────────────────
 const ProfileScreen = {
   enter() {
-    const { el, page } = pageShell('Profile', null);
+    const { el, page } = pageShell('Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => this.render()), Bus.on('scores:changed', () => this.render())];
     this.render();
@@ -140,8 +150,7 @@ const ProfileScreen = {
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     const page = this.page;
-    while (page.children.length > 1) page.lastChild.remove();
-    page.firstChild.style.display = 'none';
+    clearEl(page);
     const p = ProfileManager.profile;
     const xp = ProfileManager.xpInfo();
     const st = StatisticsManager.compute();
@@ -150,52 +159,71 @@ const ProfileScreen = {
     const rankedScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
     const pp = ScoreManager.totalPp();
     const topPlays = ScoreManager.bestPpPerMap();
-    const avatar = ProfileManager.avatarEl(110);
+    const avatar = ProfileManager.avatarEl(120);
     avatar.classList.add('pf-avatar');
     avatar.title = 'Change avatar';
     avatar.addEventListener('click', () => AvatarPicker.open());
-    const head = h('div.pf-head',
+    // osu!lazer's UserProfileOverlay: the cover (here the background of your latest play) with the avatar and name,
+    // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
+    // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
+    const cover = h('div.pf-cover');
+    const last = ScoreManager.recent(1)[0], lastMap = last && BeatmapManager.mapByHash(last.mapHash);
+    if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
+    const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
-      h('div.pf-id', h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),
-        h('div.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`)),
+      h('div.pf-id',
+        h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),
+        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`)))));
+    const centre = h('div.pf-centre',
+      h('span.pf-chip', { title: 'Play count' }, icon('play', 'fill'), fmtInt(st.plays)),
+      h('span.pf-chip', { title: 'Play time' }, icon('clock'), fmtDuration(st.playtime)),
       h('div.grow'),
-      h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` }, h('div.pf-lvl-num', String(xp.level)), h('div.pf-lvl-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } }))));
+      h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` },
+        h('div.pf-hex', h('span', String(xp.level))),
+        h('div.pf-lvl', h('div.pf-lvl-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } })), h('span', `${Math.floor(xp.progress * 100)}%`))));
     const grades = st.grades || {};
-    const gradeCount = (label, ...keys) => h('div.pf-grade', gradeEl(keys[0]), h('span', fmtInt(keys.reduce((a, k) => a + (grades[k] || 0), 0))));
+    const rank = g => h('div.pf-rank', rankPill(g), h('span', fmtInt(grades[g] || 0)));
     const dl = (k, v) => h('div.pf-dl', h('span', k), h('b', v));
-    const bar = h('div.pf-stats',
-      h('div.pf-pp', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp')),
-      h('div.pf-grades', gradeCount('SS', 'XH', 'SS'), gradeCount('S', 'SH', 'S'), gradeCount('A', 'A')),
-      h('div.grow'),
-      h('div.pf-dls',
+    const detail = h('div.pf-detail',
+      h('div.pf-detail-l',
+        h('div.pf-bigs',
+          h('div.pf-big', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp')),
+          h('div.pf-big', h('span', 'Hit accuracy'), h('b', st.passed ? fmtAcc(st.avgAcc) : '—'))),
+        h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
+      h('div.pf-detail-r',
         dl('Ranked score', fmtInt(rankedScore)), dl('Hit accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), dl('Play count', fmtInt(st.plays)),
         dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
-    page.append(head, bar);
-    // historical
+    // sections, with lazer's sticky tab bar
+    const secs = [];
+    const section = (id, title, ...kids) => { const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
+    const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count != null ? h('span.pf-count', fmtInt(count)) : null), ...kids);
     const ppHist = ScoreManager.ppHistory();
-    if (ppHist.length > 1) page.append(h('div.pf-section', h('h2', 'Performance history'),
-      h('div.panel.chart-card', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))));
-    if (st.plays) {
-      const day = 86400000;
-      page.append(h('div.pf-section', h('h2', 'Play history'),
-        h('div.panel.chart-card', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))));
-    }
-    // ranks
-    page.append(h('div.pf-section', h('h2', 'Best performance'),
-      topPlays.length ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, h('div.pf-pp-cell', h('b', `${fmtInt(tp.pp)}pp`), h('span', `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`)))))
+    const day = 86400000;
+    const hist = section('historical', 'Historical',
+      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
+      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
+    const ranks = section('ranks', 'Ranks',
+      sub('Best performance', topPlays.length, topPlays.length
+        ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))
         : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
     const recent = ScoreManager.recent(10);
-    page.append(h('div.pf-section', h('h2', 'Recent plays'),
-      recent.length ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, h('div.pf-pp-cell', h('b', s.passed ? `${fmtInt(ScoreManager.ppOf(s))}pp` : 'failed')))))
+    const rec = section('recent', 'Recent',
+      sub('Recent plays (24h and older)', recent.length, recent.length
+        ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, s.passed ? fmtInt(ScoreManager.ppOf(s)) : null)))
         : h('div.pf-empty', 'No recent plays.')));
+    const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, title.toLowerCase())));
+    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, rec);
   },
-  scoreRow(s, right) {
+  /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
+   *  sheared block on the right (with the weighting for best performance). */
+  scoreRow(s, pp, weight = null, weighted = null) {
     return h('button.pf-score', { onclick: () => Screens.go('results', { score: s, fromList: true }) },
-      gradeEl(s.grade),
-      h('div.main', h('div.t', s.title, h('span.muted', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), ` · ${fmtDate(s.date)}`)),
-      h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(m => ModSystem.badge(m, true))),
+      rankPill(s.grade),
+      h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
+      h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
       h('div.pf-acc', fmtAcc(s.accuracy)),
-      right);
+      weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : null,
+      h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
   },
 };
 
@@ -203,7 +231,7 @@ const ProfileScreen = {
 const ReplaysScreen = {
   enter() {
     const { el, page } = pageShell('Replays', null, [
-      h('button.btn', { onclick: () => importViaPicker('.amr,.json') }, icon('upload'), 'Import .amr')]);
+      h('button.btn', { onclick: () => importViaPicker('.amr,.json') }, icon('upload'), 'Import .amr')], { icon: 'film', hue: 'plum' });
     this.list = h('div.list');
     page.append(this.list);
     this._unsub = [Bus.on('replays:changed', () => this.render())];
@@ -295,7 +323,7 @@ const SkinsScreen = {
   sel: null, keys: 4,
   enter() {
     const { el, page } = pageShell('Skins', null, [
-      h('button.btn.primary', { onclick: () => importViaPicker('.osk') }, icon('upload'), 'Import .osk')]);
+      h('button.btn.primary', { onclick: () => importViaPicker('.osk') }, icon('upload'), 'Import .osk')], { icon: 'brush', hue: 'orange' });
     this.sel = this.sel || SkinManager.current.id;
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));

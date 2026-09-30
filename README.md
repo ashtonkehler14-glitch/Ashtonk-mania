@@ -22,6 +22,24 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer-style overlays: library, collections, profile, replays, skins, beatmap listing, multiplayer
+
+* **Every page now opens like an osu!lazer overlay**: a patterned cover strip, a title band with the page's icon and lowercase title ("beatmap library", "skins"…) and its buttons, over a solid body.
+* **Each page has its own lazer colour scheme**, and its cards, rows, inputs and buttons take on that colour:
+  * Blue: beatmap library and beatmap listing (the explorer);
+  * Pink: profile;
+  * Plum: replays and multiplayer;
+  * Orange: skins;
+  * Aquamarine: collections.
+* **The profile is lazer's player page:**
+  * your latest play's background as the cover, with a big avatar, your name and an osu!mania tag;
+  * a strip with play count, play time and lazer's gold **level hexagon** and progress bar;
+  * the detail area: performance and accuracy in big numbers, your SS / SS (Hidden) / S / S (Hidden) / A counts as lazer rank pills, and the stat list;
+  * a **sticky section bar** (historical / ranks / recent) with lazer's headings and counters;
+  * score rows with the pp in a slanted dark block on the right, like lazer's.
+* **The beatmap listing's filters** sit in a full-width dark band under a big search box. Rows are labelled like lazer's, and the chosen option in each row is bold with an underline.
+* Rank pills show SS / S lettering in gold and the Hidden variants in silver-blue, as lazer does.
+
 ### osu!lazer-style settings
 
 * The settings panel follows osu!lazer's current settings, in lazer's purple settings colours:

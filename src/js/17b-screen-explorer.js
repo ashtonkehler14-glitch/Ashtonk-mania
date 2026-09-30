@@ -235,7 +235,7 @@ const ExplorerScreen = {
   audio: null,
 
   enter(params = {}) {
-    const el = h('div.explorer');
+    const el = h('div.explorer.ov', { style: { '--o-h': OVERLAY_HUES.blue } });
     const st = this.state;
     // opened from a multiplayer room: every card picks (host) or suggests (other players) a difficulty for the room
     this.mpPick = !!params.mpPick && typeof Multiplayer !== 'undefined' && Multiplayer.inRoom();
@@ -270,10 +270,10 @@ const ExplorerScreen = {
     const header = h('div.ex-header',
       this.mpPick ? h('div.ex-mp', icon('multi'), h('span', host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and suggest it to the room host.'), h('span.grow'),
         h('button.btn.sm', { onclick: () => Screens.go('multiplayer', {}, { replace: true }) }, icon('back'), 'Back to room')) : null,
-      h('div.ex-title', h('h1', 'Beatmap Explorer'), h('span.muted', 'osu!mania beatmaps, downloaded straight into your library')),
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
-    const scroller = h('div.screen-body.ex-body', h('div.page', header, this.grid, this.status, this.sentinel));
+    const scroller = h('div.screen-body.ex-body', overlayHeader('Beatmap listing', { icon: 'download', sub: 'osu!mania beatmaps, downloaded straight into your library' }),
+      h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel)));
     // "back to top" appears once you've scrolled a good way down
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
     scroller.addEventListener('scroll', () => this.topBtn.classList.toggle('show', scroller.scrollTop > 900), { passive: true });
