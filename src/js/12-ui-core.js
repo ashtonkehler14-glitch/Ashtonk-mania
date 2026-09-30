@@ -82,7 +82,12 @@ function skinDigits(font, cssH, { align = 'right' } = {}) {
     const ref = font.glyphs['0'] || glyphs[0];
     const x = c.getContext('2d');
     if (!ref || !glyphs.length) { x.clearRect(0, 0, c.width, c.height); return; }
-    const k = H / ref.h, ov = font.overlap * k;
+    // scale by the digits' ink, not their image: many skins pad each glyph with empty space (Chemuss's are two-thirds
+    // padding), which drawn to the box height left the numbers tiny
+    const ink = font._ink || (font._ink = digitInk(ref));
+    // (digits fill 88% of the height, leaving room for a comma's tail below and a percent sign reaching higher)
+    const k = H * 0.88 / Math.max(1, ink.bottom - ink.top), ov = font.overlap * k;
+    const base = H * 0.94 + (ref.h - ink.bottom) * k; // where the reference glyph's bottom edge lands
     const widths = glyphs.map(g => g.w * k);
     const W = Math.max(1, Math.ceil(widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1)));
     if (c.height !== H || W > c.width) {
@@ -90,9 +95,23 @@ function skinDigits(font, cssH, { align = 'right' } = {}) {
       c.style.height = cssH + 'px'; c.style.width = (c.width / dpr) + 'px';
     } else x.clearRect(0, 0, c.width, c.height);
     let px = align === 'right' ? c.width - W : align === 'center' ? Math.round((c.width - W) / 2) : 0;
-    glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, H - gh, widths[i], gh); px += widths[i] - ov; });
+    glyphs.forEach((g, i) => { const gh = g.h * k; x.drawImage(g.img, px, base - gh, widths[i], gh); px += widths[i] - ov; });
   };
   return { el: c, set };
+}
+/** The rows of a glyph that have any ink: { top, bottom } in the glyph's own pixels (the whole box if unreadable). */
+function digitInk(g) {
+  const out = { top: 0, bottom: g.h };
+  try {
+    const W = Math.max(1, Math.round(g.img.width || g.w)), Hh = Math.max(1, Math.round(g.img.height || g.h));
+    const c = document.createElement('canvas'); c.width = W; c.height = Hh;
+    const x = c.getContext('2d'); x.drawImage(g.img, 0, 0);
+    const d = x.getImageData(0, 0, W, Hh).data;
+    let t = -1, b = -1;
+    for (let y = 0; y < Hh; y++) for (let i = y * W * 4 + 3, e = i + W * 4; i < e; i += 4) if (d[i] > 8) { if (t < 0) t = y; b = y; break; }
+    if (t >= 0 && b - t + 1 >= Hh * 0.15) { const f = g.h / Hh; out.top = t * f; out.bottom = (b + 1) * f; }
+  } catch (e) { /* tainted or odd image: use the box */ }
+  return out;
 }
 function starBadge(sr) {
   const c = starColour(sr);
@@ -159,6 +178,8 @@ const Toast = {
     if (timeout) setTimeout(close, timeout);
     return close;
   },
+  /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
+  clear() { for (const el of $('#toasts').children) { el.classList.add('out'); setTimeout(() => el.remove(), 300); } },
   ok(t, b) { return this.show(t, b, { type: 'ok' }); },
   err(t, b) { return this.show(t, b, { type: 'err', timeout: 8000 }); },
 };

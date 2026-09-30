@@ -22,6 +22,19 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### A new Custom skin, and gameplay sizing across all three skins
+
+* **The Custom skin is rebuilt in osu!lazer's Argon style.**
+  * Notes have a gradient face with a bright hit edge. Bars carry a chevron; circles, diamonds and arrows get a highlight rim.
+  * Holds are darkened with accent-coloured edges and a proper tail cap.
+  * The hit target is a see-through copy of the note on a glowing grey line, above a key panel with Argon's three dots. It fills with the column's colour while pressed.
+  * Columns are narrower (52px at 4K down to 35px at 9K+) and each is faintly tinted with its note colour.
+  * Judgements read PERFECT / GREAT / GOOD / OK / MEH / MISS in lazer's colours.
+  * Hit flashes now sit on the receptor instead of below it. Arrows use a round flash rather than an up-pointing one.
+* **Hit lighting flips in upscroll**, as it does in osu!stable. Kori's flashes were drawing about 100px past its receptors.
+* **Skin score fonts are sized by their digits, not their image.** Chemuss's digits have lots of empty padding, so its score and accuracy showed at about a third of the size. They now match the other skins.
+* **Menu notifications clear when a map starts**, instead of sitting over the score. In upscroll, the AUTO / REPLAY badge moves below the stage so it doesn't cover the keys.
+
 ### Upscroll fixed for every skin, instant Play from the beatmap listing, menu blur on Chromebooks
 
 * **Upscroll now follows osu!'s rules for skins.** Key images and notes (heads, bodies, tails) are drawn upside down in upscroll unless the skin's `KeyFlipWhenUpsideDown` / `NoteFlipWhenUpsideDown` say not to, including the per-column versions (`…#`, `…#D`, `…#H`, `…#L`, `…#T`). Stage lights, the stage hint and the stage bottom flip too, so they face the receptors.

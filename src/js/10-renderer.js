@@ -254,11 +254,12 @@ class ManiaRenderer {
           const h = t.h * this.u;
           this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h, flip);
         } else {
-          // built-in keys: receptor (25% down the texture) centred on where notes are hit
+          // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
+          // (t.anchor down the texture) centred on the notes as they're hit
           const h = t.h * (this.colW[i] / t.w);
           const nh = this._noteH(L.tex.note[i], i);
-          const top = this.hitY - nh / 2 - h * 0.25;
-          this._spriteImg(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top), flip);
+          const top = this.hitY - nh / 2 - h * (t.anchor ?? 0.25);
+          this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
         }
       }
     };
@@ -449,7 +450,7 @@ class ManiaRenderer {
       if (!t) continue;
       const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
-      this._cropImg(t.frameAt(realNow), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._cropImg(t.frameAt(realNow), cx - w / 2, this._lightY(c) - hh / 2, w, hh, this.up);
     }
     // hit lighting (effects are compacted in place: no new array every frame)
     let keep = 0;
@@ -469,13 +470,17 @@ class ManiaRenderer {
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
       ctx.globalAlpha = multi ? 1 : 1 - el / dur;
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
-      this._cropImg(t.frameAt(el, false), cx - w / 2, this.hitY - hh / 2, w, hh);
+      this._cropImg(t.frameAt(el, false), cx - w / 2, this._lightY(e.col) - hh / 2, w, hh, this.up);
       ctx.globalAlpha = 1;
       fx[keep++] = e;
     }
     fx.length = keep;
     ctx.globalCompositeOperation = 'source-over';
   }
+  /** Where lighting is centred: the hit position for legacy skins (as lazer does), the middle of the built-in
+   *  skin's receptor (half a note above the hit position) otherwise. In upscroll it's drawn upside down like the rest
+   *  of the stage (as stable does): skins often draw the flash off-centre to sit on their receptor. */
+  _lightY(c) { return this.legacy ? this.hitY : this.hitY - this._noteH(this.layout.tex.note[c], c) / 2; }
   /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
   _lightW(t, c, widths) {
     const L = this.layout;

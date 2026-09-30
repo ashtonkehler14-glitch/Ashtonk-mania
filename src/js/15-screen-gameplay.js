@@ -167,6 +167,7 @@ const GameplayScreen = {
     this.holdEl = h('div.hold-retry', h('span', icon('retry'), 'Hold R to retry'), h('i'));
     el.append(this.holdEl);
     if (this.bgRec) this.applyBackground();
+    Toast.clear(); // don't leave menu notifications over the score and combo
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
     // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
@@ -180,7 +181,7 @@ const GameplayScreen = {
       el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500);
     };
     el.addEventListener('pointermove', this._mm);
-    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
+    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
     return el;
@@ -455,7 +456,7 @@ const GameplayScreen = {
       h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
-      this.hud.append(h('div.hud-replay', h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
+      this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this._oppShown = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
