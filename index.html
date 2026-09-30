@@ -7261,6 +7261,7 @@ const GameplayScreen = {
   /** Global audio offset plus this beatmap's own offset, in ms. */
   offsetMs() { return Settings.get('audio.offset') + (this.s ? this.s.mapOffset || 0 : 0); },
   gameTime() {
+    if (!this.s) return 0; // (a control clicked while the screen is leaving)
     // after a fail the song winds down (1.2 s ramp to 30% speed, then stops): the playfield slows with it and
     // stays put, instead of running on at full speed and then jumping back once the music is stopped
     const f = this.s.failClock;

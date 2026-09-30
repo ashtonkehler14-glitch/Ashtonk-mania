@@ -340,6 +340,7 @@ osu!standard-only mods such as Relax, Autopilot and Spun Out are left out on pur
 node --test tests/*.test.mjs        # engine, parser (incl. corrupted-file fuzzing), Worker and multiplayer room unit tests
 node tests/make-fixtures.mjs        # generate synthetic .osz/.osk fixtures
 node tests/e2e.mjs --shots          # headless Chromium end-to-end run (Playwright)
+node tests/monkey.mjs [steps] [seed]  # random clicks, keys, plays and resizes; fails on any page error
 MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs   # two browsers play a match against the real Worker + Durable Objects
 ```
 
