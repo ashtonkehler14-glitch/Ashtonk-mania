@@ -201,8 +201,8 @@ const pickFromBrowse = async (p, version) => {
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'explore' && document.querySelector('.ex-mp'), null, { timeout: 5000 });
   await p.waitForSelector('.ex-card[data-id="424242"]', { timeout: 10000 });
   await p.click('.ex-card[data-id="424242"] .ex-t');
-  await p.waitForSelector('.bso .bso-diffrow', { timeout: 3000 });
-  await p.evaluate(v => [...document.querySelectorAll('.bso-diffrow')].find(b => b.textContent.includes(v)).click(), version);
+  await p.waitForSelector('.bso .bso-diff', { timeout: 3000 });
+  await p.evaluate(v => [...document.querySelectorAll('.bso-diff')].find(b => b.getAttribute('aria-label').startsWith(v)).click(), version);
   await p.click('.bso .bso-dl');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 15000 });
 };
@@ -321,9 +321,11 @@ await pickerPage.click('.rp-hand:not(.theirs) .qp-card');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 30000 })));
 check('the picked card is played by both', true);
 await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
+// Bob plays two notes in three: he loses the round, but not all his HP
+await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes.filter((n, i) => i % 3), s.keys).flat(); s.feedIdx = 0; });
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && ['damage', 'final'].includes(AshtonkMania.Multiplayer.room.rp.phase), null, { timeout: 45000 })));
 const hp = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return Object.fromEntries(r.players.map(p => [p.name, r.rp.hp[p.id]])); });
-check('the lower score takes the score difference as damage', hp.Alice === 1000000 && hp.Bob < 1000000, JSON.stringify(hp));
+check('the lower score takes the score difference as damage', hp.Alice === 1000000 && hp.Bob < 1000000 && hp.Bob > 0, JSON.stringify(hp));
 await shot(bob, 'mp-rp-damage');
 // round 2: Bob (the loser) picks, then leaves the song part-way — Alice is brought back and wins the round
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.phase === 'pick' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 20000 });
