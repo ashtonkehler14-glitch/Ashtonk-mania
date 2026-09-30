@@ -110,6 +110,7 @@ await alice.click('.mp-ready'); await bob.click('.mp-ready');
 await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
 check('both ready enables Start', true);
 await shot(alice, 'mp-room');
+check('the room shows no stray "null" / "undefined" / "NaN" text', await alice.evaluate(() => !/\b(null|undefined|NaN)\b/.test(document.querySelector('.mp-room').innerText)));
 await alice.click('.mp-start');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 10000 })));
 check('match starts for both players', true);

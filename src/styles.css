@@ -1653,3 +1653,17 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .np-panel { border-radius: 5px; }
 .np-cover { opacity: .62; }
 .np-bar i { background: #ffcc22; }
+
+/* ── multiplayer room — lazer's match screen in the Plum scheme: sheared footer buttons (the big green Ready, the
+   Start match button in the scheme colour), rank pills in the match results */
+.mp.ov .mp-footer { background: hsl(var(--o-h) 10% 10%); }
+.mp-ready, .mp-start { position: relative; isolation: isolate; background: none; border-radius: 0; min-width: 200px; height: 46px; }
+.mp-ready::before, .mp-start::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 7px; background: #88b300; transform: skewX(-11.31deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: filter 150ms; }
+.mp-ready.on::before { background: hsl(var(--o-h, 320) 10% 30%); }
+.mp-start::before { background: linear-gradient(90deg, hsl(var(--o-h, 320) 55% 45%), hsl(var(--o-h, 320) 70% 62%)); }
+.mp-ready:hover, .mp-start:hover { filter: none; }
+.mp-ready:hover::before, .mp-start:hover::before { filter: brightness(1.15); }
+.mp-results { background: var(--ob4, var(--panel-solid)); }
+.mp-res-row .rank-pill { min-width: 44px; height: 22px; font-size: .85rem; }
+.mp-results .rank-pill { flex: none; }
+.mp.ov .mp-footer { padding-right: 34px; }

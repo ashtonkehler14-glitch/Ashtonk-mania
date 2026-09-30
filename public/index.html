@@ -1671,6 +1671,20 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .np-cover { opacity: .62; }
 .np-bar i { background: #ffcc22; }
 
+/* ── multiplayer room — lazer's match screen in the Plum scheme: sheared footer buttons (the big green Ready, the
+   Start match button in the scheme colour), rank pills in the match results */
+.mp.ov .mp-footer { background: hsl(var(--o-h) 10% 10%); }
+.mp-ready, .mp-start { position: relative; isolation: isolate; background: none; border-radius: 0; min-width: 200px; height: 46px; }
+.mp-ready::before, .mp-start::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 7px; background: #88b300; transform: skewX(-11.31deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: filter 150ms; }
+.mp-ready.on::before { background: hsl(var(--o-h, 320) 10% 30%); }
+.mp-start::before { background: linear-gradient(90deg, hsl(var(--o-h, 320) 55% 45%), hsl(var(--o-h, 320) 70% 62%)); }
+.mp-ready:hover, .mp-start:hover { filter: none; }
+.mp-ready:hover::before, .mp-start:hover::before { filter: brightness(1.15); }
+.mp-results { background: var(--ob4, var(--panel-solid)); }
+.mp-res-row .rank-pill { min-width: 44px; height: 22px; font-size: .85rem; }
+.mp-results .rank-pill { flex: none; }
+.mp.ov .mp-footer { padding-right: 34px; }
+
 </style>
 </head>
 <body>
@@ -11354,7 +11368,7 @@ const MultiplayerScreen = {
     const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
     const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    clearEl(this.headEl).append(h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, h('div.grow'), invite, copy);
+    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick match' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, h('div.grow'), invite, copy].filter(Boolean));
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -11474,7 +11488,7 @@ const MultiplayerScreen = {
     const meId = Multiplayer.me;
     const verdict = res.winner === null ? 'Draw' : res.winner === meId ? 'You win!' : 'You lose';
     const row = x => h(`div.mp-res-row${x.id === res.winner ? '.win' : ''}`,
-      x.pending ? h('span.grade', '—') : gradeEl(x.forfeit ? 'F' : x.grade || 'D'),
+      x.pending ? h('span.grade', '—') : rankPill(x.forfeit ? 'F' : x.grade || 'D'),
       h('div.main', h('div.t', x.name, x.id === meId ? h('span.muted', ' (you)') : null), h('div.s', x.forfeit ? (x.left ? 'left the match' : 'forfeited') : x.pending ? 'won by forfeit' : `${fmtScore(x.score)} · ${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.diff ? ` · ${x.diff.version}` : res.map ? ` · ${res.map.version}` : ''}`)),
       h('div.mp-res-score', `${fmtInt(x.pp || 0)}pp`));
     return h(`div.mp-results.${res.winner === null ? 'draw' : res.winner === meId ? 'won' : 'lost'}`,
