@@ -22,6 +22,17 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Chemuss mixed edit comes with the game
+
+* **A second built-in skin: "Chemuss mixed edit"** (Quadrasphinix by [LS]Cr1tikal with Chemuss's orb mania edit). It installs on its own the next time the game opens (Kori stays selected; pick it in **Skins** or Settings → Skin). It ships as a 350 KB mania-only trim (`public/skins/chemuss.osk`).
+* Checked in play at 4K, the key count it's made for: orb notes, blue hold heads, grey ring receptors, black lanes, no hit lighting and no MAX judgement pop-up, just as the skin sets it up. Other key counts use the default notes, as in osu!, because the skin has no art for them.
+* Making it work fixed skin loading for every skin:
+  * **Duplicate [Mania] sections**: this skin has two `Keys: 4` sections, and only the first one's images exist. When a skin repeats a key count, the section whose images are actually in the skin is used (otherwise the last one, as in osu!lazer).
+  * **Lists given twice fill in** instead of replacing: `ColumnLineWidth: 0,0,0,0,0` followed later by `ColumnLineWidth: 0,0` keeps all five at 0, as in osu!. It used to draw stray lines between columns.
+  * **`null` / `none` / `_blank` image names hide the element** (lighting here) instead of falling back to the default art.
+  * **Huge textures are capped at 8192 px** (this skin's hold body is 148×20000, beyond what GPUs accept).
+  * **The top-level `skin.ini` is used** when an `.osk` carries leftover ones in sub-folders (this one has two).
+
 ### Runs much better on slow devices
 
 * **Gameplay drawing is about 6× cheaper.** On a slow Chromebook-sized setup (1366×768, CPU slowed 4×, the Kori skin, a dense 7K stream), the playfield canvas took 8.4 ms of pixel work per frame, and the game's own JavaScript was only a small part of that. Over half the time went on hit lighting: Kori's glow images are 92–97% fully transparent padding, and they were rescaled and blended at 368×446 px up to six times a frame. Lighting and the stage light are now drawn from pre-scaled copies cropped to their visible pixels: **8.4 ms → 1.75 ms per frame**, with the same picture (mean pixel difference 0.08 / 255).

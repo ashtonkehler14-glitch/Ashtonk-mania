@@ -2162,7 +2162,14 @@ const SkinParser = {
       if (i < 0) continue;
       const k = line.slice(0, i).trim(), v = line.slice(i + 1).trim();
       if (section === 'mania') {
-        cur[k] = v;
+        // a list given twice in one section fills in the earlier one (osu!: "ColumnLineWidth: 0,0,0,0,0" then
+        // "ColumnLineWidth: 0,0" leaves all five at 0), instead of replacing it and leaving the rest at defaults
+        const prev = cur[k];
+        if (prev != null && /^(ColumnWidth|ColumnLineWidth|ColumnSpacing|LightingNWidth|LightingLWidth)$/i.test(k)) {
+          const a = String(prev).split(','), b = v.split(',');
+          b.forEach((x, j) => { if (x.trim() !== '') a[j] = x; });
+          cur[k] = a.join(',');
+        } else cur[k] = v;
         if (k.toLowerCase() === 'keys') ini.mania[parseInt(v, 10)] = cur;
       } else if (section === 'general' || section === 'colours' || section === 'fonts') {
         ini[section][k] = v;
@@ -2292,6 +2299,14 @@ class Skin {
       if (img) { frames.push(img); scale = p.scale; }
     }
     if (!frames.length) return null;
+    // textures taller or wider than GPUs accept (some skins ship 20000-px long-note bodies) are cut to 8192 px,
+    // which keeps the part that's ever seen and avoids a slow fallback path on every draw
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i], w = f.width, hh = f.height;
+      if ((w > 8192 || hh > 8192) && typeof createImageBitmap === 'function') {
+        try { frames[i] = await createImageBitmap(f, 0, 0, Math.min(w, 8192), Math.min(hh, 8192)); if (f.close) f.close(); } catch (e) { /* keep it */ }
+      }
+    }
     // 1x1 transparent placeholders are used by skinners to hide elements: keep them (they're intentional).
     return new Texture(frames, scale, fps);
   }
@@ -2310,7 +2325,20 @@ class Skin {
     return p;
   }
 
-  maniaSection(keys) { return this.ini.mania[keys] || null; }
+  /** The [Mania] section for a key count. When a skin has several for the same count (edits often paste a new
+   *  section in without removing the old one), the one whose images are actually in the skin wins; with a tie,
+   *  the last one (osu!lazer's rule). */
+  maniaSection(keys) {
+    const cands = (this.ini.maniaList || []).filter(s => parseInt(Object.entries(s).find(([k]) => k.toLowerCase() === 'keys')?.[1], 10) === keys);
+    if (cands.length < 2) return this.ini.mania[keys] || null;
+    this._secCache = this._secCache || new Map();
+    if (this._secCache.has(keys)) return this._secCache.get(keys);
+    const score = sec => Object.entries(sec).filter(([k, v]) => /^(KeyImage|NoteImage|Stage|Lighting|Hit)/i.test(k) && v && this.has(v)).length;
+    let best = cands[cands.length - 1], bestScore = score(best);
+    for (let i = cands.length - 2; i >= 0; i--) { const sc = score(cands[i]); if (sc > bestScore) { best = cands[i]; bestScore = sc; } }
+    this._secCache.set(keys, best);
+    return best;
+  }
   supportedKeys() { return Object.keys(this.ini.mania).map(Number).sort((a, b) => a - b); }
 
   /** Resolve the full mania layout for a key count, loading every texture it needs. */
@@ -2588,7 +2616,11 @@ const ManiaLayout = {
     // texture lookup with fallback to built-in default
     const load = async (iniKey, defName, opts = {}) => {
       const explicit = iniKey ? get(iniKey) : undefined;
-      if (explicit) { const t = await skin.texture(explicit, opts); if (t) return t; }
+      if (explicit) {
+        const t = await skin.texture(explicit, opts); if (t) return t;
+        // "null", "none", "_blank"… that aren't files: the skinner is hiding this element, not asking for the default
+        if (/^(null|none|nothing|-|_?blank\d*|empty)$/i.test(String(explicit).trim())) return null;
+      }
       if (defName && !skin.builtin) { const t = await skin.texture(defName, opts); if (t) return t; }
       return defName ? def.texture(defName, opts) : null;
     };
@@ -2704,7 +2736,8 @@ const SkinManager = {
     try { zip = new ZipReader(buf); } catch (e) { throw new Error(`${file.name}: ${e.message}`); }
     let entries = zip.entries.filter(e => !/(^|\/)(__macosx|\.ds_store)/i.test(e.name));
     // strip a single common top folder (some .osk files wrap everything in one directory)
-    const iniEntry = entries.find(e => /(^|\/)skin\.ini$/i.test(e.name));
+    // the top-most skin.ini is the skin's (some skins carry leftover ones in sub-folders)
+    const iniEntry = entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
     let prefix = '';
     if (iniEntry && iniEntry.name.includes('/')) prefix = iniEntry.name.slice(0, iniEntry.name.lastIndexOf('/') + 1);
     let ini = { general: {}, colours: {}, fonts: {}, mania: {}, maniaList: [] };
@@ -11003,6 +11036,7 @@ const App = {
     else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
+    this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
     Presence.start();
@@ -11036,6 +11070,25 @@ const App = {
         await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
         return;
       } catch (e) { /* not bundled */ }
+    }
+  },
+
+  /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
+  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit' }],
+  async installExtraSkins() {
+    if (!/^https?:/.test(location.protocol)) return;
+    for (const x of this.EXTRA_SKINS) {
+      try {
+        if (await DB.kvGet(`bundled.${x.key}`, false)) continue;
+        if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
+          const r = await fetch(x.file, { cache: 'no-cache' });
+          if (!r.ok) continue; // try again next launch
+          const blob = await r.blob();
+          if (blob.size < 1000) continue;
+          await SkinManager.importOsk(new File([blob], x.file.split('/').pop()));
+        }
+        await DB.kvSet(`bundled.${x.key}`, true);
+      } catch (e) { console.warn('bundled skin', x.key, e); }
     }
   },
 

@@ -52,6 +52,18 @@ await waitBoot();
 check('boots to home screen', await page.evaluate(() => AshtonkMania.Screens.currentName === 'home'));
 check('first launch asks for a name', await page.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Tester' && AshtonkMania.ProfileManager.profile.onboarded));
 check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
+await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemuss/i.test(s.name)), null, { timeout: 20000 }).catch(() => {});
+{
+  const ch = await page.evaluate(async () => {
+    const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(s => /chemuss/i.test(s.name));
+    if (!meta) return { missing: true };
+    const sk = SM.instance(meta.id), L = await sk.mania(4);
+    return { name: sk.name, stillKori: /Kori/.test(SM.current.name), col: L.columnWidth.join(), lines: L.columnLineWidth.join(), hit: L.hitPosition, note: L.tex.note[0] && L.tex.note[0].w, light: !!L.tex.lightingN, max: L.judgement['300g'] && L.judgement['300g'].w, body: L.tex.noteL[0] && L.tex.noteL[0].frames[0].height };
+  });
+  check('Chemuss mixed edit ships as a second skin (Kori stays selected)', ch.name === 'Chemuss mixed edit' && ch.stillKori, JSON.stringify(ch));
+  check('Chemuss 4K: its complete [Mania] section wins, repeated lists fill in, "null" hides lighting, giant textures are capped',
+    ch.col === '70,70,70,70' && ch.lines === '0,0,0,0,0' && ch.hit === 458 && ch.note === 150 && ch.light === false && ch.max === 1 && ch.body === 8192, JSON.stringify(ch));
+}
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
 check('osu!lazer toolbar: icon buttons only, no text tabs, no beatmap listing', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
 check('KPS counter, judgement counter and hit error bar removed', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.judgementCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && !document.querySelector('.hud-kps')));

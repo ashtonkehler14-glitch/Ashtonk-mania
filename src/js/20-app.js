@@ -52,6 +52,7 @@ const App = {
     else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
+    this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     if (!ProfileManager.profile.onboarded) await Onboarding.run();
     Multiplayer.joinFromLink();
     Presence.start();
@@ -85,6 +86,25 @@ const App = {
         await DB.kvSet('bundled.kori.v', BUNDLED_KORI_VERSION);
         return;
       } catch (e) { /* not bundled */ }
+    }
+  },
+
+  /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
+  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit' }],
+  async installExtraSkins() {
+    if (!/^https?:/.test(location.protocol)) return;
+    for (const x of this.EXTRA_SKINS) {
+      try {
+        if (await DB.kvGet(`bundled.${x.key}`, false)) continue;
+        if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
+          const r = await fetch(x.file, { cache: 'no-cache' });
+          if (!r.ok) continue; // try again next launch
+          const blob = await r.blob();
+          if (blob.size < 1000) continue;
+          await SkinManager.importOsk(new File([blob], x.file.split('/').pop()));
+        }
+        await DB.kvSet(`bundled.${x.key}`, true);
+      } catch (e) { console.warn('bundled skin', x.key, e); }
     }
   },
 
