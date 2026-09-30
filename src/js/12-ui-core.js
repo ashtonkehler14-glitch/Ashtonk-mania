@@ -50,6 +50,7 @@ const ICONS = {
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
   bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
   mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
@@ -376,17 +377,16 @@ const Toolbar = {
     tb.append(
       h('div.tb-group',
         btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
-        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } }),
-        h('div.tb-ruleset', h('span.tb-rs.on', { title: 'osu!mania' }, icon('mania')))),
+        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
         btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
-        btn('social', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
-        this.bell,
+        btn('globe', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
-          oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } })),
+          oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
+        this.bell),
     );
     this.updateProfile();
     this.buildClock();
@@ -406,8 +406,9 @@ const Toolbar = {
     svg.innerHTML = '<circle cx="12" cy="12" r="10.5" class="face"/><line x1="12" y1="12" x2="12" y2="6.5" class="hr"/><line x1="12" y1="12" x2="12" y2="4.2" class="mn"/><line x1="12" y1="13.5" x2="12" y2="3.5" class="sc"/><circle cx="12" cy="12" r="1.3" class="dot"/>';
     this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
     this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run');
-    clearEl(this.clock).append(mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
-      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks')));
+    // (append() writes a literal "null" for null arguments, so only the parts this mode shows are passed)
+    clearEl(this.clock).append(...[mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
+      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks'))].filter(Boolean));
     this.clock.dataset.mode = mode;
     this._lastT = '';
   },
@@ -435,7 +436,7 @@ const Toolbar = {
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;
-    clearEl(this.profileBtn).append(ProfileManager.avatarEl(26), h('span.lbl', p.name));
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), ProfileManager.avatarEl(26));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -619,13 +620,16 @@ const LazerCursor = {
     const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
     const root = document.documentElement.style;
     if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
-    const mk = k => {
-      const S = Math.round(34 * size * k), path = 'M5 3 L5 25 Q5 27 7 26 L12.5 20.5 L17 30 Q18 31.5 19.5 30.8 L22 29.5 Q23.3 28.8 22.6 27.4 L18.3 18.8 L25.6 18.4 Q27.8 18.2 26.3 16.5 L7.3 2 Q5 0.6 5 3 Z';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32"><path d="${path}" transform="translate(1.2 1.6)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#fff" stroke="#7a7a8c" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
-      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5 * S / 32)} ${Math.round(3 * S / 32)}`;
+    // lazer's menu cursor: a dark rounded arrow with a white rim; pressed, it shrinks slightly and glows pink
+    const mk = (k, pressed) => {
+      const S = Math.round(32 * size * k);
+      const path = 'M6.2 3.2 L25.4 17.2 Q27.3 18.7 24.9 19.2 L17.6 20.4 Q16.6 20.6 16.1 21.5 L12.4 28.2 Q11.2 30.1 10.5 28 L4.6 5.2 Q4.1 2.1 6.2 3.2 Z';
+      const glow = pressed ? '<path d="' + path + '" fill="none" stroke="#ff66ab" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round"/>' : '';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32">${glow}<path d="${path}" transform="translate(.8 1.4)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#16141c" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/><path d="M7.4 6.4 L21.6 16.8" stroke="rgba(255,255,255,.18)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5.4 * S / 32)} ${Math.round(3 * S / 32)}`;
     };
     root.setProperty('--lz-cursor', `${mk(1)}, auto`);
-    root.setProperty('--lz-cursor-down', `${mk(0.86)}, auto`);
+    root.setProperty('--lz-cursor-down', `${mk(0.9, true)}, auto`);
     document.body.classList.add('lz-cursor');
   },
   init() {
@@ -695,7 +699,18 @@ const Zoom = {
     window.addEventListener('resize', () => this.update());
     this.update();
   },
+  /** The browser's zoom level. The first reading compares the window's outer and inner widths; after that, zooming
+   *  changes devicePixelRatio while the screen stays the same, so a change is followed exactly from there (a new
+   *  screen — another monitor — takes a fresh reading). */
   detect() {
+    const dpr = window.devicePixelRatio || 1, sw = screen.width, sh = screen.height;
+    const b = this._base;
+    if (b && b.sw === sw && b.sh === sh) return clamp(b.bz * dpr / b.dpr, 0.25, 5);
+    const bz = this.guess();
+    this._base = { dpr, bz, sw, sh };
+    return bz;
+  },
+  guess() {
     const ow = window.outerWidth, iw = window.innerWidth;
     if (!ow || !iw) return 1;
     const raw = ow / iw;
@@ -709,12 +724,14 @@ const Zoom = {
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
-    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.8, 2.5) : 1;
-    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 1, 0.5, 2) : 1;
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.8, 0.5, 2) : 0.8;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
+    const r = document.documentElement.style;
+    // (vw / vh inside the app mean the app's layout size, not the window's)
+    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (innerHeight * z / 100).toFixed(3) + 'px');
     if (z === this.z) return;
     this.z = z;
-    const r = document.documentElement.style;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
     $('#app').classList.toggle('zoomfix', z !== 1);
     Bus.emit('ui:scaled', 1 / z);

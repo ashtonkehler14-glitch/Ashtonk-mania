@@ -17,6 +17,7 @@
 <style>
 /* ───────────────────────── Ashtonk!mania — client styles ───────────────────────── */
 :root {
+  --vw: 1vw; --vh: 1vh; /* one percent of the app's layout size (set by Zoom.update: it differs from the window when the app is scaled) */
   --ui-scale: 1;
   --anim: 1;
   /* osu!lazer colour scheme (OverlayColourProvider "purple" + OsuColour pink) */
@@ -122,7 +123,7 @@ svg.i.fill { fill: currentColor; stroke: none; }
 @media (max-width: 900px) { .tb-np-text, .tb-profile .lbl { display: none; } }
 
 /* now playing panel */
-.np-panel { position: absolute; top: calc(var(--toolbar-h) + 6px); right: 8px; z-index: 55; width: 400px; max-width: calc(100vw - 16px); height: 130px; border-radius: 10px; overflow: hidden; background: #111; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
+.np-panel { position: absolute; top: calc(var(--toolbar-h) + 6px); right: 8px; z-index: 55; width: 400px; max-width: calc(calc(100 * var(--vw)) - 16px); height: 130px; border-radius: 10px; overflow: hidden; background: #111; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
 .np-panel.show { opacity: 1; transform: none; pointer-events: auto; }
 .np-cover { position: absolute; inset: 0; background: center / cover no-repeat #222; opacity: .45; }
 .np-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .6)); }
@@ -152,7 +153,7 @@ svg.i.fill { fill: currentColor; stroke: none; }
 @keyframes scrInZoom { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
 @keyframes scrOut { to { opacity: 0; transform: translateY(-10px); } }
 @keyframes scrOutZoom { to { opacity: 0; transform: scale(.97); } }
-.screen-body { flex: 1; min-height: 0; overflow: auto; padding: 24px clamp(16px, 3vw, 48px) 40px; }
+.screen-body { flex: 1; min-height: 0; overflow: auto; padding: 24px clamp(16px, calc(3 * var(--vw)), 48px) 40px; }
 .screen-title { display: flex; align-items: center; gap: 14px; margin: 4px 0 20px; }
 .screen-title h1 { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.01em; }
 .screen-title .sub { color: var(--muted); font-weight: 600; }
@@ -283,7 +284,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .backdrop { position: absolute; inset: 0; background: rgba(5, 2, 10, .55); animation: fadeIn var(--t-med) ease both; }
 .backdrop.out { animation: fadeOut var(--t-fast) ease both; }
 @keyframes fadeIn { from { opacity: 0; } } @keyframes fadeOut { to { opacity: 0; } }
-.dialog { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 60px); overflow: auto; padding: 24px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 20px; box-shadow: var(--shadow); animation: dlgIn var(--t-med) var(--ease-out) both; }
+.dialog { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(calc(100 * var(--vw)) - 32px)); max-height: calc(calc(100 * var(--vh)) - 60px); overflow: auto; padding: 24px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 20px; box-shadow: var(--shadow); animation: dlgIn var(--t-med) var(--ease-out) both; }
 .dialog.out { animation: dlgOut var(--t-fast) ease both; }
 @keyframes dlgIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.97); } }
 @keyframes dlgOut { to { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
@@ -302,7 +303,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
    sections under a 2px separator with 30px titles, and every setting a form control (a rounded box with its caption
    inside, 4px apart). Colours are lazer's OverlayColourProvider, Purple scheme (hue 255). */
 .settings-panel { --o-h: 255; --ob6: hsl(var(--o-h) 10% 10%); --ob5: hsl(var(--o-h) 10% 15%); --ob4: hsl(var(--o-h) 10% 20%); --ob3: hsl(var(--o-h) 10% 25%); --ob1: hsl(var(--o-h) 10% 40%); --od4: hsl(var(--o-h) 20% 20%); --od3: hsl(var(--o-h) 20% 25%); --ol4: hsl(var(--o-h) 40% 50%); --ohl: hsl(var(--o-h) 100% 70%); --oc2: hsl(var(--o-h) 40% 90%);
-  position: absolute; top: 0; bottom: 0; left: 0; width: min(460px, 100vw); display: flex; background: var(--ob4); box-shadow: 20px 0 60px rgba(0, 0, 0, .5); animation: slideInL calc(600ms * var(--anim)) var(--ease-out); }
+  position: absolute; top: 0; bottom: 0; left: 0; width: min(460px, calc(100 * var(--vw))); display: flex; background: var(--ob4); box-shadow: 20px 0 60px rgba(0, 0, 0, .5); animation: slideInL calc(600ms * var(--anim)) var(--ease-out); }
 .settings-panel.out { animation: slideOutL calc(200ms * var(--anim)) ease both; }
 @keyframes slideInL { from { transform: translateX(-100%); } }
 @keyframes slideOutL { to { transform: translateX(-100%); } }
@@ -553,13 +554,13 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .gp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .gp-hud { position: absolute; inset: 0; pointer-events: none; }
 .hud-score { position: absolute; top: 16px; right: 24px; text-align: right; }
-.hud-score .sc { font-size: clamp(1.8rem, 3.2vw, 2.8rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
-.hud-score .acc { font-size: clamp(1.1rem, 1.8vw, 1.5rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.hud-score .sc { font-size: clamp(1.8rem, calc(3.2 * var(--vw)), 2.8rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.hud-score .acc { font-size: clamp(1.1rem, calc(1.8 * var(--vw)), 1.5rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .hud-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: rgba(255, 255, 255, .06); }
 .hud-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); width: 100%; transform: scaleX(0); transform-origin: 0 0; }
 .hud-time { position: absolute; top: 12px; left: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
 .hud-mods { position: absolute; top: 118px; right: 24px; display: flex; gap: 4px; }
-.hud-meta { position: absolute; bottom: 18px; left: 22px; color: var(--text-2); font-size: .85rem; font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); max-width: 30vw; }
+.hud-meta { position: absolute; bottom: 18px; left: 22px; color: var(--text-2); font-size: .85rem; font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); max-width: calc(30 * var(--vw)); }
 .hud-meta b { color: var(--text); }
 .hud-skip { position: absolute; right: 30px; bottom: 30px; pointer-events: auto; }
 .hud-center-msg { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 2.4rem; font-weight: 700; text-shadow: 0 4px 20px rgba(0, 0, 0, .7); pointer-events: none; animation: msgPop 400ms var(--ease-out); }
@@ -575,7 +576,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* pause / fail: osu!lazer's GameplayMenuOverlay — a plain black dim (no blur), lowercase title with its line, and
    DialogButtons: a slanted band of colour across a wide strip that widens and glows when hovered */
 .pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .75); animation: fadeIn 200ms ease; }
-.pause-box { display: flex; flex-direction: column; align-items: center; width: min(620px, 92vw); text-align: center; }
+.pause-box { display: flex; flex-direction: column; align-items: center; width: min(620px, calc(92 * var(--vw))); text-align: center; }
 .pause-box h2 { font-size: 2.4rem; font-weight: 400; margin: 0; letter-spacing: .01em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
 .pause-box h2.failed { color: #fff; }
 .pause-box .pm-desc { font-size: 1.05rem; margin: 6px 0 34px; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
@@ -587,7 +588,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
 .pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
-.practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(100vw - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
+.practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(calc(100 * var(--vw)) - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
 .practice-bar.dim { opacity: .25; }
 .practice-bar.docked { left: 16px; transform: none; bottom: 64px; }
 .practice-bar.docked.dim { opacity: .85; }
@@ -600,7 +601,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pr-controls .speed-group { display: flex; gap: 3px; }
 .pr-controls .speed-group .chip { height: 28px; padding: 0 9px; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
-.replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(100vw - 340px)); min-width: min(470px, calc(100vw - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
+.replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:focus-within { opacity: 1; }
 .rp-timeline { position: relative; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; touch-action: none; }
 .rp-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -616,7 +617,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── RESULTS */
 .results { padding-top: var(--toolbar-h); }
-.res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, 3vw, 48px) 26px; }
+.res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, calc(3 * var(--vw)), 48px) 26px; }
 .res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
 @media (max-width: 1000px) { .res-grid { grid-template-columns: minmax(0, 440px); } }
 /* osu!lazer's expanded score panel */
@@ -697,7 +698,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* profile */
 .lvl-badge { width: 48px; height: 48px; display: grid; place-items: center; font-weight: 700; font-size: 1.2rem; border-radius: 14px; background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #2a1d00; box-shadow: 0 0 20px rgba(255, 213, 74, .35); }
-.xp-bar { width: min(340px, 50vw); height: 8px; border-radius: 8px; background: rgba(0, 0, 0, .4); overflow: hidden; }
+.xp-bar { width: min(340px, calc(50 * var(--vw))); height: 8px; border-radius: 8px; background: rgba(0, 0, 0, .4); overflow: hidden; }
 .xp-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-2), var(--gold)); }
 
 /* statistics */
@@ -734,7 +735,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-accrow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .hud-pie { --p: 0%; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(rgba(255,255,255,.92) var(--p), rgba(255,255,255,.14) 0); box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 10px rgba(0,0,0,.5); }
 .hud-pie.lead { background: conic-gradient(#7ee07a var(--p), rgba(126,224,122,.18) 0); box-shadow: 0 0 0 2px #7ee07a, 0 2px 10px rgba(0,0,0,.5); }
-.hud-pp { font-size: clamp(1rem, 1.5vw, 1.3rem); font-weight: 700; color: var(--accent-3); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.hud-pp { font-size: clamp(1rem, calc(1.5 * var(--vw)), 1.3rem); font-weight: 700; color: var(--accent-3); font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 .res-pp { font-size: 1.1rem; font-weight: 600; color: var(--text-2); margin-top: -6px; }
 .res-pp b { font-size: 1.9rem; color: var(--accent-3); margin-right: 2px; }
 .res-ppdelta { font-size: .85rem; }
@@ -818,7 +819,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @media (max-width: 1100px) { .ex-action .btn.sm { font-size: 0; width: 32px; padding: 0; gap: 0; } .ex-action .btn.sm .i { width: 16px; height: 16px; } }
 
 /* ── Beatmap set overlay */
-.dialog.ex-set { width: min(860px, calc(100vw - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
+.dialog.ex-set { width: min(860px, calc(calc(100 * var(--vw)) - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
 .ex-set-tags { margin-top: 4px; font-size: .8rem; font-weight: 600; color: rgba(255, 255, 255, .72); letter-spacing: .02em; }
 .ex-set-head { position: relative; min-height: 250px; aspect-ratio: 18 / 5; display: flex; align-items: flex-end; overflow: hidden; }
 .ex-set-cover { position: absolute; inset: 0; background: #3b3744 center / cover no-repeat; transition: background-image 300ms; }
@@ -932,7 +933,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── profile (osu!lazer user profile) */
 /* ── profile — osu!lazer's UserProfileOverlay (Pink scheme via .ov): cover + avatar + name, a centre strip with the
    level badge, the detail area (performance, accuracy, rank counts, stat list), a sticky section tab bar, sections */
-.pf-header, .pf-tabs { --pf-pad: max(50px, calc((100vw - 1400px) / 2)); }
+.pf-header, .pf-tabs { --pf-pad: max(50px, calc((calc(100 * var(--vw)) - 1400px) / 2)); }
 .pf-header { margin: -24px -50px 0; }
 .pf-top { position: relative; height: 230px; overflow: hidden; }
 .pf-cover { position: absolute; inset: 0; background: linear-gradient(120deg, hsl(var(--o-h) 45% 35%), hsl(var(--o-h) 35% 18%)) center / cover; }
@@ -1132,7 +1133,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* the skin's own health bar (osu!lazer LegacyHealthDisplay): top-left corner */
 .hud-skinhp { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* osu!lazer (Argon) health bar */
-.hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(34vw, 380px); pointer-events: none; }
+.hud-hp { --hp: 1; position: absolute; left: 22px; top: 22px; width: min(calc(34 * var(--vw)), 380px); pointer-events: none; }
 .hp-track { position: relative; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .05); }
 .hp-fill, .hp-trail { position: absolute; inset: 0; border-radius: inherit; transform-origin: left center; transform: scaleX(var(--hp)); will-change: transform; }
 .hp-fill { background: linear-gradient(90deg, rgba(var(--accent-rgb), .95), #fff 92%); box-shadow: 0 0 10px rgba(var(--accent-rgb), .75), 0 0 2px #fff; transition: transform 180ms var(--ease-out), background 300ms; }
@@ -1152,7 +1153,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { display: flex; }
 
 /* ── mod select (osu!lazer ModSelectOverlay) */
-.modsel { position: absolute; left: 0; right: 0; bottom: 0; height: min(620px, 82vh); display: flex; flex-direction: column; background: #1c1b21; box-shadow: 0 -10px 40px rgba(0, 0, 0, .5); animation: sheetIn var(--t-med) var(--ease-out) both; }
+.modsel { position: absolute; left: 0; right: 0; bottom: 0; height: min(620px, calc(82 * var(--vh))); display: flex; flex-direction: column; background: #1c1b21; box-shadow: 0 -10px 40px rgba(0, 0, 0, .5); animation: sheetIn var(--t-med) var(--ease-out) both; }
 .modsel.out { animation: sheetOut calc(180ms * var(--anim)) ease both; }
 @keyframes sheetIn { from { transform: translateY(100%); } }
 @keyframes sheetOut { to { transform: translateY(100%); } }
@@ -1208,7 +1209,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .gp-break { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; opacity: 0; transition: opacity 400ms ease; z-index: 3; }
 .gp-break.show { opacity: 1; }
 .brk-count { font-size: 3.2rem; font-weight: 300; font-variant-numeric: tabular-nums; text-shadow: 0 2px 20px rgba(0, 0, 0, .6); }
-.brk-bar { display: flex; align-items: center; gap: 14px; width: min(520px, 60vw); }
+.brk-bar { display: flex; align-items: center; gap: 14px; width: min(520px, calc(60 * var(--vw))); }
 .brk-track { flex: 1; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .brk-track i { display: block; height: 100%; background: #fff; transform-origin: 50% 50%; box-shadow: 0 0 12px rgba(255, 255, 255, .6); }
 .brk-arrow { font-size: 2rem; font-weight: 300; color: rgba(255, 255, 255, .8); animation: brkArrow 1s ease-in-out infinite; }
@@ -1255,7 +1256,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .av-tile:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
 .av-tile.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
 .av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.dialog:has(.av-picker) { width: min(560px, calc(100vw - 32px)); }
+.dialog:has(.av-picker) { width: min(560px, calc(calc(100 * var(--vw)) - 32px)); }
 .ex-totop { position: absolute; right: 28px; bottom: 28px; z-index: 5; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .1); display: grid; place-items: center; background: rgba(18, 16, 24, .92); color: var(--text-2); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; transition: opacity var(--t-med), transform var(--t-med) var(--ease-out), box-shadow var(--t-fast), color var(--t-fast), border-color var(--t-fast); }
 .ex-totop .i { width: 26px; height: 26px; stroke-width: 2.6; }
 .ex-totop.show { opacity: 1; transform: none; pointer-events: auto; }
@@ -1263,7 +1264,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mpdied { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(237, 17, 33, .75); font-weight: 600; font-size: .85rem; pointer-events: none; animation: mpDied 3s ease forwards; }
 @keyframes mpDied { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 70% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: .55; } }
 /* ── First-run setup (minimal wizard) */
-.setup { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, calc(100vw - 32px)); height: min(600px, calc(100vh - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: #22212a; box-shadow: 0 30px 90px rgba(0, 0, 0, .6); animation: dlgIn var(--t-med) var(--ease-out) both; text-align: left; }
+.setup { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, calc(calc(100 * var(--vw)) - 32px)); height: min(600px, calc(calc(100 * var(--vh)) - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: #22212a; box-shadow: 0 30px 90px rgba(0, 0, 0, .6); animation: dlgIn var(--t-med) var(--ease-out) both; text-align: left; }
 .setup.out { animation: dlgOut var(--t-fast) ease both; }
 .setup-head { flex: none; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 26px 28px 0; }
 .setup-head h2 { margin: 0; font-size: 1.6rem; font-weight: 700; text-align: center; }
@@ -1403,9 +1404,9 @@ div.res-calib { display: inline-flex; gap: 6px; align-items: center; font-size: 
 div.res-calib .i { color: var(--good); }
 .gameplay.loading .mp-countdown { opacity: 0; }
 /* ── Neru (main menu character) */
-.neru { position: absolute; left: clamp(8px, 3vw, 48px); bottom: 0; z-index: 2; height: min(46vh, 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
+.neru { position: absolute; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; z-index: 2; height: min(calc(46 * var(--vh)), 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
 .neru[hidden] { display: none; }
-.neru-img { display: block; height: 100%; width: auto; max-width: 32vw; object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
+.neru-img { display: block; height: 100%; width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
 .neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
 @keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
 @keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
@@ -1429,9 +1430,9 @@ div.res-calib .i { color: var(--good); }
 .res-score.skinned { margin: 6px 0 4px; }
 /* results: share card preview */
 .share-card { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0, 0, 0, .4); }
-.dialog:has(.share-card) { width: min(780px, calc(100vw - 32px)); }
+.dialog:has(.share-card) { width: min(780px, calc(calc(100 * var(--vw)) - 32px)); }
 /* keyboard shortcuts list */
-.dialog:has(.shortcuts) { width: min(860px, calc(100vw - 32px)); }
+.dialog:has(.shortcuts) { width: min(860px, calc(calc(100 * var(--vw)) - 32px)); }
 .shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 6px 28px; color: var(--text); }
 .sc-group h3 { margin: 12px 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-3, var(--accent)); }
 .sc-row { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
@@ -1508,7 +1509,7 @@ div.res-calib .i { color: var(--good); }
    100px icon ring, 25px title, 18px text, and a stack of 50px sheared DialogButtons (80% wide, 90% on hover, glowing
    at the sides): Pink confirms, Blue cancels, Red3 for destructive actions */
 .dialog { border-radius: 20px; background: #221a21; box-shadow: 0 0 30px rgba(0, 0, 0, .35); }
-.dialog.popup { width: min(500px, calc(100vw - 32px)); padding: 44px 0 26px; text-align: center; overflow: hidden;
+.dialog.popup { width: min(500px, calc(calc(100 * var(--vw)) - 32px)); padding: 44px 0 26px; text-align: center; overflow: hidden;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e);
   animation: pdIn calc(500ms * var(--anim)) var(--ease-out) both; }
 .dialog.popup.out { animation: pdOut calc(200ms * var(--anim)) ease both; }
@@ -1536,7 +1537,7 @@ div.res-calib .i { color: var(--good); }
    6px corners on Background3 (Purple scheme), a 40px icon column on Background5, a glowing "light" on the left
    edge in the notification's colour, 14px medium text */
 #toasts { top: calc(var(--toolbar-h) + 14px); bottom: auto; right: 20px; gap: 6px; }
-.toast { --lc: #66ccff; position: relative; width: 320px; min-width: 0; max-width: calc(100vw - 40px); padding: 0; gap: 0; align-items: stretch; border: 0; border-radius: 6px; overflow: visible;
+.toast { --lc: #66ccff; position: relative; width: 320px; min-width: 0; max-width: calc(calc(100 * var(--vw)) - 40px); padding: 0; gap: 0; align-items: stretch; border: 0; border-radius: 6px; overflow: visible;
   background: hsl(255 10% 25%); box-shadow: 0 4px 18px rgba(0, 0, 0, .35); animation: toastIn calc(500ms * var(--anim)) var(--ease-out) both; }
 .toast.ok { --lc: #88b300; }
 .toast.err { --lc: #ff5a5a; }
@@ -1725,7 +1726,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .hud-accrow { gap: 8px; }
 .hud-pie { width: 20px; height: 20px; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .8), 0 1px 6px rgba(0, 0, 0, .45); }
 .hud-pie.lead { box-shadow: 0 0 0 1.5px #7ee07a, 0 1px 6px rgba(0, 0, 0, .45); }
-.hud-pp { margin-top: 2px; font-size: clamp(.95rem, 1.35vw, 1.2rem); font-weight: 600; color: rgba(255, 255, 255, .85); text-shadow: var(--hud-shadow); }
+.hud-pp { margin-top: 2px; font-size: clamp(.95rem, calc(1.35 * var(--vw)), 1.2rem); font-weight: 600; color: rgba(255, 255, 255, .85); text-shadow: var(--hud-shadow); }
 .hud-pp::after { content: "pp"; margin-left: 2px; font-size: .68em; font-weight: 700; color: rgba(255, 255, 255, .55); }
 .hud-pp:empty { display: none; }
 
@@ -1788,7 +1789,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-team.blue .mp-team-h > span:first-child { color: var(--team-blue-l); }
 @media (max-width: 900px) { .mp-teams { grid-template-columns: 1fr; } }
 
-.mp-set { display: flex; flex-direction: column; gap: 16px; min-width: min(560px, 80vw); }
+.mp-set { display: flex; flex-direction: column; gap: 16px; min-width: min(560px, calc(80 * var(--vw))); }
 .mp-set-row { display: flex; flex-direction: column; gap: 7px; }
 .mp-set-l { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .mp-seg { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1928,7 +1929,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
-.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
   transform: translateX(105%); transition: transform 300ms var(--ease-out); }
 .nf-panel.open { transform: none; }
 .nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
@@ -2143,7 +2144,7 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .bso-scroll { padding-top: 0; }
 
 /* What's new (lazer's changelog) */
-.cl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, 94vw); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: hsl(255 10% 12%); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); animation: clIn 320ms var(--ease-out) both; --o-h: 255; }
+.cl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, calc(94 * var(--vw))); max-height: calc(86 * var(--vh)); display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: hsl(255 10% 12%); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); animation: clIn 320ms var(--ease-out) both; --o-h: 255; }
 @keyframes clIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.97); } }
 .cl.out { animation: fadeOut 200ms ease both; }
 .cl-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 22px 26px; background: linear-gradient(120deg, hsl(255 45% 30%), hsl(320 45% 30%)); overflow: hidden; }
@@ -2250,6 +2251,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-left, .qp-stage { min-width: 0; }
 .rp-vs { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .qp-stage.rp .qp-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+/* toolbar: name then picture; the bell sits at the far right */
+.tb-profile { padding: 0 8px 0 14px; gap: 8px; }
+/* main menu: the bar sits right of centre so Settings clears the mascot on the left */
+.lz-menu { --shift: 40px; }
+.lz-menu[data-state="play"] { --shift: 0px; }
+.lz-menu[data-state="edit"] { --shift: 150px; }
 
 </style>
 </head>
@@ -4504,7 +4512,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
-  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.8, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
@@ -4568,6 +4576,8 @@ const Settings = {
     // v4: the accent colours are Kori, Neru, Teto and Miku only
     if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
+    // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
+    if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
@@ -6857,6 +6867,7 @@ const ICONS = {
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
   bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
   mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
@@ -7183,17 +7194,16 @@ const Toolbar = {
     tb.append(
       h('div.tb-group',
         btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
-        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } }),
-        h('div.tb-ruleset', h('span.tb-rs.on', { title: 'osu!mania' }, icon('mania')))),
+        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
       h('div.tb-spacer'),
       h('div.tb-group',
         btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
-        btn('social', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
-        this.bell,
+        btn('globe', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
-          oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } })),
+          oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
+        this.bell),
     );
     this.updateProfile();
     this.buildClock();
@@ -7213,8 +7223,9 @@ const Toolbar = {
     svg.innerHTML = '<circle cx="12" cy="12" r="10.5" class="face"/><line x1="12" y1="12" x2="12" y2="6.5" class="hr"/><line x1="12" y1="12" x2="12" y2="4.2" class="mn"/><line x1="12" y1="13.5" x2="12" y2="3.5" class="sc"/><circle cx="12" cy="12" r="1.3" class="dot"/>';
     this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
     this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run');
-    clearEl(this.clock).append(mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
-      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks')));
+    // (append() writes a literal "null" for null arguments, so only the parts this mode shows are passed)
+    clearEl(this.clock).append(...[mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
+      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks'))].filter(Boolean));
     this.clock.dataset.mode = mode;
     this._lastT = '';
   },
@@ -7242,7 +7253,7 @@ const Toolbar = {
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;
-    clearEl(this.profileBtn).append(ProfileManager.avatarEl(26), h('span.lbl', p.name));
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), ProfileManager.avatarEl(26));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -7426,13 +7437,16 @@ const LazerCursor = {
     const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
     const root = document.documentElement.style;
     if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
-    const mk = k => {
-      const S = Math.round(34 * size * k), path = 'M5 3 L5 25 Q5 27 7 26 L12.5 20.5 L17 30 Q18 31.5 19.5 30.8 L22 29.5 Q23.3 28.8 22.6 27.4 L18.3 18.8 L25.6 18.4 Q27.8 18.2 26.3 16.5 L7.3 2 Q5 0.6 5 3 Z';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32"><path d="${path}" transform="translate(1.2 1.6)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#fff" stroke="#7a7a8c" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
-      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5 * S / 32)} ${Math.round(3 * S / 32)}`;
+    // lazer's menu cursor: a dark rounded arrow with a white rim; pressed, it shrinks slightly and glows pink
+    const mk = (k, pressed) => {
+      const S = Math.round(32 * size * k);
+      const path = 'M6.2 3.2 L25.4 17.2 Q27.3 18.7 24.9 19.2 L17.6 20.4 Q16.6 20.6 16.1 21.5 L12.4 28.2 Q11.2 30.1 10.5 28 L4.6 5.2 Q4.1 2.1 6.2 3.2 Z';
+      const glow = pressed ? '<path d="' + path + '" fill="none" stroke="#ff66ab" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round"/>' : '';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32">${glow}<path d="${path}" transform="translate(.8 1.4)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#16141c" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/><path d="M7.4 6.4 L21.6 16.8" stroke="rgba(255,255,255,.18)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5.4 * S / 32)} ${Math.round(3 * S / 32)}`;
     };
     root.setProperty('--lz-cursor', `${mk(1)}, auto`);
-    root.setProperty('--lz-cursor-down', `${mk(0.86)}, auto`);
+    root.setProperty('--lz-cursor-down', `${mk(0.9, true)}, auto`);
     document.body.classList.add('lz-cursor');
   },
   init() {
@@ -7502,7 +7516,18 @@ const Zoom = {
     window.addEventListener('resize', () => this.update());
     this.update();
   },
+  /** The browser's zoom level. The first reading compares the window's outer and inner widths; after that, zooming
+   *  changes devicePixelRatio while the screen stays the same, so a change is followed exactly from there (a new
+   *  screen — another monitor — takes a fresh reading). */
   detect() {
+    const dpr = window.devicePixelRatio || 1, sw = screen.width, sh = screen.height;
+    const b = this._base;
+    if (b && b.sw === sw && b.sh === sh) return clamp(b.bz * dpr / b.dpr, 0.25, 5);
+    const bz = this.guess();
+    this._base = { dpr, bz, sw, sh };
+    return bz;
+  },
+  guess() {
     const ow = window.outerWidth, iw = window.innerWidth;
     if (!ow || !iw) return 1;
     const raw = ow / iw;
@@ -7516,12 +7541,14 @@ const Zoom = {
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
-    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.8, 2.5) : 1;
-    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 1, 0.5, 2) : 1;
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.8, 0.5, 2) : 0.8;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
+    const r = document.documentElement.style;
+    // (vw / vh inside the app mean the app's layout size, not the window's)
+    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (innerHeight * z / 100).toFixed(3) + 'px');
     if (z === this.z) return;
     this.z = z;
-    const r = document.documentElement.style;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
     $('#app').classList.toggle('zoomfix', z !== 1);
     Bus.emit('ui:scaled', 1 / z);

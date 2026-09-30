@@ -189,7 +189,7 @@ const live = await livePlay({ version: '4K Normal' });
 check('live keyboard play is judged from the audio clock (no misses, ≥ 95% acc)', live.counts[5] === 0 && live.acc > 0.95, JSON.stringify(live));
 check('live play becomes a personal best with an auto-saved replay', live.pb && !!live.replayId);
 await shot('05-results-live');
-await page.waitForTimeout(1600);
+await page.waitForTimeout(2800); // (the accuracy circle and badges animate in)
 const panel = await page.evaluate(() => {
   const g = document.querySelector('.rs .rs-ring .rs-grade'), ring = document.querySelector('.rs .accring');
   return { grade: g && g.textContent, badges: [...document.querySelectorAll('.rs-badge')].map(b => b.textContent), on: document.querySelector('.rs-badge.on')?.textContent,
@@ -664,7 +664,11 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const z = await zp.evaluate(() => { const a = document.querySelector('#app').getBoundingClientRect(), t = document.querySelector('#toolbar').getBoundingClientRect(); return { cls: document.querySelector('#app').classList.contains('zoomfix'), w: a.width, h: a.height, tb: t.height, zoom: AshtonkMania.Zoom.z }; });
   // the UI fits a 1366×768 layout to the real (unzoomed) 1600×900 window, whatever the browser zoom
   const fit = Math.min(1600 / 1366, 900 / 768);
-  check('browser zoom is compensated and the UI scales with the window (1366×768 reference)', z.cls && Math.abs(z.zoom - 1.25 / fit) < 1e-6 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 40 * fit / 1.25) < 0.5, JSON.stringify(z));
+  check('browser zoom is compensated and the UI scales with the window (1366×768 reference, 80% by default)', z.cls && Math.abs(z.zoom - 1.25 / (fit * 0.8)) < 1e-6 && Math.abs(z.w - 1280) < 2 && Math.abs(z.h - 720) < 2 && Math.abs(z.tb - 40 * fit * 0.8 / 1.25) < 0.5, JSON.stringify(z));
+  // zooming the browser afterwards (devicePixelRatio 1.25 → 1.5, window unchanged) is followed exactly
+  const zz = await zp.evaluate(() => { Object.defineProperty(window, 'devicePixelRatio', { get: () => 1.5, configurable: true }); AshtonkMania.Zoom.update(); return AshtonkMania.Zoom.detect(); });
+  check('a later browser zoom change is detected from devicePixelRatio', Math.abs(zz - 1.5) < 1e-6, String(zz));
+  await zp.evaluate(() => { Object.defineProperty(window, 'devicePixelRatio', { get: () => 1.25, configurable: true }); AshtonkMania.Zoom.update(); });
   const z2 = await zp.evaluate(async () => { AshtonkMania.Settings.set('ui.scale', 1.2); await new Promise(r => setTimeout(r, 50)); const t = document.querySelector('#toolbar').getBoundingClientRect().height; AshtonkMania.Settings.set('ui.scale', 1); return t; });
   check('UI scaling scales everything (toolbar 20% taller at 120%)', Math.abs(z2 - 40 * fit / 1.25 * 1.2) < 0.5, String(z2));
   const prevented = await zp.evaluate(() => { const e = new KeyboardEvent('keydown', { code: 'Equal', key: '=', ctrlKey: true, cancelable: true, bubbles: true }); window.dispatchEvent(e); return e.defaultPrevented; });

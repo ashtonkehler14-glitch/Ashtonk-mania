@@ -22,6 +22,21 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Same look at every resolution, 80% interface, black lazer cursor
+
+* **The interface is 80% by default**; 100% felt zoomed in. Anyone still on the old default moves to 80% once.
+* **Every resolution looks exactly the same.** 720p, 1080p, 1440p and 4K now show identical layouts, including Neru and the profile page; only the sharpness changes.
+  * Anything sized to the window is now sized to the game's own layout.
+* **Browser zoom no longer changes how the game looks.** Zoom changes are followed exactly through the display's pixel ratio.
+* **lazer's cursor is now dark with a white rim**, and glows pink while you click.
+* **Top bar:**
+  * The ruleset icon is gone.
+  * Discover uses a globe icon.
+  * Your picture sits right of your name.
+  * Notifications are at the far right.
+  * The clock no longer shows a stray "null" in its digital and analog modes.
+* **The main menu buttons sit further right**, so Settings no longer covers Neru.
+
 ### Ranked Play, a clearer multiplayer lobby, and profile pictures for everyone
 
 * **Ranked Play** (osu!lazer's 1v1 ranked mode):

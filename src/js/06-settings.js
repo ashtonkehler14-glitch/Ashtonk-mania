@@ -104,7 +104,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
-  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 1, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.8, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
@@ -168,6 +168,8 @@ const Settings = {
     // v4: the accent colours are Kori, Neru, Teto and Miku only
     if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
+    // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
+    if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
