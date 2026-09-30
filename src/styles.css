@@ -2001,3 +2001,12 @@ body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
 .mod-id { margin-left: 6px; font-size: .7em; font-weight: 700; opacity: .55; }
 body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .lz-tip { transform-origin: 0 0; }
+
+/* skin viewer: the Custom skin's options beside its live preview */
+.sk-custom-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+.sk-custom-wrap .skin-preview { height: 520px; }
+.sk-custom { display: flex; flex-direction: column; max-height: 520px; border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
+.sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.sk-custom-h .btn { margin-left: auto; }
+.sk-custom-rows { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
+@media (max-width: 1000px) { .sk-custom-wrap { grid-template-columns: 1fr; } }

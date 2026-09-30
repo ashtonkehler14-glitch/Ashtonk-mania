@@ -22,6 +22,20 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Custom skin rebuilt, with a Customise panel
+
+* **The Custom skin is redrawn.** Glassy notes in vivid gradients with a soft glow and a light rim. Holds are a translucent beam with bright edges. The column lights up in its colour when pressed. The stage has fine column lines and a glowing border, and hit flashes are sized to the column.
+* **You can customise it** in Settings → Skin → Custom skin, or in the skin viewer's new **Customise** panel next to the live preview:
+  * Note shape (bars, circles, diamonds, arrows).
+  * Colours: your accent, Ocean, Sunset, Neon, Mint, Monochrome or a custom hue.
+  * Colour pattern: osu!'s by column type, a rainbow across the stage, or one colour.
+  * Note size and roundness.
+  * Receptors: outline, filled or hit line only.
+  * Key area: glow, lazer Argon panel or none.
+  * Hold notes: glowing beam or solid.
+  * Glow amount, column lines and the stage border.
+* **Skins with health bar pieces but no fill image** (Chemuss) now get their own osu!-style health bar, as in osu!, instead of the lazer one.
+
 ### Mod icons, lazer setting names, one UI scale
 
 * **Mods have icons.** Each mod has a glyph on lazer's hexagon mod icon, in lazer's type colours: lime (difficulty reduction), red (difficulty increase), purple (conversion) and blue (automation). They show in mod select, song select, the loader, results and in game.

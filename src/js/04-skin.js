@@ -339,46 +339,85 @@ class DefaultSkin extends Skin {
     draw(c.getContext('2d'), w, h); return c;
   }
   static rr(x, X, Y, W, H, r) { x.beginPath(); x.roundRect ? x.roundRect(X, Y, W, H, r) : x.rect(X, Y, W, H); }
+  /** The Custom skin's options (Settings → Skin → Custom skin, and the skin viewer). */
+  static opts() {
+    const g = (k, d) => { if (typeof Settings === 'undefined') return d; const v = Settings.get(k); return v == null ? d : v; };
+    return {
+      style: g('skin.noteStyle', 'bars'), pattern: g('skin.c.pattern', 'type'), palette: g('skin.c.palette', 'theme'), hue: g('skin.hue', -1),
+      size: clamp(g('skin.c.noteSize', 1), 0.6, 1.4), round: clamp(g('skin.c.round', 0.5), 0, 1), receptor: g('skin.c.receptor', 'outline'),
+      keyArea: g('skin.c.keyArea', 'gradient'), hold: g('skin.c.hold', 'glow'), glow: clamp(g('skin.c.glow', 0.7), 0, 1),
+      lines: g('skin.c.lines', true), border: g('skin.c.border', true), darker: g('skin.darkerHolds', true),
+    };
+  }
+  static NAMED_PALETTES = {
+    ocean: { n1: ['#e6fbff', '#9fdcf0'], n2: ['#38bdf8', '#0b7cc4'], s: ['#a78bfa', '#6d4fd8'], key: '#38bdf8' },
+    sunset: { n1: ['#fff1e0', '#ffc99a'], n2: ['#ff6f91', '#d63a64'], s: ['#ffc75f', '#e8962a'], key: '#ff6f91' },
+    neon: { n1: ['#f0fdff', '#b8f3ff'], n2: ['#ff2bd6', '#b00098'], s: ['#00ffa3', '#00b774'], key: '#ff2bd6' },
+    mint: { n1: ['#f2fff9', '#bff3dc'], n2: ['#34d399', '#0e9f6e'], s: ['#fbbf24', '#d18a07'], key: '#34d399' },
+    mono: { n1: ['#ffffff', '#c9c9d4'], n2: ['#a9a9bb', '#6c6c80'], s: ['#ffffff', '#c9c9d4'], key: '#d9d9e6' },
+  };
   static palette() {
-    const hue = typeof Settings !== 'undefined' ? Settings.get('skin.hue') : -1;
-    if (hue >= 0) return DefaultSkin.huePalette(hue);
-    return THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+    const o = DefaultSkin.opts();
+    const rgb = c => [1, 3, 5].map(k => parseInt(c.slice(k, k + 2), 16));
+    let P;
+    if (o.palette === 'custom' || (o.palette === 'theme' && o.hue >= 0)) P = DefaultSkin.huePalette(o.hue >= 0 ? o.hue : 280);
+    else if (DefaultSkin.NAMED_PALETTES[o.palette]) { const N = DefaultSkin.NAMED_PALETTES[o.palette]; P = { ...N, glow: rgb(N.n2[0]), glowS: rgb(N.s[0]) }; }
+    else P = THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+    return P;
   }
   /** Note colours from one hue, as Web-Osu-Mania's "simple" colour mode (MIT © 2024 Danny Duong): coloured
    *  primary columns, near-white secondary columns and a contrasting centre column. */
   static huePalette(hue) {
-    const hsl = (h, s, l) => {
-      s /= 100; l /= 100;
-      const f = n => { const k = (n + h / 30) % 12; return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
-      return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
-    };
-    const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+    const hsl = DefaultSkin.hsl, hex = DefaultSkin.hexOf;
     const centre = hue > 35 && hue < 75 ? 212 : 62;
     const p = hsl(hue, 80, 69), c = hsl(centre, 80, 69);
     return { n1: [hex(hsl(hue, 8, 98)), hex(hsl(hue, 6, 76))], n2: [hex(p), hex(hsl(hue, 58, 54))], s: [hex(c), hex(hsl(centre, 58, 54))], key: hex(p), glow: p, glowS: c };
   }
-  /** The Custom skin, drawn after osu!lazer's default "Argon" mania skin: notes with a light-to-accent gradient over a
-   *  darker base, a bright hit edge and a chevron (bars) or a highlight rim (other shapes); darkened holds with accent
-   *  edges; a see-through note-shaped hit target on a glowing grey line above a key panel with Argon's three dots;
-   *  judgements as lazer's words in lazer's hit colours. Shapes: bars / circles / diamonds / arrows (Web-Osu-Mania, MIT
-   *  © 2024 Danny Duong); colours follow the chosen theme or hue. */
+  static hsl(h, s, l) {
+    s /= 100; l /= 100;
+    const f = n => { const k = (n + h / 30) % 12; return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+    return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
+  }
+  static hexOf(c) { return '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''); }
+  /** The [light, dark] colour pair of a column: by column type (osu!'s pattern), a rainbow across the stage, or one
+   *  colour for every column. */
+  static columnColours(i, keys, T) {
+    const o = DefaultSkin.opts(), P = DefaultSkin.palette();
+    if (o.pattern === 'rainbow') {
+      const hue = (330 + i / Math.max(1, keys) * 300) % 360, hsl = DefaultSkin.hsl, hex = DefaultSkin.hexOf;
+      return [hex(hsl(hue, 90, 68)), hex(hsl(hue, 75, 48))];
+    }
+    if (o.pattern === 'single') return P.n2;
+    return T === 'S' || T === 's' ? P.s : T === '2' ? P.n2 : P.n1;
+  }
+  /** Texture name of a Custom skin part for a column. */
+  static partName(part, i, keys, T) {
+    const o = DefaultSkin.opts(), [a, b] = DefaultSkin.columnColours(i, keys, T);
+    const ang = o.style === 'arrows' ? ((LANE_ARROW_DIRECTIONS[keys - 1] || [])[i] ?? 0) : 0;
+    return `am-${part}-${a.slice(1)}${b.slice(1)}-${o.style}-${ang}`;
+  }
+  /** The Custom skin: glassy notes in vivid gradients with a soft glow and a light rim; holds as a translucent beam
+   *  with bright edges (or solid); a see-through receptor on a thin hit line; the column lights up in its colour when
+   *  pressed; a dark stage with fine column lines and a glowing border; judgements as lazer's words in lazer's
+   *  colours. Everything is adjustable: shape (bars / circles / diamonds / arrows — Web-Osu-Mania, MIT © 2024 Danny
+   *  Duong), palette, colour pattern, note size and roundness, receptor style, key area, hold style and glow. */
   static generate(key) {
     const C = DefaultSkin.canvas, rr = DefaultSkin.rr;
-    const P = DefaultSkin.palette();
-    const noteCol = { '1': P.n1, '2': P.n2, 's': P.s };
+    const P = DefaultSkin.palette(), o = DefaultSkin.opts();
     const hex = (c, a) => c + Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
     const rgbOf = c => [1, 3, 5].map(k => parseInt(c.slice(k, k + 2), 16));
     const mix = (c1, c2, t) => { const a = rgbOf(c1), b = rgbOf(c2); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
-    const darker = typeof Settings === 'undefined' || Settings.get('skin.darkerHolds');
-    const style0 = typeof Settings === 'undefined' ? 'bars' : Settings.get('skin.noteStyle');
-    const W = 128;
+    const W = 128, glow = o.glow;
+    const barH = Math.round(W * 0.34 * o.size);
+    const sizeOf = style => style === 'bars' ? W * 0.9 : Math.min(W * 0.94, W * (style === 'diamonds' ? 0.8 : 0.74) * o.size);
+    const pad = Math.round(4 + 16 * glow);
     // shape path centred on (cx, cy); `size` is the shape's width
-    const shape = (x, style, cx, cy, size, ang = 0, hScale = 1) => {
+    const shape = (x, style, cx, cy, size, ang = 0, hh = barH) => {
       x.save(); x.translate(cx, cy);
       x.beginPath();
-      if (style === 'bars') { const hh = size * 0.5 * hScale; rr(x, -size / 2, -hh / 2, size, hh, Math.min(10, hh * 0.22)); }
+      if (style === 'bars') rr(x, -size / 2, -hh / 2, size, hh, Math.max(1, hh * 0.5 * o.round));
       else if (style === 'circles') x.arc(0, 0, size / 2, 0, Math.PI * 2);
-      else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.22); }
+      else if (style === 'diamonds') { x.rotate(Math.PI / 4); const q = size / Math.SQRT2; rr(x, -q / 2, -q / 2, q, q, q * 0.3 * o.round + 2); }
       else {
         x.rotate(+ang * Math.PI / 180);
         const r = size / 2;
@@ -386,132 +425,148 @@ class DefaultSkin extends Skin {
       }
       x.restore();
     };
-    const sizeOf = style => W * (style === 'bars' ? 0.94 : style === 'diamonds' ? 0.86 : 0.8);
-    const noteHOf = style => style === 'bars' ? 72 : W; // texture height (bars: a chunky Argon-like bar)
-    const bodyW = style => sizeOf(style) * (style === 'bars' ? 0.84 : 0.6);
-    const holdCol = T => darker ? mix(noteCol[T][0], '#0c0a12', 0.72) : mix(noteCol[T][0], '#0c0a12', 0.45);
-
-    // a note: a soft glow, a darker base, the coloured face (lighter at the top), a bright hit edge or rim
-    const drawNote = (x, style, cx, cy, size, ang, a, b) => {
+    const extent = style => style === 'bars' ? barH : sizeOf(style); // the shape's height
+    // a note: glow, then a glassy gradient face with a gloss on top and a light rim
+    const drawNote = (x, style, cx, cy, ang, a, b) => {
+      const size = sizeOf(style), ht = extent(style);
       shape(x, style, cx, cy, size, ang);
-      x.shadowColor = hex(a, 0.55); x.shadowBlur = 14; x.fillStyle = mix(b, '#000000', 0.45); x.fill(); x.shadowBlur = 0;
+      x.shadowColor = hex(a, 0.7 * glow); x.shadowBlur = 22 * glow; x.fillStyle = b; x.fill(); x.shadowBlur = 0;
       x.save(); shape(x, style, cx, cy, size, ang); x.clip();
-      const top = cy - size / 2, bot = cy + size / 2;
-      const g = x.createLinearGradient(0, top, 0, bot);
-      g.addColorStop(0, mix(a, '#ffffff', 0.28)); g.addColorStop(0.55, a); g.addColorStop(1, b);
-      x.fillStyle = g;
-      if (style === 'bars') {
-        const hh = size * 0.5, y0 = cy - hh / 2;
-        x.fillRect(cx - size / 2, y0, size, hh * 0.82);
-        // the hit edge: a bright rounded line along the bottom, with a small glow
-        x.shadowColor = hex('#ffffff', 0.8); x.shadowBlur = 6; x.fillStyle = '#ffffff';
-        rr(x, cx - size / 2 + 3, y0 + hh * 0.8, size - 6, hh * 0.14, hh * 0.07); x.fill(); x.shadowBlur = 0;
-        // a small chevron pointing at the receptors
-        x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineWidth = 4; x.lineCap = 'round'; x.lineJoin = 'round';
-        x.beginPath(); x.moveTo(cx - 9, y0 + hh * 0.32); x.lineTo(cx, y0 + hh * 0.52); x.lineTo(cx + 9, y0 + hh * 0.32); x.stroke();
-      } else {
-        x.fillRect(cx - size / 2, top, size, size);
-        // an inner highlight rim and a gloss on the upper half
-        const gl = x.createLinearGradient(0, top, 0, cy);
-        gl.addColorStop(0, 'rgba(255,255,255,.34)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
-        x.fillStyle = gl; x.fillRect(cx - size / 2, top, size, size / 2);
-        shape(x, style, cx, cy, size, ang); x.lineWidth = 7; x.strokeStyle = 'rgba(255,255,255,.45)'; x.stroke();
-      }
+      const top = cy - ht / 2, bot = cy + ht / 2;
+      let g;
+      if (style === 'circles') { g = x.createRadialGradient(cx - size * 0.16, cy - size * 0.2, size * 0.04, cx, cy, size / 2); g.addColorStop(0, mix(a, '#ffffff', 0.65)); g.addColorStop(0.45, a); g.addColorStop(1, b); }
+      else { g = x.createLinearGradient(0, top, 0, bot); g.addColorStop(0, mix(a, '#ffffff', 0.55)); g.addColorStop(0.4, a); g.addColorStop(1, mix(b, '#000000', 0.12)); }
+      x.fillStyle = g; x.fillRect(cx - size / 2 - 2, top - 2, size + 4, ht + 4);
+      // gloss across the upper part
+      const gl = x.createLinearGradient(0, top, 0, top + ht * 0.55);
+      gl.addColorStop(0, 'rgba(255,255,255,.42)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = gl; x.fillRect(cx - size / 2, top, size, ht * 0.55);
       x.restore();
-      shape(x, style, cx, cy, size, ang); x.lineWidth = 2.5; x.strokeStyle = hex(mix(b, '#000000', 0.5), 0.9); x.stroke();
+      shape(x, style, cx, cy, size, ang);
+      x.lineWidth = style === 'bars' ? 2.5 : 3; x.strokeStyle = hex(mix(a, '#ffffff', 0.7), 0.95); x.lineJoin = 'round'; x.stroke();
+    };
+    const bodyW = style => style === 'bars' ? sizeOf(style) * 0.8 : sizeOf(style) * 0.6;
+    const drawBody = (x, w, h, style, a, b) => {
+      const bw = bodyW(style), x0 = (w - bw) / 2;
+      if (o.hold === 'solid') {
+        x.fillStyle = mix(b, '#0b0a12', o.darker ? 0.45 : 0.2); x.fillRect(x0, 0, bw, h);
+      } else {
+        const g = x.createLinearGradient(x0, 0, x0 + bw, 0);
+        g.addColorStop(0, hex(a, 0.5)); g.addColorStop(0.22, hex(mix(a, b, 0.5), o.darker ? 0.16 : 0.3)); g.addColorStop(0.78, hex(mix(a, b, 0.5), o.darker ? 0.16 : 0.3)); g.addColorStop(1, hex(a, 0.5));
+        x.fillStyle = g; x.fillRect(x0, 0, bw, h);
+      }
+      x.fillStyle = hex(mix(a, '#ffffff', 0.55), 0.9); x.fillRect(x0, 0, 2.5, h); x.fillRect(x0 + bw - 2.5, 0, 2.5, h);
     };
 
     let m;
-    // legacy names (used as fallbacks for imported skins) → the bars style
-    if ((m = /^mania-note([12s])(h?)$/.exec(key))) return DefaultSkin.generate(`am-note-${m[1]}-bars-0`);
-    if ((m = /^mania-note([12s])l$/.exec(key))) return DefaultSkin.generate(`am-body-${m[1]}-bars-0`);
-    if ((m = /^mania-note([12s])t$/.exec(key))) return DefaultSkin.generate(`am-tail-${m[1]}-bars-0`);
-    if ((m = /^mania-key([12s])(d?)$/.exec(key))) return DefaultSkin.generate(`am-key${m[2]}-${m[1]}-bars-0`);
+    // legacy names (used as fallbacks for imported skins) → this skin's parts in the type colours, as bars
+    const legacy = (part, T) => { const [a, b] = T === 's' ? P.s : T === '2' ? P.n2 : P.n1; return DefaultSkin.generate(`am-${part}-${a.slice(1)}${b.slice(1)}-bars-0`); };
+    if ((m = /^mania-note([12s])(h?)$/.exec(key))) return legacy('note', m[1]);
+    if ((m = /^mania-note([12s])l$/.exec(key))) return legacy('body', m[1]);
+    if ((m = /^mania-note([12s])t$/.exec(key))) return legacy('tail', m[1]);
+    if ((m = /^mania-key([12s])(d?)$/.exec(key))) return legacy(m[2] ? 'keyd' : 'key', m[1]);
 
-    if ((m = /^am-(note|body|tail|key|keyd)-([12s])-(bars|circles|diamonds|arrows)-(\d+)$/.exec(key))) {
-      const [, part, T, style, ang] = m;
-      const [a, b] = noteCol[T];
-      const size = sizeOf(style);
+    if ((m = /^am-(note|body|tail|key|keyd)-([0-9a-f]{6})([0-9a-f]{6})-(bars|circles|diamonds|arrows)-(\d+)$/.exec(key))) {
+      const [, part, ca, cb, style, ang] = m, a = '#' + ca, b = '#' + cb;
+      const size = sizeOf(style), ht = extent(style);
       if (part === 'note') {
-        const nh = noteHOf(style);
-        return new Texture([C(W, nh, x => drawNote(x, style, W / 2, nh / 2, size, ang, a, b))], 2);
+        const nh = Math.round(ht + pad * 2);
+        return new Texture([C(W, nh, x => drawNote(x, style, W / 2, nh / 2, ang, a, b))], 2);
       }
-      if (part === 'body') {
-        const bw = bodyW(style), c = holdCol(T);
-        return new Texture([C(W, 32, (x, w, h) => {
-          const x0 = (w - bw) / 2;
-          const g = x.createLinearGradient(x0, 0, x0 + bw, 0);
-          g.addColorStop(0, mix(c, a, 0.35)); g.addColorStop(0.18, c); g.addColorStop(0.82, c); g.addColorStop(1, mix(c, a, 0.35));
-          x.fillStyle = g; x.fillRect(x0, 0, bw, h);
-          x.fillStyle = hex(a, 0.7); x.fillRect(x0, 0, 2.5, h); x.fillRect(x0 + bw - 2.5, 0, 2.5, h);
-        })], 2);
-      }
+      if (part === 'body') return new Texture([C(W, 32, (x, w, h) => drawBody(x, w, h, style, a, b))], 2);
       if (part === 'tail') {
-        const bw = bodyW(style), c = holdCol(T), th = Math.round(bw / 2) + 4;
+        const bw = bodyW(style), th = Math.round(bw / 2) + 4;
         return new Texture([C(W, th, (x, w, h) => {
-          const x0 = (w - bw) / 2;
-          rr(x, x0, 0, bw, h - 4, [0, 0, bw / 2, bw / 2]); x.fillStyle = c; x.fill();
-          x.lineWidth = 2.5; x.strokeStyle = hex(a, 0.7); x.stroke();
+          x.save(); rr(x, (w - bw) / 2, 0, bw, h - 4, [0, 0, bw / 2, bw / 2]); x.clip();
+          drawBody(x, w, h, style, a, b);
+          x.restore();
+          rr(x, (w - bw) / 2 + 1.25, -2, bw - 2.5, h - 4.75, [0, 0, bw / 2, bw / 2]); x.lineWidth = 2.5; x.strokeStyle = hex(mix(a, '#ffffff', 0.55), 0.9); x.stroke();
         })], 2);
       }
-      // receptor + key panel (Argon's key area). The texture is tall so it never has to be stretched to reach the
-      // bottom of the screen; `anchor` marks the receptor's centre (as a fraction of the height).
+      // receptor + key area. The texture is tall so it never has to be stretched to reach the bottom of the screen;
+      // `anchor` marks the receptor's centre (as a fraction of the height).
       const pressed = part === 'keyd';
-      const RH = 1024, ry = 96;
+      const RH = 1024, ry = 110;
       const t = new Texture([C(W, RH, (x, w, h) => {
-        // the key panel below the hit line: the column's colour, very dark, fading in
-        const pg = x.createLinearGradient(0, ry, 0, ry + 260);
-        pg.addColorStop(0, hex(mix(a, '#07060b', pressed ? 0.62 : 0.8), 0.95)); pg.addColorStop(1, hex(mix(a, '#07060b', pressed ? 0.8 : 0.9), 0.97));
-        x.fillStyle = pg; rr(x, 2, ry, w - 4, h - ry, 6); x.fill();
-        // pressed: the column above lights up with the note colour
+        const below = ry + ht / 2 + 8;
+        // the key area under the hit line
+        if (o.keyArea === 'panel') {
+          const pg = x.createLinearGradient(0, below, 0, below + 240);
+          pg.addColorStop(0, hex(mix(a, '#07060b', pressed ? 0.6 : 0.8), 0.96)); pg.addColorStop(1, hex(mix(a, '#07060b', pressed ? 0.78 : 0.9), 0.97));
+          x.fillStyle = pg; rr(x, 4, below, w - 8, h - below, 8); x.fill();
+          x.fillStyle = pressed ? '#ffffff' : hex(a, 0.9); x.shadowColor = a; x.shadowBlur = pressed ? 14 : 6;
+          for (const [ox, oy] of [[0, 0], [-10, 12], [10, 12]]) { x.beginPath(); x.arc(w / 2 + ox, below + 50 + oy, 5, 0, Math.PI * 2); x.fill(); }
+          x.shadowBlur = 0;
+        } else if (o.keyArea === 'gradient') {
+          const kg = x.createLinearGradient(0, ry, 0, ry + 300);
+          kg.addColorStop(0, hex(a, pressed ? 0.34 : 0.14)); kg.addColorStop(1, hex(a, 0));
+          x.fillStyle = kg; x.fillRect(0, ry, w, 300);
+          x.fillStyle = pressed ? '#ffffff' : hex(a, 0.55); x.shadowColor = a; x.shadowBlur = pressed ? 16 : 0;
+          rr(x, w / 2 - 14, below + 40, 28, 7, 3.5); x.fill(); x.shadowBlur = 0;
+        }
+        // pressed: the column above lights up in its colour
         if (pressed) {
           const g = x.createLinearGradient(0, ry, 0, 0);
-          g.addColorStop(0, hex(a, 0.42)); g.addColorStop(1, hex(a, 0));
-          x.fillStyle = g; x.fillRect(2, 0, w - 4, ry);
+          g.addColorStop(0, hex(a, 0.4 * (0.4 + glow * 0.6))); g.addColorStop(1, hex(a, 0));
+          x.fillStyle = g; x.fillRect(0, 0, w, ry);
         }
-        // the hit target line (grey, glowing; white while pressed)
-        x.shadowColor = pressed ? a : 'rgba(255,255,255,.5)'; x.shadowBlur = pressed ? 14 : 6;
-        x.fillStyle = pressed ? '#ffffff' : '#c4c4c4';
-        rr(x, 3, ry - 3.5, w - 6, 7, 3.5); x.fill(); x.shadowBlur = 0;
-        // the hit target: the note shape, see-through; filled with the note colour while pressed
-        shape(x, style, w / 2, ry, size * 0.96, ang);
-        if (pressed) { x.shadowColor = a; x.shadowBlur = 18; x.fillStyle = hex(a, 0.55); x.fill(); x.shadowBlur = 0; x.lineWidth = 4; x.strokeStyle = '#ffffff'; }
-        else { x.fillStyle = 'rgba(255,255,255,.08)'; x.fill(); x.lineWidth = 3.5; x.strokeStyle = 'rgba(255,255,255,.38)'; }
-        x.lineJoin = 'round'; x.stroke();
-        // Argon's three dots in the key panel, glowing when pressed
-        const dy = ry + 70, sp = 10;
-        x.fillStyle = pressed ? '#ffffff' : hex(a, 0.9);
-        x.shadowColor = a; x.shadowBlur = pressed ? 14 : 6;
-        for (const [ox, oy] of [[0, 0], [-sp, sp * 1.2], [sp, sp * 1.2]]) { x.beginPath(); x.arc(w / 2 + ox, dy + oy, 5, 0, Math.PI * 2); x.fill(); }
-        x.shadowBlur = 0;
+        // the hit line
+        x.shadowColor = pressed ? a : 'transparent'; x.shadowBlur = pressed ? 14 : 0;
+        x.fillStyle = pressed ? mix(a, '#ffffff', 0.5) : (o.receptor === 'line' ? 'rgba(255,255,255,.6)' : 'rgba(255,255,255,.28)');
+        const lh = o.receptor === 'line' ? 5 : 3;
+        x.fillRect(0, ry - lh / 2, w, lh); x.shadowBlur = 0;
+        // the receptor: the note's shape, see-through (outline) or dark (filled); lit in the column colour when pressed
+        if (o.receptor !== 'line') {
+          shape(x, style, w / 2, ry, size, ang);
+          x.lineJoin = 'round';
+          if (pressed) {
+            x.shadowColor = a; x.shadowBlur = 24 * (0.3 + glow); x.fillStyle = hex(a, 0.7); x.fill(); x.shadowBlur = 0;
+            x.lineWidth = 3.5; x.strokeStyle = '#ffffff'; x.stroke();
+          } else if (o.receptor === 'filled') {
+            x.fillStyle = mix(b, '#08070c', 0.7); x.fill(); x.lineWidth = 3; x.strokeStyle = hex(a, 0.85); x.stroke();
+          } else {
+            x.fillStyle = 'rgba(255,255,255,.06)'; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(255,255,255,.55)'; x.stroke();
+          }
+        }
       })], 2);
       t.anchor = ry / RH;
       return t;
     }
-    if (key === 'mania-stage-hint') return null; // (the hit target line is part of the key texture)
+    if (key === 'mania-stage-hint') return null; // (the hit line is part of the key texture)
     if (key === 'mania-stage-light') return new Texture([C(64, 256, (x, w, h) => {
-      const [r0, g0, b0] = DefaultSkin.palette().glow;
+      // (tinted per column with the column colour)
       const g = x.createLinearGradient(0, h, 0, 0);
-      g.addColorStop(0, `rgba(${r0},${g0},${b0},.38)`); g.addColorStop(0.45, `rgba(${r0},${g0},${b0},.12)`); g.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
+      g.addColorStop(0, `rgba(255,255,255,${(0.2 + 0.25 * glow).toFixed(2)})`); g.addColorStop(0.45, 'rgba(255,255,255,.08)'); g.addColorStop(1, 'rgba(255,255,255,0)');
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     })], 2);
-    if (key === 'mania-stage-left' || key === 'mania-stage-right') return new Texture([C(6, 64, (x, w, h) => {
-      const g = x.createLinearGradient(key.endsWith('left') ? w : 0, 0, key.endsWith('left') ? 0 : w, 0);
-      g.addColorStop(0, 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      x.fillStyle = g; x.fillRect(0, 0, w, h);
-    })], 2);
+    if (key === 'mania-stage-left' || key === 'mania-stage-right') {
+      if (!o.border) return null;
+      const left = key.endsWith('left');
+      return new Texture([C(16, 64, (x, w, h) => {
+        const g = x.createLinearGradient(left ? w : 0, 0, left ? 0 : w, 0);
+        g.addColorStop(0, hex(P.key, 0.95)); g.addColorStop(0.18, hex(P.key, 0.45)); g.addColorStop(1, hex(P.key, 0));
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+      })], 2);
+    }
     if (key === 'mania-stage-bottom') return null;
     if (key === 'lightingn') return new Texture([C(256, 256, (x, w, h) => {
-      // Argon's hit explosion: a white flash in the note's shape with a wide glow (tinted per column)
-      shape(x, style0 === 'arrows' ? 'circles' : style0, w / 2, h / 2, w * 0.36);
-      x.shadowColor = 'rgba(255,255,255,.95)'; x.shadowBlur = 40; x.fillStyle = '#ffffff'; x.fill();
-      x.shadowBlur = 16; x.fill(); x.shadowBlur = 0;
+      // hit flash (tinted per column): a bright core and a ring; a wide horizontal flare for bars
+      x.save(); x.translate(w / 2, h / 2);
+      if (o.style === 'bars') x.scale(1.25, 0.55);
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, w * 0.46);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.2, 'rgba(255,255,255,.85)'); g.addColorStop(0.5, 'rgba(255,255,255,.25)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(0, 0, w * 0.46, 0, Math.PI * 2); x.fill();
+      if (o.style !== 'bars') { x.lineWidth = 4; x.strokeStyle = 'rgba(255,255,255,.7)'; x.shadowColor = '#fff'; x.shadowBlur = 14; x.beginPath(); x.arc(0, 0, w * 0.3, 0, Math.PI * 2); x.stroke(); }
+      x.restore();
     })], 2);
     if (key === 'lightingl') return new Texture([C(256, 256, (x, w, h) => {
-      // hold lighting: a glowing ring pulse around the hit target
-      shape(x, style0 === 'arrows' ? 'circles' : style0, w / 2, h / 2, w * 0.4);
-      x.lineWidth = 8; x.strokeStyle = '#ffffff'; x.shadowColor = 'rgba(255,255,255,.9)'; x.shadowBlur = 22; x.stroke();
-      x.shadowBlur = 0;
+      // holding: a soft glow on the receptor
+      x.save(); x.translate(w / 2, h / 2);
+      if (o.style === 'bars') x.scale(1.2, 0.6);
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, w * 0.42);
+      g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(0.45, 'rgba(255,255,255,.3)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(0, 0, w * 0.42, 0, Math.PI * 2); x.fill();
+      x.restore();
     })], 2);
     if ((m = /^mania-hit(300g|300|200|100|50|0)$/.exec(key))) {
       // lazer's judgement words in lazer's hit-result colours, spaced out, with a soft glow of the same colour
@@ -601,13 +656,13 @@ const ManiaLayout = {
     L.colours.column = []; L.colours.light = [];
     for (let i = 0; i < keys; i++) {
       const types = maniaColumnTypes(keys, L.specialStyle);
-      const P = DefaultSkin.palette(), gl = types[i] === 'S' ? P.glowS : P.glow;
-      // Custom skin (as Argon): each column's background is its note colour, darkened almost to black
-      const nc = (types[i] === 'S' ? P.s : types[i] === '2' ? P.n2 : P.n1)[0], ncr = [1, 3, 5].map(k => parseInt(nc.slice(k, k + 2), 16));
-      L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: Math.round(4 + ncr[0] * 0.06), g: Math.round(3 + ncr[1] * 0.06), b: Math.round(7 + ncr[2] * 0.06), a: 0.93 } : { r: 0, g: 0, b: 0, a: 1 }));
+      // Custom skin: each column's background is its note colour, darkened almost to black; it lights in that colour
+      const nc = DefaultSkin.columnColours(i, keys, types[i])[0], ncr = [1, 3, 5].map(k => parseInt(nc.slice(k, k + 2), 16)), gl = ncr;
+      L.colours.column.push(col(`Colour${i + 1}`, isDefault ? { r: Math.round(6 + ncr[0] * 0.05), g: Math.round(5 + ncr[1] * 0.05), b: Math.round(10 + ncr[2] * 0.05), a: 0.94 } : { r: 0, g: 0, b: 0, a: 1 }));
       L.colours.light.push(col(`ColourLight${i + 1}`, isDefault ? { r: gl[0], g: gl[1], b: gl[2], a: 1 } : { r: 255, g: 255, b: 255, a: 1 }));
     }
-    L.colours.columnLine = col('ColourColumnLine', { r: 255, g: 255, b: 255, a: 1 });
+    L.colours.columnLine = col('ColourColumnLine', { r: 255, g: 255, b: 255, a: isDefault ? 0.07 : 1 });
+    if (isDefault) L.columnLineWidth = L.columnLineWidth.map((_, i, a) => DefaultSkin.opts().lines && i > 0 && i < a.length - 1 ? 1.5 : 0);
     L.colours.barline = col('ColourBarline', { r: 255, g: 255, b: 255, a: isDefault ? 0.35 : 1 });
     L.colours.judgementLine = col('ColourJudgementLine', { r: 255, g: 255, b: 255, a: 1 });
     L.colours.keyWarning = col('ColourKeyWarning', { r: 0, g: 0, b: 0, a: 1 });
@@ -631,12 +686,10 @@ const ManiaLayout = {
       return t;
     };
     const types = maniaColumnTypes(keys, L.specialStyle);
-    const style = isDefault ? (Settings.get('skin.noteStyle') || 'bars') : 'bars';
     for (let i = 0; i < keys; i++) {
       const T = types[i];
-      if (isDefault && style !== 'bars') {
-        const ang = (LANE_ARROW_DIRECTIONS[keys - 1] || [])[i] ?? 0;
-        const nm = part => `am-${part}-${T.toLowerCase()}-${style}-${ang}`;
+      if (isDefault) {
+        const nm = part => DefaultSkin.partName(part, i, keys, T);
         L.tex.key[i] = await def.texture(nm('key')); L.tex.keyD[i] = await def.texture(nm('keyd'));
         L.tex.note[i] = L.tex.noteH[i] = await def.texture(nm('note'));
         L.tex.noteL[i] = await def.texture(nm('body')); L.tex.noteT[i] = await def.texture(nm('tail'));
@@ -653,7 +706,8 @@ const ManiaLayout = {
     L.tex.stageRight = await load('StageRight', 'mania-stage-right');
     L.tex.stageBottom = await load('StageBottom', 'mania-stage-bottom');
     L.tex.stageHint = await load('StageHint', 'mania-stage-hint');
-    L.tex.stageLight = await load('StageLight', 'mania-stage-light');
+    // (the Custom skin lights its column in the pressed key texture itself; the stage light is for skins that lack one)
+    L.tex.stageLight = isDefault ? null : await load('StageLight', 'mania-stage-light');
     L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
@@ -664,6 +718,18 @@ const ManiaLayout = {
         // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
         L.tex.scorebarMarker = await tx('scorebar-marker');
         L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
+      } else if (skin.has('scorebar-bg') || skin.has('scorebar-marker') || skin.has('scorebar-ki')) {
+        // the skin has health bar pieces but no fill: osu! uses its default fill there, so this skin still gets its
+        // own health bar (drawn on its background, with its marker) rather than the lazer one
+        L.tex.scorebarBg = await tx('scorebar-bg');
+        L.tex.scorebarMarker = await tx('scorebar-marker');
+        L.tex.scorebarKi = [await tx('scorebar-ki'), await tx('scorebar-kidanger'), await tx('scorebar-kidanger2')];
+        L.tex.scorebarColour = new Texture([DefaultSkin.canvas(1240, 30, (x, w, h) => {
+          const g = x.createLinearGradient(0, 0, w, 0);
+          g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#d9f1ff'); g.addColorStop(1, '#8fd3ff');
+          x.fillStyle = g; DefaultSkin.rr(x, 0, 4, w, h - 8, (h - 8) / 2); x.fill();
+          x.fillStyle = 'rgba(255,255,255,.9)'; x.fillRect(6, 6, w - 12, 3);
+        })], 2);
       }
       L.scorebarNewStyle = !!L.tex.scorebarMarker;
     }
@@ -709,7 +775,7 @@ const SkinManager = {
   async init() {
     this.defaultSkin = new DefaultSkin();
     Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
-    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k === '*') this.invalidateGenerated(); });
+    Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k.startsWith('skin.c.') || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
     await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });

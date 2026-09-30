@@ -327,11 +327,26 @@ const SkinsScreen = {
     this.sel = this.sel || SkinManager.current.id;
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
-    this._unsub = [Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render())];
+    this._unsub = [Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
+      // customising the Custom skin redraws the preview (debounced: sliders send many changes)
+      Bus.on('settings:changed', k => { if (!(k.startsWith('skin.c.') || ['skin.noteStyle', 'skin.hue', 'skin.darkerHolds', 'ui.theme'].includes(k)) || !this.preview || !this.previewSkin) return;
+        clearTimeout(this._pvT); this._pvT = setTimeout(() => { this.previewSkin.layoutCache.clear(); this.preview.show(this.previewSkin, this.keys); }, 120); })];
     this.render();
     return el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); this.preview && this.preview.stop(); },
+  leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
+  CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
+  /** The Custom skin's options next to its preview (the same controls as in Settings → Skin). */
+  customPanel() {
+    const box = h('div.sk-custom');
+    const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of this.CUSTOM_KEYS) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
+      h('div.settings-panel.sk-custom-rows', ...this.CUSTOM_KEYS.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(d))));
+    paint();
+    // the Custom hue row only shows with the "Custom hue" palette
+    if (this._customOff) this._customOff();
+    this._customOff = Bus.on('settings:changed', k => { if (k === 'skin.c.palette' && box.isConnected) paint(); });
+    return box;
+  },
   render() {
     const list = SkinManager.list();
     if (!list.some(s => s.id === this.sel)) this.sel = SkinManager.current.id;
@@ -356,10 +371,11 @@ const SkinsScreen = {
         !meta.builtin ? h('button.btn.danger', { onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
       h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
         ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : borrowed.includes(k) ? "Built from the skin's 4K layout" : 'Uses fallback layout', style: supported.includes(k) || borrowed.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
-      pv,
+      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel()) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}${borrowed.length ? ` · ${borrowed.map(k => k + 'K').join(', ')} built from its 4K layout` : ''}`}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
+    this.previewSkin = skin;
     requestAnimationFrame(() => this.preview.show(skin, this.keys));
   },
 };

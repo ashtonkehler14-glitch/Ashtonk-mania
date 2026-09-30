@@ -489,7 +489,7 @@ class ManiaRenderer {
       const cw = widths[c] > 0 ? widths[c] : L.columnWidth[c] * Settings.get('gameplay.laneWidth');
       return t.w * this.u * cw / 30;
     }
-    return widths[c] > 0 ? widths[c] * this.s : t.w * this.s;
+    return widths[c] > 0 ? widths[c] * this.s : this.colW[c] * 1.7; // built-in: the flash reaches a little past its column
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
