@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer dialogs, notifications, menus and mod select
+
+* **Dialogs are lazer's popup dialogs**: a dark plum box with faint triangles and a white icon ring (trash for deletions, a pencil for names, a question mark otherwise). Under the title and text sit big slanted buttons that widen and glow at the sides when hovered: pink to confirm, blue to cancel, red for anything destructive.
+* **Notifications drop in at the top right**, under the toolbar, like lazer's toasts. Each has an icon column and a glowing light on the left edge: blue for info, green for success, red for errors.
+* **Right-click menus** use lazer's dark teal-grey context menu. Items go bold when hovered, and "Delete" shows in red.
+* **Mod select is sheared like lazer's**, in its green colour scheme. The columns, mod panels and multiplier boxes are all slanted (the text stays upright), and each mod panel has its acronym in a darker switch area.
+* Primary buttons inside a page take that page's colour, as lazer's rounded buttons do.
+
 ### osu!lazer-style overlays: library, collections, profile, replays, skins, beatmap listing, multiplayer
 
 * **Every page now opens like an osu!lazer overlay**: a patterned cover strip, a title band with the page's icon and lowercase title ("beatmap library", "skins"…) and its buttons, over a solid body.

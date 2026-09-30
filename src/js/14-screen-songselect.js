@@ -507,7 +507,7 @@ const SongSelect = {
       { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.playBtn }, m) },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
-      { label: 'Delete beatmap set…', icon: 'trash', onClick: () => this.deleteSet(set) },
+      { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
     ]);
   },
   async deleteSet(set) {

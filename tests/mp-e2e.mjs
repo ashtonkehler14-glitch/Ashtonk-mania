@@ -75,7 +75,7 @@ check('invite dialog lists online players and offers a link', await alice.evalua
 await alice.click('.inv-row .btn.primary');
 await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice invited you/.test(x.textContent)), null, { timeout: 5000 });
 check('the invited player gets a Join prompt', await bob.evaluate(code => document.querySelector('.dialog .body').textContent.includes(code), code));
-await bob.click('.dialog .btn.ghost');
+await bob.click('.dialog .pd-btn.cancel');
 await alice.click('.dialog .actions .btn');
 await alice.waitForTimeout(300);
 await bob.fill('.mp-code', code);
@@ -157,14 +157,14 @@ const modsB = await bob.evaluate(() => AshtonkMania.GameplayScreen.s.mods.join()
 check('in the match: DT for everyone plus each player\'s own mods', /DT/.test(modsA) && /HD/.test(modsA) && !/MR/.test(modsA) && /DT/.test(modsB) && /MR/.test(modsB) && !/HD/.test(modsB), `${modsA} / ${modsB}`);
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog');
-await bob.click('.dialog .btn.danger');
+await bob.click('.dialog .pd-btn.danger');
 // (nobody can die in multiplayer, so Alice plays on to the end of the song before the results come in)
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.rows.some(r => r.forfeit), null, { timeout: 40000 });
 check('quitting forfeits the match', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.winner === AshtonkMania.Multiplayer.me));
 if (await alice.evaluate(() => AshtonkMania.Screens.currentName === 'gameplay')) {
   await alice.keyboard.press('Escape');
   await alice.waitForSelector('.dialog', { timeout: 2000 }).catch(() => {});
-  if (await alice.$('.dialog .btn.danger')) await alice.click('.dialog .btn.danger');
+  if (await alice.$('.dialog .pd-btn.danger')) await alice.click('.dialog .pd-btn.danger');
 }
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
@@ -227,7 +227,7 @@ for (const p of [bob, alice]) {
   await p.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 15000 });
   await p.keyboard.press('Escape');
   await p.waitForSelector('.dialog', { timeout: 5000 }).catch(() => {});
-  if (await p.$('.dialog .btn.danger')) await p.click('.dialog .btn.danger');
+  if (await p.$('.dialog .pd-btn.danger')) await p.click('.dialog .pd-btn.danger');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 8000 });
 }
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Easy', null, { timeout: 10000 });

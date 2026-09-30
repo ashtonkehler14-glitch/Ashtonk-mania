@@ -1486,3 +1486,89 @@ div.res-calib .i { color: var(--good); }
 .mp.ov .mp-lobby { padding-top: 26px; }
 .mp.ov .mp-card { background: var(--ob4); }
 .mp.ov .mp-card-ico { background: hsl(var(--o-h) 30% 25%); color: var(--ohl); }
+
+/* ── dialogs — osu!lazer's PopupDialog: a 500px dark plum box (#221a21 with faint triangles, 20px corners), a white
+   100px icon ring, 25px title, 18px text, and a stack of 50px sheared DialogButtons (80% wide, 90% on hover, glowing
+   at the sides): Pink confirms, Blue cancels, Red3 for destructive actions */
+.dialog { border-radius: 20px; background: #221a21; box-shadow: 0 0 30px rgba(0, 0, 0, .35); }
+.dialog.popup { width: min(500px, calc(100vw - 32px)); padding: 44px 0 26px; text-align: center; overflow: hidden;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e);
+  animation: pdIn calc(500ms * var(--anim)) var(--ease-out) both; }
+.dialog.popup.out { animation: pdOut calc(200ms * var(--anim)) ease both; }
+@keyframes pdIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
+@keyframes pdOut { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+.pd-ring { width: 100px; height: 100px; margin: 0 auto 30px; border-radius: 50%; border: 5px solid #fff; display: grid; place-items: center; animation: pdRing calc(750ms * var(--anim)) var(--ease-out) both; }
+.pd-ring .i { width: 48px; height: 48px; stroke-width: 1.6; }
+@keyframes pdRing { from { transform: scale(.2); } }
+.dialog.popup h2 { margin: 0; padding: 0 15px 10px; font-size: 1.5625rem; font-weight: 400; line-height: 1.25; }
+.dialog.popup .body { margin: 0; padding: 0 22px; font-size: 1.125rem; color: #fff; line-height: 1.35; }
+.dialog.popup .pd-input { width: 100%; margin-top: 4px; text-align: center; font-size: 1.05rem; background: rgba(0, 0, 0, .35); }
+.pd-buttons { display: flex; flex-direction: column; gap: 5px; padding-top: 30px; }
+.pd-btn { --c: #ff66aa; position: relative; height: 50px; width: 100%; padding: 0; border: 0; background: none; color: #fff; font-size: 1.125rem; font-weight: 700; cursor: pointer; isolation: isolate; outline: none; }
+.pd-btn::before, .pd-btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%) skewX(-11.31deg); z-index: -1; transition: width calc(400ms * var(--anim)) var(--ease-out), opacity calc(400ms * var(--anim)) var(--ease-out); }
+/* the glow: fades out towards both sides */
+.pd-btn::before { width: 100%; background: linear-gradient(90deg, transparent, var(--c) 12.5%, var(--c) 87.5%, transparent); opacity: 0; }
+/* the button itself */
+.pd-btn::after { width: 80%; background: var(--c); box-shadow: 0 0 0 0 transparent; }
+.pd-btn span { position: relative; text-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.pd-btn:hover::after, .pd-btn:focus-visible::after { width: 90%; }
+.pd-btn:hover::before, .pd-btn:focus-visible::before { opacity: .3; }
+.pd-btn:active::after { filter: brightness(1.15); }
+
+/* ── notifications — osu!lazer's toast tray: 320px notifications dropping in at the top right under the toolbar,
+   6px corners on Background3 (Purple scheme), a 40px icon column on Background5, a glowing "light" on the left
+   edge in the notification's colour, 14px medium text */
+#toasts { top: calc(var(--toolbar-h) + 14px); bottom: auto; right: 20px; gap: 6px; }
+.toast { --lc: #66ccff; position: relative; width: 320px; min-width: 0; max-width: calc(100vw - 40px); padding: 0; gap: 0; align-items: stretch; border: 0; border-radius: 6px; overflow: visible;
+  background: hsl(255 10% 25%); box-shadow: 0 4px 18px rgba(0, 0, 0, .35); animation: toastIn calc(500ms * var(--anim)) var(--ease-out) both; }
+.toast.ok { --lc: #88b300; }
+.toast.err { --lc: #ff5a5a; }
+.toast::before { content: ""; position: absolute; left: -3px; top: 50%; width: 6px; height: 15px; margin-top: -7.5px; border-radius: 3px; background: var(--lc); box-shadow: 0 0 10px 1px var(--lc); }
+.toast .t-ico { flex: none; width: 40px; display: grid; place-items: center; margin: 0; border-radius: 6px 0 0 6px; background: hsl(255 10% 15%); color: var(--lc); }
+.toast .t-ico .i { width: 16px; height: 16px; }
+.toast.ok .t-ico, .toast.err .t-ico { color: var(--lc); }
+.toast > div:last-child { flex: 1; min-width: 0; padding: 9px 12px 10px; }
+.toast .t-title { font-size: .875rem; font-weight: 600; }
+.toast .t-body { font-size: .8rem; color: hsl(255 40% 90%); opacity: .85; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(110%); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(110%); } }
+
+/* ── context menus — osu!lazer's OsuContextMenu: ContextMenuGray (#223034), 5px corners, 17px items padded 4×10;
+   hovering darkens the item (#172023) and turns its text bold; destructive items are red */
+.menu { min-width: 200px; padding: 4px 0; border: 0; border-radius: 5px; background: #223034; box-shadow: 0 0 25px rgba(0, 0, 0, .1), 0 6px 20px rgba(0, 0, 0, .35); }
+.menu button { gap: 10px; padding: 4px 10px; border-radius: 0; font-size: 1.0625rem; font-weight: 400; color: #fff; transition: background 80ms, text-shadow 80ms; }
+.menu button .i { width: 15px; height: 15px; opacity: .85; }
+.menu button:hover, .menu button:focus-visible { background: #172023; text-shadow: 0 0 .6px currentColor, 0 0 .6px currentColor; }
+.menu button.danger { color: #ff6b7a; }
+.menu .hdr { padding: 6px 10px 4px; color: #8fa9b0; letter-spacing: .06em; }
+.menu .sep { margin: 4px 0; background: rgba(255, 255, 255, .08); }
+.menu .check { color: #ffcc22; }
+/* lazer's RoundedButton inside an overlay takes the overlay's Colour3 */
+.ov .btn.primary { background: hsl(var(--o-h) 60% 50%); color: #fff; }
+.ov .btn.primary:hover { background: hsl(var(--o-h) 70% 58%); filter: none; }
+
+/* ── mod select — osu!lazer's ModSelectOverlay: Green scheme (hue 125), sheared columns (Background4, coloured
+   header), sheared ModPanels (Background3, the acronym in a darker switch area; the whole panel takes the column
+   colour when on) and sheared multiplier boxes. Text is un-sheared so it stays upright. */
+.modsel { --o-h: 125; background: hsl(var(--o-h) 10% 10% / .97); }
+.modsel-head { background: hsl(var(--o-h) 20% 15%); padding: 20px 50px 16px; }
+.modsel-head h2 { font-weight: 400; font-size: 1.5rem; }
+.modsel-sub { color: hsl(var(--o-h) 40% 90%); opacity: .7; }
+.modsel-stat { position: relative; isolation: isolate; background: none; border-radius: 0; padding: 6px 18px; }
+.modsel-stat::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 8px; background: hsl(var(--o-h) 10% 20%); transform: skewX(-11.31deg); }
+.modsel-stat span { color: hsl(var(--o-h) 40% 90%); }
+.modsel-cols { gap: 14px; padding: 18px 50px 18px 80px; }
+.modcol { flex-basis: 300px; border-radius: 10px; background: hsl(var(--o-h) 10% 20%); transform: skewX(-11.31deg); overflow: hidden; }
+.modcol-h { padding: 10px 16px; font-weight: 700; }
+.modcol-h > *, .mod-p > *, .mod-config .modcol-list > * { transform: skewX(11.31deg); }
+.modcol-list { padding: 8px; gap: 5px; }
+.mod-p { min-height: 44px; padding: 0 12px 0 0; border-radius: 7px; overflow: hidden; background: hsl(var(--o-h) 10% 25%); transition: background 150ms, transform 150ms; }
+.mod-p:hover { background: hsl(var(--o-h) 10% 30%); }
+.mod-p:active { transform: scale(.97); }
+.mod-p .mod-ac { align-self: stretch; min-width: 52px; height: auto; margin: 0; border-radius: 0; display: grid; place-items: center; background: hsl(var(--o-h) 10% 15%); color: var(--c); transform: none; }
+.mod-p .mod-ac > span { display: inline-block; transform: skewX(11.31deg); }
+.mod-p.on { background: var(--c); }
+.mod-p.on .mod-ac { background: rgba(0, 0, 0, .25); color: #fff; }
+.modsel-foot { background: hsl(var(--o-h) 10% 7%); padding-right: 50px; }
+.modsel-foot .btn:not(.primary) { background: hsl(var(--o-h) 10% 20%); }
+@media (max-width: 900px) { .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }

@@ -31,6 +31,7 @@ const ICONS = {
   upload: '<path d="M12 20V9M7 14l5-5 5 5M4 4h16"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  question: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.4v.6M12 16.6v.5"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h0M10 10h0M14 10h0M18 10h0M7 14h10"/>',
   volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/>',
@@ -158,26 +159,37 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
   return Overlays.push(o);
 }
 
+/** Dialogs, drawn like osu!lazer's PopupDialog: a white icon ring, the title and text, and a stack of slanted
+ *  DialogButtons — Pink to confirm, Blue to cancel, Red for anything destructive. */
 const Dialog = {
-  confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false } = {}) {
+  popup(title, body, buttons, { icon: ic = 'question', onKey = null, onClose = null } = {}) {
+    let o;
+    const btn = b => h(`button.pd-btn.${b.cls || 'ok'}`, { style: { '--c': b.colour }, onclick: () => { UISounds[b.cancel ? 'back' : 'click'](); b.onClick && b.onClick(); o.close(); } }, h('span', b.label));
+    const btns = buttons.map(btn);
+    const dlg = h('div.dialog.popup', { role: 'dialog', 'aria-modal': 'true' },
+      h('div.pd-ring', icon(ic)), h('h2', title), body != null ? h('div.body', body) : null, h('div.pd-buttons', ...btns));
+    o = makeOverlay(dlg, { onClose, onKey });
+    return { o, btns };
+  },
+  confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false, icon: ic = null } = {}) {
     return new Promise(resolve => {
       let result = false;
-      const okBtn = h(`button.btn${danger ? '.danger' : '.primary'}`, { onclick: () => { result = true; UISounds.click(); o.close(); } }, ok);
-      const dlg = h('div.dialog', { role: 'dialog', 'aria-modal': 'true' }, h('h2', title), h('div.body', body),
-        h('div.actions', h('button.btn.ghost', { onclick: () => { UISounds.back(); o.close(); } }, cancel), okBtn));
-      const o = makeOverlay(dlg, { onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter') { okBtn.click(); return true; } } });
-      setTimeout(() => okBtn.focus(), 30);
+      const { btns } = this.popup(title, body, [
+        { label: ok, colour: danger ? '#cc3333' : '#ff66aa', cls: danger ? 'ok.danger' : 'ok', onClick: () => { result = true; } },
+        { label: cancel, colour: '#66ccff', cls: 'cancel', cancel: true },
+      ], { icon: ic || (danger ? 'trash' : 'question'), onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter') { btns[0].click(); return true; } } });
+      setTimeout(() => btns[0].focus(), 30);
     });
   },
   prompt(title, value = '', { ok = 'Save', placeholder = '' } = {}) {
     return new Promise(resolve => {
       let result = null;
-      const inp = h('input.input', { value, placeholder, style: { width: '100%' }, maxlength: 60 });
-      const submit = () => { result = inp.value; UISounds.click(); o.close(); };
-      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } e.stopPropagation(); if (e.key === 'Escape') o.close(); });
-      const dlg = h('div.dialog', { role: 'dialog', 'aria-modal': 'true' }, h('h2', title), h('div.body', inp),
-        h('div.actions', h('button.btn.ghost', { onclick: () => o.close() }, 'Cancel'), h('button.btn.primary', { onclick: submit }, ok)));
-      const o = makeOverlay(dlg, { onClose: () => resolve(result) });
+      const inp = h('input.input.pd-input', { value, placeholder, maxlength: 60 });
+      const { o, btns } = this.popup(title, inp, [
+        { label: ok, colour: '#ff66aa', onClick: () => { result = inp.value; } },
+        { label: 'Cancel', colour: '#66ccff', cls: 'cancel', cancel: true },
+      ], { icon: 'edit', onClose: () => resolve(result) });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); btns[0].click(); } e.stopPropagation(); if (e.key === 'Escape') o.close(); });
       setTimeout(() => { inp.focus(); inp.select(); }, 30);
     });
   },
@@ -196,7 +208,7 @@ function showMenu(x, y, items) {
   for (const it of items) {
     if (it.sep) { menu.appendChild(h('div.sep')); continue; }
     if (it.header) { menu.appendChild(h('div.hdr', it.header)); continue; }
-    menu.appendChild(h('button', { role: 'menuitem', onclick: () => { UISounds.click(); o.close(); it.onClick && it.onClick(); } },
+    menu.appendChild(h(`button${it.danger ? '.danger' : ''}`, { role: 'menuitem', onclick: () => { UISounds.click(); o.close(); it.onClick && it.onClick(); } },
       it.icon ? icon(it.icon) : null, it.label, it.checked ? h('span.check', '✓') : null));
   }
   const o = makeOverlay(menu, { backdrop: false });
