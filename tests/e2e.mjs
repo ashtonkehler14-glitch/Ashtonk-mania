@@ -70,7 +70,15 @@ await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemu
   check('Chemuss 4K: notes are hit centred on the ring receptors (hit position 448)', ch.hit === 448 && Math.abs(ch.off) < 1.5, JSON.stringify({ hit: ch.hit, offsetUnits: ch.off }));
 }
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
-check('osu!lazer toolbar: icon buttons only, no text tabs, no beatmap listing', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('osu!lazer toolbar: icon buttons (beatmap listing, discover, notifications), no text tabs', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar [data-tab="discover"]') && !!document.querySelector('#toolbar [data-tab="notifications"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('toolbar clock cycles full → digital → analog on click', await page.evaluate(() => { const c = document.querySelector('.tb-clock'), seen = [c.dataset.mode]; for (let i = 0; i < 3; i++) { document.querySelector('.tb-clock').click(); seen.push(document.querySelector('.tb-clock').dataset.mode); } return seen.join(',') === 'full,digital,analog,full'; }));
+check('mouse wheel on the main menu changes the volume (lazer volume overlay)', await page.evaluate(async () => {
+  AshtonkMania.Screens.go('home'); await new Promise(r => setTimeout(r, 300));
+  const s = AshtonkMania.Settings, before = s.get('audio.master');
+  document.querySelector('.lz-stage').dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
+  const up = s.get('audio.master'); s.set('audio.master', before);
+  return Math.abs(up - Math.min(1, before + 0.05)) < 1e-6 && document.querySelector('.volume-overlay.show') !== null;
+}));
 check('KPS counter, judgement counter and hit error bar removed', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.judgementCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && !document.querySelector('.hud-kps')));
 check('touch controls, hitsounds and the old Neru easter-egg settings removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
 await page.mouse.click(700, 450); await page.waitForTimeout(500);

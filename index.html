@@ -1899,6 +1899,101 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
 .lz-menu[data-state="edit"] { --shift: 330px; }
 
+/* ── toolbar (osu!lazer's Toolbar) */
+#toolbar { background: linear-gradient(180deg, #1c1a20, #151318); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
+.tb-btn { padding: 0 11px; transition: background 120ms; }
+.tb-btn:hover { background: rgba(255, 255, 255, .12); }
+.tb-btn:active { background: rgba(255, 255, 255, .2); }
+.tb-btn.active::after { height: 3px; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .7); }
+.tb-tip { top: calc(100% + 8px); min-width: 170px; padding: 8px 12px; border-radius: 5px; background: rgba(28, 26, 32, .96); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
+.tb-group:last-child .tb-btn:last-child .tb-tip, .tb-group:last-child .tb-clock .tb-tip { left: auto; right: 0; transform: translate(0, -4px); }
+.tb-group:last-child .tb-btn:hover:last-child .tb-tip, .tb-group:last-child .tb-clock:hover .tb-tip { transform: none; }
+.tb-ruleset { display: flex; align-items: stretch; margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .08); }
+.tb-rs { display: grid; place-items: center; width: 40px; position: relative; color: #fff; }
+.tb-rs .i { width: 20px; height: 20px; }
+.tb-rs.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 2px 2px 0 0; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .8); }
+.tb-badge { position: absolute; top: 5px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff66ab; color: #fff; font-size: .62rem; font-weight: 700; line-height: 16px; text-align: center; }
+.tb-badge:empty { display: none; }
+.tb-btn.has > .i { animation: tbBell 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
+@keyframes tbBell { 0%, 80%, 100% { transform: none; } 84% { transform: rotate(14deg); } 88% { transform: rotate(-12deg); } 92% { transform: rotate(8deg); } 96% { transform: rotate(-4deg); } }
+.tb-clock { gap: 8px; padding: 0 12px; color: #ddd; font-weight: 400; cursor: pointer; }
+.tb-analog { width: 20px; height: 20px; }
+.tb-analog .face { fill: none; stroke: #fff; stroke-width: 1.6; }
+.tb-analog .hr { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+.tb-analog .mn { stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
+.tb-analog .sc { stroke: #ff66ab; stroke-width: 1; stroke-linecap: round; }
+.tb-analog .dot { fill: #ff66ab; }
+.tb-digital { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.tb-time { font-variant-numeric: tabular-nums; font-size: .8rem; }
+.tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
+
+/* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
+.nf-panel { position: fixed; top: calc(var(--toolbar-h) * var(--zoom-inv, 1)); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+  transform: translateX(105%); transition: transform 300ms var(--ease-out); }
+.nf-panel.open { transform: none; }
+.nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.nf-title { font-size: 1.45rem; font-weight: 300; }
+.nf-sub { grid-row: 2; color: #ff66ab; font-size: .8rem; }
+.nf-clear { grid-row: 1 / 3; grid-column: 2; }
+.nf-list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.nf-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, .05); animation: rowIn 250ms var(--ease-out) both; }
+.nf-ico { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #66ccff; color: #fff; }
+.nf-item.ok .nf-ico { background: #88b300; } .nf-item.err .nf-ico { background: #ed1121; }
+.nf-ico .i { width: 16px; height: 16px; }
+.nf-body { flex: 1; min-width: 0; }
+.nf-t { font-weight: 600; font-size: .88rem; }
+.nf-b { color: rgba(255, 255, 255, .7); font-size: .8rem; margin-top: 2px; overflow-wrap: anywhere; }
+.nf-time { color: rgba(255, 255, 255, .4); font-size: .7rem; margin-top: 4px; }
+.nf-x { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: rgba(255, 255, 255, .45); cursor: pointer; }
+.nf-x:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.nf-x .i { width: 14px; height: 14px; }
+.nf-empty { padding: 40px 10px; text-align: center; color: var(--muted); }
+
+/* volume (osu!lazer's VolumeOverlay): effects / master / music dials at the right edge */
+.volume-overlay { position: absolute; right: 0; top: 50%; z-index: 150; transform: translate(40px, -50%); opacity: 0; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding: 26px 26px 26px 70px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .55) 60%); transition: opacity 250ms, transform 300ms var(--ease-out); }
+.volume-overlay.show { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
+.vo-meter { display: flex; flex-direction: row-reverse; align-items: center; gap: 12px; cursor: default; }
+.vo-dial { position: relative; display: grid; place-items: center; }
+.vo-dial svg { display: block; }
+.vo-bg { fill: rgba(0, 0, 0, .5); stroke: rgba(255, 255, 255, .12); stroke-width: 6; }
+.vo-fg { fill: none; stroke: #66ccff; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 150ms; }
+.vo-meter.master .vo-fg { stroke: #ff66ab; }
+.vo-meter.big .vo-bg, .vo-meter.big .vo-fg { stroke-width: 8; }
+.vo-num { position: absolute; font-weight: 600; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.vo-meter.big .vo-num { font-size: 1.5rem; }
+.vo-label { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255, 255, 255, .55); transition: color 150ms; }
+.vo-meter.sel .vo-label { color: #fff; }
+.vo-meter.sel .vo-bg { stroke: rgba(255, 255, 255, .3); }
+.vo-mute { width: 36px; height: 36px; margin-right: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; cursor: pointer; }
+.vo-mute.on { background: #ed1121; }
+.vo-mute .i { width: 18px; height: 18px; }
+
+/* the lazer cursor everywhere outside gameplay (text fields keep the text cursor) */
+body.lz-cursor, body.lz-cursor * { cursor: var(--lz-cursor); }
+body.lz-cursor.lz-down, body.lz-cursor.lz-down * { cursor: var(--lz-cursor-down); }
+body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cursor input[type="search"], body.lz-cursor textarea { cursor: text; }
+
+/* Discover: online players as lazer's user cards */
+.dc-head { display: flex; align-items: baseline; gap: 4px; margin-bottom: 16px; font-size: 1rem; color: var(--text-2); }
+.dc-count { font-size: 1.8rem; font-weight: 700; color: #fff; }
+.dc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dc-card { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 10px 14px; padding: 16px; border-radius: 10px; background: var(--ob4, var(--panel-solid)); box-shadow: 0 4px 14px rgba(0, 0, 0, .25); animation: rowIn 300ms var(--ease-out) both; }
+.dc-cover { position: absolute; inset: 0 0 auto 0; height: 46px; background: linear-gradient(90deg, hsl(var(--o-h) 45% 32%), hsl(var(--o-h) 30% 20%)); opacity: .8; }
+.dc-card.me .dc-cover { background: linear-gradient(90deg, rgba(var(--accent-rgb), .7), rgba(var(--accent-rgb), .25)); }
+.dc-av { position: relative; grid-row: 1 / 3; }
+.dc-av .avatar, .dc-av img { border-radius: 14px; box-shadow: 0 0 0 3px rgba(0, 0, 0, .35); object-fit: cover; }
+.dc-body { position: relative; min-width: 0; padding-top: 18px; }
+.dc-name { font-weight: 700; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-status { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: .78rem; color: var(--text-2); }
+.dc-status i { width: 8px; height: 8px; border-radius: 50%; background: #b3d944; box-shadow: 0 0 6px #b3d944; }
+.dc-status.room i { background: #66ccff; box-shadow: 0 0 6px #66ccff; }
+.dc-status.play i { background: #ffcc22; box-shadow: 0 0 6px #ffcc22; }
+.dc-card > .btn { position: relative; grid-column: 2; justify-self: start; }
+.dc-empty { margin-top: 24px; padding: 30px; border-radius: 10px; background: rgba(255, 255, 255, .03); text-align: center; color: var(--muted); }
+body.lz-cursor .gameplay:not(.show-cursor), body.lz-cursor .gameplay:not(.show-cursor) * { cursor: none; }
+body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }
+
 </style>
 </head>
 <body>
@@ -4079,6 +4174,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
   { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
   // ── Input
+  { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
   { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
@@ -4097,6 +4193,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
+  { s: 'Skin', g: 'Skin', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
+  { s: 'Skin', g: 'Skin', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
   { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Custom skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.hue', l: 'Note colour (Custom skin)', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Accent colour' : `hue ${v}` },
@@ -6371,6 +6469,10 @@ const ICONS = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
+  bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
+  mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
+  social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
+  mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
 };
 function icon(name, cls = '') {
@@ -6492,8 +6594,9 @@ function gradeEl(g, cls = '') {
 
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
-  show(title, body = '', { type = 'info', timeout = 4200 } = {}) {
+  show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
+    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     const box = $('#toasts');
     box.appendChild(el);
@@ -6674,6 +6777,8 @@ const Background = {
 
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
+  /** osu!lazer's Toolbar: settings, home and the ruleset on the left; beatmap listing, players online, notifications,
+   *  now playing, the clock and your profile on the right. Every button has lazer's two-line tooltip. */
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
@@ -6685,26 +6790,68 @@ const Toolbar = {
     this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'), this.npText = h('span.tb-np-text'));
     this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
     this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
+    this.bellCount = h('span.tb-badge');
+    this.bell = btn('bell', 'Notifications', 'Waiting for \'ya', () => Notifications.toggle(), { dataset: { tab: 'notifications' } });
+    this.bell.append(this.bellCount);
+    this.clock = h('button.tb-btn.tb-clock', { 'aria-label': 'Clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     tb.append(
       h('div.tb-group',
         btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
-        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
+        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } }),
+        h('div.tb-ruleset', h('span.tb-rs.on', { title: 'osu!mania' }, icon('mania')))),
       h('div.tb-spacer'),
       h('div.tb-group',
+        btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
+        btn('social', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
+        this.bell,
         this.npBtn,
-        this.clock = h('div.tb-clock'),
+        this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } })),
     );
     this.updateProfile();
+    this.buildClock();
     this.tick();
     setInterval(() => this.tick(), 1000);
     Bus.on('music:changed', () => this.updateNp());
+    Bus.on('notif:changed', () => this.updateBell());
+    this.updateBell();
+  },
+  updateBell() { const n = Notifications.unread; this.bellCount.textContent = n > 99 ? '99+' : n || ''; this.bell.classList.toggle('has', n > 0); },
+  /** lazer's ToolbarClock: click to switch between full (analog + digital + time played), digital and analog. */
+  CLOCK_MODES: ['full', 'digital', 'analog'],
+  buildClock() {
+    const mode = this.CLOCK_MODES.includes(Settings.get('ui.clockMode')) ? Settings.get('ui.clockMode') : 'full';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'tb-analog');
+    svg.innerHTML = '<circle cx="12" cy="12" r="10.5" class="face"/><line x1="12" y1="12" x2="12" y2="6.5" class="hr"/><line x1="12" y1="12" x2="12" y2="4.2" class="mn"/><line x1="12" y1="13.5" x2="12" y2="3.5" class="sc"/><circle cx="12" cy="12" r="1.3" class="dot"/>';
+    this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
+    this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run');
+    clearEl(this.clock).append(mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
+      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks')));
+    this.clock.dataset.mode = mode;
+    this._lastT = '';
+  },
+  cycleClock() {
+    const i = this.CLOCK_MODES.indexOf(this.clock.dataset.mode);
+    Settings.set('ui.clockMode', this.CLOCK_MODES[(i + 1) % this.CLOCK_MODES.length]);
+    this.buildClock(); this.tick();
   },
   tick() {
     if ($('#app').classList.contains('in-game')) return; // the toolbar is hidden in game: don't relayout every second
-    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (this.clock.textContent !== t) this.clock.textContent = t;
+    const d = new Date();
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (this.clockTime && this.clockTime.textContent !== t) this.clockTime.textContent = t;
+    if (this.clockRun && this.clockRun.isConnected) {
+      const s = Math.floor(performance.now() / 1000);
+      this.clockRun.textContent = `running ${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    }
+    if (this.hands && this.hands.hr.isConnected) {
+      const sec = d.getSeconds(), min = d.getMinutes() + sec / 60, hr = (d.getHours() % 12) + min / 60;
+      this.hands.hr.setAttribute('transform', `rotate(${hr * 30} 12 12)`);
+      this.hands.mn.setAttribute('transform', `rotate(${min * 6} 12 12)`);
+      this.hands.sc.setAttribute('transform', `rotate(${sec * 6} 12 12)`);
+    }
   },
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
@@ -6808,31 +6955,144 @@ function backButton(onClick) {
   return b;
 }
 
-/** osu!-style volume control: Alt + mouse wheel adjusts master volume (Shift = music, Ctrl = effects). */
+/** osu!lazer's VolumeOverlay: the mouse wheel changes the volume on the main menu and in game (anywhere with Alt),
+ *  shown at the right edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
+ *  one the wheel changes; the overlay fades away a moment after the last change. */
 const VolumeOverlay = {
-  el: null, hideT: 0,
+  el: null, hideT: 0, sel: 'master', hover: false,
+  KEYS: { master: 'audio.master', music: 'audio.music', effects: 'audio.effects' },
   adjust(which, delta) {
-    const key = which === 'music' ? 'audio.music' : which === 'effects' ? 'audio.effects' : 'audio.master';
+    const key = this.KEYS[which] || 'audio.master';
     const v = clamp(Math.round((Settings.get(key) + delta) * 100) / 100, 0, 1);
     Settings.set(key, v);
-    this.show();
+    if (which === 'master' && v > 0) this._muted = null;
+    this.show(which);
   },
-  show() {
-    if (!this.el) { this.el = h('div.volume-overlay'); $('#app').appendChild(this.el); }
-    clearEl(this.el).append(...[['Master', 'audio.master'], ['Music', 'audio.music'], ['Effects', 'audio.effects']].map(([l, k]) => {
-      const v = Settings.get(k);
-      return h('div.vo-row', h('div.vo-ring', { style: { '--p': (v * 100) + '%' } }, h('span', Math.round(v * 100))), h('div.vo-l', l));
-    }));
+  ring(which, label, big) {
+    const R = big ? 38 : 26, C = 2 * Math.PI * R, sz = (R + 8) * 2;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${sz} ${sz}`); svg.setAttribute('width', sz); svg.setAttribute('height', sz);
+    svg.innerHTML = `<circle cx="${sz / 2}" cy="${sz / 2}" r="${R}" class="vo-bg"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${R}" class="vo-fg" stroke-dasharray="${C}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/>`;
+    const num = h('span.vo-num'), el = h(`div.vo-meter.${which}${big ? '.big' : ''}`, { onpointerenter: () => { this.sel = which; this.paint(); } }, h('div.vo-dial', svg, num), h('div.vo-label', label));
+    el._fg = svg.querySelector('.vo-fg'); el._C = C; el._num = num; el._which = which;
+    return el;
+  },
+  build() {
+    this.meters = [this.ring('effects', 'Effects'), this.ring('master', 'Master', true), this.ring('music', 'Music')];
+    this.muteBtn = h('button.vo-mute', { title: 'Mute', 'aria-label': 'Mute', onclick: () => this.toggleMute() }, icon('volume'));
+    this.el = h('div.volume-overlay', { onpointerenter: () => { this.hover = true; clearTimeout(this.hideT); }, onpointerleave: () => { this.hover = false; this.later(); } },
+      ...this.meters, this.muteBtn);
+    $('#app').appendChild(this.el);
+  },
+  toggleMute() {
+    const v = Settings.get('audio.master');
+    if (v > 0) { this._muted = v; Settings.set('audio.master', 0); } else Settings.set('audio.master', this._muted || 0.8);
+    this.show('master');
+  },
+  paint() {
+    for (const m of this.meters) {
+      const v = Settings.get(this.KEYS[m._which]);
+      m._fg.style.strokeDashoffset = (m._C * (1 - v)).toFixed(1);
+      m._num.textContent = Math.round(v * 100);
+      m.classList.toggle('sel', m._which === this.sel);
+    }
+    const muted = Settings.get('audio.master') === 0;
+    this.muteBtn.classList.toggle('on', muted);
+    clearEl(this.muteBtn).append(icon(muted ? 'mute' : 'volume'));
+  },
+  show(which) {
+    if (!this.el) this.build();
+    if (which) this.sel = which;
+    this.paint();
     this.el.classList.add('show');
-    clearTimeout(this.hideT);
-    this.hideT = setTimeout(() => this.el.classList.remove('show'), 1400);
+    this.later();
+  },
+  later() { clearTimeout(this.hideT); if (!this.hover) this.hideT = setTimeout(() => { this.el.classList.remove('show'); this.sel = 'master'; }, 1000); },
+  /** Is the pointer over something that scrolls (a list, a panel)? Then the wheel scrolls it instead. */
+  overScroller(t) {
+    for (let el = t; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight + 2) { const o = getComputedStyle(el).overflowY; if (o === 'auto' || o === 'scroll') return true; }
+    }
+    return false;
   },
   bind() {
     window.addEventListener('wheel', e => {
-      if (!e.altKey) return;
-      e.preventDefault();
-      this.adjust(e.shiftKey ? 'music' : e.ctrlKey ? 'effects' : 'master', e.deltaY < 0 ? 0.05 : -0.05);
-    }, { passive: false });
+      if (e.ctrlKey || e.metaKey) return;
+      const scr = Screens.currentName, shown = this.el && this.el.classList.contains('show');
+      const here = scr === 'home' || (scr === 'gameplay' && !Settings.get('input.noWheelVolumeInGame'));
+      if (!e.altKey && !(shown && this.hover)) {
+        if (!here || Overlays.stack.length || SettingsPanel.o || this.overScroller(e.target)) return;
+        if (scr === 'gameplay' && GameplayScreen.pauseEl) return;
+      }
+      e.preventDefault(); e.stopPropagation();
+      const which = e.altKey && e.shiftKey ? 'music' : e.altKey && e.ctrlKey ? 'effects' : this.sel;
+      const steps = Math.max(1, Math.round(Math.abs(e.deltaY) / 100));
+      this.adjust(which, (e.deltaY < 0 ? 0.05 : -0.05) * Math.min(steps, 3));
+    }, { passive: false, capture: true });
+  },
+};
+
+/** osu!lazer's menu cursor: a white arrow with a soft outline, drawn by the browser (so it never lags) at the size
+ *  chosen in settings; it shrinks a little while a button is held, like lazer's. Hidden in game as before. */
+const LazerCursor = {
+  apply() {
+    const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
+    const root = document.documentElement.style;
+    if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
+    const mk = k => {
+      const S = Math.round(34 * size * k), path = 'M5 3 L5 25 Q5 27 7 26 L12.5 20.5 L17 30 Q18 31.5 19.5 30.8 L22 29.5 Q23.3 28.8 22.6 27.4 L18.3 18.8 L25.6 18.4 Q27.8 18.2 26.3 16.5 L7.3 2 Q5 0.6 5 3 Z';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32"><path d="${path}" transform="translate(1.2 1.6)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#fff" stroke="#7a7a8c" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5 * S / 32)} ${Math.round(3 * S / 32)}`;
+    };
+    root.setProperty('--lz-cursor', `${mk(1)}, auto`);
+    root.setProperty('--lz-cursor-down', `${mk(0.86)}, auto`);
+    document.body.classList.add('lz-cursor');
+  },
+  init() {
+    this.apply();
+    Bus.on('settings:changed', k => { if (k === 'ui.lazerCursor' || k === 'ui.cursorSize' || k === '*') this.apply(); });
+    window.addEventListener('pointerdown', () => document.body.classList.add('lz-down'), true);
+    window.addEventListener('pointerup', () => document.body.classList.remove('lz-down'), true);
+  },
+};
+
+/** osu!lazer's NotificationOverlay: everything that popped up as a toast is kept here (newest first) until cleared;
+ *  the toolbar bell counts the ones you haven't seen. */
+const Notifications = {
+  list: [], unread: 0, el: null,
+  add(title, body, type = 'info') {
+    this.list.unshift({ id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now() });
+    if (this.list.length > 60) this.list.length = 60;
+    if (!this.isOpen()) this.unread++;
+    Bus.emit('notif:changed');
+    if (this.isOpen()) this.render();
+  },
+  isOpen() { return !!(this.el && this.el.classList.contains('open')); },
+  toggle() { this.isOpen() ? this.close() : this.open(); },
+  open() {
+    if (!this.el) {
+      this.listEl = h('div.nf-list');
+      this.el = h('div.nf-panel', { role: 'dialog', 'aria-label': 'Notifications' },
+        h('div.nf-head', h('div.nf-title', 'notifications'), h('div.nf-sub', 'waiting for \'ya'), h('button.btn.sm.nf-clear', { onclick: () => this.clear() }, 'Clear all')),
+        this.listEl);
+      document.body.appendChild(this.el);
+      document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
+    }
+    this.render();
+    this.el.classList.add('open');
+    this.unread = 0; Bus.emit('notif:changed');
+    $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.add('active'));
+  },
+  close() { if (this.el) this.el.classList.remove('open'); $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.remove('active')); },
+  clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
+  ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 45 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; },
+  render() {
+    if (!this.listEl) return;
+    const ico = { info: 'info', ok: 'star', err: 'x' };
+    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
+      h('div.nf-ico', icon(ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
+      h('div.nf-body', h('div.nf-t', n.title), n.body ? h('div.nf-b', n.body) : null, h('div.nf-time', this.ago(n.at))),
+      h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('x')))) : [h('div.nf-empty', 'No notifications')]));
   },
 };
 
@@ -11866,6 +12126,12 @@ const Presence = {
     this.send({ t: 'status', status: st, name });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
+  /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
+  avatarEl(p, size = 44) {
+    const url = p && p.avatar && typeof AvatarPresets !== 'undefined' ? AvatarPresets.url(p.avatar) : null;
+    if (url) return h('img.avatar', { src: url, alt: '', style: { width: size + 'px', height: size + 'px' }, onerror: e => e.target.replaceWith(this.avatarEl({ name: p.name }, size)) });
+    return h('div.avatar.avatar-mono', { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.45) + 'px' } }, (p && p.name || '?').slice(0, 1).toUpperCase());
+  },
   invite(id) { if (Multiplayer.inRoom()) this.send({ t: 'invite', to: id, code: Multiplayer.room.code }); },
   async onInvite(m) {
     const from = m.from && m.from.name || 'Someone';
@@ -12311,6 +12577,49 @@ const MultiplayerScreen = {
   },
 };
 
+/** Discover (osu!lazer's "currently online" users view): everyone playing Ashtonk!mania right now, with what they're
+ *  up to — invite someone to your room, or start one with them in a click. */
+const DiscoverScreen = {
+  tab: 'discover',
+  enter() {
+    const { el, page } = pageShell('Discover', 'Players online right now', [], { icon: 'social', hue: 'pink', wide: true });
+    this.page = page;
+    Presence.start();
+    this._unsub = [Bus.on('presence:changed', () => this.render()), Bus.on('mp:changed', () => this.render()), Bus.on('presence:invited', () => this.render())];
+    this.invited = new Set();
+    this.render();
+    return el;
+  },
+  leave() { (this._unsub || []).forEach(f => f()); },
+  render() {
+    if (!this.page) return;
+    const others = Presence.others(), inRoom = Multiplayer.inRoom();
+    const ST = { menu: ['Online', 'on'], room: ['In a multiplayer room', 'room'], playing: ['Playing', 'play'] };
+    const card = (p, me) => {
+      const [label, cls] = ST[p.status] || ST.menu;
+      const av = me ? ProfileManager.avatarEl(64) : Presence.avatarEl(p, 64);
+      const act = me ? null : this.invited.has(p.id) ? h('button.btn.sm', { disabled: true }, 'Invited') :
+        h('button.btn.sm.primary', { disabled: p.status === 'playing', onclick: async e => {
+          UISounds.click(); e.currentTarget.disabled = true;
+          try {
+            if (!Multiplayer.inRoom()) await Multiplayer.create();
+            Presence.invite(p.id); this.invited.add(p.id);
+            Toast.ok(`Invited ${p.name}`, `Room ${Multiplayer.room.code}`);
+            Screens.go('multiplayer');
+          } catch (err) { Toast.err('Couldn\'t invite', friendlyError(err)); this.render(); }
+        } }, icon('multi'), inRoom ? 'Invite to room' : 'Play together');
+      return h(`div.dc-card${me ? '.me' : ''}`, h('div.dc-cover'), h('div.dc-av', av),
+        h('div.dc-body', h('div.dc-name', p.name, me ? h('span.muted', ' (you)') : null), h(`div.dc-status.${cls}`, h('i'), label)), act);
+    };
+    const offline = !Presence.ws;
+    clearEl(this.page).append(
+      h('div.dc-head', h('span.dc-count', `${others.length + (offline ? 0 : 1)}`), h('span', ` player${others.length ? 's' : ''} online`), h('span.grow'),
+        offline ? h('span.mp-warn', Multiplayer.available() ? 'Connecting to the online server…' : 'Needs the online server (the Cloudflare deployment).') : null),
+      h('div.dc-grid', card({ name: ProfileManager.profile.name, status: Presence.status() }, true), ...others.map(p => card(p, false))),
+      !others.length && !offline ? h('div.dc-empty', 'Nobody else is online right now — share the game with a friend and they\'ll show up here.') : null);
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -12355,8 +12664,10 @@ const App = {
     Screens.register('stats', ProfileScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
+    Screens.register('discover', DiscoverScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
+    LazerCursor.init();
     window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }

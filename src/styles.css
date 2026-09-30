@@ -1881,3 +1881,98 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 @keyframes lzBounce { 0% { transform: translateY(-5px) scale(1.12, .9); } 100% { transform: none; } }
 .lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
 .lz-menu[data-state="edit"] { --shift: 330px; }
+
+/* ── toolbar (osu!lazer's Toolbar) */
+#toolbar { background: linear-gradient(180deg, #1c1a20, #151318); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
+.tb-btn { padding: 0 11px; transition: background 120ms; }
+.tb-btn:hover { background: rgba(255, 255, 255, .12); }
+.tb-btn:active { background: rgba(255, 255, 255, .2); }
+.tb-btn.active::after { height: 3px; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .7); }
+.tb-tip { top: calc(100% + 8px); min-width: 170px; padding: 8px 12px; border-radius: 5px; background: rgba(28, 26, 32, .96); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
+.tb-group:last-child .tb-btn:last-child .tb-tip, .tb-group:last-child .tb-clock .tb-tip { left: auto; right: 0; transform: translate(0, -4px); }
+.tb-group:last-child .tb-btn:hover:last-child .tb-tip, .tb-group:last-child .tb-clock:hover .tb-tip { transform: none; }
+.tb-ruleset { display: flex; align-items: stretch; margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .08); }
+.tb-rs { display: grid; place-items: center; width: 40px; position: relative; color: #fff; }
+.tb-rs .i { width: 20px; height: 20px; }
+.tb-rs.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 2px 2px 0 0; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .8); }
+.tb-badge { position: absolute; top: 5px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff66ab; color: #fff; font-size: .62rem; font-weight: 700; line-height: 16px; text-align: center; }
+.tb-badge:empty { display: none; }
+.tb-btn.has > .i { animation: tbBell 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
+@keyframes tbBell { 0%, 80%, 100% { transform: none; } 84% { transform: rotate(14deg); } 88% { transform: rotate(-12deg); } 92% { transform: rotate(8deg); } 96% { transform: rotate(-4deg); } }
+.tb-clock { gap: 8px; padding: 0 12px; color: #ddd; font-weight: 400; cursor: pointer; }
+.tb-analog { width: 20px; height: 20px; }
+.tb-analog .face { fill: none; stroke: #fff; stroke-width: 1.6; }
+.tb-analog .hr { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+.tb-analog .mn { stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
+.tb-analog .sc { stroke: #ff66ab; stroke-width: 1; stroke-linecap: round; }
+.tb-analog .dot { fill: #ff66ab; }
+.tb-digital { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.tb-time { font-variant-numeric: tabular-nums; font-size: .8rem; }
+.tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
+
+/* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
+.nf-panel { position: fixed; top: calc(var(--toolbar-h) * var(--zoom-inv, 1)); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: 92vw; display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+  transform: translateX(105%); transition: transform 300ms var(--ease-out); }
+.nf-panel.open { transform: none; }
+.nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.nf-title { font-size: 1.45rem; font-weight: 300; }
+.nf-sub { grid-row: 2; color: #ff66ab; font-size: .8rem; }
+.nf-clear { grid-row: 1 / 3; grid-column: 2; }
+.nf-list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.nf-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, .05); animation: rowIn 250ms var(--ease-out) both; }
+.nf-ico { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #66ccff; color: #fff; }
+.nf-item.ok .nf-ico { background: #88b300; } .nf-item.err .nf-ico { background: #ed1121; }
+.nf-ico .i { width: 16px; height: 16px; }
+.nf-body { flex: 1; min-width: 0; }
+.nf-t { font-weight: 600; font-size: .88rem; }
+.nf-b { color: rgba(255, 255, 255, .7); font-size: .8rem; margin-top: 2px; overflow-wrap: anywhere; }
+.nf-time { color: rgba(255, 255, 255, .4); font-size: .7rem; margin-top: 4px; }
+.nf-x { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: rgba(255, 255, 255, .45); cursor: pointer; }
+.nf-x:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.nf-x .i { width: 14px; height: 14px; }
+.nf-empty { padding: 40px 10px; text-align: center; color: var(--muted); }
+
+/* volume (osu!lazer's VolumeOverlay): effects / master / music dials at the right edge */
+.volume-overlay { position: absolute; right: 0; top: 50%; z-index: 150; transform: translate(40px, -50%); opacity: 0; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding: 26px 26px 26px 70px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .55) 60%); transition: opacity 250ms, transform 300ms var(--ease-out); }
+.volume-overlay.show { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
+.vo-meter { display: flex; flex-direction: row-reverse; align-items: center; gap: 12px; cursor: default; }
+.vo-dial { position: relative; display: grid; place-items: center; }
+.vo-dial svg { display: block; }
+.vo-bg { fill: rgba(0, 0, 0, .5); stroke: rgba(255, 255, 255, .12); stroke-width: 6; }
+.vo-fg { fill: none; stroke: #66ccff; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 150ms; }
+.vo-meter.master .vo-fg { stroke: #ff66ab; }
+.vo-meter.big .vo-bg, .vo-meter.big .vo-fg { stroke-width: 8; }
+.vo-num { position: absolute; font-weight: 600; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.vo-meter.big .vo-num { font-size: 1.5rem; }
+.vo-label { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255, 255, 255, .55); transition: color 150ms; }
+.vo-meter.sel .vo-label { color: #fff; }
+.vo-meter.sel .vo-bg { stroke: rgba(255, 255, 255, .3); }
+.vo-mute { width: 36px; height: 36px; margin-right: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; cursor: pointer; }
+.vo-mute.on { background: #ed1121; }
+.vo-mute .i { width: 18px; height: 18px; }
+
+/* the lazer cursor everywhere outside gameplay (text fields keep the text cursor) */
+body.lz-cursor, body.lz-cursor * { cursor: var(--lz-cursor); }
+body.lz-cursor.lz-down, body.lz-cursor.lz-down * { cursor: var(--lz-cursor-down); }
+body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cursor input[type="search"], body.lz-cursor textarea { cursor: text; }
+
+/* Discover: online players as lazer's user cards */
+.dc-head { display: flex; align-items: baseline; gap: 4px; margin-bottom: 16px; font-size: 1rem; color: var(--text-2); }
+.dc-count { font-size: 1.8rem; font-weight: 700; color: #fff; }
+.dc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dc-card { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 10px 14px; padding: 16px; border-radius: 10px; background: var(--ob4, var(--panel-solid)); box-shadow: 0 4px 14px rgba(0, 0, 0, .25); animation: rowIn 300ms var(--ease-out) both; }
+.dc-cover { position: absolute; inset: 0 0 auto 0; height: 46px; background: linear-gradient(90deg, hsl(var(--o-h) 45% 32%), hsl(var(--o-h) 30% 20%)); opacity: .8; }
+.dc-card.me .dc-cover { background: linear-gradient(90deg, rgba(var(--accent-rgb), .7), rgba(var(--accent-rgb), .25)); }
+.dc-av { position: relative; grid-row: 1 / 3; }
+.dc-av .avatar, .dc-av img { border-radius: 14px; box-shadow: 0 0 0 3px rgba(0, 0, 0, .35); object-fit: cover; }
+.dc-body { position: relative; min-width: 0; padding-top: 18px; }
+.dc-name { font-weight: 700; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-status { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: .78rem; color: var(--text-2); }
+.dc-status i { width: 8px; height: 8px; border-radius: 50%; background: #b3d944; box-shadow: 0 0 6px #b3d944; }
+.dc-status.room i { background: #66ccff; box-shadow: 0 0 6px #66ccff; }
+.dc-status.play i { background: #ffcc22; box-shadow: 0 0 6px #ffcc22; }
+.dc-card > .btn { position: relative; grid-column: 2; justify-self: start; }
+.dc-empty { margin-top: 24px; padding: 30px; border-radius: 10px; background: rgba(255, 255, 255, .03); text-align: center; color: var(--muted); }
+body.lz-cursor .gameplay:not(.show-cursor), body.lz-cursor .gameplay:not(.show-cursor) * { cursor: none; }
+body:has(.nf-panel.open) #toasts { opacity: 0; pointer-events: none; }

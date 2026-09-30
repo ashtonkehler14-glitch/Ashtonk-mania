@@ -48,6 +48,10 @@ const ICONS = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
+  bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
+  mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
+  social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
+  mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
 };
 function icon(name, cls = '') {
@@ -169,8 +173,9 @@ function gradeEl(g, cls = '') {
 
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
-  show(title, body = '', { type = 'info', timeout = 4200 } = {}) {
+  show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
+    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     const box = $('#toasts');
     box.appendChild(el);
@@ -351,6 +356,8 @@ const Background = {
 
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
+  /** osu!lazer's Toolbar: settings, home and the ruleset on the left; beatmap listing, players online, notifications,
+   *  now playing, the clock and your profile on the right. Every button has lazer's two-line tooltip. */
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
@@ -362,26 +369,68 @@ const Toolbar = {
     this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'), this.npText = h('span.tb-np-text'));
     this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
     this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
+    this.bellCount = h('span.tb-badge');
+    this.bell = btn('bell', 'Notifications', 'Waiting for \'ya', () => Notifications.toggle(), { dataset: { tab: 'notifications' } });
+    this.bell.append(this.bellCount);
+    this.clock = h('button.tb-btn.tb-clock', { 'aria-label': 'Clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     tb.append(
       h('div.tb-group',
         btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
-        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
+        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } }),
+        h('div.tb-ruleset', h('span.tb-rs.on', { title: 'osu!mania' }, icon('mania')))),
       h('div.tb-spacer'),
       h('div.tb-group',
+        btn('download', 'Beatmap listing', 'Browse for new beatmaps', () => Screens.go('explore'), { dataset: { tab: 'explore' } }),
+        btn('social', 'Discover', 'See who\'s online and play together', () => Screens.go('discover'), { dataset: { tab: 'discover' } }),
+        this.bell,
         this.npBtn,
-        this.clock = h('div.tb-clock'),
+        this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); Screens.go('profile'); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } })),
     );
     this.updateProfile();
+    this.buildClock();
     this.tick();
     setInterval(() => this.tick(), 1000);
     Bus.on('music:changed', () => this.updateNp());
+    Bus.on('notif:changed', () => this.updateBell());
+    this.updateBell();
+  },
+  updateBell() { const n = Notifications.unread; this.bellCount.textContent = n > 99 ? '99+' : n || ''; this.bell.classList.toggle('has', n > 0); },
+  /** lazer's ToolbarClock: click to switch between full (analog + digital + time played), digital and analog. */
+  CLOCK_MODES: ['full', 'digital', 'analog'],
+  buildClock() {
+    const mode = this.CLOCK_MODES.includes(Settings.get('ui.clockMode')) ? Settings.get('ui.clockMode') : 'full';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'tb-analog');
+    svg.innerHTML = '<circle cx="12" cy="12" r="10.5" class="face"/><line x1="12" y1="12" x2="12" y2="6.5" class="hr"/><line x1="12" y1="12" x2="12" y2="4.2" class="mn"/><line x1="12" y1="13.5" x2="12" y2="3.5" class="sc"/><circle cx="12" cy="12" r="1.3" class="dot"/>';
+    this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
+    this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run');
+    clearEl(this.clock).append(mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
+      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks')));
+    this.clock.dataset.mode = mode;
+    this._lastT = '';
+  },
+  cycleClock() {
+    const i = this.CLOCK_MODES.indexOf(this.clock.dataset.mode);
+    Settings.set('ui.clockMode', this.CLOCK_MODES[(i + 1) % this.CLOCK_MODES.length]);
+    this.buildClock(); this.tick();
   },
   tick() {
     if ($('#app').classList.contains('in-game')) return; // the toolbar is hidden in game: don't relayout every second
-    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (this.clock.textContent !== t) this.clock.textContent = t;
+    const d = new Date();
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (this.clockTime && this.clockTime.textContent !== t) this.clockTime.textContent = t;
+    if (this.clockRun && this.clockRun.isConnected) {
+      const s = Math.floor(performance.now() / 1000);
+      this.clockRun.textContent = `running ${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    }
+    if (this.hands && this.hands.hr.isConnected) {
+      const sec = d.getSeconds(), min = d.getMinutes() + sec / 60, hr = (d.getHours() % 12) + min / 60;
+      this.hands.hr.setAttribute('transform', `rotate(${hr * 30} 12 12)`);
+      this.hands.mn.setAttribute('transform', `rotate(${min * 6} 12 12)`);
+      this.hands.sc.setAttribute('transform', `rotate(${sec * 6} 12 12)`);
+    }
   },
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
@@ -485,31 +534,144 @@ function backButton(onClick) {
   return b;
 }
 
-/** osu!-style volume control: Alt + mouse wheel adjusts master volume (Shift = music, Ctrl = effects). */
+/** osu!lazer's VolumeOverlay: the mouse wheel changes the volume on the main menu and in game (anywhere with Alt),
+ *  shown at the right edge as three rings — effects, master (the big one) and music. Hover a ring to choose which
+ *  one the wheel changes; the overlay fades away a moment after the last change. */
 const VolumeOverlay = {
-  el: null, hideT: 0,
+  el: null, hideT: 0, sel: 'master', hover: false,
+  KEYS: { master: 'audio.master', music: 'audio.music', effects: 'audio.effects' },
   adjust(which, delta) {
-    const key = which === 'music' ? 'audio.music' : which === 'effects' ? 'audio.effects' : 'audio.master';
+    const key = this.KEYS[which] || 'audio.master';
     const v = clamp(Math.round((Settings.get(key) + delta) * 100) / 100, 0, 1);
     Settings.set(key, v);
-    this.show();
+    if (which === 'master' && v > 0) this._muted = null;
+    this.show(which);
   },
-  show() {
-    if (!this.el) { this.el = h('div.volume-overlay'); $('#app').appendChild(this.el); }
-    clearEl(this.el).append(...[['Master', 'audio.master'], ['Music', 'audio.music'], ['Effects', 'audio.effects']].map(([l, k]) => {
-      const v = Settings.get(k);
-      return h('div.vo-row', h('div.vo-ring', { style: { '--p': (v * 100) + '%' } }, h('span', Math.round(v * 100))), h('div.vo-l', l));
-    }));
+  ring(which, label, big) {
+    const R = big ? 38 : 26, C = 2 * Math.PI * R, sz = (R + 8) * 2;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${sz} ${sz}`); svg.setAttribute('width', sz); svg.setAttribute('height', sz);
+    svg.innerHTML = `<circle cx="${sz / 2}" cy="${sz / 2}" r="${R}" class="vo-bg"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${R}" class="vo-fg" stroke-dasharray="${C}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/>`;
+    const num = h('span.vo-num'), el = h(`div.vo-meter.${which}${big ? '.big' : ''}`, { onpointerenter: () => { this.sel = which; this.paint(); } }, h('div.vo-dial', svg, num), h('div.vo-label', label));
+    el._fg = svg.querySelector('.vo-fg'); el._C = C; el._num = num; el._which = which;
+    return el;
+  },
+  build() {
+    this.meters = [this.ring('effects', 'Effects'), this.ring('master', 'Master', true), this.ring('music', 'Music')];
+    this.muteBtn = h('button.vo-mute', { title: 'Mute', 'aria-label': 'Mute', onclick: () => this.toggleMute() }, icon('volume'));
+    this.el = h('div.volume-overlay', { onpointerenter: () => { this.hover = true; clearTimeout(this.hideT); }, onpointerleave: () => { this.hover = false; this.later(); } },
+      ...this.meters, this.muteBtn);
+    $('#app').appendChild(this.el);
+  },
+  toggleMute() {
+    const v = Settings.get('audio.master');
+    if (v > 0) { this._muted = v; Settings.set('audio.master', 0); } else Settings.set('audio.master', this._muted || 0.8);
+    this.show('master');
+  },
+  paint() {
+    for (const m of this.meters) {
+      const v = Settings.get(this.KEYS[m._which]);
+      m._fg.style.strokeDashoffset = (m._C * (1 - v)).toFixed(1);
+      m._num.textContent = Math.round(v * 100);
+      m.classList.toggle('sel', m._which === this.sel);
+    }
+    const muted = Settings.get('audio.master') === 0;
+    this.muteBtn.classList.toggle('on', muted);
+    clearEl(this.muteBtn).append(icon(muted ? 'mute' : 'volume'));
+  },
+  show(which) {
+    if (!this.el) this.build();
+    if (which) this.sel = which;
+    this.paint();
     this.el.classList.add('show');
-    clearTimeout(this.hideT);
-    this.hideT = setTimeout(() => this.el.classList.remove('show'), 1400);
+    this.later();
+  },
+  later() { clearTimeout(this.hideT); if (!this.hover) this.hideT = setTimeout(() => { this.el.classList.remove('show'); this.sel = 'master'; }, 1000); },
+  /** Is the pointer over something that scrolls (a list, a panel)? Then the wheel scrolls it instead. */
+  overScroller(t) {
+    for (let el = t; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight + 2) { const o = getComputedStyle(el).overflowY; if (o === 'auto' || o === 'scroll') return true; }
+    }
+    return false;
   },
   bind() {
     window.addEventListener('wheel', e => {
-      if (!e.altKey) return;
-      e.preventDefault();
-      this.adjust(e.shiftKey ? 'music' : e.ctrlKey ? 'effects' : 'master', e.deltaY < 0 ? 0.05 : -0.05);
-    }, { passive: false });
+      if (e.ctrlKey || e.metaKey) return;
+      const scr = Screens.currentName, shown = this.el && this.el.classList.contains('show');
+      const here = scr === 'home' || (scr === 'gameplay' && !Settings.get('input.noWheelVolumeInGame'));
+      if (!e.altKey && !(shown && this.hover)) {
+        if (!here || Overlays.stack.length || SettingsPanel.o || this.overScroller(e.target)) return;
+        if (scr === 'gameplay' && GameplayScreen.pauseEl) return;
+      }
+      e.preventDefault(); e.stopPropagation();
+      const which = e.altKey && e.shiftKey ? 'music' : e.altKey && e.ctrlKey ? 'effects' : this.sel;
+      const steps = Math.max(1, Math.round(Math.abs(e.deltaY) / 100));
+      this.adjust(which, (e.deltaY < 0 ? 0.05 : -0.05) * Math.min(steps, 3));
+    }, { passive: false, capture: true });
+  },
+};
+
+/** osu!lazer's menu cursor: a white arrow with a soft outline, drawn by the browser (so it never lags) at the size
+ *  chosen in settings; it shrinks a little while a button is held, like lazer's. Hidden in game as before. */
+const LazerCursor = {
+  apply() {
+    const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
+    const root = document.documentElement.style;
+    if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
+    const mk = k => {
+      const S = Math.round(34 * size * k), path = 'M5 3 L5 25 Q5 27 7 26 L12.5 20.5 L17 30 Q18 31.5 19.5 30.8 L22 29.5 Q23.3 28.8 22.6 27.4 L18.3 18.8 L25.6 18.4 Q27.8 18.2 26.3 16.5 L7.3 2 Q5 0.6 5 3 Z';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32"><path d="${path}" transform="translate(1.2 1.6)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#fff" stroke="#7a7a8c" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5 * S / 32)} ${Math.round(3 * S / 32)}`;
+    };
+    root.setProperty('--lz-cursor', `${mk(1)}, auto`);
+    root.setProperty('--lz-cursor-down', `${mk(0.86)}, auto`);
+    document.body.classList.add('lz-cursor');
+  },
+  init() {
+    this.apply();
+    Bus.on('settings:changed', k => { if (k === 'ui.lazerCursor' || k === 'ui.cursorSize' || k === '*') this.apply(); });
+    window.addEventListener('pointerdown', () => document.body.classList.add('lz-down'), true);
+    window.addEventListener('pointerup', () => document.body.classList.remove('lz-down'), true);
+  },
+};
+
+/** osu!lazer's NotificationOverlay: everything that popped up as a toast is kept here (newest first) until cleared;
+ *  the toolbar bell counts the ones you haven't seen. */
+const Notifications = {
+  list: [], unread: 0, el: null,
+  add(title, body, type = 'info') {
+    this.list.unshift({ id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now() });
+    if (this.list.length > 60) this.list.length = 60;
+    if (!this.isOpen()) this.unread++;
+    Bus.emit('notif:changed');
+    if (this.isOpen()) this.render();
+  },
+  isOpen() { return !!(this.el && this.el.classList.contains('open')); },
+  toggle() { this.isOpen() ? this.close() : this.open(); },
+  open() {
+    if (!this.el) {
+      this.listEl = h('div.nf-list');
+      this.el = h('div.nf-panel', { role: 'dialog', 'aria-label': 'Notifications' },
+        h('div.nf-head', h('div.nf-title', 'notifications'), h('div.nf-sub', 'waiting for \'ya'), h('button.btn.sm.nf-clear', { onclick: () => this.clear() }, 'Clear all')),
+        this.listEl);
+      document.body.appendChild(this.el);
+      document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
+    }
+    this.render();
+    this.el.classList.add('open');
+    this.unread = 0; Bus.emit('notif:changed');
+    $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.add('active'));
+  },
+  close() { if (this.el) this.el.classList.remove('open'); $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.remove('active')); },
+  clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
+  ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 45 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; },
+  render() {
+    if (!this.listEl) return;
+    const ico = { info: 'info', ok: 'star', err: 'x' };
+    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
+      h('div.nf-ico', icon(ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
+      h('div.nf-body', h('div.nf-t', n.title), n.body ? h('div.nf-b', n.body) : null, h('div.nf-time', this.ago(n.at))),
+      h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('x')))) : [h('div.nf-empty', 'No notifications')]));
   },
 };
 

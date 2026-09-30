@@ -22,6 +22,19 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer toolbar, notifications, volume and cursor
+
+* **The top bar follows lazer's layout.**
+  * Left: Settings, Home and the osu!mania ruleset.
+  * Right: Beatmap listing, Discover (players online), Notifications, Now playing, the clock and your profile.
+* **Notifications:** every pop-up is kept in a notifications panel, and the bell counts the unread ones.
+* **The clock** switches between full (analog, digital and time played), digital and analog when you click it.
+* **Volume:** the mouse wheel changes the volume on the main menu and in game (anywhere with Alt), shown with lazer's volume overlay.
+  * Effects, master and music dials; hover one to change it; there's a mute button.
+  * Settings → Input → "Disable mouse wheel adjusting volume during gameplay" turns it off in game.
+* **lazer's cursor**, with a "Menu cursor size" setting.
+* **Discover:** a page of everyone online, with one click to invite them or start a room together.
+
 ### Main menu like osu!lazer
 
 * **The button bar follows lazer's layout.** Settings sits left of the logo; Play, Edit and Browse sit to its right.

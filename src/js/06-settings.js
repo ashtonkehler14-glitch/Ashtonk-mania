@@ -97,6 +97,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
   { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
   // ── Input
+  { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
   { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Input display (key counter)', t: 'bool', d: false },
@@ -115,6 +116,8 @@ const SETTINGS_SCHEMA = [
   { s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Skin element scale (judgements & combo)', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
+  { s: 'Skin', g: 'Skin', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
+  { s: 'Skin', g: 'Skin', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
   { s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Stage light on key press', t: 'bool', d: true },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.noteStyle', l: 'Note style (Custom skin)', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
   { s: 'Skin', g: 'Built-in skin', k: 'skin.hue', l: 'Note colour (Custom skin)', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Accent colour' : `hue ${v}` },
