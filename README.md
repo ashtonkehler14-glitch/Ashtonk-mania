@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### New profile pictures
+
+* The free profile pictures are now the Teto, Neru and Miku pictures in `public/avatars/` (256×256), replacing the drawn ones. If you had picked one of the old drawn avatars, you get that character's new picture automatically.
+
 ### osu!lazer dialogs, notifications, menus and mod select
 
 * **Dialogs are lazer's popup dialogs**: a dark plum box with faint triangles and a white icon ring (trash for deletions, a pencil for names, a question mark otherwise). Under the title and text sit big slanted buttons that widen and glow at the sides when hovered: pink to confirm, blue to cancel, red for anything destructive.
