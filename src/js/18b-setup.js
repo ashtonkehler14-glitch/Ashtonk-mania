@@ -23,10 +23,10 @@ const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'ask', title: 'Set up the game?' },
-    { id: 'device', title: 'What are you playing on?' },
-    { id: 'look', title: 'Make it yours' },
-    { id: 'gameplay', title: 'How notes move' },
-    { id: 'skin', title: 'Pick a skin' },
+    { id: 'device', title: 'What are you playing on?', short: 'Device' },
+    { id: 'look', title: 'Make it yours', short: 'Appearance' },
+    { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
+    { id: 'skin', title: 'Pick a skin', short: 'Skin' },
   ],
 
   /** Runs the wizard. Resolves once it is finished or skipped. `again`: opened from Settings (name is kept). */
@@ -61,16 +61,18 @@ const Onboarding = {
     const body = h(`div.setup-body.setup-step-${st.id}${this.animate ? '.anim' : ''}`, { style: { '--dir': this.dir } }, ...[].concat(this['step_' + st.id]()));
     this.animate = false;
     const showNav = st.id !== 'ask';
-    this.nextBtn = showNav ? h('button.btn.primary.setup-next', { onclick: () => this.next() }, this.last ? 'Finish' : 'Next', icon(this.last ? 'check' : 'chevron')) : null;
+    // lazer's WizardOverlay: the overlay header, the step, then sheared Back and a wide Next "(next step)" button
+    const nx = this.STEPS[this.i + 1];
+    this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && nx.short ? `Next (${nx.short})` : 'Next')) : null;
     clearEl(this.el).append(
+      h('div.setup-ovhead', h('div.setup-ovt', 'first-run setup'), h('div.setup-ovs', 'set up Ashtonk!mania to suit you')),
       h('div.setup-head',
         h('h2', st.id === 'welcome' ? 'Welcome to Ashtonk!mania' : st.title),
         this.i > 1 ? h('div.setup-progress', ...this.STEPS.slice(2).map((s, k) => h(`i${k + 2 === this.i ? '.on' : k + 2 < this.i ? '.past' : ''}`)))
           : null),
       body,
       h('div.setup-foot',
-        this.i > 0 ? h('button.btn.ghost', { onclick: () => this.go(this.i === 2 ? 1 : this.i - 1) }, icon('back'), 'Back') : null,
-        h('span.grow'),
+        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i === 2 ? 1 : this.i - 1) }, h('span', icon('back'), 'Back')) : null,
         this.err = h('div.ob-err'),
         this.nextBtn));
     this.afterRender && this.afterRender();

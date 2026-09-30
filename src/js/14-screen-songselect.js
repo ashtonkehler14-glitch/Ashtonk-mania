@@ -69,12 +69,14 @@ const SongSelect = {
     // footer
     this.modsOn = h('div.mods-on');
     this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' }, h('span.ss-cookie-disc', icon('play', 'fill')));
-    const fb = (label, color, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', label));
+    // lazer's ScreenFooterButtons: sheared 116×75 buttons standing up out of the footer, icon over the label and an
+    // accent bar along the bottom (Mods Lime1, Random Blue1, Options Purple1)
+    const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', '#ffcc22', () => ModSelect.open(), 'F1'),
-      fb('Random', '#88b300', () => this.random(), 'F2'),
-      fb('Options', '#aa66ff', e => this.options(e), 'F3'),
+      fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
+      fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2'),
+      fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);

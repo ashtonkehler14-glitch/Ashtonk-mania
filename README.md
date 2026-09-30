@@ -29,6 +29,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 * **Right-click menus** use lazer's dark teal-grey context menu. Items go bold when hovered, and "Delete" shows in red.
 * **Mod select is sheared like lazer's**, in its green colour scheme. The columns, mod panels and multiplier boxes are all slanted (the text stays upright), and each mod panel has its acronym in a darker switch area.
 * Primary buttons inside a page take that page's colour, as lazer's rounded buttons do.
+* **Song select's footer** has lazer's new footer buttons: slanted tiles (Mods, Random, Options) standing up out of the footer bar, each with an icon, its label and a coloured bar (lime, blue, purple). The **back** button everywhere uses lazer's pink.
+* **The first-run setup** looks like lazer's: a "first-run setup" header, the step's title, a slanted grey Back button and a wide purple **Next (Appearance)** button that names the next step.
 
 ### osu!lazer-style overlays: library, collections, profile, replays, skins, beatmap listing, multiplayer
 
