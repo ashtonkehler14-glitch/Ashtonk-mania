@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Gameplay HUD blends in
+
+* **The numbers form one right-hand stack**: score, accuracy, pp, then mods. The mod badges no longer sit on top of other text.
+* **The pp counter** has lazer's smaller "pp" suffix. The personal-best line under it is gone.
+* **Mods start bright and settle back** after a few seconds, as lazer's mod display does.
+* **The leaderboard is sheared, see-through panels** coming out of the left edge. Other players' rows sit back; yours is lit in the accent colour with an accent edge. The multiplayer board uses the same style.
+* **Text has soft shadows instead of boxes**, including the AUTO / REPLAY badge, so nothing hides the background.
+
 ### 4K skins play every key count
 
 * **A skin made only for 4K now plays 1K–10K using its own art** instead of falling back to the built-in look for other key counts.

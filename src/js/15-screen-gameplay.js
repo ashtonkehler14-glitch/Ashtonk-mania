@@ -445,15 +445,16 @@ const GameplayScreen = {
     const s = this.s;
     clearEl(this.hud);
     this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
-    this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
+    this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
     const pd = Settings.get('gameplay.progressDisplay');
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
-      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl),
-      h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
+      // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
+      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
+        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))) : null),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -628,7 +629,7 @@ const GameplayScreen = {
       // live pp only changes when a note is judged
       if (e.score.judged !== this._ppJudged) {
         this._ppJudged = e.score.judged;
-        const t = `${Math.round(this.livePp(e))}pp`;
+        const t = String(Math.round(this.livePp(e))); // (the "pp" is a smaller suffix drawn by CSS, as lazer's counter)
         if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
@@ -644,11 +645,6 @@ const GameplayScreen = {
         const low = q < 120;
         if (low !== this._hpLow) { this._hpLow = low; this.hpEl.classList.toggle('low', low); }
       }
-    }
-    const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
-    if (pb && s.mode === 'play') {
-      const t = `PB ${fmtAcc(pb.accuracy)}`;
-      if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
   },
   /** osu!lazer-style in-game leaderboard: this map's local top scores with your live score climbing through them. */

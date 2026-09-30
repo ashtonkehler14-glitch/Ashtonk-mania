@@ -555,7 +555,6 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-score { position: absolute; top: 16px; right: 24px; text-align: right; }
 .hud-score .sc { font-size: clamp(1.8rem, 3.2vw, 2.8rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
 .hud-score .acc { font-size: clamp(1.1rem, 1.8vw, 1.5rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
-.hud-score .pace { font-size: .8rem; color: var(--muted); font-weight: 600; }
 .hud-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: rgba(255, 255, 255, .06); }
 .hud-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); width: 100%; transform: scaleX(0); transform-origin: 0 0; }
 .hud-time { position: absolute; top: 12px; left: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
@@ -1716,6 +1715,46 @@ input[type=range].slider::-webkit-slider-runnable-track { height: 4px; border-ra
 input[type=range].slider::-webkit-slider-thumb { width: 26px; height: 15px; margin-top: -5.5px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), .5); }
 input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); }
 .settings-panel .toggle::after { content: ""; }
+
+/* ── gameplay HUD, blended in (osu!lazer's HUD): no boxes or bright pills over the playfield — soft white text with
+   a shadow for contrast, one right-hand stack for the numbers, and a sheared, fading leaderboard at the left edge */
+.gp-hud { --hud-shadow: 0 1px 3px rgba(0, 0, 0, .55), 0 0 18px rgba(0, 0, 0, .35); }
+.hud-score { top: 14px; right: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.hud-score .sc { font-weight: 600; letter-spacing: .01em; text-shadow: var(--hud-shadow); }
+.hud-score .acc { font-weight: 600; color: rgba(255, 255, 255, .88); text-shadow: var(--hud-shadow); }
+.hud-accrow { gap: 8px; }
+.hud-pie { width: 20px; height: 20px; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .8), 0 1px 6px rgba(0, 0, 0, .45); }
+.hud-pie.lead { box-shadow: 0 0 0 1.5px #7ee07a, 0 1px 6px rgba(0, 0, 0, .45); }
+.hud-pp { margin-top: 2px; font-size: clamp(.95rem, 1.35vw, 1.2rem); font-weight: 600; color: rgba(255, 255, 255, .85); text-shadow: var(--hud-shadow); }
+.hud-pp::after { content: "pp"; margin-left: 2px; font-size: .68em; font-weight: 700; color: rgba(255, 255, 255, .55); }
+.hud-pp:empty { display: none; }
+
+
+/* mods sit under the numbers; bright as the map starts, then settle back (lazer's ModDisplay contracts and fades) */
+.hud-score .hud-mods { position: static; margin-top: 7px; gap: 3px; animation: hudModsSettle 600ms ease 3s both; }
+.hud-mods .mod-badge { min-width: 30px; height: 19px; font-size: .64rem; border-radius: 5px; border: 0; background: color-mix(in srgb, var(--mod) 30%, rgba(0, 0, 0, .35)); color: color-mix(in srgb, var(--mod) 45%, white); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+@keyframes hudModsSettle { to { opacity: .55; } }
+.hud-progress { height: 3px; background: rgba(255, 255, 255, .05); }
+.hud-progress i { opacity: .85; }
+.hud-replay { top: 14px; padding: 4px 12px; background: rgba(0, 0, 0, .3); border: 0; font-size: .72rem; letter-spacing: .12em; color: rgba(255, 255, 255, .75); text-shadow: var(--hud-shadow); }
+.hud-replay .dot { width: 6px; height: 6px; margin-right: 7px; }
+.hud-replay.low { bottom: 14px; }
+.hud-meta, .hud-time { text-shadow: var(--hud-shadow); }
+
+/* leaderboard / match board: sheared panels growing from the screen edge, see-through and fading out to the right;
+   everyone else sits back, your own row is lit in the accent colour */
+.hud-mp { left: 0; gap: 3px; width: 236px; }
+.hud-mp-row, .hud-lb .hud-mp-row { position: relative; isolation: isolate; height: 36px; gap: 9px; padding: 0 16px 0 18px; border-radius: 0; background: none; box-shadow: none; opacity: .7; text-shadow: var(--hud-shadow); transition: transform var(--t-med) var(--ease-out), opacity var(--t-med); }
+.hud-mp-row::before { content: ""; position: absolute; inset: 0 0 0 -12px; z-index: -1; transform: skewX(-11.31deg); transform-origin: bottom left; border-radius: 0 5px 5px 0; background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(0, 0, 0, .18)); }
+.hud-mp-row.me, .hud-lb .hud-mp-row.me { background: none; box-shadow: none; opacity: 1; }
+.hud-mp-row.me::before { background: linear-gradient(90deg, rgba(var(--accent-rgb), .5), rgba(var(--accent-rgb), .12)); box-shadow: inset 3px 0 0 rgb(var(--accent-rgb)); }
+.hud-mp-row .pos { width: 18px; color: rgba(255, 255, 255, .55); font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud-mp-row .pos::before { content: "#"; opacity: .6; font-size: .85em; }
+.hud-mp-row .pos:empty::before { content: none; }
+.hud-mp-row .nm b { font-size: .8rem; }
+.hud-mp-row .nm span, .hud-lb .hud-mp-row .nm span { font-size: .64rem; color: rgba(255, 255, 255, .6); }
+.hud-mp-row .sc { font-size: .84rem; color: rgba(255, 255, 255, .92); }
+.hud-mp-row.me .pos, .hud-mp-row.me .nm span { color: rgba(255, 255, 255, .8); }
 
 </style>
 </head>
@@ -8003,15 +8042,16 @@ const GameplayScreen = {
     const s = this.s;
     clearEl(this.hud);
     this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
-    this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%'); this.paceEl = h('div.pace');
+    this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
     const pd = Settings.get('gameplay.progressDisplay');
     this.hud.append(
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
-      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl, this.paceEl),
-      h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))),
+      // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
+      h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
+        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))) : null),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -8186,7 +8226,7 @@ const GameplayScreen = {
       // live pp only changes when a note is judged
       if (e.score.judged !== this._ppJudged) {
         this._ppJudged = e.score.judged;
-        const t = `${Math.round(this.livePp(e))}pp`;
+        const t = String(Math.round(this.livePp(e))); // (the "pp" is a smaller suffix drawn by CSS, as lazer's counter)
         if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
@@ -8202,11 +8242,6 @@ const GameplayScreen = {
         const low = q < 120;
         if (low !== this._hpLow) { this._hpLow = low; this.hpEl.classList.toggle('low', low); }
       }
-    }
-    const pb = this._pb === undefined ? (this._pb = ScoreManager.best(s.rec.hash)) : this._pb;
-    if (pb && s.mode === 'play') {
-      const t = `PB ${fmtAcc(pb.accuracy)}`;
-      if (this.paceEl.textContent !== t) this.paceEl.textContent = t;
     }
   },
   /** osu!lazer-style in-game leaderboard: this map's local top scores with your live score climbing through them. */
