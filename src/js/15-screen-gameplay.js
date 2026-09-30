@@ -46,6 +46,7 @@ const GamepadWatch = {
 GamepadWatch.init();
 
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -186,7 +187,11 @@ const GameplayScreen = {
   onBack() {
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
-    if (this.s) { if (this.s.running) this.pause(); else if (this.pauseEl && !this.s.failed) this.resume(); }
+    if (this.s) {
+      if (this.s.running) this.pause();
+      else if (this.pauseEl && !this.s.failed) this.resume();
+      else if (this.replayBar && !this.s.finished) this.showPause('Paused'); // paused from the replay controls
+    }
     return true;
   },
 
@@ -234,7 +239,7 @@ const GameplayScreen = {
     const redTiming = BeatmapParser.timing(bm);
 
     const s = this.s = {
-      rec, bm, keys, mods, rate, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules,
+      rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
       endTime, redTiming,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
@@ -458,6 +463,8 @@ const GameplayScreen = {
       requestAnimationFrame(() => { if (this.s !== s) return; this._scoreDigits = swap(this.scoreEl); this._accDigits = swap(this.accEl); this._lastSc = this._lastAcc = undefined; });
     }
     if (s.practice) this.buildPracticeBar();
+    this.replayBar = null;
+    if (s.feed && !s.practice && !s.mp) this.buildReplayBar();
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
   },
@@ -493,6 +500,7 @@ const GameplayScreen = {
         this.checkEnd(now);
         this.updatePractice(now);
       }
+      if (this.replayBar) this.updateReplayBar(now);
       const lim = Settings.get('graphics.fpsLimit');
       if (lim > 0 && realNow - this.lastRender < 1000 / lim - 0.6) return;
       this.lastRender = realNow;
@@ -764,6 +772,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
       return;
     }
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
+    if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
     if (col !== undefined) {
       e.preventDefault(); e.stopPropagation();
@@ -819,6 +828,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   },
 
   onEngineEvent(e) {
+    if (this._resim) return; // seeking a replay: re-judging up to the new time, no effects or sounds
     const s = this.s;
     const realNow = performance.now();
     if (e.type === 'judgement') {
@@ -905,7 +915,7 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
     this.closePause();
-    const delay = Settings.get('gameplay.unpauseDelay');
+    const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
     const steps = 3, stepMs = delay / steps;
     const cd = h('div.countdown', '3');
@@ -1067,6 +1077,135 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
         if (now) this.keyDown(col, code, t); else this.keyUp(col, code, t);
       });
     }
+  },
+
+  // ─────────────────────────────── watching replays ───────────────────────────────
+  /** osu!lazer's replay player controls, for replays and Auto: pause, seek anywhere (the replay is re-judged
+   *  up to that point, so the score is exactly what it was there) and playback speed. */
+  buildReplayBar() {
+    const s = this.s;
+    const tl = h('div.rp-timeline', { title: 'Click or drag to seek' });
+    const cv = h('canvas');
+    this.rpFill = h('div.rp-fill'); this.rpHead = h('div.rp-head');
+    tl.append(cv, this.rpFill, this.rpHead);
+    const span = () => ({ a: Math.min(0, s.startPos), b: s.endTime });
+    const at = ev => { const r = tl.getBoundingClientRect(), { a, b } = span(); return a + clamp((ev.clientX - r.left) / r.width, 0, 1) * (b - a); };
+    let drag = false, lastSeek = 0;
+    tl.addEventListener('pointerdown', ev => { drag = true; tl.setPointerCapture(ev.pointerId); this.replaySeek(at(ev)); lastSeek = performance.now(); });
+    tl.addEventListener('pointermove', ev => { if (drag && performance.now() - lastSeek > 90) { lastSeek = performance.now(); this.replaySeek(at(ev)); } });
+    tl.addEventListener('pointerup', ev => { if (drag) { drag = false; this.replaySeek(at(ev)); } });
+    tl.addEventListener('pointercancel', () => { drag = false; });
+    this.rpPlay = h('button.btn.sm.rp-play', { onclick: () => this.replayToggle(), title: 'Pause / play (Space)' }, icon('pause'));
+    this.rpTime = h('span.rp-time');
+    this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
+    const bar = h('div.replay-bar',
+      tl,
+      h('div.rp-controls',
+        this.rpPlay,
+        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() - 5000 * s.rate), title: 'Back 5 seconds (←)' }, '−5s'),
+        h('button.btn.sm', { onclick: () => this.replaySeek(this.gameTime() + 5000 * s.rate), title: 'Forward 5 seconds (→)' }, '+5s'),
+        this.rpTime,
+        h('span.grow'),
+        h('span.muted.rp-label', 'Speed'),
+        h('div.speed-group', ...this.rpSpeeds)));
+    this.replayBar = bar;
+    this.hud.append(bar);
+    // note density along the timeline
+    requestAnimationFrame(() => {
+      if (!cv.isConnected) return;
+      const dpr = Zoom.dpr();
+      cv.width = Math.max(1, cv.clientWidth * dpr); cv.height = Math.max(1, cv.clientHeight * dpr);
+      const x = cv.getContext('2d'), { a, b } = span();
+      const bins = new Array(Math.max(10, Math.floor(cv.width / (3 * dpr)))).fill(0);
+      for (const n of s.baseNotes) bins[clamp(Math.floor((n.time - a) / (b - a) * bins.length), 0, bins.length - 1)]++;
+      const max = Math.max(...bins, 1), bw = cv.width / bins.length;
+      bins.forEach((v, i) => { const hh = v / max * cv.height * 0.85; x.fillStyle = `rgba(255,255,255,${0.12 + 0.3 * v / max})`; x.fillRect(i * bw, cv.height - hh, Math.max(1, bw - dpr), hh); });
+    });
+    this._rpT = 0;
+  },
+  updateReplayBar(now, force = false) {
+    const s = this.s;
+    if (!this.replayBar || !s) return;
+    const wall = performance.now();
+    if (!force && wall - this._rpT < 100) return;
+    this._rpT = wall;
+    const a = Math.min(0, s.startPos), p = clamp((now - a) / Math.max(1, s.endTime - a), 0, 1);
+    this.rpFill.style.transform = `scaleX(${p})`;
+    this.rpHead.style.left = (p * 100) + '%';
+    const t = `${fmtTime(Math.max(0, now / s.rate))} / ${fmtTime(s.endTime / s.rate)}`;
+    if (this.rpTime.textContent !== t) this.rpTime.textContent = t;
+    const ic = s.running ? 'pause' : 'play';
+    if (this.rpPlay.dataset.ic !== ic) { this.rpPlay.dataset.ic = ic; this.rpPlay.replaceChildren(icon(ic)); }
+    this.replayBar.classList.toggle('paused', !s.running);
+  },
+  replayKey(e) {
+    const s = this.s;
+    switch (e.code) {
+      case 'Space':
+        if (e.repeat) return true;
+        if (s.running && this.gameTime() < s.skipTarget - 1000 * s.rate) this.skip(); else this.replayToggle();
+        return true;
+      case 'ArrowLeft': this.replaySeek(this.gameTime() - 5000 * s.rate); return true;
+      case 'ArrowRight': this.replaySeek(this.gameTime() + 5000 * s.rate); return true;
+      case 'ArrowDown': case 'ArrowUp': {
+        if (e.repeat) return true;
+        const i = REPLAY_SPEEDS.indexOf(s.speed) + (e.code === 'ArrowUp' ? 1 : -1);
+        if (i >= 0 && i < REPLAY_SPEEDS.length) this.replaySpeed(REPLAY_SPEEDS[i]);
+        return true;
+      }
+    }
+    return false;
+  },
+  replayToggle() {
+    const s = this.s;
+    if (!s || s.finished || s.failed || this.pauseEl || s.changingSpeed) return;
+    if (s.running) { s.running = false; Music.pause(); }
+    else { s.running = true; Music.play(Music.pausedPos); }
+    UISounds.click();
+    this.updateReplayBar(this.gameTime(), true);
+  },
+  /** Jump to song time `t`: a fresh engine re-judges the recorded inputs up to `t` (deterministic, so the
+   *  score, combo and health are exactly what they were there), then the song carries on from `t`. */
+  replaySeek(t) {
+    const s = this.s;
+    if (!s || !s.feed || s.finished || s.changingSpeed) return;
+    t = clamp(t, Math.min(0, s.startPos), s.endTime + 300 * s.rate);
+    this._resim = true;
+    try {
+      this.newEngine();
+      const eng = s.engine, ev = s.feed;
+      let i = 0;
+      for (; i < ev.length && ev[i] <= t; i += 3) { s.held[ev[i + 1]] = ev[i + 2] === 1; eng.input(ev[i + 1], ev[i + 2] === 1, ev[i]); }
+      eng.advance(t);
+      s.feedIdx = i;
+      this._lastCombo = eng.score.combo;
+    } finally { this._resim = false; }
+    this._ppJudged = this._lastSc = this._lastAcc = undefined;
+    const pos = t + this.offsetMs() * s.rate;
+    if (s.running) Music.play(pos); else Music.pausedPos = pos;
+    this.updateReplayBar(t, true);
+  },
+  /** Playback speed while watching (the recorded inputs stay on the song's clock, so they stay in sync). */
+  async replaySpeed(k) {
+    const s = this.s;
+    if (!s || s.speed === k || s.changingSpeed || s.finished) return;
+    const pos = Music.time, wasRunning = s.running;
+    s.changingSpeed = true;
+    s.running = false; Music.pause();
+    s.speed = k;
+    this.rpSpeeds.forEach((b, i) => b.classList.toggle('on', REPLAY_SPEEDS[i] === k));
+    // back at 1× the play's own audio is used again (time-stretched for DT / HT with "keep pitch"); other speeds
+    // just play faster or slower, so switching is instant
+    const slow = k === 1 && s.preserve;
+    const msg = slow ? h('div.hud-center-msg', 'Changing speed…') : null;
+    if (msg) this.hud.append(msg);
+    try { await Music.setRate(s.rate * k, k === 1 && s.preserve, f => { if (msg) msg.textContent = `Changing speed… ${Math.round(f * 100)}%`; }); }
+    finally { msg && msg.remove(); s.changingSpeed = false; }
+    if (this.s !== s) return;
+    Music.pausedPos = pos;
+    if (wasRunning) { s.running = true; Music.play(pos); }
+    Toast.show(`Playback speed ${k}×`);
+    this.updateReplayBar(this.gameTime(), true);
   },
 
   // ─────────────────────────────── practice ───────────────────────────────

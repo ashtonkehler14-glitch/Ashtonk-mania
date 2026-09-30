@@ -473,6 +473,19 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pr-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .82rem; }
 .pr-controls .speed-group { display: flex; gap: 3px; }
 .pr-controls .speed-group .chip { height: 28px; padding: 0 9px; }
+/* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
+.replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(100vw - 340px)); min-width: min(470px, calc(100vw - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
+.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:focus-within { opacity: 1; }
+.rp-timeline { position: relative; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; touch-action: none; }
+.rp-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rp-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: rgba(var(--accent-rgb), .3); pointer-events: none; }
+.rp-head { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; }
+.rp-controls { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+.rp-controls .grow { flex: 1; }
+.rp-controls .speed-group { display: flex; gap: 3px; }
+.rp-controls .speed-group .chip { height: 26px; padding: 0 8px; }
+.rp-play { min-width: 38px; justify-content: center; }
+.rp-time { font-variant-numeric: tabular-nums; color: var(--text-2); min-width: 96px; }
 
 /* ── RESULTS */
 .results { padding-top: var(--toolbar-h); }

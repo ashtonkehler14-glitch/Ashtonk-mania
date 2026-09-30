@@ -181,6 +181,42 @@ check('replay playback reproduces the original score exactly', rres.score === rp
 
 check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
 
+// watching a replay: pause, seek (re-judged exactly), speed — and the result is unchanged at the end
+await page.evaluate(async (rp) => { const r = await AshtonkMania.ReplayManager.get(rp.id); Game.launch({ mapId: rp.mapId, mode: 'replay', replay: r }); }, rp);
+await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
+{
+  check('replay controls: a timeline with pause, ±5s and speed buttons', await page.evaluate(() => !!document.querySelector('.replay-bar .rp-timeline') && document.querySelectorAll('.replay-bar .speed-group .chip').length === 6 && !!document.querySelector('.replay-bar .rp-play')));
+  const seek = await page.evaluate(() => {
+    const G = AshtonkMania.GameplayScreen, s = G.s, mid = s.endTime * 0.6;
+    G.replaySeek(mid); const a = { score: s.engine.score.score, judged: s.engine.score.judged, combo: s.engine.score.combo, hp: s.engine.health.value };
+    G.replaySeek(0); const z = s.engine.score.judged;
+    G.replaySeek(mid); const b = { score: s.engine.score.score, judged: s.engine.score.judged, combo: s.engine.score.combo, hp: s.engine.health.value };
+    const expect = s.baseNotes.filter(n => n.time < mid - 200).length;
+    return { a, b, z, expect, near: Math.abs(G.gameTime() - mid) < 250 };
+  });
+  check('replay seek re-judges the recorded inputs up to that point (the same every time)', seek.a.judged >= seek.expect && seek.a.judged > 0 && seek.z === 0 && JSON.stringify(seek.a) === JSON.stringify(seek.b) && seek.near, JSON.stringify(seek));
+  await page.keyboard.press('Space'); await page.waitForTimeout(250);
+  const paused = await page.evaluate(() => ({ running: AshtonkMania.GameplayScreen.s.running, playing: AshtonkMania.Music.playing, t: AshtonkMania.GameplayScreen.gameTime() }));
+  await page.waitForTimeout(300);
+  const still = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  await page.keyboard.press('Space'); await page.waitForTimeout(150);
+  check('Space pauses and resumes a replay (no pause menu, no countdown)', !paused.running && !paused.playing && still === paused.t && !(await page.$('.pause-menu')) && await page.evaluate(() => AshtonkMania.GameplayScreen.s.running && AshtonkMania.Music.playing), JSON.stringify(paused));
+  const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(80);
+  const t1 = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  check('← jumps back 5 seconds', t0 - t1 > 4500 && t0 - t1 < 5600, `${t0} → ${t1}`);
+  await page.click('.replay-bar .speed-group .chip:text-is("2×")'); await page.waitForTimeout(300);
+  const sp = await page.evaluate(() => ({ rate: AshtonkMania.Music.rate, speed: AshtonkMania.GameplayScreen.s.speed, running: AshtonkMania.GameplayScreen.s.running }));
+  const tA = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime()); await page.waitForTimeout(500); const tB = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  check('playback speed 2×: the replay runs twice as fast', sp.speed === 2 && Math.abs(sp.rate - 2) < 1e-9 && sp.running && (tB - tA) > 800, JSON.stringify(sp) + ` ${tB - tA}ms in 500ms`);
+  await page.keyboard.press('ArrowDown'); await page.waitForTimeout(300);
+  check('↓ / ↑ step the playback speed', await page.evaluate(() => AshtonkMania.GameplayScreen.s.speed === 1.5 && Math.abs(AshtonkMania.Music.rate - 1.5) < 1e-9));
+  await page.evaluate(() => { const G = AshtonkMania.GameplayScreen; G.replaySeek(G.s.endTime - 1500); });
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 20000 });
+  const sres = await page.evaluate(() => { const s = AshtonkMania.Screens.current.p.score; return { score: s.score, counts: s.counts }; });
+  check('after seeking around and changing speed, the replay still ends with the original result', sres.score === rp.summary.score && JSON.stringify(sres.counts) === JSON.stringify(rp.summary.counts), `${sres.score} vs ${rp.summary.score}`);
+}
+
 // two keys bound to one column: the column stays pressed until both are up
 await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.SongSelect.play('play'); });
 await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });

@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Replay controls
+
+* **Watch replays (and Auto) like osu!lazer's replay player**: a bar at the bottom (it appears when you move the mouse) with a timeline showing the note density.
+  * **Seek**: click or drag the timeline, or press **←** / **→** to jump 5 seconds. The replay is re-judged up to that point, so score, combo and health are exactly what they were there, and the replay still ends with its original result.
+  * **Pause**: **Space** or the pause button. Space still skips the intro while it can; Esc opens the pause menu.
+  * **Speed**: 0.25× to 2× from the buttons, or **↓** / **↑**. Switching is instant.
+
 ### Sturdier: storage, errors, offline
 
 * **Works even when the browser blocks storage** (some private windows, or site data blocked): the game boots, says clearly that nothing will be saved, and keeps beatmaps, scores and settings in memory for the session instead of failing.
