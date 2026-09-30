@@ -483,7 +483,12 @@ const ManiaLayout = {
         if (/^(null|none|nothing|-|_?blank\d*|empty)$/i.test(String(explicit).trim())) return null;
       }
       if (defName && !skin.builtin) { const t = await skin.texture(defName, opts); if (t) return t; }
-      return defName ? def.texture(defName, opts) : null;
+      if (!defName) return null;
+      // the built-in art stands in for what the skin doesn't have: it's placed by the built-in rules (its keys
+      // put the receptor where notes are hit), not by the legacy-skin ones
+      const t = await def.texture(defName, opts);
+      if (t) t.fromDefault = true;
+      return t;
     };
     const types = maniaColumnTypes(keys, L.specialStyle);
     const style = isDefault ? (Settings.get('skin.noteStyle') || 'bars') : 'bars';
@@ -643,6 +648,19 @@ const SkinManager = {
     if (!meta || !files.length) return;
     await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
     meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
+    await DB.put('skins', meta);
+    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    Bus.emit('skins:changed');
+  },
+
+  /** Replace an installed skin's skin.ini (used to update the skins that ship with the game). */
+  async updateIni(id, text, rel = 'Skin.ini') {
+    const meta = this.skins.find(s => s.id === id);
+    if (!meta) return;
+    meta.ini = SkinParser.parse(text);
+    meta.maniaKeys = Object.keys(meta.ini.mania).map(Number).sort((a, b) => a - b);
+    const path = meta.files.find(f => /(^|\/)skin\.ini$/i.test(f)) || rel;
+    await DB.put('files', new Blob([text], { type: 'text/plain' }), `skin:${id}/${path}`);
     await DB.put('skins', meta);
     if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
     Bus.emit('skins:changed');

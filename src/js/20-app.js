@@ -90,12 +90,25 @@ const App = {
   },
 
   /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
-  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit' }],
+  // v: bump when the shipped copy changes; installed copies then get its skin.ini (v2: Chemuss 4K hit position 448)
+  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit', v: 2 }],
   async installExtraSkins() {
     if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {
       try {
-        if (await DB.kvGet(`bundled.${x.key}`, false)) continue;
+        if (await DB.kvGet(`bundled.${x.key}`, false)) {
+          if ((await DB.kvGet(`bundled.${x.key}.v`, 1)) >= x.v) continue;
+          const meta = SkinManager.skins.find(sk => x.match.test(sk.name));
+          if (meta) {
+            const r = await fetch(x.file, { cache: 'no-cache' });
+            if (!r.ok) continue;
+            const zip = new ZipReader(await r.arrayBuffer());
+            const ini = zip.entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
+            if (ini) await SkinManager.updateIni(meta.id, new TextDecoder('utf-8').decode(await zip.read(ini)));
+          }
+          await DB.kvSet(`bundled.${x.key}.v`, x.v);
+          continue;
+        }
         if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
           const r = await fetch(x.file, { cache: 'no-cache' });
           if (!r.ok) continue; // try again next launch
@@ -104,6 +117,7 @@ const App = {
           await SkinManager.importOsk(new File([blob], x.file.split('/').pop()));
         }
         await DB.kvSet(`bundled.${x.key}`, true);
+        await DB.kvSet(`bundled.${x.key}.v`, x.v);
       } catch (e) { console.warn('bundled skin', x.key, e); }
     }
   },

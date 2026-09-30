@@ -457,13 +457,20 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .gp-fail.on { opacity: 1; }
 .gameplay.failing > canvas { animation: failSink 1.2s cubic-bezier(.55, 0, 1, .45) forwards; transform-origin: 50% 100%; }
 @keyframes failSink { to { transform: translateY(7%) scale(.97); filter: brightness(.55) saturate(.4); } }
-.pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(4, 2, 8, .72); animation: fadeIn var(--t-fast) ease; }
-:root:not(.no-effects) .pause-menu { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.pause-box { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 320px; }
-.pause-box h2 { font-size: 2.6rem; font-weight: 700; margin: 0 0 10px; }
-.pause-box h2.failed { color: var(--bad); }
-.pause-box .btn { width: 300px; height: 54px; font-size: 1.08rem; }
-.pause-box .pb-sub { color: var(--muted); font-weight: 700; margin-top: 4px; }
+/* pause / fail: osu!lazer's GameplayMenuOverlay — a plain black dim (no blur), lowercase title with its line, and
+   DialogButtons: a slanted band of colour across a wide strip that widens and glows when hovered */
+.pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .75); animation: fadeIn 200ms ease; }
+.pause-box { display: flex; flex-direction: column; align-items: center; width: min(620px, 92vw); text-align: center; }
+.pause-box h2 { font-size: 2.4rem; font-weight: 400; margin: 0; letter-spacing: .01em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.pause-box h2.failed { color: #fff; }
+.pause-box .pm-desc { font-size: 1.05rem; margin: 6px 0 34px; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+.pm-buttons { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.pm-btn { position: relative; height: 54px; width: 100%; border: 0; padding: 0; background: rgba(0, 0, 0, .25); color: #fff; font: inherit; font-size: 1.3rem; font-weight: 600; cursor: pointer; outline: none; overflow: hidden; }
+.pm-btn .pm-band { position: absolute; top: 0; bottom: 0; left: 12%; right: 12%; background: var(--c); transform: skewX(-18deg); transition: left 250ms var(--ease-out), right 250ms var(--ease-out), box-shadow 250ms, filter 250ms; box-shadow: 0 0 0 transparent; }
+.pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
+.pm-btn:active .pm-band { filter: brightness(.9); }
+.pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
+.pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
 .practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(100vw - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
 .practice-bar.dim { opacity: .25; }

@@ -212,12 +212,15 @@ const Onboarding = {
     const paint = () => {
       const cur = SkinManager.current.id;
       const kori = SkinManager.skins.find(s => /kori/i.test(s.name));
-      const others = SkinManager.skins.filter(s => s !== kori);
+      // the skins that come with the game first (Kori, then Chemuss), then Custom, then the player's own
+      const chemuss = SkinManager.skins.find(s => /chemuss/i.test(s.name));
+      const others = SkinManager.skins.filter(s => s !== kori && s !== chemuss);
       const card = (id, name, sub, ic) => h(`button.setup-skinitem${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => choose(id) },
         h('span.setup-skin-ic', icon(ic)), h('span.setup-skin-t', h('b', name), h('small', sub)), h('span.setup-check', icon('check')));
       clearEl(side).append(
         h('div.setup-skins',
           kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
+          chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'sparkle') : null,
           card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),

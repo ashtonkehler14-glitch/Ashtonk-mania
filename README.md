@@ -26,6 +26,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 * **A second built-in skin: "Chemuss mixed edit"** (Quadrasphinix by [LS]Cr1tikal with Chemuss's orb mania edit). It installs on its own the next time the game opens (Kori stays selected; pick it in **Skins** or Settings → Skin). It ships as a 350 KB mania-only trim (`public/skins/chemuss.osk`).
 * Checked in play at 4K, the key count it's made for: orb notes, blue hold heads, grey ring receptors, black lanes, no hit lighting and no MAX judgement pop-up, just as the skin sets it up. Other key counts use the default notes, as in osu!, because the skin has no art for them.
+* **Notes are hit on the rings**: with the skin's HitPosition of 458, notes landed about 10 units (of osu!'s 480) below the ring receptors. The shipped copy uses 448, which centres them on the rings (checked to within half a unit). Copies installed before this get the corrected skin.ini automatically.
+* In the first-run setup the skins are listed Kori, Chemuss mixed edit, then Custom.
+* For key counts a skin has no key art for, the built-in keys now sit with their receptor on the hit line (they were placed by legacy-skin rules and ended up below it).
+
+### osu!lazer-style pause and fail screens
+
+* Pausing or failing now looks like osu!lazer: a plain dark overlay, lowercase **paused** / **failed** with lazer's lines ("you're not going to do what i think you're going to do, are ya?" / "you're dead, try again?"), and its wide slanted buttons: green Continue, yellow Retry, red Quit, which widen and glow when hovered.
 * Making it work fixed skin loading for every skin:
   * **Duplicate [Mania] sections**: this skin has two `Keys: 4` sections, and only the first one's images exist. When a skin repeats a key count, the section whose images are actually in the skin is used (otherwise the last one, as in osu!lazer).
   * **Lists given twice fill in** instead of replacing: `ColumnLineWidth: 0,0,0,0,0` followed later by `ColumnLineWidth: 0,0` keeps all five at 0, as in osu!. It used to draw stray lines between columns.

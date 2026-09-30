@@ -954,15 +954,20 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.closePause();
     const s = this.s;
     const btns = [];
-    // the skin's pause-menu sounds (hover and clicks), when it has them
-    if (!failed) btns.push(h('button.btn.primary', { onclick: () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); } }, icon('play'), 'Continue'));
-    btns.push(h('button.btn', { onclick: () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); } }, icon('retry'), 'Retry'));
-    if (failed && this.failedScore) btns.push(h('button.btn', { onclick: () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true }) }, icon('chart'), 'View results'));
-    btns.push(h('button.btn.danger', { onclick: () => { SkinManager.skinOnly('pause-back-click'); this.quit(); } }, icon('back'), 'Quit'));
+    // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
+    // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
+    const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
+    if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
+    btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
+    if (failed && this.failedScore) btns.push(btn('View results', '#66ccff', () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true })));
+    btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
-    const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
+    const el = h('div.pause-menu', h('div.pause-box',
+      h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
+      h('div.pm-desc', failed ? 'you\'re dead, try again?' : 'you\'re not going to do what i think you\'re going to do, are ya?'),
+      h('div.pm-buttons', ...btns),
+      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'} in this session`) : null,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
-      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
       s.mp ? null : h('div.pb-keys', 'hold ', h('span.kbd', 'R'), ' to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
     this.pauseEl = el;
     this.el.appendChild(el);

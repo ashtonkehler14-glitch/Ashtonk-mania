@@ -474,13 +474,20 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .gp-fail.on { opacity: 1; }
 .gameplay.failing > canvas { animation: failSink 1.2s cubic-bezier(.55, 0, 1, .45) forwards; transform-origin: 50% 100%; }
 @keyframes failSink { to { transform: translateY(7%) scale(.97); filter: brightness(.55) saturate(.4); } }
-.pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(4, 2, 8, .72); animation: fadeIn var(--t-fast) ease; }
-:root:not(.no-effects) .pause-menu { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.pause-box { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 320px; }
-.pause-box h2 { font-size: 2.6rem; font-weight: 700; margin: 0 0 10px; }
-.pause-box h2.failed { color: var(--bad); }
-.pause-box .btn { width: 300px; height: 54px; font-size: 1.08rem; }
-.pause-box .pb-sub { color: var(--muted); font-weight: 700; margin-top: 4px; }
+/* pause / fail: osu!lazer's GameplayMenuOverlay — a plain black dim (no blur), lowercase title with its line, and
+   DialogButtons: a slanted band of colour across a wide strip that widens and glows when hovered */
+.pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .75); animation: fadeIn 200ms ease; }
+.pause-box { display: flex; flex-direction: column; align-items: center; width: min(620px, 92vw); text-align: center; }
+.pause-box h2 { font-size: 2.4rem; font-weight: 400; margin: 0; letter-spacing: .01em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.pause-box h2.failed { color: #fff; }
+.pause-box .pm-desc { font-size: 1.05rem; margin: 6px 0 34px; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+.pm-buttons { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.pm-btn { position: relative; height: 54px; width: 100%; border: 0; padding: 0; background: rgba(0, 0, 0, .25); color: #fff; font: inherit; font-size: 1.3rem; font-weight: 600; cursor: pointer; outline: none; overflow: hidden; }
+.pm-btn .pm-band { position: absolute; top: 0; bottom: 0; left: 12%; right: 12%; background: var(--c); transform: skewX(-18deg); transition: left 250ms var(--ease-out), right 250ms var(--ease-out), box-shadow 250ms, filter 250ms; box-shadow: 0 0 0 transparent; }
+.pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
+.pm-btn:active .pm-band { filter: brightness(.9); }
+.pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
+.pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
 .practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(100vw - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
 .practice-bar.dim { opacity: .25; }
@@ -2622,7 +2629,12 @@ const ManiaLayout = {
         if (/^(null|none|nothing|-|_?blank\d*|empty)$/i.test(String(explicit).trim())) return null;
       }
       if (defName && !skin.builtin) { const t = await skin.texture(defName, opts); if (t) return t; }
-      return defName ? def.texture(defName, opts) : null;
+      if (!defName) return null;
+      // the built-in art stands in for what the skin doesn't have: it's placed by the built-in rules (its keys
+      // put the receptor where notes are hit), not by the legacy-skin ones
+      const t = await def.texture(defName, opts);
+      if (t) t.fromDefault = true;
+      return t;
     };
     const types = maniaColumnTypes(keys, L.specialStyle);
     const style = isDefault ? (Settings.get('skin.noteStyle') || 'bars') : 'bars';
@@ -2782,6 +2794,19 @@ const SkinManager = {
     if (!meta || !files.length) return;
     await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
     meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
+    await DB.put('skins', meta);
+    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    Bus.emit('skins:changed');
+  },
+
+  /** Replace an installed skin's skin.ini (used to update the skins that ship with the game). */
+  async updateIni(id, text, rel = 'Skin.ini') {
+    const meta = this.skins.find(s => s.id === id);
+    if (!meta) return;
+    meta.ini = SkinParser.parse(text);
+    meta.maniaKeys = Object.keys(meta.ini.mania).map(Number).sort((a, b) => a - b);
+    const path = meta.files.find(f => /(^|\/)skin\.ini$/i.test(f)) || rel;
+    await DB.put('files', new Blob([text], { type: 'text/plain' }), `skin:${id}/${path}`);
     await DB.put('skins', meta);
     if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
     Bus.emit('skins:changed');
@@ -4809,7 +4834,7 @@ class ManiaRenderer {
       for (let i = 0; i < K; i++) {
         const t = g.held[i] ? (L.tex.keyD[i] || L.tex.key[i]) : L.tex.key[i];
         if (!t) continue;
-        if (this.legacy) {
+        if (this.legacy && !t.fromDefault) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
           this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h);
@@ -7815,15 +7840,20 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     this.closePause();
     const s = this.s;
     const btns = [];
-    // the skin's pause-menu sounds (hover and clicks), when it has them
-    if (!failed) btns.push(h('button.btn.primary', { onclick: () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); } }, icon('play'), 'Continue'));
-    btns.push(h('button.btn', { onclick: () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); } }, icon('retry'), 'Retry'));
-    if (failed && this.failedScore) btns.push(h('button.btn', { onclick: () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true }) }, icon('chart'), 'View results'));
-    btns.push(h('button.btn.danger', { onclick: () => { SkinManager.skinOnly('pause-back-click'); this.quit(); } }, icon('back'), 'Quit'));
+    // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
+    // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
+    const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
+    if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
+    btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
+    if (failed && this.failedScore) btns.push(btn('View results', '#66ccff', () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true })));
+    btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
-    const el = h('div.pause-menu', h('div.pause-box', h(`h2${failed ? '.failed' : ''}`, title), ...btns,
+    const el = h('div.pause-menu', h('div.pause-box',
+      h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
+      h('div.pm-desc', failed ? 'you\'re dead, try again?' : 'you\'re not going to do what i think you\'re going to do, are ya?'),
+      h('div.pm-buttons', ...btns),
+      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'} in this session`) : null,
       h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
-      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'}`) : null,
       s.mp ? null : h('div.pb-keys', 'hold ', h('span.kbd', 'R'), ' to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
     this.pauseEl = el;
     this.el.appendChild(el);
@@ -10325,12 +10355,15 @@ const Onboarding = {
     const paint = () => {
       const cur = SkinManager.current.id;
       const kori = SkinManager.skins.find(s => /kori/i.test(s.name));
-      const others = SkinManager.skins.filter(s => s !== kori);
+      // the skins that come with the game first (Kori, then Chemuss), then Custom, then the player's own
+      const chemuss = SkinManager.skins.find(s => /chemuss/i.test(s.name));
+      const others = SkinManager.skins.filter(s => s !== kori && s !== chemuss);
       const card = (id, name, sub, ic) => h(`button.setup-skinitem${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => choose(id) },
         h('span.setup-skin-ic', icon(ic)), h('span.setup-skin-t', h('b', name), h('small', sub)), h('span.setup-check', icon('check')));
       clearEl(side).append(
         h('div.setup-skins',
           kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
+          chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'sparkle') : null,
           card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
@@ -11074,12 +11107,25 @@ const App = {
   },
 
   /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
-  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit' }],
+  // v: bump when the shipped copy changes; installed copies then get its skin.ini (v2: Chemuss 4K hit position 448)
+  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit', v: 2 }],
   async installExtraSkins() {
     if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {
       try {
-        if (await DB.kvGet(`bundled.${x.key}`, false)) continue;
+        if (await DB.kvGet(`bundled.${x.key}`, false)) {
+          if ((await DB.kvGet(`bundled.${x.key}.v`, 1)) >= x.v) continue;
+          const meta = SkinManager.skins.find(sk => x.match.test(sk.name));
+          if (meta) {
+            const r = await fetch(x.file, { cache: 'no-cache' });
+            if (!r.ok) continue;
+            const zip = new ZipReader(await r.arrayBuffer());
+            const ini = zip.entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
+            if (ini) await SkinManager.updateIni(meta.id, new TextDecoder('utf-8').decode(await zip.read(ini)));
+          }
+          await DB.kvSet(`bundled.${x.key}.v`, x.v);
+          continue;
+        }
         if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
           const r = await fetch(x.file, { cache: 'no-cache' });
           if (!r.ok) continue; // try again next launch
@@ -11088,6 +11134,7 @@ const App = {
           await SkinManager.importOsk(new File([blob], x.file.split('/').pop()));
         }
         await DB.kvSet(`bundled.${x.key}`, true);
+        await DB.kvSet(`bundled.${x.key}.v`, x.v);
       } catch (e) { console.warn('bundled skin', x.key, e); }
     }
   },

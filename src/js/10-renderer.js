@@ -238,7 +238,7 @@ class ManiaRenderer {
       for (let i = 0; i < K; i++) {
         const t = g.held[i] ? (L.tex.keyD[i] || L.tex.key[i]) : L.tex.key[i];
         if (!t) continue;
-        if (this.legacy) {
+        if (this.legacy && !t.fromDefault) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
           this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h);

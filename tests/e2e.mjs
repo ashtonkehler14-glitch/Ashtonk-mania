@@ -58,11 +58,16 @@ await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemu
     const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(s => /chemuss/i.test(s.name));
     if (!meta) return { missing: true };
     const sk = SM.instance(meta.id), L = await sk.mania(4);
-    return { name: sk.name, stillKori: /Kori/.test(SM.current.name), col: L.columnWidth.join(), lines: L.columnLineWidth.join(), hit: L.hitPosition, note: L.tex.note[0] && L.tex.note[0].w, light: !!L.tex.lightingN, max: L.judgement['300g'] && L.judgement['300g'].w, body: L.tex.noteL[0] && L.tex.noteL[0].frames[0].height };
+    // where the orb's centre is at the moment it's hit vs the centre of the ring receptor (ring spans 2–217 of the
+    // 325-px key image, drawn at its own height from the bottom), in osu!'s 480-unit space
+    const k = L.tex.key[0], n = L.tex.note[0], noteH = L.columnWidth[0] * n.h / n.w;
+    const keyH = k.h / 1.6, ringC = 480 - keyH + keyH * (109.5 / 325), noteC = L.hitPosition - noteH / 2;
+    return { name: sk.name, stillKori: /Kori/.test(SM.current.name), col: L.columnWidth.join(), lines: L.columnLineWidth.join(), hit: L.hitPosition, note: n && n.w, light: !!L.tex.lightingN, max: L.judgement['300g'] && L.judgement['300g'].w, body: L.tex.noteL[0] && L.tex.noteL[0].frames[0].height, off: +(noteC - ringC).toFixed(2) };
   });
   check('Chemuss mixed edit ships as a second skin (Kori stays selected)', ch.name === 'Chemuss mixed edit' && ch.stillKori, JSON.stringify(ch));
   check('Chemuss 4K: its complete [Mania] section wins, repeated lists fill in, "null" hides lighting, giant textures are capped',
-    ch.col === '70,70,70,70' && ch.lines === '0,0,0,0,0' && ch.hit === 458 && ch.note === 150 && ch.light === false && ch.max === 1 && ch.body === 8192, JSON.stringify(ch));
+    ch.col === '70,70,70,70' && ch.lines === '0,0,0,0,0' && ch.note === 150 && ch.light === false && ch.max === 1 && ch.body === 8192, JSON.stringify(ch));
+  check('Chemuss 4K: notes are hit centred on the ring receptors (hit position 448)', ch.hit === 448 && Math.abs(ch.off) < 1.5, JSON.stringify({ hit: ch.hit, offsetUnits: ch.off }));
 }
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
 check('osu!lazer toolbar: icon buttons only, no text tabs, no beatmap listing', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
@@ -716,7 +721,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sp.waitForSelector('.setup-custom');
   await sp.click('.setup-custom .setup-seg >> nth=0 >> button >> nth=3');
   await sp.click('.setup-custom .setup-seg >> nth=1 >> button >> nth=1');
-  check('setup: skins are Kori / Custom / Import; Custom has shape and colour options', /^Kori,Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
+  check('setup: skins are Kori / Chemuss / Custom / Import; Custom has shape and colour options', /^Kori,(Chemuss mixed edit,)?Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
   await sp.click('.setup-next'); await sp.waitForTimeout(600);
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
   await sp.waitForFunction(() => { const i = document.querySelector('.home .neru:not([hidden]) img'); return i && /neru\.png$/.test(i.src); }, null, { timeout: 5000 });
