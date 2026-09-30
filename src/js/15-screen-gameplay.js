@@ -306,23 +306,24 @@ const GameplayScreen = {
       : mods.includes('AT') ? h('span.pl-tag', icon('play'), 'Autoplay')
       : p.mode === 'practice' ? h('span.pl-tag', icon('target'), 'Practice')
       : p.mp ? h('span.pl-tag', icon('multi'), 'Multiplayer') : null;
+    // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the
+    // loading state, the difficulty with its star rating, a Source / Mapper grid and the mods, all centred
+    const title = rec ? (Settings.get('ui.unicodeMetadata') && rec.titleUnicode ? rec.titleUnicode : rec.title) : 'Loading…';
+    const artist = rec ? (Settings.get('ui.unicodeMetadata') && rec.artistUnicode ? rec.artistUnicode : rec.artist) : '';
+    const line = (k, v) => v ? [h('span.pl-mk', k), h('span.pl-mv', v)] : [];
     const card = h('div.pl-card',
-      cover, h('div.pl-cover-shade'),
-      h('div.pl-info',
-        h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null),
-        h('div.pl-t', rec ? (Settings.get('ui.unicodeMetadata') && rec.titleUnicode ? rec.titleUnicode : rec.title) : 'Loading…'),
-        h('div.pl-a', rec ? (Settings.get('ui.unicodeMetadata') && rec.artistUnicode ? rec.artistUnicode : rec.artist) : ''),
-        rec ? h('div.pl-d', h('b', rec.version), starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`)) : null,
-        rec ? h('div.pl-m', 'mapped by ', h('b', rec.creator)) : null,
-        rec ? h('div.pl-stats',
-          h('span', icon('clock'), fmtTime((rec.length || 0) / rate)),
-          rec.bpm ? h('span', icon('music'), `${Math.round(rec.bpm * rate)} BPM`) : null,
-          rate !== 1 ? h('span', icon('sparkle'), `${+rate.toFixed(2)}× speed`) : null,
-          h('span', icon('target'), `${fmtInt((rec.noteCount || 0) + (rec.lnCount || 0))} notes`)) : null,
-        mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null),
-      h('div.pl-load', h('span.spinner'), this.plStatus, h('div.pl-bar', this.plBar)));
+      h('div.pl-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
+      h('div.pl-t', title), h('div.pl-a', artist),
+      h('div.pl-thumb', cover, h('div.pl-load', h('span.spinner'), this.plStatus), h('div.pl-bar', this.plBar)),
+      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
+      rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator),
+        ...line('Length', fmtTime((rec.length || 0) / rate) + (rate !== 1 ? ` (${+rate.toFixed(2)}×)` : '')),
+        ...line('BPM', rec.bpm ? String(Math.round(rec.bpm * rate)) : ''),
+        ...line('Notes', fmtInt((rec.noteCount || 0) + (rec.lnCount || 0)))) : null,
+      mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null,
+      h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null));
     const settings = h('div.pl-settings', { onpointerenter: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
-      h('div.pl-group', h('div.pl-gt', 'Visual settings'),
+      h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
         this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
         this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
         this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
@@ -353,7 +354,7 @@ const GameplayScreen = {
       inp.addEventListener('change', () => { MapOffsets.set(rec.hash, parseInt(inp.value, 10)); if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash); });
       inp.addEventListener('keydown', e => e.stopPropagation());
       upd();
-      clearEl(box).append(...[h('div.pl-gt', 'Audio settings'),
+      clearEl(box).append(...[h('div.pl-gt', 'Audio Settings', icon('list')),
         h('label.pl-slider', h('span', 'Beatmap offset', v), inp),
         sug != null ? h('button.btn.sm.pl-calib', { onclick: async () => {
           await MapOffsets.set(rec.hash, cur + sug); MapOffsets.last = null;

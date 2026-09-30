@@ -1611,3 +1611,38 @@ div.res-calib .i { color: var(--good); }
 .setup-back:hover::before, .setup-next:hover::before { filter: brightness(1.15); }
 .setup-next:focus-visible::before, .setup-back:focus-visible::before { box-shadow: 0 0 0 2px #fff; }
 .setup-next:active, .setup-back:active { transform: scale(.98); }
+
+/* ── player loader — osu!lazer's PlayerLoader: BeatmapMetadataDisplay centred (logo, italic title / artist, a 300×60
+   rounded cover strip showing the loading state, difficulty + star rating, a Source / Mapper grid, mods), with the
+   settings as lazer's SettingsToolboxGroups on the right: 270px, near-transparent, a 30px bold header, yellow sliders */
+.gp-loader { grid-template-columns: minmax(0, 1fr); }
+.gp-loader .pl-settings { position: absolute; top: 40px; right: 28px; width: 270px; margin: 0; }
+.pl-card { width: auto; max-width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
+.pl-logo { position: relative; width: 120px; height: 120px; container-type: size; margin-bottom: 4px; animation: setupLogo 2.4s ease-in-out infinite; }
+.pl-logo .lz-cookie-disc { border-width: 6px; }
+.pl-card .pl-t { margin-top: 15px; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-card .pl-a { font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.pl-thumb .pl-cover { position: absolute; inset: 0; height: auto; }
+.pl-thumb .pl-load { position: absolute; inset: 0; padding: 0; justify-content: center; border: 0; background: rgba(0, 0, 0, .5); color: #fff; transition: background 400ms, opacity 400ms; }
+.gp-loader.ready .pl-thumb .pl-load { background: rgba(0, 0, 0, .25); color: #c8ff66; }
+.pl-thumb .pl-bar { height: 3px; background: rgba(0, 0, 0, .3); }
+.pl-card .pl-d { flex-direction: column; gap: 5px; margin: 0 0 30px; font-size: 1rem; }
+.pl-v { font-size: 1.625rem; font-style: italic; }
+.pl-sr { display: flex; gap: 6px; justify-content: center; }
+.pl-meta { display: grid; grid-template-columns: auto auto; gap: 2px 0; font-size: .95rem; }
+.pl-mk { text-align: right; padding-right: 5px; color: rgba(255, 255, 255, .7); }
+.pl-mv { text-align: left; padding-left: 5px; font-weight: 600; }
+.pl-card .pl-mods { margin-top: 20px; justify-content: center; }
+.pl-card .pl-tags { margin-top: 14px; justify-content: center; }
+.pl-settings { gap: 6px; }
+.pl-group { gap: 15px; padding: 0 10px 10px; border-radius: 5px; background: rgba(46, 41, 58, .35); box-shadow: none; backdrop-filter: none; }
+.pl-gt { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 -10px -5px; padding: 0 10px; font-size: 1.0625rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: #fff; }
+.pl-gt .i { width: 15px; height: 15px; opacity: .8; }
+.pl-slider > span { color: #fff; }
+.pl-group input[type=range].slider { --acc: #ffcc22; }
+.pl-group input[type=range].slider::-webkit-slider-runnable-track { height: 4px; background: linear-gradient(90deg, #ffcc22 var(--p), rgba(255, 204, 34, .25) var(--p)); }
+.pl-group input[type=range].slider::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; box-shadow: 0 0 8px rgba(255, 204, 34, .5); }
+.pl-group input[type=range].slider::-moz-range-progress { background: #ffcc22; }
+.pl-group input[type=range].slider::-moz-range-thumb { border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; }
+@media (max-width: 800px) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
