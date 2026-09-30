@@ -165,7 +165,10 @@ const GameplayScreen = {
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
     this._audioSub = Bus.on('audio:state', st => { if (st !== 'running') this._blur(); });
-    this._mm = () => { el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500); };
+    this._mm = () => {
+      if (!el.classList.contains('show-cursor') && this.replayBar && this.s) this.updateReplayBar(this.gameTime(), true); // it's about to fade in
+      el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500);
+    };
     el.addEventListener('pointermove', this._mm);
     this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
@@ -1098,7 +1101,8 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const s = this.s;
     const tl = h('div.rp-timeline', { title: 'Click or drag to seek' });
     const cv = h('canvas');
-    this.rpFill = h('div.rp-fill'); this.rpHead = h('div.rp-head');
+    // (fill and playhead move with transforms only, so updating them never re-lays out the page)
+    this.rpFill = h('div.rp-fill'); this.rpHead = h('div.rp-headwrap', h('div.rp-head'));
     tl.append(cv, this.rpFill, this.rpHead);
     const span = () => ({ a: Math.min(0, s.startPos), b: s.endTime });
     const at = ev => { const r = tl.getBoundingClientRect(), { a, b } = span(); return a + clamp((ev.clientX - r.left) / r.width, 0, 1) * (b - a); };
@@ -1140,10 +1144,12 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     if (!this.replayBar || !s) return;
     const wall = performance.now();
     if (!force && wall - this._rpT < 100) return;
+    // hidden (no mouse movement, playing, not hovered): nothing to update
+    if (!force && s.running && !this.el.classList.contains('show-cursor') && !this.replayBar.matches(':hover')) return;
     this._rpT = wall;
     const a = Math.min(0, s.startPos), p = clamp((now - a) / Math.max(1, s.endTime - a), 0, 1);
     this.rpFill.style.transform = `scaleX(${p})`;
-    this.rpHead.style.left = (p * 100) + '%';
+    this.rpHead.style.transform = `translateX(${p * 100}%)`;
     const t = `${fmtTime(Math.max(0, now / s.rate))} / ${fmtTime(s.endTime / s.rate)}`;
     if (this.rpTime.textContent !== t) this.rpTime.textContent = t;
     const ic = s.running ? 'pause' : 'play';

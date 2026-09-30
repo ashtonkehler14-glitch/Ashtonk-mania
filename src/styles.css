@@ -481,7 +481,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .rp-timeline { position: relative; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; touch-action: none; }
 .rp-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rp-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: rgba(var(--accent-rgb), .3); pointer-events: none; }
-.rp-head { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; }
+.rp-headwrap { position: absolute; inset: 0; pointer-events: none; will-change: transform; }
+.rp-head { position: absolute; left: 0; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 8px #fff; }
 .rp-controls { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
 .rp-controls .grow { flex: 1; }
 .rp-controls .speed-group { display: flex; gap: 3px; }
