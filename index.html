@@ -346,86 +346,138 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 
 /* ── mod select (bottom sheet) */
 
-/* ── SONG SELECT (osu!lazer: info wedge + leaderboard left, filter + carousel right, footer bar) */
-.ss { padding-top: var(--toolbar-h); }
-.ss-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(420px, 42%) 1fr; }
-@media (max-width: 1000px) { .ss-main { grid-template-columns: 1fr; } .ss-info { display: none; } }
-.ss-info { display: flex; flex-direction: column; gap: 10px; padding: 14px 10px 14px 20px; min-height: 0; }
-.ss-right { display: flex; flex-direction: column; min-height: 0; }
-.ss-filter { padding: 12px 20px 12px 24px; display: flex; flex-direction: column; gap: 8px; background: rgba(0, 0, 0, .5); }
-.ss-search { position: relative; }
-.ss-search .input { width: 100%; padding-left: 38px; height: 38px; font-size: .95rem; background: rgba(255, 255, 255, .06); border-color: transparent; }
-.ss-search .input:focus { box-shadow: none; border-color: rgba(255, 255, 255, .25); }
-.ss-search .i { position: absolute; left: 12px; top: 10px; color: var(--muted); }
-.ss-filter-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.ss-sel { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); }
-.ss-sel .select { height: 28px; padding: 0 28px 0 10px; font-size: .8rem; background-color: rgba(255, 255, 255, .06); border-color: transparent; background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px; }
-.ss-count { color: var(--muted); font-size: .78rem; white-space: nowrap; }
-
-.wedge { position: relative; overflow: hidden; border-radius: 10px; min-height: 210px; background: var(--panel-3); box-shadow: var(--shadow); animation: wedgeIn var(--t-med) var(--ease-out); flex: none; }
-@keyframes wedgeIn { from { opacity: .4; transform: translateX(-12px); } }
-.wedge .w-bg { position: absolute; inset: 0; background: center / cover; }
-.wedge .w-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .8) 80%); }
-.wedge .w-body { position: relative; padding: 14px 18px 14px; display: flex; flex-direction: column; gap: 3px; min-height: 210px; justify-content: flex-end; }
-.wedge .w-top { position: absolute; top: 12px; left: 14px; right: 10px; display: flex; gap: 6px; align-items: center; }
-.wedge .w-title { font-size: 1.6rem; font-weight: 600; line-height: 1.15; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
-.wedge .w-artist { font-size: 1rem; color: #eee; }
-.wedge .w-diff { font-size: .88rem; margin-top: 6px; }
-.wedge .w-diff b { font-weight: 600; }
-.wedge .w-stats { display: flex; gap: 18px; margin-top: 8px; font-size: .85rem; color: #ffcc22; }
-.w-stat { display: inline-flex; align-items: center; gap: 6px; }
-.w-stat .i { width: 15px; height: 15px; }
-.ss-attrs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; padding: 10px 14px; border-radius: 10px; background: rgba(0, 0, 0, .45); }
-.attr { display: grid; grid-template-columns: 84px 1fr 34px; align-items: center; gap: 10px; font-size: .78rem; }
-.attr .k { color: var(--muted); }
-.attr .v { text-align: right; font-variant-numeric: tabular-nums; }
-.attr .bar { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
-.attr .bar i { display: block; height: 100%; background: #fff; transition: width var(--t-med) var(--ease); }
-.ss-problem { display: flex; gap: 10px; padding: 10px 14px; border-radius: 10px; background: rgba(237, 17, 33, .15); font-size: .85rem; }
+/* ── SONG SELECT — osu!lazer's new song select: sheared title wedge, difficulty display and ranking on the left; the
+   filter and a carousel of right-anchored panels on the right. Colours are lazer's OverlayColourProvider (Blue scheme,
+   hue 200), sizes and offsets are lazer's (panels 80/50px, 3px spacing, collapsed panels slid right). */
+.ss { --ss-h: 200; --b2: hsl(var(--ss-h) 10% 30%); --b3: hsl(var(--ss-h) 10% 25%); --b4: hsl(var(--ss-h) 10% 20%); --b5: hsl(var(--ss-h) 10% 15%); --c2: hsl(var(--ss-h) 40% 90%); --l2: hsl(var(--ss-h) 40% 75%); --shear: -11.31deg; --unshear: 11.31deg; --k: 1; padding-top: var(--toolbar-h); }
+.ss-main { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, min(50%, 700px)) minmax(0, min(50%, 720px)); justify-content: space-between; }
+.ss-main::before { content: ""; position: absolute; inset: 0 40% 0 0; background: linear-gradient(90deg, rgba(0, 0, 0, .3), transparent); pointer-events: none; }
+.ss-info { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0 0 10px; min-height: 0; }
+.ss-right { position: relative; display: flex; flex-direction: column; min-height: 0; background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .5)); }
+@media (max-width: 1000px) { .ss-main { grid-template-columns: 1fr; } .ss-info { display: none; } .ss { --k: .45; } }
+/* sheared backgrounds: the box stays upright (so text isn't slanted) and a skewed ::before draws the shape */
+.wedge, .wd, .ss-filter, .ss-search, .ss-sel, .lb-head .lb-tab, .lb-head .lb-scope, .lb-row, .w-plays, .w-fav { position: relative; isolation: isolate; }
+.wedge::before, .wd::before, .wd-box::before, .ss-filter::before, .ss-search::before, .ss-sel::before, .lb-tab::before, .lb-scope::before, .lb-row::before, .w-plays::before, .w-fav::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); }
+/* WedgeBackground: Background5 at 90%, fading to 60% over the last 30% */
+.wedge::before, .wd::before { transform-origin: top left; border-radius: 0 0 10px 0; background: linear-gradient(90deg, hsl(var(--ss-h) 10% 15% / .9) 70%, hsl(var(--ss-h) 10% 15% / .6)), linear-gradient(90deg, hsl(var(--ss-h) 10% 30% / .25), transparent 60%); }
+.wedge { flex: none; margin-left: -40px; padding: 18px 64px 12px 72px; animation: wedgeSwap calc(200ms * var(--anim)) ease-out both; }
+.ss.entering .wedge, .ss.entering .wd { animation: wedgeIn calc(600ms * var(--anim)) var(--ease-out) both; }
+@keyframes wedgeSwap { from { opacity: .5; } }
+@keyframes wedgeIn { from { opacity: 0; transform: translateX(-150px); } }
+.wedge .w-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wedge .w-top { display: flex; gap: 6px; align-items: center; min-height: 18px; }
+.wedge .w-title { font-size: 1.75rem; font-weight: 600; line-height: 1.12; margin-bottom: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+.wedge .w-artist { font-size: 1.15rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+.wedge .w-stats { display: flex; align-items: center; gap: 2px; height: 30px; margin-top: 4px; font-size: .85rem; font-weight: 600; }
+.w-plays, .w-fav { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 50px; padding: 0 12px; border: 0; background: none; color: #fff; font: inherit; }
+.w-plays { margin-left: -44px; padding-left: 44px; min-width: 94px; }
+.w-plays::before, .w-fav::before { background: hsl(var(--ss-h) 10% 15% / .8); border-radius: 6px; }
+.w-plays::before { border-radius: 0 6px 6px 0; }
+.w-fav { cursor: pointer; transition: color var(--t-fast); }
+.w-fav:hover::before { background: hsl(var(--ss-h) 10% 25% / .9); }
+.w-fav.on { color: #ff66ab; }
+.w-plays .i, .w-fav .i, .w-stat .i { width: 14px; height: 14px; }
+.w-stat { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
+/* DifficultyDisplay: the name line in the difficulty colour, then a darker box with the note counts and the stats */
+.wd { flex: none; margin-left: -40px; padding: 0 2px 2px 72px; animation: wedgeSwap calc(200ms * var(--anim)) ease-out both; }
+.ss.entering .wd { animation-delay: 60ms; }
+.wd-name { display: flex; align-items: center; gap: 6px; height: 20px; margin: 5px 0; min-width: 0; font-size: .875rem; white-space: nowrap; color: var(--ink); }
+.wd-name .wd-v { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.wd-name .wd-by { flex: none; white-space: pre; }
+.wd-name .wd-mapper { font-weight: 600; color: var(--l2); flex: none; }
+.wd-box { position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr auto; gap: 30px; margin-left: -72px; padding: 7.5px 26px 7.5px 72px; }
+.wd-box::before { transform-origin: top left; border-radius: 0 0 8px 0; background: hsl(var(--ss-h) 10% 15% / .8); }
+.wd-counts, .wd-diffs { display: flex; gap: 14px; min-width: 0; }
+.wd-counts .wd-stat { flex: 1; max-width: 120px; }
+.wd-diffs .wd-stat { width: 64px; }
+.wd-bar { position: relative; height: 2px; border-radius: 1px; background: #000; overflow: hidden; }
+.wd-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; background: var(--ink); transition: width 300ms var(--ease-out); }
+.wd-k { margin-top: 2px; font-size: .75rem; font-weight: 600; color: var(--c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wd-v { font-size: .875rem; }
+.ss-problem { display: flex; gap: 10px; padding: 10px 14px; margin-right: 24px; border-radius: 10px; background: rgba(237, 17, 33, .15); font-size: .85rem; }
 .ss-problem .i { color: #ff6b77; margin-top: 2px; }
-.lb { flex: 1; min-height: 120px; overflow: hidden; display: flex; flex-direction: column; }
-.lb-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 8px; font-size: .8rem; }
-.lb-tab { font-weight: 600; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
-.lb-list { overflow: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+/* ranking: sheared tab + scope, then sheared score rows */
+.lb { flex: 1; min-height: 120px; overflow: hidden; display: flex; flex-direction: column; margin-top: 6px; }
+.lb-head { display: flex; align-items: center; gap: 6px; padding: 2px 30px 8px 0; font-size: .8rem; }
+.lb-tab, .lb-scope { height: 26px; display: inline-flex; align-items: center; padding: 0 14px; font-weight: 600; }
+.lb-tab { margin-left: -40px; padding-left: 72px; color: var(--b5); }
+.lb-tab::before { transform-origin: top left; border-radius: 0 6px 6px 0; background: var(--l2); }
+.lb-scope::before { border-radius: 6px; background: hsl(var(--ss-h) 10% 15% / .85); }
+.lb-list { overflow: auto; display: flex; flex-direction: column; gap: 3px; padding: 0 24px 4px 0; }
 .lb-empty { padding: 30px 10px; text-align: center; color: var(--muted); font-size: .9rem; }
-.lb-row { display: flex; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 8px; background: rgba(0, 0, 0, .45); border: 0; text-align: left; width: 100%; transition: background var(--t-fast); animation: rowIn var(--t-med) var(--ease-out) both; }
-.lb-row:hover { background: rgba(255, 255, 255, .08); }
-.lb-row .rank { width: 30px; color: var(--muted); font-size: .8rem; }
-.lb-row .grade { font-size: 1.2rem; width: 28px; text-align: center; }
+.lb-row { display: flex; align-items: center; gap: 12px; flex: none; height: 50px; margin-left: -40px; padding: 0 22px 0 70px; border: 0; background: none; text-align: left; color: #fff; cursor: pointer; animation: rowIn 300ms var(--ease-out) both; }
+.lb-row::before { transform-origin: top left; border-radius: 0 10px 10px 0; background: hsl(var(--ss-h) 10% 15% / .8); transition: background var(--t-fast); }
+.lb-row:hover::before { background: hsl(var(--ss-h) 10% 22% / .9); }
+.lb-row .rank { width: 30px; color: var(--c2); font-size: .8rem; font-weight: 600; }
 .lb-row .main { flex: 1; min-width: 0; }
 .lb-row .who { font-weight: 600; font-size: .9rem; }
 .lb-row .nums { text-align: right; }
 .lb-row .sc { font-weight: 600; font-variant-numeric: tabular-nums; }
-.lb-row .meta { color: var(--muted); font-size: .72rem; }
-.lb-row.pb { box-shadow: inset 3px 0 0 var(--gold); }
+.lb-row .meta { color: var(--c2); opacity: .75; font-size: .72rem; }
+.lb-row.pb::before { box-shadow: inset 3px 0 0 var(--gold); }
+/* FilterControl: a sheared dark panel hanging from the top right, with sheared search box and dropdowns */
+.ss-filter { flex: none; margin-right: -20px; padding: 10px 44px 10px 34px; display: flex; flex-direction: column; gap: 8px; }
+.ss-filter::before { transform-origin: bottom left; border-radius: 0 0 0 10px; background: hsl(var(--ss-h) 10% 15% / .9); }
+.ss-search .input { position: relative; width: 100%; height: 38px; padding-left: 38px; font-size: .95rem; background: none; border-color: transparent; box-shadow: none; }
+.ss-search::before { border-radius: 8px; background: var(--b4); transition: background var(--t-fast); }
+.ss-search:focus-within::before { background: var(--b3); box-shadow: 0 0 0 1px rgba(255, 255, 255, .2); }
+.ss-search .i { position: absolute; left: 12px; top: 11px; color: var(--c2); z-index: 1; }
+.ss-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ss-sel { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 2px 0 12px; font-size: .78rem; font-weight: 600; color: var(--c2); }
+.ss-sel::before { border-radius: 6px; background: var(--b4); }
+.ss-sel .select { height: 28px; padding: 0 26px 0 6px; font-size: .8rem; font-weight: 600; background-color: transparent; border-color: transparent; box-shadow: none; background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px; }
+.ss-count { color: var(--c2); font-size: .78rem; white-space: nowrap; }
+
 @keyframes rowIn { from { opacity: 0; transform: translateX(-8px); } }
 
+/* carousel panels, anchored right and running past the screen edge (so the right corners never show); lazer slides
+   panels that aren't selected to the right: sets by 125px, difficulties by 75px */
 .carousel { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
 .carousel-inner { position: relative; }
-.c-item { position: absolute; left: 0; right: 0; will-change: transform; transition: transform calc(220ms * var(--anim)) var(--ease-out); }
-.set-panel { position: relative; height: 82px; margin-left: 30px; margin-right: 12px; width: calc(100% - 42px); border-radius: 8px; overflow: hidden; border: 0; background: var(--panel-3); display: flex; align-items: stretch; text-align: left; padding: 0; color: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); transition: box-shadow var(--t-fast), filter var(--t-fast); }
-.set-panel .sp-bg { position: absolute; inset: 0; background: center / cover; opacity: .6; transition: opacity var(--t-fast); }
-.set-panel .sp-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .8) 25%, rgba(0, 0, 0, .25)); }
-.set-panel .sp-body { position: relative; padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; flex: 1; }
-.set-panel .sp-t { font-weight: 600; font-size: 1.08rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.set-panel .sp-a { color: #ddd; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.set-panel .sp-dots { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
-.set-panel .sp-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--sc); }
-.set-panel .sp-fav { position: relative; align-self: center; margin-right: 14px; color: var(--accent); }
-.set-panel:hover .sp-bg { opacity: .8; }
-.set-panel.expanded { box-shadow: 0 0 0 2px #fff, 0 4px 20px rgba(0, 0, 0, .4); }
+.c-item { position: absolute; left: 0; right: 0; will-change: transform; transition: transform calc(400ms * var(--anim)) var(--ease-out); }
+.set-panel, .diff-panel { position: relative; display: block; width: calc(100% + 10px); height: 100%; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; text-align: left; color: #fff; background: linear-gradient(90deg, var(--b3), var(--b4)); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); transform: translateX(var(--x)); transition: transform calc(400ms * var(--anim)) var(--ease-out), box-shadow calc(400ms * var(--anim)) var(--ease-out); }
+.set-panel { --x: calc(155px * var(--k)); }
+.set-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px rgba(78, 191, 255, .8); }
+.diff-panel { --x: calc(145px * var(--k)); background: var(--sc); }
+.diff-panel.selected { --x: calc(70px * var(--k)); box-shadow: 0 0 3px 1px color-mix(in srgb, var(--sc) 80%, transparent); }
+/* hover: lazer's faint blue; selection: an additive sweep over the right 80% (lazer pulses it; kept still here so an
+   idle song select costs nothing on slow devices) */
+.set-panel::after, .diff-panel::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: rgba(102, 204, 255, .1); opacity: 0; transition: opacity 1000ms var(--ease-out); }
+.set-panel:hover::after, .diff-panel:hover::after { opacity: 1; transition-duration: 100ms; }
+.set-panel.expanded::after, .diff-panel.selected::after { left: 20%; opacity: 1; background: linear-gradient(90deg, transparent, var(--sel, rgba(255, 255, 255, .35))); mix-blend-mode: plus-lighter; }
+.diff-panel.selected::after { --sel: color-mix(in srgb, var(--sc) 50%, transparent); }
+.set-panel .sp-bg { position: absolute; inset: 0; background: center / cover; }
+/* PanelSetBackground: a diagonal (~40°) dark gradient over the cover */
+.set-panel .sp-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(51deg, rgba(0, 0, 0, .5) 40%, rgba(0, 0, 0, .3) 60%, rgba(0, 0, 0, .2)); }
+.sp-chev { position: absolute; left: 0; top: 0; bottom: 0; width: 18px; display: grid; place-items: center; background: #fff; color: var(--b5); transform: translateX(-100%); transition: transform calc(400ms * var(--anim)) var(--ease-out); z-index: 1; }
+.sp-chev .i { width: 11px; height: 11px; stroke-width: 3.2; }
+.set-panel.expanded .sp-chev { transform: none; }
+.set-panel .sp-body { position: relative; display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 4px 16px 6px 15px; min-width: 0; max-width: calc(100% - var(--x) - 28px); transition: transform calc(400ms * var(--anim)) var(--ease-out); }
+.set-panel.expanded .sp-body { transform: translateX(18px); }
+.set-panel .sp-t { font-size: 1.3rem; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.set-panel .sp-a { font-size: .875rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.set-panel .sp-dots { display: flex; gap: 3px; margin-top: 5px; align-items: center; }
+.set-panel .sp-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); }
+.sp-extra { font-size: .72rem; color: var(--c2); }
+.set-panel .sp-fav { position: absolute; top: 10px; right: calc(var(--x) + 24px); color: #ff66ab; }
 .set-panel.broken { filter: saturate(.3); }
-.diff-panel { position: relative; height: 56px; margin-left: 56px; margin-right: 12px; width: calc(100% - 68px); border-radius: 8px; border: 0; background: rgba(36, 34, 42, .92); display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px; text-align: left; color: #fff; transition: background var(--t-fast), box-shadow var(--t-fast); }
-.diff-panel:hover { background: rgba(61, 57, 70, .95); }
-.diff-panel.selected { background: rgba(61, 57, 70, .98); box-shadow: 0 0 0 2px var(--sc), 0 0 16px color-mix(in srgb, var(--sc) 35%, transparent); }
-.diff-panel .dp-main { flex: 1; min-width: 0; }
-.diff-panel .dp-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.diff-panel .dp-v { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diff-panel .dp-s { font-size: .74rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diff-panel .grade { font-size: 1.3rem; width: 30px; text-align: center; }
+/* PanelBeatmap: the difficulty colour shows as a 13px strip on the left, and tints the panel */
+.dp-body { position: absolute; inset: 0 0 0 13px; display: flex; align-items: center; gap: 5px; padding-left: 6.5px; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--sc) 25%, transparent), transparent 70%), linear-gradient(90deg, var(--b3), var(--b4)); }
+.dp-body .rank-pill { transform: scale(.8); margin-right: -3px; }
+.dp-main { min-width: 0; max-width: calc(100% - var(--x) - 20px); padding-bottom: 3px; }
+.dp-top { display: flex; align-items: baseline; min-width: 0; padding-bottom: 3px; white-space: nowrap; }
+.dp-k, .dp-v { font-size: .875rem; font-weight: 600; }
+.dp-k { white-space: pre; }
+.dp-v { overflow: hidden; text-overflow: ellipsis; margin-right: 4px; }
+.dp-s { flex: none; font-size: .75rem; font-weight: 600; color: var(--c2); }
+.dp-bottom { display: flex; align-items: center; gap: 4px; }
+.dp-bottom .stars { height: 17px; font-size: .68rem; padding: 0 6px; }
+.dp-stars { font-size: 9px; letter-spacing: 1.5px; background: linear-gradient(90deg, var(--sc) var(--p), rgba(255, 255, 255, .12) var(--p)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.dp-bad { font-size: .72rem; color: #ff9aa6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .diff-panel.broken { opacity: .55; }
-.dp-icon { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: .66rem; font-weight: 700; color: #000; background: var(--sc); }
+/* lazer's DrawableRank */
+.rank-pill { display: inline-grid; place-items: center; flex: none; min-width: 30px; height: 16px; padding: 0 6px; border-radius: 99px; background: var(--rc); color: var(--rt); font-size: .66rem; font-weight: 800; line-height: 1; }
 .keys-tag { font-weight: 600; font-size: .72rem; padding: 2px 8px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: #fff; }
 .ss-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; }
 .ss-empty .box { max-width: 520px; }
@@ -522,37 +574,37 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
 @media (max-width: 1000px) { .res-grid { grid-template-columns: minmax(0, 440px); } }
 /* osu!lazer's expanded score panel */
-.sp { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: spIn 500ms var(--ease-out) both; }
-@keyframes spIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
-.sp-top { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--rc) 38%, #2b2931), #24232a 70%); }
-.sp-top .avatar, .sp-top > :first-child { flex: none; }
-.sp-initial { width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); font-size: 1.8rem; font-weight: 700; }
-.sp-who { min-width: 0; flex: 1; }
-.sp-name { font-size: 1.3rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-when { font-size: .8rem; color: var(--text-2); margin-top: 2px; }
-.sp-tag { padding: 3px 10px; border-radius: 99px; background: rgba(0, 0, 0, .35); font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
-.sp-mid { padding: 18px 22px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
-.sp-map { width: 100%; min-width: 0; }
-.sp-title { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-artist { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-diff { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: .85rem; }
-.sp-version { font-weight: 600; }
-.sp-ring { position: relative; width: 230px; height: 230px; margin: 22px 0 14px; }
-.sp-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-.sp-grade { position: absolute; inset: 0; display: grid; place-items: center; font-size: 5.4rem; font-weight: 700; color: var(--rc); text-shadow: 0 0 28px color-mix(in srgb, var(--rc) 70%, transparent); animation: gradeIn 700ms var(--ease-out) 300ms both; }
-.sp-badge { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 16px; padding: 0 6px; display: grid; place-items: center; border-radius: 99px; font-size: .66rem; font-weight: 800; line-height: 1; color: var(--rt); background: var(--rc); animation: spBadge 500ms var(--ease-out) both; }
-@keyframes spBadge { from { opacity: 0; box-shadow: 0 0 0 0 var(--rc); } 10% { opacity: 1; box-shadow: 0 0 22px 4px var(--rc); } }
-.sp-badge.on { box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 60%, transparent); }
-.sp-mods { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
-.sp-failed { color: #ff5a5a; font-weight: 800; letter-spacing: .12em; font-size: .85rem; }
-.sp .res-score { font-size: 2.8rem; font-weight: 300; letter-spacing: .03em; line-height: 1.1; }
-.sp-stats { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 4px; }
-.sp-stat .k, .sp-j .k { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
-.sp-stat .v { font-size: 1.3rem; font-weight: 600; margin-top: 2px; }
-.sp-judges { width: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px 0 2px; border-top: 1px solid rgba(255, 255, 255, .07); }
-.sp-j .v { font-size: 1.02rem; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.sp .res-pb { margin-top: 4px; }
-.res-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; background: rgba(22, 21, 27, .88); border-radius: 20px; padding: 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: spIn 500ms var(--ease-out) 120ms both; }
+.rs { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: rsIn 500ms var(--ease-out) both; }
+@keyframes rsIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+.rs-top { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--rc) 38%, #2b2931), #24232a 70%); }
+.rs-top .avatar, .rs-top > :first-child { flex: none; }
+.rs-initial { width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); font-size: 1.8rem; font-weight: 700; }
+.rs-who { min-width: 0; flex: 1; }
+.rs-name { font-size: 1.3rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-when { font-size: .8rem; color: var(--text-2); margin-top: 2px; }
+.rs-tag { padding: 3px 10px; border-radius: 99px; background: rgba(0, 0, 0, .35); font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
+.rs-mid { padding: 18px 22px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.rs-map { width: 100%; min-width: 0; }
+.rs-title { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-artist { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-diff { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: .85rem; }
+.rs-version { font-weight: 600; }
+.rs-ring { position: relative; width: 230px; height: 230px; margin: 22px 0 14px; }
+.rs-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.rs-grade { position: absolute; inset: 0; display: grid; place-items: center; font-size: 5.4rem; font-weight: 700; color: var(--rc); text-shadow: 0 0 28px color-mix(in srgb, var(--rc) 70%, transparent); animation: gradeIn 700ms var(--ease-out) 300ms both; }
+.rs-badge { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 16px; padding: 0 6px; display: grid; place-items: center; border-radius: 99px; font-size: .66rem; font-weight: 800; line-height: 1; color: var(--rt); background: var(--rc); animation: rsBadge 500ms var(--ease-out) both; }
+@keyframes rsBadge { from { opacity: 0; box-shadow: 0 0 0 0 var(--rc); } 10% { opacity: 1; box-shadow: 0 0 22px 4px var(--rc); } }
+.rs-badge.on { box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 60%, transparent); }
+.rs-mods { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.rs-failed { color: #ff5a5a; font-weight: 800; letter-spacing: .12em; font-size: .85rem; }
+.rs .res-score { font-size: 2.8rem; font-weight: 300; letter-spacing: .03em; line-height: 1.1; }
+.rs-stats { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 4px; }
+.rs-stat .k, .rs-j .k { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.rs-stat .v { font-size: 1.3rem; font-weight: 600; margin-top: 2px; }
+.rs-judges { width: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px 0 2px; border-top: 1px solid rgba(255, 255, 255, .07); }
+.rs-j .v { font-size: 1.02rem; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.rs .res-pb { margin-top: 4px; }
+.res-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; background: rgba(22, 21, 27, .88); border-radius: 20px; padding: 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .45); animation: rsIn 500ms var(--ease-out) 120ms both; }
 .rs-head { font-size: 1.15rem; font-weight: 600; margin: 2px 2px 4px; }
 .res-right .chart-card { background: rgba(255, 255, 255, .03); box-shadow: none; }
 @keyframes gradeIn { from { opacity: 0; transform: scale(1.8) rotate(-10deg); filter: blur(8px); } }
@@ -1307,7 +1359,7 @@ div.res-calib .i { color: var(--good); }
 .sc-keys { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: baseline; }
 .sc-keys .muted { font-size: .78rem; }
 .sc-what { color: var(--text-2); }
-@media (max-height: 820px) { .sp-ring { width: 190px; height: 190px; margin: 18px 0 10px; } .sp-grade { font-size: 4.4rem; } .sp-mid { gap: 8px; padding-top: 14px; } .sp-top { padding: 12px 18px; } }
+@media (max-height: 820px) { .rs-ring { width: 190px; height: 190px; margin: 18px 0 10px; } .rs-grade { font-size: 4.4rem; } .rs-mid { gap: 8px; padding-top: 14px; } .rs-top { padding: 12px 18px; } }
 
 </style>
 </head>
@@ -5712,6 +5764,13 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** osu!lazer's rank colours (OsuColour.ForRank) and the ink its rank pills (DrawableRank) write the letter in. */
+const RANK_COLOURS = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+const RANK_INK = { XH: '#f0f4f8', SH: '#f0f4f8', X: '#ffe7a8', SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525', F: '#303030' };
+function rankPill(g) {
+  const label = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
+  return h('span.rank-pill', { style: { '--rc': RANK_COLOURS[g] || '#888', '--rt': RANK_INK[g] || '#222' }, title: g === 'XH' || g === 'SH' ? `${label} (Hidden)` : label }, label);
+}
 function gradeEl(g, cls = '') {
   const label = g === 'XH' ? 'SS' : g === 'SH' ? 'S' : g;
   return h(`span.grade.grade-${g}${cls ? '.' + cls : ''}`, { title: g === 'XH' || g === 'SH' ? `${label} (Hidden)` : label }, label);
@@ -6391,15 +6450,16 @@ const SongSelect = {
   tab: 'songselect',
   query: '',
   selectedId: null, expandedSet: null,
-  rows: [], ROW_SET: 92, ROW_DIFF: 64,
+  rows: [], ROW_SET: 80, ROW_DIFF: 50, ROW_GAP: 3,
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
     this.mpPick = !!params.mpPick && Multiplayer.inRoom();
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
-    const el = h('div.ss');
+    const el = h('div.ss.entering');
     this.el = el;
+    setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
     this.searchInput.addEventListener('keydown', e => {
@@ -6590,16 +6650,20 @@ const SongSelect = {
     this.renderVisible(true);
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
+  /** lazer's carousel spacing: collapsed beatmap sets overlap by 3px, difficulties sit 3px apart and the expanded
+   *  set gets 6px of room above and below. */
   layoutRows() {
-    const rows = [];
+    const rows = [], G = this.ROW_GAP;
     let y = 12;
     for (const r of this.results) {
+      const open = r.set.id === this.expandedSet;
+      if (open && rows.length) y += 3 * G;
       rows.push({ type: 'set', r, y, h: this.ROW_SET });
       y += this.ROW_SET;
-      if (r.set.id === this.expandedSet) {
-        for (const m of r.maps) { rows.push({ type: 'diff', r, m, y, h: this.ROW_DIFF }); y += this.ROW_DIFF; }
-        y += 8;
-      }
+      if (open) {
+        for (const m of r.maps) { y += G; rows.push({ type: 'diff', r, m, y, h: this.ROW_DIFF }); y += this.ROW_DIFF; }
+        y += 2 * G;
+      } else y -= G;
     }
     this.rows = rows;
     this.totalH = y + 200;
@@ -6631,7 +6695,6 @@ const SongSelect = {
     if (!this.rows) return;
     const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
-    const center = st + vh / 2;
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
@@ -6644,8 +6707,7 @@ const SongSelect = {
         this.pool.set(key, el);
         this.inner.appendChild(el);
       } else this.refreshRow(el, row);
-      const d = (row.y + row.h / 2 - center) / vh;
-      el.style.transform = `translate(${Math.round(d * d * 70)}px, ${row.y}px)`;
+      if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
     }
     for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
   },
@@ -6673,11 +6735,11 @@ const SongSelect = {
           this.select(pick.id);
         },
         oncontextmenu: e => { e.preventDefault(); this.options(e, maps[0]); },
-      }, bg, h('div.sp-body',
+      }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
         h('div.sp-dots', ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
-          maps.length > 18 ? h('span.muted', { style: { fontSize: '.72rem' } }, `+${maps.length - 18}`) : null,
+          maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
       btn.addEventListener('pointerenter', () => UISounds.hover());
@@ -6685,15 +6747,20 @@ const SongSelect = {
     } else {
       const m = row.m;
       const best = ScoreManager.best(m.hash);
+      // lazer's PanelBeatmap: a strip in the difficulty colour on the left, the colour tinting the panel, the local
+      // rank, "[4K] name mapped by …", then the star rating pill and a star counter
+      const sc = starColour(m.stars);
       const btn = h(`button.diff-panel${m.id === this.selectedId ? '.selected' : ''}${m.problems.length ? '.broken' : ''}`, {
-        style: { '--sc': starColour(m.stars) },
+        style: { '--sc': sc },
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
-      }, h('span.dp-icon', { style: { '--sc': starColour(m.stars) }, title: `${m.stars.toFixed(2)}★` }, `${m.keys}K`),
-      h('div.dp-main', h('div.dp-top', starBadge(m.stars), h('span.dp-v', m.version)), h('div.dp-s', `mapped by ${m.creator}`,
-        m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, ' · ' + m.problems[0]) : null)),
-      best ? gradeEl(best.grade) : null);
+      }, h('div.dp-body',
+        best ? rankPill(best.grade) : null,
+        h('div.dp-main',
+          h('div.dp-top', h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+          h('div.dp-bottom', starBadge(m.stars), h('span.dp-stars', { style: { '--p': `${clamp(m.stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
+            m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
     }
@@ -6809,24 +6876,31 @@ const SongSelect = {
     if (!m) { this.playBtn && (this.playBtn.disabled = true); return; }
     this.playBtn.disabled = m.problems.length > 0;
     const set = BeatmapManager.setById.get(m.setId);
-    const bg = h('div.w-bg');
-    BeatmapManager.bgURL(m).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; else BeatmapManager.thumbURL(set).then(t => t && (bg.style.backgroundImage = `url("${t}")`)); });
     const fav = Favorites.has(set.id);
-    const favBtn = h(`button.icon-btn${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
-    const collBtn = h('button.icon-btn', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
+    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
+    const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
     const mods = Settings.get('songselect.mods') || [];
     const rate = ModSystem.rate(mods);
     const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin * rate)}–${Math.round(m.bpmMax * rate)}` : Math.round(m.bpm * rate);
     const st = (ic, label, v) => h('span.w-stat', { title: label }, icon(ic), String(v));
-    const wedge = h('div.wedge', bg, h('div.w-body',
-      h('div.w-top', starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.grow'), collBtn, favBtn),
+    // lazer's BeatmapTitleWedge: a sheared dark wedge over the (full-screen) beatmap background with the title, artist,
+    // play count / favourite / length / BPM; then the DifficultyDisplay in the difficulty's colour
+    const plays = ScoreManager.playCount(m.hash);
+    const wedge = h('div.wedge', h('div.w-body',
+      h('div.w-top', h('span.keys-tag', `${m.keys}K`), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
-      h('div.w-diff', h('b', m.version), h('span.muted', ' mapped by '), h('b', m.creator)),
-      h('div.w-stats', st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm), st('target', 'Notes', fmtInt(m.noteCount)), st('list', 'Long notes', fmtInt(m.lnCount)))));
-    const attr = (k, v, max) => h('div.attr', h('span.k', k), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.v', typeof v === 'number' ? v.toFixed(1) : v));
-    const details = h('div.ss-attrs', attr('Keys', m.keys, 10), attr('Accuracy', m.od, 10), attr('HP drain', m.hp, 10), attr('Star rating', m.stars, 10));
+      h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('play', 'fill'), fmtInt(plays)), favBtn, collBtn,
+        st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm))));
+    const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
+    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
+    const objs = Math.max(1, m.noteCount);
+    const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
+      h('div.wd-name', starBadge(m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+      h('div.wd-box',
+        h('div.wd-counts', stat('Notes', m.noteCount - m.lnCount, objs, fmtInt(m.noteCount - m.lnCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
+        h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', plural(ScoreManager.playCount(m.hash), 'play'))));
+    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab.on', 'Ranking'), h('span.lb-scope', 'Local'), h('span.grow'), h('span.muted', plural(plays, 'play'))));
     const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
     const best = ScoreManager.best(m.hash);
@@ -6834,14 +6908,14 @@ const SongSelect = {
     const who = ProfileManager.profile.name;
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
-        h('span.rank', '#' + (i + 1)), gradeEl(s.grade),
+        h('span.rank', '#' + (i + 1)), rankPill(s.grade),
         h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
         h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
       list.append(row);
     });
     lb.append(list);
-    this.info.append(...[wedge, details, problems, lb].filter(Boolean));
+    this.info.append(...[wedge, diff, problems, lb].filter(Boolean));
   },
 
   collectionMenu(e, m) {
@@ -8381,14 +8455,14 @@ const ResultsScreen = {
   /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
    *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
   gradeCard(s, p) {
-    const RANK = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+    const RANK = RANK_COLOURS;
     const letter = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.sp-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.sp-top', av, h('div.sp-who', h('div.sp-name', s.player || 'Player'), h('div.sp-when', `Played on ${new Date(s.date).toLocaleString()}`)),
-      p.watched ? h('span.sp-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+      p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
     // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
@@ -8397,22 +8471,21 @@ const ResultsScreen = {
     const arc = (a, b, col) => `<circle cx="120" cy="120" r="${R2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="4.8" stroke-dasharray="${Math.max(0.5, (b - a - GAP) * C2).toFixed(2)} ${C2.toFixed(2)}" stroke-dashoffset="${(-(a + GAP / 2) * C2).toFixed(2)}"/>`;
     const acc = s.accuracy >= 1 ? 1 : Math.min(s.accuracy, 1 - VSS);
     const fillMs = 1400 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
-    const ring = h('div.sp-ring');
-    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
+    const ring = h('div.rs-ring');
+    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="rsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
       <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
-      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#spg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
+      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#rsg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
       ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
     // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
-    const INK = { SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525' };
     const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
     for (const [g, cut, at] of badges) {
       if (s.accuracy < cut || (g === 'SS' && s.accuracy < 1)) continue;
       const ang = (at * 360 - 90) * Math.PI / 180;
       // when the (eased) fill reaches this rank's cutoff
       const t = cut <= 0 ? 0 : 1 - Math.pow(1 - Math.min(1, cut / acc), 1 / 5);
-      ring.append(h(`span.sp-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
+      ring.append(h(`span.rs-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': RANK_INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
     }
-    ring.append(h('div.sp-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
+    ring.append(h('div.rs-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - acc); }));
     // score, counted up (in the skin's number font when it has one)
     const scoreEl = h('div.res-score', '0');
@@ -8428,21 +8501,21 @@ const ResultsScreen = {
     };
     tick();
     const pp = ScoreManager.ppOf(s);
-    const stat = (k, v, title) => h('div.sp-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
+    const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
-    const mid = h('div.sp-mid',
-      h('div.sp-map',
-        h('div.sp-title', s.title), h('div.sp-artist', s.artist),
-        h('div.sp-diff', starBadge(s.stars || 0), h('span.sp-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+    const mid = h('div.rs-mid',
+      h('div.rs-map',
+        h('div.rs-title', s.title), h('div.rs-artist', s.artist),
+        h('div.rs-diff', starBadge(s.stars || 0), h('span.rs-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
       ring,
-      (s.mods || []).length ? h('div.sp-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
-      !s.passed ? h('div.sp-failed', 'FAILED') : null,
+      (s.mods || []).length ? h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
+      !s.passed ? h('div.rs-failed', 'FAILED') : null,
       scoreEl,
-      h('div.sp-stats',
+      h('div.rs-stats',
         stat('Accuracy', fmtAcc(s.accuracy)),
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
         stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
-      h('div.sp-judges', ...JUDGEMENTS.map((j, i) => h('div.sp-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
+      h('div.rs-judges', ...JUDGEMENTS.map((j, i) => h('div.rs-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
       const d = s.totalPpAfter - s.totalPpBefore;
       mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
@@ -8462,7 +8535,7 @@ const ResultsScreen = {
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return h('div.sp', { style: { '--rc': rc } }, top, mid);
+    return h('div.rs', { style: { '--rc': rc } }, top, mid);
   },
   rightCol(s) {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));

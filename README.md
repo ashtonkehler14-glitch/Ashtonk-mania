@@ -22,6 +22,22 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer-style song select
+
+* Song select now copies osu!lazer's new song select, using its sizes, offsets and colours (the blue-grey "Blue" overlay scheme).
+* **Left side, three slanted panels over the beatmap background:**
+  * **Title wedge**: the title, artist, your play count, favourite and collection buttons, length and BPM.
+  * **Difficulty display**, in the difficulty's star colour: the star rating, difficulty name, mapper, note and hold-note counts, and Keys / HP drain / Accuracy bars.
+  * **Ranking**: a slanted tab, with your scores as slanted rows and lazer's coloured rank pills.
+* **Right side, a carousel of panels that run off the right edge**, like lazer's:
+  * **Beatmap sets** are 80px, with the cover under lazer's diagonal dark gradient, the title, artist and a dot per difficulty. The open set shows a white chevron strip.
+  * **Difficulties** are 50px, with a strip in the difficulty colour, a tint of that colour, your best rank, "[4K] name mapped by …", the star pill and a star counter.
+  * **Spacing and offsets**: sets overlap by 3px and difficulties sit 3px apart. Anything not selected slides right, as in lazer, so the open set and the selected difficulty stick out.
+  * **Selection and hover**: the selected panel gets a glow and a sweep of light; hovering gives lazer's faint blue.
+* **The filter bar is a slanted panel** hanging from the top right, with a slanted search box and dropdowns.
+* **No more curved list**: the carousel is straight, as in lazer. Scrolling costs a quarter of the style work it did, since rows no longer move sideways as they scroll.
+* **Animations**: the wedges slide in when song select opens and simply fade on later selections.
+
 ### osu!lazer-style results
 
 * The results screen is now lazer's score panel: your name and picture on a strip coloured by your grade, then the beatmap, the **accuracy circle**, mods, the score counting up, accuracy / max combo / pp and every judgement count.

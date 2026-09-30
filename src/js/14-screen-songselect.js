@@ -15,15 +15,16 @@ const SongSelect = {
   tab: 'songselect',
   query: '',
   selectedId: null, expandedSet: null,
-  rows: [], ROW_SET: 92, ROW_DIFF: 64,
+  rows: [], ROW_SET: 80, ROW_DIFF: 50, ROW_GAP: 3,
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
     this.mpPick = !!params.mpPick && Multiplayer.inRoom();
     if (params.mapId) this.selectedId = params.mapId;
     else if (!this.selectedId) this.selectedId = Settings.get('last.map');
-    const el = h('div.ss');
+    const el = h('div.ss.entering');
     this.el = el;
+    setTimeout(() => el.classList.remove('entering'), 900);
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
     this.searchInput.addEventListener('keydown', e => {
@@ -214,16 +215,20 @@ const SongSelect = {
     this.renderVisible(true);
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
+  /** lazer's carousel spacing: collapsed beatmap sets overlap by 3px, difficulties sit 3px apart and the expanded
+   *  set gets 6px of room above and below. */
   layoutRows() {
-    const rows = [];
+    const rows = [], G = this.ROW_GAP;
     let y = 12;
     for (const r of this.results) {
+      const open = r.set.id === this.expandedSet;
+      if (open && rows.length) y += 3 * G;
       rows.push({ type: 'set', r, y, h: this.ROW_SET });
       y += this.ROW_SET;
-      if (r.set.id === this.expandedSet) {
-        for (const m of r.maps) { rows.push({ type: 'diff', r, m, y, h: this.ROW_DIFF }); y += this.ROW_DIFF; }
-        y += 8;
-      }
+      if (open) {
+        for (const m of r.maps) { y += G; rows.push({ type: 'diff', r, m, y, h: this.ROW_DIFF }); y += this.ROW_DIFF; }
+        y += 2 * G;
+      } else y -= G;
     }
     this.rows = rows;
     this.totalH = y + 200;
@@ -255,7 +260,6 @@ const SongSelect = {
     if (!this.rows) return;
     const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
-    const center = st + vh / 2;
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
@@ -268,8 +272,7 @@ const SongSelect = {
         this.pool.set(key, el);
         this.inner.appendChild(el);
       } else this.refreshRow(el, row);
-      const d = (row.y + row.h / 2 - center) / vh;
-      el.style.transform = `translate(${Math.round(d * d * 70)}px, ${row.y}px)`;
+      if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
     }
     for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
   },
@@ -297,11 +300,11 @@ const SongSelect = {
           this.select(pick.id);
         },
         oncontextmenu: e => { e.preventDefault(); this.options(e, maps[0]); },
-      }, bg, h('div.sp-body',
+      }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
         h('div.sp-dots', ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
-          maps.length > 18 ? h('span.muted', { style: { fontSize: '.72rem' } }, `+${maps.length - 18}`) : null,
+          maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
       btn.addEventListener('pointerenter', () => UISounds.hover());
@@ -309,15 +312,20 @@ const SongSelect = {
     } else {
       const m = row.m;
       const best = ScoreManager.best(m.hash);
+      // lazer's PanelBeatmap: a strip in the difficulty colour on the left, the colour tinting the panel, the local
+      // rank, "[4K] name mapped by …", then the star rating pill and a star counter
+      const sc = starColour(m.stars);
       const btn = h(`button.diff-panel${m.id === this.selectedId ? '.selected' : ''}${m.problems.length ? '.broken' : ''}`, {
-        style: { '--sc': starColour(m.stars) },
+        style: { '--sc': sc },
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
-      }, h('span.dp-icon', { style: { '--sc': starColour(m.stars) }, title: `${m.stars.toFixed(2)}★` }, `${m.keys}K`),
-      h('div.dp-main', h('div.dp-top', starBadge(m.stars), h('span.dp-v', m.version)), h('div.dp-s', `mapped by ${m.creator}`,
-        m.problems.length ? h('span', { style: { color: '#ff9aa6' } }, ' · ' + m.problems[0]) : null)),
-      best ? gradeEl(best.grade) : null);
+      }, h('div.dp-body',
+        best ? rankPill(best.grade) : null,
+        h('div.dp-main',
+          h('div.dp-top', h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+          h('div.dp-bottom', starBadge(m.stars), h('span.dp-stars', { style: { '--p': `${clamp(m.stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
+            m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
     }
@@ -433,24 +441,31 @@ const SongSelect = {
     if (!m) { this.playBtn && (this.playBtn.disabled = true); return; }
     this.playBtn.disabled = m.problems.length > 0;
     const set = BeatmapManager.setById.get(m.setId);
-    const bg = h('div.w-bg');
-    BeatmapManager.bgURL(m).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; else BeatmapManager.thumbURL(set).then(t => t && (bg.style.backgroundImage = `url("${t}")`)); });
     const fav = Favorites.has(set.id);
-    const favBtn = h(`button.icon-btn${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
-    const collBtn = h('button.icon-btn', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
+    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
+    const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
     const mods = Settings.get('songselect.mods') || [];
     const rate = ModSystem.rate(mods);
     const bpm = m.bpmMin !== m.bpmMax ? `${Math.round(m.bpmMin * rate)}–${Math.round(m.bpmMax * rate)}` : Math.round(m.bpm * rate);
     const st = (ic, label, v) => h('span.w-stat', { title: label }, icon(ic), String(v));
-    const wedge = h('div.wedge', bg, h('div.w-body',
-      h('div.w-top', starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.grow'), collBtn, favBtn),
+    // lazer's BeatmapTitleWedge: a sheared dark wedge over the (full-screen) beatmap background with the title, artist,
+    // play count / favourite / length / BPM; then the DifficultyDisplay in the difficulty's colour
+    const plays = ScoreManager.playCount(m.hash);
+    const wedge = h('div.wedge', h('div.w-body',
+      h('div.w-top', h('span.keys-tag', `${m.keys}K`), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
-      h('div.w-diff', h('b', m.version), h('span.muted', ' mapped by '), h('b', m.creator)),
-      h('div.w-stats', st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm), st('target', 'Notes', fmtInt(m.noteCount)), st('list', 'Long notes', fmtInt(m.lnCount)))));
-    const attr = (k, v, max) => h('div.attr', h('span.k', k), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('span.v', typeof v === 'number' ? v.toFixed(1) : v));
-    const details = h('div.ss-attrs', attr('Keys', m.keys, 10), attr('Accuracy', m.od, 10), attr('HP drain', m.hp, 10), attr('Star rating', m.stars, 10));
+      h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('play', 'fill'), fmtInt(plays)), favBtn, collBtn,
+        st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm))));
+    const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
+    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
+    const objs = Math.max(1, m.noteCount);
+    const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
+      h('div.wd-name', starBadge(m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+      h('div.wd-box',
+        h('div.wd-counts', stat('Notes', m.noteCount - m.lnCount, objs, fmtInt(m.noteCount - m.lnCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
+        h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab', 'Local ranking'), h('span.grow'), h('span.muted', plural(ScoreManager.playCount(m.hash), 'play'))));
+    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab.on', 'Ranking'), h('span.lb-scope', 'Local'), h('span.grow'), h('span.muted', plural(plays, 'play'))));
     const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
     const best = ScoreManager.best(m.hash);
@@ -458,14 +473,14 @@ const SongSelect = {
     const who = ProfileManager.profile.name;
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
-        h('span.rank', '#' + (i + 1)), gradeEl(s.grade),
+        h('span.rank', '#' + (i + 1)), rankPill(s.grade),
         h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
         h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
       list.append(row);
     });
     lb.append(list);
-    this.info.append(...[wedge, details, problems, lb].filter(Boolean));
+    this.info.append(...[wedge, diff, problems, lb].filter(Boolean));
   },
 
   collectionMenu(e, m) {

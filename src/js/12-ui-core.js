@@ -98,6 +98,13 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** osu!lazer's rank colours (OsuColour.ForRank) and the ink its rank pills (DrawableRank) write the letter in. */
+const RANK_COLOURS = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+const RANK_INK = { XH: '#f0f4f8', SH: '#f0f4f8', X: '#ffe7a8', SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525', F: '#303030' };
+function rankPill(g) {
+  const label = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
+  return h('span.rank-pill', { style: { '--rc': RANK_COLOURS[g] || '#888', '--rt': RANK_INK[g] || '#222' }, title: g === 'XH' || g === 'SH' ? `${label} (Hidden)` : label }, label);
+}
 function gradeEl(g, cls = '') {
   const label = g === 'XH' ? 'SS' : g === 'SH' ? 'S' : g;
   return h(`span.grade.grade-${g}${cls ? '.' + cls : ''}`, { title: g === 'XH' || g === 'SH' ? `${label} (Hidden)` : label }, label);

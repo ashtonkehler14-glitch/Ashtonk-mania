@@ -183,8 +183,8 @@ check('live play becomes a personal best with an auto-saved replay', live.pb && 
 await shot('05-results-live');
 await page.waitForTimeout(1600);
 const panel = await page.evaluate(() => {
-  const g = document.querySelector('.sp .sp-ring .sp-grade'), ring = document.querySelector('.sp .accring');
-  return { grade: g && g.textContent, badges: [...document.querySelectorAll('.sp-badge')].map(b => b.textContent), on: document.querySelector('.sp-badge.on')?.textContent,
+  const g = document.querySelector('.rs .rs-ring .rs-grade'), ring = document.querySelector('.rs .accring');
+  return { grade: g && g.textContent, badges: [...document.querySelectorAll('.rs-badge')].map(b => b.textContent), on: document.querySelector('.rs-badge.on')?.textContent,
     filled: ring ? 1 - parseFloat(ring.style.strokeDashoffset) / parseFloat(ring.getAttribute('stroke-dasharray')) : 0, hist: !!document.querySelector('.res-right canvas') };
 });
 const shown = { XH: 'SS', X: 'SS', SH: 'S' }[live.grade] || live.grade;

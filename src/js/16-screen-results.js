@@ -35,14 +35,14 @@ const ResultsScreen = {
   /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
    *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
   gradeCard(s, p) {
-    const RANK = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
+    const RANK = RANK_COLOURS;
     const letter = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.sp-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.sp-top', av, h('div.sp-who', h('div.sp-name', s.player || 'Player'), h('div.sp-when', `Played on ${new Date(s.date).toLocaleString()}`)),
-      p.watched ? h('span.sp-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+      p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
     // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
@@ -51,22 +51,21 @@ const ResultsScreen = {
     const arc = (a, b, col) => `<circle cx="120" cy="120" r="${R2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="4.8" stroke-dasharray="${Math.max(0.5, (b - a - GAP) * C2).toFixed(2)} ${C2.toFixed(2)}" stroke-dashoffset="${(-(a + GAP / 2) * C2).toFixed(2)}"/>`;
     const acc = s.accuracy >= 1 ? 1 : Math.min(s.accuracy, 1 - VSS);
     const fillMs = 1400 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
-    const ring = h('div.sp-ring');
-    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
+    const ring = h('div.rs-ring');
+    ring.innerHTML = `<svg viewBox="0 0 240 240"><defs><linearGradient id="rsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf6ff"/><stop offset="1" stop-color="#baffa9"/></linearGradient></defs>
       <circle cx="120" cy="120" r="${R - 1.2}" fill="none" stroke="rgba(47,47,47,.5)" stroke-width="${W + 2.4}"/>
-      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#spg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
+      <circle class="accring" cx="120" cy="120" r="${R}" fill="none" stroke="url(#rsg)" stroke-width="${W}" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition: stroke-dashoffset ${fillMs}ms cubic-bezier(.1,1,.2,1)"/>
       ${segs.map(([a, b, c]) => arc(a, b, c)).join('')}</svg>`;
     // badges sit on an ellipse just outside the ring; A and S are nudged down so they don't collide with SS (as lazer does)
-    const INK = { SS: '#ffe7a8', S: '#ffe7a8', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525' };
     const badges = [['D', 0, 0.35], ['C', 0.7, 0.75], ['B', 0.8, 0.85], ['A', 0.9, 0.9125], ['S', 0.95, 0.96], ['SS', 1, 1]];
     for (const [g, cut, at] of badges) {
       if (s.accuracy < cut || (g === 'SS' && s.accuracy < 1)) continue;
       const ang = (at * 360 - 90) * Math.PI / 180;
       // when the (eased) fill reaches this rank's cutoff
       const t = cut <= 0 ? 0 : 1 - Math.pow(1 - Math.min(1, cut / acc), 1 / 5);
-      ring.append(h(`span.sp-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
+      ring.append(h(`span.rs-badge${g === letter ? '.on' : ''}`, { style: { left: `${50 + Math.cos(ang) * 50 * 140 / 120}%`, top: `${50 + Math.sin(ang) * 50 * 135 / 120}%`, '--rc': RANK[g === 'SS' ? 'X' : g], '--rt': RANK_INK[g], animationDelay: `${Math.round(t * fillMs)}ms` } }, g));
     }
-    ring.append(h('div.sp-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
+    ring.append(h('div.rs-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - acc); }));
     // score, counted up (in the skin's number font when it has one)
     const scoreEl = h('div.res-score', '0');
@@ -82,21 +81,21 @@ const ResultsScreen = {
     };
     tick();
     const pp = ScoreManager.ppOf(s);
-    const stat = (k, v, title) => h('div.sp-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
+    const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
-    const mid = h('div.sp-mid',
-      h('div.sp-map',
-        h('div.sp-title', s.title), h('div.sp-artist', s.artist),
-        h('div.sp-diff', starBadge(s.stars || 0), h('span.sp-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+    const mid = h('div.rs-mid',
+      h('div.rs-map',
+        h('div.rs-title', s.title), h('div.rs-artist', s.artist),
+        h('div.rs-diff', starBadge(s.stars || 0), h('span.rs-version', s.version), h('span.muted', ` · ${s.keys}K · mapped by `), h('b', s.creator || '?'))),
       ring,
-      (s.mods || []).length ? h('div.sp-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
-      !s.passed ? h('div.sp-failed', 'FAILED') : null,
+      (s.mods || []).length ? h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
+      !s.passed ? h('div.rs-failed', 'FAILED') : null,
       scoreEl,
-      h('div.sp-stats',
+      h('div.rs-stats',
         stat('Accuracy', fmtAcc(s.accuracy)),
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
         stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
-      h('div.sp-judges', ...JUDGEMENTS.map((j, i) => h('div.sp-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
+      h('div.rs-judges', ...JUDGEMENTS.map((j, i) => h('div.rs-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
       const d = s.totalPpAfter - s.totalPpBefore;
       mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
@@ -116,7 +115,7 @@ const ResultsScreen = {
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return h('div.sp', { style: { '--rc': rc } }, top, mid);
+    return h('div.rs', { style: { '--rc': rc } }, top, mid);
   },
   rightCol(s) {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));
