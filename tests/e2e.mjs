@@ -716,7 +716,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
-  check('setup: Chromebook turns on performance mode and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 0));
+  check('setup: Chromebook turns on performance mode (keeping the menu blur, which is baked in) and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 12));
   const swatches = await sp.$$eval('.setup-swatch span', a => a.map(x => x.textContent).join(','));
   await sp.click('.setup-swatch >> nth=2');
   check('setup: accent colours are Kori, Neru, Teto, Miku and apply live; size is a slider', swatches === 'Kori,Neru,Teto,Miku' && await sp.evaluate(() => document.documentElement.dataset.theme === 'teto') && !!(await sp.$('.setup-step-look input.slider')), swatches);

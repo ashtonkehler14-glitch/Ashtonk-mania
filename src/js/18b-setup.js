@@ -13,7 +13,7 @@ const SETUP_DEVICES = {
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
   chromebook: { label: 'Chromebook', sub: 'School Chromebook or older laptop', icon: 'laptop',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
-      'graphics.menuBlur': 0, 'ui.parallax': false }) },
+      'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
 const SETUP_THEMES = [['kori', '#aa88ff', 'Kori'], ['neru', '#ffcf3a', 'Neru'], ['teto', '#ff4d6a', 'Teto'], ['miku', '#39c5bb', 'Miku']];

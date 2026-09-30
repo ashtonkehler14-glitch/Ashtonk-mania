@@ -3024,6 +3024,18 @@ const ManiaLayout = {
       tex: { key: [], keyD: [], note: [], noteH: [], noteL: [], noteT: [] },
       judgement: {},
     };
+    // upscroll flipping (osu!stable / lazer): keys flip unless KeyFlipWhenUpsideDown is 0; notes, heads, bodies and
+    // tails flip unless NoteFlipWhenUpsideDown is 0; each can be overridden per column (KeyFlipWhenUpsideDown#,
+    // KeyFlipWhenUpsideDown#D for the pressed key, NoteFlipWhenUpsideDown#, #H, #L, #T; columns count from 0)
+    const flag = (k, d) => { const v = get(k); return v == null || String(v).trim() === '' ? d : String(v).trim() !== '0'; };
+    const keyFlip = flag('KeyFlipWhenUpsideDown', true), noteFlip = flag('NoteFlipWhenUpsideDown', true);
+    L.flip = { key: [], keyD: [], note: [], head: [], body: [], tail: [] };
+    for (let i = 0; i < keys; i++) {
+      const k = flag(`KeyFlipWhenUpsideDown${i}`, keyFlip), nn = flag(`NoteFlipWhenUpsideDown${i}`, noteFlip);
+      L.flip.key.push(k); L.flip.keyD.push(flag(`KeyFlipWhenUpsideDown${i}D`, k));
+      L.flip.note.push(nn); L.flip.head.push(flag(`NoteFlipWhenUpsideDown${i}H`, nn));
+      L.flip.body.push(flag(`NoteFlipWhenUpsideDown${i}L`, nn)); L.flip.tail.push(flag(`NoteFlipWhenUpsideDown${i}T`, nn));
+    }
     const nbs = parseInt(get('NoteBodyStyle') ?? '1', 10);
     for (let i = 0; i < keys; i++) L.noteBodyStyle.push(parseInt(get(`NoteBodyStyle${i}`) ?? nbs, 10) || 0);
     const col = (k, d) => parseColour(get(k), d);
@@ -3152,9 +3164,17 @@ const SkinManager = {
     return meta ? new Skin(meta) : null;
   },
 
+  /** A skin that's no longer current may still be on screen (a running game, its HUD, a preview), so its images are
+   *  only released at the next screen change: closing them straight away made anything still drawing them throw. */
+  retire(skin) {
+    (this._retired || (this._retired = new Set())).add(skin);
+    if (!this._retireHook) this._retireHook = Bus.on('screen:changed', () => {
+      for (const k of this._retired) if (k !== this.current) { k.dispose(); this._retired.delete(k); }
+    });
+  },
   async select(id, { silent = false } = {}) {
     const skin = this.instance(id) || this.defaultSkin;
-    if (this.current && this.current !== skin && !this.current.builtin) this.current.dispose();
+    if (this.current && this.current !== skin && !this.current.builtin) this.retire(this.current);
     this.current = skin;
     await Settings.set('skin.current', skin.id);
     UISounds.reset();
@@ -3216,7 +3236,7 @@ const SkinManager = {
     await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
     meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
     await DB.put('skins', meta);
-    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    if (this.current && this.current.id === id) { this.retire(this.current); this.current = new Skin(meta); }
     Bus.emit('skins:changed');
   },
 
@@ -3229,7 +3249,7 @@ const SkinManager = {
     const path = meta.files.find(f => /(^|\/)skin\.ini$/i.test(f)) || rel;
     await DB.put('files', new Blob([text], { type: 'text/plain' }), `skin:${id}/${path}`);
     await DB.put('skins', meta);
-    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    if (this.current && this.current.id === id) { this.retire(this.current); this.current = new Skin(meta); }
     Bus.emit('skins:changed');
   },
 
@@ -3805,6 +3825,8 @@ const Settings = {
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     // v4: the accent colours are Kori, Neru, Teto and Miku only
     if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
+    // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
+    if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
   get(k) {
@@ -5121,6 +5143,15 @@ class ManiaRenderer {
     this.stageX += Settings.get('gameplay.stageOffset') / 100 * this.W;
     this.hitY = clamp((clamp(L.hitPosition, 240, 480) + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
     this.up = Settings.get('gameplay.scrollDirection') === 'up' || L.upsideDown;
+    // what gets drawn upside down in upscroll (osu!: keys and notes unless the skin says otherwise; lights always)
+    const F = L.flip || {}, f = (a, i) => this.up && (!a || a[i] !== false);
+    this.fl = { key: [], keyD: [], note: [], head: [], body: [], tail: [] };
+    for (let i = 0; i < L.keys; i++) {
+      this.fl.key.push(f(F.key, i)); this.fl.keyD.push(f(F.keyD, i)); this.fl.note.push(f(F.note, i));
+      this.fl.head.push(f(F.head, i)); this.fl.body.push(f(F.body, i));
+      // a tail cap is authored flipped in downscroll; mirrored for upscroll it's flipped once more (unless not flipping)
+      this.fl.tail.push(this.up ? !f(F.tail, i) : true);
+    }
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {
@@ -5162,8 +5193,8 @@ class ManiaRenderer {
   /** A pre-scaled sprite cropped to its visible pixels: skin textures are often mostly empty padding (Kori's
    *  lighting is 92–97% fully transparent, its keys 89–91%), and blending those empty pixels every frame was most of
    *  the canvas's raster time. Returns { c, dx, dy }: the cropped canvas and where it sits inside the w×h sprite. */
-  _cropSprite(img, w, h) {
-    const full = this._sprite(img, w, h, false);
+  _cropSprite(img, w, h, flip = false) {
+    const full = this._sprite(img, w, h, flip);
     let m = this._crop.get(full);
     if (m) return m;
     m = { c: full, dx: 0, dy: 0 };
@@ -5181,10 +5212,10 @@ class ManiaRenderer {
     this._crop.set(full, m);
     return m;
   }
-  _cropImg(img, x, yTop, w, h) {
+  _cropImg(img, x, yTop, w, h, flipY = false) {
     if (!img || w <= 0 || h <= 0) return;
     if (this.up) yTop = this.H - yTop - h;
-    const tx = this._tx, m = this._cropSprite(img, w, h);
+    const tx = this._tx, m = this._cropSprite(img, w, h, flipY);
     if (m.c) this.ctx.drawImage(m.c, Math.round(x + tx) - tx + m.dx, Math.round(yTop) + m.dy);
   }
   /** Like _img for fixed-size textures (notes, keys): drawn from a pre-scaled sprite, snapped to whole pixels. */
@@ -5242,29 +5273,31 @@ class ManiaRenderer {
         ctx.globalAlpha = a;
         const h = t.h * (this.legacy ? this.u : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
-        this._cropImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h);
+        this._cropImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h, this.up);
         ctx.globalAlpha = 1;
       }
     }
     // stage hint
     if (L.tex.stageHint) {
       const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u : s);
-      this._img(t.img, 0, this.hitY - h / 2, this.stageW, h);
+      this._img(t.img, 0, this.hitY - h / 2, this.stageW, h, this.up);
     }
     const drawKeys = () => {
       for (let i = 0; i < K; i++) {
-        const t = g.held[i] ? (L.tex.keyD[i] || L.tex.key[i]) : L.tex.key[i];
+        const down = g.held[i] && L.tex.keyD[i];
+        const t = down ? L.tex.keyD[i] : L.tex.key[i];
         if (!t) continue;
+        const flip = down ? this.fl.keyD[i] : this.fl.key[i];
         if (this.legacy && !t.fromDefault) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
           const h = t.h * this.u;
-          this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h);
+          this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h, flip);
         } else {
           // built-in keys: receptor (25% down the texture) centred on where notes are hit
           const h = t.h * (this.colW[i] / t.w);
           const nh = this._noteH(L.tex.note[i], i);
           const top = this.hitY - nh / 2 - h * 0.25;
-          this._spriteImg(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top));
+          this._spriteImg(t.img, this.colX[i], top, this.colW[i], Math.max(h, H - top), flip);
         }
       }
     };
@@ -5284,7 +5317,7 @@ class ManiaRenderer {
     if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; ctx.drawImage(t.img, this.stageW, 0, w, H); }
     if (L.tex.stageBottom) {
       const t = L.tex.stageBottom, w = t.w * us, h = t.h * us;
-      this._img(t.img, (this.stageW - w) / 2, H - h, w, h);
+      this._img(t.img, (this.stageW - w) / 2, H - h, w, h, this.up);
     }
     // lighting
     if (Settings.get('gameplay.hitLighting')) this._drawLighting(g, realNow);
@@ -5352,9 +5385,9 @@ class ManiaRenderer {
             // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
             // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
             const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
-            if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow);
-            if (texT && yTail - th < yHead - hh / 2) this._spriteImg(texT.frameAt(realNow), x, yTail - th, w, th, !this.up);
-            if (texH || texN) this._spriteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh);
+            if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow, this.fl.body[c]);
+            if (texT && yTail - th < yHead - hh / 2) this._spriteImg(texT.frameAt(realNow), x, yTail - th, w, th, this.fl.tail[c]);
+            if (texH || texN) this._spriteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh, texH ? this.fl.head[c] : this.fl.note[c]);
           };
           if (!bands) { ctx.globalAlpha = mult; draw(); ctx.globalAlpha = 1; continue; }
           const y0 = yTail - (texT ? this._noteH(texT, c) : 0), y1 = yHead;
@@ -5371,7 +5404,7 @@ class ManiaRenderer {
           const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
           if (a <= 0) continue;
           ctx.globalAlpha = a;
-          if (texN) this._spriteImg(texN.frameAt(realNow), x, yHead - nh, w, nh);
+          if (texN) this._spriteImg(texN.frameAt(realNow), x, yHead - nh, w, nh, this.fl.note[c]);
           ctx.globalAlpha = 1;
         }
       }
@@ -5391,23 +5424,23 @@ class ManiaRenderer {
         if (y - nh > this.H) continue;
         const k = el / 150;
         ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
-        this._spriteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh);
+        this._spriteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh, this.fl.note[c]);
       }
       mf.length = keep;
       ctx.globalAlpha = 1;
     }
   }
-  _drawBody(tex, x, w, top, bottom, style, realNow) {
+  _drawBody(tex, x, w, top, bottom, style, realNow, flip = false) {
     const img = tex.frameAt(realNow);
     const len = bottom - top;
-    if (style === 0) { this._img(img, x, top, w, len); return; }
+    if (style === 0) { this._img(img, x, top, w, len, flip); return; }
     const th = Math.max(2, tex.h * (w / tex.w));
     const ctx = this.ctx;
     ctx.save();
     const clipY = this.up ? this.H - bottom : top;
     ctx.beginPath(); ctx.rect(x, clipY, w, len); ctx.clip();
-    if (style === 2) { for (let y = bottom - th; y > top - th; y -= th) this._img(img, x, y, w, th); }
-    else { for (let y = top; y < bottom; y += th) this._img(img, x, y, w, th); }
+    if (style === 2) { for (let y = bottom - th; y > top - th; y -= th) this._img(img, x, y, w, th, flip); }
+    else { for (let y = top; y < bottom; y += th) this._img(img, x, y, w, th, flip); }
     ctx.restore();
   }
 
@@ -6238,19 +6271,58 @@ function showMenu(x, y, items) {
 // ─────────────────────────────── Background ───────────────────────────────
 const Background = {
   current: null, flip: false,
+  /** The blur is baked into a small copy of the image once (and cached), so the browser never has to run a live
+   *  full-screen blur filter: that's what made menu blur too slow for Chromebooks. Where canvas filters aren't
+   *  supported the CSS blur is used as before. */
+  _baked: new Map(),
+  canBake: typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype,
+  bake(url, blur) {
+    const key = url + '|' + blur;
+    let p = this._baked.get(key);
+    if (p) return p;
+    p = (async () => {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const W = 640, Hh = Math.max(1, Math.round(W * img.naturalHeight / Math.max(1, img.naturalWidth)));
+      const c = document.createElement('canvas'); c.width = W; c.height = Hh;
+      const x = c.getContext('2d');
+      const r = blur * W / Math.max(640, innerWidth);
+      x.filter = `blur(${r.toFixed(2)}px)`;
+      x.drawImage(img, -r * 2, -r * 2, W + r * 4, Hh + r * 4); // drawn a little oversize so the edges stay opaque
+      const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.9));
+      return blob ? URL.createObjectURL(blob) : null;
+    })().catch(() => null);
+    this._baked.set(key, p);
+    if (this._baked.size > 16) { const [k, old] = this._baked.entries().next().value; this._baked.delete(k); old.then(u => u && setTimeout(() => URL.revokeObjectURL(u), 5000)); }
+    return p;
+  },
   set(url, { blur = Settings.get('graphics.menuBlur'), dim = 0 } = {}) {
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);
     const a = $('#bg-a'), b = $('#bg-b');
-    const filter = `blur(${blur}px) brightness(${1 - dim})`;
-    if (url === this.current) { (this.flip ? b : a).style.filter = filter; return; }
+    const bake = url && blur > 0.5 && this.canBake;
+    const bright = `brightness(${1 - dim})`;
+    const filter = bake ? bright : `blur(${blur}px) ${bright}`;
+    const apply = el => {
+      if (!bake) return;
+      const tok = this._tok = {};
+      this.bake(url, blur).then(u => { if (u && tok === this._tok && this.current === url) { el.style.backgroundImage = `url("${u}")`; el.style.filter = bright; } });
+    };
+    if (url === this.current) {
+      const el = this.flip ? b : a;
+      if (bake) apply(el); else { el.style.backgroundImage = url ? `url("${url}")` : 'none'; el.style.filter = filter; }
+      return;
+    }
     this.current = url;
     this.flip = !this.flip;
     const show = this.flip ? b : a, hide = this.flip ? a : b;
+    // until the blurred copy is ready (a few ms; instant when cached) the image shows with a CSS blur
     show.style.backgroundImage = url ? `url("${url}")` : 'none';
-    show.style.filter = filter;
+    show.style.filter = `blur(${blur}px) ${bright}`;
     show.classList.toggle('show', !!url);
     hide.classList.remove('show');
+    apply(show);
   },
   parallax(e) {
     if (!Settings.get('ui.parallax') || $('#app').classList.contains('in-game')) { $('#bg-layer').style.transform = ''; return; }
@@ -10050,7 +10122,7 @@ const ExplorerScreen = {
     }
     if (owned) {
       const m = (diff && owned.maps.find(x => x.onlineId === diff.id)) || owned.maps.find(x => !x.problems.length) || owned.maps[0];
-      return h('button.btn.sm.primary', { onclick: () => { this.closeSet(); Screens.go('songselect', { mapId: m.id }); } }, icon('play'), 'Play');
+      return h('button.btn.sm.primary', { onclick: () => this.playLocal(m) }, icon('play'), 'Play');
     }
     return h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
   },
@@ -10173,6 +10245,16 @@ const ExplorerScreen = {
     a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
     this.audio = a; this.previewId = id;
     this.syncPreviewButtons();
+  },
+  /** Play a downloaded map: its background and song start straight away (not after song select settles), and the
+   *  menu song the preview had paused isn't resumed over it. */
+  playLocal(m) {
+    this._resumeMusic = false;
+    this.stopPreview();
+    this.closeSet();
+    SongSelect.selectedId = m.id;
+    SongSelect.preview(m);
+    Screens.go('songselect', { mapId: m.id });
   },
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
@@ -10655,7 +10737,7 @@ const SETUP_DEVICES = {
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
   chromebook: { label: 'Chromebook', sub: 'School Chromebook or older laptop', icon: 'laptop',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
-      'graphics.menuBlur': 0, 'ui.parallax': false }) },
+      'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
 const SETUP_THEMES = [['kori', '#aa88ff', 'Kori'], ['neru', '#ffcf3a', 'Neru'], ['teto', '#ff4d6a', 'Teto'], ['miku', '#39c5bb', 'Miku']];

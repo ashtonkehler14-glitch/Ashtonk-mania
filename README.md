@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Upscroll fixed for every skin, instant Play from the beatmap listing, menu blur on Chromebooks
+
+* **Upscroll now follows osu!'s rules for skins.** Key images and notes (heads, bodies, tails) are drawn upside down in upscroll unless the skin's `KeyFlipWhenUpsideDown` / `NoteFlipWhenUpsideDown` say not to, including the per-column versions (`…#`, `…#D`, `…#H`, `…#L`, `…#T`). Stage lights, the stage hint and the stage bottom flip too, so they face the receptors.
+  * Before, Kori's receptors sat near the bottom of the screen in upscroll, and Chemuss's rings were cut off at the top edge. Both now line up with where notes are hit.
+* **Switching skins mid-game no longer crashes** ("The image source is detached"). The old skin's images are now released at the next screen change instead of straight away.
+* **Play in the beatmap listing** switches the background and song to that map straight away. It also no longer briefly resumes the song that was playing before the preview.
+* **Background blur works in Chromebook mode.** The blur is now drawn once into a small copy of each background instead of being a live full-screen blur, so it costs nothing while you browse (and is cheaper on PC too). Chromebook setup keeps blur on, and Chromebooks that had it switched off get it back once.
+
 ### New profile pictures
 
 * The free profile pictures are now the Teto, Neru and Miku pictures in `public/avatars/` (256×256), replacing the drawn ones. If you had picked one of the old drawn avatars, you get that character's new picture automatically.

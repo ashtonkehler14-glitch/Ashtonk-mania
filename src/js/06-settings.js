@@ -153,6 +153,8 @@ const Settings = {
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     // v4: the accent colours are Kori, Neru, Teto and Miku only
     if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
+    // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
+    if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
   get(k) {

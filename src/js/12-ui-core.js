@@ -265,19 +265,58 @@ function showMenu(x, y, items) {
 // ─────────────────────────────── Background ───────────────────────────────
 const Background = {
   current: null, flip: false,
+  /** The blur is baked into a small copy of the image once (and cached), so the browser never has to run a live
+   *  full-screen blur filter: that's what made menu blur too slow for Chromebooks. Where canvas filters aren't
+   *  supported the CSS blur is used as before. */
+  _baked: new Map(),
+  canBake: typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype,
+  bake(url, blur) {
+    const key = url + '|' + blur;
+    let p = this._baked.get(key);
+    if (p) return p;
+    p = (async () => {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const W = 640, Hh = Math.max(1, Math.round(W * img.naturalHeight / Math.max(1, img.naturalWidth)));
+      const c = document.createElement('canvas'); c.width = W; c.height = Hh;
+      const x = c.getContext('2d');
+      const r = blur * W / Math.max(640, innerWidth);
+      x.filter = `blur(${r.toFixed(2)}px)`;
+      x.drawImage(img, -r * 2, -r * 2, W + r * 4, Hh + r * 4); // drawn a little oversize so the edges stay opaque
+      const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.9));
+      return blob ? URL.createObjectURL(blob) : null;
+    })().catch(() => null);
+    this._baked.set(key, p);
+    if (this._baked.size > 16) { const [k, old] = this._baked.entries().next().value; this._baked.delete(k); old.then(u => u && setTimeout(() => URL.revokeObjectURL(u), 5000)); }
+    return p;
+  },
   set(url, { blur = Settings.get('graphics.menuBlur'), dim = 0 } = {}) {
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);
     const a = $('#bg-a'), b = $('#bg-b');
-    const filter = `blur(${blur}px) brightness(${1 - dim})`;
-    if (url === this.current) { (this.flip ? b : a).style.filter = filter; return; }
+    const bake = url && blur > 0.5 && this.canBake;
+    const bright = `brightness(${1 - dim})`;
+    const filter = bake ? bright : `blur(${blur}px) ${bright}`;
+    const apply = el => {
+      if (!bake) return;
+      const tok = this._tok = {};
+      this.bake(url, blur).then(u => { if (u && tok === this._tok && this.current === url) { el.style.backgroundImage = `url("${u}")`; el.style.filter = bright; } });
+    };
+    if (url === this.current) {
+      const el = this.flip ? b : a;
+      if (bake) apply(el); else { el.style.backgroundImage = url ? `url("${url}")` : 'none'; el.style.filter = filter; }
+      return;
+    }
     this.current = url;
     this.flip = !this.flip;
     const show = this.flip ? b : a, hide = this.flip ? a : b;
+    // until the blurred copy is ready (a few ms; instant when cached) the image shows with a CSS blur
     show.style.backgroundImage = url ? `url("${url}")` : 'none';
-    show.style.filter = filter;
+    show.style.filter = `blur(${blur}px) ${bright}`;
     show.classList.toggle('show', !!url);
     hide.classList.remove('show');
+    apply(show);
   },
   parallax(e) {
     if (!Settings.get('ui.parallax') || $('#app').classList.contains('in-game')) { $('#bg-layer').style.transform = ''; return; }

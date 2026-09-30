@@ -422,7 +422,7 @@ const ExplorerScreen = {
     }
     if (owned) {
       const m = (diff && owned.maps.find(x => x.onlineId === diff.id)) || owned.maps.find(x => !x.problems.length) || owned.maps[0];
-      return h('button.btn.sm.primary', { onclick: () => { this.closeSet(); Screens.go('songselect', { mapId: m.id }); } }, icon('play'), 'Play');
+      return h('button.btn.sm.primary', { onclick: () => this.playLocal(m) }, icon('play'), 'Play');
     }
     return h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
   },
@@ -545,6 +545,16 @@ const ExplorerScreen = {
     a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
     this.audio = a; this.previewId = id;
     this.syncPreviewButtons();
+  },
+  /** Play a downloaded map: its background and song start straight away (not after song select settles), and the
+   *  menu song the preview had paused isn't resumed over it. */
+  playLocal(m) {
+    this._resumeMusic = false;
+    this.stopPreview();
+    this.closeSet();
+    SongSelect.selectedId = m.id;
+    SongSelect.preview(m);
+    Screens.go('songselect', { mapId: m.id });
   },
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }

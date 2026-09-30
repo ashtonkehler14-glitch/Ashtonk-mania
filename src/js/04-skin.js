@@ -457,6 +457,18 @@ const ManiaLayout = {
       tex: { key: [], keyD: [], note: [], noteH: [], noteL: [], noteT: [] },
       judgement: {},
     };
+    // upscroll flipping (osu!stable / lazer): keys flip unless KeyFlipWhenUpsideDown is 0; notes, heads, bodies and
+    // tails flip unless NoteFlipWhenUpsideDown is 0; each can be overridden per column (KeyFlipWhenUpsideDown#,
+    // KeyFlipWhenUpsideDown#D for the pressed key, NoteFlipWhenUpsideDown#, #H, #L, #T; columns count from 0)
+    const flag = (k, d) => { const v = get(k); return v == null || String(v).trim() === '' ? d : String(v).trim() !== '0'; };
+    const keyFlip = flag('KeyFlipWhenUpsideDown', true), noteFlip = flag('NoteFlipWhenUpsideDown', true);
+    L.flip = { key: [], keyD: [], note: [], head: [], body: [], tail: [] };
+    for (let i = 0; i < keys; i++) {
+      const k = flag(`KeyFlipWhenUpsideDown${i}`, keyFlip), nn = flag(`NoteFlipWhenUpsideDown${i}`, noteFlip);
+      L.flip.key.push(k); L.flip.keyD.push(flag(`KeyFlipWhenUpsideDown${i}D`, k));
+      L.flip.note.push(nn); L.flip.head.push(flag(`NoteFlipWhenUpsideDown${i}H`, nn));
+      L.flip.body.push(flag(`NoteFlipWhenUpsideDown${i}L`, nn)); L.flip.tail.push(flag(`NoteFlipWhenUpsideDown${i}T`, nn));
+    }
     const nbs = parseInt(get('NoteBodyStyle') ?? '1', 10);
     for (let i = 0; i < keys; i++) L.noteBodyStyle.push(parseInt(get(`NoteBodyStyle${i}`) ?? nbs, 10) || 0);
     const col = (k, d) => parseColour(get(k), d);
@@ -585,9 +597,17 @@ const SkinManager = {
     return meta ? new Skin(meta) : null;
   },
 
+  /** A skin that's no longer current may still be on screen (a running game, its HUD, a preview), so its images are
+   *  only released at the next screen change: closing them straight away made anything still drawing them throw. */
+  retire(skin) {
+    (this._retired || (this._retired = new Set())).add(skin);
+    if (!this._retireHook) this._retireHook = Bus.on('screen:changed', () => {
+      for (const k of this._retired) if (k !== this.current) { k.dispose(); this._retired.delete(k); }
+    });
+  },
   async select(id, { silent = false } = {}) {
     const skin = this.instance(id) || this.defaultSkin;
-    if (this.current && this.current !== skin && !this.current.builtin) this.current.dispose();
+    if (this.current && this.current !== skin && !this.current.builtin) this.retire(this.current);
     this.current = skin;
     await Settings.set('skin.current', skin.id);
     UISounds.reset();
@@ -649,7 +669,7 @@ const SkinManager = {
     await DB.putMany(files.map(f => ({ store: 'files', key: `skin:${id}/${f.rel}`, value: new Blob([f.data], { type: mimeFor(f.rel) }) })));
     meta.files = [...new Set([...meta.files, ...files.map(f => f.rel)])];
     await DB.put('skins', meta);
-    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    if (this.current && this.current.id === id) { this.retire(this.current); this.current = new Skin(meta); }
     Bus.emit('skins:changed');
   },
 
@@ -662,7 +682,7 @@ const SkinManager = {
     const path = meta.files.find(f => /(^|\/)skin\.ini$/i.test(f)) || rel;
     await DB.put('files', new Blob([text], { type: 'text/plain' }), `skin:${id}/${path}`);
     await DB.put('skins', meta);
-    if (this.current && this.current.id === id) { this.current.dispose(); this.current = new Skin(meta); }
+    if (this.current && this.current.id === id) { this.retire(this.current); this.current = new Skin(meta); }
     Bus.emit('skins:changed');
   },
 
