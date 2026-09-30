@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### osu!lazer standardised score
+
+* **Settings → Gameplay → Score display** (under *Show all settings*): *Classic (ScoreV1)*, as before, or *osu!lazer standardised*: 150,000 for combo (each hit's score × log₄ of the combo, capped at 400) and 850,000 × accuracy^(2 + 2·accuracy) — the formula from osu!lazer's mania score processor.
+* Every play records both scores. The HUD, the in-game and song select leaderboards, personal bests, results, replays and the profile all follow the chosen display. Scores from before this update keep their classic score. Multiplayer matches always use classic, so both players see the same numbers.
+
 ### Install it, play offline
 
 * **Installable app**: Ashtonk!mania now has an app manifest and icons, so Chrome, Edge and ChromeOS offer to install it (the install icon in the address bar, or **Settings → Maintenance → Install as an app** when the browser offers it). The installed app opens in its own full-screen window.

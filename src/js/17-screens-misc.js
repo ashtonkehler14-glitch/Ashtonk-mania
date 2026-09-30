@@ -146,7 +146,7 @@ const ProfileScreen = {
     const xp = ProfileManager.xpInfo();
     const st = StatisticsManager.compute();
     const bestPerMap = new Map();
-    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || bestPerMap.get(s.mapHash).score < s.score)) bestPerMap.set(s.mapHash, s);
+    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
     const rankedScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
     const pp = ScoreManager.totalPp();
     const topPlays = ScoreManager.bestPpPerMap();
@@ -218,7 +218,7 @@ const ReplaysScreen = {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
       this.list.append(h('div.list-row', gradeEl(sm.grade || 'D'),
-        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(sm.score || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${new Date(r.date).toLocaleString()}${map ? '' : ' · beatmap missing'}`)),
+        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${new Date(r.date).toLocaleString()}${map ? '' : ' · beatmap missing'}`)),
         h('span.row', { style: { gap: '3px' } }, ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         h('button.btn.sm', { disabled: !map, onclick: () => Game.launch({ mapId: map.id, mode: 'replay', replay: r }) }, icon('play'), 'Watch'),
         h('button.icon-btn', { title: 'Export .amr', onclick: () => ReplayManager.export(r) }, icon('download')),

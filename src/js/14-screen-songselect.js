@@ -447,7 +447,7 @@ const SongSelect = {
         h('span.rank', '#' + (i + 1)), gradeEl(s.grade),
         h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
-        h('div.nums', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
+        h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
       list.append(row);
     });
     lb.append(list);

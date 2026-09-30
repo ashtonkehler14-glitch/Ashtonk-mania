@@ -36,7 +36,15 @@ function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs 
   return OsuMath.hitWindows(override != null ? override : base).map(w => w * m);
 }
 
-/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo. */
+/** osu!lazer standardised scoring (ManiaScoreProcessor): each judgement adds its base score (a MAX counts 300)
+ *  times log₄(combo after it), between 0.5 and log₄(400); the combo part is worth 150,000 and accuracy
+ *  (MAX = 305) 850,000 × acc^(2 + 2·acc). */
+const STD_COMBO_BASE = [300, 300, 200, 100, 50, 0];
+const STD_COMBO_CAP = Math.log(400) / Math.log(4);
+const stdComboFactor = c => Math.min(Math.max(0.5, Math.log(c) / Math.log(4)), STD_COMBO_CAP);
+
+/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo — and, alongside it,
+ *  osu!lazer's standardised score (`scoreStd`). */
 class ScoreSystem {
   constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
     this.total = Math.max(1, totalJudgements);
@@ -46,6 +54,8 @@ class ScoreSystem {
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
     this.bonus = 100; this.rawScore = 0;
     this.comboBreaks = 0;
+    this.comboPortion = 0; this.maxComboPortion = 0;
+    for (let k = 1; k <= this.total; k++) this.maxComboPortion += 300 * stdComboFactor(k);
   }
   add(j) {
     this.counts[j]++; this.judged++;
@@ -54,10 +64,16 @@ class ScoreSystem {
     this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
     if (j === J.MISS) this.breakCombo();
     else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
+    this.comboPortion += STD_COMBO_BASE[j] * stdComboFactor(this.combo);
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
   get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
   get score() { return Math.round(this.rawScore); }
+  get scoreStd() {
+    const acc = OsuMath.accuracy(this.counts);
+    const combo = this.maxComboPortion > 0 ? this.comboPortion / this.maxComboPortion : 1;
+    return Math.round((150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.judged / this.total)) * this.mult);
+  }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
     return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
@@ -364,7 +380,7 @@ class GameplayEngine {
     const mean = errs.length ? errs.reduce((a, b) => a + b, 0) / errs.length : 0;
     const sd = errs.length > 1 ? Math.sqrt(errs.reduce((a, b) => a + (b - mean) ** 2, 0) / (errs.length - 1)) : 0;
     return {
-      score: this.score.score, accuracy: this.score.accuracy, maxCombo: this.score.maxCombo, combo: this.score.combo,
+      score: this.score.score, scoreStd: this.score.scoreStd, accuracy: this.score.accuracy, maxCombo: this.score.maxCombo, combo: this.score.combo,
       counts: [...this.score.counts], comboBreaks: this.score.comboBreaks,
       meanError: mean, unstableRate: sd * 10,
       early: errs.filter(e => e < 0).length, late: errs.filter(e => e > 0).length,

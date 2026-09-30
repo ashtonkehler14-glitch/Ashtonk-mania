@@ -3209,6 +3209,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Live pp counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'In-game leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Health bar', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.scoring', l: 'Score display', t: 'select', d: 'classic', o: [['classic', 'Classic (ScoreV1)'], ['standardised', 'osu!lazer standardised']], hint: 'Classic is osu!stable\'s ScoreV1 for mania. Standardised is osu!lazer\'s: 150,000 for combo and 850,000 for accuracy, so accuracy counts most. Every play records both, and leaderboards and personal bests follow this choice (scores from before it existed keep their classic score). Multiplayer matches always use classic.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'From the skin'], ['skinstage', 'Skin, beside stage'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
@@ -3851,7 +3852,15 @@ function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs 
   return OsuMath.hitWindows(override != null ? override : base).map(w => w * m);
 }
 
-/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo. */
+/** osu!lazer standardised scoring (ManiaScoreProcessor): each judgement adds its base score (a MAX counts 300)
+ *  times log₄(combo after it), between 0.5 and log₄(400); the combo part is worth 150,000 and accuracy
+ *  (MAX = 305) 850,000 × acc^(2 + 2·acc). */
+const STD_COMBO_BASE = [300, 300, 200, 100, 50, 0];
+const STD_COMBO_CAP = Math.log(400) / Math.log(4);
+const stdComboFactor = c => Math.min(Math.max(0.5, Math.log(c) / Math.log(4)), STD_COMBO_CAP);
+
+/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo — and, alongside it,
+ *  osu!lazer's standardised score (`scoreStd`). */
 class ScoreSystem {
   constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
     this.total = Math.max(1, totalJudgements);
@@ -3861,6 +3870,8 @@ class ScoreSystem {
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
     this.bonus = 100; this.rawScore = 0;
     this.comboBreaks = 0;
+    this.comboPortion = 0; this.maxComboPortion = 0;
+    for (let k = 1; k <= this.total; k++) this.maxComboPortion += 300 * stdComboFactor(k);
   }
   add(j) {
     this.counts[j]++; this.judged++;
@@ -3869,10 +3880,16 @@ class ScoreSystem {
     this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
     if (j === J.MISS) this.breakCombo();
     else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
+    this.comboPortion += STD_COMBO_BASE[j] * stdComboFactor(this.combo);
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
   get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
   get score() { return Math.round(this.rawScore); }
+  get scoreStd() {
+    const acc = OsuMath.accuracy(this.counts);
+    const combo = this.maxComboPortion > 0 ? this.comboPortion / this.maxComboPortion : 1;
+    return Math.round((150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.judged / this.total)) * this.mult);
+  }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
     return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
@@ -4179,7 +4196,7 @@ class GameplayEngine {
     const mean = errs.length ? errs.reduce((a, b) => a + b, 0) / errs.length : 0;
     const sd = errs.length > 1 ? Math.sqrt(errs.reduce((a, b) => a + (b - mean) ** 2, 0) / (errs.length - 1)) : 0;
     return {
-      score: this.score.score, accuracy: this.score.accuracy, maxCombo: this.score.maxCombo, combo: this.score.combo,
+      score: this.score.score, scoreStd: this.score.scoreStd, accuracy: this.score.accuracy, maxCombo: this.score.maxCombo, combo: this.score.combo,
       counts: [...this.score.counts], comboBreaks: this.score.comboBreaks,
       meanError: mean, unstableRate: sd * 10,
       early: errs.filter(e => e < 0).length, late: errs.filter(e => e > 0).length,
@@ -5059,7 +5076,10 @@ const ScoreManager = {
       this.byHash.get(s.mapHash).push(s);
     }
   },
-  forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => b.score - a.score || b.accuracy - a.accuracy); },
+  /** The score shown and compared: osu!lazer's standardised score when that's the chosen display (scores set
+   *  before it existed keep their classic one), else the classic ScoreV1 score. Works on saved scores and live ones. */
+  value(s) { return Settings.get('gameplay.scoring') === 'standardised' && s.scoreStd != null ? s.scoreStd : s.score; },
+  forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => this.value(b) - this.value(a) || b.accuracy - a.accuracy); },
   best(hash) { const l = this.forMap(hash).filter(s => s.passed); return l[0] || null; },
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
   lastPlayed(hash) { const l = this.byHash.get(hash); return l && l.length ? l[l.length - 1].date : 0; },
@@ -5095,8 +5115,8 @@ const ScoreManager = {
   },
   async add(score) {
     const prev = this.best(score.mapHash);
-    score.isPB = score.passed && (!prev || score.score > prev.score);
-    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
+    score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));
+    score.prevBest = prev ? { score: prev.score, scoreStd: prev.scoreStd, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
     score.totalPpBefore = this.totalPp().total;
     await DB.put('scores', score);
     this.scores.push(score);
@@ -5123,7 +5143,7 @@ const ReplayManager = {
       keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
       rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
-      summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
+      summary: { score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,
     };
   },
@@ -6629,7 +6649,7 @@ const SongSelect = {
         h('span.rank', '#' + (i + 1)), gradeEl(s.grade),
         h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
-        h('div.nums', h('div.sc', fmtScore(s.score)), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
+        h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
       list.append(row);
     });
     lb.append(list);
@@ -7227,7 +7247,7 @@ const GameplayScreen = {
     const wall0 = performance.now();
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
-      const sc = Math.round(e.score.score * this.mpFactor());
+      const sc = Math.round((s.mp ? e.score.score : ScoreManager.value(e.score)) * this.mpFactor());
       if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
       const acc = e.score.accuracy;
       if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
@@ -7290,7 +7310,7 @@ const GameplayScreen = {
       r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
       this.lbEl.append(r.el); return r;
     };
-    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(x.score)), { score: x.score }));
+    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(ScoreManager.value(x))), { score: ScoreManager.value(x) }));
     this._lbMe = mk(s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name, '', '0', true);
     this.updateLeaderboard(true);
   },
@@ -7300,7 +7320,7 @@ const GameplayScreen = {
     const t = performance.now();
     if (!force && t - this._lbT < 150) return;
     this._lbT = t;
-    const e = this.s.engine, sc = Math.round(e.score.score);
+    const e = this.s.engine, sc = ScoreManager.value(e.score);
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
@@ -7678,12 +7698,12 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
     const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
     const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
-    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5) };
+    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5), scoreStd: Math.round(summary.scoreStd * 0.5) };
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
       keys: s.keys, stars, pp,
-      mods: s.mods, rate: s.rate, score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
+      mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
       duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name,
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
@@ -8117,7 +8137,7 @@ const ResultsScreen = {
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
     const tick = () => {
       const k = dur ? clamp((performance.now() - t0) / dur, 0, 1) : 1;
-      shown = s.score * (1 - Math.pow(1 - k, 3));
+      shown = ScoreManager.value(s) * (1 - Math.pow(1 - k, 3));
       if (digits) digits.set(fmtScore(shown)); else scoreEl.textContent = fmtScore(shown);
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
@@ -8131,7 +8151,10 @@ const ResultsScreen = {
       card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
     }
     if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
-    else if (s.prevBest && p.fresh && s.passed) card.append(h('div.muted', `Personal best: ${fmtScore(s.prevBest.score)} (${s.score >= s.prevBest.score ? '+' : ''}${fmtInt(s.score - s.prevBest.score)})`));
+    else if (s.prevBest && p.fresh && s.passed) {
+      const mine = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
+      card.append(h('div.muted', `Personal best: ${fmtScore(best)} (${mine >= best ? '+' : ''}${fmtInt(mine - best)})`));
+    }
     const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     card.append(h('div.res-kv',
       kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),
@@ -8568,7 +8591,7 @@ const ProfileScreen = {
     const xp = ProfileManager.xpInfo();
     const st = StatisticsManager.compute();
     const bestPerMap = new Map();
-    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || bestPerMap.get(s.mapHash).score < s.score)) bestPerMap.set(s.mapHash, s);
+    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
     const rankedScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
     const pp = ScoreManager.totalPp();
     const topPlays = ScoreManager.bestPpPerMap();
@@ -8640,7 +8663,7 @@ const ReplaysScreen = {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
       this.list.append(h('div.list-row', gradeEl(sm.grade || 'D'),
-        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(sm.score || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${new Date(r.date).toLocaleString()}${map ? '' : ' · beatmap missing'}`)),
+        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${new Date(r.date).toLocaleString()}${map ? '' : ' · beatmap missing'}`)),
         h('span.row', { style: { gap: '3px' } }, ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         h('button.btn.sm', { disabled: !map, onclick: () => Game.launch({ mapId: map.id, mode: 'replay', replay: r }) }, icon('play'), 'Watch'),
         h('button.icon-btn', { title: 'Export .amr', onclick: () => ReplayManager.export(r) }, icon('download')),

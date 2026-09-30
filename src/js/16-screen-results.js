@@ -55,7 +55,7 @@ const ResultsScreen = {
     const t0 = performance.now(), dur = 1100 * (Settings.get('ui.animSpeed') > 0 ? 1 / Settings.get('ui.animSpeed') : 0);
     const tick = () => {
       const k = dur ? clamp((performance.now() - t0) / dur, 0, 1) : 1;
-      shown = s.score * (1 - Math.pow(1 - k, 3));
+      shown = ScoreManager.value(s) * (1 - Math.pow(1 - k, 3));
       if (digits) digits.set(fmtScore(shown)); else scoreEl.textContent = fmtScore(shown);
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
@@ -69,7 +69,10 @@ const ResultsScreen = {
       card.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
     }
     if (s.isPB && p.fresh) card.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
-    else if (s.prevBest && p.fresh && s.passed) card.append(h('div.muted', `Personal best: ${fmtScore(s.prevBest.score)} (${s.score >= s.prevBest.score ? '+' : ''}${fmtInt(s.score - s.prevBest.score)})`));
+    else if (s.prevBest && p.fresh && s.passed) {
+      const mine = ScoreManager.value(s), best = ScoreManager.value(s.prevBest);
+      card.append(h('div.muted', `Personal best: ${fmtScore(best)} (${mine >= best ? '+' : ''}${fmtInt(mine - best)})`));
+    }
     const kv = (k, v, title) => h('div.stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     card.append(h('div.res-kv',
       kv('Accuracy', fmtAcc(s.accuracy)), kv('Max combo', fmtInt(s.maxCombo) + 'x'),

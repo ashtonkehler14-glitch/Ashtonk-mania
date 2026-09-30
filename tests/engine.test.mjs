@@ -443,3 +443,35 @@ test('main BPM ignores BPM lines after the last note', () => {
   // to subtract its (negative) duration and could never matter
   assert.equal(BeatmapParser.mostCommonBeatLength(bm), 400);
 });
+
+test('osu!lazer standardised score: 1,000,000 for all MAX, accuracy^(2+2acc), log4 combo curve, mod multiplier', () => {
+  const f = c => Math.min(Math.max(0.5, Math.log(c) / Math.log(4)), Math.log(400) / Math.log(4));
+  const play = (n, js, opts) => { const s = new ScoreSystem(n, opts); js.forEach(j => s.add(j)); return s; };
+  assert.equal(play(100, Array(100).fill(J.MARV)).scoreStd, 1000000);
+  const acc = 300 / 305;
+  assert.equal(play(100, Array(100).fill(J.PERF)).scoreStd, Math.round(150000 + 850000 * acc ** (2 + 2 * acc)));
+  // a miss halfway restarts the combo curve and costs accuracy
+  const miss = play(100, Array.from({ length: 100 }, (_, i) => i === 50 ? J.MISS : J.MARV));
+  let max = 0, got = 0;
+  for (let k = 1; k <= 100; k++) max += 300 * f(k);
+  for (let k = 1; k <= 50; k++) got += 300 * f(k);
+  for (let k = 1; k <= 49; k++) got += 300 * f(k);
+  const a2 = 99 / 100;
+  assert.equal(miss.scoreStd, Math.round(150000 * got / max + 850000 * a2 ** (2 + 2 * a2)));
+  // mid-play: both parts grow with progress
+  const half = play(100, Array(50).fill(J.MARV));
+  let hc = 0; for (let k = 1; k <= 50; k++) hc += 300 * f(k);
+  assert.equal(half.scoreStd, Math.round(150000 * hc / max + 850000 * 0.5));
+  // No Fail halves it; classic score is unchanged by all this
+  assert.equal(play(10, Array(10).fill(J.MARV), { mods: ['NF'] }).scoreStd, 500000);
+  assert.equal(play(100, Array(100).fill(J.MARV)).score, 1000000);
+});
+
+test('the engine summary carries both scores', () => {
+  const eng = engineFor(osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600)]));
+  for (const [t, c, d] of generateAutoInputs(eng.notes, 4).flat().reduce((a, x, i, arr) => (i % 3 ? a : a.concat([[arr[i], arr[i + 1], arr[i + 2]]])), [])) eng.input(c, d === 1, t);
+  eng.advance(10000);
+  const s = eng.summary();
+  assert.equal(s.score, 1000000);
+  assert.equal(s.scoreStd, 1000000);
+});

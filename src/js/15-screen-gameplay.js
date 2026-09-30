@@ -535,7 +535,7 @@ const GameplayScreen = {
     const wall0 = performance.now();
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
-      const sc = Math.round(e.score.score * this.mpFactor());
+      const sc = Math.round((s.mp ? e.score.score : ScoreManager.value(e.score)) * this.mpFactor());
       if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
       const acc = e.score.accuracy;
       if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
@@ -598,7 +598,7 @@ const GameplayScreen = {
       r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
       this.lbEl.append(r.el); return r;
     };
-    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(x.score)), { score: x.score }));
+    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(ScoreManager.value(x))), { score: ScoreManager.value(x) }));
     this._lbMe = mk(s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name, '', '0', true);
     this.updateLeaderboard(true);
   },
@@ -608,7 +608,7 @@ const GameplayScreen = {
     const t = performance.now();
     if (!force && t - this._lbT < 150) return;
     this._lbT = t;
-    const e = this.s.engine, sc = Math.round(e.score.score);
+    const e = this.s.engine, sc = ScoreManager.value(e.score);
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
@@ -986,12 +986,12 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
     const grade = ScoreSystem.gradeFor(summary.accuracy, !passed, s.mods, summary.counts);
     const stars = s.rate === 1 && s.rec.srVersion === SR_VERSION ? s.rec.stars : DifficultyCalculator.calculate(s.baseNotes, s.keys, s.rate);
     const pp = (passed && !s.mods.includes('AT') ? OsuMath.pp(stars, summary.counts, s.mods) : 0) * this.mpFactor();
-    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5) };
+    if (s.mpDied) summary = { ...summary, score: Math.round(summary.score * 0.5), scoreStd: Math.round(summary.scoreStd * 0.5) };
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
       keys: s.keys, stars, pp,
-      mods: s.mods, rate: s.rate, score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
+      mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
       duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name,
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,

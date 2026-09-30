@@ -455,6 +455,25 @@ check('beatmap sources: choosing Beatconnect / SayoBot / a custom URL changes wh
 // pp tracking
 const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));
 check('pp is tracked from passed scores', ppInfo.total > 0 && ppInfo.best >= 1, JSON.stringify(ppInfo));
+// score display: classic ScoreV1 or osu!lazer standardised (every play records both)
+{
+  const sd = await page.evaluate(async () => {
+    const A = AshtonkMania, SM = A.ScoreManager, S = A.Settings;
+    const withStd = SM.scores.filter(s => s.scoreStd != null);
+    const late = withStd.find(s => s.accuracy < 0.9);
+    const hash = (late || withStd[0]).mapHash;
+    const classic = SM.forMap(hash).map(s => s.score);
+    await S.set('gameplay.scoring', 'standardised');
+    const std = SM.forMap(hash).map(s => SM.value(s));
+    const differs = late ? SM.value(late) !== late.score : true;
+    A.Screens.go('songselect', { mapId: SM.forMap(hash)[0].mapId });
+    await new Promise(r => setTimeout(r, 900));
+    const shown = [...document.querySelectorAll('.lb-row .sc, .score-row .sc, .nums .sc')].map(e => e.textContent.replace(/\D/g, '')).filter(Boolean).map(Number);
+    S.reset('gameplay.scoring');
+    return { n: withStd.length, classicSorted: classic.every((v, i) => !i || classic[i - 1] >= v), stdSorted: std.every((v, i) => !i || std[i - 1] >= v), differs, shown, std };
+  });
+  check('every play records both scores; "Score display" switches leaderboards to osu!lazer standardised', sd.n >= 2 && sd.classicSorted && sd.stdSorted && sd.differs && sd.shown.length > 0 && sd.shown.every(v => sd.std.includes(v)), JSON.stringify(sd));
+}
 
 // persistence across reload
 const before = await page.evaluate(() => ({ scores: AshtonkMania.ScoreManager.scores.length, sets: AshtonkMania.BeatmapManager.sets.length, fav: AshtonkMania.Favorites.set.size, skin: AshtonkMania.SkinManager.current.id, replays: AshtonkMania.ReplayManager.list.length }));

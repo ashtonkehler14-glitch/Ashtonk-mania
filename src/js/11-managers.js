@@ -14,7 +14,10 @@ const ScoreManager = {
       this.byHash.get(s.mapHash).push(s);
     }
   },
-  forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => b.score - a.score || b.accuracy - a.accuracy); },
+  /** The score shown and compared: osu!lazer's standardised score when that's the chosen display (scores set
+   *  before it existed keep their classic one), else the classic ScoreV1 score. Works on saved scores and live ones. */
+  value(s) { return Settings.get('gameplay.scoring') === 'standardised' && s.scoreStd != null ? s.scoreStd : s.score; },
+  forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => this.value(b) - this.value(a) || b.accuracy - a.accuracy); },
   best(hash) { const l = this.forMap(hash).filter(s => s.passed); return l[0] || null; },
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
   lastPlayed(hash) { const l = this.byHash.get(hash); return l && l.length ? l[l.length - 1].date : 0; },
@@ -50,8 +53,8 @@ const ScoreManager = {
   },
   async add(score) {
     const prev = this.best(score.mapHash);
-    score.isPB = score.passed && (!prev || score.score > prev.score);
-    score.prevBest = prev ? { score: prev.score, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
+    score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));
+    score.prevBest = prev ? { score: prev.score, scoreStd: prev.scoreStd, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
     score.totalPpBefore = this.totalPp().total;
     await DB.put('scores', score);
     this.scores.push(score);
@@ -78,7 +81,7 @@ const ReplayManager = {
       keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
       rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
-      summary: { score: summary.score, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
+      summary: { score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
       scoreId: scoreId || null,
     };
   },
