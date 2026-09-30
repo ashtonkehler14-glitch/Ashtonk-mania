@@ -789,7 +789,7 @@ Input events ${e.inputCount}  recorded ${s.events.length / 3}
 Windows ms   ${W.join(' / ')}
 Health       ${(e.health.value * 100).toFixed(1)}%
 Memory       ${mem}
-Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Mania] ' + s.keys + 'K' : 'defaults'})`;
+Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 4K, patterned to ' + s.keys + 'K' : s.layout.fromSkinIni ? 'skin.ini [Mania] ' + s.keys + 'K' : 'defaults'})`;
   },
 
   checkEnd(now) {

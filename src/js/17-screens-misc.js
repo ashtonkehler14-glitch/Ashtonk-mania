@@ -344,8 +344,8 @@ const SkinsScreen = {
     const meta = list.find(s => s.id === this.sel);
     const skin = SkinManager.instance(meta.id);
     clearEl(this.main);
-    const supported = skin.supportedKeys();
-    if (!supported.includes(this.keys)) this.keys = supported.includes(4) ? 4 : supported.includes(7) ? 7 : (supported[0] || 4);
+    const supported = skin.supportedKeys(), borrowed = skin.builtin ? [] : skin.borrowedKeys();
+    if (!supported.includes(this.keys) && !borrowed.includes(this.keys)) this.keys = supported.includes(4) ? 4 : supported.includes(7) ? 7 : (supported[0] || 4);
     const canvas = h('canvas');
     const pv = h('div.skin-preview', canvas);
     const inUse = SkinManager.current.id === meta.id;
@@ -355,9 +355,9 @@ const SkinsScreen = {
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
       h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
-        ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : 'Uses fallback layout', style: supported.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
+        ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : borrowed.includes(k) ? "Built from the skin's 4K layout" : 'Uses fallback layout', style: supported.includes(k) || borrowed.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
       pv,
-      h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}`}`));
+      h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}${borrowed.length ? ` · ${borrowed.map(k => k + 'K').join(', ')} built from its 4K layout` : ''}`}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     requestAnimationFrame(() => this.preview.show(skin, this.keys));

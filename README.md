@@ -22,6 +22,16 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### 4K skins play every key count
+
+* **A skin made only for 4K now plays 1K–10K using its own art** instead of falling back to the built-in look for other key counts.
+  * Its four columns are laid out in mirrored patterns: the left hand uses the skin's columns 1–2, the right hand columns 4–3, and an odd middle column continues the alternation.
+  * 5K plays as `1 2 1 3 4`, 6K as `1 2 1 4 3 4`, 7K as `1 2 1 2 4 3 4` and 8K as `1 2 1 2 3 4 3 4`. That gives osu!'s own outer/inner rhythm.
+  * Images, colours, widths, body styles and upscroll flips all come from the matching 4K column. The stage stays centred where the skin put its 4K stage.
+  * Columns keep their width until the stage would get too wide. After that the columns and keys shrink together, so receptors stay the same shape as the notes.
+  * Settings → Skin → "Play 4K skins at every key count" turns it off. The Skins page marks these key counts as built from the 4K layout.
+* **`skin.ini` files saved as UTF-16** (Windows Notepad's "Unicode") are now read. Before, their whole configuration was ignored.
+
 ### A new Custom skin, and gameplay sizing across all three skins
 
 * **The Custom skin is rebuilt in osu!lazer's Argon style.**

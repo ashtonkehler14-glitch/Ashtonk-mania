@@ -251,8 +251,9 @@ class ManiaRenderer {
         const flip = down ? this.fl.keyD[i] : this.fl.key[i];
         if (this.legacy && !t.fromDefault) {
           // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
-          const h = t.h * this.u;
-          this._cropImg(t.img, this.colX[i], H - h, this.colW[i], h, flip);
+          // (a 4K skin played at more keys shrinks its keys about the hit position, as its columns shrank)
+          const ks = L.keyScale || 1, h = t.h * this.u * ks;
+          this._cropImg(t.img, this.colX[i], this.hitY + (H - this.hitY) * ks - h, this.colW[i], h, flip);
         } else {
           // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
           // (t.anchor down the texture) centred on the notes as they're hit

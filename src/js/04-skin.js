@@ -40,6 +40,22 @@ const SkinParser = {
   },
 };
 
+/** Text of a skin.ini: UTF-8 normally, UTF-16 when saved from Windows Notepad (a BOM, or every other byte zero),
+ *  and Windows-1252/Latin-1 for old skins with accented names that aren't valid UTF-8. */
+function decodeIniText(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
+  if (b.length >= 4) {
+    let odd = 0, even = 0; const n = Math.min(b.length & ~1, 400);
+    for (let i = 0; i < n; i += 2) { if (b[i] === 0) even++; if (b[i + 1] === 0) odd++; }
+    if (odd > n / 2 * 0.4 && even < n / 2 * 0.05) return new TextDecoder('utf-16le').decode(b);
+    if (even > n / 2 * 0.4 && odd < n / 2 * 0.05) return new TextDecoder('utf-16be').decode(b);
+  }
+  const text = new TextDecoder('utf-8').decode(b);
+  return text.includes('\ufffd') ? new TextDecoder('latin1').decode(b) : text;
+}
+
 /** Skin names sometimes carry sort-order padding ("-    《NM》 Kori 3.0"); trim it for display. */
 const cleanSkinName = n => String(n || '').replace(/^[\s\-_.·]+/, '').trim();
 
@@ -189,7 +205,8 @@ class Skin {
   /** The [Mania] section for a key count. When a skin has several for the same count (edits often paste a new
    *  section in without removing the old one), the one whose images are actually in the skin wins; with a tie,
    *  the last one (osu!lazer's rule). */
-  maniaSection(keys) {
+  maniaSection(keys) { return this._nativeSection(keys) || this._borrowSection(keys); }
+  _nativeSection(keys) {
     const cands = (this.ini.maniaList || []).filter(s => parseInt(Object.entries(s).find(([k]) => k.toLowerCase() === 'keys')?.[1], 10) === keys);
     if (cands.length < 2) return this.ini.mania[keys] || null;
     this._secCache = this._secCache || new Map();
@@ -201,6 +218,68 @@ class Skin {
     return best;
   }
   supportedKeys() { return Object.keys(this.ini.mania).map(Number).sort((a, b) => a - b); }
+  /** Key counts this skin has no section for but plays through its 4K one (see _borrowSection). */
+  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => !this._nativeSection(k) && this._borrowSection(k)); }
+
+  /** Which of a 4K skin's columns (0-3) each of `keys` columns uses. The left half steps outward-in through columns
+   *  1-2, the right half through 4-3, and an odd middle column carries on the alternation: 5K plays as 1 2 1 3 4,
+   *  6K as 1 2 1 4 3 4, 7K as 1 2 1 2 4 3 4, 8K as 1 2 1 2 3 4 3 4. Each hand keeps its own side's art, and the
+   *  outer/inner rhythm lands on osu!'s own 1-2-1-S-1-2-1 layout. */
+  static fourKeyPattern(keys) {
+    const half = Math.floor(keys / 2), out = [];
+    for (let i = 0; i < keys; i++) {
+      if (keys % 2 && i === half) out.push(half % 2);
+      else if (i < half) out.push(i % 2);
+      else out.push((keys - 1 - i) % 2 ? 2 : 3);
+    }
+    return out;
+  }
+  /** A [Mania] section for a key count the skin doesn't cover, built from its 4K one: every per-column image,
+   *  colour, width and flip is taken from the 4K column the pattern picks. Columns narrow a little as keys are added
+   *  (7K is 1.45× as wide as 4K, not 1.75×), and the stage keeps the centre the skin gave its 4K stage. */
+  _borrowSection(keys) {
+    if (keys === 4 || typeof Settings === 'undefined' || !Settings.get('skin.extend4K')) return null;
+    const src = this._nativeSection(4);
+    if (!src) return null;
+    const g = k => { for (const kk in src) if (kk.toLowerCase() === k.toLowerCase()) return src[kk]; return undefined; };
+    const map = Skin.fourKeyPattern(keys), types4 = maniaColumnTypes(4, parseInt(g('SpecialStyle') || '0', 10) || 0);
+    const perCol = /^(KeyImage|NoteImage|Colour|ColourLight|NoteBodyStyle|KeyFlipWhenUpsideDown|NoteFlipWhenUpsideDown)\d/i;
+    const lists = /^(Keys|ColumnStart|ColumnWidth|ColumnSpacing|ColumnLineWidth|LightingNWidth|LightingLWidth)$/i;
+    const sec = { __from4K: true };
+    for (const [k, v] of Object.entries(src)) if (!perCol.test(k) && !lists.test(k)) sec[k] = v;
+    sec.Keys = String(keys);
+    const list = (k, n, d) => ManiaLayout.list(g(k), n, d);
+    const cw = list('ColumnWidth', 4, 30), sp = list('ColumnSpacing', 3, 0);
+    const total4 = cw.reduce((a, b) => a + b, 0) + sp.reduce((a, b) => a + b, 0);
+    // columns keep their 4K width until the stage would pass 480 (of the 640×480 playfield) or 1.45× the 4K stage
+    const f = keys <= 4 ? 1 : Math.min(1, Math.max(480, total4 * 1.45) / (total4 * keys / 4));
+    const widths = map.map(c => +(cw[c] * f).toFixed(2)), gap = +(Math.min(...sp) * f).toFixed(2);
+    sec.ColumnWidth = widths.join(',');
+    // narrower columns shrink the keys too, about the hit position, so receptors keep the shape of the notes
+    sec.__keyScale = f;
+    if (keys > 1) sec.ColumnSpacing = Array(keys - 1).fill(gap).join(',');
+    for (const k of ['LightingNWidth', 'LightingLWidth']) if (g(k)) { const a = list(k, 4, 0); sec[k] = map.map(c => +(a[c] * f).toFixed(2)).join(','); }
+    if (g('ColumnLineWidth')) { const lw = list('ColumnLineWidth', 5, 2); sec.ColumnLineWidth = [lw[0], ...Array(keys - 1).fill(lw[2]), lw[4]].join(','); }
+    const total = widths.reduce((a, b) => a + b, 0) + gap * (keys - 1);
+    sec.ColumnStart = String(Math.max(0, +(ManiaLayout.num(g('ColumnStart'), 136) + total4 / 2 - total / 2).toFixed(2)));
+    map.forEach((c, i) => {
+      const T = types4[c], hasNote = !!g(`NoteImage${c}`);
+      // the skin's own image for that 4K column, or the osu! default name it would have used there
+      const img = (mk, def) => { const v = g(mk(c)); if (v) sec[mk(i)] = v; else if (def && this.has(def)) sec[mk(i)] = def; };
+      img(n => `KeyImage${n}`, `mania-key${T}`);
+      img(n => `KeyImage${n}D`, `mania-key${T}D`);
+      img(n => `NoteImage${n}`, `mania-note${T}`);
+      img(n => `NoteImage${n}H`, hasNote ? null : `mania-note${T}H`);
+      img(n => `NoteImage${n}L`, `mania-note${T}L`);
+      img(n => `NoteImage${n}T`, hasNote ? null : `mania-note${T}T`);
+      for (const [a, b] of [[`Colour${c + 1}`, `Colour${i + 1}`], [`ColourLight${c + 1}`, `ColourLight${i + 1}`], [`NoteBodyStyle${c}`, `NoteBodyStyle${i}`],
+        [`KeyFlipWhenUpsideDown${c}`, `KeyFlipWhenUpsideDown${i}`], [`KeyFlipWhenUpsideDown${c}D`, `KeyFlipWhenUpsideDown${i}D`],
+        ...['', 'H', 'L', 'T'].map(x => [`NoteFlipWhenUpsideDown${c}${x}`, `NoteFlipWhenUpsideDown${i}${x}`])]) {
+        const v = g(a); if (v != null) sec[b] = v;
+      }
+    });
+    return sec;
+  }
 
   /** Resolve the full mania layout for a key count, loading every texture it needs. */
   async mania(keys) {
@@ -479,7 +558,7 @@ const ManiaLayout = {
     };
     const n = this.num.bind(this);
     const L = {
-      keys, skin, fromSkinIni: !!skin.maniaSection(keys),
+      keys, skin, fromSkinIni: !!skin.maniaSection(keys), from4K: !!sec.__from4K, keyScale: sec.__keyScale || 1,
       columnStart: n(get('ColumnStart'), 136),
       columnRight: n(get('ColumnRight'), 19),
       columnWidth: this.list(get('ColumnWidth'), keys, isDefault ? this.defaultColumnWidth(keys) : 30),
@@ -629,6 +708,7 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
+    Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
@@ -678,9 +758,7 @@ const SkinManager = {
     let ini = { general: {}, colours: {}, fonts: {}, mania: {}, maniaList: [] };
     if (iniEntry) {
       const bytes = await zip.read(iniEntry);
-      let text = new TextDecoder('utf-8').decode(bytes);
-      if (text.includes('�')) text = new TextDecoder('latin1').decode(bytes);
-      ini = SkinParser.parse(text);
+      ini = SkinParser.parse(decodeIniText(bytes));
     }
     const name = cleanSkinName(ini.general.Name) || file.name.replace(/\.osk$/i, '');
     const id = 'skin-' + (await hashHex(name + '|' + buf.byteLength)).slice(0, 16);

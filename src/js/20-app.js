@@ -105,7 +105,7 @@ const App = {
             if (!r.ok) continue;
             const zip = new ZipReader(await r.arrayBuffer());
             const ini = zip.entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
-            if (ini) await SkinManager.updateIni(meta.id, new TextDecoder('utf-8').decode(await zip.read(ini)));
+            if (ini) await SkinManager.updateIni(meta.id, decodeIniText(await zip.read(ini)));
           }
           await DB.kvSet(`bundled.${x.key}.v`, x.v);
           continue;

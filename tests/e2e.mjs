@@ -309,6 +309,25 @@ check('.osk import parses skin.ini metadata', sk.name === 'Kori 3.0 (test stand-
 check('skin.ini [Mania] per-key sections applied (4K/7K)', JSON.stringify(sk.keys) === '[4,7]' && sk.fromIni && sk.hit === 395 && sk.colW[0] === 60);
 check('custom mania/ paths resolved with @2x preference', sk.keyTexW === 128 && sk.keyScale === 2, `${sk.keyTexW}px scale ${sk.keyScale}`);
 check('animated lighting frames + score font + skin hitsound detected', sk.lightFrames === 3 && sk.font && sk.hitsound);
+// a skin made only for 4K (skin.ini saved as UTF-16, as Notepad does) plays other key counts through its 4 columns
+const four = await page.evaluate(async () => {
+  const png = async w => { const c = document.createElement('canvas'); c.width = w; c.height = 40; c.getContext('2d').fillRect(0, 0, w, 40); return new Uint8Array(await (await new Promise(r => c.toBlob(r))).arrayBuffer()); };
+  const ini = '[General]\r\nName: Four Only\r\n[Mania]\r\nKeys: 4\r\nColumnStart: 200\r\nColumnWidth: 50,40,40,50\r\n' +
+    [0, 1, 2, 3].map(i => `KeyImage${i}: k${i}\r\nNoteImage${i}: n${i}\r\n`).join('');
+  const u16 = new Uint8Array(2 + ini.length * 2); u16[0] = 0xff; u16[1] = 0xfe;
+  for (let i = 0; i < ini.length; i++) u16[2 + i * 2] = ini.charCodeAt(i);
+  const files = [{ name: 'skin.ini', data: u16 }];
+  for (let i = 0; i < 4; i++) { files.push({ name: `k${i}.png`, data: await png(10 + i) }); files.push({ name: `n${i}.png`, data: await png(20 + i) }); }
+  const meta = await AshtonkMania.SkinManager.importOsk(new File([writeZip(files)], 'four-only.osk'));
+  const s = AshtonkMania.SkinManager.instance(meta.id);
+  const col = L => L.tex.key.map(t => t ? t.pw - 10 : -1).join('') + '/' + L.tex.note.map(t => t ? t.pw - 20 : -1).join('');
+  const L7 = await s.mania(7), L5 = await s.mania(5), L2 = await s.mania(2);
+  return { name: s.name, borrowed: s.borrowedKeys().join(','), c7: col(L7), c5: col(L5), c2: col(L2), from4K: L7.from4K, w7: L7.columnWidth.join(','),
+    start7: L7.columnStart, centred: Math.abs((L7.columnStart + L7.columnWidth.reduce((a, b) => a + b, 0) / 2) - (200 + 90)) < 0.1 };
+});
+check('UTF-16 skin.ini is read', four.name === 'Four Only', JSON.stringify(four));
+check('4K-only skin plays 7K as 1 2 1 2 4 3 4 and 5K as 1 2 1 3 4, centred where its 4K stage was',
+  four.c7 === '0101323/0101323' && four.c5 === '01023/01023' && four.c2 === '03/03' && four.from4K && four.borrowed === '1,2,3,5,6,7,8,9,10' && four.centred, JSON.stringify(four));
 await page.evaluate(() => AshtonkMania.Screens.go('skins'));
 await page.waitForTimeout(1500);
 await shot('08-skins');
