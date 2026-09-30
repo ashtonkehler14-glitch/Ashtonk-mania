@@ -57,13 +57,23 @@ async function player(name) {
   return page;
 }
 
+// Create room: regular or ranked, then public or private
+async function createRoom(page, ranked, isPublic) {
+  await page.click('.mp-create');
+  await page.waitForSelector('.mp-cr');
+  await page.click(`.mp-cr-card.type[data-v="${ranked}"]`);
+  await page.click(`.mp-cr-card.vis[data-v="${isPublic}"]`);
+  await page.click('.dialog .actions .btn.primary');
+  await page.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
+}
+
 const alice = await player('Alice');
 const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 
 // Alice creates a room, Bob joins with the code
-await alice.click('.mp-card:nth-child(2) button');
+await createRoom(alice, false, false);
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 const code = await alice.evaluate(() => AshtonkMania.Multiplayer.room.code);
 check('room created with a code', /^[A-Z0-9]{6}$/.test(code), code);
@@ -79,7 +89,7 @@ await bob.click('.dialog .pd-btn.cancel');
 await alice.click('.dialog .actions .btn');
 await alice.waitForTimeout(300);
 await bob.fill('.mp-code', code);
-await bob.click('.mp-card:nth-child(3) .btn');
+await bob.click('.mp-join');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
 check('opponent joined; both see two players', await bob.evaluate(() => document.querySelectorAll('.mp-player:not(.empty)').length === 2));
@@ -122,7 +132,7 @@ await alice.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 1
 await bob.waitForTimeout(2500);
 await shot(alice, 'mp-ingame');
 const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.textContent));
-check('in-game board shows both players with live pp', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\dpp$/.test(t)), JSON.stringify(board));
+check('in-game board shows both players with their live score', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\d$/.test(t) && !/pp$/.test(t)), JSON.stringify(board));
 await bob.waitForSelector('.hud-mpdied', { timeout: 20000 });
 check('in multiplayer you can\'t die: health reaches 0 and play continues with a penalty', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s.mpDied && !s.failed && s.engine.health.value <= 0; }));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 40000 })));
@@ -130,9 +140,9 @@ check('the play still finishes and is saved with the health penalty', await bob.
 const ra = await alice.evaluate(() => ({ verdict: document.querySelector('.mp-verdict')?.textContent, res: AshtonkMania.Multiplayer.lastResults }));
 const rb = await bob.evaluate(() => document.querySelector('.mp-verdict')?.textContent);
 await shot(alice, 'mp-results');
-check('results: more pp wins', /You win/.test(ra.verdict) && /You lose/.test(rb), `${ra.verdict} / ${rb}`);
+check('results: the higher score wins (as in osu! multiplayer)', /You win/.test(ra.verdict) && /You lose/.test(rb), `${ra.verdict} / ${rb}`);
 check('winner row: full score and its pp', ra.res.rows[0].name === 'Alice' && ra.res.rows[0].score === 1000000 && ra.res.rows[0].pp > 0 && ra.res.rows[1].pp === 0, JSON.stringify(ra.res.rows.map(r => [r.name, r.score, Math.round(r.pp), r.passed])));
-check('results panel leads with pp', await alice.evaluate(() => /pp$/.test(document.querySelector('.mp-res-score').textContent)));
+check('results panel leads with the score', await alice.evaluate(() => /^[\d,]+$/.test(document.querySelector('.mp-res-score').textContent.trim())));
 check('scores are also saved locally', await alice.evaluate(() => AshtonkMania.ScoreManager.scores.length === 1));
 
 // mods: Alice wants DT (+ her own Hidden) — Bob has to accept DT; Bob picks Mirror for himself
@@ -254,14 +264,17 @@ await bob.waitForFunction(() => !AshtonkMania.BeatmapManager.sets.some(s => s.on
 check('leaving the room removes the beatmap that was installed only for it', await bob.evaluate(() => !AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242) && AshtonkMania.BeatmapManager.sets.length === 1));
 check('beatmaps you picked yourself stay', await alice.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
 
-// quick match pairs two searching players
+// public rooms are listed in the lobby: Alice opens one, Bob sees it under Open rooms and joins with a click
 await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer', { force: true }));
-await bob.waitForTimeout(300);
-await alice.click('.mp-card:nth-child(1) button');
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
-await bob.click('.mp-card:nth-child(1) button');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
-check('quick match puts both players in the same room', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
+await alice.waitForSelector('.mp-create');
+await createRoom(alice, false, true);
+await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { force: true }));
+await bob.waitForSelector('.mp-room-row:not([disabled])', { timeout: 15000 });
+check('a public room shows up under Open rooms', await bob.evaluate(() => /Alice's room/.test(document.querySelector('.mp-room-row').textContent)));
+await bob.click('.mp-room-row');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom() && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 });
+check('clicking an open room joins it', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
+check('regular rooms play by osu!\'s rules: head to head, highest score wins, up to 16', await bob.evaluate(() => { const st = AshtonkMania.Multiplayer.room.settings; return st.type === 'h2h' && st.win === 'score' && st.size === 16 && !document.querySelector('.mp-settings-btn'); }));
 
 // invites: the Invite button copies (or shares) a link; opening it joins the room directly
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
@@ -279,88 +292,16 @@ await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Multiplayer.
 check('opening an invite link joins the room', await bob.evaluate(c => AshtonkMania.Multiplayer.room.code === c && !location.search.includes('join'), await alice.evaluate(() => AshtonkMania.Multiplayer.room.code)));
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
 
-// Team Versus: the host sets the room up through Match settings; teams, a team switch, then a match decided on totals
-await alice.click('.mp-settings-btn');
-await alice.waitForSelector('.mp-set');
-await shot(alice, 'mp-settings');
-const segClick = async (page, text) => page.evaluate(t => [...document.querySelectorAll('.mp-seg-b')].find(b => b.querySelector('b').textContent === t).click(), text);
-await segClick(alice, 'Team Versus');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.settings.type === 'teams', null, { timeout: 5000 });
-await segClick(alice, 'Score');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.settings.win === 'score', null, { timeout: 5000 });
-await alice.click('.dialog .actions .btn');
-check('Match settings: Team Versus, win by score — everyone sees the rules', await bob.evaluate(() => document.querySelectorAll('.mp-team.red, .mp-team.blue').length === 2 && /Team Versus/.test(document.querySelector('.mp-rules').textContent) && /Score/.test(document.querySelector('.mp-rules').textContent)));
-const teamsOf = page => page.evaluate(() => AshtonkMania.Multiplayer.room.players.map(p => p.team).join(','));
-check('players are split between red and blue', await teamsOf(alice) === '0,1', await teamsOf(alice));
-await bob.click('.mp-team.red .mp-team-join');
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.team === 0), null, { timeout: 5000 });
-check('switching teams', true);
-await bob.click('.mp-team.blue .mp-team-join');
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.map(p => p.team).join(',') === '0,1', null, { timeout: 5000 });
-await alice.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Multiplayer.selectMap(m, []); });
-await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.map && r.players.every(p => p.hasMap); }, null, { timeout: 5000 });
-await alice.click('.mp-ready'); await bob.click('.mp-ready');
-await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
-await shot(alice, 'mp-teams');
-await alice.click('.mp-start');
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 10000 })));
-await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
-await bob.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 10000 });
-await bob.waitForTimeout(2500);
-await shot(bob, 'mp-teams-ingame');
-check('in game: red vs blue totals and team-coloured rows', await bob.evaluate(() => !!document.querySelector('.hud-teams') && !!document.querySelector('.hud-mp-row.red') && !!document.querySelector('.hud-mp-row.blue')));
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.teams, null, { timeout: 40000 })));
-const tv = await alice.evaluate(() => ({ v: document.querySelector('.mp-verdict').textContent, r: AshtonkMania.Multiplayer.lastResults }));
-check('Team Versus results: team totals decide it', tv.r.winnerTeam === 0 && tv.r.teams[0].total > tv.r.teams[1].total && /Your team wins/.test(tv.v) && /Your team lost/.test(await bob.evaluate(() => document.querySelector('.mp-verdict').textContent)), tv.v);
-await shot(alice, 'mp-teams-results');
-
-// Quick Play: both queue for 4K, land in one lobby, and play a round: pool → picks → roulette → load → play → points
-await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
-await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
-await alice.waitForSelector('.qp-play');
-await shot(alice, 'mp-lobby-qp');
-await alice.click('.qp-play');
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.isQP(), null, { timeout: 10000 });
-await bob.click('.qp-play');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.isQP(), null, { timeout: 10000 });
-check('Quick Play puts both players in the same lobby', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.qp.phase === 'gather' && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
-check('the lobby counts down to round 1 once two are in', await bob.evaluate(() => /\d+s/.test(document.querySelector('.qp-timer').textContent)));
-await shot(bob, 'mp-qp-lobby');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.qp.phase === 'pick', null, { timeout: 60000 });
-check('round 1: a pool of beatmaps to pick from', await bob.evaluate(() => document.querySelectorAll('.qp-card').length >= 1 && /Round 1/.test(document.querySelector('.qp-round').textContent)));
-await alice.click('.qp-card[data-i="0"]'); await bob.click('.qp-card[data-i="0"]');
-await bob.waitForFunction(() => document.querySelector('.qp-card.mine') && Object.keys(AshtonkMania.Multiplayer.room.qp.picks).length === 2, null, { timeout: 5000 });
-await shot(bob, 'mp-qp-pick');
-await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.qp.phase === 'reveal', null, { timeout: 10000 });
-await bob.waitForTimeout(2500);
-await shot(bob, 'mp-qp-reveal');
-await bob.waitForSelector('.qp-card.chosen', { timeout: 10000 });
-check('the roulette lands on a picked beatmap', await bob.evaluate(() => AshtonkMania.Multiplayer.room.qp.chosen === 0));
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 30000 })));
-check('everyone has the map: the round starts', true);
-await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.qp.phase === 'standings', null, { timeout: 45000 })));
-const pts = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return Object.fromEntries(r.players.map(p => [p.name, r.qp.points[p.id]])); });
-check('placement points: 1st 8, 2nd 6', pts.Alice === 8 && pts.Bob === 6, JSON.stringify(pts));
-check('standings list shows the points gained', await bob.evaluate(() => document.querySelectorAll('.qp-st-row').length === 2 && !!document.querySelector('.qp-st-gain')));
-await shot(bob, 'mp-qp-standings');
-check('Quick Play screens show no stray "null" / "undefined" / "NaN" text', await bob.evaluate(() => !/\b(null|undefined|NaN)\b/.test(document.querySelector('.mp-room').innerText)));
-await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
-await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.qp.phase === 'final', null, { timeout: 20000 });
-check('the last player left gets the final standings', await alice.evaluate(() => !!document.querySelector('.qp-podium') && !!document.querySelector('.qp-again')));
-await shot(alice, 'mp-qp-final');
-
-// Ranked Play: matched 1v1, cards, the picker plays one, the lower score takes damage
+// Ranked Play: a ranked room (1v1) — Alice opens a public one, Bob joins it from Open rooms
 await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
-await alice.waitForSelector('.rp-play');
-await alice.click('.rp-play');
+await bob.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
+await alice.waitForSelector('.mp-create');
+await createRoom(alice, true, true);
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.isRP(), null, { timeout: 10000 });
-await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { force: true }));
-await bob.waitForSelector('.rp-play');
-await bob.click('.rp-play');
+await bob.waitForFunction(() => [...document.querySelectorAll('.mp-room-row')].some(r => /ranked/i.test(r.textContent)), null, { timeout: 15000 });
+await bob.evaluate(() => [...document.querySelectorAll('.mp-room-row')].find(r => /ranked/i.test(r.textContent)).click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 });
-check('Ranked Play pairs the two players', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
+check('a ranked room holds the two players', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
 check('players see each other\'s ranked rating', await bob.evaluate(() => AshtonkMania.Multiplayer.room.players.every(p => p.rating === 1000)));
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.phase === 'pick', null, { timeout: 40000 });
 const rpState = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return { hands: Object.values(r.rp.hands).map(h => h.length), picker: r.players.find(p => p.id === r.rp.picker).name }; });

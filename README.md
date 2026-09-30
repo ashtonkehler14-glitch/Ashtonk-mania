@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Simpler multiplayer
+
+* **Create room asks two questions:** Regular or Ranked, then Public or Private. There are no other options to set.
+* **Regular rooms follow osu! multiplayer rules:** Head to Head, up to 16 players, highest score wins.
+* **Ranked rooms are 1v1 Ranked Play,** in 4K or 7K.
+* **Quick Play and quick 1v1 are gone.** Public rooms, ranked ones included, are listed under "Open rooms" in the lobby, so you can click one to join. You can still join a private room by typing its code.
+
 ### Beatmap listing in three columns
 
 * **The listing shows three cards per row.**

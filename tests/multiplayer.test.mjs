@@ -51,8 +51,8 @@ test('joining: create vs join, full rooms, host', () => {
   assert.equal(r.join('c', 'Cat', false).error, 'This room is full.');
   assert.equal(r.hostId, 'a');
   const big = new RoomLogic('Y');
-  for (let i = 0; i < 8; i++) assert.ok(big.join('p' + i, 'P' + i, i === 0).ok);
-  assert.equal(big.join('p9', 'Late', false).error, 'This room is full.', 'rooms hold up to 8');
+  for (let i = 0; i < 16; i++) assert.ok(big.join('p' + i, 'P' + i, i === 0).ok);
+  assert.equal(big.join('p17', 'Late', false).error, 'This room is full.', 'rooms hold up to 16');
 });
 
 test('map selection is host-only, strips Auto and resets ready', () => {
@@ -81,8 +81,20 @@ test('cannot ready without the beatmap; start needs two ready players', () => {
   assert.equal(r.state, 'playing');
 });
 
-test('live scores go to the opponent only; higher pp wins', () => {
-  const r = room(); ready(r); r.message('a', { t: 'start' });
+test('regular rooms play like osu! multiplayer: head to head, the highest score wins, up to 16', () => {
+  const r = room();
+  assert.deepEqual([r.settings.type, r.settings.win, r.settings.size, r.settings.public], ['h2h', 'score', 16, true]);
+  ready(r); r.message('a', { t: 'start' });
+  r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, pp: 120 } });
+  const res = msgs(r.message('b', { t: 'finish', result: { score: 950000, accuracy: 0.95, pp: 95 } }), 'results')[0].msg.results;
+  assert.equal(res.winner, 'b');
+  const p = new RoomLogic('P'); p.join('a', 'A', true, { public: false });
+  assert.equal(p.settings.public, false);
+  assert.equal(p.listing(), null);
+});
+
+test('live scores go to the opponent only; with win by pp, higher pp wins', () => {
+  const r = room(); r.message('a', { t: 'settings', settings: { win: 'pp' } }); ready(r); r.message('a', { t: 'start' });
   const live = r.message('a', { t: 'score', score: 5000, acc: 0.99, combo: 10, hp: 1 });
   assert.deepEqual(live[0].to, { except: 'a' });
   assert.equal(r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, passed: true, grade: 'A', pp: 120 } }).length, 0, 'waits for both');
@@ -447,7 +459,11 @@ test('room listing: public custom rooms only; private, quick 1v1, Quick Play and
   assert.equal(r.listing(), null);
   const q = new RoomLogic('Q'); q.join('a', 'A', true, { size: 2 }); assert.equal(q.listing(), null);
   const p = new RoomLogic('P'); p.join('a', 'A', true, { mode: 'qp' }); assert.equal(p.listing(), null);
-  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp' }); assert.equal(k.listing(), null);
+  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp', rating: 1234 });
+  assert.equal(k.listing().ranked, true, 'public ranked rooms are listed, open while waiting for an opponent');
+  assert.equal(k.listing().rating, 1234);
+  assert.equal(k.listing().state, 'lobby');
+  const k2 = new RoomLogic('K2'); k2.join('a', 'A', true, { mode: 'rp', public: false }); assert.equal(k2.listing(), null);
 });
 
 test('Ranked Play deals round the table: a two-map pool gives each player one card', () => {

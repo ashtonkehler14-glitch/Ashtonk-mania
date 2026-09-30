@@ -26,7 +26,7 @@
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const START_DELAY = 5000;
-const MAX_PLAYERS = 8;
+const MAX_PLAYERS = 16;
 export const WIN_CONDITIONS = ['pp', 'score', 'accuracy', 'combo'];
 /** Quick Play phase lengths (ms), rounds and placement points. */
 export const QP = { GATHER: 20000, FULL: 3000, POOL: 15000, PICK: 25000, REVEAL: 5000, LOAD: 90000, STANDINGS: 12000, ROUNDS: 5 };
@@ -35,7 +35,7 @@ const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'se
 /** Ranked Play (osu!lazer's 1v1 ranked mode): both players start with HP and a hand of beatmap cards; each round the
  *  picker plays one of their cards, the lower score takes (score difference × round number) damage, and the round's
  *  loser picks next. First to 0 HP loses. */
-export const RP = { HP: 1000000, HAND: 3, GATHER: 4000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000 };
+export const RP = { HP: 1000000, HAND: 3, GATHER: 5000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000 };
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';
@@ -83,7 +83,8 @@ function cleanResult(r) {
   };
 }
 
-const defaultSettings = () => ({ type: 'h2h', win: 'pp', size: MAX_PLAYERS, queue: 'host', public: true });
+// a regular room plays like osu!'s multiplayer: head to head, the highest score wins
+const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, queue: 'host', public: true });
 
 export class RoomLogic {
   constructor(code, now = () => Date.now(), rnd = Math.random) {
@@ -109,10 +110,11 @@ export class RoomLogic {
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
   listing() {
-    if (!this.created || this.mode !== 'custom' || !this.settings.public || !this.players.length) return null;
-    const host = this.get(this.hostId), m = this.map;
-    return { code: this.code, name: `${host ? host.name : 'Someone'}'s room`, host: host ? host.name : '', avatar: host ? host.avatar : '', players: this.players.length, size: this.settings.size,
-      state: this.state, type: this.settings.type, win: this.settings.win,
+    if (!this.created || this.mode === 'qp' || !this.settings.public || !this.players.length) return null;
+    const host = this.get(this.hostId), m = this.map, ranked = this.mode === 'rp';
+    return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'ranked match' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', rating: ranked && host ? host.rating : null,
+      players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null,
+      state: ranked ? (this.rp.phase === 'gather' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,
       map: m ? { title: m.title, artist: m.artist, version: m.version, stars: m.stars, keys: m.keys, onlineSetId: m.onlineSetId } : null };
   }
   /** The team with fewer players (red first), for someone joining a Team Versus room. */
@@ -133,14 +135,15 @@ export class RoomLogic {
       // whoever opens the room sets it up: Quick Play, or a custom room (a quick 1v1 match asks for 2 players)
       this.created = true;
       if (opts.mode === 'rp') {
-        this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2 };
+        this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2, public: opts.public !== false };
         this.rp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, phase: 'gather', deadline: 0, pool: [], deck: [], hands: {}, picker: null, chosen: -1, hp: {}, last: null, winner: null, fails: 0 };
       } else if (opts.mode === 'qp') {
-        this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score' };
+        this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score', size: 8 };
         this.qp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, rounds: QP.ROUNDS, phase: 'gather', deadline: 0, pool: null, picks: {}, chosen: -1, points: {}, fails: 0 };
       } else {
         if (opts.size != null) this.settings.size = Math.round(num(opts.size, 2, MAX_PLAYERS, MAX_PLAYERS));
         if (opts.size != null && opts.size <= 2) this.settings.public = false; // quick 1v1 rooms aren't listed
+        if (opts.public === false) this.settings.public = false;
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
