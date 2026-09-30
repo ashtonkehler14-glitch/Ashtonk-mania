@@ -470,9 +470,16 @@ await page.waitForTimeout(300);
 check('previewing a song keeps the list in place (no re-render / jump to top)', await page.evaluate(() => window.__card.isConnected && window.__card.querySelector('.ex-play').dataset.ic === 'pause'));
 await page.click('.ex-card[data-id="777"] .ex-play');
 await shot('11b-explorer');
-await page.click('.ex-card[data-id="777"] .ex-action button');
+// as in lazer: clicking the card opens the beatmap info page, and that's where it's downloaded
+await page.click('.ex-card[data-id="777"] .ex-t');
+await page.waitForSelector('.bso .bso-dl', { timeout: 5000 });
+check('clicking a beatmap card opens the lazer beatmap info page (difficulties, details, download)', await page.evaluate(() => !!document.querySelector('.bso-diffs .bso-diff') && !!document.querySelector('.bso-box') && /Download/.test(document.querySelector('.bso-dl').textContent)));
+await page.click('.bso .bso-dl');
 await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 2, null, { timeout: 15000 });
 check('explorer download imports the .osz into the library', true);
+await page.waitForFunction(() => /Play/.test(document.querySelector('.bso-dl')?.textContent || ''), null, { timeout: 5000 });
+check('once downloaded, the beatmap info page offers Play', true);
+await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 {
   // Web-Osu-Mania ordering: "Has leaderboard" + newest ranked first by default, results kept in the chosen order
   const mk = (id, title, status, rankedDate, plays) => ({ id, title, titleUnicode: '', artist: 'A', artistUnicode: '', creator: 'M', source: '', status, rankedDate, playCount: plays, favourites: 0, video: false, nsfw: false,

@@ -348,7 +348,8 @@ const ExplorerScreen = {
       if (tok === this.token) { this.loading = false; this.renderResults(); }
     }
   },
-  owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || null; },
+  imported: new Map(), // online set id -> local set ids it was imported as (an archive may carry other ids inside)
+  owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || (this.imported.get(id) || []).map(x => BeatmapManager.setById.get(x)).find(Boolean) || null; },
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
@@ -379,36 +380,37 @@ const ExplorerScreen = {
     }
     if (this.setView) this.renderSet();
   },
-  /** osu!lazer-style beatmap card: cover on top (status, counts, length, preview), details below with the
-   *  difficulty spectrum and the main action. Clicking the card opens the beatmap set overlay. */
+  /** osu!lazer's BeatmapCardNormal: the cover as a square thumbnail on the left (with the preview button), the title,
+   *  artist and mapper beside it over the faded cover, and the status, difficulty spectrum and counts along the
+   *  bottom. Clicking a card opens its beatmap info overlay — that's where you download or play it. */
   card(set) {
-    const owned = this.owned(set.id);
-    const cover = h('div.ex-cover');
-    OnlineBeatmaps.loadCover(cover, set.id, ['card@2x', 'card', 'cover', 'list@2x'], () => cover.classList.add('loaded'));
+    const owned = this.owned(set.id), dl = this.downloads.get(set.id);
+    const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
+    OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], () => thumb.classList.add('loaded'));
+    OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], () => bg.classList.add('loaded'));
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
-    const stars = set.diffs.map(d => d.stars);
-    const minS = Math.min(...stars), maxS = Math.max(...stars);
     const len = Math.max(...set.diffs.map(d => d.length));
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
     const playBtn = h('button.ex-play', { title: 'Preview', 'aria-label': 'Preview', dataset: { ic: this.previewId === set.id ? 'pause' : 'play' }, onclick: e => { e.stopPropagation(); this.togglePreview(set.id); } }, icon(this.previewId === set.id ? 'pause' : 'play'));
-    const spectrum = set.diffs.length > 12
-      ? h('span.ex-spec-more', { style: { '--sc': starColour(maxS) } }, `${set.diffs.length} diffs`)
+    const spectrum = set.diffs.length > 10
+      ? h('span.ex-spec-more', ...[...new Set(set.diffs.map(d => starColour(d.stars)))].slice(0, 1).map(c => h('i', { style: { '--sc': c } })), `${set.diffs.length}`)
       : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
-    const card = h('div.ex-card', { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
+    const card = h(`div.ex-card${owned ? '.owned' : ''}`, { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
-      h('div.ex-cover-wrap', cover, h('div.ex-cover-shade'),
-        h('div.ex-badges', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.ex-badge', icon('film')) : null, owned ? h('span.ex-badge.owned', icon('save'), 'In library') : null),
-        h('div.ex-counts', h('span', icon('play'), fmtCompact(set.playCount)), h('span', icon('heart'), fmtCompact(set.favourites))),
-        playBtn,
-        h('span.ex-length', icon('clock'), fmtTime(len * 1000))),
+      bg, h('div.ex-cardshade'),
+      h('div.ex-thumbwrap', thumb, playBtn,
+        dl && dl.state === 'downloading' ? h('div.ex-thumbprog', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }) : null),
       h('div.ex-cb',
-        h('div.ex-t', { title }, title),
-        h('div.ex-a', { title: artist }, artist),
+        h('div.ex-cb-top',
+          h('div.ex-titles', h('div.ex-t', { title }, title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
+          h('div.ex-counts', h('span', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)))),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
-        h('div.ex-foot', spectrum, h('span.ex-srange', { style: { color: starColour(maxS) } }, minS === maxS ? `★ ${maxS.toFixed(2)}` : `★ ${minS.toFixed(1)}–${maxS.toFixed(1)}`),
-          h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')), h('span.grow'),
-          h('div.ex-action', { onclick: e => e.stopPropagation() }, this.actionFor(set)))));
+        h('div.ex-foot', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), spectrum,
+          h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
+          h('span.grow'),
+          owned ? h('span.ex-owned', { title: 'In your library' }, icon('check')) : null,
+          h('span.ex-length', icon('clock'), fmtTime(len * 1000)))));
     card.addEventListener('pointerenter', () => UISounds.hover());
     return card;
   },
@@ -428,50 +430,82 @@ const ExplorerScreen = {
   },
 
   // ─────────────────────────────── beatmap set overlay ───────────────────────────────
-  /** osu!lazer's beatmap set overlay, compact: cover header, difficulty picker and the chosen difficulty's
-   *  attributes, with preview and the main action. */
+  /** osu!lazer's BeatmapSetOverlay: a full page over the listing — the cover header with the difficulty picker, the
+   *  title, artist and mapper, preview / download (or play) buttons, the details panel (length, BPM, notes, key count,
+   *  HP drain, accuracy, star rating, rating) and the info section below. */
   openSet(set) {
     this.closeSet();
     UISounds.click();
     this.setView = { set, diff: set.diffs[set.diffs.length - 1] };
-    this.setEl = h('div.dialog.ex-set', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
-    this.setO = makeOverlay(this.setEl, { onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
+    this.setEl = h('div.bso', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
+    this.setO = makeOverlay(this.setEl, { backdrop: false, onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
     this.renderSet();
   },
   closeSet() { if (this.setO) this.setO.close(); },
   renderSet() {
     if (!this.setEl || !this.setView) return;
-    const { set, diff } = this.setView;
-    const d = diff;
-    const cover = h('div.ex-set-cover');
+    const { set, diff: d } = this.setView;
+    const keep = this.setEl.querySelector('.bso-scroll');
+    const top = keep ? keep.scrollTop : 0;
+    const cover = h('div.bso-cover');
     OnlineBeatmaps.loadCover(cover, set.id, ['cover@2x', 'cover', 'card@2x', 'card']);
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
     const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
     const playing = this.previewId === set.id;
-    const bar = (label, v, max, fmt = x => x.toFixed(1)) => h('div.ex-attr', h('span', label), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('b', fmt(v)));
-    clearEl(this.setEl).append(
-      h('div.ex-set-head', cover, h('div.ex-cover-shade'),
-        h('button.icon-btn.ex-set-close', { title: 'Close', 'aria-label': 'Close', onclick: () => this.closeSet() }, icon('x')),
-        h('div.ex-set-info',
-          h('div.ex-badges', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), set.video ? h('span.ex-badge', icon('film'), 'Video') : null),
-          h('div.ex-set-t', title), h('div.ex-set-a', artist),
-          h('div.ex-set-m', 'mapped by ', h('b', set.creator), set.source ? h('span.muted', ` · ${set.source}`) : null),
-          genreLanguage(set) ? h('div.ex-set-tags', genreLanguage(set)) : null,
-          h('div.ex-set-actions',
-            h('button.btn.sm', { onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play'), playing ? 'Stop preview' : 'Preview'),
-            this.actionFor(set, d),
-            h('span.grow'),
-            h('span.ex-set-counts', icon('play'), fmtInt(set.playCount), icon('heart'), fmtInt(set.favourites))))),
-      h('div.ex-set-diffs', ...set.diffs.map(x => h(`button.ex-set-diff${x === d ? '.on' : ''}`, { style: { '--sc': starColour(x.stars) }, title: `${x.version} · ${x.stars.toFixed(2)}★`,
-        onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } }, h('i'), h('span', `${x.keys}K`)))),
-      h('div.ex-set-body',
-        h('div.ex-set-dname', h('b', d.version), starBadge(d.stars), h('span.keys-tag', `${d.keys}K`)),
-        h('div.ex-set-stats',
-          h('div', icon('clock'), h('span', 'Length'), h('b', fmtTime(d.length * 1000))),
-          h('div', icon('music'), h('span', 'BPM'), h('b', String(Math.round(d.bpm)))),
-          h('div', icon('target'), h('span', 'Notes'), h('b', fmtInt(d.notes))),
-          h('div', icon('list'), h('span', 'Long notes'), h('b', fmtInt(d.lns)))),
-        h('div.ex-set-attrs', bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Star rating', d.stars, 10, x => x.toFixed(2)))));
+    const bar = (label, v, max, fmt = x => x.toFixed(1), cls = '') => h(`div.bso-attr${cls}`, h('span', label), h('div.bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('b', fmt(v)));
+    const date = s => { const t = Date.parse(s || ''); return t ? new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null; };
+    const hover = h('div.bso-diffhover');
+    const diffs = h('div.bso-diffs', ...set.diffs.map(x => {
+      const b = h(`button.bso-diff${x === d ? '.on' : ''}`, { style: { '--sc': starColour(x.stars) }, 'aria-label': `${x.version} ${x.stars.toFixed(2)} stars`,
+        onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } }, icon('mania'));
+      b.addEventListener('pointerenter', () => { UISounds.hover(); clearEl(hover).append(h('b', x.version), starBadge(x.stars)); });
+      b.addEventListener('pointerleave', () => clearEl(hover).append(h('b', d.version), starBadge(d.stars)));
+      return b;
+    }));
+    hover.append(h('b', d.version), starBadge(d.stars));
+    const owned = this.owned(set.id), dl = this.downloads.get(set.id);
+    let main;
+    if (dl && dl.state === 'downloading') main = h('div.bso-dl.busy', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('i'), h('span', 'Downloading…'), h('small', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
+    else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Suggest to the room'), h('small', d.version));
+    else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
+    else main = h('button.bso-dl', { onclick: () => this.download(set) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'), h('small', set.video ? 'with video' : 'osu!mania beatmap'));
+    const stat = (ic, label, v) => h('div.bso-stat', { title: label }, icon(ic), h('b', v));
+    const info = [['Source', set.source], ['Genre', set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null], ['Language', set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null],
+      ['Submitted', date(set.lastUpdated)], ['Ranked', ['ranked', 'approved', 'loved', 'qualified'].includes(set.status) ? date(set.rankedDate) : null]].filter(([, v]) => v);
+    const localScores = owned ? ScoreManager.forMap((owned.maps.find(x => x.onlineId === d.id) || {}).hash).slice(0, 8) : [];
+    clearEl(this.setEl).append(h('div.bso-scroll',
+      h('div.ov-head.bso-ovhead', h('div.ov-titlebar', h('div.ov-inner', h('div.ov-titleicon', icon('music')), h('div.ov-title', 'beatmap info'), h('span.grow'),
+        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x'))))),
+      h('div.bso-header', cover, h('div.bso-shade'),
+        h('div.bso-inner',
+          h('div.bso-left',
+            diffs, hover,
+            h('div.bso-title', title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null),
+            h('div.bso-artist', artist),
+            h('div.bso-mapper', h('div.avatar.avatar-mono.bso-mav', (set.creator || '?').slice(0, 1).toUpperCase()),
+              h('div', h('div', 'mapped by ', h('b', set.creator)), date(set.rankedDate || set.lastUpdated) ? h('div.bso-mdate', `${set.status === 'ranked' ? 'ranked' : 'updated'} ${date(set.rankedDate || set.lastUpdated)}`) : null)),
+            h('div.bso-status', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase())),
+            h('div.bso-buttons',
+              h('button.bso-fav', { title: 'Preview', 'aria-label': 'Preview', onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play')),
+              main)),
+          h('div.bso-right',
+            h('div.bso-counts', stat('play', 'Play count', fmtInt(set.playCount)), stat('heart', 'Favourites', fmtInt(set.favourites))),
+            h('div.bso-box',
+              h('div.bso-basics', h('div', icon('clock'), h('span', 'Length'), h('b', fmtTime(d.length * 1000))), h('div', icon('music'), h('span', 'BPM'), h('b', String(Math.round(d.bpm)))),
+                h('div', icon('target'), h('span', 'Notes'), h('b', fmtInt(d.notes))), h('div', icon('list'), h('span', 'Long notes'), h('b', fmtInt(d.lns))))),
+            h('div.bso-box',
+              bar('Key count', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Star rating', d.stars, 10, x => x.toFixed(2), '.sr')),
+            set.rating ? h('div.bso-box', h('div.bso-boxt', 'User rating'), bar('', set.rating, 10, x => x.toFixed(2), '.rating')) : null))),
+      h('div.bso-body',
+        h('div.bso-info',
+          h('div.bso-sec', h('h3', 'Info'), info.length ? h('dl.bso-dl-list', ...info.flatMap(([k, v]) => [h('dt', k), h('dd', v)])) : h('div.muted', 'No extra info for this beatmap.')),
+          h('div.bso-sec', h('h3', 'Difficulties'), h('div.bso-difflist', ...set.diffs.map(x => h(`button.bso-diffrow${x === d ? '.on' : ''}`, { onclick: () => { this.setView.diff = x; UISounds.click(); this.renderSet(); } },
+            h('i', { style: { '--sc': starColour(x.stars) } }), h('span', x.version), h('span.keys-tag', `${x.keys}K`), h('span.grow'), starBadge(x.stars)))))),
+        h('div.bso-sec.bso-scores', h('h3', 'Scoreboard'),
+          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
+            : h('div.muted', owned ? 'No scores on this difficulty yet — go set one!' : 'Download this beatmap to start setting scores.')))));
+    const sc = this.setEl.querySelector('.bso-scroll');
+    if (sc) sc.scrollTop = top;
   },
   async download(set) {
     if (this.downloads.get(set.id)?.state === 'downloading') return;
@@ -480,11 +514,12 @@ const ExplorerScreen = {
     this.refreshCard(set);
     try {
       let lastPaint = 0;
-      await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
+      const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
         if (now - lastPaint > 120) { lastPaint = now; this.refreshCard(set); }
       });
+      this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
     } catch (e) {
       state.state = 'error';

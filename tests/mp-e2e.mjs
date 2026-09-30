@@ -189,10 +189,11 @@ check('the room side panel is just chat', await alice.evaluate(() => document.qu
 const pickFromBrowse = async (p, version) => {
   await p.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /Search beatmaps/.test(b.textContent)).click());
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'explore' && document.querySelector('.ex-mp'), null, { timeout: 5000 });
-  await p.waitForSelector('.ex-card[data-id="424242"] .ex-action button', { timeout: 10000 });
-  await p.click('.ex-card[data-id="424242"] .ex-action button');
-  await p.waitForSelector('.menu button', { timeout: 3000 });
-  await p.evaluate(v => [...document.querySelectorAll('.menu button')].find(b => b.textContent.includes(v)).click(), version);
+  await p.waitForSelector('.ex-card[data-id="424242"]', { timeout: 10000 });
+  await p.click('.ex-card[data-id="424242"] .ex-t');
+  await p.waitForSelector('.bso .bso-diffrow', { timeout: 3000 });
+  await p.evaluate(v => [...document.querySelectorAll('.bso-diffrow')].find(b => b.textContent.includes(v)).click(), version);
+  await p.click('.bso .bso-dl');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 15000 });
 };
 // the host searches Browse and picks a difficulty; it downloads for the host first

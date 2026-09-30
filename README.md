@@ -22,6 +22,16 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Beatmap listing like osu!lazer
+
+* **Beatmap cards follow lazer's card layout.** Each has the cover as a thumbnail (with the preview button), the title, artist and mapper over the faded cover, and the status, difficulty spectrum, key counts, favourites, plays and length. They're in two columns.
+* **Clicking a card opens the beatmap info page**, as in lazer. It shows:
+  * the difficulty picker;
+  * the title, artist and mapper;
+  * Preview and a big Download button (or **Play** once it's in your library, or Pick / Suggest in a multiplayer room);
+  * the details panel (length, BPM, notes, long notes, key count, HP drain, accuracy, star rating, user rating);
+  * Info, Difficulties and a Scoreboard with your scores.
+
 ### Custom skin rebuilt, with a Customise panel
 
 * **The Custom skin is redrawn.** Glassy notes in vivid gradients with a soft glow and a light rim. Holds are a translucent beam with bright edges. The column lights up in its colour when pressed. The stage has fine column lines and a glowing border, and hit flashes are sized to the column.
