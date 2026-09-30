@@ -47,6 +47,7 @@ GamepadWatch.init();
 
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
+const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -473,7 +474,13 @@ const GameplayScreen = {
   // ─────────────────────────────── main loop ───────────────────────────────
   /** Global audio offset plus this beatmap's own offset, in ms. */
   offsetMs() { return Settings.get('audio.offset') + (this.s ? this.s.mapOffset || 0 : 0); },
-  gameTime() { return Music.time - this.offsetMs() * this.s.rate; },
+  gameTime() {
+    // after a fail the song winds down (1.2 s ramp to 30% speed, then stops): the playfield slows with it and
+    // stays put, instead of running on at full speed and then jumping back once the music is stopped
+    const f = this.s.failClock;
+    if (f) { const e = Math.min(FAIL_WIND_DOWN, (performance.now() - f.real) / 1000); return f.t + this.s.rate * 1000 * (e - 0.35 * e * e / FAIL_WIND_DOWN); }
+    return Music.time - this.offsetMs() * this.s.rate;
+  },
   loop() {
     const frame = () => {
       this._raf = requestAnimationFrame(frame);
@@ -947,16 +954,18 @@ Skin         ${SkinManager.current.name} (${s.layout.fromSkinIni ? 'skin.ini [Ma
   },
   async fail(now) {
     const s = this.s;
+    s.failClock = { real: performance.now(), t: this.gameTime() };
     s.running = false; s.failed = true; s.finished = true;
     this.releaseAll();
     this.failEl.classList.add('on');
+    this.el.classList.add('failing'); // the stage sinks and dims (osu!lazer's fail animation)
     const src = Music.source;
     if (src) {
-      const t = AudioManager.ctx.currentTime;
-      src.playbackRate.setValueAtTime(src.playbackRate.value, t);
-      src.playbackRate.linearRampToValueAtTime(0.3, t + 1.2);
-      Music.setVolume(0, 1200);
-      setTimeout(() => Music.stop(0), 1300);
+      const t = AudioManager.ctx.currentTime, r = src.playbackRate.value;
+      src.playbackRate.setValueAtTime(r, t);
+      src.playbackRate.linearRampToValueAtTime(r * 0.3, t + FAIL_WIND_DOWN);
+      Music.setVolume(0, FAIL_WIND_DOWN * 1000);
+      setTimeout(() => { if (Music.source === src) Music.stop(0); }, FAIL_WIND_DOWN * 1000 + 100);
     }
     SkinManager.sample('failsound').then(b => b && AudioManager.play(b));
     if (s.mode === 'play') {

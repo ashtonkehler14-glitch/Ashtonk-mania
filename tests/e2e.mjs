@@ -257,6 +257,14 @@ await page.waitForTimeout(1600);
 check('resume continues audio after countdown', await page.evaluate(() => AshtonkMania.Music.playing && AshtonkMania.GameplayScreen.s.running));
 await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'), null, { timeout: 15000 });
 check('Sudden Death fails on first miss', true);
+{
+  const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
+  await page.waitForTimeout(1600);
+  const t1 = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  await page.waitForTimeout(400);
+  const t2 = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
+  check('after a fail the playfield winds down with the song and stays put (no jump back to the start)', t1 > t0 && t1 === t2 && await page.evaluate(() => document.querySelector('.gameplay').classList.contains('failing')), `${t0} → ${t1} → ${t2}`);
+}
 await shot('07-failed');
 await page.evaluate(() => AshtonkMania.Settings.set('songselect.mods', []));
 await page.evaluate(() => AshtonkMania.GameplayScreen.quit());

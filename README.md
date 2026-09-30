@@ -46,6 +46,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ### Sturdier: storage, errors, offline
 
+* **Failing looks right**: the stage now slows down with the song as it winds down, sinks and dims (like osu!lazer's fail animation), and stays where you failed. Before, the notes kept scrolling at full speed and then jumped back to the start of the song behind the fail menu. Retrying within that second no longer cuts off the new song's audio.
+
 * **Broken beatmap files can't crash the game**: 8,000 randomly corrupted `.osu` files were run through everything from parsing to scoring. Two crashes and one silent problem turned up and are fixed: a garbage key count is now reported as a problem, notes timed hours past anything real are dropped (one could freeze the star rating), and OD / HP outside 0–10 are clamped like osu!'s editor does (OD 81.5 used to make every note a miss). The fuzz test now runs with the unit tests.
 
 * **Works even when the browser blocks storage** (some private windows, or site data blocked): the game boots, says clearly that nothing will be saved, and keeps beatmaps, scores and settings in memory for the session instead of failing.

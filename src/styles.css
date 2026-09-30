@@ -453,6 +453,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes blink { 50% { opacity: .2; } }
 .gp-fail { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 30, 60, .0), rgba(255, 30, 60, .35)); pointer-events: none; opacity: 0; transition: opacity 600ms; }
 .gp-fail.on { opacity: 1; }
+.gameplay.failing > canvas { animation: failSink 1.2s cubic-bezier(.55, 0, 1, .45) forwards; transform-origin: 50% 100%; }
+@keyframes failSink { to { transform: translateY(7%) scale(.97); filter: brightness(.55) saturate(.4); } }
 .pause-menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(4, 2, 8, .72); animation: fadeIn var(--t-fast) ease; }
 :root:not(.no-effects) .pause-menu { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .pause-box { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 320px; }
