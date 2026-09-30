@@ -351,6 +351,35 @@ await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.
 check('the last player left gets the final standings', await alice.evaluate(() => !!document.querySelector('.qp-podium') && !!document.querySelector('.qp-again')));
 await shot(alice, 'mp-qp-final');
 
+// Ranked Play: matched 1v1, cards, the picker plays one, the lower score takes damage
+await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
+await alice.waitForSelector('.rp-play');
+await alice.click('.rp-play');
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.isRP(), null, { timeout: 10000 });
+await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { force: true }));
+await bob.waitForSelector('.rp-play');
+await bob.click('.rp-play');
+await bob.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 });
+check('Ranked Play pairs the two players', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
+check('players see each other\'s ranked rating', await bob.evaluate(() => AshtonkMania.Multiplayer.room.players.every(p => p.rating === 1000)));
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.phase === 'pick', null, { timeout: 40000 });
+const rpState = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return { hands: Object.values(r.rp.hands).map(h => h.length), picker: r.players.find(p => p.id === r.rp.picker).name }; });
+check('both players are dealt cards and one of them picks', rpState.hands.every(n => n >= 1) && !!rpState.picker, JSON.stringify(rpState));
+await shot(alice, 'mp-rp-pick');
+const pickerPage = rpState.picker === 'Alice' ? alice : bob;
+await pickerPage.click('.rp-hand:not(.theirs) .qp-card');
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mp, null, { timeout: 30000 })));
+check('the picked card is played by both', true);
+await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0; });
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && ['damage', 'final'].includes(AshtonkMania.Multiplayer.room.rp.phase), null, { timeout: 45000 })));
+const hp = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return Object.fromEntries(r.players.map(p => [p.name, r.rp.hp[p.id]])); });
+check('the lower score takes the score difference as damage', hp.Alice === 1000000 && hp.Bob < 1000000, JSON.stringify(hp));
+await shot(bob, 'mp-rp-damage');
+await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.rp.phase === 'final', null, { timeout: 10000 });
+check('the opponent leaving ends it: victory, and the rating goes up', await alice.evaluate(() => /Victory/.test(document.querySelector('.rp-final-t').textContent) && AshtonkMania.Multiplayer.room && RankedRating.get() > 1000));
+await shot(alice, 'mp-rp-final');
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
 await mf.dispose();

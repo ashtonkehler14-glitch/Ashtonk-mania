@@ -22,6 +22,20 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play, a clearer multiplayer lobby, and profile pictures for everyone
+
+* **Ranked Play** (osu!lazer's 1v1 ranked mode):
+  * You're matched against the next player queueing for the same key count.
+  * You both start with 1,000,000 HP and a hand of three beatmap cards.
+  * Each round the picker plays one card and you both play it. The lower score takes the score difference as damage: ×1 in round 1, ×2 in round 2, and so on.
+  * The round's loser picks next; first to 0 HP loses.
+  * Your rating (Elo, starting at 1000) and tier (Iron → Grandmaster) update after every match.
+* **The multiplayer lobby is laid out like lazer's.**
+  * Quick Play and Ranked Play are big tiles sharing one 4K / 7K choice.
+  * Below them is lazer's lounge: every open custom room, with its beatmap, match type, players and status. Click one to join.
+  * Custom rooms are listed by default; the Match settings Visibility option makes one private (join with the code).
+* **Everyone sees each other's profile pictures:** in rooms, Quick Play, Ranked Play, the room list and Discover. Uploaded pictures are shared as small 64 px copies.
+
 ### A "What's new" screen
 
 * **Returning players see a lazer-style changelog once after an update**, listing what was added. New players skip it.

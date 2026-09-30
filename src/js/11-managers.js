@@ -187,6 +187,19 @@ const ProfileManager = {
       if (b) this.avatarURL = URL.createObjectURL(b);
     } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
     else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
+    this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
+  },
+  /** What other players see: the preset / public picture's id, or a small copy of an uploaded picture (64 px). */
+  sharedAvatar: '',
+  async makeSharedAvatar() {
+    const a = this.profile.avatar || 'default';
+    if (a.startsWith('preset:') || a.startsWith('file:')) return a;
+    if (a !== 'custom' || !this.avatarURL) return '';
+    const img = new Image(); img.src = this.avatarURL; await img.decode();
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), sz = Math.min(img.naturalWidth, img.naturalHeight);
+    x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, 64, 64);
+    return c.toDataURL('image/jpeg', 0.8);
   },
   /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {

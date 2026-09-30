@@ -32,6 +32,10 @@ export const WIN_CONDITIONS = ['pp', 'score', 'accuracy', 'combo'];
 export const QP = { GATHER: 20000, FULL: 3000, POOL: 15000, PICK: 25000, REVEAL: 5000, LOAD: 90000, STANDINGS: 12000, ROUNDS: 5 };
 export const QP_POINTS = [8, 6, 5, 4, 3, 2, 1, 0];
 const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'settings', 'team'];
+/** Ranked Play (osu!lazer's 1v1 ranked mode): both players start with HP and a hand of beatmap cards; each round the
+ *  picker plays one of their cards, the lower score takes (score difference × round number) damage, and the round's
+ *  loser picks next. First to 0 HP loses. */
+export const RP = { HP: 1000000, HAND: 3, GATHER: 4000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000 };
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';
@@ -46,6 +50,8 @@ export function cleanMods(list) {
 const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x));
 const speedMods = list => cleanMods(list).filter(x => RATE_MODS.includes(x)).slice(0, 1);
 const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.entries(c).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
+/** A shared profile picture: a preset / public picture id, or a small inline JPEG / PNG / WebP. */
+export const cleanAvatar = a => typeof a === 'string' && a.length <= 12000 && /^(preset:[\w-]{1,32}|file:[\w .()-]{1,64}|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/.test(a) ? a : '';
 export const validCode = c => typeof c === 'string' && /^[A-Z0-9]{4,8}$/.test(c);
 
 const str = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
@@ -77,7 +83,7 @@ function cleanResult(r) {
   };
 }
 
-const defaultSettings = () => ({ type: 'h2h', win: 'pp', size: MAX_PLAYERS, queue: 'host' });
+const defaultSettings = () => ({ type: 'h2h', win: 'pp', size: MAX_PLAYERS, queue: 'host', public: true });
 
 export class RoomLogic {
   constructor(code, now = () => Date.now(), rnd = Math.random) {
@@ -85,7 +91,7 @@ export class RoomLogic {
     this.players = []; this.hostId = null; this.created = false;
     this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
     this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = []; this.skipped = false;
-    this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null;
+    this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
   }
   get(id) { return this.players.find(p => p.id === id); }
   snapshot() {
@@ -93,11 +99,21 @@ export class RoomLogic {
     return {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
       mode: this.mode, settings: { ...this.settings },
+      rp: this.rp ? { keys: this.rp.keys, round: this.rp.round, phase: this.rp.phase, left: this.rp.deadline ? Math.max(0, this.rp.deadline - this.now()) : 0, pool: this.rp.pool,
+        hands: JSON.parse(JSON.stringify(this.rp.hands)), picker: this.rp.picker, chosen: this.rp.chosen, hp: { ...this.rp.hp }, last: this.rp.last, winner: this.rp.winner } : null,
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team })),
+      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, rating: p.rating, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team })),
     };
+  }
+  /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
+  listing() {
+    if (!this.created || this.mode !== 'custom' || !this.settings.public || !this.players.length) return null;
+    const host = this.get(this.hostId), m = this.map;
+    return { code: this.code, name: `${host ? host.name : 'Someone'}'s room`, host: host ? host.name : '', avatar: host ? host.avatar : '', players: this.players.length, size: this.settings.size,
+      state: this.state, type: this.settings.type, win: this.settings.win,
+      map: m ? { title: m.title, artist: m.artist, version: m.version, stars: m.stars, keys: m.keys, onlineSetId: m.onlineSetId } : null };
   }
   /** The team with fewer players (red first), for someone joining a Team Versus room. */
   smallerTeam() { const red = this.players.filter(p => p.team === 0).length, blue = this.players.filter(p => p.team === 1).length; return red <= blue ? 0 : 1; }
@@ -111,20 +127,28 @@ export class RoomLogic {
     if (!this.created && !create) return { ok: false, error: 'Room not found — check the code.' };
     if (this.players.length >= this.settings.size) return { ok: false, error: 'This room is full.' };
     if (this.qp && this.qp.round > 0) return { ok: false, error: 'This Quick Play match has already started.' };
+    if (this.rp && this.rp.phase !== 'gather') return { ok: false, error: 'This Ranked Play match has already started.' };
     if (this.state !== 'lobby') return { ok: false, error: 'A match is in progress in this room.' };
     if (!this.created) {
       // whoever opens the room sets it up: Quick Play, or a custom room (a quick 1v1 match asks for 2 players)
       this.created = true;
-      if (opts.mode === 'qp') {
+      if (opts.mode === 'rp') {
+        this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2 };
+        this.rp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, phase: 'gather', deadline: 0, pool: [], deck: [], hands: {}, picker: null, chosen: -1, hp: {}, last: null, winner: null, fails: 0 };
+      } else if (opts.mode === 'qp') {
         this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score' };
         this.qp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, rounds: QP.ROUNDS, phase: 'gather', deadline: 0, pool: null, picks: {}, chosen: -1, points: {}, fails: 0 };
-      } else if (opts.size != null) this.settings.size = Math.round(num(opts.size, 2, MAX_PLAYERS, MAX_PLAYERS));
+      } else {
+        if (opts.size != null) this.settings.size = Math.round(num(opts.size, 2, MAX_PLAYERS, MAX_PLAYERS));
+        if (opts.size != null && opts.size <= 2) this.settings.public = false; // quick 1v1 rooms aren't listed
+      }
     }
-    const p = { id, name: str(name, 24) || 'Player', ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0) };
+    const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
+      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), rating: Math.round(num(opts.rating, 0, 5000, 1000)) };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
+    if (this.rp) { this.rp.hp[id] = RP.HP; this.rp.hands[id] = []; if (this.players.length === 2) this.rp.deadline = this.now() + RP.GATHER; }
     return { ok: true, out: [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot() } }, this.roomMsg(), this.system(`${p.name} joined the room`)] };
   }
 
@@ -145,6 +169,11 @@ export class RoomLogic {
     for (const x of this.players) x.ready = false;
     if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
     out.push(this.system(`${p.name} left the room`));
+    const r = this.rp;
+    if (r && r.phase !== 'final') {
+      if (r.phase === 'gather') r.deadline = 0;
+      else if (this.state !== 'playing') out.push(...this.rpFinal(this.players[0] ? this.players[0].id : null, `${p.name} left the match`));
+    }
     const q = this.qp;
     if (q && this.state !== 'playing') {
       if (q.phase === 'gather') this.qpGather();
@@ -165,7 +194,7 @@ export class RoomLogic {
     const p = this.get(id);
     if (!p || !m || typeof m !== 'object') return [];
     const host = id === this.hostId;
-    if (this.qp && QP_BLOCKED.includes(m.t)) return []; // Quick Play runs itself: no host picks, mods or ready-ups
+    if ((this.qp || this.rp) && QP_BLOCKED.includes(m.t)) return []; // Quick Play / Ranked Play run themselves
     switch (m.t) {
       case 'settings': {
         if (!host || this.state !== 'lobby') return [];
@@ -180,6 +209,7 @@ export class RoomLogic {
           const n = Math.max(2, this.players.length, Math.round(num(o.size, 2, MAX_PLAYERS, st.size)));
           if (n !== st.size) { st.size = n; changes.push(`up to ${n} players`); }
         }
+        if (typeof o.public === 'boolean' && o.public !== st.public) { st.public = o.public; changes.push(o.public ? 'listed in the lobby' : 'private (join with the code)'); }
         if (['host', 'rotate'].includes(o.queue) && o.queue !== st.queue) { st.queue = o.queue; changes.push(o.queue === 'rotate' ? 'the host rotates after each match' : 'the host picks every map'); }
         if (!changes.length) return [];
         for (const x of this.players) x.ready = false;
@@ -190,6 +220,7 @@ export class RoomLogic {
         p.team = m.team ? 1 : 0;
         return [this.roomMsg()];
       case 'pool': {
+        if (this.rp) return host ? this.rpPool(m.maps) : [];
         const q = this.qp;
         if (!q || !host || q.phase !== 'pool' || !Array.isArray(m.maps)) return [];
         const maps = m.maps.slice(0, 6).map(cleanSuggestion).filter(Boolean);
@@ -198,6 +229,7 @@ export class RoomLogic {
         return [this.roomMsg()];
       }
       case 'pick': {
+        if (this.rp) { const r = this.rp, i = Number(m.i); return r.phase === 'pick' && id === r.picker && (r.hands[id] || []).includes(i) ? this.rpChoose(i) : []; }
         const q = this.qp, i = Number(m.i);
         if (!q || q.phase !== 'pick' || !Number.isInteger(i) || i < 0 || i >= q.pool.length) return [];
         q.picks[id] = i;
@@ -256,6 +288,7 @@ export class RoomLogic {
       case 'hasMap':
         p.hasMap = !!m.has; if (!p.hasMap) p.ready = false;
         if (this.qp && this.qp.phase === 'load' && this.state === 'lobby') return [...this.qpMaybeStart(), this.roomMsg()];
+        if (this.rp && this.rp.phase === 'load' && this.state === 'lobby') return [...this.rpMaybeStart(), this.roomMsg()];
         return [this.roomMsg()];
       case 'ready':
         if (this.state !== 'lobby') return [];
@@ -300,8 +333,9 @@ export class RoomLogic {
     this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }
     this.departed = [];
-    if (this.qp) { this.qp.phase = 'playing'; this.qp.deadline = 0; }
-    const playerMods = this.qp ? {} : Object.fromEntries(list.map(x => [x.id, x.mods]));
+    const g = this.qp || this.rp;
+    if (g) { g.phase = 'playing'; g.deadline = 0; }
+    const playerMods = g ? {} : Object.fromEntries(list.map(x => [x.id, x.mods]));
     return [{ to: 'all', msg: { t: 'start', delay: START_DELAY, map: this.map, mods: this.mods, modConfig: this.modConfig, playerMods, players: list.map(x => x.id) } }, this.roomMsg()];
   }
 
@@ -383,8 +417,108 @@ export class RoomLogic {
     }
     return [];
   }
-  /** Does the room need its clock ticking (a match to time out, a Quick Play phase to end)? */
-  wantsTick() { return this.state === 'playing' || !!(this.qp && this.qp.deadline); }
+  /** Does the room need its clock ticking (a match to time out, a Quick Play / Ranked Play phase to end)? */
+  wantsTick() { return this.state === 'playing' || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
+
+  // ── Ranked Play
+  rpAskPool() {
+    const r = this.rp;
+    r.phase = 'pool'; r.deadline = this.now() + RP.POOL;
+    const srs = this.players.map(x => x.sr).filter(x => x > 0).sort((a, b) => a - b);
+    return [{ to: this.hostId, msg: { t: 'qpPool', round: r.round, keys: r.keys, sr: srs.length ? srs[Math.floor(srs.length / 2)] : 0, count: 8 } }, this.roomMsg()];
+  }
+  /** The host's pool arrives: shuffle it into a deck, top everyone's hand up to three cards, and play on. */
+  rpPool(list) {
+    const r = this.rp;
+    if (r.phase !== 'pool' || !Array.isArray(list)) return [];
+    const maps = list.slice(0, 10).map(cleanSuggestion).filter(Boolean);
+    if (!maps.length) return [];
+    const base = r.pool.length;
+    r.pool = r.pool.concat(maps);
+    const idx = maps.map((_, i) => base + i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(this.rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    r.deck = r.deck.concat(idx);
+    this.rpDeal();
+    if (!r.picker) r.picker = this.players[Math.min(this.players.length - 1, Math.floor(this.rnd() * this.players.length))].id;
+    return this.rpNextRound();
+  }
+  /** Deal one card at a time round the table, so a small pool still gives everyone cards. */
+  rpDeal() {
+    const r = this.rp;
+    for (const p of this.players) r.hands[p.id] = r.hands[p.id] || [];
+    let dealt = true;
+    while (dealt && r.deck.length) {
+      dealt = false;
+      for (const p of this.players) if (r.hands[p.id].length < RP.HAND && r.deck.length) { r.hands[p.id].push(r.deck.shift()); dealt = true; }
+    }
+  }
+  rpNextRound() {
+    const r = this.rp;
+    if (this.players.length < 2) return this.rpFinal(this.players[0] ? this.players[0].id : null);
+    this.rpDeal();
+    if (!(r.hands[r.picker] || []).length) return this.rpAskPool(); // out of cards: deal a fresh pool
+    r.round++; r.chosen = -1; r.phase = 'pick'; r.deadline = this.now() + RP.PICK;
+    this.map = null;
+    for (const x of this.players) { x.hasMap = false; x.ready = false; }
+    const p = this.get(r.picker);
+    return [this.system(`Round ${r.round} — ${p ? p.name : 'The picker'} chooses the beatmap (damage ×${r.round})`), this.roomMsg()];
+  }
+  rpChoose(i) {
+    const r = this.rp, hand = r.hands[r.picker];
+    hand.splice(hand.indexOf(i), 1);
+    r.chosen = i; this.map = r.pool[i];
+    for (const x of this.players) { x.hasMap = false; x.diff = null; }
+    r.phase = 'reveal'; r.deadline = this.now() + RP.REVEAL;
+    return [this.roomMsg()];
+  }
+  rpMaybeStart() {
+    const r = this.rp;
+    if (r.phase !== 'load' || !this.players.every(x => x.hasMap)) return [];
+    return this.beginMatch(this.players);
+  }
+  /** Results of a round: the lower score takes the difference × the round number as damage. */
+  rpDamage(rows) {
+    const r = this.rp;
+    const sc = id => { const x = rows.find(y => y.id === id); return !x || x.forfeit ? 0 : x.score; };
+    const [a, b] = this.players.length === 2 ? this.players : [this.players[0], null];
+    if (!b) return this.rpFinal(a ? a.id : null);
+    for (const x of rows) if (x.left) r.hp[x.id] = 0;
+    const sa = sc(a.id), sb = sc(b.id), loser = sa === sb ? null : sa < sb ? a.id : b.id;
+    const dmg = loser ? Math.round(Math.abs(sa - sb) * r.round) : 0;
+    if (loser) r.hp[loser] = Math.max(0, r.hp[loser] - dmg);
+    r.last = { round: r.round, loser, damage: dmg, scores: { [a.id]: sa, [b.id]: sb } };
+    const dead = this.players.find(x => r.hp[x.id] <= 0);
+    if (dead) return this.rpFinal(this.players.find(x => x !== dead).id);
+    if (loser) r.picker = loser; // the round's loser picks the next beatmap
+    r.phase = 'damage'; r.deadline = this.now() + RP.DAMAGE;
+    return [this.roomMsg()];
+  }
+  rpFinal(winner, why) {
+    const r = this.rp;
+    r.phase = 'final'; r.deadline = 0; r.winner = winner; this.map = null;
+    const w = winner && this.get(winner);
+    return [this.system(why ? `${why} — ${w ? w.name + ' wins' : 'match over'}` : `${w ? w.name : 'Nobody'} wins the Ranked Play match!`), this.roomMsg()];
+  }
+  rpTick() {
+    const r = this.rp;
+    if (!r || !r.deadline || this.now() < r.deadline || this.state !== 'lobby') return [];
+    switch (r.phase) {
+      case 'gather': return this.players.length === 2 ? this.rpAskPool() : (r.deadline = 0, []);
+      case 'pool':
+        if (++r.fails >= 3) return this.rpFinal(null, 'Couldn\'t find beatmaps');
+        this.hostId = this.nextAfter(this.hostId);
+        return this.rpAskPool();
+      case 'pick': { const hand = r.hands[r.picker]; return this.rpChoose(hand[Math.floor(this.rnd() * hand.length)]); }
+      case 'reveal': r.phase = 'load'; r.deadline = this.now() + RP.LOAD; return [...this.rpMaybeStart(), this.roomMsg()];
+      case 'load': {
+        const list = this.players.filter(x => x.hasMap);
+        if (list.length) return this.beginMatch(list);
+        r.round--; return [this.system('Nobody could load that beatmap — pick again'), ...this.rpNextRound()];
+      }
+      case 'damage': return this.rpNextRound();
+    }
+    return [];
+  }
 
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {
@@ -411,7 +545,7 @@ export class RoomLogic {
       for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
       return this.checkFinished();
     }
-    return this.qpTick();
+    return this.rp ? this.rpTick() : this.qpTick();
   }
 
   checkFinished(someoneLeft = false) {
@@ -444,7 +578,8 @@ export class RoomLogic {
     for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; }
     const out = [];
     const q = this.qp;
-    if (q) {
+    if (this.rp) out.push(...this.rpDamage(rows));
+    else if (q) {
       // placement points; a forfeit scores nothing
       for (const r of rows) { r.points = r.forfeit ? 0 : QP_POINTS[r.place - 1] ?? 0; if (q.points[r.id] != null) q.points[r.id] += r.points; }
       this.lastResults.qp = { round: q.round, rounds: q.rounds, standings: this.standings() };
@@ -468,7 +603,19 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
-  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; }
+  constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; }
+  /** Tell the lobby's room list about this room (on change, and every 30 s while anyone is in it). */
+  announce(force = false) {
+    const l = this.logic && this.logic.listing(), body = JSON.stringify(l ? { room: l } : { remove: this.logic && this.logic.code });
+    if (!force && body === this._listed) return;
+    if (!l && !this._listed.includes('"room"')) { this._listed = body; return; }
+    this._listed = body;
+    if (!this.env.MATCHMAKER) return;
+    const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
+    stub.fetch('https://mm/api/mp/rooms/update', { method: 'POST', body, headers: { 'content-type': 'application/json' } }).catch(() => {});
+    if (l && !this.beat) this.beat = setInterval(() => this.announce(true), 30000);
+    if (!l && this.beat) { clearInterval(this.beat); this.beat = null; }
+  }
   async fetch(request) {
     const url = new URL(request.url);
     const code = url.searchParams.get('code') || '';
@@ -480,7 +627,7 @@ export class MatchRoom {
     const id = crypto.randomUUID().slice(0, 8);
     let joined = false;
     server.addEventListener('message', ev => {
-      if (typeof ev.data !== 'string' || ev.data.length > 8192) return;
+      if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;
@@ -512,6 +659,7 @@ export class MatchRoom {
     }, 1000);
   }
   dispatch(out) {
+    if (out && out.length) this.announce();
     for (const { to, msg } of out || []) {
       const data = JSON.stringify(msg);
       for (const [id, ws] of this.socks) {
@@ -527,9 +675,9 @@ export class MatchRoom {
  *  invite {from: {id, name}, code}, invited {to}, error {msg}. Plain JS so it can be unit-tested. */
 export class PresenceLogic {
   constructor(now = () => Date.now()) { this.now = now; this.users = new Map(); this.lastInvite = new Map(); }
-  list() { return [...this.users.entries()].map(([id, u]) => ({ id, name: u.name, status: u.status })); }
+  list() { return [...this.users.entries()].map(([id, u]) => ({ id, name: u.name, status: u.status, avatar: u.avatar })); }
   join(id, msg) {
-    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status) });
+    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar) });
     return [{ to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
   }
   leave(id) { if (!this.users.delete(id)) return []; this.lastInvite.delete(id); return [this.broadcast()]; }
@@ -538,9 +686,9 @@ export class PresenceLogic {
     const u = this.users.get(id);
     if (!u || !msg || typeof msg !== 'object') return [];
     if (msg.t === 'status') {
-      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name;
-      if (st === u.status && name === u.name) return [];
-      u.status = st; u.name = name;
+      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      if (st === u.status && name === u.name && av === u.avatar) return [];
+      u.status = st; u.name = name; u.avatar = av;
       return [this.broadcast()];
     }
     if (msg.t === 'invite') {
@@ -560,14 +708,14 @@ const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
 export class Matchmaker {
-  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.presence = new PresenceLogic(); this.socks = new Map(); }
+  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); }
   presenceSocket() {
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
     const id = crypto.randomUUID().slice(0, 8);
     let joined = false;
     server.addEventListener('message', ev => {
-      if (typeof ev.data !== 'string' || ev.data.length > 2048) return;
+      if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;
@@ -596,6 +744,23 @@ export class Matchmaker {
     }
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
+    if (url.pathname.endsWith('/rooms/update')) {
+      if (body.room && validCode(body.room.code)) this.rooms.set(body.room.code, { ...body.room, at: now });
+      else if (typeof body.remove === 'string') this.rooms.delete(body.remove);
+      return json({ ok: true });
+    }
+    if (url.pathname.endsWith('/rooms')) {
+      for (const [c, r] of this.rooms) if (now - r.at > 75000) this.rooms.delete(c);
+      return json({ rooms: [...this.rooms.values()].sort((a, b) => (a.state === 'playing') - (b.state === 'playing') || b.players - a.players).slice(0, 50) });
+    }
+    if (url.pathname.endsWith('/ranked')) {
+      // Ranked Play: pairs two players for the same key count (the first waits, the next one joins)
+      const keys = Number(body.keys) === 7 ? 7 : 4, w = (this.rk || (this.rk = {}))[keys];
+      if (w && now - w.at < 60000 && w.code !== body.not) { this.rk[keys] = null; return json({ code: w.code, host: false }); }
+      const code = makeCode();
+      this.rk[keys] = { code, at: now };
+      return json({ code, host: true });
+    }
     if (url.pathname.endsWith('/quickplay')) {
       // Quick Play: everyone asking within a minute for the same key count shares one lobby (the room turns away
       // late arrivals once it has started, and the client asks again with `not` for a fresh one)
@@ -624,7 +789,11 @@ export async function handleMultiplayer(request, env, url) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), request));
   }
-  if (path.startsWith('/api/mp/quick') && request.method === 'POST') {
+  if (path === '/api/mp/rooms') {
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL(path, url)));
+  }
+  if ((path.startsWith('/api/mp/quick') || path === '/api/mp/ranked') && request.method === 'POST') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
   }

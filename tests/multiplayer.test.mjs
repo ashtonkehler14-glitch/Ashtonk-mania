@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS } from '../worker/multiplayer.js';
+import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar } from '../worker/multiplayer.js';
 
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
@@ -367,4 +367,94 @@ test('Quick Play: a full lobby starts almost at once; everyone else leaving ends
   assert.equal(r.qp.phase, 'pool');
   for (let i = 1; i < 8; i++) r.leave('p' + i);
   assert.equal(r.qp.phase, 'final');
+});
+
+test('Ranked Play: hands of cards, the picker plays one, the lower score takes difference × round as damage', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RP', () => clock.t, () => 0);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rating: 1200 });
+  assert.equal(r.rp.deadline, 0, 'waits for an opponent');
+  r.join('b', 'Bob', false, { rating: 900 });
+  assert.equal(r.join('c', 'Cat', false).ok, false, 'two players only');
+  assert.deepEqual(r.snapshot().players.map(p => p.rating), [1200, 900]);
+  clock.t = RP.GATHER; let out = r.tick();
+  assert.equal(msgs(out, 'qpPool')[0].msg.count, 8);
+  const pool = Array.from({ length: 8 }, (_, i) => ({ ...MAP, hash: 'h' + i, title: 'Song ' + i }));
+  r.message('a', { t: 'pool', maps: pool });
+  assert.equal(r.rp.phase, 'pick');
+  assert.equal(r.rp.hands.a.length, 3); assert.equal(r.rp.hands.b.length, 3);
+  assert.equal(r.rp.picker, 'a');
+  const other = r.rp.hands.b[0];
+  assert.deepEqual(r.message('a', { t: 'pick', i: other }), [], 'only cards in your own hand');
+  assert.deepEqual(r.message('b', { t: 'pick', i: r.rp.hands.a[0] }), [], 'only the picker picks');
+  const card = r.rp.hands.a[1];
+  r.message('a', { t: 'pick', i: card });
+  assert.equal(r.rp.chosen, card); assert.equal(r.rp.hands.a.length, 2);
+  assert.equal(r.map.title, pool[card].title);
+  clock.t += RP.REVEAL; r.tick();
+  r.message('a', { t: 'hasMap', has: true });
+  out = r.message('b', { t: 'hasMap', has: true });
+  assert.equal(msgs(out, 'start').length, 1);
+  fin(r, 'a', { score: 900000 });
+  fin(r, 'b', { score: 700000 });
+  assert.equal(r.rp.hp.b, RP.HP - 200000, 'round 1: ×1');
+  assert.equal(r.rp.last.loser, 'b');
+  assert.equal(r.rp.picker, 'b', 'the round\'s loser picks next');
+  clock.t += RP.DAMAGE; r.tick();
+  assert.equal(r.rp.round, 2); assert.equal(r.rp.hands.a.length, 3, 'hands are topped up');
+  clock.t += RP.PICK; r.tick(); // b doesn't pick in time: a random card from b's hand
+  assert.equal(r.rp.phase, 'reveal');
+  clock.t += RP.REVEAL; r.tick();
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  fin(r, 'a', { score: 100000 });
+  fin(r, 'b', { score: 600000 });
+  assert.equal(r.rp.hp.a, RP.HP - 1000000, 'round 2: ×2');
+  assert.equal(r.rp.phase, 'final');
+  assert.equal(r.rp.winner, 'b');
+});
+
+test('Ranked Play: leaving hands the match to the other player', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RP', () => clock.t, () => 0);
+  r.join('a', 'Alice', true, { mode: 'rp' }); r.join('b', 'Bob', false);
+  clock.t = RP.GATHER; r.tick();
+  r.message('a', { t: 'pool', maps: [MAP, { ...MAP, hash: 'x' }] });
+  r.leave('a');
+  assert.equal(r.rp.phase, 'final');
+  assert.equal(r.rp.winner, 'b');
+});
+
+test('shared avatars: presets, public pictures and small inline images only', () => {
+  assert.equal(cleanAvatar('preset:teto'), 'preset:teto');
+  assert.equal(cleanAvatar('file:rin.png'), 'file:rin.png');
+  assert.equal(cleanAvatar('data:image/jpeg;base64,QUJD'), 'data:image/jpeg;base64,QUJD');
+  assert.equal(cleanAvatar('javascript:alert(1)'), '');
+  assert.equal(cleanAvatar('data:image/svg+xml;base64,QUJD'), '');
+  assert.equal(cleanAvatar('data:image/jpeg;base64,' + 'A'.repeat(20000)), '');
+  const r = new RoomLogic('X'); r.join('a', 'Alice', true, { avatar: 'preset:miku' });
+  assert.equal(r.snapshot().players[0].avatar, 'preset:miku');
+  const p = new PresenceLogic(); p.join('a', { name: 'A', avatar: 'preset:neru' });
+  assert.equal(p.list()[0].avatar, 'preset:neru');
+});
+
+test('room listing: public custom rooms only; private, quick 1v1, Quick Play and Ranked Play rooms are not listed', () => {
+  const r = new RoomLogic('ROOM1'); r.join('a', 'Alice', true, { avatar: 'preset:teto' });
+  assert.equal(r.listing().name, "Alice's room");
+  assert.equal(r.listing().avatar, 'preset:teto');
+  r.message('a', { t: 'map', map: MAP });
+  assert.equal(r.listing().map.title, 'Song');
+  r.message('a', { t: 'settings', settings: { public: false } });
+  assert.equal(r.listing(), null);
+  const q = new RoomLogic('Q'); q.join('a', 'A', true, { size: 2 }); assert.equal(q.listing(), null);
+  const p = new RoomLogic('P'); p.join('a', 'A', true, { mode: 'qp' }); assert.equal(p.listing(), null);
+  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp' }); assert.equal(k.listing(), null);
+});
+
+test('Ranked Play deals round the table: a two-map pool gives each player one card', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RP', () => clock.t, () => 0);
+  r.join('a', 'A', true, { mode: 'rp' }); r.join('b', 'B', false);
+  clock.t = RP.GATHER; r.tick();
+  r.message('a', { t: 'pool', maps: [MAP, { ...MAP, hash: 'x' }] });
+  assert.deepEqual([r.rp.hands.a.length, r.rp.hands.b.length], [1, 1]);
 });
