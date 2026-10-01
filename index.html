@@ -780,7 +780,16 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-chip.ex-reset { display: inline-flex; align-items: center; gap: 4px; color: var(--bad, #ff6b7a); }
 .ex-chip.ex-reset .ic { width: 13px; height: 13px; }
 .ex-stars { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); }
-.ex-stars .slider { flex: 1; }
+.ex-range { position: relative; flex: 1; height: 24px; --a: 0%; --b: 100%; }
+.ex-range::before, .ex-range::after { content: ""; position: absolute; top: 50%; height: 5px; margin-top: -2.5px; border-radius: 5px; pointer-events: none; }
+.ex-range::before { left: 0; right: 0; background: rgba(255, 255, 255, .12); }
+.ex-range::after { left: var(--a); right: calc(100% - var(--b)); background: var(--accent); }
+/* both handles sit on the one track above; only the handles take the pointer */
+.ex-range input[type=range].slider { position: absolute; inset: 0; pointer-events: none; }
+.ex-range input[type=range].slider::-webkit-slider-runnable-track { background: none; }
+.ex-range input[type=range].slider::-moz-range-track, .ex-range input[type=range].slider::-moz-range-progress { background: none; }
+.ex-range input[type=range].slider::-webkit-slider-thumb { pointer-events: auto; position: relative; z-index: 1; }
+.ex-range input[type=range].slider::-moz-range-thumb { pointer-events: auto; }
 .ex-starval { min-width: 96px; font-weight: 600; color: var(--accent-3); font-size: .85rem; }
 .ex-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 600px) { .ex-grid { grid-template-columns: 1fr; } }
@@ -11535,21 +11544,27 @@ const ExplorerScreen = {
     return el;
   },
   leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
-    const mk = (key, label) => {
-      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
-      const upd = () => s.style.setProperty('--p', (s.value / 10 * 100) + '%');
-      s.addEventListener('input', () => { upd(); v.textContent = this.starLabel(); });
-      s.addEventListener('change', () => { st[key] = key === 'maxStars' && +s.value >= 10 ? 20 : +s.value; this.newSearch(); });
-      s.addEventListener('keydown', e => e.stopPropagation());
-      upd();
-      return s;
+    const range = h('div.ex-range');
+    const lo = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: st.minStars, 'aria-label': 'Minimum stars' });
+    const hi = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: Math.min(10, st.maxStars), 'aria-label': 'Maximum stars' });
+    const v = h('span.ex-starval');
+    const paint = () => {
+      range.style.setProperty('--a', (lo.value * 10) + '%'); range.style.setProperty('--b', (hi.value * 10) + '%');
+      v.textContent = this.starLabel(+lo.value, +hi.value >= 10 ? 20 : +hi.value);
     };
-    const v = h('span.ex-starval', this.starLabel());
-    return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
+    // the handles can't cross: the one being dragged stops at the other
+    lo.addEventListener('input', () => { if (+lo.value > +hi.value) lo.value = hi.value; paint(); });
+    hi.addEventListener('input', () => { if (+hi.value < +lo.value) hi.value = lo.value; paint(); });
+    const commit = () => { st.minStars = +lo.value; st.maxStars = +hi.value >= 10 ? 20 : +hi.value; this.newSearch(); };
+    for (const s of [lo, hi]) { s.addEventListener('change', commit); s.addEventListener('keydown', e => e.stopPropagation()); }
+    range.append(lo, hi);
+    paint();
+    return h('div.ex-stars', range, v);
   },
-  starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
+  starLabel(min = this.state.minStars, max = this.state.maxStars) { return `${min.toFixed(1)}★ – ${max >= 10 ? '∞' : max.toFixed(1) + '★'}`; },
   /** The sort sent to the server: none for the default (newest ranked first), exactly like Web-Osu-Mania. */
   sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
   /** The order results come in: the chosen one, or osu!'s default for this search. */

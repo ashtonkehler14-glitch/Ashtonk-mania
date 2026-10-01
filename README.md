@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Star range filter
+
+* **Beatmap listing:** the Stars filter under "More filters" is one track with two handles (minimum and maximum), with the filled part between them, instead of two separate sliders side by side. The handles can't cross, and the "2.9★ – 6.1★" label follows them while you drag. It used to update only after you let go.
+
 ### No more stray "null"
 
 * **Setup:** the "Pick a skin" page of first-run setup showed the word "null" under the skin list. That's fixed.

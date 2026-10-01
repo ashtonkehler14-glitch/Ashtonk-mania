@@ -763,7 +763,16 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-chip.ex-reset { display: inline-flex; align-items: center; gap: 4px; color: var(--bad, #ff6b7a); }
 .ex-chip.ex-reset .ic { width: 13px; height: 13px; }
 .ex-stars { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); }
-.ex-stars .slider { flex: 1; }
+.ex-range { position: relative; flex: 1; height: 24px; --a: 0%; --b: 100%; }
+.ex-range::before, .ex-range::after { content: ""; position: absolute; top: 50%; height: 5px; margin-top: -2.5px; border-radius: 5px; pointer-events: none; }
+.ex-range::before { left: 0; right: 0; background: rgba(255, 255, 255, .12); }
+.ex-range::after { left: var(--a); right: calc(100% - var(--b)); background: var(--accent); }
+/* both handles sit on the one track above; only the handles take the pointer */
+.ex-range input[type=range].slider { position: absolute; inset: 0; pointer-events: none; }
+.ex-range input[type=range].slider::-webkit-slider-runnable-track { background: none; }
+.ex-range input[type=range].slider::-moz-range-track, .ex-range input[type=range].slider::-moz-range-progress { background: none; }
+.ex-range input[type=range].slider::-webkit-slider-thumb { pointer-events: auto; position: relative; z-index: 1; }
+.ex-range input[type=range].slider::-moz-range-thumb { pointer-events: auto; }
 .ex-starval { min-width: 96px; font-weight: 600; color: var(--accent-3); font-size: .85rem; }
 .ex-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 600px) { .ex-grid { grid-template-columns: 1fr; } }

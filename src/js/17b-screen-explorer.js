@@ -298,21 +298,27 @@ const ExplorerScreen = {
     return el;
   },
   leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
-    const mk = (key, label) => {
-      const s = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: key === 'minStars' ? st.minStars : Math.min(10, st.maxStars), 'aria-label': label });
-      const upd = () => s.style.setProperty('--p', (s.value / 10 * 100) + '%');
-      s.addEventListener('input', () => { upd(); v.textContent = this.starLabel(); });
-      s.addEventListener('change', () => { st[key] = key === 'maxStars' && +s.value >= 10 ? 20 : +s.value; this.newSearch(); });
-      s.addEventListener('keydown', e => e.stopPropagation());
-      upd();
-      return s;
+    const range = h('div.ex-range');
+    const lo = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: st.minStars, 'aria-label': 'Minimum stars' });
+    const hi = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: Math.min(10, st.maxStars), 'aria-label': 'Maximum stars' });
+    const v = h('span.ex-starval');
+    const paint = () => {
+      range.style.setProperty('--a', (lo.value * 10) + '%'); range.style.setProperty('--b', (hi.value * 10) + '%');
+      v.textContent = this.starLabel(+lo.value, +hi.value >= 10 ? 20 : +hi.value);
     };
-    const v = h('span.ex-starval', this.starLabel());
-    return h('div.ex-stars', mk('minStars', 'Minimum stars'), mk('maxStars', 'Maximum stars'), v);
+    // the handles can't cross: the one being dragged stops at the other
+    lo.addEventListener('input', () => { if (+lo.value > +hi.value) lo.value = hi.value; paint(); });
+    hi.addEventListener('input', () => { if (+hi.value < +lo.value) hi.value = lo.value; paint(); });
+    const commit = () => { st.minStars = +lo.value; st.maxStars = +hi.value >= 10 ? 20 : +hi.value; this.newSearch(); };
+    for (const s of [lo, hi]) { s.addEventListener('change', commit); s.addEventListener('keydown', e => e.stopPropagation()); }
+    range.append(lo, hi);
+    paint();
+    return h('div.ex-stars', range, v);
   },
-  starLabel() { const st = this.state; return `${st.minStars.toFixed(1)}★ – ${st.maxStars >= 10 ? '∞' : st.maxStars.toFixed(1) + '★'}`; },
+  starLabel(min = this.state.minStars, max = this.state.maxStars) { return `${min.toFixed(1)}★ – ${max >= 10 ? '∞' : max.toFixed(1) + '★'}`; },
   /** The sort sent to the server: none for the default (newest ranked first), exactly like Web-Osu-Mania. */
   sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
   /** The order results come in: the chosen one, or osu!'s default for this search. */
