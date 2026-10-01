@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Beatmap info opens on the easiest difficulty
+
+* **Beatmap listing:** opening a beatmap's info page selects its first (easiest) difficulty, as lazer's difficulty picker does. It used to open on the hardest.
+
 ### Star rating follows your mods
 
 * **Song select:** with a speed mod on (DT, HT, NC, Daycore, Song Speed), the beatmap panel and every difficulty in the list show the star rating and colour for that speed, as lazer does. They're worked out in the background, a moment after you change mods, and remembered. Changing mods now also updates the panel's length and BPM straight away (they used to wait until you picked another beatmap).

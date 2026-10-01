@@ -11746,7 +11746,7 @@ const ExplorerScreen = {
   openSet(set) {
     this.closeSet();
     UISounds.click();
-    this.setView = { set, diff: set.diffs[set.diffs.length - 1] };
+    this.setView = { set, diff: set.diffs[0] }; // (lazer's BeatmapPicker starts on the first difficulty, the easiest)
     this.setEl = h('div.bso', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
     this.setO = makeOverlay(this.setEl, { backdrop: false, onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
     this.renderSet();
