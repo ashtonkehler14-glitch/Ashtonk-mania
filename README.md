@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Practice bar
+
+* **Practice:** the audio offset buttons stay together as "− offset 0ms +". On narrower screens the minus used to be stranded at the end of one row with the rest on the next.
+
 ### Main menu keys
 
 * **Shortcuts:** U now opens your profile from the main menu, as the shortcuts list (?) said it would. The list also shows the Edit keys (E, then S / I / B / C / R) and no longer mentions a Practice key the Play menu doesn't have (practice is F4 in song select).

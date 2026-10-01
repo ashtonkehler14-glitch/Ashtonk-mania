@@ -585,6 +585,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
 .practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(calc(100 * var(--vw)) - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
 .practice-bar.dim { opacity: .25; }
+.pr-offset { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .practice-bar.docked { left: 16px; transform: none; bottom: 64px; }
 .practice-bar.docked.dim { opacity: .85; }
 .practice-bar:hover { opacity: 1; }
