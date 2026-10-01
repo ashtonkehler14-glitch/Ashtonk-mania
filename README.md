@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Steady room list
+
+* **Multiplayer lobby:** the open rooms list still refreshes every few seconds, but rooms that haven't changed stay exactly as they are. Every row used to rebuild, replay its slide-in and reload its cover on each refresh, so the list blinked constantly and lost your hover. Only new or changed rooms animate in now.
+
 ### Ranked Play fixes
 
 * **No more "null":** after a normal round, the damage screen showed the word "null" under the damage line, and the pick screen did too. Both are gone, and both test suites now fail if this kind of bug comes back.

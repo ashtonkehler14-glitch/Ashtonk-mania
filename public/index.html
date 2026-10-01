@@ -2245,7 +2245,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* lobby room list (lazer's lounge) */
 .mp-roomlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .mp-rooms-empty { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 10px; background: rgba(255, 255, 255, .03); color: var(--muted); font-size: .88rem; }
-.mp-room-row { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; min-height: 76px; padding: 10px 18px; border: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); color: #fff; text-align: left; cursor: pointer; transition: transform 150ms var(--ease-out), box-shadow 150ms; animation: rowIn 300ms var(--ease-out) both; }
+.mp-room-row { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; min-height: 76px; padding: 10px 18px; border: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); color: #fff; text-align: left; cursor: pointer; transition: transform 150ms var(--ease-out), box-shadow 150ms; }
+.mp-room-row.anim { animation: rowIn 300ms var(--ease-out) both; }
 .mp-room-row:hover:not(:disabled) { transform: translateX(4px); box-shadow: -4px 0 0 #ff66ab, 0 6px 18px rgba(0, 0, 0, .35); }
 .mp-room-row:disabled { opacity: .7; cursor: default; }
 .mp-rbg { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat; }
@@ -13362,7 +13363,16 @@ const MultiplayerScreen = {
     if (!el.isConnected || Multiplayer.inRoom()) return;
     const left = Multiplayer.lastLeft;
     if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));
+    // rows that haven't changed since the last poll (every 3s) are kept as they are: rebuilding them replayed their
+    // slide-in and reloaded their covers, so the whole list blinked
+    const prevRows = this._roomRows || new Map(), nextRows = new Map();
+    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.skill, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
+    const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
+    if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
+    this._roomsSig = listSig;
     clearEl(el).append(...(rooms && rooms.length ? rooms.map(r => {
+      const sig = sigOf(r), old = prevRows.get(r.code);
+      if (old && old.sig === sig) { nextRows.set(r.code, old); old.row.disabled = r.players >= r.size || r.state === 'playing'; return old.row; }
       const bg = h('div.mp-rbg');
       if (r.map && r.map.onlineSetId > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(r.map.onlineSetId, 'card')}")`;
       const full = r.players >= r.size, playing = r.state === 'playing';
@@ -13378,8 +13388,12 @@ const MultiplayerScreen = {
         h('div.mp-rplayers', Presence.avatarEl({ name: r.host, avatar: r.avatar }, 32), h('b', `${r.players}/${r.size}`)),
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
+      // (the slide-in class goes once it has played: moving a row back in would otherwise replay it)
+      row.classList.add('anim'); row.addEventListener('animationend', () => row.classList.remove('anim'), { once: true });
+      nextRows.set(r.code, { sig, row });
       return row;
     }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Can\'t reach the multiplayer server right now — trying again…')]));
+    this._roomRows = nextRows;
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 

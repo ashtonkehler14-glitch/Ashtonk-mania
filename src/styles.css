@@ -2228,7 +2228,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* lobby room list (lazer's lounge) */
 .mp-roomlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .mp-rooms-empty { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 10px; background: rgba(255, 255, 255, .03); color: var(--muted); font-size: .88rem; }
-.mp-room-row { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; min-height: 76px; padding: 10px 18px; border: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); color: #fff; text-align: left; cursor: pointer; transition: transform 150ms var(--ease-out), box-shadow 150ms; animation: rowIn 300ms var(--ease-out) both; }
+.mp-room-row { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; min-height: 76px; padding: 10px 18px; border: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); color: #fff; text-align: left; cursor: pointer; transition: transform 150ms var(--ease-out), box-shadow 150ms; }
+.mp-room-row.anim { animation: rowIn 300ms var(--ease-out) both; }
 .mp-room-row:hover:not(:disabled) { transform: translateX(4px); box-shadow: -4px 0 0 #ff66ab, 0 6px 18px rgba(0, 0, 0, .35); }
 .mp-room-row:disabled { opacity: .7; cursor: default; }
 .mp-rbg { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat; }
