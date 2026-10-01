@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Leaderboard avatars
+- Song select's leaderboard rows now show the player's avatar, as lazer's do. Your own scores use your avatar, and another player's local score shows their initial.
+
 ### Replays rows
 - Replays on the Replays page now look like Collections rows: the set's picture first, and the grade as a pill by the title.
 - A replay whose beatmap is missing says why its Watch button is greyed out.

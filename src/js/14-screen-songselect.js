@@ -591,6 +591,8 @@ const SongSelect = {
     scores.forEach((s, i) => {
       const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
         h('span.rank', '#' + (i + 1)), rankPill(s.grade),
+        // (lazer's leaderboard scores carry the player's avatar; another player's local score gets their initial)
+        !s.player || s.player === who ? ProfileManager.avatarEl(32) : h('div.avatar.avatar-mono', { style: { width: '32px', height: '32px', fontSize: '14px' } }, s.player.slice(0, 1).toUpperCase()),
         h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
         h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
         h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
