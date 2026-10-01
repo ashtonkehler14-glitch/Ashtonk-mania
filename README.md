@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Main menu keys
+
+* **Shortcuts:** U now opens your profile from the main menu, as the shortcuts list (?) said it would. The list also shows the Edit keys (E, then S / I / B / C / R) and no longer mentions a Practice key the Play menu doesn't have (practice is F4 in song select).
+
 ### In-game leaderboard keeps up
 
 * **Gameplay leaderboard:** your row on the left updates on every judged note, so its score and accuracy always match the counters at the top right. It used to update a few times a second and could show slightly older numbers.

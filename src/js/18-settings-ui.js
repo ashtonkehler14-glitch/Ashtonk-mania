@@ -314,7 +314,7 @@ const Shortcuts = {
       [['Ctrl', 'O'], 'Settings'], [['Esc'], 'Back / close'], [['Alt', 'Enter'], 'Fullscreen'],
       [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
     ['Main menu', [
-      [['P'], 'Play'], [['S', 'M', 'P'], 'Solo, Multi, Practice (after Play)'], [['B'], 'Browse beatmaps online'],
+      [['P'], 'Play'], [['S', 'M'], 'Solo, Multi (after Play)'], [['E'], 'Edit'], [['S', 'I', 'B', 'C', 'R'], 'Skins, Import, Beatmaps, Collections, Replays (after Edit)'], [['B'], 'Browse beatmaps online'],
       [['U'], 'Profile'], [['O'], 'Settings'], [['←', '→', 'Enter'], 'Move and press']]],
     ['Song select', [
       [['~type'], 'Search — filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30'], [['↑', '↓'], 'Difficulty'], [['←', '→'], 'Beatmap set'],

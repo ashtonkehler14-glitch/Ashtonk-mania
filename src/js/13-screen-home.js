@@ -84,6 +84,7 @@ const HomeScreen = {
   onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
     if (this.menuState === 'initial' && !['Escape', 'Tab', 'Shift'].includes(e.key)) { UISounds.click(); this.setState('top'); return true; }
+    if (e.code === 'KeyU') { UISounds.click(); Screens.go('profile'); return true; } // (listed under ? as a main menu key)
     const d = this.menuButtons(this.menuState);
     const hit = [...d.left, ...d.right].find(b => b[4] && b[4].length === 1 && e.code === 'Key' + b[4]);
     if (hit) { UISounds.click(); hit[3](); return true; }
