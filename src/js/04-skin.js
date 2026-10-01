@@ -205,7 +205,24 @@ class Skin {
   /** The [Mania] section for a key count. When a skin has several for the same count (edits often paste a new
    *  section in without removing the old one), the one whose images are actually in the skin wins; with a tie,
    *  the last one (osu!lazer's rule). */
-  maniaSection(keys) { return this._nativeSection(keys) || this._borrowSection(keys); }
+  maniaSection(keys) {
+    const own = this._nativeSection(keys);
+    // a section whose notes all point at images the skin doesn't have (edits often leave broken 7K sections behind)
+    // plays through the skin's own 4K art instead of falling back to generic notes
+    if (own && keys !== 4 && !this._hasNoteArt(own, keys)) { const b = this._borrowSection(keys); if (b) return b; }
+    return own || this._borrowSection(keys);
+  }
+  /** Does any column of this section have a note image that's in the skin? */
+  _hasNoteArt(sec, keys) {
+    this._artCache = this._artCache || new Map();
+    if (this._artCache.has(sec)) return this._artCache.get(sec);
+    const g = k => { for (const kk in sec) if (kk.toLowerCase() === k.toLowerCase()) return sec[kk]; return undefined; };
+    const types = maniaColumnTypes(keys, parseInt(g('SpecialStyle') || '0', 10) || 0);
+    let ok = false;
+    for (let i = 0; i < keys && !ok; i++) { const v = g(`NoteImage${i}`); ok = v ? this.has(v) : this.has(`mania-note${types[i]}`); }
+    this._artCache.set(sec, ok);
+    return ok;
+  }
   _nativeSection(keys) {
     const cands = (this.ini.maniaList || []).filter(s => parseInt(Object.entries(s).find(([k]) => k.toLowerCase() === 'keys')?.[1], 10) === keys);
     if (cands.length < 2) return this.ini.mania[keys] || null;
@@ -219,7 +236,7 @@ class Skin {
   }
   supportedKeys() { return Object.keys(this.ini.mania).map(Number).sort((a, b) => a - b); }
   /** Key counts this skin has no section for but plays through its 4K one (see _borrowSection). */
-  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => !this._nativeSection(k) && this._borrowSection(k)); }
+  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => k !== 4 && this.maniaSection(k) && this.maniaSection(k).__from4K); }
 
   /** Which of a 4K skin's columns (0-3) each of `keys` columns uses. The left half steps outward-in through columns
    *  1-2, the right half through 4-3, and an odd middle column carries on the alternation: 5K plays as 1 2 1 3 4,
@@ -251,8 +268,9 @@ class Skin {
     const list = (k, n, d) => ManiaLayout.list(g(k), n, d);
     const cw = list('ColumnWidth', 4, 30), sp = list('ColumnSpacing', 3, 0);
     const total4 = cw.reduce((a, b) => a + b, 0) + sp.reduce((a, b) => a + b, 0);
-    // columns keep their 4K width until the stage would pass 480 (of the 640×480 playfield) or 1.45× the 4K stage
-    const f = keys <= 4 ? 1 : Math.min(1, Math.max(480, total4 * 1.45) / (total4 * keys / 4));
+    // columns keep their 4K width until the stage would pass 1.45× the 4K stage (360 of the 640×480 playfield for
+    // a very narrow 4K skin), so 7K+ stages don't swallow the screen
+    const f = keys <= 4 ? 1 : Math.min(1, Math.max(360, total4 * 1.45) / (total4 * keys / 4));
     const widths = map.map(c => +(cw[c] * f).toFixed(2)), gap = +(Math.min(...sp) * f).toFixed(2);
     sec.ColumnWidth = widths.join(',');
     // narrower columns shrink the keys too, about the hit position, so receptors keep the shape of the notes

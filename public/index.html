@@ -1727,9 +1727,10 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 
 
 /* mods sit under the numbers; bright as the map starts, then settle back (lazer's ModDisplay contracts and fades) */
-.hud-score .hud-mods { position: static; margin-top: 7px; gap: 3px; animation: hudModsSettle 600ms ease 3s both; }
+.hud-score .hud-mods { position: static; margin-top: 8px; gap: 2px; justify-content: flex-end; animation: hudModsSettle 600ms ease 3s both; }
+.hud-mods .mod-icon { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4)); }
 .hud-mods .mod-badge { min-width: 30px; height: 19px; font-size: .64rem; border-radius: 5px; border: 0; background: color-mix(in srgb, var(--mod) 30%, rgba(0, 0, 0, .35)); color: color-mix(in srgb, var(--mod) 45%, white); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
-@keyframes hudModsSettle { to { opacity: .55; } }
+@keyframes hudModsSettle { to { opacity: .7; } }
 .hud-progress { height: 3px; background: rgba(255, 255, 255, .05); }
 .hud-progress i { opacity: .85; }
 .hud-replay { top: 14px; padding: 4px 12px; background: rgba(0, 0, 0, .3); border: 0; font-size: .72rem; letter-spacing: .12em; color: rgba(255, 255, 255, .75); text-shadow: var(--hud-shadow); }
@@ -2342,6 +2343,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rp-rr.on { background: var(--accent); color: #fff; }
 .qp-card.marked { box-shadow: 0 0 0 2px var(--accent); }
 .qp-card.marked .qp-card-bg { filter: grayscale(.6) brightness(.7); }
+
+.hud-lb.lb-empty { display: none; }
+
 
 </style>
 </head>
@@ -3399,7 +3403,24 @@ class Skin {
   /** The [Mania] section for a key count. When a skin has several for the same count (edits often paste a new
    *  section in without removing the old one), the one whose images are actually in the skin wins; with a tie,
    *  the last one (osu!lazer's rule). */
-  maniaSection(keys) { return this._nativeSection(keys) || this._borrowSection(keys); }
+  maniaSection(keys) {
+    const own = this._nativeSection(keys);
+    // a section whose notes all point at images the skin doesn't have (edits often leave broken 7K sections behind)
+    // plays through the skin's own 4K art instead of falling back to generic notes
+    if (own && keys !== 4 && !this._hasNoteArt(own, keys)) { const b = this._borrowSection(keys); if (b) return b; }
+    return own || this._borrowSection(keys);
+  }
+  /** Does any column of this section have a note image that's in the skin? */
+  _hasNoteArt(sec, keys) {
+    this._artCache = this._artCache || new Map();
+    if (this._artCache.has(sec)) return this._artCache.get(sec);
+    const g = k => { for (const kk in sec) if (kk.toLowerCase() === k.toLowerCase()) return sec[kk]; return undefined; };
+    const types = maniaColumnTypes(keys, parseInt(g('SpecialStyle') || '0', 10) || 0);
+    let ok = false;
+    for (let i = 0; i < keys && !ok; i++) { const v = g(`NoteImage${i}`); ok = v ? this.has(v) : this.has(`mania-note${types[i]}`); }
+    this._artCache.set(sec, ok);
+    return ok;
+  }
   _nativeSection(keys) {
     const cands = (this.ini.maniaList || []).filter(s => parseInt(Object.entries(s).find(([k]) => k.toLowerCase() === 'keys')?.[1], 10) === keys);
     if (cands.length < 2) return this.ini.mania[keys] || null;
@@ -3413,7 +3434,7 @@ class Skin {
   }
   supportedKeys() { return Object.keys(this.ini.mania).map(Number).sort((a, b) => a - b); }
   /** Key counts this skin has no section for but plays through its 4K one (see _borrowSection). */
-  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => !this._nativeSection(k) && this._borrowSection(k)); }
+  borrowedKeys() { return Array.from({ length: 10 }, (_, i) => i + 1).filter(k => k !== 4 && this.maniaSection(k) && this.maniaSection(k).__from4K); }
 
   /** Which of a 4K skin's columns (0-3) each of `keys` columns uses. The left half steps outward-in through columns
    *  1-2, the right half through 4-3, and an odd middle column carries on the alternation: 5K plays as 1 2 1 3 4,
@@ -3445,8 +3466,9 @@ class Skin {
     const list = (k, n, d) => ManiaLayout.list(g(k), n, d);
     const cw = list('ColumnWidth', 4, 30), sp = list('ColumnSpacing', 3, 0);
     const total4 = cw.reduce((a, b) => a + b, 0) + sp.reduce((a, b) => a + b, 0);
-    // columns keep their 4K width until the stage would pass 480 (of the 640×480 playfield) or 1.45× the 4K stage
-    const f = keys <= 4 ? 1 : Math.min(1, Math.max(480, total4 * 1.45) / (total4 * keys / 4));
+    // columns keep their 4K width until the stage would pass 1.45× the 4K stage (360 of the 640×480 playfield for
+    // a very narrow 4K skin), so 7K+ stages don't swallow the screen
+    const f = keys <= 4 ? 1 : Math.min(1, Math.max(360, total4 * 1.45) / (total4 * keys / 4));
     const widths = map.map(c => +(cw[c] * f).toFixed(2)), gap = +(Math.min(...sp) * f).toFixed(2);
     sec.ColumnWidth = widths.join(',');
     // narrower columns shrink the keys too, about the hit position, so receptors keep the shape of the notes
@@ -4560,7 +4582,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.scoring', l: 'Score display mode', t: 'select', d: 'classic', o: [['classic', 'Classic (ScoreV1)'], ['standardised', 'osu!lazer standardised']], hint: 'Classic is osu!stable\'s ScoreV1 for mania. Standardised is osu!lazer\'s: 150,000 for combo and 850,000 for accuracy, so accuracy counts most. Every play records both, and leaderboards and personal bests follow this choice (scores from before it existed keep their classic score). Multiplayer matches always use classic.' },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skin', o: [['skin', 'From the skin'], ['skinstage', 'Skin, beside stage'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
@@ -4662,6 +4684,8 @@ const Settings = {
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
     // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
     if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
+    // the skin's health bar sits beside the stage, where osu!mania puts it (it used to default to the top-left corner)
+    if (!v['migr.hpStage']) { if (v['gameplay.healthStyle'] === 'skin') v['gameplay.healthStyle'] = 'skinstage'; v['migr.hpStage'] = true; }
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
@@ -9085,7 +9109,7 @@ const GameplayScreen = {
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
       // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
-        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))) : null),
+        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -9287,6 +9311,8 @@ const GameplayScreen = {
     if (s.mode === 'auto' || s.practice) return;
     const skip = s.replay && s.replay.scoreId;
     const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
+    // nothing to climb past on a first play: no board (a lone "#1 you" row is just clutter, and lazer shows none)
+    if (!rows.length) { this.lbEl.classList.add('lb-empty'); return; }
     const mk = (name, sub, sc, me) => {
       const r = { pos: h('span.pos'), sub: h('span', sub), sc: h('span.sc', sc) };
       r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
@@ -10970,7 +10996,7 @@ const CHANGELOG = [
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
     { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick your skill level and the cards suit you both', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
-    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count'] },
   ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [
     { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },

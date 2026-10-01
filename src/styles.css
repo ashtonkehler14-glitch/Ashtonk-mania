@@ -1710,9 +1710,10 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 
 
 /* mods sit under the numbers; bright as the map starts, then settle back (lazer's ModDisplay contracts and fades) */
-.hud-score .hud-mods { position: static; margin-top: 7px; gap: 3px; animation: hudModsSettle 600ms ease 3s both; }
+.hud-score .hud-mods { position: static; margin-top: 8px; gap: 2px; justify-content: flex-end; animation: hudModsSettle 600ms ease 3s both; }
+.hud-mods .mod-icon { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4)); }
 .hud-mods .mod-badge { min-width: 30px; height: 19px; font-size: .64rem; border-radius: 5px; border: 0; background: color-mix(in srgb, var(--mod) 30%, rgba(0, 0, 0, .35)); color: color-mix(in srgb, var(--mod) 45%, white); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
-@keyframes hudModsSettle { to { opacity: .55; } }
+@keyframes hudModsSettle { to { opacity: .7; } }
 .hud-progress { height: 3px; background: rgba(255, 255, 255, .05); }
 .hud-progress i { opacity: .85; }
 .hud-replay { top: 14px; padding: 4px 12px; background: rgba(0, 0, 0, .3); border: 0; font-size: .72rem; letter-spacing: .12em; color: rgba(255, 255, 255, .75); text-shadow: var(--hud-shadow); }
@@ -2325,3 +2326,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rp-rr.on { background: var(--accent); color: #fff; }
 .qp-card.marked { box-shadow: 0 0 0 2px var(--accent); }
 .qp-card.marked .qp-card-bg { filter: grayscale(.6) brightness(.7); }
+
+.hud-lb.lb-empty { display: none; }
+

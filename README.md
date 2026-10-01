@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Gameplay polish across skins
+
+* **Skin health bars stand beside the stage,** where osu!mania puts them, instead of running across the top-left corner (the Chemuss bar reached into the playfield). The top-left placement is still in Settings.
+* **Broken key-count sections:** if a skin's own section for a key count points only at images it doesn't contain (Chemuss's 7K does), that key count plays with the skin's 4K art instead of generic notes.
+* **Narrower 7K+ stages** for skins played through their 4K art (at most 1.45× the 4K stage).
+* **No lone leaderboard:** on a map you haven't passed yet, there's no "#1 you" panel on the left.
+* **Bigger mod icons** under the score, in lazer's style.
+
 ### Ranked Play rework
 
 * **No rating or tiers.** Ranked Play is just a way to play: 1v1 with beatmap cards and HP.

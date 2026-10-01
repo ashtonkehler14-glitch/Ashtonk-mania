@@ -454,7 +454,7 @@ const GameplayScreen = {
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
       // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
-        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => ModSystem.badge(m))) : null),
+        s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -656,6 +656,8 @@ const GameplayScreen = {
     if (s.mode === 'auto' || s.practice) return;
     const skip = s.replay && s.replay.scoreId;
     const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
+    // nothing to climb past on a first play: no board (a lone "#1 you" row is just clutter, and lazer shows none)
+    if (!rows.length) { this.lbEl.classList.add('lb-empty'); return; }
     const mk = (name, sub, sc, me) => {
       const r = { pos: h('span.pos'), sub: h('span', sub), sc: h('span.sc', sc) };
       r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);

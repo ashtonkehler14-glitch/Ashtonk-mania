@@ -627,15 +627,15 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
     const r = { bar: [bar.el.width > 100, bar.el.height > 10, Math.abs(bar.shown - 0.5) < 0.01, !!K.tex.scorebarBg] };
     bar.el.remove();
     r.modes = [f(K), f(bare)];
-    await S.set('gameplay.healthStyle', 'skinstage'); r.modes.push(f(K), f(bare));
+    await S.set('gameplay.healthStyle', 'skin'); r.modes.push(f(K), f(bare));
     await S.set('gameplay.healthStyle', 'stage'); r.modes.push(f(K));
     await S.set('gameplay.healthStyle', 'lazer'); r.modes.push(f(K));
     await S.set('gameplay.showHealth', false); r.modes.push(f(K));
     S.reset('gameplay.healthStyle'); S.reset('gameplay.showHealth');
     return r;
   });
-  check('the bundled Kori uses its own health bar (scorebar images), eased like osu!lazer', hpStyles.bar.every(Boolean) && hpStyles.modes[0] === 'skin', JSON.stringify(hpStyles));
-  check('health bar styles: skin top-left / skin beside stage / osu!lazer / slim; skins without a scorebar fall back to osu!lazer', hpStyles.modes.join() === 'skin,lazer,skinstage,lazer,stage,lazer,', JSON.stringify(hpStyles.modes));
+  check('the bundled Kori uses its own health bar (scorebar images), eased like osu!lazer', hpStyles.bar.every(Boolean) && hpStyles.modes[0] === 'skinstage', JSON.stringify(hpStyles));
+  check('health bar styles: skin beside the stage (default, as in osu!mania) / skin top-left / osu!lazer / slim; skins without a scorebar fall back to osu!lazer', hpStyles.modes.join() === 'skinstage,lazer,skin,lazer,stage,lazer,', JSON.stringify(hpStyles.modes));
   check('older installs of the bundled Kori get its health bar images once (upgrade)', await page.evaluate(async () => {
     const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(m => /Kori 3\.0$/.test(m.name));
     meta.files = meta.files.filter(f => !/^scorebar-/i.test(f)); await A.DB.put('skins', meta);
