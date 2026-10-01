@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Gentler kiai logo
+- The main menu logo's kiai flash and pulse are toned down to match the softer side glows.
+
 ### Softer side flashes
 - The main menu's side flashes are now a subtle glow instead of a bright white bar:
   - They peak at about a quarter of their old strength.
