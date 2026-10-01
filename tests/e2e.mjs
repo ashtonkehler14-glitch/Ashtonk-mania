@@ -833,6 +833,11 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await wctx.close();
 }
 
+// song select: clicking a difficulty must not slide the whole list sideways (the panels run past the right edge)
+await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(900);
+await page.click('.diff-panel >> nth=1'); await page.waitForTimeout(500);
+check('song select: clicking a difficulty keeps the list in place (no sideways scroll)', await page.evaluate(() => document.querySelector('.carousel-scroll').scrollLeft === 0));
+
 // settings: typing goes straight into its search box (as in lazer), not to the screen behind
 await page.evaluate(() => { AshtonkMania.Screens.go('songselect', { force: true }); });
 await page.waitForTimeout(600);

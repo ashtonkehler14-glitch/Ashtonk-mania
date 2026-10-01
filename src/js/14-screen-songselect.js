@@ -58,6 +58,9 @@ const SongSelect = {
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
     this.scroller.addEventListener('scroll', () => {
+      // the panels run past the right edge, so focusing one (a click) made the browser scroll the list sideways and
+      // cut every panel's left edge off; the list only ever scrolls up and down
+      if (this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
       this.renderVisible();
       // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
       const sc = this.scroller, under = sc.scrollTop > 4;
