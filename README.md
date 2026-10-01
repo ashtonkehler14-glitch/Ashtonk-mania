@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Right-mouse scrolling in song select
+
+* **Song select:** as in lazer, holding the right mouse button in the space beside the beatmap list jumps the list to that point (top = start, bottom = end), and it follows the pointer while you hold. It's the quick way through a big library. Right-clicking a beatmap still opens its menu.
+
 ### Random like lazer
 
 * **Song select:** Random (F2) always moves to a different beatmap set, and goes through every set before any comes up again. It picks a set first and then one of its difficulties, so big sets don't come up more often. Shift+F2, or right-clicking Random, rewinds to the beatmap you were on before, as in lazer.

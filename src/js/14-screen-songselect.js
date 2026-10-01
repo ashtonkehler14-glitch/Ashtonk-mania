@@ -66,6 +66,17 @@ const SongSelect = {
       const sc = this.scroller, under = sc.scrollTop > 4;
       if (under !== sc.classList.contains('under')) sc.classList.toggle('under', under);
     }, { passive: true });
+    // lazer's right-mouse absolute scroll: hold the right button beside the panels and the list jumps to that point
+    // (top of the area = start of the list, bottom = end), following the pointer while held
+    this.scroller.addEventListener('pointerdown', e => {
+      if (e.button !== 2 || e.target.closest('.set-panel, .diff-panel')) return;
+      const sc = this.scroller;
+      const to = ev => { const r = sc.getBoundingClientRect(), f = clamp((ev.clientY - r.top) / r.height, 0, 1); sc.scrollTop = f * (sc.scrollHeight - sc.clientHeight); };
+      const up = () => { sc.removeEventListener('pointermove', to); sc.removeEventListener('pointerup', up); sc.removeEventListener('pointercancel', up); };
+      sc.setPointerCapture(e.pointerId);
+      sc.addEventListener('pointermove', to); sc.addEventListener('pointerup', up); sc.addEventListener('pointercancel', up);
+      to(e);
+    });
     // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
     this._vh = 0;
     new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);
