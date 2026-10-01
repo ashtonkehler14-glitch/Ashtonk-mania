@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Quieter during play
+
+* **Gameplay:** if the game lowers the playfield's resolution to keep a beatmap smooth, it now says so after the play, not with a pop-up in the middle of it. lazer also holds notifications back while you play.
+
 ### Settings tidy-up
 
 * **Audio:** there were two settings both called "Interface sounds". The on/off switch is now "Play interface sounds"; the volume slider keeps the name.

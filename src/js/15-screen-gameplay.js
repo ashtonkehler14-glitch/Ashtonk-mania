@@ -187,6 +187,7 @@ const GameplayScreen = {
     return el;
   },
   leave() {
+    if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
     clearTimeout(this._retryHold);
@@ -586,7 +587,8 @@ const GameplayScreen = {
       this.renderer.autoScale = a.scale;
       this.renderer.resize(true);
       Settings.set('perf.autoScale', a.scale);
-      if (!this._asToast) { this._asToast = true; Toast.show('Lowered the resolution to keep up', `Playfield at ${Math.round(a.scale * 100)}% · Settings → Graphics → Automatic resolution`); }
+      // (told after the play, not in the middle of it: lazer holds notifications back while you play)
+      if (!this._asToast) { this._asToast = true; this._asPending = `Playfield at ${Math.round(a.scale * 100)}% · Settings → Graphics → Automatic resolution`; }
     }
   },
   /** End of a play: if it ran smoothly all the way, try a little higher next time. */
