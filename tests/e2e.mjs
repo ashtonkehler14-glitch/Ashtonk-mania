@@ -831,6 +831,15 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await wctx.close();
 }
 
+// settings: typing goes straight into its search box (as in lazer), not to the screen behind
+await page.evaluate(() => { AshtonkMania.Screens.go('songselect', { force: true }); });
+await page.waitForTimeout(600);
+await page.evaluate(() => AshtonkMania.SettingsPanel.open()); await page.waitForTimeout(400);
+await page.keyboard.type('dim'); await page.waitForTimeout(200);
+const typed = await page.evaluate(() => ({ sp: document.querySelector('.sp-search').value, ss: document.querySelector('input[aria-label="Search beatmaps"]').value, rows: document.querySelectorAll('.settings-panel .sp-section').length }));
+check('settings: typing right after opening searches the settings', typed.sp === 'dim' && typed.ss === '' && typed.rows >= 1, JSON.stringify(typed));
+await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+
 // the same toast again refreshes the one on screen instead of stacking copies
 const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.clear(); for (let i = 0; i < 4; i++) T.err('Same thing', 'again'); T.ok('Something else'); return document.querySelectorAll('#toasts .toast:not(.out)').length; });
 check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));

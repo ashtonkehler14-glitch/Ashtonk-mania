@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Settings search like lazer
+
+* **Settings:** the search box has focus as soon as the panel opens, so you can type the setting you want straight away. Typing anywhere else in the panel goes to the search too. Keystrokes used to fall through to the screen behind; in song select they filtered your beatmaps instead.
+
 ### Song select keeps your beatmap
 
 * **Song select:** when a search or filter matches nothing, the beatmap you had stays selected and still shows on the left, as in lazer. Clearing the search brings you back to it, not to the first song in the list.
