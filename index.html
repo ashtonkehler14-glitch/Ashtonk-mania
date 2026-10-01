@@ -7249,7 +7249,8 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
       setTimeout(() => wrap.remove(), 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
       onClose && onClose();
       const a = document.activeElement;
-      if (prev && prev.isConnected && !Overlays.top() && (!a || a === document.body || wrap.contains(a))) prev.focus({ preventScroll: true });
+      // (only a text box gets it back: a button refocused after a dialog showed a focus ring nobody asked for)
+      if (prev && prev.isConnected && /^(INPUT|TEXTAREA)$/.test(prev.tagName) && !Overlays.top() && (!a || a === document.body || wrap.contains(a))) prev.focus({ preventScroll: true });
     },
   };
   if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
@@ -10859,7 +10860,7 @@ const CollectionsScreen = {
   sel: null,
   enter() {
     const { el, page } = pageShell('Collections', null, [
-      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')], { icon: 'folder', hue: 'aquamarine' });
+      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; this.render(); } } }, icon('plus'), 'New collection')], { icon: 'folder', hue: 'aquamarine' });
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];

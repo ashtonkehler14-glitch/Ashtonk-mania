@@ -99,7 +99,7 @@ const CollectionsScreen = {
   sel: null,
   enter() {
     const { el, page } = pageShell('Collections', null, [
-      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; } } }, icon('plus'), 'New collection')], { icon: 'folder', hue: 'aquamarine' });
+      h('button.btn.primary', { onclick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); this.sel = c.id; this.render(); } } }, icon('plus'), 'New collection')], { icon: 'folder', hue: 'aquamarine' });
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];

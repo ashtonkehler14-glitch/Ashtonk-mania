@@ -234,7 +234,8 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
       setTimeout(() => wrap.remove(), 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
       onClose && onClose();
       const a = document.activeElement;
-      if (prev && prev.isConnected && !Overlays.top() && (!a || a === document.body || wrap.contains(a))) prev.focus({ preventScroll: true });
+      // (only a text box gets it back: a button refocused after a dialog showed a focus ring nobody asked for)
+      if (prev && prev.isConnected && /^(INPUT|TEXTAREA)$/.test(prev.tagName) && !Overlays.top() && (!a || a === document.body || wrap.contains(a))) prev.focus({ preventScroll: true });
     },
   };
   if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });

@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Collections
+
+* **New collections:** a collection you just made is selected straight away (it used to stay on the old one).
+* **After a dialog:** focus now goes back only to a text box you were typing in. A button no longer gets a focus ring after the dialog it opened closes.
+
 ### Song select list no longer slides sideways
 
 * **Song select:** clicking or right-clicking a difficulty used to slide the whole beatmap list about 145px to the left, cutting off the left edge of every panel until you left the screen. The list now only ever scrolls up and down. A test checks this.
