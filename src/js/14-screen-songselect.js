@@ -211,7 +211,9 @@ const SongSelect = {
     for (const r of results) for (const m of r.maps) allVisible.set(m.id, r);
     if (!this.selectedId || !allVisible.has(this.selectedId)) {
       const first = results[0];
-      this.selectedId = first ? (first.maps.find(m => !m.problems.length) || first.maps[0]).id : null;
+      // nothing matches: keep the current beatmap (as lazer does) so the wedge stays and clearing the search returns to it
+      if (first) this.selectedId = (first.maps.find(m => !m.problems.length) || first.maps[0]).id;
+      else if (this.selectedId && !BeatmapManager.maps.has(this.selectedId)) this.selectedId = null;
     }
     this.expandedSet = this.selectedId ? BeatmapManager.maps.get(this.selectedId)?.setId : null;
     this.layoutRows();

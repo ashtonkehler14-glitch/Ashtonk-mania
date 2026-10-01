@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Song select keeps your beatmap
+
+* **Song select:** when a search or filter matches nothing, the beatmap you had stays selected and still shows on the left, as in lazer. Clearing the search brings you back to it, not to the first song in the list.
+* **What's new:** a short "Little things" entry lists the changes from this round that you'll notice.
+
 ### Song select fade and quieter tooltips
 
 * **Song select:** once the list is scrolled, beatmaps fade out softly under the search and filter panel, as they do in lazer. They used to be cut off with a hard edge.
