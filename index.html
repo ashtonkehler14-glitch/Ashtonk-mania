@@ -605,6 +605,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pr-offset { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .practice-bar.docked { left: 16px; transform: none; bottom: 64px; }
 .practice-bar.docked.dim { opacity: .85; }
+.practice-bar.top { bottom: auto; top: 14px; }
+.practice-bar.docked .pr-controls, .practice-bar.docked .speed-group { flex-wrap: wrap; }
 .practice-bar:hover { opacity: 1; }
 .pr-timeline { position: relative; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; }
 .pr-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -10255,9 +10257,12 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     r.resize();
     const ratio = this.canvas.clientWidth / Math.max(1, r.W);
     const left = r.stageX * ratio;
-    const docked = left >= 330;
+    // beside the stage when it fits (a narrower panel just wraps into more rows); otherwise at the end of the screen
+    // away from the receptors (the top for downscroll), never over them
+    const docked = left >= 200;
     bar.classList.toggle('docked', docked);
-    bar.style.width = docked ? Math.min(480, left - 32) + 'px' : '';
+    bar.classList.toggle('top', !docked && Settings.get('gameplay.scrollDirection') !== 'up');
+    bar.style.width = docked ? Math.min(480, left - 24) + 'px' : '';
   },
   updatePracticeLabels() {
     if (!this.prOffset) return;

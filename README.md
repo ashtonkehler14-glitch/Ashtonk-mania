@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Practice tools out of the way
+
+* **Practice:** the practice panel no longer covers the receptors. It docks beside the stage as a compact panel whenever there's room (on 1280×720 it used to sit across the bottom of the stage). On screens too narrow for that, it moves to the opposite end of the stage from the receptors.
+
 ### Practice bar
 
 * **Practice:** the audio offset buttons stay together as "− offset 0ms +". On narrower screens the minus used to be stranded at the end of one row with the rest on the next.

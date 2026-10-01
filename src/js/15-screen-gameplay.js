@@ -1379,9 +1379,12 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     r.resize();
     const ratio = this.canvas.clientWidth / Math.max(1, r.W);
     const left = r.stageX * ratio;
-    const docked = left >= 330;
+    // beside the stage when it fits (a narrower panel just wraps into more rows); otherwise at the end of the screen
+    // away from the receptors (the top for downscroll), never over them
+    const docked = left >= 200;
     bar.classList.toggle('docked', docked);
-    bar.style.width = docked ? Math.min(480, left - 32) + 'px' : '';
+    bar.classList.toggle('top', !docked && Settings.get('gameplay.scrollDirection') !== 'up');
+    bar.style.width = docked ? Math.min(480, left - 24) + 'px' : '';
   },
   updatePracticeLabels() {
     if (!this.prOffset) return;
