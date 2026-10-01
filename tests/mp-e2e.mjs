@@ -41,8 +41,11 @@ const errors = [];
 
 async function player(name) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  // Element.append(null) writes the word "null" on screen: any such call is reported as a page error
+  await ctx.addInitScript(() => { for (const P of [Element.prototype, DocumentFragment.prototype]) { const o = P.append; P.append = function (...a) { if (a.some(x => x === null || x === undefined)) console.error('a null child was appended (it shows up as the text "null") to ' + (this.className || this.tagName)); return o.apply(this, a); }; } });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`${name} pageerror: ${e.message}`));
+  page.on('console', m => { if (m.type() === 'error' && /null child was appended/.test(m.text())) errors.push(`${name}: ${m.text()}`); });
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);

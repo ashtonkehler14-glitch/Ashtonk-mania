@@ -2186,6 +2186,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 
 /* Ranked Play room */
 .qp-stage.rp { align-items: stretch; }
+.qp-stage.rp.still, .qp-stage.rp.still .qp-card, .qp-stage.rp.still .rp-final-t, .qp-stage.rp.still .rp-side.hit, .qp-stage.rp.still .rp-dmg { animation: none; }
 .rp-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 8px; }
 .rp-vsmid { font-size: 1.4rem; font-weight: 800; font-style: italic; color: #ffcc22; text-shadow: 0 0 14px rgba(255, 204, 34, .5); }
 .rp-side { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); transition: box-shadow 200ms, transform 200ms; }

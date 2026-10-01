@@ -32,6 +32,8 @@ const check = (name, ok, extra = '') => { results.push({ name, ok }); console.lo
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 // (service workers off here: the API is mocked with page.route; the offline app is checked in its own context)
 const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+// Element.append(null) writes the word "null" on screen: any such call is reported as a page error
+await context.addInitScript(() => { for (const P of [Element.prototype, DocumentFragment.prototype]) { const o = P.append; P.append = function (...a) { if (a.some(x => x === null || x === undefined)) console.error('a null child was appended (it shows up as the text "null") to ' + (this.className || this.tagName)); return o.apply(this, a); }; } });
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));

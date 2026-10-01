@@ -2203,6 +2203,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 
 /* Ranked Play room */
 .qp-stage.rp { align-items: stretch; }
+.qp-stage.rp.still, .qp-stage.rp.still .qp-card, .qp-stage.rp.still .rp-final-t, .qp-stage.rp.still .rp-side.hit, .qp-stage.rp.still .rp-dmg { animation: none; }
 .rp-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 8px; }
 .rp-vsmid { font-size: 1.4rem; font-weight: 800; font-style: italic; color: #ffcc22; text-shadow: 0 0 14px rgba(255, 204, 34, .5); }
 .rp-side { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); transition: box-shadow 200ms, transform 200ms; }
@@ -13651,7 +13652,8 @@ const MultiplayerScreen = {
     // versus bar: picture, name, skill level and HP
     const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
     const side = (p, mine) => {
-      if (!p) return h('div.rp-side.empty', h('div.rp-av', h('span.spinner')), h('div.rp-name', 'Waiting…'));
+      if (!p) return g.phase === 'final' ? h('div.rp-side.empty', h('div.rp-av', icon('user')), h('div.rp-name', 'Left the match'))
+        : h('div.rp-side.empty', h('div.rp-av', h('span.spinner')), h('div.rp-name', 'Waiting…'));
       const hp = g.hp[p.id] ?? 1000000, hit = g.last && g.last.loser === p.id && (g.phase === 'damage' || g.phase === 'final');
       const ready = g.phase === 'gather' && g.ready && g.ready[p.id];
       return h(`div.rp-side${mine ? '.me' : ''}${g.picker === p.id && g.phase === 'pick' ? '.picking' : ''}${hit ? '.hit' : ''}`,
@@ -13662,7 +13664,11 @@ const MultiplayerScreen = {
           hit ? h('div.rp-dmg', `−${fmtInt(g.last.damage)}`) : null));
     };
     this._qpKey = null; // (rebuilt on every update: nothing here animates across updates)
-    this.qpStage = h(`div.qp-stage.rp.${g.phase}`, h('div.rp-vs', side(meP, true), h('div.rp-vsmid', 'VS'), side(opp, false)));
+    // the stage is rebuilt on every room update (a chat line, a ready tick…); only a new phase or round plays the
+    // entrance animations, otherwise the whole panel blinked each time
+    const phaseKey = `${r.code}|${g.round}|${g.phase}`, fresh = this._rpPhaseKey !== phaseKey;
+    this._rpPhaseKey = phaseKey;
+    this.qpStage = h(`div.qp-stage.rp.${g.phase}${fresh ? '' : '.still'}`, h('div.rp-vs', side(meP, true), h('div.rp-vsmid', 'VS'), side(opp, false)));
     const st = this.qpStage, cards = id => (g.hands[id] || []).map(i => this.qpCard(g.pool[i], i));
     if (g.phase === 'pool') st.append(h('div.qp-big', h('span.spinner'), 'Dealing cards…'), h('div.qp-sub', `Finding beatmaps between ${g.range ? `${g.range.lo}★ and ${g.range.hi}★` : 'your levels'}`));
     else if (g.phase === 'pick') {
@@ -13679,22 +13685,23 @@ const MultiplayerScreen = {
       });
       const reroll = h('button.btn.sm.rp-reroll', { disabled: used, title: used ? 'You\'ve rerolled this round' : 'Swap cards for new ones from the deck (once a round)',
         onclick: () => { UISounds.click(); Multiplayer.send({ t: 'reroll', cards: [...sel] }); sel.clear(); } }, icon('retry'), used ? 'Rerolled' : sel.size ? `Reroll ${sel.size} card${sel.size === 1 ? '' : 's'}` : 'Reroll hand');
-      st.append(h('div.qp-hint', mine ? 'Your pick: play a card you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
+      st.append(...[h('div.qp-hint', mine ? 'Your pick: play a card you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
         !mine && opp ? h('div.rp-hand.theirs', h('div.rp-hand-l', `${opp.name}'s hand`), h('div.qp-grid', ...cards(opp.id))) : null,
-        h('div.rp-hand', h('div.rp-hand-l', 'Your hand', h('span.grow'), reroll), h('div.qp-grid', ...hand)));
+        h('div.rp-hand', h('div.rp-hand-l', 'Your hand', h('span.grow'), reroll), h('div.qp-grid', ...hand))].filter(Boolean));
     } else if (['reveal', 'load', 'playing'].includes(g.phase)) {
       const m = r.map, c = m ? this.qpCard(m, g.chosen) : null;
       if (c) c.classList.add('chosen', 'wide', 'flip');
       const who = r.players.find(p => p.id === g.picker);
       const f = Multiplayer.fetch;
-      st.append(h('div.qp-hint', `${who ? (who.id === me ? 'You' : who.name) : 'The picker'} played:`), c,
-        g.phase === 'playing' ? h('div.qp-big', 'Match in progress') : h('div.qp-sub', !m ? '' : Multiplayer.localMap(m) ? 'Ready' : f && f.error ? `Download failed: ${f.error}` : f && f.progress != null ? `Downloading… ${Math.round(f.progress * 100)}%` : 'Getting the beatmap…'));
+      st.append(...[h('div.qp-hint', `${who ? (who.id === me ? 'You' : who.name) : 'The picker'} played:`), c,
+        g.phase === 'playing' ? h('div.qp-big', 'Match in progress') : h('div.qp-sub', !m ? '' : Multiplayer.localMap(m) ? 'Ready' : f && f.error ? `Download failed: ${f.error}` : f && f.progress != null ? `Downloading… ${Math.round(f.progress * 100)}%` : 'Getting the beatmap…')].filter(Boolean));
     } else if (g.phase === 'damage' && g.last) {
       const L = g.last, lose = r.players.find(p => p.id === L.loser);
-      st.append(h('div.qp-big', !L.loser ? 'Draw — no damage' : lose && lose.id === me ? `You took ${fmtInt(L.damage)} damage` : `${lose ? lose.name : 'They'} took ${fmtInt(L.damage)} damage`),
+      st.append(...[h('div.qp-big', !L.loser ? 'Draw — no damage' : lose && lose.id === me ? `You took ${fmtInt(L.damage)} damage` : `${lose ? lose.name : 'They'} took ${fmtInt(L.damage)} damage`),
         L.forfeit ? h('div.qp-sub', `${lose ? (lose.id === me ? 'You' : lose.name) : 'Someone'} left the song — the round went to ${lose && lose.id === me ? 'your opponent' : 'you'}`) : null,
-        h('div.rp-scores', ...r.players.map(p => h('div', h('span', p.name), h('b', fmtScore(L.scores[p.id] || 0))))),
-        h('div.qp-sub', `Next round: ×${1 + 0.5 * g.round} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`));
+        // (a forfeited song has no scores worth showing)
+        L.forfeit ? null : h('div.rp-scores', ...r.players.map(p => h('div', h('span', p.name), h('b', fmtScore(L.scores[p.id] || 0))))),
+        h('div.qp-sub', `Next round: ×${1 + 0.5 * g.round} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`)].filter(Boolean));
     } else if (g.phase === 'final') {
       const won = g.winner === me;
       st.append(h(`div.rp-final${won ? '.won' : ''}`, h('div.rp-final-t', won ? 'Victory' : g.winner ? 'Defeat' : 'Match over'),

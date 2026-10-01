@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play fixes
+
+* **No more "null":** after a normal round, the damage screen showed the word "null" under the damage line, and the pick screen did too. Both are gone, and both test suites now fail if this kind of bug comes back.
+* **No blinking:** the Ranked Play panel replayed its slide-in animation on every room update (a chat message, a player getting ready). It now only animates when the round or phase changes.
+* **Forfeits:** a round won because someone left the song no longer shows a meaningless "0 / 0" score line.
+* **Finished:** when your opponent has left, their side says "Left the match" instead of a spinner and "Waiting…".
+
 ### Beatmap listing titles
 
 * **Beatmap listing:** a long title on a listing card now ends in "…" before the favourite and play counts, instead of being cut off mid-letter underneath them.
