@@ -831,6 +831,10 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await wctx.close();
 }
 
+// the same toast again refreshes the one on screen instead of stacking copies
+const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.clear(); for (let i = 0; i < 4; i++) T.err('Same thing', 'again'); T.ok('Something else'); return document.querySelectorAll('#toasts .toast:not(.out)').length; });
+check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

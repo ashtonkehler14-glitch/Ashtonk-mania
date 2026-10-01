@@ -545,7 +545,17 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mods { position: absolute; top: 118px; right: 24px; display: flex; gap: 4px; }
 .hud-meta { position: absolute; bottom: 18px; left: 22px; color: var(--text-2); font-size: .85rem; font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); max-width: calc(30 * var(--vw)); }
 .hud-meta b { color: var(--text); }
-.hud-skip { position: absolute; right: 30px; bottom: 30px; pointer-events: auto; }
+.hud-skip { position: absolute; right: 30px; bottom: 30px; pointer-events: auto; width: 220px; height: 64px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 10px; overflow: hidden; border: 0; border-radius: 12px; background: rgba(0, 0, 0, .5); color: #fff; font: inherit; font-size: 1.45rem; font-weight: 700; cursor: pointer; box-shadow: 0 8px 26px rgba(0, 0, 0, .35); transition: background var(--t-fast), transform var(--t-fast) var(--ease-out); animation: skipIn 400ms var(--ease-out) both; }
+.hud-skip:hover { background: rgba(var(--accent-rgb), .55); transform: scale(1.04); }
+.hud-skip:active { transform: scale(.97); }
+.hud-skip .sk-chev { display: flex; }
+.hud-skip .sk-chev svg { width: 18px; height: 18px; margin: 0 -4px; animation: skipChev 1.2s ease-in-out infinite; }
+.hud-skip .sk-chev svg:nth-child(2) { animation-delay: .15s; }
+.hud-skip .sk-chev svg:nth-child(3) { animation-delay: .3s; }
+.hud-skip .kbd { margin-left: 4px; font-size: .7rem; opacity: .75; }
+.hud-skip .sk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .85); transform-origin: left; transform: scaleX(var(--left, 1)); }
+@keyframes skipChev { 0%, 100% { opacity: .3; transform: translateX(-2px); } 50% { opacity: 1; transform: translateX(3px); } }
+@keyframes skipIn { from { opacity: 0; transform: translateY(16px); } }
 .hud-center-msg { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 2.4rem; font-weight: 700; text-shadow: 0 4px 20px rgba(0, 0, 0, .7); pointer-events: none; animation: msgPop 400ms var(--ease-out); }
 @keyframes msgPop { from { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
 .hud-replay { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .55); border: 1px solid var(--line-2); font-weight: 700; font-size: .85rem; letter-spacing: .06em; }
@@ -1530,6 +1540,8 @@ div.res-calib .i { color: var(--good); }
 .toast .t-body { font-size: .8rem; color: hsl(255 40% 90%); opacity: .85; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(110%); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(110%); } }
+.toast.bump:not(.out) { animation: toastBump 320ms var(--ease-out); }
+@keyframes toastBump { 40% { transform: translateX(-6px); } }
 
 /* ── context menus — osu!lazer's OsuContextMenu: ContextMenuGray (#223034), 5px corners, 17px items padded 4×10;
    hovering darkens the item (#172023) and turns its text bold; destructive items are red */

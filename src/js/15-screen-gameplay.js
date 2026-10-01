@@ -474,7 +474,9 @@ const GameplayScreen = {
       this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
       this.hud.append(this.hpEl);
     }
-    this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
+    // lazer's skip overlay: a big button with moving chevrons and a bar for how long the intro can still be skipped
+    this.skipBtn = h('button.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } },
+      h('span.sk-label', 'Skip'), h('span.sk-chev', icon('chevron'), icon('chevron'), icon('chevron')), h('span.kbd', 'Space'), h('i.sk-bar'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
     this._scoreDigits = this._accDigits = null;
@@ -635,7 +637,11 @@ const GameplayScreen = {
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
-    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
+    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now; }
+    if (canSkip) {
+      const end = s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
+      this.skipBtn.style.setProperty('--left', left.toFixed(3));
+    }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
     if (this.skinHp) this.skinHp.update(e.health.value, performance.now());
     if (this.hpEl) {

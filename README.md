@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Skip button and toasts like lazer
+
+* **Skip:** the intro skip is now lazer's big skip button in the bottom right, with moving chevrons and a bar along its bottom that runs down while the intro can still be skipped. Space still skips.
+* **Toasts:** if the same message comes up again while it's still on screen, that toast gives a small nudge instead of stacking a copy. A toast stays while your pointer is on it and leaves shortly after you move away.
+
 ### Long names and the now playing button
 
 * **Now playing:** hovering the music button opens the panel, and the click that usually follows used to close it again. That click now keeps it open; click again to close.

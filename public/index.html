@@ -562,7 +562,17 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mods { position: absolute; top: 118px; right: 24px; display: flex; gap: 4px; }
 .hud-meta { position: absolute; bottom: 18px; left: 22px; color: var(--text-2); font-size: .85rem; font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); max-width: calc(30 * var(--vw)); }
 .hud-meta b { color: var(--text); }
-.hud-skip { position: absolute; right: 30px; bottom: 30px; pointer-events: auto; }
+.hud-skip { position: absolute; right: 30px; bottom: 30px; pointer-events: auto; width: 220px; height: 64px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 10px; overflow: hidden; border: 0; border-radius: 12px; background: rgba(0, 0, 0, .5); color: #fff; font: inherit; font-size: 1.45rem; font-weight: 700; cursor: pointer; box-shadow: 0 8px 26px rgba(0, 0, 0, .35); transition: background var(--t-fast), transform var(--t-fast) var(--ease-out); animation: skipIn 400ms var(--ease-out) both; }
+.hud-skip:hover { background: rgba(var(--accent-rgb), .55); transform: scale(1.04); }
+.hud-skip:active { transform: scale(.97); }
+.hud-skip .sk-chev { display: flex; }
+.hud-skip .sk-chev svg { width: 18px; height: 18px; margin: 0 -4px; animation: skipChev 1.2s ease-in-out infinite; }
+.hud-skip .sk-chev svg:nth-child(2) { animation-delay: .15s; }
+.hud-skip .sk-chev svg:nth-child(3) { animation-delay: .3s; }
+.hud-skip .kbd { margin-left: 4px; font-size: .7rem; opacity: .75; }
+.hud-skip .sk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .85); transform-origin: left; transform: scaleX(var(--left, 1)); }
+@keyframes skipChev { 0%, 100% { opacity: .3; transform: translateX(-2px); } 50% { opacity: 1; transform: translateX(3px); } }
+@keyframes skipIn { from { opacity: 0; transform: translateY(16px); } }
 .hud-center-msg { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 2.4rem; font-weight: 700; text-shadow: 0 4px 20px rgba(0, 0, 0, .7); pointer-events: none; animation: msgPop 400ms var(--ease-out); }
 @keyframes msgPop { from { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
 .hud-replay { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .55); border: 1px solid var(--line-2); font-weight: 700; font-size: .85rem; letter-spacing: .06em; }
@@ -1547,6 +1557,8 @@ div.res-calib .i { color: var(--good); }
 .toast .t-body { font-size: .8rem; color: hsl(255 40% 90%); opacity: .85; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(110%); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(110%); } }
+.toast.bump:not(.out) { animation: toastBump 320ms var(--ease-out); }
+@keyframes toastBump { 40% { transform: translateX(-6px); } }
 
 /* ── context menus — osu!lazer's OsuContextMenu: ContextMenuGray (#223034), 5px corners, 17px items padded 4×10;
    hovering darkens the item (#172023) and turns its text bold; destructive items are red */
@@ -7169,14 +7181,25 @@ function gradeEl(g, cls = '') {
 const Toast = {
   show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
+    const box = $('#toasts');
+    const key = `${type}\n${title}\n${body}`;
+    // the same message again while it's still up refreshes that toast instead of stacking a copy
+    const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
+    if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
     if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
-    const box = $('#toasts');
+    el._key = key;
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
-    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    let timer = 0;
+    const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    // like lazer's toasts, one stays while the pointer is on it and leaves a moment after
+    el._arm = () => { clearTimeout(timer); if (timeout) timer = setTimeout(close, timeout); };
+    el._close = close;
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', () => { if (timeout) timer = setTimeout(close, 1500); });
     el.addEventListener('click', close);
-    if (timeout) setTimeout(close, timeout);
+    el._arm();
     return close;
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
@@ -9199,7 +9222,9 @@ const GameplayScreen = {
       this.hpEl = h('div.hud-hp', h('div.hp-track', this.hpTrail, this.hpFill));
       this.hud.append(this.hpEl);
     }
-    this.skipBtn = h('button.btn.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } }, icon('skip'), 'Skip', h('span.kbd', 'Space'));
+    // lazer's skip overlay: a big button with moving chevrons and a bar for how long the intro can still be skipped
+    this.skipBtn = h('button.hud-skip', { onclick: () => this.skip(), style: { display: 'none' } },
+      h('span.sk-label', 'Skip'), h('span.sk-chev', icon('chevron'), icon('chevron'), icon('chevron')), h('span.kbd', 'Space'), h('i.sk-bar'));
     this.hud.append(this.skipBtn);
     // score and accuracy in the skin's own number font, when it has one
     this._scoreDigits = this._accDigits = null;
@@ -9360,7 +9385,11 @@ const GameplayScreen = {
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
-    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; }
+    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now; }
+    if (canSkip) {
+      const end = s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
+      this.skipBtn.style.setProperty('--left', left.toFixed(3));
+    }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
     if (this.skinHp) this.skinHp.update(e.health.value, performance.now());
     if (this.hpEl) {
@@ -13819,7 +13848,7 @@ const App = {
     this.bindGlobal();
     VolumeOverlay.bind();
     LazerCursor.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

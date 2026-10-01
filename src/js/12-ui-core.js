@@ -176,14 +176,25 @@ function gradeEl(g, cls = '') {
 const Toast = {
   show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
+    const box = $('#toasts');
+    const key = `${type}\n${title}\n${body}`;
+    // the same message again while it's still up refreshes that toast instead of stacking a copy
+    const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
+    if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
     if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
-    const box = $('#toasts');
+    el._key = key;
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
-    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    let timer = 0;
+    const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    // like lazer's toasts, one stays while the pointer is on it and leaves a moment after
+    el._arm = () => { clearTimeout(timer); if (timeout) timer = setTimeout(close, timeout); };
+    el._close = close;
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', () => { if (timeout) timer = setTimeout(close, 1500); });
     el.addEventListener('click', close);
-    if (timeout) setTimeout(close, timeout);
+    el._arm();
     return close;
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
