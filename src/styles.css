@@ -2406,3 +2406,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .sk-step svg { width: 14px; height: 14px; }
 .sk-k { min-width: 40px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sk-khint { margin-left: 8px; font-size: .82rem; }
+
+/* multiplayer: panels rebuilt on a room update don't replay their slide-in */
+.mp-results.still, .mp-vote.still { animation: none; }

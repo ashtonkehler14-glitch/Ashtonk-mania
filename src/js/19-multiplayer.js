@@ -655,7 +655,8 @@ const MultiplayerScreen = {
     if (r.vote) {
       const by = r.players.find(p => p.id === r.vote.by), what = r.vote.mods.length ? r.vote.mods.join('') : 'no speed mods';
       const mine = r.vote.yes.includes(Multiplayer.me);
-      voteEl = h('div.mp-vote', icon('mods'),
+      const vkey = JSON.stringify([r.vote.by, r.vote.mods]), vseen = this._voteSeen === vkey; this._voteSeen = vkey;
+      voteEl = h(`div.mp-vote${vseen ? '.still' : ''}`, icon('mods'),
         mine ? h('span', `Waiting for everyone to accept ${what} (${r.vote.yes.length}/${r.players.length})`)
           : h('span', h('b', by ? by.name : 'Someone'), ` wants to play with ${what}`),
         h('span.grow'),
@@ -757,7 +758,9 @@ const MultiplayerScreen = {
       h('div.mp-res-score', val(x)));
     const fmtT = v => res.win === 'score' ? fmtScore(v) : res.win === 'accuracy' ? fmtAcc(v) : res.win === 'combo' ? `${fmtInt(v)}x` : `${fmtInt(v)}pp`;
     const teamBar = res.teams ? h('div.mp-res-teams', h('span.red', 'Red ', h('b', fmtT(res.teams[0].total))), h('span.muted', `by ${WIN[res.win] || 'pp'}`), h('span.blue', h('b', fmtT(res.teams[1].total)), ' Blue')) : null;
-    return h(`div.mp-results.${cls}`,
+    // the room re-renders on every update: the panel slides in the first time it shows these results, then stays put
+    const seen = this._resSeen === res; this._resSeen = res;
+    return h(`div.mp-results.${cls}${seen ? '.still' : ''}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
       teamBar, ...res.rows.map(row));
   },
