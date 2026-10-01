@@ -108,7 +108,7 @@ const ResultsScreen = {
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
         stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
       h('div.rs-judges', ...JUDGEMENTS.map((j, i) => h('div.rs-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
-    if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null) {
+    if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null && Math.round(s.totalPpAfter) > 0) {
       const d = s.totalPpAfter - s.totalPpBefore;
       mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
     }

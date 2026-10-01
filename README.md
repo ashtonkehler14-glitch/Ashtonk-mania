@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Results pp line
+- The results card no longer shows "Total 0pp (±0)" before you have any pp.
+- The in-game changelog notes that song select now plays the song right away.
+
 ### Focus rings and menus
 - Text boxes show lazer's yellow focus border on its own; the accent outline around it is gone.
 - Song select's "Add to collection" menu opens above the footer instead of covering the play button.
