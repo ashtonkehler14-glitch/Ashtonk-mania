@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Shortcut list
+- The keyboard shortcuts list (`?`) has a wider key column, so long combos such as the scroll speed keys stay on one line.
+
 ### Results pp line
 - The results card no longer shows "Total 0pp (±0)" before you have any pp.
 - The in-game changelog notes that song select now plays the song right away.
