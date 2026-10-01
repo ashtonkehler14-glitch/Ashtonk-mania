@@ -22,6 +22,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Mod Select scrolling
+
+* **Columns keep their place:** turning a mod on or off redraws Mod Select. Each column used to jump back to the top, so a mod near the bottom (Hidden, Fade In) sent you back up after every click. Columns now stay where you scrolled them.
+* **Customise is shown:** on smaller screens the Customise column (Difficulty Adjust, Song Speed, Hidden…) sits past the right edge. Mod Select now slides over to show it when it appears.
+* **Wheel scrolls sideways:** when the columns don't all fit, the mouse wheel scrolls them sideways, as in lazer. A column with more mods than fit still scrolls up and down under the pointer.
+
 ### Replays start from the Replays page
 
 * **Player loader:** the loader waits while you adjust its settings panel (as lazer's does). It used to count the pointer merely resting there as "adjusting". The Watch button on the Replays page sits right where that panel appears, so clicking Watch and not moving the mouse left the replay stuck on the loader. Now only moving over the panel holds it. A test covers this.

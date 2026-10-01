@@ -396,6 +396,9 @@ const ModSelect = {
   render() {
     const sheet = this.sheet;
     const scrollX = this.colsEl ? this.colsEl.scrollLeft : 0;
+    // each toggle redraws the sheet: keep every column where it was scrolled (it used to jump back to the top)
+    const tops = this.colsEl ? [...this.colsEl.querySelectorAll('.modcol-list')].map(l => l.scrollTop) : [];
+    const hadCfg = !!(this.colsEl && this.colsEl.querySelector('.mod-config'));
     clearEl(sheet);
     const cur = Settings.get('songselect.mods') || [];
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
@@ -439,6 +442,16 @@ const ModSelect = {
       h('span.modsel-hint', 'Tip: every mod has a letter shortcut (hover to see it) · Backspace clears'),
       h('button.btn.primary', { onclick: () => this.close() }, 'Done')));
     cols.scrollLeft = scrollX;
+    [...cols.querySelectorAll('.modcol-list')].forEach((l, i) => { if (tops[i]) l.scrollTop = tops[i]; });
+    // the Customise column is added past the right edge on smaller screens: bring it into view when it appears
+    if (cfgMods.length && !hadCfg) requestAnimationFrame(() => { if (cols.scrollWidth > cols.clientWidth) cols.scrollTo({ left: cols.scrollWidth, behavior: Settings.get('ui.animSpeed') > 0 ? 'smooth' : 'auto' }); });
+    // lazer's columns scroll sideways with the wheel when they don't all fit (a column with more mods still scrolls itself)
+    cols.addEventListener('wheel', e => {
+      if (cols.scrollWidth <= cols.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const list = e.target.closest && e.target.closest('.modcol-list');
+      if (list && list.scrollHeight > list.clientHeight + 1) return;
+      cols.scrollLeft += e.deltaY; e.preventDefault();
+    }, { passive: false });
   },
   /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
   configPanel(ids) {
