@@ -50,7 +50,7 @@ const ResultsScreen = {
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
     const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${fmtDateTime(s.date)}`)),
       p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
@@ -194,7 +194,6 @@ const ResultsScreen = {
 /** A 1200×630 picture of a result (the size link previews use), to copy, save or share anywhere. */
 const ShareCard = {
   W: 1200, H: 630,
-  GRADE_FILL: { XH: ['#ffffff', '#b8c4d8'], SH: ['#ffffff', '#b8c4d8'], SS: ['#fff3a6', '#ffc31f'], S: ['#fff3a6', '#ffc31f'], A: ['#6ef08e'], B: ['#5cb3ff'], C: ['#c68bff'], D: ['#ff6b7a'], F: ['#ff3b4f'] },
   async render(s) {
     const W = this.W, H = this.H;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -240,7 +239,7 @@ const ShareCard = {
     for (const m of s.mods || []) { const d = MOD_BY_ID.get(m); px += pill(m, px, 150, d ? d.color : accent, '#1a1a1a') + 6; }
     // grade
     const label = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
-    const fill = this.GRADE_FILL[s.grade] || ['#fff'];
+    const rc = RANK_COLOURS[s.grade] || '#fff', fill = ['#fff', rc];
     x.font = F(800, 210); x.textAlign = 'center';
     g = x.createLinearGradient(0, 250, 0, 450); g.addColorStop(0, fill[0]); g.addColorStop(1, fill[1] || fill[0]);
     x.save(); x.shadowColor = fill[fill.length - 1]; x.shadowBlur = 40; x.fillStyle = g; x.fillText(label, 200, 440); x.restore();
@@ -310,11 +309,15 @@ const Charts = {
   _css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); },
   histogram(errs, W, mean) {
     const { wrap, cv, tip } = this._setup(170);
-    const range = W[J.BAD], bin = 2;
-    const nb = Math.ceil(range * 2 / bin);
+    // lazer's HitEventTimingDistributionGraph: 50 bins either side of a centre bin, sized from the widest hit
+    const SIDE = 50, nb = SIDE * 2 + 1;
+    const maxAbs = Math.max(1, ...errs.map(e => Math.abs(e)));
+    const bin = Math.max(1, Math.ceil(maxAbs / SIDE));
+    const range = (SIDE + 0.5) * bin;
     const bins = new Array(nb).fill(0);
-    for (const e of errs) { const i = Math.floor((clamp(e, -range, range - 0.001) + range) / bin); bins[i]++; }
+    for (const e of errs) bins[clamp(Math.round(e / bin) + SIDE, 0, nb - 1)]++;
     const max = Math.max(...bins, 1);
+    const colourAt = c => { let j = 0; while (j < 5 && Math.abs(c) > W[j]) j++; return JUDGEMENTS[Math.min(j, 4)].color; };
     let geo = null;
     const draw = hover => {
       const { x, w, h: H } = this._ctx(cv);
@@ -324,22 +327,21 @@ const Charts = {
       geo = { pad, pw, ph, bw };
       x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = 1;
       for (let k = 1; k <= 3; k++) { const y = pad.t + ph * (1 - k / 4); x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke(); }
+      const bwid = Math.max(1, bw * 0.7), rad = bwid / 2;
       bins.forEach((v, i) => {
-        if (!v) return;
-        const c = -range + (i + 0.5) * bin;
-        let j = 0; while (j < 5 && Math.abs(c) > W[j]) j++;
-        const hh = Math.max(2, v / max * ph);
-        x.fillStyle = JUDGEMENTS[Math.min(j, 4)].color;
-        x.globalAlpha = hover === i ? 1 : 0.85;
-        const bx = pad.l + i * bw + 1, bwid = Math.max(1, bw - 2);
+        const bx = pad.l + i * bw + (bw - bwid) / 2;
+        x.fillStyle = colourAt((i - SIDE) * bin);
+        // empty bins stay as faint dots so the shape of the window still reads
+        const hh = v ? Math.max(bwid, v / max * ph) : bwid;
+        x.globalAlpha = !v ? 0.18 : hover === i ? 1 : 0.85;
         x.beginPath();
-        x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, [Math.min(4, bwid / 2), Math.min(4, bwid / 2), 0, 0]) : x.rect(bx, pad.t + ph - hh, bwid, hh);
+        x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, rad) : x.rect(bx, pad.t + ph - hh, bwid, hh);
         x.fill();
       });
       x.globalAlpha = 1;
       const zx = pad.l + pw / 2;
-      x.fillStyle = '#fff'; x.fillRect(zx - 1, pad.t, 2, ph);
-      const mx = pad.l + (mean + range) / (2 * range) * pw;
+      x.fillStyle = 'rgba(255,255,255,.28)'; x.fillRect(zx - 0.5, pad.t, 1, ph);
+      const mx = pad.l + clamp((mean + range) / (2 * range), 0, 1) * pw;
       x.fillStyle = '#ffd54a'; x.fillRect(mx - 1, pad.t, 2, ph);
       x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Torus, Outfit, system-ui'; x.textAlign = 'center';
       x.fillText(`-${Math.round(range)}ms (early)`, pad.l + 44, H - 5); x.fillText('0', zx, H - 5); x.fillText(`+${Math.round(range)}ms (late)`, w - pad.r - 44, H - 5);
@@ -351,8 +353,8 @@ const Charts = {
       const r = cv.getBoundingClientRect();
       const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
       if (i < 0 || i >= nb) { tip.hidden = true; draw(-1); return; }
-      const lo = -range + i * bin;
-      tip.hidden = false; tip.textContent = `${lo.toFixed(0)} to ${(lo + bin).toFixed(0)}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
+      const c = (i - SIDE) * bin;
+      tip.hidden = false; tip.textContent = `${bin > 1 ? `${c - Math.floor(bin / 2)} to ${c + Math.ceil(bin / 2) - 1}` : c}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
       tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(i);
     });

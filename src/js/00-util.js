@@ -80,6 +80,8 @@ function fmtDate(ts) {
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
   return d.toLocaleDateString();
 }
+/** "1 Oct 2026, 14:03" — short absolute date + time (results, replays). */
+const fmtDateTime = ts => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 function fmtBytes(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';

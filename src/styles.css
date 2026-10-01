@@ -891,7 +891,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
 .lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
 .lz-cookie { container-type: size; }
-.lz-cookie-text { position: relative; display: flex; flex-direction: column; align-items: center; line-height: .9; color: #fff; font-weight: 600; letter-spacing: -.02em; font-size: 19cqw; text-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
+.lz-cookie-text { position: relative; display: flex; flex-direction: column; align-items: center; line-height: .9; color: #fff; font-weight: 600; letter-spacing: -.02em; font-size: 17cqw; white-space: nowrap; text-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
 .lz-cookie-text small { font-size: .5em; font-weight: 700; letter-spacing: .12em; opacity: .9; margin-top: .25em; }
 .lz-buttons { position: relative; z-index: 1; display: flex; height: 100%; align-items: stretch; transition: opacity var(--t-med); }
 .lz-menu[data-state="initial"] .lz-buttons { opacity: 0; pointer-events: none; }
@@ -2376,3 +2376,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
 /* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
 #toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }
+
+/* skins: one compact key-count stepper instead of eighteen chips */
+.sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.sk-keys > .muted:first-child { margin-right: 4px; }
+.sk-step { width: 28px; height: 28px; border: 0; border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); color: var(--text); cursor: pointer; transition: background var(--t-fast); }
+.sk-step:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
+.sk-step:disabled { opacity: .35; cursor: default; }
+.sk-step svg { width: 14px; height: 14px; }
+.sk-k { min-width: 40px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sk-khint { margin-left: 8px; font-size: .82rem; }

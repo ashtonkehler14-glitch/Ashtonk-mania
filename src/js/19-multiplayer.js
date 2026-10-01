@@ -550,7 +550,7 @@ const MultiplayerScreen = {
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
       return row;
-    }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Couldn\'t load the room list.')]));
+    }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Can\'t reach the multiplayer server right now — trying again…')]));
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 

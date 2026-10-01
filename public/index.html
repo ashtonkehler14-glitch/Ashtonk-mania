@@ -908,7 +908,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
 .lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
 .lz-cookie { container-type: size; }
-.lz-cookie-text { position: relative; display: flex; flex-direction: column; align-items: center; line-height: .9; color: #fff; font-weight: 600; letter-spacing: -.02em; font-size: 19cqw; text-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
+.lz-cookie-text { position: relative; display: flex; flex-direction: column; align-items: center; line-height: .9; color: #fff; font-weight: 600; letter-spacing: -.02em; font-size: 17cqw; white-space: nowrap; text-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
 .lz-cookie-text small { font-size: .5em; font-weight: 700; letter-spacing: .12em; opacity: .9; margin-top: .25em; }
 .lz-buttons { position: relative; z-index: 1; display: flex; height: 100%; align-items: stretch; transition: opacity var(--t-med); }
 .lz-menu[data-state="initial"] .lz-buttons { opacity: 0; pointer-events: none; }
@@ -2394,6 +2394,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
 #toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }
 
+/* skins: one compact key-count stepper instead of eighteen chips */
+.sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.sk-keys > .muted:first-child { margin-right: 4px; }
+.sk-step { width: 28px; height: 28px; border: 0; border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); color: var(--text); cursor: pointer; transition: background var(--t-fast); }
+.sk-step:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
+.sk-step:disabled { opacity: .35; cursor: default; }
+.sk-step svg { width: 14px; height: 14px; }
+.sk-k { min-width: 40px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sk-khint { margin-left: 8px; font-size: .82rem; }
+
 </style>
 </head>
 <body>
@@ -2500,6 +2510,8 @@ function fmtDate(ts) {
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
   return d.toLocaleDateString();
 }
+/** "1 Oct 2026, 14:03" — short absolute date + time (results, replays). */
+const fmtDateTime = ts => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 function fmtBytes(b) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
@@ -10225,7 +10237,7 @@ const ResultsScreen = {
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
     const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${new Date(s.date).toLocaleString()}`)),
+    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${fmtDateTime(s.date)}`)),
       p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
@@ -10369,7 +10381,6 @@ const ResultsScreen = {
 /** A 1200×630 picture of a result (the size link previews use), to copy, save or share anywhere. */
 const ShareCard = {
   W: 1200, H: 630,
-  GRADE_FILL: { XH: ['#ffffff', '#b8c4d8'], SH: ['#ffffff', '#b8c4d8'], SS: ['#fff3a6', '#ffc31f'], S: ['#fff3a6', '#ffc31f'], A: ['#6ef08e'], B: ['#5cb3ff'], C: ['#c68bff'], D: ['#ff6b7a'], F: ['#ff3b4f'] },
   async render(s) {
     const W = this.W, H = this.H;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -10415,7 +10426,7 @@ const ShareCard = {
     for (const m of s.mods || []) { const d = MOD_BY_ID.get(m); px += pill(m, px, 150, d ? d.color : accent, '#1a1a1a') + 6; }
     // grade
     const label = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
-    const fill = this.GRADE_FILL[s.grade] || ['#fff'];
+    const rc = RANK_COLOURS[s.grade] || '#fff', fill = ['#fff', rc];
     x.font = F(800, 210); x.textAlign = 'center';
     g = x.createLinearGradient(0, 250, 0, 450); g.addColorStop(0, fill[0]); g.addColorStop(1, fill[1] || fill[0]);
     x.save(); x.shadowColor = fill[fill.length - 1]; x.shadowBlur = 40; x.fillStyle = g; x.fillText(label, 200, 440); x.restore();
@@ -10485,11 +10496,15 @@ const Charts = {
   _css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); },
   histogram(errs, W, mean) {
     const { wrap, cv, tip } = this._setup(170);
-    const range = W[J.BAD], bin = 2;
-    const nb = Math.ceil(range * 2 / bin);
+    // lazer's HitEventTimingDistributionGraph: 50 bins either side of a centre bin, sized from the widest hit
+    const SIDE = 50, nb = SIDE * 2 + 1;
+    const maxAbs = Math.max(1, ...errs.map(e => Math.abs(e)));
+    const bin = Math.max(1, Math.ceil(maxAbs / SIDE));
+    const range = (SIDE + 0.5) * bin;
     const bins = new Array(nb).fill(0);
-    for (const e of errs) { const i = Math.floor((clamp(e, -range, range - 0.001) + range) / bin); bins[i]++; }
+    for (const e of errs) bins[clamp(Math.round(e / bin) + SIDE, 0, nb - 1)]++;
     const max = Math.max(...bins, 1);
+    const colourAt = c => { let j = 0; while (j < 5 && Math.abs(c) > W[j]) j++; return JUDGEMENTS[Math.min(j, 4)].color; };
     let geo = null;
     const draw = hover => {
       const { x, w, h: H } = this._ctx(cv);
@@ -10499,22 +10514,21 @@ const Charts = {
       geo = { pad, pw, ph, bw };
       x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = 1;
       for (let k = 1; k <= 3; k++) { const y = pad.t + ph * (1 - k / 4); x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke(); }
+      const bwid = Math.max(1, bw * 0.7), rad = bwid / 2;
       bins.forEach((v, i) => {
-        if (!v) return;
-        const c = -range + (i + 0.5) * bin;
-        let j = 0; while (j < 5 && Math.abs(c) > W[j]) j++;
-        const hh = Math.max(2, v / max * ph);
-        x.fillStyle = JUDGEMENTS[Math.min(j, 4)].color;
-        x.globalAlpha = hover === i ? 1 : 0.85;
-        const bx = pad.l + i * bw + 1, bwid = Math.max(1, bw - 2);
+        const bx = pad.l + i * bw + (bw - bwid) / 2;
+        x.fillStyle = colourAt((i - SIDE) * bin);
+        // empty bins stay as faint dots so the shape of the window still reads
+        const hh = v ? Math.max(bwid, v / max * ph) : bwid;
+        x.globalAlpha = !v ? 0.18 : hover === i ? 1 : 0.85;
         x.beginPath();
-        x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, [Math.min(4, bwid / 2), Math.min(4, bwid / 2), 0, 0]) : x.rect(bx, pad.t + ph - hh, bwid, hh);
+        x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, rad) : x.rect(bx, pad.t + ph - hh, bwid, hh);
         x.fill();
       });
       x.globalAlpha = 1;
       const zx = pad.l + pw / 2;
-      x.fillStyle = '#fff'; x.fillRect(zx - 1, pad.t, 2, ph);
-      const mx = pad.l + (mean + range) / (2 * range) * pw;
+      x.fillStyle = 'rgba(255,255,255,.28)'; x.fillRect(zx - 0.5, pad.t, 1, ph);
+      const mx = pad.l + clamp((mean + range) / (2 * range), 0, 1) * pw;
       x.fillStyle = '#ffd54a'; x.fillRect(mx - 1, pad.t, 2, ph);
       x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Torus, Outfit, system-ui'; x.textAlign = 'center';
       x.fillText(`-${Math.round(range)}ms (early)`, pad.l + 44, H - 5); x.fillText('0', zx, H - 5); x.fillText(`+${Math.round(range)}ms (late)`, w - pad.r - 44, H - 5);
@@ -10526,8 +10540,8 @@ const Charts = {
       const r = cv.getBoundingClientRect();
       const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
       if (i < 0 || i >= nb) { tip.hidden = true; draw(-1); return; }
-      const lo = -range + i * bin;
-      tip.hidden = false; tip.textContent = `${lo.toFixed(0)} to ${(lo + bin).toFixed(0)}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
+      const c = (i - SIDE) * bin;
+      tip.hidden = false; tip.textContent = `${bin > 1 ? `${c - Math.floor(bin / 2)} to ${c + Math.ceil(bin / 2) - 1}` : c}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
       tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
       draw(i);
     });
@@ -10783,7 +10797,7 @@ const CollectionsScreen = {
         icon('folder'), c.name, h('span.cnt', String(c.hashes.length))));
     }
     const favCount = BeatmapManager.sets.filter(s => Favorites.has(s.id)).length;
-    this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favorite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
+    if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favorite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
     clearEl(this.main);
     const c = Collections.get(this.sel);
     if (!c) { this.main.append(h('div.empty', h('div.big', 'No collections'), 'Create one to start organizing.')); return; }
@@ -10914,7 +10928,7 @@ const ReplaysScreen = {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
       this.list.append(h('div.list-row', gradeEl(sm.grade || 'D'),
-        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${new Date(r.date).toLocaleString()}${map ? '' : ' · beatmap missing'}`)),
+        h('div.main', h('div.t', `${r.title} [${r.version}]`), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${fmtDateTime(r.date)}${map ? '' : ' · beatmap missing'}`)),
         h('span.row', { style: { gap: '3px' } }, ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         h('button.btn.sm', { disabled: !map, onclick: () => Game.launch({ mapId: map.id, mode: 'replay', replay: r }) }, icon('play'), 'Watch'),
         h('button.icon-btn', { title: 'Export .amr', onclick: () => ReplayManager.export(r) }, icon('download')),
@@ -11037,8 +11051,11 @@ const SkinsScreen = {
         h(`button.btn${inUse ? '' : '.primary'}`, { disabled: inUse, onclick: async () => { await SkinManager.select(meta.id); Toast.ok('Skin selected', skin.name); } }, inUse ? 'Selected' : 'Use this skin'),
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
-      h('div.row.wrap', { style: { marginBottom: '10px', gap: '6px' } }, h('span.muted', 'Preview:'),
-        ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { title: supported.includes(k) ? 'Configured in skin.ini' : borrowed.includes(k) ? "Built from the skin's 4K layout" : 'Uses fallback layout', style: supported.includes(k) || borrowed.includes(k) ? {} : { opacity: 0.55 }, onclick: () => { this.keys = k; this.render(); } }, `${k}K`))),
+      h('div.sk-keys', h('span.muted', 'Preview'),
+        h('button.sk-step', { 'aria-label': 'Fewer keys', disabled: this.keys <= 1, onclick: () => { this.keys = Math.max(1, this.keys - 1); this.render(); } }, icon('back')),
+        h('span.sk-k', `${this.keys}K`),
+        h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
+        h('span.muted.sk-khint', meta.builtin ? '' : supported.includes(this.keys) ? 'configured in skin.ini' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : 'fallback layout')),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel()) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}${borrowed.length ? ` · ${borrowed.map(k => k + 'K').join(', ')} built from its 4K layout` : ''}`}`));
     this.preview && this.preview.stop();
@@ -13287,7 +13304,7 @@ const MultiplayerScreen = {
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
       return row;
-    }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Couldn\'t load the room list.')]));
+    }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Can\'t reach the multiplayer server right now — trying again…')]));
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 

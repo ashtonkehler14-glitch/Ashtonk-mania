@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Small polish: results, skins, menu logo
+
+* **Hit distribution:** it now works like lazer's. The bins are sized from your widest hit, with 50 on each side of zero, and empty bins show as faint dots. You get a readable shape instead of thin spikes spread across the whole hit window.
+* **Results:** the "Played on" line is short (e.g. "Oct 1, 2026, 4:29 AM"), and so are the dates in Replays. The share card's grade uses lazer's rank colours, as the rest of the game does.
+* **Skins:** the eighteen 1K–18K preview chips are now one small ‹ 4K › stepper. Beside it is a note saying whether that key count comes from skin.ini, from the skin's 4K layout, or from the fallback.
+* **Main menu logo:** "ashtonk!" no longer touches the edge of the circle when the Outfit font hasn't loaded.
+* **Small wording fixes:** when the multiplayer server can't be reached, the screen now says it's trying again instead of "Couldn't load the room list". Collections no longer shows a "0 favorite sets" note.
+
 ### lazer parity pass
 
 Every screen was compared side by side with its osu!lazer counterpart:
