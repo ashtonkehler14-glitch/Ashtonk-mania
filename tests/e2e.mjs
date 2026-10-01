@@ -101,6 +101,7 @@ check('unplayable difficulty is left out (reported, not listed)', await page.eva
 await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect', null, { timeout: 5000 });
 await page.waitForTimeout(800);
 check('import navigates to song select with new map selected', await page.evaluate(() => !!AshtonkMania.SongSelect.selectedId));
+check('song select starts the selected beatmap\'s song', await page.waitForFunction(() => AshtonkMania.Music.playing && AshtonkMania.Music.meta && AshtonkMania.Music.meta.setId === AshtonkMania.BeatmapManager.maps.get(AshtonkMania.SongSelect.selectedId).setId, null, { timeout: 5000 }).then(() => true, () => false));
 await shot('02-songselect');
 
 // corrupt / non-mania archives

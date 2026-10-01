@@ -239,6 +239,9 @@ const SongSelect = {
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);
+    // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
+    const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
+    if (sel && (!Music.meta || Music.meta.setId !== sel.setId)) this.schedulePreview(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },

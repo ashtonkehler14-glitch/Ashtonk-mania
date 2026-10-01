@@ -279,6 +279,12 @@ const MenuMusic = {
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   toggle() {
+    // nothing loaded yet (preview audio off, or the first track never started): play starts one
+    if (!Music.loaded && !Music.playing) {
+      const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
+      if (sel && !sel.problems.length) this.play(sel); else this.next();
+      return;
+    }
     if (Music.playing) { Music.pause(); this.paused = true; }
     else if (Music.loaded) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
     Bus.emit('music:changed', this.current);

@@ -555,7 +555,7 @@ const NowPlaying = {
     if (!this.el) return;
     const m = MenuMusic.current;
     this.title.textContent = m ? m.title : 'Nothing playing';
-    this.artist.textContent = m ? m.artist : 'Import some beatmaps to hear music here';
+    this.artist.textContent = m ? m.artist : BeatmapManager.sets.length ? 'Press play to start the music' : 'Import some beatmaps to hear music here';
     const url = m ? await BeatmapManager.bgURL(m).catch(() => null) : null;
     this.cover.style.backgroundImage = url ? `url("${url}")` : '';
     this.update();

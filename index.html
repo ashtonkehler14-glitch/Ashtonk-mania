@@ -7598,7 +7598,7 @@ const NowPlaying = {
     if (!this.el) return;
     const m = MenuMusic.current;
     this.title.textContent = m ? m.title : 'Nothing playing';
-    this.artist.textContent = m ? m.artist : 'Import some beatmaps to hear music here';
+    this.artist.textContent = m ? m.artist : BeatmapManager.sets.length ? 'Press play to start the music' : 'Import some beatmaps to hear music here';
     const url = m ? await BeatmapManager.bgURL(m).catch(() => null) : null;
     this.cover.style.backgroundImage = url ? `url("${url}")` : '';
     this.update();
@@ -8165,6 +8165,12 @@ const MenuMusic = {
   },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   toggle() {
+    // nothing loaded yet (preview audio off, or the first track never started): play starts one
+    if (!Music.loaded && !Music.playing) {
+      const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
+      if (sel && !sel.problems.length) this.play(sel); else this.next();
+      return;
+    }
     if (Music.playing) { Music.pause(); this.paused = true; }
     else if (Music.loaded) { Music.play(Music.pausedPos, { fadeIn: 250 }); this.paused = false; }
     Bus.emit('music:changed', this.current);
@@ -8504,6 +8510,9 @@ const SongSelect = {
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);
+    // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
+    const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
+    if (sel && (!Music.meta || Music.meta.setId !== sel.setId)) this.schedulePreview(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },

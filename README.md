@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Music in song select
+- Song select now plays the selected beatmap's song when you arrive with nothing playing, for example straight after an import. It also follows a filter that moves the selection. Before, it stayed silent until you picked another set.
+- Now Playing's play button starts music when none is loaded, and its empty text only asks you to import beatmaps when the library really is empty.
+
 ### Options menu placement
 - Song select's Options menu (the footer button or F3) now opens on top of the Options button, like lazer's footer popover. Before, F3 opened it in the middle of the screen.
 - The Beatmaps page lists a set's key counts in order (4K, 7K, 8K, 9K).
