@@ -812,6 +812,7 @@ const Screens = {
         if (oldEl) {
           oldEl.classList.remove('enter', 'zoom', 'from-right');
           oldEl.classList.add('leave'); if (transition === 'zoom') oldEl.classList.add('zoom');
+          oldEl.inert = true; // (its state is already torn down: a click during the fade-out used to reach stale handlers)
           setTimeout(() => oldEl.remove(), 220);
         }
       }

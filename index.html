@@ -7830,6 +7830,7 @@ const Screens = {
         if (oldEl) {
           oldEl.classList.remove('enter', 'zoom', 'from-right');
           oldEl.classList.add('leave'); if (transition === 'zoom') oldEl.classList.add('zoom');
+          oldEl.inert = true; // (its state is already torn down: a click during the fade-out used to reach stale handlers)
           setTimeout(() => oldEl.remove(), 220);
         }
       }
@@ -10174,6 +10175,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (!this.prOffset) return;
     this.prOffset.textContent = `offset ${Settings.get('audio.offset')}ms`;
     const s = this.s;
+    if (!s) return;
     this.prInfo.textContent = s.loopA != null || s.loopB != null ? `loop ${fmtTime(s.loopA ?? 0)} → ${fmtTime(s.loopB ?? s.endTime)}` : 'click the timeline to seek';
     if (s.loopA != null || s.loopB != null) {
       const a = (s.loopA ?? 0) / s.endTime * 100, b = (s.loopB ?? s.endTime) / s.endTime * 100;
@@ -10204,6 +10206,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return false;
   },
   setLoop(which) {
+    if (!this.s) return; // (the practice bar can still be clicked while the screen fades out)
     const s = this.s, t = this.gameTime();
     if (which === 'A') { s.loopA = clamp(t, 0, s.endTime); if (s.loopB != null && s.loopB <= s.loopA) s.loopB = null; }
     else if (which === 'B') { s.loopB = clamp(t, 0, s.endTime); if (s.loopA != null && s.loopA >= s.loopB) s.loopA = null; }
@@ -10211,9 +10214,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     UISounds.click();
     this.updatePracticeLabels();
   },
-  restartSection() { this.practiceSeek(this.s.loopA ?? 0); },
+  restartSection() { if (this.s) this.practiceSeek(this.s.loopA ?? 0); },
   practiceSeek(t) {
     const s = this.s;
+    if (!s) return;
     t = clamp(t, 0, s.endTime);
     const lead = 1200 * s.rate;
     this.newEngine(t);
@@ -10223,6 +10227,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   async practiceSpeed(sp) {
     const s = this.s;
+    if (!s) return;
     const pos = this.gameTime();
     Settings.set('practice.speed', sp);
     Music.stop(0);

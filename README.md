@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Practice mode crash
+
+* **Practice:** clicking the loop or speed buttons at the moment a practice run was restarting or closing could throw an error. These buttons now ignore clicks while no run is active, and a screen that is fading out can't be clicked or tabbed into at all.
+
 ### Profile tabs
 
 * **Profile:** the historical / ranks / recent tabs light up for the section you're reading, as in lazer. A tab you click stays lit, and its section's heading now lands below the sticky tab bar instead of underneath it.
