@@ -259,8 +259,9 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && Ashto
   check('← jumps back 5 seconds', t0 - t1 > 4500 && t0 - t1 < 5600, `${t0} → ${t1}`);
   await page.click('.replay-bar .speed-group .chip:text-is("2×")'); await page.waitForTimeout(300);
   const sp = await page.evaluate(() => ({ rate: AshtonkMania.Music.rate, speed: AshtonkMania.GameplayScreen.s.speed, running: AshtonkMania.GameplayScreen.s.running }));
-  const tA = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime()); await page.waitForTimeout(500); const tB = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
-  check('playback speed 2×: the replay runs twice as fast', sp.speed === 2 && Math.abs(sp.rate - 2) < 1e-9 && sp.running && (tB - tA) > 800, JSON.stringify(sp) + ` ${tB - tA}ms in 500ms`);
+  // (game time against the page's own clock: a busy test machine stretches Playwright's waits, not the ratio)
+  const ratio = await page.evaluate(() => new Promise(r => { const G = AshtonkMania.GameplayScreen, g0 = G.gameTime(), p0 = performance.now(); setTimeout(() => r((G.gameTime() - g0) / (performance.now() - p0)), 600); }));
+  check('playback speed 2×: the replay runs twice as fast', sp.speed === 2 && Math.abs(sp.rate - 2) < 1e-9 && sp.running && ratio > 1.7 && ratio < 2.3, JSON.stringify(sp) + ` ${ratio.toFixed(2)}× real time`);
   await page.keyboard.press('ArrowDown'); await page.waitForTimeout(300);
   check('↓ / ↑ step the playback speed', await page.evaluate(() => AshtonkMania.GameplayScreen.s.speed === 1.5 && Math.abs(AshtonkMania.Music.rate - 1.5) < 1e-9));
   await page.evaluate(() => { const G = AshtonkMania.GameplayScreen; G.replaySeek(G.s.endTime - 1500); });
