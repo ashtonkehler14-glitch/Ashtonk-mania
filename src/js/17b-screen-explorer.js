@@ -253,7 +253,7 @@ const ExplorerScreen = {
       clearEl(this.filters).append(...[
         // the same filters as Web-Osu-Mania's home screen: key counts 1–18, category, sort, stars, genre, language, NSFW
         // the common key counts; the rest (1–18, as on Web-Osu-Mania) and the rarer filters are under "More filters"
-        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`]).filter(([k]) => st.more || (k >= 4 && k <= 10) || st.keys.includes(k))], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
+        chipRow('Keys', [[0, 'Any'], ...Array.from({ length: 18 }, (_, i) => [i + 1, `${i + 1}K`])], v => v === 0 ? !st.keys.length : st.keys.includes(v), v => { st.keys = v === 0 ? [] : st.keys.includes(v) ? st.keys.filter(x => x !== v) : [...st.keys, v].sort((a, b) => a - b); }),
         chipRow('Category', EXPLORE_STATUSES, v => st.status === v, v => { st.status = v; }),
         // clicking a sort picks it newest/highest first; clicking it again flips the direction (as on WOM and osu!)
         chipRow('Sort', EXPLORE_SORTS.filter(([v]) => v !== 'relevance' || st.q).map(([v, l]) => [v, st.sort === v ? `${l} ${st.dir === 'desc' ? '↓' : '↑'}` : l]),
@@ -280,11 +280,20 @@ const ExplorerScreen = {
     const scroller = h('div.screen-body.ex-body', overlayHeader('Beatmap listing', { icon: 'download', sub: 'osu!mania beatmaps, downloaded straight into your library' }),
       h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel)));
     // "back to top" appears once you've scrolled a good way down
-    this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, icon('up'));
+    // (a ring around it fills as you near the bottom of what's loaded, as lazer's does)
+    const R = 24, C = 2 * Math.PI * R;
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ring.setAttribute('viewBox', '0 0 52 52'); ring.classList.add('ex-totop-ring');
+    ring.innerHTML = `<circle cx="26" cy="26" r="${R}" class="bg"/><circle cx="26" cy="26" r="${R}" class="fg" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}" transform="rotate(-90 26 26)"/>`;
+    const fg = ring.querySelector('.fg');
+    this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, ring, icon('up'));
+    const paintRing = () => { const max = scroller.scrollHeight - scroller.clientHeight; const p = max > 0 ? clamp(scroller.scrollTop / max, 0, 1) : 0; fg.setAttribute('stroke-dashoffset', (C * (1 - p)).toFixed(2)); };
+    this._ringRO = new ResizeObserver(paintRing); this._ringRO.observe(this.grid); // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
-      this.topBtn.classList.toggle('show', scroller.scrollTop > 900);
+      this.topBtn.classList.toggle('show', scroller.scrollTop > 600);
+      paintRing();
       el.classList.add('scrolling'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => el.classList.remove('scrolling'), 160);
     }, { passive: true });
     el.append(scroller, this.topBtn);
@@ -297,7 +306,7 @@ const ExplorerScreen = {
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
-  leave() { this.io && this.io.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  leave() { this.io && this.io.disconnect(); this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
   /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
@@ -517,6 +526,12 @@ const ExplorerScreen = {
     const basic = (ic, label, v) => h('div.bso-basic', icon(ic), h('span', label), h('b', v));
     // one calm page: the cover with the title, who mapped it and the buttons; a single details card on the right;
     // below, only what there is (tags, and your scores once it's in your library)
+    // (tags and your scores sit in the left column under the buttons, so the page is one full screen)
+    const body = h('div.bso-body', ...[
+        [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
+        owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
+          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
+            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean));
     clearEl(this.setEl).append(h('div.bso-scroll',
       h('div.bso-header', cover, h('div.bso-shade'),
         h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
@@ -532,17 +547,13 @@ const ExplorerScreen = {
               h('span.dim.bso-stat', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites))].filter(Boolean)),
             h('div.bso-buttons',
               h('button.bso-fav', { title: 'Preview', 'aria-label': 'Preview', onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play')),
-              main)),
+              main),
+            body.children.length ? body : null),
           h('div.bso-card',
             h('div.bso-basics', basic('clock', 'Length', fmtTime(d.length * 1000)), basic('music', 'BPM', String(Math.round(d.bpm))),
               basic('target', 'Notes', fmtInt(d.notes)), basic('list', 'Long notes', fmtInt(d.lns))),
             h('div.bso-bars', ...[bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Stars', d.stars, 10, x => x.toFixed(2), '.sr'),
-              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean))))),
-      h('div.bso-body', ...[
-        [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
-        owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
-          localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean))));
+              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean)))))));
     const sc = this.setEl.querySelector('.bso-scroll');
     if (sc) sc.scrollTop = top;
   },

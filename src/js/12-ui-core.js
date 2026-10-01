@@ -346,7 +346,11 @@ const Background = {
     if (this._baked.size > 16) { const [k, old] = this._baked.entries().next().value; this._baked.delete(k); old.then(u => u && setTimeout(() => URL.revokeObjectURL(u), 5000)); }
     return p;
   },
-  set(url, { blur = Settings.get('graphics.menuBlur'), dim = 0 } = {}) {
+  /** Menus (song select, results, every page) show the song's background at a fixed 25% dim and 25% blur — the
+   *  same scale as gameplay's sliders; the player's own dim and blur only apply once gameplay starts. */
+  MENU_DIM: 0.25, MENU_BLUR: 0.25,
+  menuBlurPx() { return this.MENU_BLUR * 50 * innerWidth / 1920; },
+  set(url, { blur = this.menuBlurPx(), dim = this.MENU_DIM } = {}) {
     if (url !== this.current) Bus.emit('bg:changed', url);
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);

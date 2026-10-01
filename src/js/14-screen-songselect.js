@@ -48,7 +48,8 @@ const SongSelect = {
       h('div.ss-filter-row',
         sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
         sel('Show', STATUS_FILTERS, Settings.get('songselect.filter'), v => { Settings.set('songselect.filter', v); this.rebuild(true); }),
-        sel('Keys', [['', 'All'], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => [String(k), k === 9 ? '9K+' : k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
+        // every key count in your library (and the one picked, if it's no longer there), each on its own
+        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => m.keys), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
         h('label.ss-sel', h('span', 'Collection'), this.collSel),
         h('span.grow'), this.countEl));
 
@@ -194,7 +195,7 @@ const SongSelect = {
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
         if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
-        if (keys.length && !keys.some(k => k === 9 ? m.keys >= 9 : m.keys === k)) return false;
+        if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
         if (status !== 'all' && status !== 'favorites') {

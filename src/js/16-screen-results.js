@@ -8,7 +8,7 @@ const ResultsScreen = {
     const s = p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
     const el = h('div.results');
-    if (map) BeatmapManager.bgURL(map).then(u => Background.set(u, { blur: Settings.get('graphics.menuBlur') + 6, dim: 0.35 }));
+    if (map) BeatmapManager.bgURL(map).then(u => Background.set(u));
     const body = h('div.res-body');
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
     const grid = h('div.res-grid');

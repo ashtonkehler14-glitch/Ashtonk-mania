@@ -22,6 +22,15 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Full-screen beatmap page, menu backgrounds, all key counts
+- **Beatmap info page:** a set's page in the beatmap listing now takes the whole screen. The cover fills it, the details sit in the middle at a larger size, and your scores and tags are in the left column instead of a strip at the bottom.
+- **Back to top:** the listing's back-to-top button has a ring around it that fills as you near the bottom of the loaded results. The button also appears sooner.
+- **Listing width:** the listing has wider margins on both sides and stays centred at a readable width.
+- **Key counts:**
+  - The listing's Keys filter shows every key count from 1K to 18K, not just 4K–10K.
+  - Song select's Keys filter lists each key count in your library on its own; 9K+ is no longer lumped together.
+- **Menu backgrounds:** menus such as song select and results show the song's background at a fixed 25% dim and 25% blur. Your gameplay dim and blur only apply once the song starts. The loader keeps the menu look, with a preview while you adjust its visual settings, and the dim eases over when play begins. The old "Menu background blur" setting is gone.
+
 ### Gentler kiai logo
 - The main menu logo's kiai flash and pulse are toned down to match the softer side glows.
 

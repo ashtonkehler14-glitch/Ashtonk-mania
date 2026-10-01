@@ -330,7 +330,7 @@ const GameplayScreen = {
       h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null));
     // the loader waits while you're using its settings — only for a pointer that moves there: one that happens to
     // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
-    const settings = h('div.pl-settings', { onpointermove: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
+    const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
       h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
         this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
         this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
@@ -398,6 +398,7 @@ const GameplayScreen = {
     el.classList.add('out');
     this.el.classList.remove('loading');
     this.loaderGone = true;
+    this.applyBackground(); // (from the menus' 25% to your gameplay dim and blur)
     setTimeout(() => el.remove(), 500);
   },
 
@@ -415,10 +416,13 @@ const GameplayScreen = {
     const s = this.s, rec = s ? s.rec : this.bgRec;
     if (!rec) return;
     const show = Settings.get('gameplay.showBackground');
-    this.baseDim = show ? Settings.get('gameplay.bgDim') : 1;
+    // the loader keeps the menus' look (25% dim and blur); your dim and blur take over when the song starts — or
+    // while you're adjusting them on the loader, as a preview (lazer)
+    const menuLook = !this.loaderGone && !this.loaderHold;
+    this.baseDim = menuLook ? Background.MENU_DIM : show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
     const set = BeatmapManager.setById.get(rec.setId);
-    const blur = Settings.get('gameplay.bgBlur');
+    const blur = menuLook ? Background.MENU_BLUR : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(rec)).then(async u => {
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame

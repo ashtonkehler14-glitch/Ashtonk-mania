@@ -95,7 +95,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.menuBlur', l: 'Menu background blur', t: 'range', d: 12, min: 0, max: 40, step: 1, fmt: v => `${v}px` },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
   { s: 'Input', g: 'Keys', k: 'input.keybinds', l: 'Key binding configuration', t: 'keybinds', d: DEFAULT_KEYBINDS },
