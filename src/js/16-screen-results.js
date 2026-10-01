@@ -133,10 +133,16 @@ const ResultsScreen = {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));
     const errs = (s.hitErrors || []).filter(e => !e[3]);
     const W = (s.windows || timingWindows({ od: s.od ?? 8 })).slice();
-    const hist = h('div.panel.glass.chart-card', h('h3', 'Hit distribution', h('span.grow'), h('span', `${errs.length} hits · mean ${(s.meanError || 0).toFixed(1)}ms · UR ${(s.unstableRate || 0).toFixed(1)}`)));
+    const hist = h('div.panel.glass.chart-card', h('h3', 'Hit distribution'));
     const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
     if (errs.length) {
       hist.append(Charts.histogram(errs.map(e => e[1]), W, s.meanError || 0));
+      // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
+      const me = s.meanError || 0;
+      hist.append(h('div.res-stats',
+        h('div.res-stat', h('span', 'Unstable rate'), h('b', (s.unstableRate || 0).toFixed(2))),
+        h('div.res-stat', h('span', 'Average hit error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
+        h('div.res-stat', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
       scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.name))));
     } else {

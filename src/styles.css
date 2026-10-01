@@ -661,6 +661,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .chart-card { padding: 16px; }
 .chart-card h3 { margin: 0 0 10px; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; align-items: center; }
 .chart-card h3 .grow { flex: 1; }
+.res-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.res-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.res-stat span { font-size: .72rem; color: var(--muted); }
+.res-stat b { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .chart-wrap { position: relative; width: 100%; }
 .chart-wrap canvas { width: 100%; display: block; }
 .chart-tip { position: absolute; pointer-events: none; padding: 6px 10px; border-radius: 8px; background: rgba(8, 5, 14, .95); border: 1px solid var(--line-2); font-size: .78rem; font-weight: 700; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 3; }

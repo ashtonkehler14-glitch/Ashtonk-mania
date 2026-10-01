@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Results statistics like lazer
+
+* **Results:** under the hit distribution there are now three clear stat tiles, as in lazer's statistics panel: Unstable rate, Average hit error (with "early" or "late") and the number of timed hits. They replace the small all-caps line that used to sit in the chart's header.
+
 ### Profile, less repetition
 
 * **Profile:** hit accuracy is shown once, in the stats box on the right, as in lazer. It used to appear next to Performance as well.
