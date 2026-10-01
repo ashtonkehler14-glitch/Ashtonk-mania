@@ -24,10 +24,28 @@ const ResultsScreen = {
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
-    if (p.fresh && s.passed) setTimeout(() => SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 700);
+    if (p.fresh && s.passed) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
     return el;
   },
-  leave() { cancelAnimationFrame(this._cnt); },
+  leave() { cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
+   *  fill eases out), then the rank's impact as the grade lands. */
+  async introSounds(acc, fillMs, failed) {
+    this._srcs = [];
+    if (!fillMs || !Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
+    const [tick, impact] = await Promise.all([UISounds._get('score-tick'), UISounds._get(failed ? 'rank-impact-fail' : 'rank-impact-pass')]);
+    if (Screens.currentName !== 'results') return;
+    const t0 = AudioManager.ctx.currentTime + 0.03, N = Math.max(1, Math.round(acc * 40));
+    let last = -1;
+    for (let k = 1; k <= N; k++) {
+      const f = k / N, t = (1 - Math.pow(1 - f, 1 / 5)) * fillMs; // (when the eased fill reaches f)
+      if (t - last < 38 || t > fillMs * 0.55) continue;
+      last = t;
+      this._srcs.push(AudioManager.play(tick, { bus: 'ui', when: t0 + t / 1000, rate: 0.9 + 0.6 * f * acc, volume: 0.7 }));
+    }
+    this._srcs.push(AudioManager.play(impact, { bus: 'ui', when: t0 + (fillMs * 0.55 + 180) / 1000 }));
+    this._srcs = this._srcs.filter(Boolean);
+  },
   onKey(e) {
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
@@ -78,6 +96,7 @@ const ResultsScreen = {
     }
     ring.append(h('div.rs-grade', { style: { '--rc': rc, animationDelay: `${Math.round(fillMs * 0.55)}ms` } }, letter));
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = ring.querySelector('.accring'); if (c) c.style.strokeDashoffset = C * (1 - acc); }));
+    this.introSounds(acc, fillMs, ['D', 'F'].includes(s.grade));
     // score, counted up (in the skin's number font when it has one)
     const scoreEl = h('div.res-score', '0');
     let digits = null;

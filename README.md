@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Results sounds
+- Results now sound like lazer's. A tick plays as the accuracy circle fills, slowing down and rising in pitch, and the rank lands with an impact: bright for a pass, dull for D or F.
+- Applause or the section pass sound now follows the impact instead of playing over it.
+- Leaving the results screen early stops any sounds still queued.
+
 ### Song select sounds
 - Song select now uses lazer's three selection sounds instead of one generic click: a rising chirp when a beatmap set opens, a short tick when you change difficulty, and a whoosh for Random.
 - A skin can replace them with `select-expand`, `select-difficulty` and `select-random`.
