@@ -97,6 +97,10 @@ const AudioManager = {
     else if (name === 'click-short') buf = make(0.03, t => Math.sin(2 * Math.PI * 3200 * t) * env(t, 0.0005, 0.006) * 0.18);
     else if (name === 'click-short-confirm' || name === 'menuclick' || name === 'menuhit') buf = make(0.12, t => (Math.sin(2 * Math.PI * 880 * t) + Math.sin(2 * Math.PI * 1320 * t) * 0.5) * env(t, 0.002, 0.03) * 0.22);
     else if (name === 'menuback' || name === 'click-close') buf = make(0.12, t => Math.sin(2 * Math.PI * (900 - 2400 * t) * t) * env(t, 0.002, 0.035) * 0.22);
+    // song select (lazer's select-expand / select-difficulty / select-random)
+    else if (name === 'select-expand') buf = make(0.13, t => Math.sin(2 * Math.PI * (520 + 1500 * t) * t) * env(t, 0.003, 0.035) * 0.2);
+    else if (name === 'select-difficulty') buf = make(0.07, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.3) * env(t, 0.001, 0.014) * 0.2);
+    else if (name === 'select-random') buf = make(0.24, (t, n) => (n() * 0.35 + Math.sin(2 * Math.PI * (300 + 2200 * t) * t) * 0.45) * env(t, 0.012, 0.06) * 0.22);
     else if (name === 'check-on') buf = make(0.08, t => Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'check-off') buf = make(0.08, t => Math.sin(2 * Math.PI * 1000 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);
@@ -355,4 +359,6 @@ const UISounds = {
   hover() { const now = performance.now(); if (now - (this._lh || 0) < 40) return; this._lh = now; this.play('click-short', 0.6); },
   click() { this.play('click-short-confirm'); },
   back() { this.play('menuback'); },
+  /** Song select: a beatmap set opening ('expand'), another difficulty ('difficulty') or a random pick ('random'). */
+  select(kind) { this.play('select-' + kind); },
 };

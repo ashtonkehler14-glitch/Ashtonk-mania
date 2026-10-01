@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Song select sounds
+- Song select now uses lazer's three selection sounds instead of one generic click: a rising chirp when a beatmap set opens, a short tick when you change difficulty, and a whoosh for Random.
+- A skin can replace them with `select-expand`, `select-difficulty` and `select-random`.
+
 ### Curved song list
 - Song select's beatmap list now runs along lazer's carousel curve. Panels slide to the right the further they are from the middle of the list, so scrolling sweeps them along an arc.
 - The curve follows the scroll immediately and eases with the panels when a set opens or closes.

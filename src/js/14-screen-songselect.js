@@ -332,8 +332,8 @@ const SongSelect = {
       BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
       const btn = h(`button.set-panel${set.id === this.expandedSet ? '.expanded' : ''}${broken ? '.broken' : ''}`, {
         onclick: () => {
-          UISounds.click();
           if (this.expandedSet === set.id) return;
+          UISounds.select('expand');
           const pick = maps.find(m => !m.problems.length) || maps[0];
           this.select(pick.id);
         },
@@ -356,7 +356,7 @@ const SongSelect = {
       const sc = starColour(stars);
       const btn = h(`button.diff-panel${m.id === this.selectedId ? '.selected' : ''}${m.problems.length ? '.broken' : ''}`, {
         style: { '--sc': sc },
-        onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
+        onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.select('difficulty'); this.select(m.id); } },
         oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
         title: m.problems.length ? m.problems.join('\n') : '',
       }, h('div.dp-body',
@@ -399,7 +399,7 @@ const SongSelect = {
     if (!flat.length) return;
     const i = flat.findIndex(m => m.id === this.selectedId);
     const n = flat[clamp(i + d, 0, flat.length - 1)];
-    if (n && n.id !== this.selectedId) { UISounds.hover(); this.select(n.id); }
+    if (n && n.id !== this.selectedId) { UISounds.select(n.setId === this.expandedSet ? 'difficulty' : 'expand'); this.select(n.id); }
   },
   moveSet(d) {
     if (!this.results || !this.results.length) return;
@@ -408,7 +408,7 @@ const SongSelect = {
     if (!r || r.set.id === this.expandedSet) return;
     const cur = BeatmapManager.maps.get(this.selectedId);
     const target = cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : r.maps[0];
-    UISounds.click(); this.select(target.id);
+    UISounds.select('expand'); this.select(target.id);
   },
   /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
    *  picks are remembered so Shift+F2 / right-click can rewind them. */
@@ -421,7 +421,7 @@ const SongSelect = {
     let pool = flat.filter(m => !seen.has(m.setId));
     if (!pool.length) { seen.clear(); if (cur) seen.add(cur.setId); pool = flat.filter(m => !cur || m.setId !== cur.setId); }
     if (!pool.length) pool = flat;
-    UISounds.click();
+    UISounds.select('random');
     const hist = this._randHist || (this._randHist = []);
     if (this.selectedId) { hist.push(this.selectedId); if (hist.length > 50) hist.shift(); }
     // (one set at random, then one of its difficulties, so big sets aren't picked more often)
