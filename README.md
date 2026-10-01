@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Note counts
+- Song select's Notes count no longer subtracts hold notes twice, and its bars are measured against the total object count.
+- Tooltips no longer treat the first pointer event after loading as movement.
+
 ### Room icons
 - Private rooms now show a lock, and Copy code shows a copy icon instead of a floppy disk.
 - The room type descriptions in Create room are set tighter.

@@ -147,7 +147,7 @@ const Tooltip = {
       const show = () => { if (this.still) return; this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
       if (this.visible) show(); else this._t = setTimeout(show, 450);
     });
-    document.addEventListener('pointermove', e => { if (this.still && (this.x === undefined || Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    document.addEventListener('pointermove', e => { if (this.still && this.x !== undefined && (Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
     Bus.on('screen:changed', () => { this.hide(); this.cur = null; this.still = true; });
     document.addEventListener('pointerleave', () => { this.cur = null; this.hide(); });
     document.addEventListener('pointerdown', () => { clearTimeout(this._t); this.hide(); }, true);

@@ -7190,7 +7190,7 @@ const Tooltip = {
       const show = () => { if (this.still) return; this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
       if (this.visible) show(); else this._t = setTimeout(show, 450);
     });
-    document.addEventListener('pointermove', e => { if (this.still && (this.x === undefined || Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    document.addEventListener('pointermove', e => { if (this.still && this.x !== undefined && (Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
     Bus.on('screen:changed', () => { this.hide(); this.cur = null; this.still = true; });
     document.addEventListener('pointerleave', () => { this.cur = null; this.hide(); });
     document.addEventListener('pointerdown', () => { clearTimeout(this._t); this.hide(); }, true);
@@ -8800,11 +8800,11 @@ const SongSelect = {
         st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm))));
     const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
     const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
-    const objs = Math.max(1, m.noteCount);
+    const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
     const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
       h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
-        h('div.wd-counts', stat('Notes', m.noteCount - m.lnCount, objs, fmtInt(m.noteCount - m.lnCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
+        h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
     const lb = h('div.lb', h('div.lb-head', h('span.lb-tab.on', 'Ranking'), h('span.lb-scope', 'Local'), h('span.grow'), h('span.muted', plural(plays, 'play'))));
