@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### No more stray "null"
+
+* **Setup:** the "Pick a skin" page of first-run setup showed the word "null" under the skin list. That's fixed.
+* **Everywhere:** the cause, an empty optional item being added to the page, has now turned up on three screens. The game now drops such empty items itself, so the word can't appear anywhere again.
+
 ### Practice mode crash
 
 * **Practice:** clicking the loop or speed buttons at the moment a practice run was restarting or closing could throw an error. These buttons now ignore clicks while no run is active, and a screen that is fading out can't be clicked or tabbed into at all.

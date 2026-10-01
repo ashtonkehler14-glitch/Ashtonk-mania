@@ -126,6 +126,15 @@ class Emitter {
   emit(ev, ...args) { const s = this._h.get(ev); if (s) for (const fn of [...s]) { try { fn(...args); } catch (e) { console.error(e); } } }
 }
 const Bus = new Emitter();
+// The UI passes optional children around as `cond ? el : null`. h() drops those, but the DOM's own append() would
+// print the word "null" on screen (it happened on three screens), so the DOM methods drop them too.
+for (const P of [Element.prototype, DocumentFragment.prototype]) {
+  for (const m of ['append', 'prepend', 'replaceChildren']) {
+    const orig = P[m];
+    P[m] = function (...kids) { return orig.apply(this, kids.some(k => k == null) ? kids.filter(k => k != null) : kids); };
+  }
+}
+
 
 /** Fuzzy match: returns score > 0 if every char of the needle appears in order; contiguous and word-start hits score higher. */
 function fuzzyScore(hay, needle) {

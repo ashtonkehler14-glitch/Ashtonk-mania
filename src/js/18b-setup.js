@@ -249,7 +249,7 @@ const Onboarding = {
           card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
-        cur === 'default' ? this.customSkinOptions(() => { paint(); show(); }) : null);
+        ...(cur === 'default' ? [this.customSkinOptions(() => { paint(); show(); })] : []));
     };
     const offSkins = Bus.on('skins:changed', () => { if (this.step.id === 'skin') { paint(); show(); } });
     this.cleanup.push(offSkins);
