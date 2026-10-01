@@ -8318,11 +8318,11 @@ const SongSelect = {
     el.append(h('div.ss-main', this.info, right), footer);
     this._lbKey = null; // (the leaderboard slides in each time the screen opens)
     this._unsub = [
-      Bus.on('library:changed', () => this.rebuild()),
+      Bus.on('library:changed', () => this.rebuild(false, true)),
       Bus.on('mods:changed', () => this.renderMods()),
-      Bus.on('favorites:changed', () => this.rebuild()),
-      Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(); }),
-      Bus.on('scores:changed', () => { this.rebuild(); this.updateInfo(); }),
+      Bus.on('favorites:changed', () => this.rebuild(false, true)),
+      Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
+      Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
     ];
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
@@ -8379,7 +8379,9 @@ const SongSelect = {
     }
     return true;
   },
-  rebuild(keepScroll = false) {
+  /** `stay`: a background change (library, favourites, collections, scores) — keep the list where the player has
+   *  scrolled it instead of jumping back to the selected beatmap. */
+  rebuild(keepScroll = false, stay = false) {
     if (!this.el) return;
     const pq = this.parseQuery(this.query.trim());
     const keys = Settings.get('songselect.keys') || [];
@@ -8454,6 +8456,7 @@ const SongSelect = {
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);
+    if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
   /** lazer's carousel spacing: collapsed beatmap sets overlap by 3px, difficulties sit 3px apart and the expanded

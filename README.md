@@ -25,6 +25,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 ### Steady room list
 
 * **Multiplayer lobby:** the open rooms list still refreshes every few seconds, but rooms that haven't changed stay exactly as they are. Every row used to rebuild, replay its slide-in and reload its cover on each refresh, so the list blinked constantly and lost your hover. Only new or changed rooms animate in now.
+* **Song select stays where you scrolled:** a download finishing in the background, a favourite or a collection change used to jump the list back to the selected beatmap. It now stays where you were browsing.
 * **Song select:** clicking the favourite heart no longer replays the leaderboard's slide-in. The rows animate when you open the screen or pick another beatmap.
 * **Multiplayer room:** the match results and the "wants to play with DT" vote no longer slide in again every time someone readies up or chats.
 
