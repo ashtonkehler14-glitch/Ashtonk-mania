@@ -223,6 +223,16 @@ check('replay playback reproduces the original score exactly', rres.score === rp
 
 check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
 
+// a pointer that just rests where the loader's settings panel appears (Watch on the Replays page sits there) must not
+// hold the loader: only moving over the panel does
+await page.mouse.move(1450, 150);
+await page.evaluate(async (rp) => { const r = await AshtonkMania.ReplayManager.get(rp.id); Game.launch({ mapId: rp.mapId, mode: 'replay', replay: r }); }, rp);
+await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay', null, { timeout: 10000 });
+const loaderLeft = await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone, null, { timeout: 9000 }).then(() => true, () => false);
+check('the player loader starts even with the pointer resting over its settings panel', loaderLeft);
+await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 40000 });
+await page.mouse.move(800, 450);
+
 // watching a replay: pause, seek (re-judged exactly), speed — and the result is unchanged at the end
 await page.evaluate(async (rp) => { const r = await AshtonkMania.ReplayManager.get(rp.id); Game.launch({ mapId: rp.mapId, mode: 'replay', replay: r }); }, rp);
 await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });

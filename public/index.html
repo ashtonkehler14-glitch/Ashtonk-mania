@@ -9113,7 +9113,9 @@ const GameplayScreen = {
         ...line('Notes', fmtInt((rec.noteCount || 0) + (rec.lnCount || 0)))) : null,
       mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null,
       h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null));
-    const settings = h('div.pl-settings', { onpointerenter: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
+    // the loader waits while you're using its settings — only for a pointer that moves there: one that happens to
+    // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
+    const settings = h('div.pl-settings', { onpointermove: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
       h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
         this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
         this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
@@ -11150,7 +11152,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },

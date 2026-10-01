@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Replays start from the Replays page
+
+* **Player loader:** the loader waits while you adjust its settings panel (as lazer's does). It used to count the pointer merely resting there as "adjusting". The Watch button on the Replays page sits right where that panel appears, so clicking Watch and not moving the mouse left the replay stuck on the loader. Now only moving over the panel holds it. A test covers this.
+
 ### Skins page, tidier
 
 * **Skins:** the line under the preview just credits the skin's author. The long, sometimes contradictory list of configured and borrowed key counts is gone. The note beside the key stepper says how the key count you're looking at is drawn, and it now gives the right answer for key counts that skin.ini lists but that have no note art of their own.

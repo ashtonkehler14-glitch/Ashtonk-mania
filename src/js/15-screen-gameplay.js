@@ -323,7 +323,9 @@ const GameplayScreen = {
         ...line('Notes', fmtInt((rec.noteCount || 0) + (rec.lnCount || 0)))) : null,
       mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null,
       h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null));
-    const settings = h('div.pl-settings', { onpointerenter: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
+    // the loader waits while you're using its settings — only for a pointer that moves there: one that happens to
+    // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
+    const settings = h('div.pl-settings', { onpointermove: () => { this.loaderHold = true; }, onpointerleave: () => { this.loaderHold = false; } },
       h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
         this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
         this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
