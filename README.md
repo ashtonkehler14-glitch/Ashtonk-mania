@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Focus rings and menus
+- Text boxes show lazer's yellow focus border on its own; the accent outline around it is gone.
+- Song select's "Add to collection" menu opens above the footer instead of covering the play button.
+- The "New collection" prompt in song select has the same placeholder as the one on the Collections page.
+
 ### Music in song select
 - Song select now plays the selected beatmap's song when you arrive with nothing playing, for example straight after an import. It also follows a filter that moves the selection. Before, it stayed silent until you picked another set.
 - Now Playing's play button starts music when none is loaded, and its empty text only asks you to import beatmaps when the library really is empty.

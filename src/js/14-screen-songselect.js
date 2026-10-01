@@ -569,12 +569,14 @@ const SongSelect = {
 
   collectionMenu(e, m) {
     const r = (e.currentTarget || e.target).getBoundingClientRect();
-    showMenu(r.left, r.bottom + 4, [
+    // opened from a footer button the menu stands on it instead of covering the play button
+    const up = r.top > innerHeight / 2;
+    showMenu(r.left, up ? r.top - 6 : r.bottom + 4, [
       { header: 'Add to collection' },
       ...Collections.list.map(c => ({ label: c.name, icon: 'folder', checked: c.hashes.includes(m.hash), onClick: async () => { const on = await Collections.toggle(c.id, m.hash); Toast.show(on ? `Added to ${c.name}` : `Removed from ${c.name}`); } })),
       { sep: true },
-      { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
-    ]);
+      { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
+    ], { above: up });
   },
   options(e, m) {
     m = m || BeatmapManager.maps.get(this.selectedId);
@@ -591,7 +593,7 @@ const SongSelect = {
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.playBtn }, m) },
+      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.optionsBtn && this.optionsBtn.isConnected ? this.optionsBtn : this.playBtn }, m) },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },

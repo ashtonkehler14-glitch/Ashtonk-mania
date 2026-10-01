@@ -1729,6 +1729,8 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .input { border-radius: 5px; background-color: rgba(0, 0, 0, .5); }
 .input::placeholder { font-style: italic; color: #b4b4b4; opacity: 1; }
 .input:focus { border-color: #ffcc22; box-shadow: 0 0 0 2px #ffcc22; }
+/* (text boxes show focus with that border, not the accent outline on top of it) */
+.input:focus-visible { outline: none; }
 .ov .input:focus, .settings-panel .input:focus, .setup .input:focus { border-color: var(--ohl, hsl(var(--o-h, 255) 100% 70%)); box-shadow: 0 0 0 2px var(--ohl, hsl(var(--o-h, 255) 100% 70%)); }
 .settings-panel .fsel .input:focus { box-shadow: none; }
 /* OsuButton: 5px corners, bold text */
@@ -8840,12 +8842,14 @@ const SongSelect = {
 
   collectionMenu(e, m) {
     const r = (e.currentTarget || e.target).getBoundingClientRect();
-    showMenu(r.left, r.bottom + 4, [
+    // opened from a footer button the menu stands on it instead of covering the play button
+    const up = r.top > innerHeight / 2;
+    showMenu(r.left, up ? r.top - 6 : r.bottom + 4, [
       { header: 'Add to collection' },
       ...Collections.list.map(c => ({ label: c.name, icon: 'folder', checked: c.hashes.includes(m.hash), onClick: async () => { const on = await Collections.toggle(c.id, m.hash); Toast.show(on ? `Added to ${c.name}` : `Removed from ${c.name}`); } })),
       { sep: true },
-      { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
-    ]);
+      { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
+    ], { above: up });
   },
   options(e, m) {
     m = m || BeatmapManager.maps.get(this.selectedId);
@@ -8862,7 +8866,7 @@ const SongSelect = {
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.playBtn }, m) },
+      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.optionsBtn && this.optionsBtn.isConnected ? this.optionsBtn : this.playBtn }, m) },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
@@ -11303,7 +11307,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },

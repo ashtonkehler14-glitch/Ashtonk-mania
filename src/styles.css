@@ -1712,6 +1712,8 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .input { border-radius: 5px; background-color: rgba(0, 0, 0, .5); }
 .input::placeholder { font-style: italic; color: #b4b4b4; opacity: 1; }
 .input:focus { border-color: #ffcc22; box-shadow: 0 0 0 2px #ffcc22; }
+/* (text boxes show focus with that border, not the accent outline on top of it) */
+.input:focus-visible { outline: none; }
 .ov .input:focus, .settings-panel .input:focus, .setup .input:focus { border-color: var(--ohl, hsl(var(--o-h, 255) 100% 70%)); box-shadow: 0 0 0 2px var(--ohl, hsl(var(--o-h, 255) 100% 70%)); }
 .settings-panel .fsel .input:focus { box-shadow: none; }
 /* OsuButton: 5px corners, bold text */
