@@ -45,7 +45,7 @@ export function rpRange(a, b) {
   const lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
   return { sr: Math.round(c * 100) / 100, lo: Math.max(0.5, Math.round((c - 0.6) * 100) / 100), hi: Math.round((c + 0.6) * 100) / 100 };
 }
-const cleanSkill = v => Math.round(num(v, 0.5, 10, 2.5) * 10) / 10;
+const cleanSkill = v => Math.round(num(v, 0.5, 10, 3) * 10) / 10;
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';

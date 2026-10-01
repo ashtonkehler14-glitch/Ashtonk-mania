@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play lobby
+
+* **Three levels:** Beginner (~1.5★), Intermediate (~3★) and Advanced (~4.5★), picked with one segmented control. The six levels and the fine-tune slider are gone. A level saved before snaps to the nearest one.
+* **A calmer waiting screen:** one centred card with you vs your opponent (a pulsing placeholder while searching), your level, the room code with Copy and Invite, and Ready once someone joins. The chat panel, the HP bars and the rules list are hidden until the match starts; the rules fold under "How it works".
+
 ### Gameplay polish across skins
 
 * **Skin health bars stand beside the stage,** where osu!mania puts them, instead of running across the top-left corner (the Chemuss bar reached into the playfield). The top-left placement is still in Settings.

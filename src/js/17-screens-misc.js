@@ -387,7 +387,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
-    { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick your skill level and the cards suit you both', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
+    { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick Beginner, Intermediate or Advanced and the cards suit you both', 'A cleaner waiting screen', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
     { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count'] },
   ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [

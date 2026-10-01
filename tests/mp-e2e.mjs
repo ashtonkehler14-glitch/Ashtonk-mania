@@ -303,12 +303,13 @@ await bob.evaluate(() => [...document.querySelectorAll('.mp-room-row')].find(r =
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 10000 });
 check('a ranked room holds the two players', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
 check('no rating: each player shows the skill level they picked', await bob.evaluate(() => AshtonkMania.Multiplayer.room.players.every(p => p.rating === undefined && p.skill > 0)));
-await Promise.all([alice, bob].map(p => p.waitForSelector('.rp-level .rk-level', { timeout: 10000 })));
+await Promise.all([alice, bob].map(p => p.waitForSelector('.rpl .rk-opt', { timeout: 10000 })));
+check('the ranked lobby is one card: no chat or rules list while waiting, three levels (Beginner to Advanced)', await bob.evaluate(() => getComputedStyle(document.querySelector('.mp-side')).display === 'none' && !document.querySelector('.rp-help') && [...document.querySelectorAll('.rpl .rk-opt b')].map(b => b.textContent).join() === 'Beginner,Intermediate,Advanced'));
 await shot(bob, 'mp-rp-gather');
-await bob.click('.rp-level .rk-level:nth-child(2)'); // Casual
-await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.players.find(p => p.id === AshtonkMania.Multiplayer.me).skill === 2.5; }, null, { timeout: 5000 });
+await bob.click('.rpl .rk-opt:nth-child(1)'); // Beginner
+await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.players.find(p => p.id === AshtonkMania.Multiplayer.me).skill === 1.5; }, null, { timeout: 5000 });
 check('picking a skill level tells the room', true);
-check('the expected card range is shown between both levels', await alice.evaluate(() => /★/.test(document.querySelector('.rp-range').textContent)));
+check('the expected card range is shown between both levels', await alice.evaluate(() => /★/.test(document.querySelector('.rpl-range').textContent)));
 for (const p of [alice, bob]) await p.click('.rp-readybtn');
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.rp.phase === 'pick', null, { timeout: 40000 });
 check('both ready: the cards are dealt', true);
