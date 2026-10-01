@@ -22,6 +22,15 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### lazer parity pass
+
+Every screen was compared side by side with its osu!lazer counterpart:
+
+* **Results:** the score panel opens alone in the middle, as in lazer. Click it to slide it aside and bring in the statistics, and click again to put them away.
+* **Notifications and now playing:** Esc closes them, and so does going to another screen (they used to stay open across screens).
+* **Toolbar:** no focus ring on its buttons, as in lazer.
+* **Already matching lazer, left as they are:** song select (SelectV2 layout and footer), settings (lazer's form controls), mod select, the popup dialog, the player loader, pause and fail screens, the beatmap listing and its info page, the profile, and the volume overlay. Screens lazer doesn't have (skins, beatmap library, collections, replays) and the things you chose differently (the Edit menu, no hit error bar, Ranked Play, Neru) stay as they are.
+
 ### Setup like lazer, less clutter
 
 * **Setup can't be skipped.** Its pages are like lazer's first-run setup: your name, then **"Coming from Web-Osu-Mania?"** (lazer's "import from osu!stable" page). Answer Yes to see where WOM keeps its backup (Settings → Backup & Restore) and import it there: keybinds, settings, beatmaps, scores and collections. After that come device, size and picture, gameplay and skin.

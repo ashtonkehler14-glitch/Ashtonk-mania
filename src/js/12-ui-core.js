@@ -499,6 +499,8 @@ const NowPlaying = {
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); } }, true);
+    Bus.on('screen:changed', () => this.hide());
   },
   hoverOpen() { clearTimeout(this._t); if (!this._shut) this.show(); },
   hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
@@ -665,6 +667,9 @@ const Notifications = {
         this.listEl);
       $('#app').appendChild(this.el);
       document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
+      // like lazer's overlays: Esc closes it (before anything else hears the key), and so does going to another screen
+      window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
+      Bus.on('screen:changed', () => this.close());
     }
     this.render();
     this.el.classList.add('open');

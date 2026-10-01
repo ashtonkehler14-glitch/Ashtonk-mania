@@ -2364,3 +2364,15 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .setup-step-wom .setup-choice-t { font-size: 1.05rem; align-self: end; }
 .setup-step-wom .setup-choice-s { align-self: start; }
 .setup-step-wom .setup-wom { margin-top: 14px; }
+
+/* results (osu!lazer): the panel alone in the middle until it's clicked; then it moves aside and the statistics come in */
+.res-grid { position: relative; grid-template-columns: 400px; transition: none; }
+.res-grid > .rs { cursor: pointer; transition: transform 400ms var(--ease-out), box-shadow 200ms; }
+.res-grid > .rs:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, .5), 0 0 0 2px rgba(255, 255, 255, .12); }
+.res-grid > .res-right { display: none; }
+.res-grid.stats-open { grid-template-columns: 400px minmax(0, 700px); }
+.res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
+@keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
+/* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
+#toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }

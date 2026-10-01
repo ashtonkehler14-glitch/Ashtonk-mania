@@ -2382,6 +2382,18 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .setup-step-wom .setup-choice-s { align-self: start; }
 .setup-step-wom .setup-wom { margin-top: 14px; }
 
+/* results (osu!lazer): the panel alone in the middle until it's clicked; then it moves aside and the statistics come in */
+.res-grid { position: relative; grid-template-columns: 400px; transition: none; }
+.res-grid > .rs { cursor: pointer; transition: transform 400ms var(--ease-out), box-shadow 200ms; }
+.res-grid > .rs:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, .5), 0 0 0 2px rgba(255, 255, 255, .12); }
+.res-grid > .res-right { display: none; }
+.res-grid.stats-open { grid-template-columns: 400px minmax(0, 700px); }
+.res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
+@keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
+/* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
+#toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }
+
 </style>
 </head>
 <body>
@@ -7466,6 +7478,8 @@ const NowPlaying = {
     document.addEventListener('pointerdown', e => {
       if (this.open && !this.el.contains(e.target) && !Toolbar.npBtn.contains(e.target)) this.hide();
     }, true);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); } }, true);
+    Bus.on('screen:changed', () => this.hide());
   },
   hoverOpen() { clearTimeout(this._t); if (!this._shut) this.show(); },
   hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
@@ -7632,6 +7646,9 @@ const Notifications = {
         this.listEl);
       $('#app').appendChild(this.el);
       document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
+      // like lazer's overlays: Esc closes it (before anything else hears the key), and so does going to another screen
+      window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
+      Bus.on('screen:changed', () => this.close());
     }
     this.render();
     this.el.classList.add('open');
@@ -10168,8 +10185,17 @@ const ResultsScreen = {
     const el = h('div.results');
     if (map) BeatmapManager.bgURL(map).then(u => Background.set(u, { blur: Settings.get('graphics.menuBlur') + 6, dim: 0.35 }));
     const body = h('div.res-body');
+    // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
     const grid = h('div.res-grid');
-    grid.append(this.gradeCard(s, p), this.rightCol(s));
+    const card = this.gradeCard(s, p);
+    card.title = 'Click for statistics';
+    card.addEventListener('click', e => {
+      if (e.target.closest('button, a, input')) return;
+      UISounds.click();
+      grid.classList.toggle('stats-open');
+      card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
+    });
+    grid.append(card, this.rightCol(s));
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
@@ -11030,7 +11056,7 @@ const CHANGELOG = [
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
     { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick Beginner, Intermediate or Advanced and the cards suit you both', 'A cleaner waiting screen', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
-    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count', 'Results open like lazer: click the score for statistics'] },
   ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [
     { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
