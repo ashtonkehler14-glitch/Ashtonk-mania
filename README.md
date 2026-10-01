@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Beatmap listing titles
+
+* **Beatmap listing:** a long title on a listing card now ends in "…" before the favourite and play counts, instead of being cut off mid-letter underneath them.
+
 ### Toolbar and profile tidy-ups
 
 * **Toolbar:** clicking a toolbar button hides its tooltip until you move off it. The tooltip used to show faintly through the panel it had just opened.

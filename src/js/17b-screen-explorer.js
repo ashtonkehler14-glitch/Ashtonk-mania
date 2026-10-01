@@ -436,7 +436,7 @@ const ExplorerScreen = {
         dl && dl.state === 'downloading' ? h('div.ex-thumbprog', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }) : null),
       h('div.ex-cb',
         h('div.ex-cb-top',
-          h('div.ex-titles', h('div.ex-t', { title }, title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
+          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
           h('div.ex-counts', h('span', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)))),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
         h('div.ex-foot', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), spectrum,

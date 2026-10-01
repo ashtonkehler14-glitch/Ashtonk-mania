@@ -2050,6 +2050,8 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-cb-top { display: flex; gap: 10px; }
 .ex-titles { flex: 1; min-width: 0; }
 .ex-card .ex-t { display: flex; align-items: center; gap: 6px; font-size: 1.02rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.ex-card .ex-tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ex-card .ex-t .ex-vid { flex: none; }
 .ex-card .ex-a { font-size: .82rem; color: rgba(255, 255, 255, .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ex-card .ex-m { margin-top: 2px; font-size: .74rem; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ex-card .ex-m b { color: hsl(var(--o-h) 70% 80%); font-weight: 600; }

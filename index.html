@@ -2067,6 +2067,8 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-cb-top { display: flex; gap: 10px; }
 .ex-titles { flex: 1; min-width: 0; }
 .ex-card .ex-t { display: flex; align-items: center; gap: 6px; font-size: 1.02rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.ex-card .ex-tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ex-card .ex-t .ex-vid { flex: none; }
 .ex-card .ex-a { font-size: .82rem; color: rgba(255, 255, 255, .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ex-card .ex-m { margin-top: 2px; font-size: .74rem; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ex-card .ex-m b { color: hsl(var(--o-h) 70% 80%); font-weight: 600; }
@@ -11131,7 +11133,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
@@ -11612,7 +11614,7 @@ const ExplorerScreen = {
         dl && dl.state === 'downloading' ? h('div.ex-thumbprog', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }) : null),
       h('div.ex-cb',
         h('div.ex-cb-top',
-          h('div.ex-titles', h('div.ex-t', { title }, title, set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
+          h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title), set.video ? h('span.ex-vid', { title: 'Has video' }, icon('film')) : null), h('div.ex-a', { title: artist }, artist)),
           h('div.ex-counts', h('span', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites)), h('span', { title: 'Play count' }, icon('play'), fmtCompact(set.playCount)))),
         h('div.ex-m', 'mapped by ', h('b', set.creator)),
         h('div.ex-foot', h(`span.ex-statuspill.st-${set.status}`, set.status.toUpperCase()), spectrum,
