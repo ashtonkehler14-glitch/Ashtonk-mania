@@ -85,6 +85,7 @@ const SongSelect = {
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
+    this._lbKey = null; // (the leaderboard slides in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild()),
       Bus.on('mods:changed', () => this.renderMods()),
@@ -475,8 +476,11 @@ const SongSelect = {
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
     const lb = h('div.lb', h('div.lb-head', h('span.lb-tab.on', 'Ranking'), h('span.lb-scope', 'Local'), h('span.grow'), h('span.muted', plural(plays, 'play'))));
-    const list = h('div.lb-list');
     const scores = ScoreManager.forMap(m.hash).slice(0, 25);
+    // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
+    const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
+    this._lbKey = lbKey;
+    const list = h(`div.lb-list${same ? '.still' : ''}`);
     const best = ScoreManager.best(m.hash);
     if (!scores.length) list.append(h('div.lb-empty', 'No scores yet'));
     const who = ProfileManager.profile.name;
