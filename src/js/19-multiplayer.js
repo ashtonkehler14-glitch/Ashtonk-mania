@@ -88,7 +88,7 @@ const Multiplayer = {
       } catch (e) {
         if (this.reconnecting !== rc) return;
         // a Quick Play round moved on without us: there's no way back in
-        if ((rc.opts.mode === 'qp' || rc.opts.mode === 'rp') && /already started|full/i.test(e.message)) { this.leave(); Toast.err('Lost the Quick Play match', 'The connection dropped and the match went on without you.'); return; }
+        if ((rc.opts.mode === 'qp' || rc.opts.mode === 'rp') && /already started|full/i.test(e.message)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'rp' ? 'Ranked Play' : 'Quick Play'} match`, 'The connection dropped and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
         rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
