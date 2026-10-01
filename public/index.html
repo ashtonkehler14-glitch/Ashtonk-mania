@@ -8345,7 +8345,7 @@ const SongSelect = {
     this._lbKey = null; // (the leaderboard slides in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
-      Bus.on('mods:changed', () => this.renderMods()),
+      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
@@ -8704,6 +8704,20 @@ const SongSelect = {
     } catch (e) { console.warn('preview failed', e); }
   },
 
+  /** lazer shows the star rating with the selected speed mods: worked out in the background (the beatmap is parsed
+   *  and rated once per map and speed), then the panel redraws. null until it's known, or when there's no speed change. */
+  modStars(m) {
+    const rate = ModSystem.rate(Settings.get('songselect.mods') || []);
+    if (rate === 1) return null;
+    const key = `${m.hash}|${rate}`, cache = this._srCache || (this._srCache = new Map());
+    if (cache.has(key)) return cache.get(key);
+    cache.set(key, null);
+    BeatmapManager.load(m.id).then(({ notes }) => {
+      cache.set(key, DifficultyCalculator.calculate(notes, m.keys, rate));
+      if (this.selectedId === m.id && Screens.current === this) this.updateInfo();
+    }).catch(() => {});
+    return null;
+  },
   updateInfo() {
     if (!this.info) return;
     clearEl(this.info);
@@ -8730,7 +8744,7 @@ const SongSelect = {
     const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.noteCount);
     const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
-      h('div.wd-name', starBadge(m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+      h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount - m.lnCount, objs, fmtInt(m.noteCount - m.lnCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
@@ -9092,6 +9106,8 @@ const GameplayScreen = {
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
+    if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -9128,7 +9144,7 @@ const GameplayScreen = {
       h('div.pl-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
       h('div.pl-t', { title }, title), h('div.pl-a', artist),
       h('div.pl-thumb', cover, h('div.pl-load', h('span.spinner'), this.plStatus), h('div.pl-bar', this.plBar)),
-      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
+      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', this.plStars = starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
       rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator),
         ...line('Length', fmtTime((rec.length || 0) / rate) + (rate !== 1 ? ` (${+rate.toFixed(2)}×)` : '')),
         ...line('BPM', rec.bpm ? String(Math.round(rec.bpm * rate)) : ''),
@@ -11201,7 +11217,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },

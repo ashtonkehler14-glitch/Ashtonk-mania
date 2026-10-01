@@ -280,6 +280,8 @@ const GameplayScreen = {
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
+    if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     Toolbar.setNowPlaying(rec);
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -316,7 +318,7 @@ const GameplayScreen = {
       h('div.pl-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
       h('div.pl-t', { title }, title), h('div.pl-a', artist),
       h('div.pl-thumb', cover, h('div.pl-load', h('span.spinner'), this.plStatus), h('div.pl-bar', this.plBar)),
-      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
+      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', this.plStars = starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
       rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator),
         ...line('Length', fmtTime((rec.length || 0) / rate) + (rate !== 1 ? ` (${+rate.toFixed(2)}×)` : '')),
         ...line('BPM', rec.bpm ? String(Math.round(rec.bpm * rate)) : ''),

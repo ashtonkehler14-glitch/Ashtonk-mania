@@ -91,7 +91,7 @@ const SongSelect = {
     this._lbKey = null; // (the leaderboard slides in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
-      Bus.on('mods:changed', () => this.renderMods()),
+      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
@@ -450,6 +450,20 @@ const SongSelect = {
     } catch (e) { console.warn('preview failed', e); }
   },
 
+  /** lazer shows the star rating with the selected speed mods: worked out in the background (the beatmap is parsed
+   *  and rated once per map and speed), then the panel redraws. null until it's known, or when there's no speed change. */
+  modStars(m) {
+    const rate = ModSystem.rate(Settings.get('songselect.mods') || []);
+    if (rate === 1) return null;
+    const key = `${m.hash}|${rate}`, cache = this._srCache || (this._srCache = new Map());
+    if (cache.has(key)) return cache.get(key);
+    cache.set(key, null);
+    BeatmapManager.load(m.id).then(({ notes }) => {
+      cache.set(key, DifficultyCalculator.calculate(notes, m.keys, rate));
+      if (this.selectedId === m.id && Screens.current === this) this.updateInfo();
+    }).catch(() => {});
+    return null;
+  },
   updateInfo() {
     if (!this.info) return;
     clearEl(this.info);
@@ -476,7 +490,7 @@ const SongSelect = {
     const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.noteCount);
     const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
-      h('div.wd-name', starBadge(m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+      h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount - m.lnCount, objs, fmtInt(m.noteCount - m.lnCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
