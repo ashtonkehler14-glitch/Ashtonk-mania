@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Star rating follows your mods
+
+* **Song select:** with a speed mod on (DT, HT, NC, Daycore, Song Speed), the beatmap panel and every difficulty in the list show the star rating and colour for that speed, as lazer does. They're worked out in the background, a moment after you change mods, and remembered. Changing mods now also updates the panel's length and BPM straight away (they used to wait until you picked another beatmap).
+* **Player loader:** the loader shows the star rating you're actually about to play, mods included.
+
 ### Star range filter
 
 * **Beatmap listing:** the Stars filter under "More filters" is one track with two handles (minimum and maximum), with the filled part between them, instead of two separate sliders side by side. The handles can't cross, and the "2.9★ – 6.1★" label follows them while you drag. It used to update only after you let go.
