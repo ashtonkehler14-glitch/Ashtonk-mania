@@ -394,6 +394,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .wedge { flex: none; margin-left: -40px; padding: 18px 64px 12px 72px; animation: wedgeSwap calc(200ms * var(--anim)) ease-out both; }
 .ss.entering .wedge, .ss.entering .wd { animation: wedgeIn calc(600ms * var(--anim)) var(--ease-out) both; }
 @keyframes wedgeSwap { from { opacity: .5; } }
+.wedge.still, .wd.still { animation: none; }
 @keyframes wedgeIn { from { opacity: 0; transform: translateX(-150px); } }
 .wedge .w-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .wedge .w-top { display: flex; gap: 6px; align-items: center; min-height: 18px; }

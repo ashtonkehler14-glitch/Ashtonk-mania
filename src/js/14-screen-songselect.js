@@ -102,7 +102,7 @@ const SongSelect = {
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
-    this._lbKey = null; // (the leaderboard slides in each time the screen opens)
+    this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
       Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
@@ -540,7 +540,10 @@ const SongSelect = {
     // lazer's BeatmapTitleWedge: a sheared dark wedge over the (full-screen) beatmap background with the title, artist,
     // play count / favourite / length / BPM; then the DifficultyDisplay in the difficulty's colour
     const plays = ScoreManager.playCount(m.hash);
-    const wedge = h('div.wedge', h('div.w-body',
+    // the wedges fade over only for another beatmap set / difficulty, not when something else redraws them (mods, a favourite)
+    const sameSet = this._infoSet === m.setId, sameMap = this._infoMap === m.id;
+    this._infoSet = m.setId; this._infoMap = m.id;
+    const wedge = h(`div.wedge${sameSet ? '.still' : ''}`, h('div.w-body',
       h('div.w-top', h('span.keys-tag', `${m.keys}K`), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
       h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('play', 'fill'), fmtInt(plays)), favBtn, collBtn,
@@ -548,7 +551,7 @@ const SongSelect = {
     const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
     const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
-    const diff = h('div.wd', { style: { '--sc': sc, '--ink': ink } },
+    const diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
       h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),

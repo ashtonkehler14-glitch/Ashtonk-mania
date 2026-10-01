@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Steady wedges
+- Song select's title and difficulty wedges only fade over for a different beatmap set or difficulty. Toggling a mod or favouriting no longer makes them flicker.
+
 ### More hover sounds
 - These now play the hover sound like lazer's:
   - song select's footer buttons and play button
