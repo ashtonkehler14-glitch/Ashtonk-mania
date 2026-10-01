@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Invites wait for your play to end
+
+* **Multiplayer invites:** an invite that arrives while you're playing no longer pops up mid-song. The usual "invited you!" Join / Not now dialog appears once the play is over (if the invite is still recent).
+
 ### Quieter during play
 
 * **Gameplay:** if the game lowers the playfield's resolution to keep a beatmap smooth, it now says so after the play, not with a pop-up in the middle of it. lazer also holds notifications back while you play.

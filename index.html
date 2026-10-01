@@ -13393,8 +13393,15 @@ const Presence = {
   async onInvite(m) {
     const from = m.from && m.from.name || 'Someone';
     if (Multiplayer.inRoom() && Multiplayer.room.code === m.code) return;
-    if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running) {
-      Toast.show(`${from} invited you to their room`, `Room ${m.code} — join it from Multiplayer after this play.`);
+    if (Screens.currentName === 'gameplay') {
+      // nothing pops up mid-play (as lazer holds notifications back): the invite is asked once the play is over
+      this._pendingInvite = { m, at: Date.now() };
+      if (!this._inviteOff) this._inviteOff = Bus.on('screen:changed', name => {
+        const p = this._pendingInvite;
+        if (name === 'gameplay' || !p) return;
+        this._pendingInvite = null;
+        if (Date.now() - p.at < 5 * 60000) setTimeout(() => this.onInvite(p.m), 700);
+      });
       return;
     }
     UISounds.play('check-on');
