@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Import progress
+- Importing several beatmaps or skins at once now shows how far along the batch is, for example "Importing GHOST (3/12)…". The `.osz` extension is dropped, and a long name ends in "…" instead of stretching the pill.
+
 ### Beatmap info page
 - A beatmap set with nothing to list below its header (no tags, not in your library) now shows its cover across the whole page. Before, the header sat on top of an empty dark area.
 

@@ -743,7 +743,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .debug-overlay .h { color: #ffe38a; }
 
 /* import status pill */
-.import-pill { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 91; padding: 10px 18px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--accent); display: flex; align-items: center; gap: 10px; font-weight: 600; box-shadow: var(--shadow); animation: toastIn var(--t-med) var(--ease-out); }
+.import-pill { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 91; max-width: min(560px, calc(100% - 32px)); padding: 10px 18px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--accent); display: flex; align-items: center; gap: 10px; font-weight: 600; box-shadow: var(--shadow); animation: toastIn var(--t-med) var(--ease-out); }
+.import-pill > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 3px solid rgba(var(--accent-rgb), .25); border-top-color: var(--accent); animation: spin 700ms linear infinite; }
 
 /* calibration */
@@ -4948,19 +4949,23 @@ const BeatmapManager = {
   async importFiles(files) {
     const report = { sets: [], skins: [], replays: [], errors: [], warnings: [], data: false };
     const loose = [];
+    // "Importing <name> (3/12)…" while a batch of archives goes in
+    const archives = [...files].filter(f => ['osz', 'zip', 'osk'].includes(fileExt(f.name))).length;
+    let nth = 0;
+    const status = (what, f) => { nth++; Bus.emit('import:status', `Importing ${what}${f.name.replace(/\.(osz|osk|zip)$/i, '')}${archives > 1 ? ` (${nth}/${archives})` : ''}…`); };
     for (const f of files) {
       const name = f.relPath || f.webkitRelativePath || f.name;
       const ext = fileExt(f.name);
       try {
-        if (ext === 'osz') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
-        else if (ext === 'osk') { Bus.emit('import:status', `Importing skin ${f.name}…`); report.skins.push(await SkinManager.importOsk(f)); }
+        if (ext === 'osz') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
+        else if (ext === 'osk') { status('skin ', f); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
         else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
           // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
           const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });
           report.sets.push(...r.sets); report.errors.push(...r.errors); report.wom = r;
         }
-        else if (ext === 'zip') { Bus.emit('import:status', `Importing ${f.name}…`); report.sets.push(...await this.importOsz(f, report)); }
+        else if (ext === 'zip') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'json' && !name.includes('/')) {
           const obj = JSON.parse(await f.text());
           if (obj && obj.app === APP_NAME && obj.kind === 'replay') report.replays.push(await ReplayManager.importObject(obj));
