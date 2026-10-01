@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Menu side flashes
+- The main menu has lazer's side flashes. Both screen edges light up on the first beat of each bar, and during kiai sections they alternate left and right on every beat.
+- The flashes are as bright as the music is loud, fade out over a beat, and are off when animations are off.
+
 ### Import progress
 - Importing several beatmaps or skins at once now shows how far along the batch is, for example "Importing GHOST (3/12)…". The `.osz` extension is dropped, and a long name ends in "…" instead of stretching the pill.
 

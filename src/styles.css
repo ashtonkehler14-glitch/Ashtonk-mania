@@ -2438,3 +2438,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .keycfg-modes.sk-keys { justify-content: center; margin-bottom: 10px; }
 /* profile: a tab jump leaves the section heading clear of the sticky tab bar */
 .pf-sec { scroll-margin-top: 56px; }
+
+/* lazer's MenuSideFlashes: additive white glows on the main menu's left and right edges, lit with the beat */
+.msf { position: absolute; top: 0; bottom: 0; width: 220px; z-index: 0; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter; }
+.msf.l { left: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .9), transparent); }
+.msf.r { right: 0; background: linear-gradient(270deg, rgba(255, 255, 255, .9), transparent); }

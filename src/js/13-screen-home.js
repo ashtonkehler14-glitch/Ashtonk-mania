@@ -12,7 +12,8 @@ const HomeScreen = {
     this.leftBtns = h('div.lz-buttons.lz-left');
     this.rightBtns = h('div.lz-buttons.lz-right');
     this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), h('div.lz-stage', this.bar), NeruMascot.build());
+    this.flashL = h('div.msf.l'); this.flashR = h('div.msf.r');
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), this.flashL, this.flashR, h('div.lz-stage', this.bar), NeruMascot.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
@@ -80,6 +81,18 @@ const HomeScreen = {
     ico.style.setProperty('--bt', `${Math.round(clamp(len, 250, 900))}ms`);
     ico.classList.toggle('bl', !this._beatN); ico.classList.toggle('br', !!this._beatN);
     ico.classList.remove('bounce'); void ico.offsetWidth; ico.classList.add('bounce');
+  },
+  /** lazer's MenuSideFlashes: the screen's edges light up with the music — both on each bar's first beat, or
+   *  left and right in turn on every beat during kiai — as bright as the track is loud, fading over a beat. */
+  sideFlash(beat, tp, kiai, amp) {
+    if (!this.flashL || !Settings.get('ui.animSpeed')) return;
+    const meter = tp.meter || 4;
+    const alpha = clamp((amp - 0.25) / (kiai ? 0.94 : 1.36), 0, 1);
+    if (alpha < 0.03) return;
+    const dur = 80 + tp.beatLength;
+    const flash = el => el.animate([{ opacity: 0, easing: 'linear' }, { opacity: alpha, offset: 80 / dur, easing: 'ease-in' }, { opacity: 0 }], { duration: dur });
+    if (kiai ? beat % 2 === 0 : beat % meter === 0) flash(this.flashL);
+    if (kiai ? beat % 2 === 1 : beat % meter === 0) flash(this.flashR);
   },
   onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
@@ -156,7 +169,12 @@ const HomeScreen = {
       if (tm && Music.playing) {
         const t = Music.time, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
         const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
-        if (key !== lastBeat && t >= tp.time) { lastBeat = key; pulseT = now; this.onBeat(tp.beatLength); }
+        if (key !== lastBeat && t >= tp.time) {
+          lastBeat = key; pulseT = now; this.onBeat(tp.beatLength);
+          const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
+          let amp = 0; for (let j = 0; j < 8; j++) amp = Math.max(amp, amps[j]);
+          this.sideFlash(beat, tp, !!(kp && kp.on && t >= kp.time), amp);
+        }
       } else if (now - pulseT > 600) { pulseT = now; this.onBeat(600); } // no beat to follow: sway at a steady pace
       // idle for a while: back to the big logo, as when the game opens
       if (this.menuState !== 'initial' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !(NowPlaying.open)) this.setState('initial');
@@ -255,7 +273,11 @@ function previewStart(map) { return map.previewTime > 0 ? map.previewTime : Math
 /** Red-line timing for the menu beat pulse (parsed after playback has started). */
 async function beatTiming(map) {
   const parsed = await BeatmapManager.load(map.id).catch(() => null);
-  return parsed ? BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength })) : null;
+  if (!parsed) return null;
+  const out = BeatmapParser.timing(parsed.bm).red.map(r => ({ time: r.time, beatLength: r.beatLength, meter: r.meter || 4 }));
+  // kiai sections (bit 1 of a timing point's effects), for the menu's side flashes
+  out.kiai = (parsed.bm.timingPoints || []).map(t => ({ time: t.time, on: !!(t.effects & 1) })).sort((a, b) => a.time - b.time);
+  return out;
 }
 
 /** Background music (main menu / everywhere outside gameplay) with previous / pause / next. */
