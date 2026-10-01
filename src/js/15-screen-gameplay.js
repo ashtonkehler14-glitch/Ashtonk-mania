@@ -183,7 +183,7 @@ const GameplayScreen = {
     el.addEventListener('pointermove', this._mm);
     this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
-    requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Could not start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
+    requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
     return el;
   },
   leave() {

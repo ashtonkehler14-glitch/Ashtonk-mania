@@ -51,7 +51,7 @@ const App = {
     $('#loading-screen').classList.add('done');
     setTimeout(() => $('#loading-screen').classList.add('gone'), 1000); // after the fade: stop its logo animation
     if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
-    else if (failed.length) Toast.err('Some saved data could not be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
+    else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
