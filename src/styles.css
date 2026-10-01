@@ -2157,6 +2157,10 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
 .bso-scroll { padding-top: 0; }
+/* a set with nothing to list below (no tags, not in your library) is all cover instead of a strip over an empty page */
+.bso-body:empty { display: none; }
+.bso-scroll:has(.bso-body:empty) .bso-header { min-height: 100%; display: flex; flex-direction: column; }
+.bso-scroll:has(.bso-body:empty) .bso-inner { flex: 1; }
 
 /* What's new (lazer's changelog) */
 .cl { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, calc(94 * var(--vw))); max-height: calc(86 * var(--vh)); display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: hsl(255 10% 12%); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); animation: clIn 320ms var(--ease-out) both; --o-h: 255; }

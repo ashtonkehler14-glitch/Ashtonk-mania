@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Beatmap info page
+- A beatmap set with nothing to list below its header (no tags, not in your library) now shows its cover across the whole page. Before, the header sat on top of an empty dark area.
+
 ### Steady wedges
 - Song select's title and difficulty wedges only fade over for a different beatmap set or difficulty. Toggling a mod or favouriting no longer makes them flicker.
 
