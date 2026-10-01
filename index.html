@@ -4694,7 +4694,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Automatically retry on fail', t: 'bool', d: false },
-  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 2500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  { s: 'Gameplay', g: 'Flow', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 2500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
   { s: 'Audio', g: 'Volume', k: 'audio.master', l: 'Master', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.music', l: 'Music', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
@@ -4703,7 +4703,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
   { s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
   { s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
-  { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Interface sounds', t: 'bool', d: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Play interface sounds', t: 'bool', d: true },
   // ── Graphics
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false },

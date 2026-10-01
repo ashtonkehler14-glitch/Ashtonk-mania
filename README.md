@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Settings tidy-up
+
+* **Audio:** there were two settings both called "Interface sounds". The on/off switch is now "Play interface sounds"; the volume slider keeps the name.
+* **Gameplay:** "Minimum lead-in" moved from Judgement to Flow, next to the unpause countdown and break settings it belongs with.
+
 ### Consistent spelling
 
 * **Favourites:** the game now spells "favourite" the same way everywhere, as lazer does (song select's filter, the heart button and its menu, Collections). It used to switch between "favorite" and "favourite".
