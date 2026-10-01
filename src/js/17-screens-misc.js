@@ -200,8 +200,8 @@ const ProfileScreen = {
     const ppHist = ScoreManager.ppHistory();
     const day = 86400000;
     const hist = section('historical', 'Historical',
-      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
+      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
+      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
     const ranks = section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
         ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))

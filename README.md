@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Dates
+
+* **Dates:** the share card, older scores and replays, and the profile charts' tooltips write dates the same way as the rest of the game ("Oct 1, 2026"), not as bare numbers like 10/1/2026.
+
 ### One set of judgement names
 
 * **Judgements:** the share card, the timing chart's legend and the custom timing windows setting now use the same names as the results screen and the HUD: MAX, 300, 200, 100, 50, Miss. Some places used to say Marvelous / Perfect / Great / Good / Bad instead.

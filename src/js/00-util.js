@@ -78,7 +78,7 @@ function fmtDate(ts) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
 /** "1 Oct 2026, 14:03" — short absolute date + time (results, replays). */
 const fmtDateTime = ts => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });

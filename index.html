@@ -2551,7 +2551,7 @@ function fmtDate(ts) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
 /** "1 Oct 2026, 14:03" — short absolute date + time (results, replays). */
 const fmtDateTime = ts => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -10641,7 +10641,7 @@ const ShareCard = {
     });
     // footer
     x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(0, H - 64, W, 64);
-    text(`played by ${s.player || 'Player'} · ${new Date(s.date).toLocaleDateString()}`, 20, H - 25, { w: 600, color: 'rgba(255,255,255,.8)' });
+    text(`played by ${s.player || 'Player'} · ${new Date(s.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}`, 20, H - 25, { w: 600, color: 'rgba(255,255,255,.8)' });
     const bw = text('mania', 22, H - 25, { w: 500, color: 'rgba(255,255,255,.85)', xPos: W - 60, align: 'right' });
     text('ashtonk!', 30, H - 25, { w: 800, color: accent, xPos: W - 64 - bw, align: 'right' });
     return new Promise(r => c.toBlob(r, 'image/png'));
@@ -11076,8 +11076,8 @@ const ProfileScreen = {
     const ppHist = ScoreManager.ppHistory();
     const day = 86400000;
     const hist = section('historical', 'Historical',
-      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString()}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString()}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
+      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
+      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
     const ranks = section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
         ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))

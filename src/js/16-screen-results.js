@@ -269,7 +269,7 @@ const ShareCard = {
     });
     // footer
     x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(0, H - 64, W, 64);
-    text(`played by ${s.player || 'Player'} · ${new Date(s.date).toLocaleDateString()}`, 20, H - 25, { w: 600, color: 'rgba(255,255,255,.8)' });
+    text(`played by ${s.player || 'Player'} · ${new Date(s.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}`, 20, H - 25, { w: 600, color: 'rgba(255,255,255,.8)' });
     const bw = text('mania', 22, H - 25, { w: 500, color: 'rgba(255,255,255,.85)', xPos: W - 60, align: 'right' });
     text('ashtonk!', 30, H - 25, { w: 800, color: accent, xPos: W - 64 - bw, align: 'right' });
     return new Promise(r => c.toBlob(r, 'image/png'));
