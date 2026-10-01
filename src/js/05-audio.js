@@ -17,11 +17,24 @@ const AudioManager = {
     this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
     this.musicBus = this.ctx.createGain();
     this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 256; this.analyser.smoothingTimeConstant = 0.7;
-    this.musicBus.connect(this.analyser); this.analyser.connect(this.master);
+    // music → analyser → duck (a low-pass plus a little volume) → master: lazer muffles the music behind a dialog
+    this.duckFilter = this.ctx.createBiquadFilter(); this.duckFilter.type = 'lowpass'; this.duckFilter.frequency.value = 22000;
+    this.duckGain = this.ctx.createGain();
+    this.musicBus.connect(this.analyser); this.analyser.connect(this.duckFilter); this.duckFilter.connect(this.duckGain); this.duckGain.connect(this.master);
     this.fxBus = this.ctx.createGain(); this.fxBus.connect(this.master);
     this.uiBus = this.ctx.createGain(); this.uiBus.connect(this.fxBus);
     this.applyVolumes();
     return this.ctx;
+  },
+  /** Muffle (or un-muffle) the music while a dialog is up, as lazer does; counted, so nested dialogs work. */
+  _ducks: 0,
+  duck(on) {
+    this._ducks = Math.max(0, this._ducks + (on ? 1 : -1));
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, d = this._ducks > 0;
+    this.duckFilter.frequency.cancelScheduledValues(t); this.duckGain.gain.cancelScheduledValues(t);
+    this.duckFilter.frequency.setTargetAtTime(d ? 800 : 22000, t, d ? 0.04 : 0.08);
+    this.duckGain.gain.setTargetAtTime(d ? 0.75 : 1, t, 0.06);
   },
   resume() { this.init(); if (this.ctx.state !== 'running') return this.ctx.resume().catch(() => {}); return Promise.resolve(); },
   applyVolumes() {

@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Music ducks behind dialogs
+- Outside gameplay, the music is muffled (a low-pass and a slightly lower volume) while a popup dialog is open, as in lazer, and comes back when it closes. Confirmations, prompts and "delete?" dialogs all do this.
+
 ### Leaderboard avatars
 - Song select's leaderboard rows now show the player's avatar, as lazer's do. Your own scores use your avatar, and another player's local score shows their initial.
 

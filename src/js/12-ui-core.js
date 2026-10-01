@@ -253,7 +253,10 @@ const Dialog = {
     const btns = buttons.map(btn);
     const dlg = h('div.dialog.popup', { role: 'dialog', 'aria-modal': 'true' },
       h('div.pd-ring', icon(ic)), h('h2', title), body != null ? h('div.body', body) : null, h('div.pd-buttons', ...btns));
-    o = makeOverlay(dlg, { onClose, onKey });
+    // (outside gameplay the music is muffled behind the dialog, as in lazer)
+    const duck = typeof Screens === 'undefined' || Screens.currentName !== 'gameplay';
+    if (duck) AudioManager.duck(true);
+    o = makeOverlay(dlg, { onClose: () => { if (duck) AudioManager.duck(false); onClose && onClose(); }, onKey });
     return { o, btns };
   },
   confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false, icon: ic = null } = {}) {
