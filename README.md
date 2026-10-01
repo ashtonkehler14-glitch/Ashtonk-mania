@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Kiai logo
+- During a song's kiai sections the main menu logo pulses harder and flashes on every beat, like lazer's.
+
 ### Menu side flashes
 - The main menu has lazer's side flashes. Both screen edges light up on the first beat of each bar, and during kiai sections they alternate left and right on every beat.
 - The flashes are as bright as the music is loud, fade out over a beat, and are off when animations are off.

@@ -8087,13 +8087,17 @@ const HomeScreen = {
           lastBeat = key; pulseT = now; this.onBeat(tp.beatLength);
           const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
           let amp = 0; for (let j = 0; j < 8; j++) amp = Math.max(amp, amps[j]);
-          this.sideFlash(beat, tp, !!(kp && kp.on && t >= kp.time), amp);
+          const kiai = !!(kp && kp.on && t >= kp.time);
+          this.sideFlash(beat, tp, kiai, amp);
+          // (lazer's logo pulses harder and flashes on each beat during kiai)
+          this._kiai = kiai;
+          if (kiai && Settings.get('ui.animSpeed')) this.cookie.animate([{ filter: 'brightness(1.3)' }, { filter: 'brightness(1)' }], { duration: tp.beatLength, easing: 'ease-in' });
         }
-      } else if (now - pulseT > 600) { pulseT = now; this.onBeat(600); } // no beat to follow: sway at a steady pace
+      } else if (now - pulseT > 600) { pulseT = now; this._kiai = false; this.onBeat(600); } // no beat to follow: sway at a steady pace
       // idle for a while: back to the big logo, as when the game opens
       if (this.menuState !== 'initial' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !(NowPlaying.open)) this.setState('initial');
       const k = clamp((now - pulseT) / 260, 0, 1);
-      this.cookie.style.transform = `scale(${1 + 0.035 * (1 - k) * (1 - k)})`;
+      this.cookie.style.transform = `scale(${1 + (this._kiai ? 0.055 : 0.035) * (1 - k) * (1 - k)})`;
     };
     this._raf = requestAnimationFrame(tick);
   },
