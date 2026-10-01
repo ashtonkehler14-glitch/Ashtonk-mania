@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Song select fade and quieter tooltips
+
+* **Song select:** once the list is scrolled, beatmaps fade out softly under the search and filter panel, as they do in lazer. They used to be cut off with a hard edge.
+* **Tooltips:** when a new screen opens under a mouse that isn't moving, no tooltip pops up for whatever happens to be under it (results used to show "Settings" in the corner). Tooltips come back as soon as you move the mouse.
+
 ### Skip button and toasts like lazer
 
 * **Skip:** the intro skip is now lazer's big skip button in the bottom right, with moving chevrons and a bar along its bottom that runs down while the intro can still be skipped. Space still skips.

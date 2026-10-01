@@ -481,6 +481,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
    panels that aren't selected to the right: sets by 125px, difficulties by 75px */
 .carousel { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
+.carousel-scroll.under { -webkit-mask-image: linear-gradient(transparent, #000 36px); mask-image: linear-gradient(transparent, #000 36px); }
 .carousel-inner { position: relative; }
 .c-item { position: absolute; left: 0; right: 0; will-change: transform; transition: transform calc(400ms * var(--anim)) var(--ease-out); }
 .set-panel, .diff-panel { position: relative; display: block; width: calc(100% + 10px); height: 100%; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; text-align: left; color: #fff; background: linear-gradient(90deg, var(--b3), var(--b4)); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); transform: translateX(var(--x)); transition: transform calc(400ms * var(--anim)) var(--ease-out), box-shadow calc(400ms * var(--anim)) var(--ease-out); }
@@ -7146,10 +7147,12 @@ const Tooltip = {
       if (t.hasAttribute('title')) { const v = t.getAttribute('title'); if (v) t.dataset.tip = v; t.removeAttribute('title'); }
       const tip = t.dataset.tip;
       if (!tip || e.pointerType === 'touch' || document.getElementById('app').classList.contains('in-game')) { this.hide(); return; }
-      const show = () => { this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
+      // only for a pointer that's actually moving: a new screen appearing under a still mouse shows nothing
+      const show = () => { if (this.still) return; this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
       if (this.visible) show(); else this._t = setTimeout(show, 450);
     });
-    document.addEventListener('pointermove', e => { this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    document.addEventListener('pointermove', e => { if (this.still && (this.x === undefined || Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
+    Bus.on('screen:changed', () => { this.hide(); this.cur = null; this.still = true; });
     document.addEventListener('pointerleave', () => { this.cur = null; this.hide(); });
     document.addEventListener('pointerdown', () => { clearTimeout(this._t); this.hide(); }, true);
     document.addEventListener('keydown', () => this.hide(), true);
@@ -8264,7 +8267,12 @@ const SongSelect = {
     // right carousel
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
-    this.scroller.addEventListener('scroll', () => this.renderVisible(), { passive: true });
+    this.scroller.addEventListener('scroll', () => {
+      this.renderVisible();
+      // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
+      const sc = this.scroller, under = sc.scrollTop > 4;
+      if (under !== sc.classList.contains('under')) sc.classList.toggle('under', under);
+    }, { passive: true });
     // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
     this._vh = 0;
     new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);

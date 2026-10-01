@@ -57,7 +57,12 @@ const SongSelect = {
     // right carousel
     this.inner = h('div.carousel-inner');
     this.scroller = h('div.carousel-scroll', { tabindex: '-1' }, this.inner);
-    this.scroller.addEventListener('scroll', () => this.renderVisible(), { passive: true });
+    this.scroller.addEventListener('scroll', () => {
+      this.renderVisible();
+      // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
+      const sc = this.scroller, under = sc.scrollTop > 4;
+      if (under !== sc.classList.contains('under')) sc.classList.toggle('under', under);
+    }, { passive: true });
     // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
     this._vh = 0;
     new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);

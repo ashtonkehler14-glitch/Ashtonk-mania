@@ -464,6 +464,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
    panels that aren't selected to the right: sets by 125px, difficulties by 75px */
 .carousel { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
+.carousel-scroll.under { -webkit-mask-image: linear-gradient(transparent, #000 36px); mask-image: linear-gradient(transparent, #000 36px); }
 .carousel-inner { position: relative; }
 .c-item { position: absolute; left: 0; right: 0; will-change: transform; transition: transform calc(400ms * var(--anim)) var(--ease-out); }
 .set-panel, .diff-panel { position: relative; display: block; width: calc(100% + 10px); height: 100%; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; text-align: left; color: #fff; background: linear-gradient(90deg, var(--b3), var(--b4)); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); transform: translateX(var(--x)); transition: transform calc(400ms * var(--anim)) var(--ease-out), box-shadow calc(400ms * var(--anim)) var(--ease-out); }
