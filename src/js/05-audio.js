@@ -364,5 +364,5 @@ const UISounds = {
   click() { this.play('click-short-confirm'); },
   back() { this.play('menuback'); },
   /** Song select: a beatmap set opening ('expand'), another difficulty ('difficulty') or a random pick ('random'). */
-  select(kind) { this.play('select-' + kind); },
+  select(kind) { const now = performance.now(); if (now - (this._ls || 0) < 45) return; this._ls = now; this.play('select-' + kind); }, // (an arrow key held down doesn't pile them up)
 };

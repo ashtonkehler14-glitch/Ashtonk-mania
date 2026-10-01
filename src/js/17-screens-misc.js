@@ -128,8 +128,11 @@ const CollectionsScreen = {
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);
-      list.append(h('div.list-row', best ? gradeEl(best.grade) : h('span', { style: { width: '40px' } }),
-        h('div.main', h('div.t', m ? `${m.artist} — ${m.title}` : 'Missing beatmap'), h('div.s', m ? `[${m.version}] · ${m.keys}K · ${m.creator}` : `hash ${hash.slice(0, 12)}… (not in library)`)),
+      // the set's picture (like the Beatmaps page) instead of an empty slot where a grade goes; your grade by the title
+      const thumb = h('div.mini-thumb', { style: { width: '68px', height: '42px' } });
+      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId)).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
+      list.append(h('div.list-row', thumb,
+        h('div.main', h('div.t', m ? `${m.artist} — ${m.title}` : 'Missing beatmap', best ? h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(best.grade)) : null), h('div.s', m ? `[${m.version}] · ${m.keys}K · ${m.creator}` : `hash ${hash.slice(0, 12)}… (not in library)`)),
         m ? starBadge(m.stars) : null,
         m ? h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: m.id }) }, icon('play'), 'Open') : null,
         h('button.icon-btn', { title: 'Remove from collection', onclick: () => Collections.toggle(c.id, hash) }, icon('x'))));
