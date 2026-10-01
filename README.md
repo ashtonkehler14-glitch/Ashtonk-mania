@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Tab title while playing
+
+* **Browser tab:** while you play, the tab is titled "Ashtonk!mania - Artist - Title [Difficulty]", as osu! titles its window. It goes back to "Ashtonk!mania" when you leave the song.
+
 ### Animations off means off
 
 * **Animation speed: Off** now also stills looping animations (loading spinners, the notification bell, the skip button's chevrons). They used to keep restarting every frame, which looked like flicker.

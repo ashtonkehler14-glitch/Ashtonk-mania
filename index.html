@@ -9069,6 +9069,7 @@ const GameplayScreen = {
     return el;
   },
   leave() {
+    document.title = APP_NAME;
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
@@ -9166,6 +9167,7 @@ const GameplayScreen = {
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     Toolbar.setNowPlaying(rec);
+    document.title = `${APP_NAME} - ${rec.artist} - ${rec.title} [${rec.version}]`; // (as osu! titles its window while playing)
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
     await this.loaderFinish(tok);
