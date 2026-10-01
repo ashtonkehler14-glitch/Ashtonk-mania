@@ -2467,6 +2467,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .msf.l { left: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .9), transparent); }
 .msf.r { right: 0; background: linear-gradient(270deg, rgba(255, 255, 255, .9), transparent); }
 
+/* lazer's "hold for menu" button: bottom-right, fades in while the mouse moves; holding fills its ring */
+.hold-menu { position: absolute; right: 18px; bottom: 54px; display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none; transition: opacity var(--t-med); --p: 0; }
+.gameplay.show-cursor .hold-menu, .hold-menu.holding, .hold-menu:hover { opacity: 1; pointer-events: auto; }
+.hm-label { font-size: .78rem; font-weight: 600; color: rgba(255, 255, 255, .8); text-shadow: var(--hud-shadow, 0 1px 3px rgba(0, 0, 0, .6)); opacity: 0; transform: translateX(6px); transition: opacity var(--t-fast), transform var(--t-fast); }
+.hold-menu:hover .hm-label, .hold-menu.holding .hm-label { opacity: 1; transform: none; }
+.hm-btn { position: relative; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .55); cursor: pointer; }
+.hm-btn .i { width: 18px; height: 18px; position: relative; }
+.hm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); }
+.hm-btn:hover { background: rgba(0, 0, 0, .75); }
+
 </style>
 </head>
 <body>
@@ -9476,6 +9486,7 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
+    this.hud.append(this.buildHoldForMenu());
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -10027,6 +10038,24 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
+  },
+  /** lazer's HoldForMenuButton: bottom-right, shown while the mouse moves; hold it (its ring fills) to leave. */
+  buildHoldForMenu() {
+    const ring = h('i.hm-ring'), btn = h('button.hm-btn', { 'aria-label': 'Hold for menu', tabindex: '-1' }, ring, icon('x'));
+    const wrap = h('div.hold-menu', h('span.hm-label', 'hold for menu'), btn);
+    const HOLD = 600;
+    let t0 = 0, raf = 0;
+    const stop = () => { cancelAnimationFrame(raf); t0 = 0; wrap.style.setProperty('--p', 0); wrap.classList.remove('holding'); };
+    const tick = () => {
+      const p = clamp((performance.now() - t0) / HOLD, 0, 1);
+      wrap.style.setProperty('--p', p);
+      if (p < 1) { raf = requestAnimationFrame(tick); return; }
+      stop(); UISounds.back();
+      if (this.s && this.s.mp) this.mpQuit(); else this.quit();
+    };
+    btn.addEventListener('pointerdown', e => { if (e.button !== 0 || !this.s) return; e.preventDefault(); t0 = performance.now(); wrap.classList.add('holding'); tick(); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    return wrap;
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   resume() {
@@ -11442,7 +11471,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import', 'The song list curves as you scroll, like lazer', 'Song select and results have lazer\'s sounds', 'The main menu\'s edges flash with the beat'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import', 'The song list curves as you scroll, like lazer', 'Song select and results have lazer\'s sounds', 'The main menu\'s edges flash with the beat', 'A "hold for menu" button while playing, like lazer'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },

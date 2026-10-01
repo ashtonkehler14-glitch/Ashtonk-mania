@@ -2449,3 +2449,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .msf { position: absolute; top: 0; bottom: 0; width: 220px; z-index: 0; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter; }
 .msf.l { left: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .9), transparent); }
 .msf.r { right: 0; background: linear-gradient(270deg, rgba(255, 255, 255, .9), transparent); }
+
+/* lazer's "hold for menu" button: bottom-right, fades in while the mouse moves; holding fills its ring */
+.hold-menu { position: absolute; right: 18px; bottom: 54px; display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none; transition: opacity var(--t-med); --p: 0; }
+.gameplay.show-cursor .hold-menu, .hold-menu.holding, .hold-menu:hover { opacity: 1; pointer-events: auto; }
+.hm-label { font-size: .78rem; font-weight: 600; color: rgba(255, 255, 255, .8); text-shadow: var(--hud-shadow, 0 1px 3px rgba(0, 0, 0, .6)); opacity: 0; transform: translateX(6px); transition: opacity var(--t-fast), transform var(--t-fast); }
+.hold-menu:hover .hm-label, .hold-menu.holding .hm-label { opacity: 1; transform: none; }
+.hm-btn { position: relative; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .55); cursor: pointer; }
+.hm-btn .i { width: 18px; height: 18px; position: relative; }
+.hm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); }
+.hm-btn:hover { background: rgba(0, 0, 0, .75); }

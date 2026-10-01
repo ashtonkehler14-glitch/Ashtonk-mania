@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Hold for menu
+- During a play, moving the mouse brings up lazer's "hold for menu" button in the bottom-right corner. Hold it and its ring fills; when it's full you leave the song.
+- In a multiplayer match it leaves the match the way Esc does.
+- A quick click does nothing, so it can't be hit by accident.
+
 ### Music ducks behind dialogs
 - Outside gameplay, the music is muffled (a low-pass and a slightly lower volume) while a popup dialog is open, as in lazer, and comes back when it closes. Confirmations, prompts and "delete?" dialogs all do this.
 

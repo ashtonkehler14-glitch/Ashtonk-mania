@@ -466,6 +466,7 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
+    this.hud.append(this.buildHoldForMenu());
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -1017,6 +1018,24 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
+  },
+  /** lazer's HoldForMenuButton: bottom-right, shown while the mouse moves; hold it (its ring fills) to leave. */
+  buildHoldForMenu() {
+    const ring = h('i.hm-ring'), btn = h('button.hm-btn', { 'aria-label': 'Hold for menu', tabindex: '-1' }, ring, icon('x'));
+    const wrap = h('div.hold-menu', h('span.hm-label', 'hold for menu'), btn);
+    const HOLD = 600;
+    let t0 = 0, raf = 0;
+    const stop = () => { cancelAnimationFrame(raf); t0 = 0; wrap.style.setProperty('--p', 0); wrap.classList.remove('holding'); };
+    const tick = () => {
+      const p = clamp((performance.now() - t0) / HOLD, 0, 1);
+      wrap.style.setProperty('--p', p);
+      if (p < 1) { raf = requestAnimationFrame(tick); return; }
+      stop(); UISounds.back();
+      if (this.s && this.s.mp) this.mpQuit(); else this.quit();
+    };
+    btn.addEventListener('pointerdown', e => { if (e.button !== 0 || !this.s) return; e.preventDefault(); t0 = performance.now(); wrap.classList.add('holding'); tick(); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    return wrap;
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   resume() {
