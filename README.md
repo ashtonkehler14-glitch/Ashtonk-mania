@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### More hover sounds
+- These now play the hover sound like lazer's:
+  - song select's footer buttons and play button
+  - context menu items
+  - dialog and pause menu buttons
+  - the Create room cards
+  - the settings sidebar
+
 ### Results sounds
 - Results now sound like lazer's. A tick plays as the accuracy circle fills, slowing down and rising in pitch, and the rank lands with an impact: bright for a pass, dull for D or F.
 - Applause or the section pass sound now follows the impact instead of playing over it.
