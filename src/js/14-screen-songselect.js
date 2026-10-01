@@ -91,7 +91,7 @@ const SongSelect = {
     this._lbKey = null; // (the leaderboard slides in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
-      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); }), // (BPM, length and stars follow the mods)
+      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
@@ -328,9 +328,10 @@ const SongSelect = {
     } else {
       const m = row.m;
       const best = ScoreManager.best(m.hash);
+      const stars = this.modStars(m) ?? m.stars; // (with the selected speed mods, as lazer)
       // lazer's PanelBeatmap: a strip in the difficulty colour on the left, the colour tinting the panel, the local
       // rank, "[4K] name mapped by …", then the star rating pill and a star counter
-      const sc = starColour(m.stars);
+      const sc = starColour(stars);
       const btn = h(`button.diff-panel${m.id === this.selectedId ? '.selected' : ''}${m.problems.length ? '.broken' : ''}`, {
         style: { '--sc': sc },
         onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.click(); this.select(m.id); } },
@@ -340,7 +341,7 @@ const SongSelect = {
         best ? rankPill(best.grade) : null,
         h('div.dp-main',
           h('div.dp-top', h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
-          h('div.dp-bottom', starBadge(m.stars), h('span.dp-stars', { style: { '--p': `${clamp(m.stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
+          h('div.dp-bottom', starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
             m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
@@ -458,10 +459,17 @@ const SongSelect = {
     const key = `${m.hash}|${rate}`, cache = this._srCache || (this._srCache = new Map());
     if (cache.has(key)) return cache.get(key);
     cache.set(key, null);
-    BeatmapManager.load(m.id).then(({ notes }) => {
+    // one map at a time, so a screenful of difficulties doesn't stall the frame
+    this._srQ = (this._srQ || Promise.resolve()).then(async () => {
+      if ((ModSystem.rate(Settings.get('songselect.mods') || [])) !== rate) { cache.delete(key); return; }
+      const { notes } = await BeatmapManager.load(m.id);
       cache.set(key, DifficultyCalculator.calculate(notes, m.keys, rate));
-      if (this.selectedId === m.id && Screens.current === this) this.updateInfo();
-    }).catch(() => {});
+      if (Screens.current !== this) return;
+      if (this.selectedId === m.id) this.updateInfo();
+      // the difficulty panels on screen pick it up too (batched to one redraw per frame)
+      if (!this._srRaf) this._srRaf = requestAnimationFrame(() => { this._srRaf = 0; if (Screens.current === this) this.renderVisible(true); });
+      await sleep(0);
+    }).catch(() => { cache.delete(key); });
     return null;
   },
   updateInfo() {

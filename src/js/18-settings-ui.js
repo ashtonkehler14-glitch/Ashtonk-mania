@@ -394,7 +394,7 @@ const ModSelect = {
     const next = ModSystem.toggle(cur, id);
     Settings.set('songselect.mods', next);
     UISounds.play(next.includes(id) ? 'check-on' : 'check-off');
-    this.render();
+    if (this.o && this.sheet) this.render(); // (also callable with the panel closed)
     Bus.emit('mods:changed');
   },
   /** osu!lazer mod type colours. */
