@@ -59,7 +59,7 @@
 :root[data-theme="midnight"] { --accent: #66ccff; --accent-2: #2f7fff; --accent-3: #c6e2ff; --accent-rgb: 102, 204, 255; }
 :root[data-theme="kori"] { --accent: #aa88ff; --accent-2: #7d3cff; --accent-3: #d9c2ff; --accent-rgb: 170, 136, 255; }
 :root[data-theme="neru"] .btn.primary { color: #2a1d00; }
-:root.no-anim *, :root.no-anim *::before, :root.no-anim *::after { transition: none !important; animation-duration: 1ms !important; }
+:root.no-anim *, :root.no-anim *::before, :root.no-anim *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }

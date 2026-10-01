@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Animations off means off
+
+* **Animation speed: Off** now also stills looping animations (loading spinners, the notification bell, the skip button's chevrons). They used to keep restarting every frame, which looked like flicker.
+
 ### Dates
 
 * **Dates:** the share card, older scores and replays, and the profile charts' tooltips write dates the same way as the rest of the game ("Oct 1, 2026"), not as bare numbers like 10/1/2026.
