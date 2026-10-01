@@ -7,7 +7,7 @@ const SORTS = [
   ['score', 'Best score'], ['accuracy', 'Best accuracy'],
 ];
 const STATUS_FILTERS = [
-  ['all', 'All'], ['favorites', 'Favorites'], ['recent', 'Recent'], ['played', 'Played'], ['unplayed', 'Unplayed'],
+  ['all', 'All'], ['favorites', 'Favourites'], ['recent', 'Recent'], ['played', 'Played'], ['unplayed', 'Unplayed'],
   ['passed', 'Passed'], ['failed', 'Failed'], ['pb', 'Has PB'], ['mods', 'Passed with current mods'],
 ];
 
@@ -520,7 +520,7 @@ const SongSelect = {
     this.playBtn.disabled = m.problems.length > 0;
     const set = BeatmapManager.setById.get(m.setId);
     const fav = Favorites.has(set.id);
-    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Unfavorite' : 'Favorite', 'aria-label': 'Favorite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
+    const favBtn = h(`button.w-fav${fav ? '.on' : ''}`, { title: fav ? 'Remove from favourites' : 'Favourite', 'aria-label': 'Favourite', onclick: async () => { UISounds.click(); await Favorites.toggle(set.id); } }, icon('heart', fav ? 'fill' : ''));
     const collBtn = h('button.w-fav', { title: 'Add to collection', 'aria-label': 'Add to collection', onclick: e => this.collectionMenu(e, m) }, icon('folder'));
     const mods = Settings.get('songselect.mods') || [];
     const rate = ModSystem.rate(mods);
@@ -584,7 +584,7 @@ const SongSelect = {
       { label: 'Practice', icon: 'flag', onClick: () => this.play('practice') },
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
       { sep: true },
-      { label: Favorites.has(set.id) ? 'Remove from favorites' : 'Add to favorites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
+      { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.playBtn }, m) },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },

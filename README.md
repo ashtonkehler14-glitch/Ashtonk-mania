@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Consistent spelling
+
+* **Favourites:** the game now spells "favourite" the same way everywhere, as lazer does (song select's filter, the heart button and its menu, Collections). It used to switch between "favorite" and "favourite".
+
 ### Right-mouse scrolling in song select
 
 * **Song select:** as in lazer, holding the right mouse button in the space beside the beatmap list jumps the list to that point (top = start, bottom = end), and it follows the pointer while you hold. It's the quick way through a big library. Right-clicking a beatmap still opens its menu.

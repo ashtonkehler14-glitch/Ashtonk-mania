@@ -115,7 +115,7 @@ const CollectionsScreen = {
         icon('folder'), c.name, h('span.cnt', String(c.hashes.length))));
     }
     const favCount = BeatmapManager.sets.filter(s => Favorites.has(s.id)).length;
-    if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favorite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
+    if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favourite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
     clearEl(this.main);
     const c = Collections.get(this.sel);
     if (!c) { this.main.append(h('div.empty', h('div.big', 'No collections'), 'Create one to start organizing.')); return; }
