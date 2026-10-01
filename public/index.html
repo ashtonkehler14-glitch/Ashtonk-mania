@@ -484,7 +484,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .carousel-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; outline: none; }
 .carousel-scroll.under { -webkit-mask-image: linear-gradient(transparent, #000 36px); mask-image: linear-gradient(transparent, #000 36px); }
 .carousel-inner { position: relative; }
-.c-item { position: absolute; left: 0; right: 0; will-change: transform; transition: transform calc(400ms * var(--anim)) var(--ease-out); }
+.c-item { position: absolute; left: 0; right: 0; will-change: transform, translate; transition: transform calc(400ms * var(--anim)) var(--ease-out), translate calc(400ms * var(--anim)) var(--ease-out); }
+.carousel-scroll.scrolling .c-item { transition: transform calc(400ms * var(--anim)) var(--ease-out); }
 .set-panel, .diff-panel { position: relative; display: block; width: calc(100% + 10px); height: 100%; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; text-align: left; color: #fff; background: linear-gradient(90deg, var(--b3), var(--b4)); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); transform: translateX(var(--x)); transition: transform calc(400ms * var(--anim)) var(--ease-out), box-shadow calc(400ms * var(--anim)) var(--ease-out); }
 .set-panel { --x: calc(155px * var(--k)); }
 .set-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px rgba(78, 191, 255, .8); }
@@ -8334,6 +8335,9 @@ const SongSelect = {
       // the panels run past the right edge, so focusing one (a click) made the browser scroll the list sideways and
       // cut every panel's left edge off; the list only ever scrolls up and down
       if (this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
+      // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along
+      this.scroller.classList.add('scrolling');
+      clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);
       this.renderVisible();
       // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
       const sc = this.scroller, under = sc.scrollTop > 4;
@@ -8563,6 +8567,9 @@ const SongSelect = {
     if (!this.rows) return;
     const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
+    // lazer's carousel runs along a circle: a panel slides right the further it is from the middle of the list
+    // (Carousel.offsetX: radius 3, in units of half the visible height)
+    const half = vh / 2, arc = y => { const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
@@ -8576,6 +8583,8 @@ const SongSelect = {
         this.inner.appendChild(el);
       } else this.refreshRow(el, row);
       if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
+      const x = arc(row.y + row.h / 2);
+      if (el._x !== x) { el._x = x; el.style.translate = `${x}px 0`; }
     }
     for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
   },
@@ -11307,7 +11316,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import', 'The song list curves as you scroll, like lazer'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },

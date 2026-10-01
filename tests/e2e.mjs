@@ -102,6 +102,11 @@ await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselec
 await page.waitForTimeout(800);
 check('import navigates to song select with new map selected', await page.evaluate(() => !!AshtonkMania.SongSelect.selectedId));
 check('song select starts the selected beatmap\'s song', await page.waitForFunction(() => AshtonkMania.Music.playing && AshtonkMania.Music.meta && AshtonkMania.Music.meta.setId === AshtonkMania.BeatmapManager.maps.get(AshtonkMania.SongSelect.selectedId).setId, null, { timeout: 5000 }).then(() => true, () => false));
+check('carousel panels curve away from the middle like lazer', await page.evaluate(() => {
+  const sc = document.querySelector('.carousel-scroll'), r = sc.getBoundingClientRect(), mid = r.top + r.height / 2;
+  const items = [...document.querySelectorAll('.c-item')].map(e => { const b = e.getBoundingClientRect(); return { d: Math.abs(b.top + b.height / 2 - mid), x: parseFloat(e.style.translate) || 0 }; }).sort((a, b) => a.d - b.d);
+  return items.length > 2 && items[0].x <= 2 && items[items.length - 1].x > items[0].x;
+}));
 await shot('02-songselect');
 
 // corrupt / non-mania archives

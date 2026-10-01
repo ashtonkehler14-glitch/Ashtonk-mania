@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Curved song list
+- Song select's beatmap list now runs along lazer's carousel curve. Panels slide to the right the further they are from the middle of the list, so scrolling sweeps them along an arc.
+- The curve follows the scroll immediately and eases with the panels when a set opens or closes.
+
 ### Shortcut list
 - The keyboard shortcuts list (`?`) has a wider key column, so long combos such as the scroll speed keys stay on one line.
 

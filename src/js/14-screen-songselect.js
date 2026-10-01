@@ -61,6 +61,9 @@ const SongSelect = {
       // the panels run past the right edge, so focusing one (a click) made the browser scroll the list sideways and
       // cut every panel's left edge off; the list only ever scrolls up and down
       if (this.scroller.scrollLeft) this.scroller.scrollLeft = 0;
+      // while the list scrolls the panels follow the curve at once; otherwise (a panel opening) they ease along
+      this.scroller.classList.add('scrolling');
+      clearTimeout(this._scrollingT); this._scrollingT = setTimeout(() => this.scroller.classList.remove('scrolling'), 120);
       this.renderVisible();
       // panels fade out under the filter once the list is scrolled, instead of being cut off at its edge
       const sc = this.scroller, under = sc.scrollTop > 4;
@@ -290,6 +293,9 @@ const SongSelect = {
     if (!this.rows) return;
     const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
     const from = st - 200, to = st + vh + 200;
+    // lazer's carousel runs along a circle: a panel slides right the further it is from the middle of the list
+    // (Carousel.offsetX: radius 3, in units of half the visible height)
+    const half = vh / 2, arc = y => { const d = Math.abs(1 - (y - st) / half); return Math.round((3 - Math.sqrt(Math.max(0, 9 - d * d))) * half); };
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
@@ -303,6 +309,8 @@ const SongSelect = {
         this.inner.appendChild(el);
       } else this.refreshRow(el, row);
       if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
+      const x = arc(row.y + row.h / 2);
+      if (el._x !== x) { el._x = x; el.style.translate = `${x}px 0`; }
     }
     for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
   },
