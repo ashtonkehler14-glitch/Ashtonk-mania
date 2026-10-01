@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### In-game leaderboard keeps up
+
+* **Gameplay leaderboard:** your row on the left updates on every judged note, so its score and accuracy always match the counters at the top right. It used to update a few times a second and could show slightly older numbers.
+
 ### Invites wait for your play to end
 
 * **Multiplayer invites:** an invite that arrives while you're playing no longer pops up mid-song. The usual "invited you!" Join / Not now dialog appears once the play is over (if the invite is still recent).

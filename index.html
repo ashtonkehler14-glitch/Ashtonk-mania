@@ -9538,7 +9538,7 @@ const GameplayScreen = {
   buildLeaderboard() {
     const s = this.s;
     this.lbEl = h('div.hud-mp.hud-lb'); this.hud.append(this.lbEl);
-    this._lbT = 0; this._lbMe = null;
+    this._lbJudged = -1; this._lbMe = null;
     if (s.mode === 'auto' || s.practice) return;
     const skip = s.replay && s.replay.scoreId;
     const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
@@ -9556,10 +9556,11 @@ const GameplayScreen = {
   updateLeaderboard(force) {
     const me = this._lbMe;
     if (!me) return;
-    const t = performance.now();
-    if (!force && t - this._lbT < 150) return;
-    this._lbT = t;
-    const e = this.s.engine, sc = ScoreManager.value(e.score);
+    const e = this.s.engine;
+    // (in step with the score and accuracy at the top right: it changes only when a note is judged)
+    if (!force && e.score.judged === this._lbJudged) return;
+    this._lbJudged = e.score.judged;
+    const sc = ScoreManager.value(e.score);
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
