@@ -8747,13 +8747,21 @@ const SongSelect = {
     cache.set(key, null);
     // one map at a time, so a screenful of difficulties doesn't stall the frame
     this._srQ = (this._srQ || Promise.resolve()).then(async () => {
-      if ((ModSystem.rate(Settings.get('songselect.mods') || [])) !== rate) { cache.delete(key); return; }
+      // (skipped when the speed changed or the panel has scrolled away by the time its turn comes)
+      if (ModSystem.rate(Settings.get('songselect.mods') || []) !== rate || (this.selectedId !== m.id && !this.pool.has('d:' + m.id))) { cache.delete(key); return; }
       const { notes } = await BeatmapManager.load(m.id);
-      cache.set(key, DifficultyCalculator.calculate(notes, m.keys, rate));
+      const v = DifficultyCalculator.calculate(notes, m.keys, rate);
+      cache.set(key, v);
       if (Screens.current !== this) return;
       if (this.selectedId === m.id) this.updateInfo();
-      // the difficulty panels on screen pick it up too (batched to one redraw per frame)
-      if (!this._srRaf) this._srRaf = requestAnimationFrame(() => { this._srRaf = 0; if (Screens.current === this) this.renderVisible(true); });
+      // the difficulty panel on screen takes the new rating in place
+      const el = this.pool.get('d:' + m.id), panel = el && el.querySelector('.diff-panel');
+      if (panel) {
+        panel.style.setProperty('--sc', starColour(v));
+        const badge = panel.querySelector('.dp-bottom > :first-child'), bar = panel.querySelector('.dp-stars');
+        if (badge) badge.replaceWith(starBadge(v));
+        if (bar) bar.style.setProperty('--p', `${clamp(v / 10, 0, 1) * 100}%`);
+      }
       await sleep(0);
     }).catch(() => { cache.delete(key); });
     return null;
