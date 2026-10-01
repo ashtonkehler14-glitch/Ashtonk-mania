@@ -198,7 +198,7 @@ const panel = await page.evaluate(() => {
 });
 const shown = { XH: 'SS', X: 'SS', SH: 'S' }[live.grade] || live.grade;
 check('results: lazer score panel — accuracy circle filled to the accuracy, rank badges up to the grade, hit distribution beside it',
-  panel.grade === shown && panel.on === shown && panel.badges[0] === 'D' && panel.badges.includes(shown) && Math.abs(panel.filled - (live.acc >= 1 ? 1 : Math.min(live.acc, 0.99))) < 0.01 && panel.hist, JSON.stringify(panel));
+  panel.grade === shown && panel.on === shown && panel.badges[0] === 'D' && panel.badges.includes(shown) && Math.abs(panel.filled - (live.acc >= 1 || ['SS', 'XH', 'X'].includes(live.grade) ? 1 : Math.min(live.acc, 0.99))) < 0.01 && panel.hist, JSON.stringify(panel));
 await page.click('.res-share');
 await page.waitForSelector('.share-card');
 await page.waitForFunction(() => document.querySelector('.share-card').naturalWidth > 0);

@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### SS results look like SS
+
+* **Results:** in osu!mania an SS only needs every hit to be a MAX or a 300, so it can come in just under 100% accuracy (a 300 counts a little less than a MAX). The accuracy circle stopped just short of full and the SS badge never appeared for those plays. As in lazer, an SS now fills the circle and shows its SS badge.
+
 ### Mod Select scrolling
 
 * **Columns keep their place:** turning a mod on or off redraws Mod Select. Each column used to jump back to the top, so a mod near the bottom (Hidden, Fade In) sent you back up after every click. Columns now stay where you scrolled them.
