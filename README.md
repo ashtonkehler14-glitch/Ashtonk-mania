@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Difficulties slide out
+- When a beatmap set opens in song select, its difficulties slide out from under the set's panel and fade in, as in lazer. Before, they popped up at their final places while the panel was still moving, overlapping it for a moment.
+
 ### Kiai logo
 - During a song's kiai sections the main menu logo pulses harder and flashes on every beat, like lazer's.
 

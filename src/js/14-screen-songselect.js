@@ -303,12 +303,25 @@ const SongSelect = {
       needed.add(key);
       let el = this.pool.get(key);
       if (!el || force) {
+        const fresh = !el && !force;
         if (el) el.remove();
         el = this.renderRow(row);
         this.pool.set(key, el);
+        // a set that just opened: its difficulties slide out from under its panel (lazer), rather than popping up
+        // at their places while the panel is still moving there. (Placed before it joins the page, so it doesn't
+        // first appear at the top and glide down from there.)
+        if (fresh && row.type === 'diff' && row.m.setId === this._expandSet && performance.now() - this._expandAt < 450) {
+          const hel = this.pool.get('s:' + row.m.setId);
+          // (from where that panel is right now: it may still be gliding to its new place)
+          const cur = hel && hel.isConnected ? new DOMMatrix(getComputedStyle(hel).transform).m42 : null;
+          if (cur != null) {
+            el._y = cur; el.style.transform = `translateY(${cur}px)`; el.classList.add('spawn');
+            requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.remove('spawn'); this.renderVisible(); }));
+          }
+        }
         this.inner.appendChild(el);
       } else this.refreshRow(el, row);
-      if (el._y !== row.y) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
+      if (el._y !== row.y && !el.classList.contains('spawn')) { el._y = row.y; el.style.transform = `translateY(${row.y}px)`; }
       const x = arc(row.y + row.h / 2);
       if (el._x !== x) { el._x = x; el.style.translate = `${x}px 0`; }
     }
@@ -324,7 +337,7 @@ const SongSelect = {
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
   renderRow(row) {
-    const wrap = h('div.c-item', { style: { height: row.h + 'px' } });
+    const wrap = h(`div.c-item${row.type === 'set' ? '.set' : ''}`, { style: { height: row.h + 'px' } });
     if (row.type === 'set') {
       const { set, maps } = row.r;
       const broken = maps.every(m => m.problems.length);
@@ -374,6 +387,7 @@ const SongSelect = {
     const m = BeatmapManager.maps.get(id);
     if (!m) return;
     const setChanged = this.expandedSet !== m.setId;
+    if (setChanged) { this._expandSet = m.setId; this._expandAt = performance.now(); }
     this.selectedId = id;
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
