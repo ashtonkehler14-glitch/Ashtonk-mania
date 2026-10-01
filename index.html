@@ -622,6 +622,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:focus-within { opacity: 1; }
+.replay-bar.top { bottom: auto; top: 14px; }
+/* the REPLAY tag sits on the same side: it steps aside while the controls are up */
+.hud-replay { transition: opacity var(--t-med); }
+.gameplay.show-cursor .hud-replay, .gameplay:has(.replay-bar.paused) .hud-replay, .gameplay:has(.replay-bar:hover) .hud-replay { opacity: 0; }
 .rp-timeline { position: relative; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; touch-action: none; }
 .rp-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rp-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: rgba(var(--accent-rgb), .3); pointer-events: none; }
@@ -10198,7 +10202,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpTime = h('span.rp-time');
     this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
     this._rpHover = false;
-    const bar = h('div.replay-bar', { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
+    // (on the side the notes come from, so it never covers the judgement line you're watching)
+    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
       tl,
       h('div.rp-controls',
         this.rpPlay,

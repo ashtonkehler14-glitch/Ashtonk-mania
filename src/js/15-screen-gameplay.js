@@ -1210,7 +1210,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpTime = h('span.rp-time');
     this.rpSpeeds = REPLAY_SPEEDS.map(k => h(`button.chip${k === 1 ? '.on' : ''}`, { onclick: () => this.replaySpeed(k) }, `${k}×`));
     this._rpHover = false;
-    const bar = h('div.replay-bar', { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
+    // (on the side the notes come from, so it never covers the judgement line you're watching)
+    const bar = h(`div.replay-bar${Settings.get('gameplay.scrollDirection') === 'up' ? '' : '.top'}`, { onpointerenter: () => { this._rpHover = true; }, onpointerleave: () => { this._rpHover = false; } },
       tl,
       h('div.rp-controls',
         this.rpPlay,

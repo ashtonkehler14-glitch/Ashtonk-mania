@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Replay controls stay off the judgement line
+- The replay controls now appear on the side the notes come from: the top with downscroll, the bottom with upscroll. Moving the mouse while watching no longer covers the receptors.
+- The REPLAY tag steps aside while the controls are showing.
+
 ### Difficulties tuck away
 - When a beatmap set closes in song select, its difficulties slide back up under its panel and fade, as in lazer. Before, they vanished and left a gap.
 
