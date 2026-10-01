@@ -2445,10 +2445,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* profile: a tab jump leaves the section heading clear of the sticky tab bar */
 .pf-sec { scroll-margin-top: 56px; }
 
-/* lazer's MenuSideFlashes: additive white glows on the main menu's left and right edges, lit with the beat */
-.msf { position: absolute; top: 0; bottom: 0; width: 220px; z-index: 0; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter; }
-.msf.l { left: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .9), transparent); }
-.msf.r { right: 0; background: linear-gradient(270deg, rgba(255, 255, 255, .9), transparent); }
+/* lazer's MenuSideFlashes, kept soft: an accent-tinted glow on each edge with an eased falloff toward the middle and
+   feathered top and bottom ends, lit with the beat */
+.msf { --g: color-mix(in srgb, #fff 55%, rgb(var(--accent-rgb))); position: absolute; top: 0; bottom: 0; width: 300px; z-index: 0; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent); mask: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent); }
+.msf.l { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--g) 70%, transparent), color-mix(in srgb, var(--g) 32%, transparent) 22%, color-mix(in srgb, var(--g) 10%, transparent) 55%, transparent); }
+.msf.r { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--g) 70%, transparent), color-mix(in srgb, var(--g) 32%, transparent) 22%, color-mix(in srgb, var(--g) 10%, transparent) 55%, transparent); }
 
 /* lazer's "hold for menu" button: bottom-right, fades in while the mouse moves; holding fills its ring */
 .hold-menu { position: absolute; right: 18px; bottom: 54px; display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none; transition: opacity var(--t-med); --p: 0; }

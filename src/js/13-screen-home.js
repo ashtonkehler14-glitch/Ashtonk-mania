@@ -87,10 +87,12 @@ const HomeScreen = {
   sideFlash(beat, tp, kiai, amp) {
     if (!this.flashL || !Settings.get('ui.animSpeed')) return;
     const meter = tp.meter || 4;
-    const alpha = clamp((amp - 0.25) / (kiai ? 0.94 : 1.36), 0, 1);
-    if (alpha < 0.03) return;
-    const dur = 80 + tp.beatLength;
-    const flash = el => el.animate([{ opacity: 0, easing: 'linear' }, { opacity: alpha, offset: 80 / dur, easing: 'ease-in' }, { opacity: 0 }], { duration: dur });
+    // kept soft: a glow that breathes with the music rather than a flash (capped well below full strength)
+    const alpha = clamp((amp - 0.3) / 1.6, 0, kiai ? 0.36 : 0.28);
+    if (alpha < 0.04) return;
+    const rise = 140, dur = rise + tp.beatLength * 1.4;
+    // (from wherever the last glow has faded to, so beats close together never pop)
+    const flash = el => { const from = +getComputedStyle(el).opacity || 0; el.getAnimations().forEach(a => a.cancel()); el.animate([{ opacity: from, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: alpha, offset: rise / dur, easing: 'cubic-bezier(.25, .6, .3, 1)' }, { opacity: 0 }], { duration: dur }); };
     if (kiai ? beat % 2 === 0 : beat % meter === 0) flash(this.flashL);
     if (kiai ? beat % 2 === 1 : beat % meter === 0) flash(this.flashR);
   },

@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Softer side flashes
+- The main menu's side flashes are now a subtle glow instead of a bright white bar:
+  - They peak at about a quarter of their old strength.
+  - They're tinted with your accent colour.
+  - They fade toward the middle of the screen and feather out at the top and bottom.
+- Each glow eases in, fades out over about a beat and a half, and picks up from wherever the last one had faded to, so close beats never pop.
+
 ### Delete button tooltips
 - The trash buttons on the Collections and Skins pages now say what they delete when you hover them, and screen readers can name them.
 
