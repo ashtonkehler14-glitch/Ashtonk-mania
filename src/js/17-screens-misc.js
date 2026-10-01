@@ -389,7 +389,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it'] },
+    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
     { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
