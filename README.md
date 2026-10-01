@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Replays rows
+- Replays on the Replays page now look like Collections rows: the set's picture first, and the grade as a pill by the title.
+- A replay whose beatmap is missing says why its Watch button is greyed out.
+
 ### Collections rows
 - Each beatmap in a collection now shows its set's picture, like the Beatmaps page, and your grade sits as a pill by the title. Before, the row had an empty slot where a grade would go.
 - Holding an arrow key in song select no longer piles up selection sounds.
