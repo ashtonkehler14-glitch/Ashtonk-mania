@@ -7227,6 +7227,10 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
   if (backdrop) { bd = h('div.backdrop'); wrap.appendChild(bd); }
   wrap.appendChild(contentEl);
   let closed = false;
+  // an overlay takes the keyboard from whatever is behind it (a focused search box kept getting the typing) and
+  // hands it back when it closes
+  const prev = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+  if (prev && prev.blur) prev.blur();
   const o = {
     el: wrap, onKey,
     close() {
@@ -7235,6 +7239,8 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
       contentEl.classList.add(animOutClass); bd && bd.classList.add('out');
       setTimeout(() => wrap.remove(), 220 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1) + 10);
       onClose && onClose();
+      const a = document.activeElement;
+      if (prev && prev.isConnected && !Overlays.top() && (!a || a === document.body || wrap.contains(a))) prev.focus({ preventScroll: true });
     },
   };
   if (bd && dismissable) bd.addEventListener('click', () => { UISounds.back(); o.close(); });
