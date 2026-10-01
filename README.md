@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Profile, less repetition
+
+* **Profile:** hit accuracy is shown once, in the stats box on the right, as in lazer. It used to appear next to Performance as well.
+
 ### Practice tools out of the way
 
 * **Practice:** the practice panel no longer covers the receptors. It docks beside the stage as a compact panel whenever there's room (on 1280×720 it used to sit across the bottom of the stage). On screens too narrow for that, it moves to the opposite end of the stage from the receptors.
