@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Setting units
+- Lane spacing and Visual note offset now show their unit (px) instead of a bare number.
+
 ### Replay controls stay off the judgement line
 - The replay controls now appear on the side the notes come from: the top with downscroll, the bottom with upscroll. Moving the mouse while watching no longer covers the receptors.
 - The REPLAY tag steps aside while the controls are showing.
