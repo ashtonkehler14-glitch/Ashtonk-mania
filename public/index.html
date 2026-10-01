@@ -2428,6 +2428,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-results.still, .mp-vote.still { animation: none; }
 .lb-list.still .lb-row { animation: none; }
 .keycfg-modes.sk-keys { justify-content: center; margin-bottom: 10px; }
+/* profile: a tab jump leaves the section heading clear of the sticky tab bar */
+.pf-sec { scroll-margin-top: 56px; }
 
 </style>
 </head>
@@ -10977,8 +10979,29 @@ const ProfileScreen = {
       sub('Recent plays', recent.length, recent.length
         ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, s.passed ? fmtInt(ScoreManager.ppOf(s)) : null)))
         : h('div.pf-empty', 'No recent plays.')));
-    const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, title.toLowerCase())));
+    let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
+    const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, rec);
+    // lazer lights the tab of the section you're reading
+    requestAnimationFrame(() => {
+      let sc = tabs.parentElement;
+      while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      if (!sc) return;
+      const sync = () => {
+        if (!tabs.isConnected) { sc.removeEventListener('scroll', sync); return; }
+        if (pinned) return;
+        const line = tabs.getBoundingClientRect().bottom + 60;
+        let cur = secs[0][0];
+        for (const [id, , el] of secs) if (el.getBoundingClientRect().top < line) cur = id;
+        if (sc.scrollTop > 0 && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2) cur = secs[secs.length - 1][0];
+        [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === cur));
+      };
+      sc.addEventListener('scroll', sync, { passive: true });
+      const unpin = () => { if (pinned) { pinned = null; sync(); } };
+      sc.addEventListener('wheel', unpin, { passive: true });
+      sc.addEventListener('pointerdown', e => { if (!e.target.closest('.pf-tabs')) unpin(); });
+      sync();
+    });
   },
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */

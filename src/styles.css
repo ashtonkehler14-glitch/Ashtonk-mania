@@ -2411,3 +2411,5 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-results.still, .mp-vote.still { animation: none; }
 .lb-list.still .lb-row { animation: none; }
 .keycfg-modes.sk-keys { justify-content: center; margin-bottom: 10px; }
+/* profile: a tab jump leaves the section heading clear of the sticky tab bar */
+.pf-sec { scroll-margin-top: 56px; }

@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Profile tabs
+
+* **Profile:** the historical / ranks / recent tabs light up for the section you're reading, as in lazer. A tab you click stays lit, and its section's heading now lands below the sticky tab bar instead of underneath it.
+
 ### Key bindings
 
 * **Key count:** the key-binding panel in Settings picks the key count with the same small ‹ 4K › stepper as the Skins page, instead of eighteen 1K–18K chips.
