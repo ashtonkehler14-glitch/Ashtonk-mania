@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Room icons
+- Private rooms now show a lock, and Copy code shows a copy icon instead of a floppy disk.
+- The room type descriptions in Create room are set tighter.
+
 ### Tab title while playing
 
 * **Browser tab:** while you play, the tab is titled "Ashtonk!mania - Artist - Title [Difficulty]", as osu! titles its window. It goes back to "Ashtonk!mania" when you leave the song.

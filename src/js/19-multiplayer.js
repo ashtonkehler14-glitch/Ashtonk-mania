@@ -523,7 +523,7 @@ const MultiplayerScreen = {
       st.ranked ? RankedSkill.picker(st.skill, v => { st.skill = RankedSkill.set(v); }) : null,
       h('div.mp-cr-l', '2. Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', 'Listed under Open rooms for anyone to join.'),
-        choice('vis', 'isPublic', false, 'save', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
+        choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
     paint();
     const o = Dialog.custom('Create room', body, [
       { label: 'Cancel' },
@@ -603,7 +603,7 @@ const MultiplayerScreen = {
     this._qpKey = null;
     const r = Multiplayer.room, me = Multiplayer.self(), host = Multiplayer.isHost();
     const st = r.settings || { type: 'h2h', win: 'pp', size: 2, queue: 'host' };
-    const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('save'), 'Copy code');
+    const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('copy'), 'Copy code');
     const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
     // the room's rules at a glance (lazer's match settings); the host can change them
@@ -612,7 +612,7 @@ const MultiplayerScreen = {
       h('span.mp-rule', icon('user'), 'Head to Head'),
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
-      h('span.mp-rule', icon(st.public === false ? 'save' : 'globe'), st.public === false ? 'Private' : 'Public'));
+      h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));
     clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick 1v1' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, rules, h('div.grow'), invite, copy].filter(Boolean));
 
     // beatmap panel
@@ -938,7 +938,7 @@ const MultiplayerScreen = {
         h('div.rpl-label', isPublic ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
         h('div.rpl-code',
           h('span', r.code),
-          h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('save')),
+          h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('copy')),
           h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite')));
     } else {
       const a = meP ? meP.skill : 3, b = opp.skill || a, lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;

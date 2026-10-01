@@ -2309,7 +2309,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-cr { display: flex; flex-direction: column; gap: 10px; min-width: min(600px, 84vw); }
 .mp-cr-l { margin-top: 4px; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .mp-cr-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.mp-cr-card { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .05); color: #fff; text-align: left; cursor: pointer; box-shadow: inset 0 0 0 2px transparent; transition: background 150ms, box-shadow 150ms; }
+.mp-cr-card { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .05); color: #fff; text-align: left; line-height: 1.35; cursor: pointer; box-shadow: inset 0 0 0 2px transparent; transition: background 150ms, box-shadow 150ms; }
 .mp-cr-card:hover { background: rgba(255, 255, 255, .09); }
 .mp-cr-card.on { background: rgba(255, 102, 171, .14); box-shadow: inset 0 0 0 2px #ff66ab; }
 .mp-cr-card b { display: block; font-size: 1.05rem; margin-bottom: 3px; }
