@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Delete button tooltips
+- The trash buttons on the Collections and Skins pages now say what they delete when you hover them, and screen readers can name them.
+
 ### Hold for menu
 - During a play, moving the mouse brings up lazer's "hold for menu" button in the bottom-right corner. Hold it and its ring fills; when it's full you leave the song.
 - In a multiplayer match it leaves the match the way Esc does.
