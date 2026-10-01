@@ -41,7 +41,6 @@ const App = {
     Screens.register('stats', ProfileScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
-    Screens.register('discover', DiscoverScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
     LazerCursor.init();

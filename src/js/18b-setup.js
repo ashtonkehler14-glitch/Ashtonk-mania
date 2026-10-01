@@ -1,7 +1,7 @@
-/* First-run setup — a short, friendly wizard shown the first time the client opens (and from Settings →
- * Maintenance → "Run first-run setup"). Name first, then the player chooses whether to set things up at all:
- * device, accent colour and size, scroll speed and background, and a skin. Every choice applies immediately
- * (the previews are live) and stays editable in Settings. */
+/* First-run setup — osu!lazer's first-run wizard, shown the first time the client opens (and from Settings →
+ * Maintenance → "Run first-run setup"): your name, bringing over a Web-Osu-Mania backup (lazer's "import from
+ * osu!stable" page), your device, size and picture, scroll speed and background, and a skin. It isn't skippable,
+ * but every page is quick; each choice applies at once (the previews are live) and stays editable in Settings. */
 
 /** Render scale that keeps the playfield canvas at (at most) one pixel per CSS pixel — the cheapest setting
  *  that still looks sharp on a Chromebook's high-DPI panel. */
@@ -16,13 +16,12 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
-const SETUP_THEMES = [['kori', '#aa88ff', 'Kori'], ['neru', '#ffcf3a', 'Neru'], ['teto', '#ff4d6a', 'Teto'], ['miku', '#39c5bb', 'Miku']];
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']];
 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
-    { id: 'ask', title: 'Set up the game?' },
+    { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'What are you playing on?', short: 'Device' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
     { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
@@ -37,13 +36,14 @@ const Onboarding = {
       this.again = again;
       this.i = 0;
       this.dir = 1;
+      this.womAnswer = this.womDone = this.womStatus = null;
       this.animate = true;
       this.el = h('div.onboarding.setup', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Setup' });
       this.o = makeOverlay(this.el, {
         dismissable: false,
         onKey: e => {
           if (e.key === 'Escape') return true; // closed with its own buttons only
-          if (e.key === 'Enter' && this.step.id !== 'ask' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
+          if (e.key === 'Enter' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
           return false;
         },
       });
@@ -60,7 +60,7 @@ const Onboarding = {
     const st = this.step;
     const body = h(`div.setup-body.setup-step-${st.id}${this.animate ? '.anim' : ''}`, { style: { '--dir': this.dir } }, ...[].concat(this['step_' + st.id]()));
     this.animate = false;
-    const showNav = st.id !== 'ask';
+    const showNav = true;
     // lazer's WizardOverlay: the overlay header, the step, then sheared Back and a wide Next "(next step)" button
     const nx = this.STEPS[this.i + 1];
     this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && nx.short ? `Next (${nx.short})` : 'Next')) : null;
@@ -68,11 +68,11 @@ const Onboarding = {
       h('div.setup-ovhead', h('div.setup-ovt', 'first-run setup'), h('div.setup-ovs', 'set up Ashtonk!mania to suit you')),
       h('div.setup-head',
         h('h2', st.id === 'welcome' ? 'Welcome to Ashtonk!mania' : st.title),
-        this.i > 1 ? h('div.setup-progress', ...this.STEPS.slice(2).map((s, k) => h(`i${k + 2 === this.i ? '.on' : k + 2 < this.i ? '.past' : ''}`)))
+        this.i > 0 ? h('div.setup-progress', ...this.STEPS.slice(1).map((s, k) => h(`i${k + 1 === this.i ? '.on' : k + 1 < this.i ? '.past' : ''}`)))
           : null),
       body,
       h('div.setup-foot',
-        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i === 2 ? 1 : this.i - 1) }, h('span', icon('back'), 'Back')) : null,
+        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
         this.err = h('div.ob-err'),
         this.nextBtn));
     this.afterRender && this.afterRender();
@@ -133,30 +133,41 @@ const Onboarding = {
     return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
   },
 
-  step_ask() {
-    return [
-      this.logo('.small'),
-      h('p.setup-lead', `Hi ${ProfileManager.profile.name}! Want to set up the game now? It takes about 30 seconds.`),
-      h('div.setup-choices.two',
-        h('button.setup-choice.primary', { onclick: () => this.go(2) }, h('span.setup-choice-ic', icon('sparkle')), h('span.setup-choice-t', 'Set it up'), h('span.setup-choice-s', 'Pick your device, colours, speed and skin')),
-        h('button.setup-choice.ob-skip', { onclick: () => this.finish() }, h('span.setup-choice-ic', icon('play')), h('span.setup-choice-t', 'Skip'), h('span.setup-choice-s', 'Use the default settings'))),
-      this.womEl = h('div.setup-wom', this.womDone
-        ? [icon('check'), h('span', `Web-Osu-Mania backup imported: ${this.womDone}.`)]
-        : h('button.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), h('span', 'Coming from Web-Osu-Mania? ', h('b', 'Import your backup')))),
-    ];
+  /** osu!lazer's "import from osu!stable" page, for Web-Osu-Mania: its backup brings keybinds, settings, beatmaps,
+   *  scores and collections across in one go. */
+  step_wom() {
+    const yes = this.womAnswer === 'yes';
+    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.womAnswer === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => {
+      UISounds.click(); this.womAnswer = v;
+      if (v === 'no') { this.next(); return; }
+      this.render();
+    } }, h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
+    const out = [
+      h('p.setup-lead', 'Did you play Web-Osu-Mania before?'),
+      h('div.setup-choices.two', choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'sparkle', 'No', 'I\'m new here'))];
+    if (yes) out.push(h('div.setup-wom',
+      this.womDone
+        ? h('div.setup-wom-done', icon('check'), h('span', `Imported ${this.womDone}. Your keybinds and settings are in place — check them on the next pages.`))
+        : [h('ol.setup-wom-steps',
+            h('li', 'In Web-Osu-Mania, open ', h('b', 'Settings → Backup & Restore'), '.'),
+            h('li', 'Tick ', h('b', 'Settings & Keybinds'), ', ', h('b', 'Stored Beatmaps'), ' and ', h('b', 'Collections'), ' (scores too, if you like) and export. Songs in your collections are downloaded for you.'),
+            h('li', 'Import the .zip it saves here.')),
+          this.womStatus ? h('div.setup-wom-busy', h('span.spinner'), this.womStatus)
+            : h('button.btn.primary.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), 'Import my Web-Osu-Mania backup')]));
+    return out;
   },
-  /** Web-Osu-Mania's backup .zip: beatmaps, settings, keybinds, scores and collections in one go. */
   async importWom() {
     const [f] = await pickFiles({ accept: '.zip', multiple: false });
     if (!f || !this.o) return;
-    clearEl(this.womEl).append(h('span.spinner'), this.womStatus = h('span', 'Reading backup…'));
+    this.womStatus = 'Reading backup…'; this.render();
     try {
-      const r = await WomImport.run(f, { onStatus: m => { if (m && this.womStatus) this.womStatus.textContent = m; } });
+      const r = await WomImport.run(f, { onStatus: m => { if (m && this.o) { this.womStatus = m; const el = this.el.querySelector('.setup-wom-busy'); if (el) el.lastChild.textContent = m; } } });
       this.womDone = WomImport.summary(r);
       if (r.errors.length) Toast.err('Some of it couldn\'t be imported', r.errors.slice(0, 5).join('\n'));
       UISounds.play('check-on');
     } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
-    if (this.o && this.step.id === 'ask') this.render();
+    this.womStatus = null;
+    if (this.o && this.step.id === 'wom') this.render();
   },
 
   step_device() {
@@ -174,11 +185,7 @@ const Onboarding = {
   },
 
   step_look() {
-    const theme = Settings.get('ui.theme');
     return [
-      h('div.setup-label', 'Colour'),
-      h('div.setup-swatches', ...SETUP_THEMES.map(([id, c, name]) => h(`button.setup-swatch${theme === id ? '.on' : ''}`, {
-        style: { '--c': c }, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
       h('div.setup-label', 'Size'),
       this.slider('ui.scale', 'Interface size', 0.75, 1.5, 0.05, v => `${Math.round(v * 100)}%`, null, 'change'),
       h('div.setup-label', 'Profile picture'),

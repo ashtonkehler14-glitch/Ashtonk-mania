@@ -794,7 +794,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-counts .i { width: 12px; height: 12px; opacity: .85; }
 .ex-play { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; display: grid; place-items: center; opacity: 0; transform: scale(.8); transition: opacity var(--t-fast), transform var(--t-fast) var(--ease-out), background var(--t-fast); }
 .ex-play .i { width: 20px; height: 20px; }
-.ex-card:hover .ex-play, .ex-card:focus-within .ex-play, .ex-play[data-ic="pause"] { opacity: 1; transform: none; }
+.ex-card:hover .ex-play, .ex-card:has(:focus-visible) .ex-play, .ex-play[data-ic="pause"] { opacity: 1; transform: none; }
 .ex-play[data-ic="pause"] { background: var(--accent); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .3); }
 .ex-card .ex-play:hover { background: var(--accent); transform: scale(1.1); }
 @media (hover: none) { .ex-play { opacity: 1; transform: none; } }
@@ -2258,9 +2258,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
-.ex-card:hover .ex-cb, .ex-card:focus-within .ex-cb { padding-right: 52px; }
+.ex-card:hover .ex-cb, .ex-card:has(:focus-visible) .ex-cb { padding-right: 52px; }
 .ex-side { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; background: hsl(var(--o-h) 10% 10% / .92); transform: translateX(100%); transition: transform 250ms var(--ease-out); }
-.ex-card:hover .ex-side, .ex-card:focus-within .ex-side { transform: none; }
+.ex-card:hover .ex-side, .ex-card:has(:focus-visible) .ex-side { transform: none; }
 .ex-side-btn { flex: 1; display: grid; place-items: center; border: 0; background: none; color: rgba(255, 255, 255, .85); cursor: pointer; transition: background 120ms, color 120ms; }
 .ex-side-btn + .ex-side-btn { border-top: 1px solid rgba(255, 255, 255, .06); }
 .ex-side-btn .i { width: 18px; height: 18px; }
@@ -2305,13 +2305,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 
 /* beatmap listing: nothing reacts to the pointer while the list is scrolling */
 .explorer.scrolling .ex-grid { pointer-events: none; }
-/* setup: bring over a Web-Osu-Mania backup */
-.setup-wom { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 40px; margin-top: 18px; font-size: .9rem; color: var(--text-2); }
-.setup-wom > .i { width: 18px; height: 18px; color: #88b300; }
-.setup-wom-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .06); color: var(--text-2); font: inherit; cursor: pointer; transition: background 150ms, color 150ms; }
-.setup-wom-btn:hover { background: rgba(255, 255, 255, .12); color: #fff; }
-.setup-wom-btn b { color: var(--accent); }
-.setup-wom-btn .i { width: 16px; height: 16px; }
+/* setup: bring over a Web-Osu-Mania backup (lazer's "import from osu!stable" page) */
+.setup-wom { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(560px, 100%); margin-top: 18px; padding: 18px 22px; border-radius: 14px; background: rgba(0, 0, 0, .22); font-size: .92rem; color: var(--text-2); }
+.setup-wom-steps { align-self: stretch; margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
+.setup-wom-steps b { color: #fff; }
+.setup-wom-busy { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.setup-wom-done { display: flex; align-items: center; gap: 10px; color: #fff; line-height: 1.4; }
+.setup-wom-done > .i { flex: none; width: 22px; height: 22px; color: #88b300; }
 /* Ranked Play: skill level picker, readiness, reroll */
 .mp-cr-l small { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .rp-rt { color: var(--text-2); font-weight: 600; }
@@ -2374,6 +2374,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rpl-how summary:hover { color: #fff; }
 .rpl-how[open] summary { margin-bottom: 8px; }
 .rpl-how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; text-align: left; }
+/* the Web-Osu-Mania page: compact yes / no so the import steps and button stay in view */
+.setup-step-wom .setup-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 14px 18px; text-align: left; }
+.setup-step-wom .setup-choice-ic { grid-row: 1 / 3; width: 44px; height: 44px; margin: 0; }
+.setup-step-wom .setup-choice-ic .i { width: 22px; height: 22px; }
+.setup-step-wom .setup-choice-t { font-size: 1.05rem; align-self: end; }
+.setup-step-wom .setup-choice-s { align-self: start; }
+.setup-step-wom .setup-wom { margin-top: 14px; }
 
 </style>
 </head>
@@ -7344,7 +7351,6 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group',
         btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
-        btn('globe', 'Discover', 'See who\'s online and play together', page('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },
@@ -11022,7 +11028,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.2', title: 'Polish', sections: [
-    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
+    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
     { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick Beginner, Intermediate or Advanced and the cards suit you both', 'A cleaner waiting screen', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
     { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count'] },
   ] },
@@ -11030,7 +11036,7 @@ const CHANGELOG = [
     { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
     { icon: 'bell', title: 'Top bar', items: ['Notifications, a clock and a now playing panel', 'Scroll on the menu to change the volume'] },
     { icon: 'download', title: 'Beatmap listing', items: ['New beatmap cards; click one for its info page'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby', 'Discover: see who\'s online'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby'] },
     { icon: 'brush', title: 'Skins', items: ['A better-looking Custom skin you can customise'] },
     { icon: 'mods', title: 'Everything else', items: ['Mod icons', 'Looks the same at every resolution'] },
   ] },
@@ -11487,7 +11493,7 @@ const ExplorerScreen = {
       : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
     // lazer's hover panel on the card's right edge: like and download (or play when it's already in the library)
     const liked = this.liked().has(set.id);
-    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
+    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); e.currentTarget.blur(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); clearEl(likeBtn).append(icon('heart', this.liked().has(set.id) ? 'fill' : '')); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
     const sideAct = dl && dl.state === 'downloading'
       ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
       : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
@@ -11614,7 +11620,7 @@ const ExplorerScreen = {
       const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
-        if (now - lastPaint > 120) { lastPaint = now; this.refreshCard(set); }
+        if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); }
       });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
@@ -11660,6 +11666,15 @@ const ExplorerScreen = {
       }
       Screens.go('multiplayer', {}, { replace: true });
     } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
+  },
+  /** Download progress, written into the card and the info page as they are: rebuilding them for every tick made
+   *  the card under the pointer jitter (its hover lift and side panel restarted each time). */
+  paintProgress(set, st) {
+    const pct = ((st.progress || 0) * 100).toFixed(0) + '%';
+    const card = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
+    if (card) for (const el of card.querySelectorAll('.ex-thumbprog, .ex-side-btn.busy')) el.style.setProperty('--p', pct);
+    const dl = this.setEl && this.setView && this.setView.set.id === set.id && this.setEl.querySelector('.bso-dl.busy');
+    if (dl) { dl.style.setProperty('--p', pct); const sm = dl.querySelector('small'); if (sm) sm.textContent = st.progress != null ? `${Math.round(st.progress * 100)}%` : fmtBytes(st.bytes || 0); }
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
@@ -12155,10 +12170,10 @@ const ModSelect = {
 
 
 /* ===== 18b-setup.js ===== */
-/* First-run setup — a short, friendly wizard shown the first time the client opens (and from Settings →
- * Maintenance → "Run first-run setup"). Name first, then the player chooses whether to set things up at all:
- * device, accent colour and size, scroll speed and background, and a skin. Every choice applies immediately
- * (the previews are live) and stays editable in Settings. */
+/* First-run setup — osu!lazer's first-run wizard, shown the first time the client opens (and from Settings →
+ * Maintenance → "Run first-run setup"): your name, bringing over a Web-Osu-Mania backup (lazer's "import from
+ * osu!stable" page), your device, size and picture, scroll speed and background, and a skin. It isn't skippable,
+ * but every page is quick; each choice applies at once (the previews are live) and stays editable in Settings. */
 
 /** Render scale that keeps the playfield canvas at (at most) one pixel per CSS pixel — the cheapest setting
  *  that still looks sharp on a Chromebook's high-DPI panel. */
@@ -12173,13 +12188,12 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
-const SETUP_THEMES = [['kori', '#aa88ff', 'Kori'], ['neru', '#ffcf3a', 'Neru'], ['teto', '#ff4d6a', 'Teto'], ['miku', '#39c5bb', 'Miku']];
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']];
 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
-    { id: 'ask', title: 'Set up the game?' },
+    { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'What are you playing on?', short: 'Device' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
     { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
@@ -12194,13 +12208,14 @@ const Onboarding = {
       this.again = again;
       this.i = 0;
       this.dir = 1;
+      this.womAnswer = this.womDone = this.womStatus = null;
       this.animate = true;
       this.el = h('div.onboarding.setup', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Setup' });
       this.o = makeOverlay(this.el, {
         dismissable: false,
         onKey: e => {
           if (e.key === 'Escape') return true; // closed with its own buttons only
-          if (e.key === 'Enter' && this.step.id !== 'ask' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
+          if (e.key === 'Enter' && !(e.target.closest && e.target.closest('button, input, select'))) { this.next(); return true; }
           return false;
         },
       });
@@ -12217,7 +12232,7 @@ const Onboarding = {
     const st = this.step;
     const body = h(`div.setup-body.setup-step-${st.id}${this.animate ? '.anim' : ''}`, { style: { '--dir': this.dir } }, ...[].concat(this['step_' + st.id]()));
     this.animate = false;
-    const showNav = st.id !== 'ask';
+    const showNav = true;
     // lazer's WizardOverlay: the overlay header, the step, then sheared Back and a wide Next "(next step)" button
     const nx = this.STEPS[this.i + 1];
     this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && nx.short ? `Next (${nx.short})` : 'Next')) : null;
@@ -12225,11 +12240,11 @@ const Onboarding = {
       h('div.setup-ovhead', h('div.setup-ovt', 'first-run setup'), h('div.setup-ovs', 'set up Ashtonk!mania to suit you')),
       h('div.setup-head',
         h('h2', st.id === 'welcome' ? 'Welcome to Ashtonk!mania' : st.title),
-        this.i > 1 ? h('div.setup-progress', ...this.STEPS.slice(2).map((s, k) => h(`i${k + 2 === this.i ? '.on' : k + 2 < this.i ? '.past' : ''}`)))
+        this.i > 0 ? h('div.setup-progress', ...this.STEPS.slice(1).map((s, k) => h(`i${k + 1 === this.i ? '.on' : k + 1 < this.i ? '.past' : ''}`)))
           : null),
       body,
       h('div.setup-foot',
-        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i === 2 ? 1 : this.i - 1) }, h('span', icon('back'), 'Back')) : null,
+        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
         this.err = h('div.ob-err'),
         this.nextBtn));
     this.afterRender && this.afterRender();
@@ -12290,30 +12305,41 @@ const Onboarding = {
     return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
   },
 
-  step_ask() {
-    return [
-      this.logo('.small'),
-      h('p.setup-lead', `Hi ${ProfileManager.profile.name}! Want to set up the game now? It takes about 30 seconds.`),
-      h('div.setup-choices.two',
-        h('button.setup-choice.primary', { onclick: () => this.go(2) }, h('span.setup-choice-ic', icon('sparkle')), h('span.setup-choice-t', 'Set it up'), h('span.setup-choice-s', 'Pick your device, colours, speed and skin')),
-        h('button.setup-choice.ob-skip', { onclick: () => this.finish() }, h('span.setup-choice-ic', icon('play')), h('span.setup-choice-t', 'Skip'), h('span.setup-choice-s', 'Use the default settings'))),
-      this.womEl = h('div.setup-wom', this.womDone
-        ? [icon('check'), h('span', `Web-Osu-Mania backup imported: ${this.womDone}.`)]
-        : h('button.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), h('span', 'Coming from Web-Osu-Mania? ', h('b', 'Import your backup')))),
-    ];
+  /** osu!lazer's "import from osu!stable" page, for Web-Osu-Mania: its backup brings keybinds, settings, beatmaps,
+   *  scores and collections across in one go. */
+  step_wom() {
+    const yes = this.womAnswer === 'yes';
+    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.womAnswer === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => {
+      UISounds.click(); this.womAnswer = v;
+      if (v === 'no') { this.next(); return; }
+      this.render();
+    } }, h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
+    const out = [
+      h('p.setup-lead', 'Did you play Web-Osu-Mania before?'),
+      h('div.setup-choices.two', choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'sparkle', 'No', 'I\'m new here'))];
+    if (yes) out.push(h('div.setup-wom',
+      this.womDone
+        ? h('div.setup-wom-done', icon('check'), h('span', `Imported ${this.womDone}. Your keybinds and settings are in place — check them on the next pages.`))
+        : [h('ol.setup-wom-steps',
+            h('li', 'In Web-Osu-Mania, open ', h('b', 'Settings → Backup & Restore'), '.'),
+            h('li', 'Tick ', h('b', 'Settings & Keybinds'), ', ', h('b', 'Stored Beatmaps'), ' and ', h('b', 'Collections'), ' (scores too, if you like) and export. Songs in your collections are downloaded for you.'),
+            h('li', 'Import the .zip it saves here.')),
+          this.womStatus ? h('div.setup-wom-busy', h('span.spinner'), this.womStatus)
+            : h('button.btn.primary.setup-wom-btn', { onclick: () => this.importWom() }, icon('upload'), 'Import my Web-Osu-Mania backup')]));
+    return out;
   },
-  /** Web-Osu-Mania's backup .zip: beatmaps, settings, keybinds, scores and collections in one go. */
   async importWom() {
     const [f] = await pickFiles({ accept: '.zip', multiple: false });
     if (!f || !this.o) return;
-    clearEl(this.womEl).append(h('span.spinner'), this.womStatus = h('span', 'Reading backup…'));
+    this.womStatus = 'Reading backup…'; this.render();
     try {
-      const r = await WomImport.run(f, { onStatus: m => { if (m && this.womStatus) this.womStatus.textContent = m; } });
+      const r = await WomImport.run(f, { onStatus: m => { if (m && this.o) { this.womStatus = m; const el = this.el.querySelector('.setup-wom-busy'); if (el) el.lastChild.textContent = m; } } });
       this.womDone = WomImport.summary(r);
       if (r.errors.length) Toast.err('Some of it couldn\'t be imported', r.errors.slice(0, 5).join('\n'));
       UISounds.play('check-on');
     } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
-    if (this.o && this.step.id === 'ask') this.render();
+    this.womStatus = null;
+    if (this.o && this.step.id === 'wom') this.render();
   },
 
   step_device() {
@@ -12331,11 +12357,7 @@ const Onboarding = {
   },
 
   step_look() {
-    const theme = Settings.get('ui.theme');
     return [
-      h('div.setup-label', 'Colour'),
-      h('div.setup-swatches', ...SETUP_THEMES.map(([id, c, name]) => h(`button.setup-swatch${theme === id ? '.on' : ''}`, {
-        style: { '--c': c }, 'aria-label': name, onclick: () => { Settings.set('ui.theme', id); UISounds.click(); this.render(); } }, h('i'), h('span', name)))),
       h('div.setup-label', 'Size'),
       this.slider('ui.scale', 'Interface size', 0.75, 1.5, 0.05, v => `${Math.round(v * 100)}%`, null, 'change'),
       h('div.setup-label', 'Profile picture'),
@@ -12519,17 +12541,17 @@ const WomImport = {
     onStatus('Importing settings…');
     try { const st = await json('settings.json'); if (st) out.settings = this.applySettings(st); } catch (err) { out.errors.push(`settings.json: ${friendlyError(err)}`); }
 
-    onStatus('Importing scores…');
-    try { const hs = await json('highScores.json'); if (hs) Object.assign(out, await this.importScores(hs.highScores || hs, out)); } catch (err) { out.errors.push(`highScores.json: ${friendlyError(err)}`); }
-
-    onStatus('Importing collections…');
+    // collections before scores: their songs that aren't in the backup are downloaded, so scores can land on them too
     try {
       const cols = await json('collections.json');
       const saved = await json('savedBeatmapSets.json');
       const all = { ...(cols && typeof cols === 'object' ? cols : {}) };
       if (saved && Array.isArray(saved.savedBeatmapSets)) all.Saved = saved.savedBeatmapSets;
-      out.collections = await this.importCollections(all);
+      out.collections = await this.importCollections(all, out, onStatus);
     } catch (err) { out.errors.push(`collections: ${friendlyError(err)}`); }
+
+    onStatus('Importing scores…');
+    try { const hs = await json('highScores.json'); if (hs) Object.assign(out, await this.importScores(hs.highScores || hs, out)); } catch (err) { out.errors.push(`highScores.json: ${friendlyError(err)}`); }
     onStatus(null);
     return out;
   },
@@ -12620,16 +12642,30 @@ const WomImport = {
     return { scores, skipped: out.skipped + skipped };
   },
 
-  /** WOM collections hold online beatmap sets: the ones in the library go into a collection of the same name. */
-  async importCollections(all) {
+  /** WOM collections hold online beatmap sets: any that aren't in the library yet are downloaded (from the same
+   *  mirrors as the beatmap listing), then each collection is made here with the same name. */
+  async importCollections(all, out, onStatus = () => {}) {
+    const have = id => BeatmapManager.sets.find(s => s.onlineId === Number(id));
+    const missing = new Map();
+    for (const sets of Object.values(all)) if (Array.isArray(sets)) for (const ws of sets) {
+      const id = Number(ws && ws.id);
+      if (id > 0 && !have(id) && !missing.has(id)) missing.set(id, { id, title: String(ws.title || ''), artist: String(ws.artist || ''), creator: String(ws.creator || '') });
+    }
+    if (missing.size && navigator.onLine === false) out.errors.push(`${plural(missing.size, 'song')} from your collections couldn't be downloaded: you're offline`);
+    else {
+      let i = 0, failed = 0;
+      for (const set of missing.values()) {
+        onStatus(`Downloading songs from your collections… ${++i}/${missing.size}`);
+        try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
+        catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+      }
+      if (failed > 3) out.errors.push(`…and ${failed - 3} more songs couldn't be downloaded`);
+    }
     let n = 0;
     for (const [name, sets] of Object.entries(all)) {
       if (!Array.isArray(sets)) continue;
       const hashes = [];
-      for (const ws of sets) {
-        const local = ws && BeatmapManager.sets.find(s => s.onlineId === Number(ws.id));
-        if (local) hashes.push(...local.maps.map(m => m.hash));
-      }
+      for (const ws of sets) { const local = ws && have(ws.id); if (local) hashes.push(...local.maps.map(m => m.hash)); }
       let c = Collections.list.find(x => x.name === name);
       if (!c) { if (!hashes.length && !sets.length) continue; c = await Collections.create(name); }
       c.hashes = [...new Set([...c.hashes, ...hashes])];
@@ -12642,7 +12678,7 @@ const WomImport = {
   /** A short "what came across" line for toasts and the setup screen. */
   summary(r) {
     const parts = [];
-    if (r.sets.length) parts.push(plural(r.sets.length, 'beatmap set'));
+    if (r.sets.length) parts.push(plural(r.sets.length, 'beatmap set') + (r.downloaded ? ` (${r.downloaded} downloaded for your collections)` : ''));
     if (r.scores) parts.push(plural(r.scores, 'score'));
     if (r.collections) parts.push(plural(r.collections, 'collection'));
     if (r.settings) parts.push('settings and keybinds');
@@ -13067,8 +13103,8 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
-  /** Is a list of online players on screen (Discover, the invite dialog)? */
-  watching() { return Screens.currentName === 'discover' || !!document.querySelector('.inv-list'); },
+  /** Is a list of online players on screen (the invite dialog)? */
+  watching() { return !!document.querySelector('.inv-list'); },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -13165,14 +13201,11 @@ const MultiplayerScreen = {
     code.addEventListener('input', () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    const online = Presence.ws ? Presence.players.length : null;
-    this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: online != null ? `${online} player${online === 1 ? '' : 's'} online` : 'Play with other people' }), h('div.mp-lobby',
+    this.body.append(overlayHeader('Multiplayer', { icon: 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
-        h('div.mp-joinbox', icon('multi'), code, joinBtn),
-        h('span.grow'),
-        h('button.btn.sm', { onclick: () => Screens.go('discover') }, icon('globe'), 'Who\'s online')),
+        h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
       h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join')),
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
@@ -13687,48 +13720,6 @@ const MultiplayerScreen = {
   },
 };
 
-/** Discover (osu!lazer's "currently online" users view): everyone playing Ashtonk!mania right now, with what they're
- *  up to — invite someone to your room, or start one with them in a click. */
-const DiscoverScreen = {
-  tab: 'discover',
-  enter() {
-    const { el, page } = pageShell('Discover', 'Players online right now', [], { icon: 'social', hue: 'pink', wide: true });
-    this.page = page;
-    Presence.start(); Presence.refresh();
-    this._unsub = [Bus.on('presence:changed', () => this.render()), Bus.on('mp:changed', () => this.render()), Bus.on('presence:invited', () => this.render())];
-    this.invited = new Set();
-    this.render();
-    return el;
-  },
-  leave() { (this._unsub || []).forEach(f => f()); },
-  render() {
-    if (!this.page) return;
-    const others = Presence.others(), inRoom = Multiplayer.inRoom();
-    const ST = { menu: ['Online', 'on'], room: ['In a multiplayer room', 'room'], playing: ['Playing', 'play'] };
-    const card = (p, me) => {
-      const [label, cls] = ST[p.status] || ST.menu;
-      const av = me ? ProfileManager.avatarEl(64) : Presence.avatarEl(p, 64);
-      const act = me ? null : this.invited.has(p.id) ? h('button.btn.sm', { disabled: true }, 'Invited') :
-        h('button.btn.sm.primary', { disabled: p.status === 'playing', onclick: async e => {
-          UISounds.click(); e.currentTarget.disabled = true;
-          try {
-            if (!Multiplayer.inRoom()) await Multiplayer.create();
-            Presence.invite(p.id); this.invited.add(p.id);
-            Toast.ok(`Invited ${p.name}`, `Room ${Multiplayer.room.code}`);
-            Screens.go('multiplayer');
-          } catch (err) { Toast.err('Couldn\'t invite', friendlyError(err)); this.render(); }
-        } }, icon('multi'), inRoom ? 'Invite to room' : 'Play together');
-      return h(`div.dc-card${me ? '.me' : ''}`, h('div.dc-cover'), h('div.dc-av', av),
-        h('div.dc-body', h('div.dc-name', p.name, me ? h('span.muted', ' (you)') : null), h(`div.dc-status.${cls}`, h('i'), label)), act);
-    };
-    const offline = !Presence.ws;
-    clearEl(this.page).append(
-      h('div.dc-head', h('span.dc-count', `${others.length + (offline ? 0 : 1)}`), h('span', ` player${others.length ? 's' : ''} online`), h('span.grow'),
-        offline ? h('span.mp-warn', Multiplayer.available() ? 'Connecting to the online server…' : 'Needs the online server (the Cloudflare deployment).') : null),
-      h('div.dc-grid', card({ name: ProfileManager.profile.name, status: Presence.status() }, true), ...others.map(p => card(p, false))),
-      !others.length && !offline ? h('div.dc-empty', 'Nobody else is online right now — share the game with a friend and they\'ll show up here.') : null);
-  },
-};
 
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
@@ -13774,7 +13765,6 @@ const App = {
     Screens.register('stats', ProfileScreen);
     Screens.register('replays', ReplaysScreen);
     Screens.register('skins', SkinsScreen);
-    Screens.register('discover', DiscoverScreen);
     this.bindGlobal();
     VolumeOverlay.bind();
     LazerCursor.init();

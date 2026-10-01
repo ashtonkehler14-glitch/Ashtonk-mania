@@ -22,6 +22,14 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Setup like lazer, less clutter
+
+* **Setup can't be skipped.** Its pages are like lazer's first-run setup: your name, then **"Coming from Web-Osu-Mania?"** (lazer's "import from osu!stable" page). Answer Yes to see where WOM keeps its backup (Settings → Backup & Restore) and import it there: keybinds, settings, beatmaps, scores and collections. After that come device, size and picture, gameplay and skin.
+* **Collections bring their songs:** importing a WOM backup also downloads any songs from your collections that aren't in it or in your library. Scores on those songs then come across too.
+* **No colour question in setup.** The accent colour is still in Settings.
+* **Discover is gone**, along with the "Who's online" button and the player count on the multiplayer screen. Inviting from a room still lists who's online.
+* **Beatmap listing:** a card no longer jitters while its song downloads (progress is drawn in place), and the hover panel no longer sticks after you press Like.
+
 ### Ranked Play lobby
 
 * **Three levels:** Beginner (~1.5★), Intermediate (~3★) and Advanced (~4.5★), picked with one segmented control. The six levels and the fine-tune slider are gone. A level saved before snaps to the nearest one.

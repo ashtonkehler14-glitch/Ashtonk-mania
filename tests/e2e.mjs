@@ -42,8 +42,7 @@ const waitBoot = async () => {
   await page.waitForTimeout(400);
   if (await page.$('.onboarding')) {
     await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
-    await page.waitForSelector('.setup-step-ask');
-    await page.click('.onboarding .ob-skip'); await page.waitForTimeout(400);
+    await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
   }
 };
 
@@ -70,7 +69,7 @@ await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemu
   check('Chemuss 4K: notes are hit centred on the ring receptors (hit position 448)', ch.hit === 448 && Math.abs(ch.off) < 1.5, JSON.stringify({ hit: ch.hit, offsetUnits: ch.off }));
 }
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
-check('osu!lazer toolbar: icon buttons (beatmap listing, discover, notifications), no text tabs', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar [data-tab="explore"]') && !!document.querySelector('#toolbar [data-tab="discover"]') && !!document.querySelector('#toolbar [data-tab="notifications"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('osu!lazer toolbar: icon buttons (beatmap listing, notifications), no text tabs and no Discover', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar [data-tab="explore"]') && !document.querySelector('#toolbar [data-tab="discover"]') && !!document.querySelector('#toolbar [data-tab="notifications"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
 check('toolbar clock cycles full → digital → analog on click', await page.evaluate(() => { const c = document.querySelector('.tb-clock'), seen = [c.dataset.mode]; for (let i = 0; i < 3; i++) { document.querySelector('.tb-clock').click(); seen.push(document.querySelector('.tb-clock').dataset.mode); } return seen.join(',') === 'full,digital,analog,full'; }));
 check('mouse wheel on the main menu changes the volume (lazer volume overlay)', await page.evaluate(async () => {
   AshtonkMania.Screens.go('home'); await new Promise(r => setTimeout(r, 300));
@@ -695,7 +694,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await op.reload();
   await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   check('a service worker controls the page after the first visit', await op.evaluate(() => !!navigator.serviceWorker.controller));
-  if (await op.$('.onboarding')) { await op.fill('.onboarding .ob-name', 'Offline'); await op.keyboard.press('Enter'); await op.waitForSelector('.setup-step-ask'); await op.click('.onboarding .ob-skip'); await op.waitForTimeout(300); }
+  if (await op.$('.onboarding')) { await op.fill('.onboarding .ob-name', 'Offline'); await op.keyboard.press('Enter'); await op.waitForSelector('.setup-step-wom'); await op.evaluate(() => AshtonkMania.Onboarding.finish()); await op.waitForTimeout(300); }
   await op.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await octx.setOffline(true);
   await op.reload();
@@ -719,7 +718,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await bp.goto(url);
   await bp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await bp.waitForTimeout(300);
-  if (await bp.$('.onboarding')) { await bp.fill('.onboarding .ob-name', 'Guest'); await bp.keyboard.press('Enter'); await bp.waitForSelector('.setup-step-ask'); await bp.click('.onboarding .ob-skip'); await bp.waitForTimeout(400); }
+  if (await bp.$('.onboarding')) { await bp.fill('.onboarding .ob-name', 'Guest'); await bp.keyboard.press('Enter'); await bp.waitForSelector('.setup-step-wom'); await bp.evaluate(() => AshtonkMania.Onboarding.finish()); await bp.waitForTimeout(400); }
   const toastText = await bp.$$eval('.toast', a => a.map(t => t.textContent).join(' | '));
   check('storage blocked: the game still boots and says nothing will be saved', await bp.evaluate(() => !!AshtonkMania.DB.memory && AshtonkMania.Screens.currentName === 'home') && /Storage is blocked/.test(toastText), toastText);
   await bp.evaluate(() => AshtonkMania.Screens.go('songselect')); await bp.waitForSelector('.ss-browse');
@@ -752,17 +751,15 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sp.click('.setup-next');
   check('setup: a name is required', /name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
   await sp.fill('.ob-name', 'Newbie'); await sp.keyboard.press('Enter');
-  await sp.waitForSelector('.setup-step-ask');
-  check('setup: after the name it asks whether to set up (set up / skip)', !!(await sp.$('.setup-choice.primary')) && !!(await sp.$('.setup-choice.ob-skip')) && !(await sp.$('.setup-step-experience')));
-  await sp.click('.setup-choice.primary');
+  await sp.waitForSelector('.setup-step-wom');
+  check('setup: no skipping — after the name it asks about Web-Osu-Mania (yes / no)', !(await sp.$('.ob-skip')) && (await sp.$$('.setup-step-wom .setup-choice')).length === 2);
+  await sp.click('.setup-choice[data-id="no"]');
   await sp.waitForSelector('.setup-step-device');
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
   check('setup: Chromebook turns on performance mode (keeping the menu blur, which is baked in) and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 12));
-  const swatches = await sp.$$eval('.setup-swatch span', a => a.map(x => x.textContent).join(','));
-  await sp.click('.setup-swatch >> nth=2');
-  check('setup: accent colours are Kori, Neru, Teto, Miku and apply live; size is a slider', swatches === 'Kori,Neru,Teto,Miku' && await sp.evaluate(() => document.documentElement.dataset.theme === 'teto') && !!(await sp.$('.setup-step-look input.slider')), swatches);
+  check('setup: no colour question (as in lazer); size is a slider', !(await sp.$('.setup-swatch')) && !!(await sp.$('.setup-step-look input.slider')));
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
   await sp.waitForTimeout(600);
   const pvDrawn = await sp.evaluate(() => { const c = document.querySelector('.setup-pv canvas'); return c && c.width > 50 && c.height > 50; });
@@ -797,7 +794,7 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await sp.waitForTimeout(600);
-  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('ui.theme') === 'teto'));
+  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true));
   await sctx.close();
 }
 
@@ -806,25 +803,31 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const wctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const wp = await wctx.newPage();
   wp.on('pageerror', e => errors.push('wom: ' + e.message));
+  // the backup's collection also holds a set that isn't in it (999): the import downloads it
+  await wp.route('**/api/health', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
+  await wp.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'test-set.osz')) }));
   await wp.goto(url);
   await wp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
   await wp.fill('.ob-name', 'Kiwi'); await wp.keyboard.press('Enter');
-  await wp.waitForSelector('.setup-step-ask .setup-wom-btn');
+  await wp.waitForSelector('.setup-step-wom');
+  await wp.click('.setup-choice[data-id="yes"]');
+  await wp.waitForSelector('.setup-step-wom .setup-wom-btn');
+  check('setup: "Yes" explains where Web-Osu-Mania keeps its backup (Settings → Backup & Restore)', /Backup & Restore/.test(await wp.textContent('.setup-wom')));
   const [chooser] = await Promise.all([wp.waitForEvent('filechooser'), wp.click('.setup-wom-btn')]);
   await chooser.setFiles(join(root, 'tests', 'fixtures', 'wom-backup.zip'));
-  await wp.waitForFunction(() => /imported/.test(document.querySelector('.setup-wom')?.textContent || ''), null, { timeout: 20000 });
+  await wp.waitForFunction(() => /Imported/.test(document.querySelector('.setup-wom')?.textContent || ''), null, { timeout: 20000 });
   const w = await wp.evaluate(async () => {
     const S = AshtonkMania.Settings, sc = AshtonkMania.ScoreManager.scores.find(s => s.imported === 'wom');
     return { text: document.querySelector('.setup-wom').textContent, sets: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 424242).length,
       vol: S.get('audio.master'), speed: S.get('gameplay.scrollSpeed'), dir: S.get('gameplay.scrollDirection'), off: S.get('audio.offset'), k4: S.get('input.keybinds')[4],
       score: sc && { v: sc.version, mods: sc.mods, rate: sc.rate, acc: sc.accuracy, grade: sc.grade, counts: sc.counts, n: AshtonkMania.ScoreManager.scores.length },
-      col: (await AshtonkMania.DB.kvGet('collections')).find(c => c.name === 'WOM favourites') };
+      col: (await AshtonkMania.DB.kvGet('collections')).find(c => c.name === 'WOM favourites'), downloaded: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 999).length };
   });
   check('Web-Osu-Mania backup: its stored beatmaps are imported', w.sets === 1, JSON.stringify(w));
   check('Web-Osu-Mania backup: settings and keybinds carry over', w.vol === 0.6 && w.speed === 27 && w.dir === 'up' && w.off === 12 && JSON.stringify(w.k4) === JSON.stringify([['KeyA', 'KeyZ'], ['KeyS'], ['KeyK'], ['KeyL']]), JSON.stringify(w));
   check('Web-Osu-Mania backup: high scores land on the right difficulty (mods, rate, judgements); ones for missing maps are left out', w.score && w.score.v === 'Online Hard' && w.score.mods.join() === 'DT,MR' && w.score.rate === 1.5 && w.score.counts.join() === '300,40,5,2,1,3' && w.score.n === 1, JSON.stringify(w.score));
-  check('Web-Osu-Mania backup: collections keep the beatmaps you have', w.col && w.col.hashes.length === 2, JSON.stringify(w.col));
-  check('the setup screen says what came across', /1 beatmap set, 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);
+  check('Web-Osu-Mania backup: collection songs missing from the backup are downloaded, and the collection holds them all', w.col && w.col.hashes.length > 2 && w.downloaded === 1, JSON.stringify({ col: w.col && w.col.hashes.length, dl: w.downloaded }));
+  check('the setup screen says what came across', /2 beatmap sets \(1 downloaded for your collections\), 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);
   await wctx.close();
 }
 

@@ -30,8 +30,9 @@ await page.waitForTimeout(400);
 if (await page.$('.onboarding')) {
   await page.waitForTimeout(500); await shot('onboarding');
   await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
-  await page.waitForSelector('.setup-step-ask'); await page.waitForTimeout(500); await shot('setup-ask');
-  await page.click('.setup-choice.primary'); await page.waitForSelector('.setup-step-device'); await page.waitForTimeout(500); await shot('setup-device');
+  await page.waitForSelector('.setup-step-wom'); await page.waitForTimeout(500); await shot('setup-wom');
+  await page.click('.setup-choice[data-id="yes"]'); await page.waitForTimeout(500); await shot('setup-wom-yes');
+  await page.click('.setup-next'); await page.waitForSelector('.setup-step-device'); await page.waitForTimeout(500); await shot('setup-device');
   await page.click('.setup-choice[data-id="pc"]'); await page.waitForSelector('.setup-step-look'); await page.waitForTimeout(500); await shot('setup-look');
   await page.click('.setup-next'); await page.waitForSelector('.setup-step-gameplay'); await page.waitForTimeout(900); await shot('setup-gameplay');
   await page.click('.setup-next'); await page.waitForSelector('.setup-step-skin'); await page.waitForTimeout(900); await shot('setup-skin');

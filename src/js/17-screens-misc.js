@@ -386,7 +386,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.2', title: 'Polish', sections: [
-    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup (in setup, or Settings → Maintenance)'] },
+    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
     { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick Beginner, Intermediate or Advanced and the cards suit you both', 'A cleaner waiting screen', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
     { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count'] },
   ] },
@@ -394,7 +394,7 @@ const CHANGELOG = [
     { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
     { icon: 'bell', title: 'Top bar', items: ['Notifications, a clock and a now playing panel', 'Scroll on the menu to change the volume'] },
     { icon: 'download', title: 'Beatmap listing', items: ['New beatmap cards; click one for its info page'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby', 'Discover: see who\'s online'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby'] },
     { icon: 'brush', title: 'Skins', items: ['A better-looking Custom skin you can customise'] },
     { icon: 'mods', title: 'Everything else', items: ['Mod icons', 'Looks the same at every resolution'] },
   ] },

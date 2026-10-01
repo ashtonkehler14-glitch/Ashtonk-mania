@@ -423,7 +423,7 @@ const ExplorerScreen = {
       : h('span.ex-spec', ...set.diffs.map(d => h('i', { style: { '--sc': starColour(d.stars) }, title: `[${d.version}] ${d.stars.toFixed(2)}★ ${d.keys}K` })));
     // lazer's hover panel on the card's right edge: like and download (or play when it's already in the library)
     const liked = this.liked().has(set.id);
-    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
+    const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); e.currentTarget.blur(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); clearEl(likeBtn).append(icon('heart', this.liked().has(set.id) ? 'fill' : '')); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
     const sideAct = dl && dl.state === 'downloading'
       ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
       : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
@@ -550,7 +550,7 @@ const ExplorerScreen = {
       const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
-        if (now - lastPaint > 120) { lastPaint = now; this.refreshCard(set); }
+        if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); }
       });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
@@ -596,6 +596,15 @@ const ExplorerScreen = {
       }
       Screens.go('multiplayer', {}, { replace: true });
     } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
+  },
+  /** Download progress, written into the card and the info page as they are: rebuilding them for every tick made
+   *  the card under the pointer jitter (its hover lift and side panel restarted each time). */
+  paintProgress(set, st) {
+    const pct = ((st.progress || 0) * 100).toFixed(0) + '%';
+    const card = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
+    if (card) for (const el of card.querySelectorAll('.ex-thumbprog, .ex-side-btn.busy')) el.style.setProperty('--p', pct);
+    const dl = this.setEl && this.setView && this.setView.set.id === set.id && this.setEl.querySelector('.bso-dl.busy');
+    if (dl) { dl.style.setProperty('--p', pct); const sm = dl.querySelector('small'); if (sm) sm.textContent = st.progress != null ? `${Math.round(st.progress * 100)}%` : fmtBytes(st.bytes || 0); }
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);

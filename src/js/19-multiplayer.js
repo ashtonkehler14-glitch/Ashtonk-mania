@@ -392,8 +392,8 @@ const Presence = {
     this.send({ t: 'status', status: st, name, avatar: av });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
-  /** Is a list of online players on screen (Discover, the invite dialog)? */
-  watching() { return Screens.currentName === 'discover' || !!document.querySelector('.inv-list'); },
+  /** Is a list of online players on screen (the invite dialog)? */
+  watching() { return !!document.querySelector('.inv-list'); },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -490,14 +490,11 @@ const MultiplayerScreen = {
     code.addEventListener('input', () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    const online = Presence.ws ? Presence.players.length : null;
-    this.body.append(overlayHeader('Multiplayer', { icon: 'multi', sub: online != null ? `${online} player${online === 1 ? '' : 's'} online` : 'Play with other people' }), h('div.mp-lobby',
+    this.body.append(overlayHeader('Multiplayer', { icon: 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
-        h('div.mp-joinbox', icon('multi'), code, joinBtn),
-        h('span.grow'),
-        h('button.btn.sm', { onclick: () => Screens.go('discover') }, icon('globe'), 'Who\'s online')),
+        h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
       h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join')),
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
@@ -1012,45 +1009,3 @@ const MultiplayerScreen = {
   },
 };
 
-/** Discover (osu!lazer's "currently online" users view): everyone playing Ashtonk!mania right now, with what they're
- *  up to — invite someone to your room, or start one with them in a click. */
-const DiscoverScreen = {
-  tab: 'discover',
-  enter() {
-    const { el, page } = pageShell('Discover', 'Players online right now', [], { icon: 'social', hue: 'pink', wide: true });
-    this.page = page;
-    Presence.start(); Presence.refresh();
-    this._unsub = [Bus.on('presence:changed', () => this.render()), Bus.on('mp:changed', () => this.render()), Bus.on('presence:invited', () => this.render())];
-    this.invited = new Set();
-    this.render();
-    return el;
-  },
-  leave() { (this._unsub || []).forEach(f => f()); },
-  render() {
-    if (!this.page) return;
-    const others = Presence.others(), inRoom = Multiplayer.inRoom();
-    const ST = { menu: ['Online', 'on'], room: ['In a multiplayer room', 'room'], playing: ['Playing', 'play'] };
-    const card = (p, me) => {
-      const [label, cls] = ST[p.status] || ST.menu;
-      const av = me ? ProfileManager.avatarEl(64) : Presence.avatarEl(p, 64);
-      const act = me ? null : this.invited.has(p.id) ? h('button.btn.sm', { disabled: true }, 'Invited') :
-        h('button.btn.sm.primary', { disabled: p.status === 'playing', onclick: async e => {
-          UISounds.click(); e.currentTarget.disabled = true;
-          try {
-            if (!Multiplayer.inRoom()) await Multiplayer.create();
-            Presence.invite(p.id); this.invited.add(p.id);
-            Toast.ok(`Invited ${p.name}`, `Room ${Multiplayer.room.code}`);
-            Screens.go('multiplayer');
-          } catch (err) { Toast.err('Couldn\'t invite', friendlyError(err)); this.render(); }
-        } }, icon('multi'), inRoom ? 'Invite to room' : 'Play together');
-      return h(`div.dc-card${me ? '.me' : ''}`, h('div.dc-cover'), h('div.dc-av', av),
-        h('div.dc-body', h('div.dc-name', p.name, me ? h('span.muted', ' (you)') : null), h(`div.dc-status.${cls}`, h('i'), label)), act);
-    };
-    const offline = !Presence.ws;
-    clearEl(this.page).append(
-      h('div.dc-head', h('span.dc-count', `${others.length + (offline ? 0 : 1)}`), h('span', ` player${others.length ? 's' : ''} online`), h('span.grow'),
-        offline ? h('span.mp-warn', Multiplayer.available() ? 'Connecting to the online server…' : 'Needs the online server (the Cloudflare deployment).') : null),
-      h('div.dc-grid', card({ name: ProfileManager.profile.name, status: Presence.status() }, true), ...others.map(p => card(p, false))),
-      !others.length && !offline ? h('div.dc-empty', 'Nobody else is online right now — share the game with a friend and they\'ll show up here.') : null);
-  },
-};

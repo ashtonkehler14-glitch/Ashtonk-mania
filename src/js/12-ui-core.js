@@ -384,7 +384,6 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group',
         btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
-        btn('globe', 'Discover', 'See who\'s online and play together', page('discover'), { dataset: { tab: 'discover' } }),
         this.npBtn,
         this.clock,
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },

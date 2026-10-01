@@ -38,17 +38,17 @@ const WomImport = {
     onStatus('Importing settings…');
     try { const st = await json('settings.json'); if (st) out.settings = this.applySettings(st); } catch (err) { out.errors.push(`settings.json: ${friendlyError(err)}`); }
 
-    onStatus('Importing scores…');
-    try { const hs = await json('highScores.json'); if (hs) Object.assign(out, await this.importScores(hs.highScores || hs, out)); } catch (err) { out.errors.push(`highScores.json: ${friendlyError(err)}`); }
-
-    onStatus('Importing collections…');
+    // collections before scores: their songs that aren't in the backup are downloaded, so scores can land on them too
     try {
       const cols = await json('collections.json');
       const saved = await json('savedBeatmapSets.json');
       const all = { ...(cols && typeof cols === 'object' ? cols : {}) };
       if (saved && Array.isArray(saved.savedBeatmapSets)) all.Saved = saved.savedBeatmapSets;
-      out.collections = await this.importCollections(all);
+      out.collections = await this.importCollections(all, out, onStatus);
     } catch (err) { out.errors.push(`collections: ${friendlyError(err)}`); }
+
+    onStatus('Importing scores…');
+    try { const hs = await json('highScores.json'); if (hs) Object.assign(out, await this.importScores(hs.highScores || hs, out)); } catch (err) { out.errors.push(`highScores.json: ${friendlyError(err)}`); }
     onStatus(null);
     return out;
   },
@@ -139,16 +139,30 @@ const WomImport = {
     return { scores, skipped: out.skipped + skipped };
   },
 
-  /** WOM collections hold online beatmap sets: the ones in the library go into a collection of the same name. */
-  async importCollections(all) {
+  /** WOM collections hold online beatmap sets: any that aren't in the library yet are downloaded (from the same
+   *  mirrors as the beatmap listing), then each collection is made here with the same name. */
+  async importCollections(all, out, onStatus = () => {}) {
+    const have = id => BeatmapManager.sets.find(s => s.onlineId === Number(id));
+    const missing = new Map();
+    for (const sets of Object.values(all)) if (Array.isArray(sets)) for (const ws of sets) {
+      const id = Number(ws && ws.id);
+      if (id > 0 && !have(id) && !missing.has(id)) missing.set(id, { id, title: String(ws.title || ''), artist: String(ws.artist || ''), creator: String(ws.creator || '') });
+    }
+    if (missing.size && navigator.onLine === false) out.errors.push(`${plural(missing.size, 'song')} from your collections couldn't be downloaded: you're offline`);
+    else {
+      let i = 0, failed = 0;
+      for (const set of missing.values()) {
+        onStatus(`Downloading songs from your collections… ${++i}/${missing.size}`);
+        try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
+        catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+      }
+      if (failed > 3) out.errors.push(`…and ${failed - 3} more songs couldn't be downloaded`);
+    }
     let n = 0;
     for (const [name, sets] of Object.entries(all)) {
       if (!Array.isArray(sets)) continue;
       const hashes = [];
-      for (const ws of sets) {
-        const local = ws && BeatmapManager.sets.find(s => s.onlineId === Number(ws.id));
-        if (local) hashes.push(...local.maps.map(m => m.hash));
-      }
+      for (const ws of sets) { const local = ws && have(ws.id); if (local) hashes.push(...local.maps.map(m => m.hash)); }
       let c = Collections.list.find(x => x.name === name);
       if (!c) { if (!hashes.length && !sets.length) continue; c = await Collections.create(name); }
       c.hashes = [...new Set([...c.hashes, ...hashes])];
@@ -161,7 +175,7 @@ const WomImport = {
   /** A short "what came across" line for toasts and the setup screen. */
   summary(r) {
     const parts = [];
-    if (r.sets.length) parts.push(plural(r.sets.length, 'beatmap set'));
+    if (r.sets.length) parts.push(plural(r.sets.length, 'beatmap set') + (r.downloaded ? ` (${r.downloaded} downloaded for your collections)` : ''));
     if (r.scores) parts.push(plural(r.scores, 'score'));
     if (r.collections) parts.push(plural(r.collections, 'collection'));
     if (r.settings) parts.push('settings and keybinds');
