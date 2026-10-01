@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Key bindings
+
+* **Key count:** the key-binding panel in Settings picks the key count with the same small ‹ 4K › stepper as the Skins page, instead of eighteen 1K–18K chips.
+* **Jumping to a section:** opening Settings at a section (Input, for example) used to scroll past that section's heading. It now lands on the heading.
+
 ### SS results look like SS
 
 * **Results:** in osu!mania an SS only needs every hit to be a MAX or a 300, so it can come in just under 100% accuracy (a 300 counts a little less than a MAX). The accuracy circle stopped just short of full and the SS badge never appeared for those plays. As in lazer, an SS now fills the circle and shows its SS badge.

@@ -2410,3 +2410,4 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* multiplayer: panels rebuilt on a room update don't replay their slide-in */
 .mp-results.still, .mp-vote.still { animation: none; }
 .lb-list.still .lb-row { animation: none; }
+.keycfg-modes.sk-keys { justify-content: center; margin-bottom: 10px; }

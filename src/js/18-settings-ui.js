@@ -41,8 +41,9 @@ const SettingsPanel = {
   },
   close() { if (this.o) { UISounds.back(); this.o.close(); } },
   scrollTo(sec) {
-    const el = this.scrollEl && this.scrollEl.querySelector(`[data-section="${sec}"]`);
-    if (el) this.scrollEl.scrollTo({ top: el.offsetTop - 8, behavior: 'smooth' });
+    const sc = this.scrollEl, el = sc && sc.querySelector(`[data-section="${sec}"]`);
+    // measured on screen (offsetTop counts from the panel, not the list, and overshot past the section's heading)
+    if (el) sc.scrollTo({ top: sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) * Zoom.z - 8, behavior: 'smooth' });
   },
   /** Highlight the section being read. (Measured on screen: before the panel is shown every section sits at 0,
    *  which used to light up the last icon.) */
@@ -181,7 +182,12 @@ const KeyConfig = {
     binds.forEach(codes => codes.forEach(c => count.set(c, (count.get(c) || 0) + 1)));
     const conflicts = new Set([...count].filter(([, n]) => n > 1).map(([c]) => c));
     const types = maniaColumnTypes(this.keys);
-    root.append(h('div.keycfg-modes', ...Array.from({ length: MAX_KEYS }, (_, i) => i + 1).map(k => h(`button.chip${k === this.keys ? '.on' : ''}`, { onclick: () => { this.keys = k; this.listening = null; this.render(); } }, `${k}K`))));
+    // one compact key-count stepper (as on the Skins page) instead of eighteen chips
+    const go = k => { this.keys = clamp(k, 1, MAX_KEYS); this.listening = null; UISounds.click(); this.render(); };
+    root.append(h('div.sk-keys.keycfg-modes',
+      h('button.sk-step', { 'aria-label': 'Fewer keys', disabled: this.keys <= 1, onclick: () => go(this.keys - 1) }, icon('back')),
+      h('span.sk-k', `${this.keys}K`),
+      h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => go(this.keys + 1) }, icon('chevron'))));
     const lanes = h('div.keycfg-lanes');
     binds.forEach((codes, i) => {
       const lane = h(`button.lane-key${this.listening === i ? '.listening' : ''}${codes.some(c => conflicts.has(c)) ? '.conflict' : ''}${types[i] === 'S' ? '.special' : ''}`, {
