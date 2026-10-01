@@ -471,7 +471,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .c-item { position: absolute; left: 0; right: 0; will-change: transform, translate; transition: transform calc(400ms * var(--anim)) var(--ease-out), translate calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
 .carousel-scroll.scrolling .c-item { transition: transform calc(400ms * var(--anim)) var(--ease-out), opacity calc(300ms * var(--anim)) ease-out; }
 .c-item.set { z-index: 1; } /* (difficulties slide out from under their set's panel) */
-.c-item.spawn { opacity: 0; }
+.c-item.spawn { opacity: 0; pointer-events: none; }
 .set-panel, .diff-panel { position: relative; display: block; width: calc(100% + 10px); height: 100%; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; text-align: left; color: #fff; background: linear-gradient(90deg, var(--b3), var(--b4)); box-shadow: 0 1px 4px rgba(0, 0, 0, .2); transform: translateX(var(--x)); transition: transform calc(400ms * var(--anim)) var(--ease-out), box-shadow calc(400ms * var(--anim)) var(--ease-out); }
 .set-panel { --x: calc(155px * var(--k)); }
 .set-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px rgba(78, 191, 255, .8); }

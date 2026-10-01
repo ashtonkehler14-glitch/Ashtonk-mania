@@ -22,6 +22,9 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Difficulties tuck away
+- When a beatmap set closes in song select, its difficulties slide back up under its panel and fade, as in lazer. Before, they vanished and left a gap.
+
 ### Difficulties slide out
 - When a beatmap set opens in song select, its difficulties slide out from under the set's panel and fade in, as in lazer. Before, they popped up at their final places while the panel was still moving, overlapping it for a moment.
 

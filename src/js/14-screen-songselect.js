@@ -325,7 +325,14 @@ const SongSelect = {
       const x = arc(row.y + row.h / 2);
       if (el._x !== x) { el._x = x; el.style.translate = `${x}px 0`; }
     }
-    for (const [k, el] of this.pool) if (!needed.has(k)) { el.remove(); this.pool.delete(k); }
+    for (const [k, el] of this.pool) {
+      if (needed.has(k)) continue;
+      this.pool.delete(k);
+      // the set that just closed: its difficulties slide back up under its panel and fade, instead of vanishing
+      const hel = el._setId && el._setId === this._collapseSet && performance.now() - this._expandAt < 450 && this.pool.get('s:' + el._setId);
+      if (hel) { el.classList.add('spawn'); el.style.transform = hel.style.transform; setTimeout(() => el.remove(), 320); }
+      else el.remove();
+    }
   },
   /** A row that's already on screen only needs its selection state (and height) brought up to date. */
   refreshRow(el, row) {
@@ -338,6 +345,7 @@ const SongSelect = {
   },
   renderRow(row) {
     const wrap = h(`div.c-item${row.type === 'set' ? '.set' : ''}`, { style: { height: row.h + 'px' } });
+    if (row.type === 'diff') wrap._setId = row.m.setId;
     if (row.type === 'set') {
       const { set, maps } = row.r;
       const broken = maps.every(m => m.problems.length);
@@ -387,7 +395,7 @@ const SongSelect = {
     const m = BeatmapManager.maps.get(id);
     if (!m) return;
     const setChanged = this.expandedSet !== m.setId;
-    if (setChanged) { this._expandSet = m.setId; this._expandAt = performance.now(); }
+    if (setChanged) { this._collapseSet = this.expandedSet; this._expandSet = m.setId; this._expandAt = performance.now(); }
     this.selectedId = id;
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
