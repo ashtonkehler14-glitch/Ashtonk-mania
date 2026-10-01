@@ -569,7 +569,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
 .pm-btn:active .pm-band { filter: brightness(.9); }
 .pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
-.pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; }
+.pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .countdown { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 5rem; font-weight: 700; color: var(--accent-3); text-shadow: 0 0 40px rgba(var(--accent-rgb), .8); pointer-events: none; }
 .practice-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(980px, calc(calc(100 * var(--vw)) - 40px)); padding: 12px 14px; border-radius: 16px; background: rgba(12, 8, 20, .88); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; cursor: default; transition: opacity var(--t-med); }
 .practice-bar.dim { opacity: .25; }
@@ -617,8 +617,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .rs-map { width: 100%; min-width: 0; }
 .rs-title { font-size: 1.25rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-artist { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rs-diff { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: .85rem; }
-.rs-version { font-weight: 600; }
+.rs-diff { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-size: .85rem; min-width: 0; }
+.rs-diff > :first-child { flex: none; }
+.rs-version { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-mapper { margin-top: 3px; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-ring { position: relative; width: 230px; height: 230px; margin: 22px 0 14px; }
 .rs-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .rs-grade { position: absolute; inset: 0; display: grid; place-items: center; font-size: 5.4rem; font-weight: 700; color: var(--rc); text-shadow: 0 0 28px color-mix(in srgb, var(--rc) 70%, transparent); animation: gradeIn 700ms var(--ease-out) 300ms both; }
@@ -1613,18 +1615,18 @@ div.res-calib .i { color: var(--good); }
    settings as lazer's SettingsToolboxGroups on the right: 270px, near-transparent, a 30px bold header, yellow sliders */
 .gp-loader { grid-template-columns: minmax(0, 1fr); }
 .gp-loader .pl-settings { position: absolute; top: 40px; right: 28px; width: 270px; margin: 0; }
-.pl-card { width: auto; max-width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
+.pl-card { width: auto; max-width: max(320px, min(820px, calc(100% - 660px))); display: flex; flex-direction: column; align-items: center; text-align: center; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
 .pl-logo { position: relative; width: 120px; height: 120px; container-type: size; margin-bottom: 4px; animation: setupLogo 2.4s ease-in-out infinite; }
 .pl-logo .lz-cookie-disc { border-width: 6px; }
-.pl-card .pl-t { margin-top: 15px; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
-.pl-card .pl-a { font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-card .pl-t { margin-top: 15px; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+.pl-card .pl-a { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
 .pl-thumb .pl-cover { position: absolute; inset: 0; height: auto; }
 .pl-thumb .pl-load { position: absolute; inset: 0; padding: 0; justify-content: center; border: 0; background: rgba(0, 0, 0, .5); color: #fff; transition: background 400ms, opacity 400ms; }
 .gp-loader.ready .pl-thumb .pl-load { background: rgba(0, 0, 0, .25); color: #c8ff66; }
 .pl-thumb .pl-bar { height: 3px; background: rgba(0, 0, 0, .3); }
 .pl-card .pl-d { flex-direction: column; gap: 5px; margin: 0 0 30px; font-size: 1rem; }
-.pl-v { font-size: 1.625rem; font-style: italic; }
+.pl-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; }
 .pl-sr { display: flex; gap: 6px; justify-content: center; }
 .pl-meta { display: grid; grid-template-columns: auto auto; gap: 2px 0; font-size: .95rem; }
 .pl-mk { text-align: right; padding-right: 5px; color: rgba(255, 255, 255, .7); }

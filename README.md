@@ -22,6 +22,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Long names and the now playing button
+
+* **Now playing:** hovering the music button opens the panel, and the click that usually follows used to close it again. That click now keeps it open; click again to close.
+* **Long titles:** the player loader keeps a very long title to two lines and clear of the settings panels on the right. Artist and difficulty names stay on one line. The pause screen's beatmap line stays on one line too.
+* **Results:** the difficulty name sits on one line next to its star rating, with "4K · mapped by …" on its own line under it. A long difficulty name no longer pushes the star pill onto a line of its own.
+
 ### Small polish: results, skins, menu logo
 
 * **Hit distribution:** it now works like lazer's. The bins are sized from your widest hit, with 50 on each side of zero, and empty bins show as faint dots. You get a readable shape instead of thin spikes spread across the whole hit window.

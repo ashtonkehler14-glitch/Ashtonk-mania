@@ -314,7 +314,7 @@ const GameplayScreen = {
     const line = (k, v) => v ? [h('span.pl-mk', k), h('span.pl-mv', v)] : [];
     const card = h('div.pl-card',
       h('div.pl-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
-      h('div.pl-t', title), h('div.pl-a', artist),
+      h('div.pl-t', { title }, title), h('div.pl-a', artist),
       h('div.pl-thumb', cover, h('div.pl-load', h('span.spinner'), this.plStatus), h('div.pl-bar', this.plBar)),
       rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
       rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator),

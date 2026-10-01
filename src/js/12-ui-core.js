@@ -506,7 +506,12 @@ const NowPlaying = {
   hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
   /** The toolbar button: opens the panel (and keeps it open), or closes it if it's showing — hovering doesn't
    *  bring it straight back until the pointer has left the button. */
-  toggle(pin) { if (this.open) { this.hide(); this._shut = true; return; } this.pinned = !!pin; this.show(); },
+  toggle(pin) {
+    // a click on a panel that hovering just opened keeps it open; a click on a kept-open panel closes it
+    if (this.open && pin && !this.pinned) { clearTimeout(this._t); this.pinned = true; return; }
+    if (this.open) { this.hide(); this._shut = true; return; }
+    this.pinned = !!pin; this.show();
+  },
   show() {
     this.ensure();
     if (this.open) return;
