@@ -4696,7 +4696,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
-  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): Marv / Perf / Great / Good / Bad / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
+  { s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): MAX / 300 / 200 / 100 / 50 / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
   { s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted'], ['v1', 'Classic']], hint: 'Weighted counts MAX slightly above 300 (osu!lazer); Classic counts them the same.' },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
   { s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
@@ -10516,7 +10516,7 @@ const ResultsScreen = {
         h('div.res-stat', h('span', 'Average hit error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
         h('div.res-stat', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
-      scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.name))));
+      scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
     } else {
       hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
       scatter.style.display = 'none';
@@ -10636,7 +10636,7 @@ const ShareCard = {
     JUDGEMENTS.forEach((j, i) => {
       const jx = 380 + (i % 3) * 250, jy = 450 + Math.floor(i / 3) * 44;
       x.fillStyle = j.color; x.beginPath(); x.arc(jx + 7, jy - 7, 7, 0, Math.PI * 2); x.fill();
-      text(j.name, 20, jy, { w: 600, color: 'rgba(255,255,255,.8)', xPos: jx + 24 });
+      text(j.short, 20, jy, { w: 600, color: 'rgba(255,255,255,.8)', xPos: jx + 24 });
       text(fmtInt(counts[i]), 22, jy, { w: 800, xPos: jx + 215, align: 'right' });
     });
     // footer

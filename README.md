@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### One set of judgement names
+
+* **Judgements:** the share card, the timing chart's legend and the custom timing windows setting now use the same names as the results screen and the HUD: MAX, 300, 200, 100, 50, Miss. Some places used to say Marvelous / Perfect / Great / Good / Bad instead.
+
 ### Results statistics like lazer
 
 * **Results:** under the hit distribution there are now three clear stat tiles, as in lazer's statistics panel: Unstable rate, Average hit error (with "early" or "late") and the number of timed hits. They replace the small all-caps line that used to sit in the chart's header.

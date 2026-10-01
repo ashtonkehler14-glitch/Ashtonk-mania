@@ -144,7 +144,7 @@ const ResultsScreen = {
         h('div.res-stat', h('span', 'Average hit error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
         h('div.res-stat', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
-      scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.name))));
+      scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
     } else {
       hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
       scatter.style.display = 'none';
@@ -264,7 +264,7 @@ const ShareCard = {
     JUDGEMENTS.forEach((j, i) => {
       const jx = 380 + (i % 3) * 250, jy = 450 + Math.floor(i / 3) * 44;
       x.fillStyle = j.color; x.beginPath(); x.arc(jx + 7, jy - 7, 7, 0, Math.PI * 2); x.fill();
-      text(j.name, 20, jy, { w: 600, color: 'rgba(255,255,255,.8)', xPos: jx + 24 });
+      text(j.short, 20, jy, { w: 600, color: 'rgba(255,255,255,.8)', xPos: jx + 24 });
       text(fmtInt(counts[i]), 22, jy, { w: 800, xPos: jx + 215, align: 'right' });
     });
     // footer
