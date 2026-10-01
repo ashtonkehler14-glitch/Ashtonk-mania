@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Options menu placement
+- Song select's Options menu (the footer button or F3) now opens on top of the Options button, like lazer's footer popover. Before, F3 opened it in the middle of the screen.
+- The Beatmaps page lists a set's key counts in order (4K, 7K, 8K, 9K).
+
 ### Note counts
 - Song select's Notes count no longer subtracts hold notes twice, and its bars are measured against the total object count.
 - Tooltips no longer treat the first pointer event after loading as movement.

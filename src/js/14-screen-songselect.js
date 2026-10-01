@@ -95,7 +95,7 @@ const SongSelect = {
       backButton(() => Screens.back()),
       fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
-      fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
+      this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
@@ -577,7 +577,10 @@ const SongSelect = {
     m = m || BeatmapManager.maps.get(this.selectedId);
     if (!m) return;
     const set = BeatmapManager.setById.get(m.setId);
-    const x = e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = e && e.clientY ? e.clientY - 10 : innerHeight - 320;
+    // from the footer (its button or F3) the menu stands on the Options button like lazer's footer popover; a
+    // right-click on a panel opens it where you clicked
+    const btn = this.optionsBtn && this.optionsBtn.isConnected && (!e || !e.clientX || e.currentTarget === this.optionsBtn) ? this.optionsBtn.getBoundingClientRect() : null;
+    const x = btn ? btn.left : e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = btn ? btn.top - 6 : e && e.clientY ? e.clientY - 10 : innerHeight - 320;
     showMenu(x, y, [
       { header: `${set.title} [${m.version}]` },
       { label: 'Play', icon: 'play', onClick: () => this.play() },
@@ -589,7 +592,7 @@ const SongSelect = {
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
-    ]);
+    ], { above: !!btn });
   },
   async deleteSet(set) {
     set = set || BeatmapManager.setById.get(BeatmapManager.maps.get(this.selectedId)?.setId);

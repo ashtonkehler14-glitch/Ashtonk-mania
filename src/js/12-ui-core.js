@@ -288,7 +288,8 @@ const Dialog = {
 };
 
 /** Context menu: items [{label, icon, onClick, checked, sep, header}] */
-function showMenu(x, y, items) {
+/** A popup menu at (x, y); with { above: true } y is where its bottom edge goes (a menu opened from a footer button). */
+function showMenu(x, y, items, { above = false } = {}) {
   const menu = h('div.menu', { role: 'menu' });
   for (const it of items) {
     if (it.sep) { menu.appendChild(h('div.sep')); continue; }
@@ -302,7 +303,7 @@ function showMenu(x, y, items) {
   requestAnimationFrame(() => {
     const r = menu.getBoundingClientRect();
     menu.style.left = clamp(x, 8, innerWidth - r.width - 8) * Zoom.z + 'px';
-    menu.style.top = clamp(y, 8, innerHeight - r.height - 8) * Zoom.z + 'px';
+    menu.style.top = clamp(above ? y - r.height : y, 8, innerHeight - r.height - 8) * Zoom.z + 'px';
     const f = menu.querySelector('button'); f && f.focus();
   });
   menu.addEventListener('keydown', e => {

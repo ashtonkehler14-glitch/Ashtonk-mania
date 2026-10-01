@@ -7331,7 +7331,8 @@ const Dialog = {
 };
 
 /** Context menu: items [{label, icon, onClick, checked, sep, header}] */
-function showMenu(x, y, items) {
+/** A popup menu at (x, y); with { above: true } y is where its bottom edge goes (a menu opened from a footer button). */
+function showMenu(x, y, items, { above = false } = {}) {
   const menu = h('div.menu', { role: 'menu' });
   for (const it of items) {
     if (it.sep) { menu.appendChild(h('div.sep')); continue; }
@@ -7345,7 +7346,7 @@ function showMenu(x, y, items) {
   requestAnimationFrame(() => {
     const r = menu.getBoundingClientRect();
     menu.style.left = clamp(x, 8, innerWidth - r.width - 8) * Zoom.z + 'px';
-    menu.style.top = clamp(y, 8, innerHeight - r.height - 8) * Zoom.z + 'px';
+    menu.style.top = clamp(above ? y - r.height : y, 8, innerHeight - r.height - 8) * Zoom.z + 'px';
     const f = menu.querySelector('button'); f && f.focus();
   });
   menu.addEventListener('keydown', e => {
@@ -8359,7 +8360,7 @@ const SongSelect = {
       backButton(() => Screens.back()),
       fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
-      fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
+      this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
@@ -8841,7 +8842,10 @@ const SongSelect = {
     m = m || BeatmapManager.maps.get(this.selectedId);
     if (!m) return;
     const set = BeatmapManager.setById.get(m.setId);
-    const x = e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = e && e.clientY ? e.clientY - 10 : innerHeight - 320;
+    // from the footer (its button or F3) the menu stands on the Options button like lazer's footer popover; a
+    // right-click on a panel opens it where you clicked
+    const btn = this.optionsBtn && this.optionsBtn.isConnected && (!e || !e.clientX || e.currentTarget === this.optionsBtn) ? this.optionsBtn.getBoundingClientRect() : null;
+    const x = btn ? btn.left : e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = btn ? btn.top - 6 : e && e.clientY ? e.clientY - 10 : innerHeight - 320;
     showMenu(x, y, [
       { header: `${set.title} [${m.version}]` },
       { label: 'Play', icon: 'play', onClick: () => this.play() },
@@ -8853,7 +8857,7 @@ const SongSelect = {
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
-    ]);
+    ], { above: !!btn });
   },
   async deleteSet(set) {
     set = set || BeatmapManager.setById.get(BeatmapManager.maps.get(this.selectedId)?.setId);
@@ -10961,7 +10965,7 @@ const BeatmapsScreen = {
         h('div.muted', { style: { fontSize: '.78rem', marginTop: '6px' } }, `Files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard detected (not rendered)' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
       const row = h('div.list-row', { style: { flexWrap: 'wrap' } },
         thumb,
-        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${set.maps.length} difficult${set.maps.length === 1 ? 'y' : 'ies'} · ${[...new Set(set.maps.map(m => m.keys + 'K'))].join(', ')} · added ${fmtDate(set.added)}`)),
+        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
         broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
         Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
         h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),

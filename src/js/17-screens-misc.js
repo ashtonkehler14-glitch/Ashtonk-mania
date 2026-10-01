@@ -81,7 +81,7 @@ const BeatmapsScreen = {
         h('div.muted', { style: { fontSize: '.78rem', marginTop: '6px' } }, `Files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard detected (not rendered)' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
       const row = h('div.list-row', { style: { flexWrap: 'wrap' } },
         thumb,
-        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${set.maps.length} difficult${set.maps.length === 1 ? 'y' : 'ies'} · ${[...new Set(set.maps.map(m => m.keys + 'K'))].join(', ')} · added ${fmtDate(set.added)}`)),
+        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
         broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
         Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
         h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
