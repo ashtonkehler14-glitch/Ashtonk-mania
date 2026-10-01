@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Random like lazer
+
+* **Song select:** Random (F2) always moves to a different beatmap set, and goes through every set before any comes up again. It picks a set first and then one of its difficulties, so big sets don't come up more often. Shift+F2, or right-clicking Random, rewinds to the beatmap you were on before, as in lazer.
+
 ### Beatmap info opens on the easiest difficulty
 
 * **Beatmap listing:** opening a beatmap's info page selects its first (easiest) difficulty, as lazer's difficulty picker does. It used to open on the hardest.

@@ -844,6 +844,17 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await wctx.close();
 }
 
+// random (F2) picks another beatmap set; Shift+F2 goes back to where you were (lazer's rewind)
+await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(700);
+const rnd = await page.evaluate(async () => {
+  const S = AshtonkMania.SongSelect, BM = AshtonkMania.BeatmapManager, before = S.selectedId;
+  S.random(); await new Promise(r => setTimeout(r, 200));
+  const picked = S.selectedId, otherSet = BM.maps.get(picked).setId !== BM.maps.get(before).setId;
+  S.randomRewind(); await new Promise(r => setTimeout(r, 200));
+  return { otherSet, back: S.selectedId === before, sets: BM.sets.length };
+});
+check('random picks a different beatmap set, and Shift+F2 rewinds to the previous one', (rnd.sets < 2 || rnd.otherSet) && rnd.back, JSON.stringify(rnd));
+
 // song select: clicking a difficulty must not slide the whole list sideways (the panels run past the right edge)
 await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(900);
 await page.click('.diff-panel >> nth=1'); await page.waitForTimeout(500);

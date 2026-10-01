@@ -83,7 +83,7 @@ const SongSelect = {
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
       fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
-      fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2'),
+      (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
@@ -388,11 +388,32 @@ const SongSelect = {
     const target = cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : r.maps[0];
     UISounds.click(); this.select(target.id);
   },
+  /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
+   *  picks are remembered so Shift+F2 / right-click can rewind them. */
   random() {
     const flat = this.flatMaps().filter(m => !m.problems.length);
     if (!flat.length) return;
+    const cur = BeatmapManager.maps.get(this.selectedId);
+    const seen = this._randSeen || (this._randSeen = new Set());
+    if (cur) seen.add(cur.setId);
+    let pool = flat.filter(m => !seen.has(m.setId));
+    if (!pool.length) { seen.clear(); if (cur) seen.add(cur.setId); pool = flat.filter(m => !cur || m.setId !== cur.setId); }
+    if (!pool.length) pool = flat;
     UISounds.click();
-    this.select(flat[Math.floor(Math.random() * flat.length)].id);
+    const hist = this._randHist || (this._randHist = []);
+    if (this.selectedId) { hist.push(this.selectedId); if (hist.length > 50) hist.shift(); }
+    // (one set at random, then one of its difficulties, so big sets aren't picked more often)
+    const sets = [...new Set(pool.map(m => m.setId))], setId = sets[Math.floor(Math.random() * sets.length)];
+    const inSet = pool.filter(m => m.setId === setId);
+    this.select(inSet[Math.floor(Math.random() * inSet.length)].id);
+  },
+  randomRewind() {
+    const hist = this._randHist || [];
+    let id;
+    while ((id = hist.pop()) && !BeatmapManager.maps.has(id));
+    if (!id) return;
+    UISounds.back();
+    this.select(id);
   },
   onKey(e) {
     if (e.target === this.searchInput) return false;
@@ -405,7 +426,7 @@ const SongSelect = {
       case 'PageUp': this.moveSet(-5); return true;
       case 'Enter': this.play(e.ctrlKey ? 'auto' : 'play'); return true;
       case 'F1': ModSelect.open(); return true;
-      case 'F2': this.random(); return true;
+      case 'F2': if (e.shiftKey) this.randomRewind(); else this.random(); return true;
       case 'F3': this.options(); return true;
       case 'F4': this.play('practice'); return true;
       case 'Delete': if (e.shiftKey) { this.deleteSet(); return true; } return false;
