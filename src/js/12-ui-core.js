@@ -381,6 +381,12 @@ const Toolbar = {
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
+    // a click hides that button's tooltip until the pointer leaves (it sat half-visible under the panel it opened)
+    if (!tb._tipOff) {
+      tb._tipOff = true;
+      tb.addEventListener('pointerdown', e => { const b = e.target.closest('.tb-btn'); if (b) b.classList.add('tip-off'); });
+      tb.addEventListener('pointerout', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) b.classList.remove('tip-off'); });
+    }
     const btn = (ic, tip, sub, fn, extra = {}) => {
       const b = h('button.tb-btn', { 'aria-label': tip, onclick: () => { UISounds.click(); fn(); }, ...extra }, icon(ic), h('span.tb-tip', h('b', tip), sub ? h('span', sub) : null));
       b.addEventListener('pointerenter', () => UISounds.hover());

@@ -208,7 +208,7 @@ const ProfileScreen = {
         : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
     const recent = ScoreManager.recent(10);
     const rec = section('recent', 'Recent',
-      sub('Recent plays (24h and older)', recent.length, recent.length
+      sub('Recent plays', recent.length, recent.length
         ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, s.passed ? fmtInt(ScoreManager.ppOf(s)) : null)))
         : h('div.pf-empty', 'No recent plays.')));
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, title.toLowerCase())));

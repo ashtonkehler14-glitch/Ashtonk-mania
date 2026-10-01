@@ -22,6 +22,12 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Toolbar and profile tidy-ups
+
+* **Toolbar:** clicking a toolbar button hides its tooltip until you move off it. The tooltip used to show faintly through the panel it had just opened.
+* **Notifications:** the panel is solid, as in lazer, so the screen behind no longer shows through its header.
+* **Profile:** the recent plays heading is just "Recent plays" (it used to say "24h and older").
+
 ### Settings search like lazer
 
 * **Settings:** the search box has focus as soon as the panel opens, so you can type the setting you want straight away. Typing anywhere else in the panel goes to the search too. Keystrokes used to fall through to the screen behind; in song select they filtered your beatmaps instead.

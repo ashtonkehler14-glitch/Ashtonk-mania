@@ -114,6 +114,7 @@ svg.i.fill { fill: currentColor; stroke: none; }
 .tb-tip span { font-size: .72rem; color: #bbb; font-weight: 400; }
 .tb-btn:hover .tb-tip { opacity: 1; transform: translate(-50%, 0); transition-delay: .35s; }
 .tb-group:first-child .tb-btn:hover .tb-tip { transform: none; }
+.tb-btn.tip-off .tb-tip { opacity: 0 !important; transition-delay: 0s !important; }
 .tb-music { max-width: 320px; }
 .tb-np-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #ddd; }
 .tb-music.paused .tb-np-text { color: #888; }
@@ -1940,7 +1941,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
-.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgba(24, 22, 28, .97); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
   transform: translateX(105%); transition: transform 300ms var(--ease-out); }
 .nf-panel.open { transform: none; }
 .nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
@@ -7387,6 +7388,12 @@ const Toolbar = {
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
+    // a click hides that button's tooltip until the pointer leaves (it sat half-visible under the panel it opened)
+    if (!tb._tipOff) {
+      tb._tipOff = true;
+      tb.addEventListener('pointerdown', e => { const b = e.target.closest('.tb-btn'); if (b) b.classList.add('tip-off'); });
+      tb.addEventListener('pointerout', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) b.classList.remove('tip-off'); });
+    }
     const btn = (ic, tip, sub, fn, extra = {}) => {
       const b = h('button.tb-btn', { 'aria-label': tip, onclick: () => { UISounds.click(); fn(); }, ...extra }, icon(ic), h('span.tb-tip', h('b', tip), sub ? h('span', sub) : null));
       b.addEventListener('pointerenter', () => UISounds.hover());
@@ -10943,7 +10950,7 @@ const ProfileScreen = {
         : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
     const recent = ScoreManager.recent(10);
     const rec = section('recent', 'Recent',
-      sub('Recent plays (24h and older)', recent.length, recent.length
+      sub('Recent plays', recent.length, recent.length
         ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, s.passed ? fmtInt(ScoreManager.ppOf(s)) : null)))
         : h('div.pf-empty', 'No recent plays.')));
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, title.toLowerCase())));
