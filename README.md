@@ -22,6 +22,10 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Skins page, tidier
+
+* **Skins:** the line under the preview just credits the skin's author. The long, sometimes contradictory list of configured and borrowed key counts is gone. The note beside the key stepper says how the key count you're looking at is drawn, and it now gives the right answer for key counts that skin.ini lists but that have no note art of their own.
+
 ### Collections
 
 * **New collections:** a collection you just made is selected straight away (it used to stay on the old one).

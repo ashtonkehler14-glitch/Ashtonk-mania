@@ -11134,9 +11134,9 @@ const SkinsScreen = {
         h('button.sk-step', { 'aria-label': 'Fewer keys', disabled: this.keys <= 1, onclick: () => { this.keys = Math.max(1, this.keys - 1); this.render(); } }, icon('back')),
         h('span.sk-k', `${this.keys}K`),
         h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
-        h('span.muted.sk-khint', meta.builtin ? '' : supported.includes(this.keys) ? 'configured in skin.ini' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : 'fallback layout')),
+        h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel()) : pv,
-      h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}${meta.builtin ? '' : ` · ${supported.length ? 'configured for ' + supported.map(k => k + 'K').join(', ') : 'default layout'}${borrowed.length ? ` · ${borrowed.map(k => k + 'K').join(', ')} built from its 4K layout` : ''}`}`));
+      h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     this.previewSkin = skin;
