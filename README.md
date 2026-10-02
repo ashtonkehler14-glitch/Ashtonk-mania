@@ -22,6 +22,19 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### lazer's shortcuts
+- **In game:**
+  - **− / +** shift this beatmap's offset by 1 ms before the first note or while paused, with a note on screen.
+  - **Hold Ctrl+`** quits.
+  - **Middle-click** pauses, and continues from the pause screen.
+  - **Holding Ctrl** shows the HUD while it's hidden with Shift+Tab.
+- **Anywhere:**
+  - **Alt+↑ / ↓** change the volume, and **Alt+← / →** pick effects, master or music.
+  - **Ctrl+P** opens your profile.
+  - The **mouse's back button** goes back.
+- **Media keys** (and your system's media controls) play, pause and skip the menu music, and show the song's title and picture.
+- The **?** list has all of these.
+
 ### Settings, song select and loading, as in lazer
 - **Back button** is lazer's newer one: a 240 px slanted pink button with rounded corners, 12 px in from the corner. It lightens when you point at it, squeezes while held and flashes when clicked.
 - **Notifications panel** is lazer's: a "NOTIFICATIONS" heading with the count in yellow and "CLEAR ALL" beside it. Each notification is a rounded card with its icon in a dark strip on the left and a tick to dismiss it.

@@ -44,6 +44,7 @@ const App = {
     this.bindGlobal();
     VolumeOverlay.bind();
     LazerCursor.init();
+    MediaKeys.init();
     window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
@@ -194,6 +195,15 @@ const App = {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); Toast.show(v ? 'Debug overlay enabled' : 'Debug overlay disabled', 'Ctrl+Shift+D'); return; }
     if (e.altKey && e.code === 'Enter') { e.preventDefault(); toggleFullscreen(); return; }
+    // lazer: Alt+↑/↓ change the volume (the meter you're on), Alt+←/→ move between the meters
+    if (e.altKey && !e.ctrlKey && !e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !(Screens.current === GameplayScreen && Settings.get('input.noWheelVolumeInGame'))) {
+      e.preventDefault();
+      if (e.code === 'ArrowUp' || e.code === 'ArrowDown') VolumeOverlay.adjust(VolumeOverlay.sel, e.code === 'ArrowUp' ? 0.05 : -0.05);
+      else { const order = ['effects', 'master', 'music'], i = order.indexOf(VolumeOverlay.sel); VolumeOverlay.show(order[clamp(i + (e.code === 'ArrowRight' ? 1 : -1), 0, 2)]); }
+      return;
+    }
+    // lazer: Ctrl+P opens (or closes) your profile
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyP' && Screens.current !== GameplayScreen) { e.preventDefault(); if (Screens.currentName === 'profile') Screens.back(); else Screens.go('profile'); return; }
     if (Screens.current === GameplayScreen) return; // gameplay handles its own input (capture listener)
     if (top) return;
     if (!(e.target.closest && e.target.closest('input, textarea, select')) && Toolbar.hotkey(e)) { e.preventDefault(); return; }
@@ -306,3 +316,34 @@ Memory       ${performance.memory ? fmtBytes(performance.memory.usedJSHeapSize) 
 };
 
 window.addEventListener('DOMContentLoaded', () => App.boot());
+
+/** Media keys and the system's media controls (lazer's MusicController hotkeys): play / pause, next and previous
+ *  track for the menu music, with the song's title, artist and background shown by the OS. Ignored in game. */
+const MediaKeys = {
+  init() {
+    if (!('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const set = (action, fn) => { try { ms.setActionHandler(action, () => { if (Screens.current !== GameplayScreen) fn(); }); } catch { /* not supported */ } };
+    set('play', () => { if (!Music.playing) MenuMusic.toggle(); });
+    set('pause', () => { if (Music.playing) MenuMusic.toggle(); });
+    set('nexttrack', () => MenuMusic.next());
+    set('previoustrack', () => MenuMusic.prev());
+    Bus.on('music:changed', async m => {
+      if (!m || typeof MediaMetadata === 'undefined') return;
+      const url = await BeatmapManager.bgURL(m).catch(() => null);
+      try { ms.metadata = new MediaMetadata({ title: m.title, artist: m.artist, album: APP_NAME, artwork: url ? [{ src: url }] : [] }); } catch { /* ignore */ }
+    });
+  },
+};
+
+// lazer: the mouse's back button goes back (closes the top panel, or leaves the screen)
+window.addEventListener('mouseup', e => {
+  if (e.button !== 3) return;
+  e.preventDefault();
+  const top = Overlays.top();
+  if (top) { top.close(); return; }
+  if (SettingsPanel.o) { SettingsPanel.close(); return; }
+  if (Screens.current === GameplayScreen) { GameplayScreen.onBack(); return; }
+  if (Screens.currentName !== 'home' || HomeScreen.menuState !== 'initial') Screens.back();
+});
+

@@ -2980,3 +2980,4 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-back-inner { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 20px; width: 100%; padding: 0; transform: skewX(11.31deg) translateX(-10px); }
 .lz-back-inner .i { width: 17px; height: 17px; stroke-width: 3; }
 .res-actions > .lz-back { bottom: 0; }
+.gp-hud.hidden-hud.peek > * { visibility: visible; }

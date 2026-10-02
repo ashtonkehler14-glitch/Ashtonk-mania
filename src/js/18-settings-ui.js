@@ -313,9 +313,11 @@ const Shortcuts = {
   GROUPS: [
     ['Anywhere', [
       [['Ctrl', 'O'], 'Settings'], [['Esc'], 'Back / close'], [['Alt', 'Enter'], 'Fullscreen'],
-      [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
+      [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Alt', '↑', '↓'], 'Volume'], [['Alt', '←', '→'], 'Effects / master / music'],
+      [['Alt', 'Home'], 'Main menu'], [['Ctrl', 'B'], 'Beatmap listing'], [['Ctrl', 'N'], 'Notifications'], [['Ctrl', 'P'], 'Profile'], [['F6'], 'Now playing'],
+      [['Mouse back button'], 'Back'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
     ['Main menu', [
-      [['P'], 'Play'], [['S', 'M'], 'Solo, Multi (after Play)'], [['E'], 'Edit'], [['S', 'I', 'B', 'C', 'R'], 'Skins, Import, Beatmaps, Collections, Replays (after Edit)'], [['B'], 'Browse beatmaps online'],
+      [['~any key'], 'Open the menu from the big logo'], [['P'], 'Play'], [['P', 'M'], 'Solo, Multi (after Play)'], [['L', 'R'], 'Lounge, Ranked Play (after Multi)'], [['E'], 'Edit'], [['S', 'I', 'B', 'C', 'R'], 'Skins, Import, Beatmaps, Collections, Replays (after Edit)'], [['B'], 'Browse beatmaps online'],
       [['U'], 'Profile'], [['O'], 'Settings'], [['←', '→', 'Enter'], 'Move and press']]],
     ['Song select', [
       [['~type'], 'Search — filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30'], [['↑', '↓'], 'Difficulty'], [['←', '→'], 'Beatmap set'],
@@ -323,7 +325,8 @@ const Shortcuts = {
       [['F2'], 'Random'], [['Shift', 'F2'], 'Back to the previous random pick'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set'], [['Right mouse'], 'Hold beside the list to scroll to that point']]],
     ['Playing', [
       [['~your lane keys'], 'Settings → Input → Key configuration'], [['Esc'], 'Pause'], [['~hold', 'R', '~or', '`'], 'Retry'],
-      [['Space'], 'Skip the intro'], [['Tab'], 'Leaderboard on / off'], [['Shift', 'Tab'], 'Hide the HUD'], [['F3', 'F4', '~or', 'Ctrl', '−', '+'], 'Scroll speed']]],
+      [['Space'], 'Skip the intro'], [['Tab'], 'Leaderboard on / off'], [['Shift', 'Tab'], 'Hide the HUD'], [['F3', 'F4', '~or', 'Ctrl', '−', '+'], 'Scroll speed'],
+      [['−', '+'], 'Beatmap offset ∓1 ms (before the first note or paused)'], [['~hold', 'Ctrl', '`'], 'Quit'], [['Middle mouse'], 'Pause'], [['~hold', 'Ctrl'], 'Show the hidden HUD']]],
     ['Practice', [
       [['[', ']'], 'Loop start / end'], [['\\'], 'Clear the loop'], [['Backspace'], 'Restart the section'], [['−', '='], 'Audio offset −5 / +5 ms'], [['←', '→'], 'Seek 5 seconds']]],
     ['Watching a replay or Auto', [

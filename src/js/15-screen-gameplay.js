@@ -181,6 +181,12 @@ const GameplayScreen = {
       el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500);
     };
     el.addEventListener('pointermove', this._mm);
+    // lazer: the middle mouse button pauses (and, on the pause screen, continues)
+    el.addEventListener('pointerdown', e => {
+      if (e.button !== 1 || !this.s || this.s.mp || this.s.replay) return;
+      e.preventDefault();
+      if (this.pauseEl && !this.s.failed && this.pauseEl.querySelector('.pm-btn.primary')) this.resume(); else if (!this.pauseEl) this.pause();
+    });
     this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
@@ -831,10 +837,25 @@ const GameplayScreen = {
   changeScrollSpeed(d) {
     const v = clamp(Settings.get('gameplay.scrollSpeed') + d, 1, 40);
     Settings.set('gameplay.scrollSpeed', v);
+    this.popup(`Scroll speed ${v} (${Math.round(11485 / v)}ms)`);
+  },
+  popup(text) {
     if (!this.speedEl) { this.speedEl = h('div.gp-speed'); this.el.appendChild(this.speedEl); }
-    this.speedEl.textContent = `Scroll speed ${v} (${Math.round(11485 / v)}ms)`;
+    this.speedEl.textContent = text;
     this.speedEl.classList.remove('show'); void this.speedEl.offsetWidth; this.speedEl.classList.add('show');
     clearTimeout(this._speedT); this._speedT = setTimeout(() => this.speedEl && this.speedEl.classList.remove('show'), 1200);
+  },
+  /** lazer's BeatmapOffsetControl hotkeys (− / +): this beatmap's offset 1ms at a time, while that can't change a
+   *  judgement — paused, or before the first note. */
+  nudgeMapOffset(d) {
+    const s = this.s;
+    if (!s || s.mp || s.replay) return false;
+    if (s.running && this.gameTime() >= s.firstNote) { this.popup('The offset can be changed before the first note or while paused'); return true; }
+    const v = clamp((s.mapOffset || 0) + d, -300, 300);
+    MapOffsets.set(s.rec.hash, v);
+    s.mapOffset = v;
+    this.popup(`Beatmap offset ${v > 0 ? '+' : ''}${v}ms`);
+    return true;
   },
 
   /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
@@ -896,6 +917,12 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }
       return;
     }
+    // quick exit (lazer: hold Ctrl+`): back to song select after half a second
+    if ((e.ctrlKey || e.metaKey) && e.code === 'Backquote') {
+      e.preventDefault();
+      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else this.quit(); }, 500); }
+      return;
+    }
     // retry: hold R (or `) for half a second — never instant. Ctrl+R counts as holding R (and doesn't reload the
     // page). An R bound to a lane stays a lane key.
     if (this.isRetryKey(e)) {
@@ -913,6 +940,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.changeScrollSpeed(e.code === 'F4' || e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
       return;
     }
+    // lazer: − / + nudge the beatmap's offset (unless they're lane keys)
+    if (!ctrl && !e.altKey && !s.practice && ['Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'].includes(e.code) && !s.keyMap.has(e.code)) {
+      e.preventDefault(); e.stopPropagation();
+      this.nudgeMapOffset(e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
+      return;
+    }
+    // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it
+    if ((e.key === 'Control') && this.hud.classList.contains('hidden-hud')) this.hud.classList.add('peek');
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
@@ -930,7 +965,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   onKeyUp(e) {
     if (Screens.current !== this) return;
     const s = this.s;
-    if (this.isRetryKey(e)) { clearTimeout(this._retryHold); this.holdEl && this.holdEl.classList.remove('on'); }
+    if (this.isRetryKey(e)) { clearTimeout(this._retryHold); clearTimeout(this._exitHold); this.holdEl && this.holdEl.classList.remove('on'); }
+    if (e.key === 'Control' && this.hud) this.hud.classList.remove('peek');
     if (!s) return;
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
