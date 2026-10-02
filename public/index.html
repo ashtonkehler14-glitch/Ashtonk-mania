@@ -2928,6 +2928,20 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rs-j .v { margin-top: 2px; font-size: 20px; font-weight: 400; }
 .rs-played { position: absolute; left: 0; right: 0; bottom: 8px; font-size: 10px; font-weight: 600; text-align: center; color: #fff; }
 .rs .res-ppdelta, .rs .res-pb, .rs .res-prev, .rs .res-calib { margin-top: 8px; }
+/* results footer (lazer's ResultsScreen bottom panel): #333, 50px, buttons centred 5px apart; the back button keeps
+   the left corner. Buttons are OsuAnimatedButtons: corners of 10, a 13px icon, white at 10% added under the pointer */
+.res-actions { position: relative; justify-content: center; gap: 5px; height: 50px; padding: 0; background: #333; }
+.res-actions > .lz-back { position: absolute; left: 0; bottom: 0; }
+.res-actions > .muted { position: absolute; right: 16px; }
+.res-ab { position: relative; display: grid; place-items: center; width: 75px; height: 30px; padding: 0; border: 0; border-radius: 10px; background: #444; color: #fff; cursor: pointer; overflow: hidden; transition: transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.res-ab.wide { width: 300px; }
+.res-ab.green { background: #88b300; }
+.res-ab .i { width: 13px; height: 13px; stroke-width: 3; }
+.res-ab::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; mix-blend-mode: plus-lighter; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1); }
+.res-ab:hover::after { opacity: .1; }
+.res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
+.res-ab:disabled { filter: grayscale(1) brightness(.6); cursor: default; }
+@media (max-width: 900px) { .res-ab.wide { width: 140px; } }
 
 </style>
 </head>
@@ -11839,23 +11853,24 @@ const ResultsScreen = {
     const replay = p.replay || null;
     const hasSaved = !!s.replayId || (replay && ReplayManager.list.some(r => r.id === replay.id));
     const bar = h('div.res-actions');
-    const watch = h('button.btn', { onclick: () => this.watch() }, icon('film'), 'Watch replay');
-    const save = h('button.btn', { onclick: async () => {
+    const watch = h('button.res-ab.wide.green', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'));
+    const save = h('button.res-ab', { onclick: async () => {
       if (!replay) return;
       await ReplayManager.save(replay);
       s.replayId = replay.id;
       Toast.ok('Replay saved', 'Find it in Replays.');
-      save.disabled = true; save.textContent = 'Replay saved';
+      save.disabled = true; save.title = 'replay saved';
       bar.insertBefore(exp, save.nextSibling);
-    } }, icon('save'), 'Save replay');
-    const exp = h('button.btn.ghost', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); } }, icon('download'), 'Export .amr');
-    bar.append(
-      backButton(() => this.onBack()),
-      h('button.btn.primary', { onclick: () => this.retry(), disabled: !map, title: 'Retry (R)' }, icon('retry'), 'Retry'));
+    }, title: 'save replay', 'aria-label': 'Save replay' }, icon('save'));
+    const exp = h('button.res-ab', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); }, title: 'export .amr', 'aria-label': 'Export replay' }, icon('download'));
+    // lazer's results footer: #333, 50px, the buttons centred — watch replay and retry (300 × 30, green), then the
+    // small ones (75 × 30)
+    bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
+    bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
-    bar.append(h('button.btn.ghost.res-share', { onclick: () => ShareCard.open(s), title: 'A picture of this result to copy or save' }, icon('upload'), 'Share'));
+    bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));
     if (!map) bar.append(h('span.muted', 'Beatmap no longer in library'));
 
     return bar;

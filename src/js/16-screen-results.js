@@ -191,23 +191,24 @@ const ResultsScreen = {
     const replay = p.replay || null;
     const hasSaved = !!s.replayId || (replay && ReplayManager.list.some(r => r.id === replay.id));
     const bar = h('div.res-actions');
-    const watch = h('button.btn', { onclick: () => this.watch() }, icon('film'), 'Watch replay');
-    const save = h('button.btn', { onclick: async () => {
+    const watch = h('button.res-ab.wide.green', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'));
+    const save = h('button.res-ab', { onclick: async () => {
       if (!replay) return;
       await ReplayManager.save(replay);
       s.replayId = replay.id;
       Toast.ok('Replay saved', 'Find it in Replays.');
-      save.disabled = true; save.textContent = 'Replay saved';
+      save.disabled = true; save.title = 'replay saved';
       bar.insertBefore(exp, save.nextSibling);
-    } }, icon('save'), 'Save replay');
-    const exp = h('button.btn.ghost', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); } }, icon('download'), 'Export .amr');
-    bar.append(
-      backButton(() => this.onBack()),
-      h('button.btn.primary', { onclick: () => this.retry(), disabled: !map, title: 'Retry (R)' }, icon('retry'), 'Retry'));
+    }, title: 'save replay', 'aria-label': 'Save replay' }, icon('save'));
+    const exp = h('button.res-ab', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); }, title: 'export .amr', 'aria-label': 'Export replay' }, icon('download'));
+    // lazer's results footer: #333, 50px, the buttons centred — watch replay and retry (300 × 30, green), then the
+    // small ones (75 × 30)
+    bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
+    bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
-    bar.append(h('button.btn.ghost.res-share', { onclick: () => ShareCard.open(s), title: 'A picture of this result to copy or save' }, icon('upload'), 'Share'));
+    bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));
     if (!map) bar.append(h('span.muted', 'Beatmap no longer in library'));
 
     return bar;
