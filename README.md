@@ -33,6 +33,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   - **Ctrl+P** opens your profile.
   - The **mouse's back button** goes back.
 - **Media keys** (and your system's media controls) play, pause and skip the menu music, and show the song's title and picture.
+- **Song select: Ctrl+↑ / ↓** change the play speed by 0.05× at a time (through Song Speed), back to no speed mod at 1×.
 - The **?** list has all of these.
 
 ### Settings, song select and loading, as in lazer

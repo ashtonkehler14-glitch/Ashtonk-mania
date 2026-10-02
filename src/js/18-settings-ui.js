@@ -322,7 +322,7 @@ const Shortcuts = {
     ['Song select', [
       [['~type'], 'Search — filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30'], [['↑', '↓'], 'Difficulty'], [['←', '→'], 'Beatmap set'],
       [['PgUp', 'PgDn'], 'Jump 5 sets'], [['Enter'], 'Play'], [['Ctrl', 'Enter'], 'Watch Auto'], [['F1'], 'Mods (each has a letter; Backspace clears)'],
-      [['F2'], 'Random'], [['Shift', 'F2'], 'Back to the previous random pick'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set'], [['Right mouse'], 'Hold beside the list to scroll to that point']]],
+      [['Ctrl', '↑', '↓'], 'Play speed ±0.05× (Song Speed)'], [['F2'], 'Random'], [['Shift', 'F2'], 'Back to the previous random pick'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set'], [['Right mouse'], 'Hold beside the list to scroll to that point']]],
     ['Playing', [
       [['~your lane keys'], 'Settings → Input → Key configuration'], [['Esc'], 'Pause'], [['~hold', 'R', '~or', '`'], 'Retry'],
       [['Space'], 'Skip the intro'], [['Tab'], 'Leaderboard on / off'], [['Shift', 'Tab'], 'Hide the HUD'], [['F3', 'F4', '~or', 'Ctrl', '−', '+'], 'Scroll speed'],

@@ -465,8 +465,8 @@ const SongSelect = {
   onKey(e) {
     if (e.target === this.searchInput) return false;
     switch (e.key) {
-      case 'ArrowDown': this.moveDiff(1); return true;
-      case 'ArrowUp': this.moveDiff(-1); return true;
+      case 'ArrowDown': if (e.ctrlKey || e.metaKey) this.changeSpeed(-0.05); else this.moveDiff(1); return true;
+      case 'ArrowUp': if (e.ctrlKey || e.metaKey) this.changeSpeed(0.05); else this.moveDiff(-1); return true;
       case 'ArrowRight': this.moveSet(1); return true;
       case 'ArrowLeft': this.moveSet(-1); return true;
       case 'PageDown': this.moveSet(5); return true;
@@ -484,6 +484,17 @@ const SongSelect = {
     }
     if (e.key === 'Backspace' && this.query) { this.searchInput.focus(); return false; }
     return false;
+  },
+  /** lazer's ModSpeedHotkeyHandler (Ctrl+↑ / ↓): the play speed 0.05× at a time — through Song Speed here, as this
+   *  game's Double Time and Half Time are fixed speeds — and back to no speed mod at 1×. */
+  changeSpeed(delta) {
+    const mods = Settings.get('songselect.mods') || [];
+    const target = clamp(Math.round((ModSystem.rate(mods) + delta) * 20) / 20, 0.5, 2);
+    const rest = mods.filter(m => !['DT', 'NC', 'HT', 'DC', 'RT'].includes(m));
+    if (Math.abs(target - 1) < 0.005) Settings.set('songselect.mods', rest);
+    else { Settings.set('mods.config', { ...ModSystem.config(), rate: target }); Settings.set('songselect.mods', [...rest, 'RT']); }
+    Bus.emit('mods:changed');
+    Toast.show(`Speed ${target.toFixed(2)}×`, 'Ctrl+↑ / ↓');
   },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }

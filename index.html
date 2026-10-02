@@ -9970,8 +9970,8 @@ const SongSelect = {
   onKey(e) {
     if (e.target === this.searchInput) return false;
     switch (e.key) {
-      case 'ArrowDown': this.moveDiff(1); return true;
-      case 'ArrowUp': this.moveDiff(-1); return true;
+      case 'ArrowDown': if (e.ctrlKey || e.metaKey) this.changeSpeed(-0.05); else this.moveDiff(1); return true;
+      case 'ArrowUp': if (e.ctrlKey || e.metaKey) this.changeSpeed(0.05); else this.moveDiff(-1); return true;
       case 'ArrowRight': this.moveSet(1); return true;
       case 'ArrowLeft': this.moveSet(-1); return true;
       case 'PageDown': this.moveSet(5); return true;
@@ -9989,6 +9989,17 @@ const SongSelect = {
     }
     if (e.key === 'Backspace' && this.query) { this.searchInput.focus(); return false; }
     return false;
+  },
+  /** lazer's ModSpeedHotkeyHandler (Ctrl+↑ / ↓): the play speed 0.05× at a time — through Song Speed here, as this
+   *  game's Double Time and Half Time are fixed speeds — and back to no speed mod at 1×. */
+  changeSpeed(delta) {
+    const mods = Settings.get('songselect.mods') || [];
+    const target = clamp(Math.round((ModSystem.rate(mods) + delta) * 20) / 20, 0.5, 2);
+    const rest = mods.filter(m => !['DT', 'NC', 'HT', 'DC', 'RT'].includes(m));
+    if (Math.abs(target - 1) < 0.005) Settings.set('songselect.mods', rest);
+    else { Settings.set('mods.config', { ...ModSystem.config(), rate: target }); Settings.set('songselect.mods', [...rest, 'RT']); }
+    Bus.emit('mods:changed');
+    Toast.show(`Speed ${target.toFixed(2)}×`, 'Ctrl+↑ / ↓');
   },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
@@ -13732,7 +13743,7 @@ const Shortcuts = {
     ['Song select', [
       [['~type'], 'Search — filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30'], [['↑', '↓'], 'Difficulty'], [['←', '→'], 'Beatmap set'],
       [['PgUp', 'PgDn'], 'Jump 5 sets'], [['Enter'], 'Play'], [['Ctrl', 'Enter'], 'Watch Auto'], [['F1'], 'Mods (each has a letter; Backspace clears)'],
-      [['F2'], 'Random'], [['Shift', 'F2'], 'Back to the previous random pick'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set'], [['Right mouse'], 'Hold beside the list to scroll to that point']]],
+      [['Ctrl', '↑', '↓'], 'Play speed ±0.05× (Song Speed)'], [['F2'], 'Random'], [['Shift', 'F2'], 'Back to the previous random pick'], [['F3'], 'Options'], [['F4'], 'Practice'], [['Shift', 'Delete'], 'Delete the set'], [['Right mouse'], 'Hold beside the list to scroll to that point']]],
     ['Playing', [
       [['~your lane keys'], 'Settings → Input → Key configuration'], [['Esc'], 'Pause'], [['~hold', 'R', '~or', '`'], 'Retry'],
       [['Space'], 'Skip the intro'], [['Tab'], 'Leaderboard on / off'], [['Shift', 'Tab'], 'Hide the HUD'], [['F3', 'F4', '~or', 'Ctrl', '−', '+'], 'Scroll speed'],
