@@ -2982,3 +2982,4 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-actions > .lz-back { bottom: 0; }
 .gp-hud.hidden-hud.peek > * { visibility: visible; }
 .lz-fountain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
+.ss-logo-beat { position: absolute; inset: 0; }

@@ -93,7 +93,7 @@ const SongSelect = {
     this.modsOn = h('div.mods-on');
     this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
       // lazer's OsuLogo at 40% (205px), centred 76px from the right and 36px from the bottom, hanging off the corner
-      h('span.ss-logo', h('span.lz-cookie-disc.lz-home-disc'), h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))));
+      h('span.ss-logo', this.logoBeat = h('span.ss-logo-beat', h('span.lz-cookie-disc.lz-home-disc'), h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania'))))));
     // lazer's ScreenFooterButtons: sheared 116×75 buttons standing up out of the footer, icon over the label and an
     // accent bar along the bottom (Mods Lime1, Random Blue1, Options Purple1)
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
@@ -117,9 +117,29 @@ const SongSelect = {
     this._ro.observe(this.scroller);
     this.renderMods();
     requestAnimationFrame(() => { this.rebuild(); this.scrollToSelected(false); });
+    this.beatLoop();
     return el;
   },
+  /** The logo in the corner keeps lazer's beat: a 2% squeeze 60ms before each beat that eases out over two beats. */
+  beatLoop() {
+    cancelAnimationFrame(this._beatRaf);
+    let last = -1;
+    const tick = () => {
+      this._beatRaf = requestAnimationFrame(tick);
+      const tm = Music.meta && Music.meta.timing;
+      if (!tm || !Music.playing || !this.logoBeat || !Settings.get('ui.animSpeed')) return;
+      const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
+      const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
+      if (key === last || t < tp.time || beat < 0) return;
+      last = key;
+      const L = tp.beatLength;
+      this.logoBeat.getAnimations().forEach(a => a.cancel());
+      this.logoBeat.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 0.98, offset: 60 / (60 + L * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + L * 2 });
+    };
+    this._beatRaf = requestAnimationFrame(tick);
+  },
   leave() {
+    cancelAnimationFrame(this._beatRaf);
     (this._unsub || []).forEach(f => f());
     this._ro && this._ro.disconnect();
     clearTimeout(this._previewT);
