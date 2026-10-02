@@ -20,7 +20,9 @@ const SettingsPanel = {
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     scroll.addEventListener('scroll', () => this.syncNav());
-    this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
+    // picking another skin shows or hides the Custom skin's options
+    const offSkin = Bus.on('skin:changed', () => { if (this.o && this.scrollEl) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; } });
+    this.o = makeOverlay(panel, { onClose: () => { offSkin(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
     Toolbar.sync();
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
@@ -57,6 +59,7 @@ const SettingsPanel = {
     const bySec = new Map();
     for (const it of SETTINGS_SCHEMA) {
       if (!it.s || it.x) continue; // (x: kept working at its value, but no longer offered in the panel)
+      if (it.when && !it.when()) continue; // (options that don't apply right now, and their heading, aren't shown)
       if (q && !(`${it.s} ${it.g} ${it.l} ${it.hint || ''}`.toLowerCase().includes(q))) continue;
       if (!bySec.has(it.s)) bySec.set(it.s, new Map());
       const g = bySec.get(it.s);
