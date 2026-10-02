@@ -269,6 +269,7 @@ const SongSelect = {
     // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
     if (sel && (!Music.meta || Music.meta.setId !== sel.setId)) this.schedulePreview(sel);
+    else if (sel) this.showBackground(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
@@ -429,6 +430,7 @@ const SongSelect = {
     if (scroll) this.scrollToSelected(true); else this.renderVisible();
     this.updateInfo();
     if (setChanged || !Music.meta || Music.meta.setId !== m.setId) this.schedulePreview(m);
+    else this.showBackground(m); // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
     const row = this.rows.find(r => r.type === 'diff' && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
@@ -527,9 +529,14 @@ const SongSelect = {
     clearTimeout(this._previewT);
     this._previewT = setTimeout(() => this.preview(m), 60);
   },
+  /** The selected difficulty's own background (each difficulty's [Events] can name a different picture). */
+  async showBackground(m) {
+    const tok = this._bgTok = {};
+    const url = await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
+    if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);
+  },
   async preview(m) {
-    const url = await BeatmapManager.bgURL(m) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
-    if (this.selectedId === m.id || BeatmapManager.maps.get(this.selectedId)?.setId === m.setId) Background.set(url);
+    this.showBackground(m);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
     // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
     // slower earlier request could start the new song at the old song's preview point)

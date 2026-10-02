@@ -432,10 +432,9 @@ const GameplayScreen = {
     const menuLook = !this.loaderGone && !this.loaderHold;
     this.baseDim = menuLook ? Background.MENU_DIM : show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    const set = BeatmapManager.setById.get(rec.setId);
     const blur = menuLook ? Background.MENU_BLUR : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
-    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.thumbURL(set) : BeatmapManager.bgURL(rec)).then(async u => {
+    (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.bgThumbURL(rec) : BeatmapManager.bgURL(rec)).then(async u => {
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
       if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
       if (this._bgTok === tok && this._tok) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';

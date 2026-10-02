@@ -116,9 +116,9 @@ const set = zip([
   ['Ashton - Test [4K Normal].osu', osu(4, '4K Normal', pattern)],
   ['Ashton - Test [7K Hard].osu', osu(7, '7K Hard', pattern, { extraTP: `6000,-50,4,2,0,70,0,0\n7000,${beat / 2},4,2,0,70,1,0\n8000,${beat},4,2,0,70,1,0\n` })],
   ['Ashton - Test [8K Insane].osu', osu(8, '8K Insane', pattern)],
-  ['Ashton - Test [9K Expert].osu', osu(9, '9K Expert', pattern)],
+  ['Ashton - Test [9K Expert].osu', osu(9, '9K Expert', pattern).replace('"bg.png"', '"expert.png"')], // its own background
   ['Ashton - Test [Broken].osu', osu(4, 'Broken', pattern, { audio: 'missing.mp3' })],
-  ['audio.wav', audio], ['bg.png', bg], ['soft-hitfinish.wav', wav(0.2, 600)],
+  ['audio.wav', audio], ['bg.png', bg], ['expert.png', png(320, 180, () => [200, 40, 40, 255])], ['soft-hitfinish.wav', wav(0.2, 600)],
 ]);
 writeFileSync(new URL('test-set.osz', out), set);
 // a set that "exists online" (osu! ids 424242 / 4242420) for the explorer and multiplayer search tests

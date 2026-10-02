@@ -107,6 +107,17 @@ check('carousel panels curve away from the middle like lazer', await page.evalua
   const items = [...document.querySelectorAll('.c-item')].map(e => { const b = e.getBoundingClientRect(); return { d: Math.abs(b.top + b.height / 2 - mid), x: parseFloat(e.style.translate) || 0 }; }).sort((a, b) => a.d - b.d);
   return items.length > 2 && items[0].x <= 2 && items[items.length - 1].x > items[0].x;
 }));
+check('each difficulty shows its own background (song select, low-quality gameplay copy)', await page.evaluate(async () => {
+  const { SongSelect: S, BeatmapManager: B, Background } = AshtonkMania, set = B.setById.get(B.maps.get(S.selectedId).setId), was = S.selectedId;
+  const ex = set.maps.find(m => m.keys === 9), other = set.maps.find(m => m.keys === 4);
+  const wait = async url => { for (let i = 0; i < 40 && Background.current !== url; i++) await new Promise(r => setTimeout(r, 50)); return Background.current === url; };
+  const exUrl = await B.bgURL(ex), otherUrl = await B.bgURL(other);
+  S.select(ex.id); const a = await wait(exUrl);
+  S.select(other.id); const b = await wait(otherUrl);
+  const [t1, t2] = await Promise.all([B.bgThumbURL(ex), B.bgThumbURL(other)]);
+  S.select(was);
+  return ex.bgFile === 'expert.png' && exUrl !== otherUrl && a && b && t1 && t2 && t1 !== t2;
+}));
 await shot('02-songselect');
 
 // corrupt / non-mania archives

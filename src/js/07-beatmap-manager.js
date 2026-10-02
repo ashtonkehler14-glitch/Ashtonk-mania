@@ -67,6 +67,16 @@ const BeatmapManager = {
     const b = await this.getFile(map.setId, map.bgFile);
     return BlobURLs.get(key, b);
   },
+  /** A small copy of this difficulty's own background (low background quality): made once per picture, so a
+   *  difficulty with a different background from the rest of its set still shows its own. */
+  async bgThumbURL(map) {
+    if (!map || !map.bgFile) return this.thumbURL(this.setById.get(map && map.setId));
+    const key = `bgthumb:${map.setId}/${map.bgFile}`;
+    if (BlobURLs.map.has(key)) return BlobURLs.map.get(key);
+    const b = await this.getFile(map.setId, map.bgFile);
+    const t = b && await makeThumbnail(b, 640).catch(() => null);
+    return t ? BlobURLs.get(key, t) : this.thumbURL(this.setById.get(map.setId));
+  },
 
   /** Load and parse a difficulty for gameplay. */
   async load(mapId) {
