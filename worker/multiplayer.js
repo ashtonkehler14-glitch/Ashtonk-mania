@@ -687,7 +687,7 @@ const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
-import { officialFetch } from './index.js';
+import { officialFetch, osuLoginState } from './index.js';
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -727,7 +727,9 @@ export class Matchmaker {
     const url = new URL(request.url);
     // the shared osu! API client (its own instance, "osu-api"): one login, cache and back-off for the whole server
     if (url.pathname === '/osu/search') {
-      try { return json(await officialFetch(url.search.slice(1), this.env)); } catch (e) { return json({ error: e.message }, 502); }
+      if (!this._osuLoaded) { this._osuLoaded = true; osuLoginState.set(await this.state.storage.get('osuLogin').catch(() => null)); }
+      const save = () => { const st = osuLoginState.get(); this.state.storage.put('osuLogin', st).catch(() => {}); };
+      try { const d = await officialFetch(url.search.slice(1), this.env); save(); return json(d); } catch (e) { save(); return json({ error: e.message }, 502); }
     }
     if (url.pathname.endsWith('/presence')) {
       if (request.headers.get('Upgrade') !== 'websocket') return json({ online: this.presence.list().length });

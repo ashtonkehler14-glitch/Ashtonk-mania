@@ -103,6 +103,12 @@ const osuBase = env => (env && env.OSU_API_PROXY_URL ? String(env.OSU_API_PROXY_
 const proxyKey = env => (env && env.OSU_API_PROXY_KEY ? { 'X-Proxy-Key': env.OSU_API_PROXY_KEY } : {});
 /** (tests) forget the osu! login */
 export function resetOsuLogin() { officialToken = null; }
+/** The osu! login and back-off, to keep in Durable Object storage: they survive the object being restarted, so a login
+ *  is asked for about once a day (osu! limits logins per address, and Workers share addresses). */
+export const osuLoginState = {
+  get: () => ({ token: officialToken, blockedUntil: osuApi.blockedUntil }),
+  set: st => { if (st && st.token && st.token.exp > Date.now() + 60000 && !officialToken) officialToken = st.token; if (st && st.blockedUntil > osuApi.blockedUntil) osuApi.blockedUntil = st.blockedUntil; },
+};
 async function getOfficialToken(env, fetchImpl) {
   if (officialToken && officialToken.exp > Date.now() + 60000) return officialToken.value;
   // (one request for a token at a time: searches arriving together wait for the same one)
