@@ -397,7 +397,7 @@ await shot('10-practice');
   const up = await page.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed'));
   await page.keyboard.press('Control+Minus');
   const down = await page.evaluate(() => AshtonkMania.Settings.get('gameplay.scrollSpeed'));
-  check('scroll speed changes in game (F3/F4, Ctrl −/+) with an on-screen popup', up === before + 2 && down === before + 1 && await page.evaluate(() => /Scroll speed/.test(document.querySelector('.gp-speed')?.textContent || '')), `${before} → ${up} → ${down}`);
+  check('scroll speed changes in game (F3/F4, Ctrl −/+) with an on-screen popup', up === before + 2 && down === before + 1 && await page.evaluate(() => /scroll speed/i.test(document.querySelector('.osd.show')?.textContent || '')), `${before} → ${up} → ${down}`);
   await page.keyboard.press('F3');
 }
 await page.evaluate(() => AshtonkMania.GameplayScreen.quit());

@@ -745,7 +745,7 @@ const GameplayScreen = {
     const on = !Settings.get('gameplay.leaderboard');
     Settings.set('gameplay.leaderboard', on);
     this.board().classList.toggle('lb-off', !on);
-    Toast.show(on ? 'Leaderboard shown' : 'Leaderboard hidden', 'Tab');
+    OSD.show('Leaderboard', on ? 'shown' : 'hidden', 'Tab');
   },
   /** Multiplayer: send our live score (4×/s) and show everyone in the match, ranked by the room's win condition
    *  (osu!lazer-style board). Team Versus adds lazer's red-vs-blue totals at the top. */
@@ -837,24 +837,18 @@ const GameplayScreen = {
   changeScrollSpeed(d) {
     const v = clamp(Settings.get('gameplay.scrollSpeed') + d, 1, 40);
     Settings.set('gameplay.scrollSpeed', v);
-    this.popup(`Scroll speed ${v} (${Math.round(11485 / v)}ms)`);
-  },
-  popup(text) {
-    if (!this.speedEl) { this.speedEl = h('div.gp-speed'); this.el.appendChild(this.speedEl); }
-    this.speedEl.textContent = text;
-    this.speedEl.classList.remove('show'); void this.speedEl.offsetWidth; this.speedEl.classList.add('show');
-    clearTimeout(this._speedT); this._speedT = setTimeout(() => this.speedEl && this.speedEl.classList.remove('show'), 1200);
+    OSD.show('Scroll speed', `${Math.round(11485 / v)}ms (speed ${v.toFixed(1)})`, 'F3 / F4');
   },
   /** lazer's BeatmapOffsetControl hotkeys (− / +): this beatmap's offset 1ms at a time, while that can't change a
    *  judgement — paused, or before the first note. */
   nudgeMapOffset(d) {
     const s = this.s;
     if (!s || s.mp || s.replay) return false;
-    if (s.running && this.gameTime() >= s.firstNote) { this.popup('The offset can be changed before the first note or while paused'); return true; }
+    if (s.running && this.gameTime() >= s.firstNote) { OSD.show('Beatmap offset', 'locked while playing', 'pause to change it'); return true; }
     const v = clamp((s.mapOffset || 0) + d, -300, 300);
     MapOffsets.set(s.rec.hash, v);
     s.mapOffset = v;
-    this.popup(`Beatmap offset ${v > 0 ? '+' : ''}${v}ms`);
+    OSD.show('Beatmap offset', `${v > 0 ? '+' : ''}${v}ms`, '- / +');
     return true;
   },
 
@@ -931,7 +925,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       return;
     }
     if (e.code === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !this.pauseEl) { e.preventDefault(); if (!e.repeat) this.toggleLeaderboard(); return; }
-    if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); Toast.show(this.hud.classList.contains('hidden-hud') ? 'HUD hidden' : 'HUD shown', 'Shift+Tab'); return; }
+    if (e.shiftKey && e.code === 'Tab') { e.preventDefault(); this.hud.classList.toggle('hidden-hud'); OSD.show('HUD', this.hud.classList.contains('hidden-hud') ? 'hidden (hold Ctrl to peek)' : 'shown', 'Shift+Tab'); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') return; // global debug toggle
     // scroll speed while playing: F3 / F4 (osu!stable) or Ctrl − / Ctrl + (osu!lazer)
     const ctrl = e.ctrlKey || e.metaKey;
@@ -1416,7 +1410,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (this.s !== s) return;
     Music.pausedPos = pos;
     if (wasRunning) { s.running = true; Music.play(pos); }
-    Toast.show(`Playback speed ${k}×`);
+    OSD.show('Playback speed', `${k}x`, 'Up / Down');
     this.updateReplayBar(this.gameTime(), true);
   },
 

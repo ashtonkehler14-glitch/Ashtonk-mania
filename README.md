@@ -34,6 +34,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   - The **mouse's back button** goes back.
 - **Media keys** (and your system's media controls) play, pause and skip the menu music, and show the song's title and picture.
 - **Song select: Ctrl+↑ / ↓** change the play speed by 0.05× at a time (through Song Speed), back to no speed mod at 1×.
+- **On-screen display:** changes made with a key show in lazer's rounded box low in the middle of the screen: scroll speed, beatmap offset, play speed, leaderboard and HUD on/off, replay speed, the debug overlay and media-key music controls. It shows what changed, the new value and the key, then fades.
 - The **?** list has all of these.
 
 ### Settings, song select and loading, as in lazer

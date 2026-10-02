@@ -193,7 +193,7 @@ const App = {
     }
     // global shortcuts
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
-    if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); Toast.show(v ? 'Debug overlay enabled' : 'Debug overlay disabled', 'Ctrl+Shift+D'); return; }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); OSD.show('Debug overlay', v ? 'shown' : 'hidden', 'Ctrl+Shift+D'); return; }
     if (e.altKey && e.code === 'Enter') { e.preventDefault(); toggleFullscreen(); return; }
     // lazer: Alt+↑/↓ change the volume (the meter you're on), Alt+←/→ move between the meters
     if (e.altKey && !e.ctrlKey && !e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !(Screens.current === GameplayScreen && Settings.get('input.noWheelVolumeInGame'))) {
@@ -324,10 +324,11 @@ const MediaKeys = {
     if (!('mediaSession' in navigator)) return;
     const ms = navigator.mediaSession;
     const set = (action, fn) => { try { ms.setActionHandler(action, () => { if (Screens.current !== GameplayScreen) fn(); }); } catch { /* not supported */ } };
-    set('play', () => { if (!Music.playing) MenuMusic.toggle(); });
-    set('pause', () => { if (Music.playing) MenuMusic.toggle(); });
-    set('nexttrack', () => MenuMusic.next());
-    set('previoustrack', () => MenuMusic.prev());
+    // (lazer's MusicKeyBindingHandler shows each one on the on-screen display)
+    set('play', () => { if (!Music.playing) { MenuMusic.toggle(); OSD.show('Music playback', 'Play track'); } });
+    set('pause', () => { if (Music.playing) { MenuMusic.toggle(); OSD.show('Music playback', 'Pause track'); } });
+    set('nexttrack', () => { MenuMusic.next(); OSD.show('Music playback', 'Next track'); });
+    set('previoustrack', () => { const restart = Music.loaded && Music.time >= 5000; MenuMusic.prev(); OSD.show('Music playback', restart ? 'Restart track' : 'Previous track'); });
     Bus.on('music:changed', async m => {
       if (!m || typeof MediaMetadata === 'undefined') return;
       const url = await BeatmapManager.bgURL(m).catch(() => null);

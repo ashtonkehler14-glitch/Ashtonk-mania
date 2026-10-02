@@ -397,6 +397,29 @@ const Background = {
   },
 };
 
+/** osu!lazer's OnScreenDisplay: a 240px-minimum box of black at 70% with corners of 20, centred three quarters of
+ *  the way down the screen — what changed on top (14px bold), its new value in the middle (24px light) and the shortcut
+ *  at the bottom (12px bold, faint). It grows in over 0.5s and, half a second after the last change, fades away
+ *  over 1.5s. Used for settings changed with a key (scroll speed, play speed, the leaderboard, music controls…). */
+const OSD = {
+  show(what, value, keys = '') {
+    if (!this.el) {
+      this.what = h('div.osd-what'); this.value = h('div.osd-value'); this.keys = h('div.osd-keys');
+      this.el = h('div.osd', { 'aria-live': 'polite' }, this.what, this.value, this.keys);
+      $('#app').appendChild(this.el);
+    }
+    this.what.textContent = String(what).toUpperCase(); this.value.textContent = value; this.keys.textContent = keys ? String(keys).toUpperCase() : '';
+    const el = this.el;
+    if (!el.classList.contains('show')) { el.getAnimations().forEach(a => a.cancel()); el.classList.add('show'); el.animate([{ opacity: 0, height: '99px' }, { opacity: 1, height: '110px' }], { duration: 500, easing: 'cubic-bezier(.22, 1, .36, 1)' }); }
+    else el.getAnimations().forEach(a => a.cancel());
+    clearTimeout(this._t);
+    this._t = setTimeout(() => {
+      const a = el.animate([{ opacity: 1, height: '110px' }, { opacity: 0, height: '99px' }], { duration: 1500, easing: 'cubic-bezier(.64, 0, .78, 0)' });
+      a.onfinish = () => el.classList.remove('show');
+    }, 500);
+  },
+};
+
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
   /** osu!lazer's Toolbar, 40px tall on Gray(0.1): settings and home, then the ruleset, on the left; beatmap listing,

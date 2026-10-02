@@ -514,7 +514,7 @@ const SongSelect = {
     if (Math.abs(target - 1) < 0.005) Settings.set('songselect.mods', rest);
     else { Settings.set('mods.config', { ...ModSystem.config(), rate: target }); Settings.set('songselect.mods', [...rest, 'RT']); }
     Bus.emit('mods:changed');
-    Toast.show(`Speed ${target.toFixed(2)}×`, 'Ctrl+↑ / ↓');
+    OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
