@@ -27,7 +27,8 @@ const SettingsPanel = {
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     scroll.addEventListener('scroll', () => this.syncNav());
-    this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); } });
+    this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
+    Toolbar.sync();
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
     // (it used to fall through to whatever screen was behind, e.g. song select's search)

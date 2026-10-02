@@ -22,6 +22,24 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Top bar and now playing, as in lazer
+- **Top bar:**
+  - The bar is lazer's flat dark grey, and every button is 40 px wide with a 20 px icon.
+  - Pointing at a button lights a rounded grey box just inside it. Clicking flashes it white, and a button stays carmine red while the panel it opens is showing.
+  - Tooltips are lazer's: a big lowercase title under the button, a line of description and the shortcut in a small dark box. A soft shade fades in under the bar while your pointer is on it, so the tooltips can be read over anything.
+  - The osu!mania tab sits after Home, its icon in lazer's green with a short white line under it.
+  - The note shows a thin volume bar beside it. Scroll over the note to change the master volume on any screen.
+  - Unread notifications show as a small red count circle.
+  - The clock is lazer's: a 22 px clock face with a pink second hand that ticks with a little bounce, and the time as "5:13:31 AM". Clicking it goes full → digital with time running → digital → analog.
+  - New shortcuts from lazer: **Alt+Home** (main menu), **Ctrl+B** (beatmap listing), **Ctrl+N** (notifications) and **F6** (now playing). Some browsers keep Ctrl+N for a new window.
+- **Now playing panel:** opens when you click the note or press F6. Pointing at the note no longer opens it.
+  - It matches lazer: 400 × 130, 10 px under the bar. It shows the song's background, dimmed, behind the title in 25 px italics and the artist in bold italics. A title too long to fit scrolls past.
+  - Along the bottom are shuffle, previous / play / next, a playlist button and a thin yellow seek bar that thickens under your pointer.
+  - Changing track slides the new background in from the side it came from. You can drag the panel and it springs back.
+  - **Playlist:** lists every song, with the playing one in yellow. Click one to play it.
+  - **Shuffle** is on by default, as in lazer. Turn it off to play the songs in list order.
+  - **Previous** restarts the song if you're more than 5 seconds in.
+
 ### Dropped connections don't lose matches
 - **If your opponent's connection drops mid-match, you no longer win on the spot.** In any match (a room's song or Ranked Play), they keep their place for a minute while their game reconnects by itself, and come back as the same player. Their row on the in-game board fades and says "reconnecting…".
 - **If they come back,** their play counts as normal. A result that finished while they were offline is sent as soon as they're back.

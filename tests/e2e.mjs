@@ -71,8 +71,8 @@ await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemu
   check('Chemuss 4K: notes are hit centred on the ring receptors (hit position 448)', ch.hit === 448 && Math.abs(ch.off) < 1.5, JSON.stringify({ hit: ch.hit, offsetUnits: ch.off }));
 }
 check('branding is Ashtonk!mania', await page.evaluate(() => document.title === 'Ashtonk!mania' && document.querySelector('.lz-cookie-text').textContent.includes('ashtonk')));
-check('osu!lazer toolbar: icon buttons (beatmap listing, notifications), no text tabs and no Discover', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar [data-tab="explore"]') && !document.querySelector('#toolbar [data-tab="discover"]') && !!document.querySelector('#toolbar [data-tab="notifications"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
-check('toolbar clock cycles full → digital → analog on click', await page.evaluate(() => { const c = document.querySelector('.tb-clock'), seen = [c.dataset.mode]; for (let i = 0; i < 3; i++) { document.querySelector('.tb-clock').click(); seen.push(document.querySelector('.tb-clock').dataset.mode); } return seen.join(',') === 'full,digital,analog,full'; }));
+check('osu!lazer toolbar: icon buttons (beatmap listing, notifications), no text tabs and no Discover', await page.evaluate(() => !document.querySelector('#toolbar [data-tab="songselect"]') && !!document.querySelector('#toolbar [data-tab="explore"]') && !document.querySelector('#toolbar [data-tab="discover"]') && !!document.querySelector('#toolbar [data-ov="notifications"]') && !!document.querySelector('#toolbar .tb-music') && !!document.querySelector('#toolbar .tb-clock')));
+check('toolbar clock cycles like lazer: full → digital with time running → digital → analog', await page.evaluate(() => { const c = document.querySelector('.tb-clock'), seen = [c.dataset.mode]; for (let i = 0; i < 4; i++) { document.querySelector('.tb-clock').click(); seen.push(document.querySelector('.tb-clock').dataset.mode); } return seen.join(',') === 'full,runtime,digital,analog,full'; }));
 check('mouse wheel on the main menu changes the volume (lazer volume overlay)', await page.evaluate(async () => {
   AshtonkMania.Screens.go('home'); await new Promise(r => setTimeout(r, 300));
   const s = AshtonkMania.Settings, before = s.get('audio.master');
@@ -456,12 +456,15 @@ await page.waitForTimeout(300);
 await page.evaluate(() => AshtonkMania.Settings.set('gameplay.scrollSpeed', 27));
 await page.waitForTimeout(600);
 
-// now playing panel: hover the song in the toolbar → pause / next / previous
+// now playing panel: click the note in the toolbar (lazer's ToolbarMusicButton) → pause / next / previous
 await page.evaluate(() => AshtonkMania.Screens.go('home'));
 await page.waitForTimeout(1500);
 await page.hover('.tb-music');
+await page.waitForTimeout(400);
+check('hovering the toolbar note only shows its tooltip (like lazer)', await page.evaluate(() => !document.querySelector('.np-panel.show') && getComputedStyle(document.querySelector('.tb-music .tb-tip')).opacity > 0.5));
+await page.click('.tb-music');
 await page.waitForSelector('.np-panel.show', { timeout: 3000 });
-check('hovering the toolbar song opens the now-playing panel', await page.evaluate(() => document.querySelector('.np-title').textContent.length > 0));
+check('clicking the toolbar note opens the now-playing panel and turns the button carmine', await page.evaluate(() => document.querySelector('.tb-music').classList.contains('on')) && await page.evaluate(() => document.querySelector('.np-title').textContent.length > 0));
 const wasPlaying = await page.evaluate(() => AshtonkMania.Music.playing);
 await page.click('.np-ctls .np-ctl:nth-child(2)');
 await page.waitForTimeout(200);

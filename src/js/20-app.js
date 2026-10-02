@@ -196,6 +196,7 @@ const App = {
     if (e.altKey && e.code === 'Enter') { e.preventDefault(); toggleFullscreen(); return; }
     if (Screens.current === GameplayScreen) return; // gameplay handles its own input (capture listener)
     if (top) return;
+    if (!(e.target.closest && e.target.closest('input, textarea, select')) && Toolbar.hotkey(e)) { e.preventDefault(); return; }
     const inField = e.target.closest && e.target.closest('input, textarea, select');
     if (e.key === '?' && !inField && !e.ctrlKey && !e.altKey) { e.preventDefault(); Shortcuts.open(); return; }
     if (Screens.current && Screens.current.onKey && Screens.current.onKey(e)) { e.preventDefault(); return; }

@@ -78,52 +78,135 @@ svg.i.fill { fill: currentColor; stroke: none; }
 #app.bg-empty .bg-vignette { background: radial-gradient(ellipse at 50% 40%, #2a2733, #141318 75%); }
 #app.in-game #bg-layer { inset: 0; transform: none !important; }
 
-/* ── toolbar (osu!lazer: thin black bar, icon buttons with tooltips) */
+/* ── toolbar: osu!lazer's Toolbar. 40px of Gray(0.1); slides up out of the way (500ms OutQuint) in game */
 #toolbar {
+  --oq: cubic-bezier(.22, 1, .36, 1);
   position: absolute; top: 0; left: 0; right: 0; height: var(--toolbar-h); z-index: 30;
-  display: flex; align-items: stretch; background: rgba(0, 0, 0, .78);
-  transition: transform var(--t-med) var(--ease), opacity var(--t-med);
+  display: flex; align-items: stretch; background: #1a1a1a;
+  transition: transform 500ms var(--oq), opacity 125ms var(--oq);
 }
-#app.in-game #toolbar, #app.hide-toolbar #toolbar { transform: translateY(-110%); opacity: 0; pointer-events: none; }
+#app.in-game #toolbar, #app.hide-toolbar #toolbar { transform: translateY(-100%); opacity: 0; pointer-events: none; transition: transform 500ms var(--oq), opacity 500ms cubic-bezier(.64, 0, .78, 0); }
+/* the shade under the bar while the pointer is on it, so the tooltips read over anything (2.5s in, 0.2s out) */
+#toolbar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 80px; z-index: 1; pointer-events: none; background: linear-gradient(rgba(0, 0, 0, .7), rgba(0, 0, 0, 0)); opacity: 0; transition: opacity 200ms var(--oq); }
+#toolbar:hover::after { opacity: 1; transition-duration: 2500ms; }
 .tb-group { display: flex; align-items: stretch; }
 .tb-spacer { flex: 1; }
-.tb-btn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 40px; height: 100%; padding: 0 12px; border: 0; background: transparent; color: #fff; font-size: .8rem; font-weight: 600; transition: background var(--t-fast); }
-.tb-btn > .i { width: 18px; height: 18px; }
-.tb-btn:hover { background: rgba(255, 255, 255, .1); }
-.tb-btn.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--accent); }
-.tb-tip { position: absolute; top: calc(100% + 6px); left: 50%; transform: translate(-50%, -4px); min-width: 140px; padding: 7px 10px; border-radius: 6px; background: rgba(0, 0, 0, .85); text-align: left; display: flex; flex-direction: column; gap: 2px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity var(--t-fast), transform var(--t-fast); }
-.tb-group:first-child .tb-tip { left: 0; transform: translate(0, -4px); }
-.tb-tip b { font-size: .85rem; font-weight: 700; }
-.tb-tip span { font-size: .72rem; color: #bbb; font-weight: 400; }
-.tb-btn:hover .tb-tip { opacity: 1; transform: translate(-50%, 0); transition-delay: .35s; }
-.tb-group:first-child .tb-btn:hover .tb-tip { transform: none; }
-.tb-btn.tip-off .tb-tip { opacity: 0 !important; transition-delay: 0s !important; }
-.tb-music { max-width: 320px; }
-.tb-np-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #ddd; }
-.tb-music.paused .tb-np-text { color: #888; }
-.tb-clock { display: flex; align-items: center; padding: 0 12px; font-variant-numeric: tabular-nums; font-size: .8rem; color: #ddd; white-space: nowrap; }
-.tb-profile { padding: 0 14px 0 6px; }
-.tb-profile .tb-av { display: block; width: 32px; height: 32px; flex: none; border-radius: 4px; overflow: hidden; box-shadow: 0 0 4px rgba(0, 0, 0, .1); }
+/* a ToolbarButton: 40px wide, the icon 20px; the highlight boxes sit 3px inside it with 6px corners and add light */
+.tb-btn { position: relative; display: flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 100%; padding: 0; border: 0; background: transparent; color: #fff; font-size: 16px; font-weight: 500; cursor: pointer; }
+.tb-btn > .i { position: relative; width: 20px; height: 20px; flex: none; }
+.tb-btn::before, .tb-btn::after, .tb-st { content: ""; position: absolute; inset: 3px; border-radius: 6px; pointer-events: none; mix-blend-mode: plus-lighter; opacity: 0; }
+.tb-btn::before { background: rgb(56, 56, 56); transition: opacity 200ms ease-out; }               /* Gray(80) at 180/255 */
+.tb-btn:hover::before { opacity: 1; transition: opacity 300ms var(--oq); }
+.tb-btn::after { background: rgb(100, 100, 100); }                                                 /* white at 100/255 */
+.tb-btn.flash::after { animation: tbFlash 850ms both; }
+@keyframes tbFlash { 0% { opacity: 0; } 6% { opacity: 1; animation-timing-function: var(--oq); } 100% { opacity: 0; } }
+.tb-st { background: rgb(180, 4, 47); transition: opacity 200ms var(--oq); }                      /* Carmine at 180/255 */
+.tb-btn.on > .tb-st { opacity: 1; }
+#toolbar .tb-btn:focus-visible { outline: none; }
+#toolbar .tb-btn:focus-visible::before { opacity: 1; }
+/* tooltips: plain shadowed text 5px under the button, 22px bold title and the description with its hotkey */
+.tb-tip { position: absolute; top: 100%; left: 5px; margin-top: 5px; z-index: 2; display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; color: #fff; text-align: left; pointer-events: none; opacity: 0; transition: opacity 100ms ease-out; text-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
+.tb-tip.r { left: auto; right: 5px; align-items: flex-end; text-align: right; }
+.tb-tip b { font-size: 22px; font-weight: 700; line-height: 1.15; }
+.tb-sub { display: flex; align-items: flex-end; font-size: 16px; font-weight: 500; line-height: 1.2; }
+.tb-sub kbd { margin-left: 3px; margin-bottom: 1px; padding: 0 5px 1px; border-radius: 3px; background: rgba(0, 0, 0, .7); color: #aaa; font-size: 12px; font-weight: 700; line-height: 15px; text-shadow: none; }
+.tb-btn:hover > .tb-tip { opacity: 1; transition: opacity 200ms var(--oq); }
+.tb-btn.tip-off > .tb-tip { opacity: 0 !important; transition: opacity 100ms; }
+/* the ruleset selector: Gray(30) with drifting triangles behind the tabs; the selected icon is #00ffaa with an 18×3
+   white line under it */
+.tb-ruleset { position: relative; display: flex; align-items: stretch; overflow: hidden; background: #1e1e1e; }
+.tb-ruleset::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 200%; pointer-events: none; animation: tbTris 16s linear infinite;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='80'%3E%3Cpath d='M9 17.9L16.0 30H2.0Z' fill='%23282828'/%3E%3Cpath d='M29 55.3L34.0 64H24.0Z' fill='%23282828'/%3E%3Cpath d='M31 7.1L35.0 14H27.0Z' fill='%23282828'/%3E%3Cpath d='M19 39.6L25.0 50H13.0Z' fill='%23141414'/%3E%3Cpath d='M6 67.2L10.5 75H1.5Z' fill='%23141414'/%3E%3Cpath d='M35 33.9L38.5 40H31.5Z' fill='%23141414'/%3E%3C/svg%3E") 0 0 / 40px 80px repeat; }
+@keyframes tbTris { from { transform: translateY(0); } to { transform: translateY(-80px); } }
+#app.in-game .tb-ruleset::before { animation: none; }
+.tb-rs { padding-bottom: 2px; }
+.tb-rs > .i { color: #00ffaa; }
+.tb-rs-line { position: absolute; left: 11px; bottom: 1px; width: 18px; height: 3px; border-radius: 2px; background: #fff; pointer-events: none; }
+/* now playing: the note and a 3px volume bar (white at 25% filled to the master volume), 6px wide while scrolling */
+.tb-music { width: auto; padding: 0 13px; }
+.tb-vol { position: relative; width: 3px; height: 20px; margin: 0 2.5px 0 7.5px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .25); transition: width 500ms var(--oq); }
+.tb-vol.wide { width: 6px; }
+.tb-vol > i { position: absolute; inset: 0; background: #fff; transform-origin: 50% 100%; transition: transform 200ms var(--oq); }
+/* you: the name, 5px, then the 32px picture with 4px corners; 20px either side */
+.tb-profile { width: auto; padding: 0 23px; gap: 5px; }
+.tb-profile .lbl { position: relative; white-space: nowrap; }
+.tb-profile .tb-av { position: relative; width: 32px; height: 32px; flex: none; border-radius: 4px; overflow: hidden; box-shadow: 0 0 4px rgba(0, 0, 0, .1); }
 .tb-profile .tb-av > .avatar, .tb-profile .tb-av > img { width: 32px !important; height: 32px !important; border-radius: 0 !important; box-shadow: none; object-fit: cover; }
-@media (max-width: 900px) { .tb-np-text, .tb-profile .lbl { display: none; } }
+/* notifications: lazer's red count circle, 16px high, centred 70% across and 25% down the button */
+.tb-badge { position: absolute; left: 70%; top: 25%; z-index: 1; height: 16px; min-width: 16px; padding: 0 5px; border-radius: 8px; background: red; color: #fff; font-size: 14px; font-weight: 700; line-height: 16px; text-align: center; transform: translate(-50%, -50%); opacity: 0; transition: opacity 200ms var(--oq); pointer-events: none; }
+.tb-badge > span { position: relative; top: -1px; }
+.tb-badge.show { opacity: 1; }
+.tb-badge.bump { animation: tbBump 600ms both; }
+@keyframes tbBump { 0% { transform: translate(-50%, -50%) scale(1.1); background: #fff; } 40% { background: red; } 100% { transform: translate(-50%, -50%) scale(1); } }
+/* the clock: 3px + 10px in from the edges, 5px between the face and the time; no tooltip */
+.tb-clock { width: auto; padding: 0 13px; gap: 5px; }
+.tb-analog { position: relative; width: 22px; height: 22px; flex: none; overflow: visible; }
+.tb-analog .face { fill: none; stroke: #fff; stroke-width: 2; }
+.tb-analog g { transform-box: view-box; transform-origin: 11px 11px; transition: transform 320ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.tb-analog .rim { stroke: #222; stroke-width: 2.4; stroke-linecap: round; }
+.tb-analog .core { stroke: #fff; stroke-width: 1; stroke-linecap: round; }
+.tb-analog .sc line { stroke: #ff99cc; stroke-width: 1.68; stroke-linecap: round; }
+.tb-analog .dot { fill: #fff; }
+.tb-analog .dot2 { fill: #ff99cc; }
+.tb-digital { position: relative; display: flex; flex-direction: column; align-items: flex-start; }
+.tb-time { font-size: 16px; font-weight: 500; line-height: 14px; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb-run { display: flex; gap: 2px; margin-top: 3px; color: #ff99cc; font-size: 10px; font-weight: 600; line-height: 10px; white-space: nowrap; }
+.tb-run > span:last-child { letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .tb-profile .lbl { display: none; } .tb-profile { padding: 0 13px; } }
 
 /* now playing panel */
-.np-panel { position: absolute; top: calc(var(--toolbar-h) + 6px); right: 8px; z-index: 55; width: 400px; max-width: calc(calc(100 * var(--vw)) - 16px); height: 130px; border-radius: 10px; overflow: hidden; background: #111; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
-.np-panel.show { opacity: 1; transform: none; pointer-events: auto; }
-.np-cover { position: absolute; inset: 0; background: center / cover no-repeat #222; opacity: .45; }
-.np-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .6)); }
-.np-body { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; padding: 14px 16px 16px; text-align: center; }
-.np-title { font-size: 1.05rem; font-weight: 700; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.np-artist { font-size: .82rem; color: #ccc; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.np-ctls { display: flex; gap: 6px; margin-top: 8px; }
-.np-ctl { width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; background: transparent; color: #fff; transition: background var(--t-fast), transform var(--t-fast); }
-.np-ctl:hover { background: rgba(255, 255, 255, .15); }
-.np-ctl:active { transform: scale(.9); }
-.np-ctl .i { width: 20px; height: 20px; }
-.np-times { position: absolute; left: 10px; right: 10px; bottom: 9px; display: flex; justify-content: space-between; font-size: .68rem; color: #bbb; font-variant-numeric: tabular-nums; pointer-events: none; }
-.np-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: pointer; background: rgba(255, 255, 255, .15); transition: height var(--t-fast); }
+/* ── now playing: osu!lazer's NowPlayingOverlay — 400×130, 10px in from the right under the toolbar; fades in over
+   500ms (OutQuint) while growing from 90% with a little elastic overshoot; drag it and it springs back */
+.np-panel { --oq: cubic-bezier(.22, 1, .36, 1); position: absolute; top: calc(var(--toolbar-h) + 10px); right: 10px; z-index: 55; width: 400px; max-width: calc(calc(100 * var(--vw)) - 20px); opacity: 0; scale: .9; pointer-events: none; transition: opacity 500ms var(--oq), scale 500ms var(--oq), translate 800ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-panel.show { opacity: 1; scale: 1; pointer-events: auto; transition: opacity 500ms var(--oq), scale 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), translate 800ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-panel.dragging { transition: opacity 500ms var(--oq), scale 500ms var(--oq); }
+.np-player { position: relative; height: 130px; border-radius: 5px; overflow: hidden; background: #000; box-shadow: 0 0 5px rgba(0, 0, 0, .16); user-select: none; }
+.np-bgs, .np-bg, .np-bg-img { position: absolute; inset: 0; }
+.np-bg.slide { transition: transform 500ms cubic-bezier(.33, 1, .68, 1); }
+.np-bg-img { background: center / cover no-repeat linear-gradient(135deg, #3a3a44, #22222a); filter: brightness(.588); }  /* the sprite in Gray(150) */
+.np-bg::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 55px; background: rgba(0, 0, 0, .5); }
+.np-title, .np-artist { position: absolute; left: 0; right: 0; padding: 0 15px; color: #fff; font-style: italic; white-space: nowrap; }
+.np-title { top: 15px; height: 25px; font-size: 25px; font-weight: 400; line-height: 25px; }
+.np-artist { top: 45px; height: 15px; font-size: 15px; font-weight: 700; line-height: 15px; }
+/* lazer's MarqueeContainer: centred when it fits, otherwise scrolling left with a copy following 15px behind */
+.marquee { overflow: hidden; display: flex; justify-content: center; }
+.marquee.scroll { justify-content: flex-start; }
+.mq-flow { display: inline-flex; gap: 15px; flex: none; }
+.np-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 55px; padding-bottom: 10px; }
+.np-ctls { position: absolute; left: 50%; top: 22.5px; display: flex; align-items: center; gap: 5px; transform: translate(-50%, -50%); }
+/* lazer's IconButton: 30px, an 18px icon, corners of 10, YellowDark at 60% added under the pointer, a yellow flash */
+.np-ctl { position: relative; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer; }
+.np-ctl-in { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 10px; transition: transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-ctl-in::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgb(143, 102, 0); mix-blend-mode: plus-lighter; opacity: 0; transition: opacity 500ms var(--oq); }
+.np-ctl:hover .np-ctl-in::before { opacity: 1; }
+.np-ctl.flash .np-ctl-in::before { animation: npFlash 800ms var(--oq); }
+@keyframes npFlash { from { opacity: 1; background: #ffcc22; } }
+.np-ctl.down .np-ctl-in { transform: scale(.75); transition: transform 2000ms var(--oq); }
+.np-ctl .i { position: relative; width: 18px; height: 18px; }
+.np-ctl.np-play { width: 42px; height: 42px; }
+.np-ctl.np-play .np-ctl-in { border-radius: 14px; }
+.np-ctl.np-play .i { width: 25.2px; height: 25.2px; }
+.np-side { position: absolute; top: 22.5px; transform: translate(-50%, -50%); }
+.np-shuffle { left: 27.5px; }
+.np-listbtn { left: calc(100% - 27.5px); }
+.np-side .i { transition: color 200ms var(--oq); }
+.np-side.on .i { color: #ffcc22; }
+.np-shuffle .i { stroke-width: 2.2; }
+/* the seek bar: 5px of YellowDarker at 50%, filled in yellow; 10px under the pointer */
+.np-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; cursor: pointer; transition: height 500ms var(--oq); }
 .np-bar:hover { height: 10px; }
-.np-bar i { display: block; height: 100%; background: var(--accent); }
+.np-bar-bg { position: absolute; inset: 0; background: rgba(204, 102, 0, .5); }
+.np-bar > i { position: absolute; inset: 0; background: #ffcc22; transform-origin: 0 50%; transform: scaleX(0); }
+/* the playlist: Gray3 with the same corners and shadow, 10px under the player, up to 510px tall (600ms OutQuint) */
+.np-playlist { margin-top: 10px; height: 0; border-radius: 5px; overflow: hidden; background: #333; box-shadow: 0 0 5px rgba(0, 0, 0, .16); opacity: 0; transition: height 600ms var(--oq), opacity 600ms var(--oq); }
+.np-panel.list .np-playlist { height: min(510px, calc(100 * var(--vh) - var(--toolbar-h) - 160px)); opacity: 1; }
+.np-list { height: 100%; overflow-y: auto; padding: 10px 10px 10px 0; scrollbar-width: thin; }
+.np-li { height: 20px; padding: 0 15px; font-size: 16px; line-height: 20px; cursor: pointer; color: #fff; transition: color 100ms; justify-content: flex-start; }
+.np-li .np-li-a { font-size: 14px; font-weight: 700; color: #999; }
+.np-li.sel { color: #ffcc22; }
+.np-li.sel .np-li-a { color: #997a14; }  /* Gray9 tinted by the yellow */
+.np-li:hover { background: rgba(255, 255, 255, .05); }
+.np-li.empty { color: #999; cursor: default; }
 
 /* ── screens */
 #screens { position: absolute; inset: 0; z-index: 10; }
@@ -1696,9 +1779,6 @@ div.res-calib .i { color: var(--good); }
 #toasts { transition: opacity 200ms; }
 body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
-.np-panel { border-radius: 5px; }
-.np-cover { opacity: .62; }
-.np-bar i { background: #ffcc22; }
 
 /* ── multiplayer room — lazer's match screen in the Plum scheme: sheared footer buttons (the big green Ready, the
    Start match button in the scheme colour), rank pills in the match results */
@@ -1932,34 +2012,6 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 @keyframes lzBounce { 0% { transform: translateY(-5px) scale(1.12, .9); } 100% { transform: none; } }
 .lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
 .lz-menu[data-state="edit"] { --shift: 330px; }
-
-/* ── toolbar (osu!lazer's Toolbar) */
-#toolbar { background: linear-gradient(180deg, #1c1a20, #151318); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
-.tb-btn { padding: 0 11px; transition: background 120ms; }
-.tb-btn:hover { background: rgba(255, 255, 255, .12); }
-.tb-btn:active { background: rgba(255, 255, 255, .2); }
-.tb-btn.active::after { height: 3px; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .7); }
-.tb-tip { top: calc(100% + 8px); min-width: 170px; padding: 8px 12px; border-radius: 5px; background: rgba(28, 26, 32, .96); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
-.tb-group:last-child .tb-btn:last-child .tb-tip, .tb-group:last-child .tb-clock .tb-tip { left: auto; right: 0; transform: translate(0, -4px); }
-.tb-group:last-child .tb-btn:hover:last-child .tb-tip, .tb-group:last-child .tb-clock:hover .tb-tip { transform: none; }
-.tb-ruleset { display: flex; align-items: stretch; margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .08); }
-.tb-rs { display: grid; place-items: center; width: 40px; position: relative; color: #fff; }
-.tb-rs .i { width: 20px; height: 20px; }
-.tb-rs.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 2px 2px 0 0; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .8); }
-.tb-badge { position: absolute; top: 5px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff66ab; color: #fff; font-size: .62rem; font-weight: 700; line-height: 16px; text-align: center; }
-.tb-badge:empty { display: none; }
-.tb-btn.has > .i { animation: tbBell 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
-@keyframes tbBell { 0%, 80%, 100% { transform: none; } 84% { transform: rotate(14deg); } 88% { transform: rotate(-12deg); } 92% { transform: rotate(8deg); } 96% { transform: rotate(-4deg); } }
-.tb-clock { gap: 8px; padding: 0 12px; color: #ddd; font-weight: 400; cursor: pointer; }
-.tb-analog { width: 20px; height: 20px; }
-.tb-analog .face { fill: none; stroke: #fff; stroke-width: 1.6; }
-.tb-analog .hr { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
-.tb-analog .mn { stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
-.tb-analog .sc { stroke: #ff66ab; stroke-width: 1; stroke-linecap: round; }
-.tb-analog .dot { fill: #ff66ab; }
-.tb-digital { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
-.tb-time { font-variant-numeric: tabular-nums; font-size: .8rem; }
-.tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
 .nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
@@ -2272,8 +2324,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-room-row:disabled .mp-rjoin { background: rgba(255, 255, 255, .12); }
 .mp-left, .qp-stage { min-width: 0; }
 
-/* toolbar: name then picture; the bell sits at the far right */
-.tb-profile { padding: 0 8px 0 14px; gap: 8px; }
 /* main menu: the bar sits right of centre so Settings clears the mascot on the left */
 .lz-menu { --shift: 40px; }
 .lz-menu[data-state="play"] { --shift: 0px; }
@@ -2364,8 +2414,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
 @keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
-/* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
-#toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }
 
 /* skins: one compact key-count stepper instead of eighteen chips */
 .sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }

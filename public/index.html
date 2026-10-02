@@ -95,52 +95,135 @@ svg.i.fill { fill: currentColor; stroke: none; }
 #app.bg-empty .bg-vignette { background: radial-gradient(ellipse at 50% 40%, #2a2733, #141318 75%); }
 #app.in-game #bg-layer { inset: 0; transform: none !important; }
 
-/* ── toolbar (osu!lazer: thin black bar, icon buttons with tooltips) */
+/* ── toolbar: osu!lazer's Toolbar. 40px of Gray(0.1); slides up out of the way (500ms OutQuint) in game */
 #toolbar {
+  --oq: cubic-bezier(.22, 1, .36, 1);
   position: absolute; top: 0; left: 0; right: 0; height: var(--toolbar-h); z-index: 30;
-  display: flex; align-items: stretch; background: rgba(0, 0, 0, .78);
-  transition: transform var(--t-med) var(--ease), opacity var(--t-med);
+  display: flex; align-items: stretch; background: #1a1a1a;
+  transition: transform 500ms var(--oq), opacity 125ms var(--oq);
 }
-#app.in-game #toolbar, #app.hide-toolbar #toolbar { transform: translateY(-110%); opacity: 0; pointer-events: none; }
+#app.in-game #toolbar, #app.hide-toolbar #toolbar { transform: translateY(-100%); opacity: 0; pointer-events: none; transition: transform 500ms var(--oq), opacity 500ms cubic-bezier(.64, 0, .78, 0); }
+/* the shade under the bar while the pointer is on it, so the tooltips read over anything (2.5s in, 0.2s out) */
+#toolbar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 80px; z-index: 1; pointer-events: none; background: linear-gradient(rgba(0, 0, 0, .7), rgba(0, 0, 0, 0)); opacity: 0; transition: opacity 200ms var(--oq); }
+#toolbar:hover::after { opacity: 1; transition-duration: 2500ms; }
 .tb-group { display: flex; align-items: stretch; }
 .tb-spacer { flex: 1; }
-.tb-btn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 40px; height: 100%; padding: 0 12px; border: 0; background: transparent; color: #fff; font-size: .8rem; font-weight: 600; transition: background var(--t-fast); }
-.tb-btn > .i { width: 18px; height: 18px; }
-.tb-btn:hover { background: rgba(255, 255, 255, .1); }
-.tb-btn.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--accent); }
-.tb-tip { position: absolute; top: calc(100% + 6px); left: 50%; transform: translate(-50%, -4px); min-width: 140px; padding: 7px 10px; border-radius: 6px; background: rgba(0, 0, 0, .85); text-align: left; display: flex; flex-direction: column; gap: 2px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity var(--t-fast), transform var(--t-fast); }
-.tb-group:first-child .tb-tip { left: 0; transform: translate(0, -4px); }
-.tb-tip b { font-size: .85rem; font-weight: 700; }
-.tb-tip span { font-size: .72rem; color: #bbb; font-weight: 400; }
-.tb-btn:hover .tb-tip { opacity: 1; transform: translate(-50%, 0); transition-delay: .35s; }
-.tb-group:first-child .tb-btn:hover .tb-tip { transform: none; }
-.tb-btn.tip-off .tb-tip { opacity: 0 !important; transition-delay: 0s !important; }
-.tb-music { max-width: 320px; }
-.tb-np-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #ddd; }
-.tb-music.paused .tb-np-text { color: #888; }
-.tb-clock { display: flex; align-items: center; padding: 0 12px; font-variant-numeric: tabular-nums; font-size: .8rem; color: #ddd; white-space: nowrap; }
-.tb-profile { padding: 0 14px 0 6px; }
-.tb-profile .tb-av { display: block; width: 32px; height: 32px; flex: none; border-radius: 4px; overflow: hidden; box-shadow: 0 0 4px rgba(0, 0, 0, .1); }
+/* a ToolbarButton: 40px wide, the icon 20px; the highlight boxes sit 3px inside it with 6px corners and add light */
+.tb-btn { position: relative; display: flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 100%; padding: 0; border: 0; background: transparent; color: #fff; font-size: 16px; font-weight: 500; cursor: pointer; }
+.tb-btn > .i { position: relative; width: 20px; height: 20px; flex: none; }
+.tb-btn::before, .tb-btn::after, .tb-st { content: ""; position: absolute; inset: 3px; border-radius: 6px; pointer-events: none; mix-blend-mode: plus-lighter; opacity: 0; }
+.tb-btn::before { background: rgb(56, 56, 56); transition: opacity 200ms ease-out; }               /* Gray(80) at 180/255 */
+.tb-btn:hover::before { opacity: 1; transition: opacity 300ms var(--oq); }
+.tb-btn::after { background: rgb(100, 100, 100); }                                                 /* white at 100/255 */
+.tb-btn.flash::after { animation: tbFlash 850ms both; }
+@keyframes tbFlash { 0% { opacity: 0; } 6% { opacity: 1; animation-timing-function: var(--oq); } 100% { opacity: 0; } }
+.tb-st { background: rgb(180, 4, 47); transition: opacity 200ms var(--oq); }                      /* Carmine at 180/255 */
+.tb-btn.on > .tb-st { opacity: 1; }
+#toolbar .tb-btn:focus-visible { outline: none; }
+#toolbar .tb-btn:focus-visible::before { opacity: 1; }
+/* tooltips: plain shadowed text 5px under the button, 22px bold title and the description with its hotkey */
+.tb-tip { position: absolute; top: 100%; left: 5px; margin-top: 5px; z-index: 2; display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; color: #fff; text-align: left; pointer-events: none; opacity: 0; transition: opacity 100ms ease-out; text-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
+.tb-tip.r { left: auto; right: 5px; align-items: flex-end; text-align: right; }
+.tb-tip b { font-size: 22px; font-weight: 700; line-height: 1.15; }
+.tb-sub { display: flex; align-items: flex-end; font-size: 16px; font-weight: 500; line-height: 1.2; }
+.tb-sub kbd { margin-left: 3px; margin-bottom: 1px; padding: 0 5px 1px; border-radius: 3px; background: rgba(0, 0, 0, .7); color: #aaa; font-size: 12px; font-weight: 700; line-height: 15px; text-shadow: none; }
+.tb-btn:hover > .tb-tip { opacity: 1; transition: opacity 200ms var(--oq); }
+.tb-btn.tip-off > .tb-tip { opacity: 0 !important; transition: opacity 100ms; }
+/* the ruleset selector: Gray(30) with drifting triangles behind the tabs; the selected icon is #00ffaa with an 18×3
+   white line under it */
+.tb-ruleset { position: relative; display: flex; align-items: stretch; overflow: hidden; background: #1e1e1e; }
+.tb-ruleset::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 200%; pointer-events: none; animation: tbTris 16s linear infinite;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='80'%3E%3Cpath d='M9 17.9L16.0 30H2.0Z' fill='%23282828'/%3E%3Cpath d='M29 55.3L34.0 64H24.0Z' fill='%23282828'/%3E%3Cpath d='M31 7.1L35.0 14H27.0Z' fill='%23282828'/%3E%3Cpath d='M19 39.6L25.0 50H13.0Z' fill='%23141414'/%3E%3Cpath d='M6 67.2L10.5 75H1.5Z' fill='%23141414'/%3E%3Cpath d='M35 33.9L38.5 40H31.5Z' fill='%23141414'/%3E%3C/svg%3E") 0 0 / 40px 80px repeat; }
+@keyframes tbTris { from { transform: translateY(0); } to { transform: translateY(-80px); } }
+#app.in-game .tb-ruleset::before { animation: none; }
+.tb-rs { padding-bottom: 2px; }
+.tb-rs > .i { color: #00ffaa; }
+.tb-rs-line { position: absolute; left: 11px; bottom: 1px; width: 18px; height: 3px; border-radius: 2px; background: #fff; pointer-events: none; }
+/* now playing: the note and a 3px volume bar (white at 25% filled to the master volume), 6px wide while scrolling */
+.tb-music { width: auto; padding: 0 13px; }
+.tb-vol { position: relative; width: 3px; height: 20px; margin: 0 2.5px 0 7.5px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .25); transition: width 500ms var(--oq); }
+.tb-vol.wide { width: 6px; }
+.tb-vol > i { position: absolute; inset: 0; background: #fff; transform-origin: 50% 100%; transition: transform 200ms var(--oq); }
+/* you: the name, 5px, then the 32px picture with 4px corners; 20px either side */
+.tb-profile { width: auto; padding: 0 23px; gap: 5px; }
+.tb-profile .lbl { position: relative; white-space: nowrap; }
+.tb-profile .tb-av { position: relative; width: 32px; height: 32px; flex: none; border-radius: 4px; overflow: hidden; box-shadow: 0 0 4px rgba(0, 0, 0, .1); }
 .tb-profile .tb-av > .avatar, .tb-profile .tb-av > img { width: 32px !important; height: 32px !important; border-radius: 0 !important; box-shadow: none; object-fit: cover; }
-@media (max-width: 900px) { .tb-np-text, .tb-profile .lbl { display: none; } }
+/* notifications: lazer's red count circle, 16px high, centred 70% across and 25% down the button */
+.tb-badge { position: absolute; left: 70%; top: 25%; z-index: 1; height: 16px; min-width: 16px; padding: 0 5px; border-radius: 8px; background: red; color: #fff; font-size: 14px; font-weight: 700; line-height: 16px; text-align: center; transform: translate(-50%, -50%); opacity: 0; transition: opacity 200ms var(--oq); pointer-events: none; }
+.tb-badge > span { position: relative; top: -1px; }
+.tb-badge.show { opacity: 1; }
+.tb-badge.bump { animation: tbBump 600ms both; }
+@keyframes tbBump { 0% { transform: translate(-50%, -50%) scale(1.1); background: #fff; } 40% { background: red; } 100% { transform: translate(-50%, -50%) scale(1); } }
+/* the clock: 3px + 10px in from the edges, 5px between the face and the time; no tooltip */
+.tb-clock { width: auto; padding: 0 13px; gap: 5px; }
+.tb-analog { position: relative; width: 22px; height: 22px; flex: none; overflow: visible; }
+.tb-analog .face { fill: none; stroke: #fff; stroke-width: 2; }
+.tb-analog g { transform-box: view-box; transform-origin: 11px 11px; transition: transform 320ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.tb-analog .rim { stroke: #222; stroke-width: 2.4; stroke-linecap: round; }
+.tb-analog .core { stroke: #fff; stroke-width: 1; stroke-linecap: round; }
+.tb-analog .sc line { stroke: #ff99cc; stroke-width: 1.68; stroke-linecap: round; }
+.tb-analog .dot { fill: #fff; }
+.tb-analog .dot2 { fill: #ff99cc; }
+.tb-digital { position: relative; display: flex; flex-direction: column; align-items: flex-start; }
+.tb-time { font-size: 16px; font-weight: 500; line-height: 14px; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb-run { display: flex; gap: 2px; margin-top: 3px; color: #ff99cc; font-size: 10px; font-weight: 600; line-height: 10px; white-space: nowrap; }
+.tb-run > span:last-child { letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .tb-profile .lbl { display: none; } .tb-profile { padding: 0 13px; } }
 
 /* now playing panel */
-.np-panel { position: absolute; top: calc(var(--toolbar-h) + 6px); right: 8px; z-index: 55; width: 400px; max-width: calc(calc(100 * var(--vw)) - 16px); height: 130px; border-radius: 10px; overflow: hidden; background: #111; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity var(--t-fast), transform var(--t-med) var(--ease-out); }
-.np-panel.show { opacity: 1; transform: none; pointer-events: auto; }
-.np-cover { position: absolute; inset: 0; background: center / cover no-repeat #222; opacity: .45; }
-.np-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .6)); }
-.np-body { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; padding: 14px 16px 16px; text-align: center; }
-.np-title { font-size: 1.05rem; font-weight: 700; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.np-artist { font-size: .82rem; color: #ccc; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.np-ctls { display: flex; gap: 6px; margin-top: 8px; }
-.np-ctl { width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; background: transparent; color: #fff; transition: background var(--t-fast), transform var(--t-fast); }
-.np-ctl:hover { background: rgba(255, 255, 255, .15); }
-.np-ctl:active { transform: scale(.9); }
-.np-ctl .i { width: 20px; height: 20px; }
-.np-times { position: absolute; left: 10px; right: 10px; bottom: 9px; display: flex; justify-content: space-between; font-size: .68rem; color: #bbb; font-variant-numeric: tabular-nums; pointer-events: none; }
-.np-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: pointer; background: rgba(255, 255, 255, .15); transition: height var(--t-fast); }
+/* ── now playing: osu!lazer's NowPlayingOverlay — 400×130, 10px in from the right under the toolbar; fades in over
+   500ms (OutQuint) while growing from 90% with a little elastic overshoot; drag it and it springs back */
+.np-panel { --oq: cubic-bezier(.22, 1, .36, 1); position: absolute; top: calc(var(--toolbar-h) + 10px); right: 10px; z-index: 55; width: 400px; max-width: calc(calc(100 * var(--vw)) - 20px); opacity: 0; scale: .9; pointer-events: none; transition: opacity 500ms var(--oq), scale 500ms var(--oq), translate 800ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-panel.show { opacity: 1; scale: 1; pointer-events: auto; transition: opacity 500ms var(--oq), scale 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), translate 800ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-panel.dragging { transition: opacity 500ms var(--oq), scale 500ms var(--oq); }
+.np-player { position: relative; height: 130px; border-radius: 5px; overflow: hidden; background: #000; box-shadow: 0 0 5px rgba(0, 0, 0, .16); user-select: none; }
+.np-bgs, .np-bg, .np-bg-img { position: absolute; inset: 0; }
+.np-bg.slide { transition: transform 500ms cubic-bezier(.33, 1, .68, 1); }
+.np-bg-img { background: center / cover no-repeat linear-gradient(135deg, #3a3a44, #22222a); filter: brightness(.588); }  /* the sprite in Gray(150) */
+.np-bg::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 55px; background: rgba(0, 0, 0, .5); }
+.np-title, .np-artist { position: absolute; left: 0; right: 0; padding: 0 15px; color: #fff; font-style: italic; white-space: nowrap; }
+.np-title { top: 15px; height: 25px; font-size: 25px; font-weight: 400; line-height: 25px; }
+.np-artist { top: 45px; height: 15px; font-size: 15px; font-weight: 700; line-height: 15px; }
+/* lazer's MarqueeContainer: centred when it fits, otherwise scrolling left with a copy following 15px behind */
+.marquee { overflow: hidden; display: flex; justify-content: center; }
+.marquee.scroll { justify-content: flex-start; }
+.mq-flow { display: inline-flex; gap: 15px; flex: none; }
+.np-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 55px; padding-bottom: 10px; }
+.np-ctls { position: absolute; left: 50%; top: 22.5px; display: flex; align-items: center; gap: 5px; transform: translate(-50%, -50%); }
+/* lazer's IconButton: 30px, an 18px icon, corners of 10, YellowDark at 60% added under the pointer, a yellow flash */
+.np-ctl { position: relative; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer; }
+.np-ctl-in { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 10px; transition: transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.np-ctl-in::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgb(143, 102, 0); mix-blend-mode: plus-lighter; opacity: 0; transition: opacity 500ms var(--oq); }
+.np-ctl:hover .np-ctl-in::before { opacity: 1; }
+.np-ctl.flash .np-ctl-in::before { animation: npFlash 800ms var(--oq); }
+@keyframes npFlash { from { opacity: 1; background: #ffcc22; } }
+.np-ctl.down .np-ctl-in { transform: scale(.75); transition: transform 2000ms var(--oq); }
+.np-ctl .i { position: relative; width: 18px; height: 18px; }
+.np-ctl.np-play { width: 42px; height: 42px; }
+.np-ctl.np-play .np-ctl-in { border-radius: 14px; }
+.np-ctl.np-play .i { width: 25.2px; height: 25.2px; }
+.np-side { position: absolute; top: 22.5px; transform: translate(-50%, -50%); }
+.np-shuffle { left: 27.5px; }
+.np-listbtn { left: calc(100% - 27.5px); }
+.np-side .i { transition: color 200ms var(--oq); }
+.np-side.on .i { color: #ffcc22; }
+.np-shuffle .i { stroke-width: 2.2; }
+/* the seek bar: 5px of YellowDarker at 50%, filled in yellow; 10px under the pointer */
+.np-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; cursor: pointer; transition: height 500ms var(--oq); }
 .np-bar:hover { height: 10px; }
-.np-bar i { display: block; height: 100%; background: var(--accent); }
+.np-bar-bg { position: absolute; inset: 0; background: rgba(204, 102, 0, .5); }
+.np-bar > i { position: absolute; inset: 0; background: #ffcc22; transform-origin: 0 50%; transform: scaleX(0); }
+/* the playlist: Gray3 with the same corners and shadow, 10px under the player, up to 510px tall (600ms OutQuint) */
+.np-playlist { margin-top: 10px; height: 0; border-radius: 5px; overflow: hidden; background: #333; box-shadow: 0 0 5px rgba(0, 0, 0, .16); opacity: 0; transition: height 600ms var(--oq), opacity 600ms var(--oq); }
+.np-panel.list .np-playlist { height: min(510px, calc(100 * var(--vh) - var(--toolbar-h) - 160px)); opacity: 1; }
+.np-list { height: 100%; overflow-y: auto; padding: 10px 10px 10px 0; scrollbar-width: thin; }
+.np-li { height: 20px; padding: 0 15px; font-size: 16px; line-height: 20px; cursor: pointer; color: #fff; transition: color 100ms; justify-content: flex-start; }
+.np-li .np-li-a { font-size: 14px; font-weight: 700; color: #999; }
+.np-li.sel { color: #ffcc22; }
+.np-li.sel .np-li-a { color: #997a14; }  /* Gray9 tinted by the yellow */
+.np-li:hover { background: rgba(255, 255, 255, .05); }
+.np-li.empty { color: #999; cursor: default; }
 
 /* ── screens */
 #screens { position: absolute; inset: 0; z-index: 10; }
@@ -1713,9 +1796,6 @@ div.res-calib .i { color: var(--good); }
 #toasts { transition: opacity 200ms; }
 body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
-.np-panel { border-radius: 5px; }
-.np-cover { opacity: .62; }
-.np-bar i { background: #ffcc22; }
 
 /* ── multiplayer room — lazer's match screen in the Plum scheme: sheared footer buttons (the big green Ready, the
    Start match button in the scheme colour), rank pills in the match results */
@@ -1949,34 +2029,6 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 @keyframes lzBounce { 0% { transform: translateY(-5px) scale(1.12, .9); } 100% { transform: none; } }
 .lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
 .lz-menu[data-state="edit"] { --shift: 330px; }
-
-/* ── toolbar (osu!lazer's Toolbar) */
-#toolbar { background: linear-gradient(180deg, #1c1a20, #151318); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
-.tb-btn { padding: 0 11px; transition: background 120ms; }
-.tb-btn:hover { background: rgba(255, 255, 255, .12); }
-.tb-btn:active { background: rgba(255, 255, 255, .2); }
-.tb-btn.active::after { height: 3px; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .7); }
-.tb-tip { top: calc(100% + 8px); min-width: 170px; padding: 8px 12px; border-radius: 5px; background: rgba(28, 26, 32, .96); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
-.tb-group:last-child .tb-btn:last-child .tb-tip, .tb-group:last-child .tb-clock .tb-tip { left: auto; right: 0; transform: translate(0, -4px); }
-.tb-group:last-child .tb-btn:hover:last-child .tb-tip, .tb-group:last-child .tb-clock:hover .tb-tip { transform: none; }
-.tb-ruleset { display: flex; align-items: stretch; margin-left: 8px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .08); }
-.tb-rs { display: grid; place-items: center; width: 40px; position: relative; color: #fff; }
-.tb-rs .i { width: 20px; height: 20px; }
-.tb-rs.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 2px 2px 0 0; background: #ff66ab; box-shadow: 0 0 8px rgba(255, 102, 171, .8); }
-.tb-badge { position: absolute; top: 5px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff66ab; color: #fff; font-size: .62rem; font-weight: 700; line-height: 16px; text-align: center; }
-.tb-badge:empty { display: none; }
-.tb-btn.has > .i { animation: tbBell 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
-@keyframes tbBell { 0%, 80%, 100% { transform: none; } 84% { transform: rotate(14deg); } 88% { transform: rotate(-12deg); } 92% { transform: rotate(8deg); } 96% { transform: rotate(-4deg); } }
-.tb-clock { gap: 8px; padding: 0 12px; color: #ddd; font-weight: 400; cursor: pointer; }
-.tb-analog { width: 20px; height: 20px; }
-.tb-analog .face { fill: none; stroke: #fff; stroke-width: 1.6; }
-.tb-analog .hr { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
-.tb-analog .mn { stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
-.tb-analog .sc { stroke: #ff66ab; stroke-width: 1; stroke-linecap: round; }
-.tb-analog .dot { fill: #ff66ab; }
-.tb-digital { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
-.tb-time { font-variant-numeric: tabular-nums; font-size: .8rem; }
-.tb-run { font-size: .62rem; color: #ff66ab; font-variant-numeric: tabular-nums; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
 .nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
@@ -2289,8 +2341,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-room-row:disabled .mp-rjoin { background: rgba(255, 255, 255, .12); }
 .mp-left, .qp-stage { min-width: 0; }
 
-/* toolbar: name then picture; the bell sits at the far right */
-.tb-profile { padding: 0 8px 0 14px; gap: 8px; }
 /* main menu: the bar sits right of centre so Settings clears the mascot on the left */
 .lz-menu { --shift: 40px; }
 .lz-menu[data-state="play"] { --shift: 0px; }
@@ -2381,8 +2431,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
 @keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
-/* lazer's toolbar shows no focus ring: keyboard focus just lights the button */
-#toolbar .tb-btn:focus-visible { outline: none; background: rgba(255, 255, 255, .1); }
 
 /* skins: one compact key-count stepper instead of eighteen chips */
 .sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -7594,6 +7642,11 @@ const ICONS = {
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
+  npprev: '<path d="M5.5 5h2.6v14H5.5z" class="fillme"/><path d="M19 5.4v13.2L8.6 12z" class="fillme"/>',
+  npnext: '<path d="M15.9 5h2.6v14h-2.6z" class="fillme"/><path d="M5 5.4v13.2L15.4 12z" class="fillme"/>',
+  npplay: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M10 8.1v7.8l6.1-3.9z" class="fillme"/>',
+  nppause: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M9.2 8.3h2v7.4h-2zM12.8 8.3h2v7.4h-2z" class="fillme"/>',
+  bars: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
 };
 function icon(name, cls = '') {
@@ -7926,42 +7979,57 @@ const Background = {
 
 // ─────────────────────────────── Toolbar ───────────────────────────────
 const Toolbar = {
-  /** osu!lazer's Toolbar: settings, home and the ruleset on the left; beatmap listing, players online, notifications,
-   *  now playing, the clock and your profile on the right. Every button has lazer's two-line tooltip. */
+  /** osu!lazer's Toolbar, 40px tall on Gray(0.1): settings and home, then the ruleset, on the left; beatmap listing,
+   *  now playing, you, the clock and notifications on the right. A button lights up (an additive grey inset 3px with
+   *  6px corners) under the pointer, flashes white when clicked and stays carmine while the panel it opens is showing.
+   *  Tooltips are lazer's: big shadowed lowercase text under the button with the hotkey in a little box, over an 80px
+   *  shade that fades in below the bar while the pointer is on it. */
   build() {
     const tb = $('#toolbar');
     clearEl(tb);
-    // a click hides that button's tooltip until the pointer leaves (it sat half-visible under the panel it opened)
-    if (!tb._tipOff) {
-      tb._tipOff = true;
-      tb.addEventListener('pointerdown', e => { const b = e.target.closest('.tb-btn'); if (b) b.classList.add('tip-off'); });
+    if (!tb._wired) {
+      tb._wired = true;
+      // a click flashes the button and hides its tooltip until the pointer leaves (it sat half-visible under the panel it opened)
+      tb.addEventListener('click', e => {
+        const b = e.target.closest('.tb-btn'); if (!b) return;
+        b.classList.add('tip-off');
+        b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
+      });
       tb.addEventListener('pointerout', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) b.classList.remove('tip-off'); });
+      tb.addEventListener('pointerover', e => { const b = e.target.closest('.tb-btn'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
     }
-    const btn = (ic, tip, sub, fn, extra = {}) => {
-      const b = h('button.tb-btn', { 'aria-label': tip, onclick: () => { UISounds.click(); fn(); }, ...extra }, icon(ic), h('span.tb-tip', h('b', tip), sub ? h('span', sub) : null));
-      b.addEventListener('pointerenter', () => UISounds.hover());
-      return b;
-    };
-    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'Now playing', onclick: () => NowPlaying.toggle(true) }, icon('music'));
+    const btn = (ic, title, sub, fn, { key, right, cls = '', ...extra } = {}) =>
+      h(`button.tb-btn${cls}`, { 'aria-label': title, onclick: () => { UISounds.click(); fn(); }, ...extra },
+        h('span.tb-st'), icon(ic), this.tip(title, sub, key, right));
+    // lazer's ToolbarMusicButton: the note and a thin volume bar beside it; scrolling on it changes the master volume
+    this.volFill = h('i');
+    this.volBar = h('span.tb-vol', this.volFill);
+    this.npBtn = h('button.tb-btn.tb-music', { 'aria-label': 'now playing', dataset: { ov: 'np' }, onclick: () => { UISounds.click(); NowPlaying.toggle(); } },
+      h('span.tb-st'), icon('music'), this.volBar, this.tip('now playing', 'manage the currently playing track', 'F6', true));
     this.npText = h('span'); // (lazer's toolbar shows just the note; the title is in the panel)
-    this.npBtn.addEventListener('pointerenter', () => NowPlaying.hoverOpen());
-    this.npBtn.addEventListener('pointerleave', () => NowPlaying.hoverClose());
-    this.bellCount = h('span.tb-badge');
-    this.bell = btn('bell', 'Notifications', 'Waiting for \'ya', () => Notifications.toggle(), { dataset: { tab: 'notifications' } });
+    this.bellCount = h('span.tb-badge', h('span'));
+    this.bell = btn('bell', 'notifications', 'waiting for \'ya', () => Notifications.toggle(), { key: 'Ctrl+N', right: true, dataset: { ov: 'notifications' } });
     this.bell.append(this.bellCount);
     // like lazer's toolbar toggles: a page's button closes that page when it's already open
     const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
-    this.clock = h('button.tb-btn.tb-clock', { 'aria-label': 'Clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
+    this.pages = { explore: page('explore'), profile: page('profile') };
+    this.clock = h('button.tb-clock', { 'aria-label': 'clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
+    // lazer's ToolbarRulesetSelector, here with the one ruleset: its icon in #00ffaa over a darker triangle-patterned
+    // background, with the little white line under the selected one
+    const ruleset = h('div.tb-ruleset',
+      btn('mania', 'osu!mania', 'play some osu!mania', () => {}, { cls: '.tb-rs' }),
+      h('span.tb-rs-line'));
     tb.append(
-      h('div.tb-group',
-        btn('gear', 'Settings', 'Change your settings (Ctrl+O)', () => SettingsPanel.toggle()),
-        btn('home', 'Home', 'Return to the main menu', () => Screens.go('home'), { dataset: { tab: 'home' } })),
+      h('div.tb-group.tb-left',
+        btn('gear', 'settings', `change the way ${APP_NAME} behaves`, () => SettingsPanel.toggle(), { key: 'Ctrl+O', dataset: { ov: 'settings' } }),
+        btn('home', 'home', 'return to the main menu', () => this.home(), { key: 'Alt+Home' })),
+      ruleset,
       h('div.tb-spacer'),
-      h('div.tb-group',
-        btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
+      h('div.tb-group.tb-right',
+        btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.clock,
         this.bell),
@@ -7972,22 +8040,68 @@ const Toolbar = {
     setInterval(() => this.tick(), 1000);
     Bus.on('music:changed', () => this.updateNp());
     Bus.on('notif:changed', () => this.updateBell());
+    Bus.on('settings:changed', k => { if (k === 'audio.master' || k === '*') this.updateVolume(); });
+    Bus.on('screen:changed', () => this.sync());
     this.updateBell();
+    this.updateVolume();
   },
-  updateBell() { const n = Notifications.unread; this.bellCount.textContent = n > 99 ? '99+' : n || ''; this.bell.classList.toggle('has', n > 0); },
-  /** lazer's ToolbarClock: click to switch between full (analog + digital + time played), digital and analog. */
-  CLOCK_MODES: ['full', 'digital', 'analog'],
+  tip(title, sub, key, right) {
+    return h(`span.tb-tip${right ? '.r' : ''}`, h('b', title), h('span.tb-sub', h('span', sub), key ? h('kbd', key.toUpperCase()) : null));
+  },
+  home() { if (Screens.currentName !== 'home') Screens.go('home'); },
+  /** lazer's global hotkeys for the toolbar's buttons (Ctrl+O is in App.onKey with the rest). */
+  hotkey(e) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.altKey && !ctrl && e.code === 'Home') { this.home(); return true; }
+    if (!ctrl && !e.altKey && !e.shiftKey && e.code === 'F6') { NowPlaying.toggle(); return true; }
+    if (ctrl && !e.altKey && !e.shiftKey && e.code === 'KeyB') { this.pages.explore(); return true; }
+    if (ctrl && !e.altKey && !e.shiftKey && e.code === 'KeyN') { Notifications.toggle(); return true; }
+    return false;
+  },
+  updateBell() {
+    const n = Notifications.unread, c = this.bellCount;
+    if (n > (this._lastN || 0)) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+    this._lastN = n;
+    c.firstChild.textContent = n ? n.toLocaleString('en-US') : '';
+    c.classList.toggle('show', n > 0);
+    this.bell.classList.toggle('has', n > 0);
+  },
+  updateVolume() { if (this.volFill) this.volFill.style.transform = `scaleY(${clamp(Settings.get('audio.master'), 0, 1)})`; },
+  /** the volume bar widens from 3px to 6px while the wheel is changing the volume over it, for a second after */
+  volumeTouched() {
+    this.volBar.classList.add('wide');
+    clearTimeout(this._volT); this._volT = setTimeout(() => this.volBar.classList.remove('wide'), 1000);
+  },
+  /** The carmine "open" state of the buttons whose panel is showing (lazer's ToolbarOverlayToggleButton). */
+  sync() {
+    cancelAnimationFrame(this._syncRaf);
+    this._syncRaf = requestAnimationFrame(() => {
+      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen() };
+      $$('#toolbar [data-ov]').forEach(b => b.classList.toggle('on', !!on[b.dataset.ov]));
+      $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === this._tab));
+    });
+  },
+  /** lazer's ToolbarClock: click to go full (analog + digital + time running) → digital with time running → digital →
+   *  analog → full. The analog face is 22px with a 2px white rim, white hands and a pink second hand that ticks with
+   *  a little elastic bounce; the time is "h:mm:ss tt" (or 24-hour where that's the local habit). */
+  CLOCK_MODES: ['full', 'runtime', 'digital', 'analog'],
   buildClock() {
     const mode = this.CLOCK_MODES.includes(Settings.get('ui.clockMode')) ? Settings.get('ui.clockMode') : 'full';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'tb-analog');
-    svg.innerHTML = '<circle cx="12" cy="12" r="10.5" class="face"/><line x1="12" y1="12" x2="12" y2="6.5" class="hr"/><line x1="12" y1="12" x2="12" y2="4.2" class="mn"/><line x1="12" y1="13.5" x2="12" y2="3.5" class="sc"/><circle cx="12" cy="12" r="1.3" class="dot"/>';
+    svg.setAttribute('viewBox', '0 0 22 22'); svg.setAttribute('class', 'tb-analog');
+    // hands drawn pointing at 12, rotated about the centre: lazer's LargeHand is 2.4px thick, 34% / 48% of the face
+    // long, with a 0.7px Gray2 rim; the SecondHand is 66% long, 1.68px thick and starts 3.36px behind the centre
+    const hand = (cls, len) => `<g class="${cls}"><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="rim"/><line x1="11" y1="11" x2="11" y2="${(11 - (len * 22 - 2.4)).toFixed(2)}" class="core"/></g>`;
+    svg.innerHTML = '<circle cx="11" cy="11" r="10" class="face"/>' + hand('hr', 0.34) + hand('mn', 0.48) +
+      '<g class="sc"><line x1="11" y1="13.52" x2="11" y2="0.68"/></g><circle cx="11" cy="11" r="1.2" class="dot"/><circle cx="11" cy="11" r="0.84" class="dot2"/>';
     this.hands = { hr: svg.querySelector('.hr'), mn: svg.querySelector('.mn'), sc: svg.querySelector('.sc') };
-    this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run');
+    this._rot = { hr: null, mn: null, sc: null };
+    this.clockTime = h('span.tb-time'); this.clockRun = h('span.tb-run', h('span', 'running'), this.clockRunT = h('span'));
     // (append() writes a literal "null" for null arguments, so only the parts this mode shows are passed)
-    clearEl(this.clock).append(...[mode !== 'digital' ? svg : null, mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' ? this.clockRun : null) : null,
-      h('span.tb-tip', h('b', 'Clock'), h('span', 'Click to change how it looks'))].filter(Boolean));
+    clearEl(this.clock).append(...[h('span.tb-st'), mode === 'full' || mode === 'analog' ? svg : null,
+      mode !== 'analog' ? h('span.tb-digital', this.clockTime, mode === 'full' || mode === 'runtime' ? this.clockRun : null) : null].filter(Boolean));
     this.clock.dataset.mode = mode;
+    this.clock.classList.add('tb-btn');
     this._lastT = '';
   },
   cycleClock() {
@@ -7995,23 +8109,36 @@ const Toolbar = {
     Settings.set('ui.clockMode', this.CLOCK_MODES[(i + 1) % this.CLOCK_MODES.length]);
     this.buildClock(); this.tick();
   },
+  use24h() {
+    if (this._h24 == null) { try { const hc = new Intl.DateTimeFormat([], { hour: 'numeric' }).resolvedOptions().hourCycle; this._h24 = hc === 'h23' || hc === 'h24'; } catch { this._h24 = false; } }
+    return this._h24;
+  },
   tick() {
     if ($('#app').classList.contains('in-game')) return; // the toolbar is hidden in game: don't relayout every second
-    const d = new Date();
-    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
+    const t = this.use24h() ? `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`
+      : `${d.getHours() % 12 || 12}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
     if (this.clockTime && this.clockTime.textContent !== t) this.clockTime.textContent = t;
     if (this.clockRun && this.clockRun.isConnected) {
-      const s = Math.floor(performance.now() / 1000);
-      this.clockRun.textContent = `running ${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      // .NET's TimeSpan "c" format, as lazer prints it: hh:mm:ss, with a day count in front after a day
+      const s = Math.floor(performance.now() / 1000), dd = Math.floor(s / 86400);
+      this.clockRunT.textContent = `${dd ? dd + '.' : ''}${p2(Math.floor(s / 3600) % 24)}:${p2(Math.floor(s / 60) % 60)}:${p2(s % 60)}`;
     }
     if (this.hands && this.hands.hr.isConnected) {
       const sec = d.getSeconds(), min = d.getMinutes() + sec / 60, hr = (d.getHours() % 12) + min / 60;
-      this.hands.hr.setAttribute('transform', `rotate(${hr * 30} 12 12)`);
-      this.hands.mn.setAttribute('transform', `rotate(${min * 6} 12 12)`);
-      this.hands.sc.setAttribute('transform', `rotate(${sec * 6} 12 12)`);
+      this.turn('hr', hr * 30); this.turn('mn', min * 6); this.turn('sc', sec * 6);
     }
   },
-  setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
+  /** Rotate a clock hand the short way round (so 59 → 0 seconds carries on forwards rather than spinning back). */
+  turn(k, deg) {
+    const prev = this._rot[k];
+    const next = prev == null ? deg : prev + ((((deg - prev) % 360) + 540) % 360 - 180);
+    if (next === prev) return;
+    this._rot[k] = next;
+    this.hands[k].style.transform = `rotate(${next}deg)`;
+    if (prev == null) { this.hands[k].style.transition = 'none'; void this.hands[k].getBoundingClientRect(); this.hands[k].style.transition = ''; }
+  },
+  setActive(id) { this._tab = id; this.sync(); },
   updateProfile() {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
@@ -8041,24 +8168,50 @@ const Toolbar = {
   },
 };
 
-/** osu!lazer-style now playing panel: cover, title, seekable progress and previous / play-pause / next. */
+/** lazer's MarqueeContainer: text that fits sits centred; text that doesn't scrolls left at 50px/s after a second's
+ *  pause, followed by a copy 15px behind it, round and round. */
+function marquee(el, make) {
+  clearEl(el).classList.add('marquee');
+  const flow = h('span.mq-flow', make());
+  el.append(flow);
+  requestAnimationFrame(() => {
+    const w = flow.firstChild.getBoundingClientRect().width, room = el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight);
+    if (!(w > room + 0.5)) return;
+    flow.append(h('span.mq-copy', make()));
+    const dist = w + 15, ms = 1000 + dist * 1000 / 50;
+    el.classList.add('scroll');
+    flow.animate([{ transform: 'none' }, { transform: 'none', offset: 1000 / ms }, { transform: `translateX(${-dist}px)` }], { duration: ms, iterations: Infinity });
+  });
+}
+
+/** osu!lazer's NowPlayingOverlay: a 400×130 player 10px under the toolbar's right end, the track's background dimmed
+ *  behind its title (25px italic) and artist (15px bold italic), with shuffle, previous / play / next and the
+ *  playlist along a darker strip at the bottom, and a thin yellow seek bar that thickens under the pointer. A new
+ *  track's background slides in from the side it came from. The playlist drops down 10px below it. */
 const NowPlaying = {
-  el: null, open: false, pinned: false, _t: 0,
+  el: null, open: false,
   ensure() {
     if (this.el) return;
-    this.cover = h('div.np-cover');
+    this.bgs = h('div.np-bgs');
     this.title = h('div.np-title'); this.artist = h('div.np-artist');
     this.fill = h('i');
-    this.bar = h('div.np-bar', this.fill);
-    this.cur = h('span'); this.dur = h('span');
-    const b = (ic, tip, fn) => h('button.np-ctl', { title: tip, 'aria-label': tip, onclick: e => { e.stopPropagation(); UISounds.click(); fn(); } }, icon(ic));
-    this.playBtn = b('pause', 'Play / pause', () => MenuMusic.toggle());
-    this.el = h('div.np-panel',
-      this.cover,
-      h('div.np-body', this.title, this.artist,
-        h('div.np-ctls', b('prev', 'Previous track', () => MenuMusic.prev()), this.playBtn, b('skip', 'Next track', () => MenuMusic.next())),
-        h('div.np-times', this.cur, this.dur)),
+    this.bar = h('div.np-bar', h('span.np-bar-bg'), this.fill);
+    const b = (ic, tip, fn, cls = '') => h(`button.np-ctl${cls}`, { title: tip, 'aria-label': tip, onclick: e => { e.stopPropagation(); fn(); } }, h('span.np-ctl-in', icon(ic)));
+    this.playBtn = b('npplay', 'Play / pause', () => MenuMusic.toggle(), '.np-play');
+    this.shuffleBtn = b('shuffle', 'Shuffle', () => { Settings.set('audio.shuffle', !this.shuffleOn()); this.paintToggles(); }, '.np-side.np-shuffle');
+    this.listBtn = b('bars', 'Playlist', () => this.togglePlaylist(), '.np-side.np-listbtn');
+    this.list = h('div.np-list');
+    this.playlist = h('div.np-playlist', this.list);
+    this.player = h('div.np-player', this.bgs, this.title, this.artist,
+      h('div.np-bottom', this.shuffleBtn,
+        h('div.np-ctls', b('npprev', 'Previous track', () => MenuMusic.prev()), this.playBtn, b('npnext', 'Next track', () => MenuMusic.next())),
+        this.listBtn),
       this.bar);
+    this.el = h('div.np-panel', this.player, this.playlist);
+    // lazer's IconButton: squeezes to 75% while held (2s OutQuint) and springs back (1s OutElastic), flashes yellow on click
+    this.el.addEventListener('pointerdown', e => { const c = e.target.closest('.np-ctl'); if (c) c.classList.add('down'); });
+    window.addEventListener('pointerup', () => $$('.np-ctl.down').forEach(c => c.classList.remove('down')));
+    this.el.addEventListener('click', e => { const c = e.target.closest('.np-ctl'); if (c) { UISounds.click(); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); } });
     const seek = e => {
       const r = this.bar.getBoundingClientRect();
       if (!Music.loaded) return;
@@ -8069,8 +8222,18 @@ const NowPlaying = {
     this.bar.addEventListener('pointerdown', e => { seek(e); this.bar.setPointerCapture(e.pointerId); this._drag = true; });
     this.bar.addEventListener('pointermove', e => { if (this._drag) seek(e); });
     this.bar.addEventListener('pointerup', () => { this._drag = false; });
-    this.el.addEventListener('pointerenter', () => clearTimeout(this._t));
-    this.el.addEventListener('pointerleave', () => this.hoverClose());
+    // lazer's DragContainer: the player follows a drag on a rubber band (distance^0.7) and springs back when let go
+    this.player.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('.np-ctl, .np-bar')) return;
+      const x0 = e.clientX, y0 = e.clientY;
+      this.el.classList.add('dragging');
+      const move = ev => {
+        const dx = ev.clientX - x0, dy = ev.clientY - y0, len = Math.hypot(dx, dy), k = len > 0 ? Math.pow(len, 0.7) / len : 0;
+        this.el.style.translate = `${dx * k}px ${dy * k}px`;
+      };
+      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); this.el.classList.remove('dragging'); this.el.style.translate = ''; };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    });
     $('#app').appendChild(this.el);
     Bus.on('music:changed', () => this.render());
     document.addEventListener('pointerdown', e => {
@@ -8078,16 +8241,39 @@ const NowPlaying = {
     }, true);
     window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.open) { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); } }, true);
     Bus.on('screen:changed', () => this.hide());
+    this.paintToggles();
   },
-  hoverOpen() { clearTimeout(this._t); if (!this._shut) this.show(); },
-  hoverClose() { this._shut = false; if (this.pinned) return; clearTimeout(this._t); this._t = setTimeout(() => this.hide(), 350); },
-  /** The toolbar button: opens the panel (and keeps it open), or closes it if it's showing — hovering doesn't
-   *  bring it straight back until the pointer has left the button. */
-  toggle(pin) {
-    // a click on a panel that hovering just opened keeps it open; a click on a kept-open panel closes it
-    if (this.open && pin && !this.pinned) { clearTimeout(this._t); this.pinned = true; return; }
-    if (this.open) { this.hide(); this._shut = true; return; }
-    this.pinned = !!pin; this.show();
+  shuffleOn() { return Settings.get('audio.shuffle') !== false; },
+  paintToggles() {
+    this.shuffleBtn.classList.toggle('on', this.shuffleOn());
+    this.listBtn.classList.toggle('on', this.el.classList.contains('list'));
+  },
+  togglePlaylist() {
+    const on = !this.el.classList.contains('list');
+    this.el.classList.toggle('list', on);
+    if (on) this.renderList();
+    this.paintToggles();
+  },
+  /** lazer's Playlist: every set as "title  artist" (the artist smaller, bold and grey), the playing one in yellow. */
+  renderList() {
+    const cur = MenuMusic.current;
+    clearEl(this.list);
+    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
+    if (!sets.length) { this.list.append(h('div.np-li.empty', 'No beatmaps yet')); return; }
+    for (const s of sets) {
+      const m = s.maps.find(x => !x.problems.length);
+      const row = h('div.np-li', { onclick: () => { UISounds.click(); MenuMusic.go(m, false); } });
+      row.classList.toggle('sel', !!cur && cur.setId === s.id);
+      marquee(row, () => h('span', h('span.np-li-t', m.title), '  ', h('span.np-li-a', m.artist)));
+      this.list.append(row);
+    }
+    const sel = this.list.querySelector('.sel');
+    if (sel) requestAnimationFrame(() => sel.scrollIntoView({ block: 'nearest' }));
+  },
+  /** The toolbar's note (or F6) opens the panel, or closes it if it's showing — like lazer, hovering doesn't. */
+  toggle() {
+    if (this.open) { this.hide(); return; }
+    this.show();
   },
   show() {
     this.ensure();
@@ -8097,23 +8283,40 @@ const NowPlaying = {
     this.render();
     const loop = () => { if (!this.open) return; this.update(); this._raf = requestAnimationFrame(loop); };
     loop();
+    Toolbar.sync();
   },
-  hide() { if (!this.el) return; this.open = false; this.pinned = false; this.el.classList.remove('show'); cancelAnimationFrame(this._raf); },
+  hide() { if (!this.el) return; this.open = false; this.el.classList.remove('show'); cancelAnimationFrame(this._raf); Toolbar.sync(); },
   async render() {
     if (!this.el) return;
     const m = MenuMusic.current;
-    this.title.textContent = m ? m.title : 'Nothing playing';
-    this.artist.textContent = m ? m.artist : BeatmapManager.sets.length ? 'Press play to start the music' : 'Import some beatmaps to hear music here';
+    const key = m ? m.setId : '';
+    if (key !== this._key || !this.title.firstChild) {
+      marquee(this.title, () => h('span', m ? m.title : 'Nothing to play'));
+      marquee(this.artist, () => h('span', m ? m.artist : 'Nothing to play'));
+    }
+    if (this.el.classList.contains('list')) this.renderList();
+    if (key === this._key && this.bgs.firstChild) { this.update(); return; }
+    this._key = key;
+    const dir = MenuMusic.dir || 0; MenuMusic.dir = 0;
     const url = m ? await BeatmapManager.bgURL(m).catch(() => null) : null;
-    this.cover.style.backgroundImage = url ? `url("${url}")` : '';
+    if (key !== this._key) return;
+    // the new background slides in from the right after "next" (from the left after "previous"), pushing the old one out
+    const old = [...this.bgs.children];
+    const bg = h('div.np-bg', h('div.np-bg-img', { style: url ? `background-image: url("${url}")` : '' }));
+    if (dir && old.length && this.open) {
+      bg.style.transform = `translateX(${dir * 100}%)`;
+      this.bgs.append(bg);
+      void bg.offsetWidth;
+      bg.classList.add('slide'); bg.style.transform = '';
+      for (const o of old) { o.classList.add('slide'); o.style.transform = `translateX(${-dir * 100}%)`; setTimeout(() => o.remove(), 520); }
+    } else { old.forEach(o => o.remove()); this.bgs.append(bg); }
     this.update();
   },
   update() {
     const d = Music.duration, t = clamp(Music.time, 0, d || 0);
-    this.fill.style.width = d ? (t / d * 100).toFixed(2) + '%' : '0%';
-    this.cur.textContent = fmtTime(t); this.dur.textContent = fmtTime(d);
-    const ic = Music.playing ? 'pause' : 'play';
-    if (this.playBtn.dataset.ic !== ic) { this.playBtn.dataset.ic = ic; clearEl(this.playBtn).append(icon(ic)); }
+    this.fill.style.transform = `scaleX(${d ? (t / d).toFixed(4) : 0})`;
+    const ic = Music.playing ? 'nppause' : 'npplay';
+    if (this.playBtn.dataset.ic !== ic) { this.playBtn.dataset.ic = ic; clearEl(this.playBtn.firstChild).append(icon(ic)); }
   },
 };
 
@@ -8189,7 +8392,10 @@ const VolumeOverlay = {
       if (e.ctrlKey || e.metaKey) return;
       const scr = Screens.currentName, shown = this.el && this.el.classList.contains('show');
       const here = scr === 'home' || (scr === 'gameplay' && !Settings.get('input.noWheelVolumeInGame'));
-      if (!e.altKey && !(shown && this.hover)) {
+      // lazer's ToolbarMusicButton: the wheel over the toolbar's note always changes the master volume
+      const onNote = !!(e.target.closest && e.target.closest('.tb-music'));
+      if (onNote) { this.sel = 'master'; Toolbar.volumeTouched(); }
+      if (!e.altKey && !(shown && this.hover) && !onNote) {
         if (!here || Overlays.stack.length || SettingsPanel.o || this.overScroller(e.target)) return;
         if (scr === 'gameplay' && GameplayScreen.pauseEl) return;
       }
@@ -8262,9 +8468,9 @@ const Notifications = {
     this.render();
     this.el.classList.add('open');
     this.unread = 0; Bus.emit('notif:changed');
-    $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.add('active'));
+    Toolbar.sync();
   },
-  close() { if (this.el) this.el.classList.remove('open'); $$('#toolbar [data-tab="notifications"]').forEach(b => b.classList.remove('active')); },
+  close() { if (this.el) this.el.classList.remove('open'); Toolbar.sync(); },
   clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
   ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 45 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; },
   render() {
@@ -8771,29 +8977,48 @@ const MenuMusic = {
     Background.set(await BeatmapManager.bgURL(map));
     this.play(map, { fromPreview });
   },
-  /** Next track: a shuffled run through every set, so a small library plays each song once before any repeats
-   *  (picking at random kept landing on the same one or two). */
+  /** Next track. With shuffle on (lazer's default) it's a shuffled run through every set, so a small library plays
+   *  each song once before any repeats; with it off, the next set in the list. */
   async next() {
-    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
+    const sets = this.playable();
     if (!sets.length) return;
+    this.dir = 1;
     if (this.current) this.history.push(this.current.id);
-    const have = new Set(sets.map(s => s.id));
-    this.queue = (this.queue || []).filter(id => have.has(id) && (!this.current || id !== this.current.setId));
-    if (!this.queue.length) {
-      const ids = sets.map(s => s.id).filter(id => sets.length < 2 || !this.current || id !== this.current.setId);
-      for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
-      this.queue = ids;
+    let set;
+    if (Settings.get('audio.shuffle') === false) {
+      const i = this.current ? sets.findIndex(s => s.id === this.current.setId) : -1;
+      set = sets[(i + 1) % sets.length];
+    } else {
+      const have = new Set(sets.map(s => s.id));
+      this.queue = (this.queue || []).filter(id => have.has(id) && (!this.current || id !== this.current.setId));
+      if (!this.queue.length) {
+        const ids = sets.map(s => s.id).filter(id => sets.length < 2 || !this.current || id !== this.current.setId);
+        for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+        this.queue = ids;
+      }
+      set = BeatmapManager.setById.get(this.queue.shift());
     }
-    const set = BeatmapManager.setById.get(this.queue.shift());
     this.go(set.maps.find(m => !m.problems.length), false);
   },
+  /** lazer's MusicController.PreviousTrack: past 5 seconds in, back to the start of this one; otherwise the track
+   *  before (the one played before it with shuffle on, the set above it in the list with shuffle off). */
   async prev() {
-    if (Music.playing && Music.time > 4000) { Music.play(0, { fadeIn: 150 }); return; }
+    if (Music.loaded && Music.time >= 5000) { if (Music.playing) Music.play(0, { fadeIn: 150 }); else Music.pausedPos = 0; Bus.emit('music:changed', this.current); return; }
+    this.dir = -1;
+    if (Settings.get('audio.shuffle') === false) {
+      const sets = this.playable();
+      if (!sets.length) return;
+      const i = this.current ? sets.findIndex(s => s.id === this.current.setId) : 0;
+      const set = sets[(i - 1 + sets.length) % sets.length];
+      this.go(set.maps.find(m => !m.problems.length), false);
+      return;
+    }
     const id = this.history.pop();
     const map = id && BeatmapManager.maps.get(id);
-    if (!map) { if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
+    if (!map) { this.dir = 0; if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
     this.go(map, false);
   },
+  playable() { return BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length)); },
 };
 
 /* ===== 13b-neru.js ===== */
@@ -12744,7 +12969,8 @@ const SettingsPanel = {
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     scroll.addEventListener('scroll', () => this.syncNav());
-    this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); } });
+    this.o = makeOverlay(panel, { onClose: () => { this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
+    Toolbar.sync();
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
     // (it used to fall through to whatever screen was behind, e.g. song select's search)
@@ -15704,6 +15930,7 @@ const App = {
     if (e.altKey && e.code === 'Enter') { e.preventDefault(); toggleFullscreen(); return; }
     if (Screens.current === GameplayScreen) return; // gameplay handles its own input (capture listener)
     if (top) return;
+    if (!(e.target.closest && e.target.closest('input, textarea, select')) && Toolbar.hotkey(e)) { e.preventDefault(); return; }
     const inField = e.target.closest && e.target.closest('input, textarea, select');
     if (e.key === '?' && !inField && !e.ctrlKey && !e.altKey) { e.preventDefault(); Shortcuts.open(); return; }
     if (Screens.current && Screens.current.onKey && Screens.current.onKey(e)) { e.preventDefault(); return; }

@@ -374,27 +374,46 @@ const MenuMusic = {
     Background.set(await BeatmapManager.bgURL(map));
     this.play(map, { fromPreview });
   },
-  /** Next track: a shuffled run through every set, so a small library plays each song once before any repeats
-   *  (picking at random kept landing on the same one or two). */
+  /** Next track. With shuffle on (lazer's default) it's a shuffled run through every set, so a small library plays
+   *  each song once before any repeats; with it off, the next set in the list. */
   async next() {
-    const sets = BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length));
+    const sets = this.playable();
     if (!sets.length) return;
+    this.dir = 1;
     if (this.current) this.history.push(this.current.id);
-    const have = new Set(sets.map(s => s.id));
-    this.queue = (this.queue || []).filter(id => have.has(id) && (!this.current || id !== this.current.setId));
-    if (!this.queue.length) {
-      const ids = sets.map(s => s.id).filter(id => sets.length < 2 || !this.current || id !== this.current.setId);
-      for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
-      this.queue = ids;
+    let set;
+    if (Settings.get('audio.shuffle') === false) {
+      const i = this.current ? sets.findIndex(s => s.id === this.current.setId) : -1;
+      set = sets[(i + 1) % sets.length];
+    } else {
+      const have = new Set(sets.map(s => s.id));
+      this.queue = (this.queue || []).filter(id => have.has(id) && (!this.current || id !== this.current.setId));
+      if (!this.queue.length) {
+        const ids = sets.map(s => s.id).filter(id => sets.length < 2 || !this.current || id !== this.current.setId);
+        for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+        this.queue = ids;
+      }
+      set = BeatmapManager.setById.get(this.queue.shift());
     }
-    const set = BeatmapManager.setById.get(this.queue.shift());
     this.go(set.maps.find(m => !m.problems.length), false);
   },
+  /** lazer's MusicController.PreviousTrack: past 5 seconds in, back to the start of this one; otherwise the track
+   *  before (the one played before it with shuffle on, the set above it in the list with shuffle off). */
   async prev() {
-    if (Music.playing && Music.time > 4000) { Music.play(0, { fadeIn: 150 }); return; }
+    if (Music.loaded && Music.time >= 5000) { if (Music.playing) Music.play(0, { fadeIn: 150 }); else Music.pausedPos = 0; Bus.emit('music:changed', this.current); return; }
+    this.dir = -1;
+    if (Settings.get('audio.shuffle') === false) {
+      const sets = this.playable();
+      if (!sets.length) return;
+      const i = this.current ? sets.findIndex(s => s.id === this.current.setId) : 0;
+      const set = sets[(i - 1 + sets.length) % sets.length];
+      this.go(set.maps.find(m => !m.problems.length), false);
+      return;
+    }
     const id = this.history.pop();
     const map = id && BeatmapManager.maps.get(id);
-    if (!map) { if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
+    if (!map) { this.dir = 0; if (Music.loaded) Music.play(0, { fadeIn: 150 }); return; }
     this.go(map, false);
   },
+  playable() { return BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length)); },
 };
