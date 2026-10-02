@@ -2256,54 +2256,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-mode-t { display: flex; align-items: center; gap: 10px; font-size: 1.45rem; font-weight: 700; }
 .mp-mode-s { margin-top: 4px; font-size: .86rem; line-height: 1.45; color: rgba(255, 255, 255, .78); }
 .mp-mode > .btn { grid-column: 2; justify-self: start; height: 42px; padding: 0 24px; }
-.rp-tier { padding: 2px 9px; border-radius: 99px; background: color-mix(in srgb, var(--tc) 22%, transparent); color: var(--tc); font-size: .7rem; font-weight: 800; letter-spacing: .04em; }
-.rp-rating { margin-top: 8px; font-size: .85rem; color: rgba(255, 255, 255, .7); }
-.rp-rating b { font-size: 1.3rem; color: #ffcc22; }
 .mp-sec-t { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; font-size: 1.15rem; font-weight: 700; }
 .mp-sec-t span { font-size: .8rem; font-weight: 400; color: var(--muted); }
 .qp-av.pic { background: none; overflow: hidden; }
 .qp-av.pic > .avatar, .qp-av.pic > img { width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover; font-size: .6em !important; }
 
 /* Ranked Play room */
-.qp-stage.rp { align-items: stretch; }
-.qp-stage.rp.still, .qp-stage.rp.still .qp-card, .qp-stage.rp.still .rp-final-t, .qp-stage.rp.still .rp-side.hit, .qp-stage.rp.still .rp-dmg { animation: none; }
-.rp-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 8px; }
-.rp-vsmid { font-size: 1.4rem; font-weight: 800; font-style: italic; color: #ffcc22; text-shadow: 0 0 14px rgba(255, 204, 34, .5); }
-.rp-side { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); transition: box-shadow 200ms, transform 200ms; }
-.rp-side:not(.me) { flex-direction: row-reverse; text-align: right; }
-.rp-side.picking { box-shadow: 0 0 0 2px #ffcc22, 0 0 20px rgba(255, 204, 34, .35); }
-.rp-side.hit { animation: rpHit 500ms ease; }
-@keyframes rpHit { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-3px); } }
-.rp-av > .avatar, .rp-av > img { border-radius: 14px; object-fit: cover; }
-.rp-info { flex: 1; min-width: 0; position: relative; }
-.rp-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rp-rt { font-size: .74rem; color: var(--tc); font-weight: 700; }
-.rp-hp { position: relative; height: 18px; margin-top: 6px; border-radius: 9px; background: rgba(0, 0, 0, .45); overflow: hidden; }
-.rp-hp i { position: absolute; inset: 0 auto 0 0; border-radius: 9px; background: linear-gradient(90deg, #88b300, #b3d944); box-shadow: 0 0 10px rgba(179, 217, 68, .5); transition: width 700ms var(--ease-out); }
-.rp-side:not(.me) .rp-hp i { inset: 0 0 0 auto; }
-.rp-hp span { position: relative; display: block; padding: 0 8px; font-size: .7rem; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; }
-.rp-dmg { position: absolute; top: -6px; right: 0; color: #ff5a5a; font-weight: 800; font-size: 1.1rem; text-shadow: 0 0 10px rgba(255, 90, 90, .6); animation: rpDmg 1.2s var(--ease-out) both; }
-.rp-side:not(.me) .rp-dmg { right: auto; left: 0; }
-@keyframes rpDmg { from { transform: translateY(8px) scale(1.3); opacity: 0; } 25% { opacity: 1; } }
-.rp-mult { padding: 3px 10px; border-radius: 99px; background: rgba(255, 90, 90, .18); color: #ff8a8a; font-size: .78rem; font-weight: 800; }
-.rp-hand { width: 100%; }
-.rp-hand-l { margin: 4px 0 8px; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.rp-hand.theirs .qp-card { filter: saturate(.5) brightness(.7); cursor: default; min-height: 110px; }
-.qp-card.dim { filter: saturate(.6) brightness(.75); cursor: default; }
-.qp-card.flip { animation: rpFlip 650ms var(--ease-out) both; }
-@keyframes rpFlip { from { transform: perspective(700px) rotateY(90deg) scale(.9); } to { transform: none; } }
-.rp-scores { display: flex; justify-content: center; gap: 30px; }
-.rp-scores > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.rp-scores span { color: var(--muted); font-size: .8rem; }
-.rp-scores b { font-size: 1.3rem; }
-.rp-final { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; }
-.rp-final-t { font-size: 2.6rem; font-weight: 800; letter-spacing: .04em; color: #ff5a5a; text-shadow: 0 0 24px rgba(255, 90, 90, .45); animation: qpChosen 700ms var(--ease-out); }
-.rp-final.won .rp-final-t { color: #ffcc22; text-shadow: 0 0 24px rgba(255, 204, 34, .5); }
-.rp-final-r { font-size: 1.1rem; }
-.rp-final-r b { font-size: 1.5rem; }
-.rp-delta { margin-left: 8px; font-weight: 800; color: #ff5a5a; }
-.rp-delta.up { color: #b3d944; }
-.rp-help ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); font-size: .85rem; }
 
 /* lobby room list (lazer's lounge) */
 .mp-roomlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
@@ -2326,8 +2284,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-rjoin { padding: 7px 16px; border-radius: 8px; background: rgba(255, 102, 171, .9); font-weight: 700; font-size: .85rem; }
 .mp-room-row:disabled .mp-rjoin { background: rgba(255, 255, 255, .12); }
 .mp-left, .qp-stage { min-width: 0; }
-.rp-vs { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
-.qp-stage.rp .qp-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 
 /* toolbar: name then picture; the bell sits at the far right */
 .tb-profile { padding: 0 8px 0 14px; gap: 8px; }
@@ -2397,21 +2353,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .setup-wom-done > .i { flex: none; width: 22px; height: 22px; color: #88b300; }
 /* Ranked Play: skill level picker, readiness, reroll */
 .mp-cr-l small { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; }
-.rp-rt { color: var(--text-2); font-weight: 600; }
-.rp-range { display: flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--text-2); }
-.rp-range .i { width: 16px; height: 16px; color: var(--accent); }
-.rp-range b { color: #fff; }
-.rp-readybtn { min-width: 220px; }
-.rp-readybtn.on { background: #88b300; }
-.rp-ready { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgba(136, 179, 0, .25); color: #b3d944; font-size: .7rem; font-weight: 700; }
-.rp-ready .i { width: 11px; height: 11px; }
-.rp-hand-l { display: flex; align-items: center; gap: 8px; }
-.rp-reroll { text-transform: none; letter-spacing: 0; }
-.rp-rr { position: absolute; top: 8px; right: 8px; z-index: 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .55); color: rgba(255, 255, 255, .7); opacity: 0; transition: opacity 150ms, background 150ms; cursor: pointer; }
-.rp-rr .i { width: 14px; height: 14px; }
-.qp-card:hover .rp-rr, .rp-rr.on { opacity: 1; }
-.rp-rr:hover { background: rgba(255, 255, 255, .2); color: #fff; }
-.rp-rr.on { background: var(--accent); color: #fff; }
 .qp-card.marked { box-shadow: 0 0 0 2px var(--accent); }
 .qp-card.marked .qp-card-bg { filter: grayscale(.6) brightness(.7); }
 
@@ -2419,44 +2360,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 
 
 /* Ranked Play lobby: one centred card while waiting / choosing levels */
-.mp-room.rp-gathering .mp-side { display: none; }
-.mp-room.rp-gathering .mp-grid { grid-template-columns: minmax(0, 1fr); }
-.rpl { width: min(600px, 100%); margin: 8px auto 0; display: flex; flex-direction: column; gap: 24px; padding: 30px 32px 22px; border-radius: 18px; background: var(--panel-solid); box-shadow: 0 10px 40px rgba(0, 0, 0, .25); }
-.rpl-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
-.rpl-x { font-size: 1.5rem; font-weight: 900; font-style: italic; color: #ffcc22; opacity: .85; }
-.rpl-player { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
-.rpl-player b { max-width: 100%; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rpl-lv { font-size: .8rem; color: var(--text-2); }
-.rpl-av { position: relative; width: 76px; height: 76px; margin-bottom: 6px; }
-.rpl-av > .avatar { width: 76px !important; height: 76px !important; border-radius: 50%; }
-.rpl-player.ready .rpl-av > .avatar { box-shadow: 0 0 0 3px #88b300; }
-.rpl-check { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #88b300; color: #16210a; box-shadow: 0 0 0 3px var(--panel-solid); }
-.rpl-check .i { width: 14px; height: 14px; }
-.rpl-av.searching { display: grid; place-items: center; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .2); color: rgba(255, 255, 255, .35); }
-.rpl-av.searching .i { width: 30px; height: 30px; }
-.rpl-av.searching > i { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: rplPing 2.4s ease-out infinite; }
-.rpl-av.searching > i + i { animation-delay: 1.2s; }
-@keyframes rplPing { 0% { transform: scale(.85); opacity: .7; } 100% { transform: scale(1.45); opacity: 0; } }
-.rpl-player.rpl-none b { color: var(--text-2); font-weight: 600; }
-.rpl-sec { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
-.rpl-label { text-align: center; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.rk-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0, 0, 0, .3); }
-.rk-opt { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px 6px; border: 0; border-radius: 9px; background: none; color: var(--text-2); cursor: pointer; transition: background 150ms, color 150ms; }
-.rk-opt:hover { background: rgba(255, 255, 255, .06); color: #fff; }
-.rk-opt b { font-size: .9rem; }
-.rk-opt span { font-size: .72rem; opacity: .7; }
-.rk-opt.on { background: var(--accent); color: #fff; box-shadow: 0 2px 10px rgba(var(--accent-rgb), .35); }
-.rk-opt.on span { opacity: .9; }
-.rpl-code { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.rpl-code > span { padding: 6px 16px; border-radius: 10px; background: rgba(0, 0, 0, .3); font-size: 1.5rem; font-weight: 800; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
-.rpl-range { text-align: center; font-size: .86rem; color: var(--text-2); }
-.rpl .rp-readybtn { width: 100%; }
-.rpl-how { align-self: center; max-width: 100%; font-size: .82rem; color: var(--text-2); }
-.rpl-how summary { text-align: center; cursor: pointer; color: var(--muted); list-style: none; }
-.rpl-how summary::-webkit-details-marker { display: none; }
-.rpl-how summary:hover { color: #fff; }
-.rpl-how[open] summary { margin-bottom: 8px; }
-.rpl-how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; text-align: left; }
 /* the Web-Osu-Mania page: compact yes / no so the import steps and button stay in view */
 .setup-step-wom .setup-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 14px 18px; text-align: left; }
 .setup-step-wom .setup-choice-ic { grid-row: 1 / 3; width: 44px; height: 44px; margin: 0; }
@@ -2510,6 +2413,378 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .hm-btn .i { width: 18px; height: 18px; position: relative; }
 .hm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); }
 .hm-btn:hover { background: rgba(0, 0, 0, .75); }
+
+/* ── Ranked Play (osu!lazer's RankedPlayScreen): you in blue at the bottom left, your opponent in red at the top right,
+      the stage and its timer up top, hands of beatmap cards, and the intro, results and end screens */
+.mp.rkm-on { overflow: hidden; overflow: clip; }
+.mp.rkm-on > .page-back { display: none; }
+.rkm { --sh: -12deg; position: absolute; inset: 0; z-index: 30; overflow: hidden; overflow: clip; background: #16151b; color: #fff; user-select: none; }
+.rkm-bg { position: absolute; inset: -40px; background: radial-gradient(60% 55% at 0% 100%, rgba(67, 130, 255, .22), transparent 70%), radial-gradient(55% 50% at 100% 0%, rgba(249, 77, 146, .2), transparent 70%), linear-gradient(180deg, #1b1a21, #121116); background-size: cover; background-position: center; transition: filter 600ms ease, opacity 600ms ease; }
+.rkm-bgmap { position: absolute; inset: -40px; background: center / cover no-repeat #111; filter: blur(14px) brightness(.32) saturate(1.2); opacity: 0; transition: opacity 700ms ease; }
+.rkm[data-stage="ready"] .rkm-bgmap.on { opacity: 1; }
+.rkm-main { position: absolute; inset: 0; display: flex; }
+.rkm-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rkm-leave { position: absolute; left: 16px; top: 14px; z-index: 6; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .75); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; transition: background var(--t-fast), color var(--t-fast); }
+.rkm-leave:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.rkm-leave .i { width: 16px; height: 16px; }
+
+/* the stage display: a sheared box with the stage's name, its timer and a bar running down; the caption under it */
+.rkm-top { position: absolute; top: 16px; left: 50%; z-index: 5; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; transition: opacity 300ms ease; }
+.rkm-top.none { opacity: 0; }
+.rkm-headbox { position: relative; display: grid; grid-template-columns: auto auto; align-items: center; gap: 4px 18px; min-width: 300px; padding: 9px 22px 12px; border-radius: 8px; background: rgba(32, 30, 38, .92); box-shadow: 0 8px 26px rgba(0, 0, 0, .35); transform: skewX(var(--sh)); }
+.rkm-headbox > * { transform: skewX(calc(var(--sh) * -1)); }
+.rkm-head { font-size: 1.45rem; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+.rkm-timer { justify-self: end; font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 600; color: rgba(255, 255, 255, .8); min-width: 7.2em; text-align: right; }
+.rkm-tbar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; transform: none; }
+.rkm-tbar i { display: block; height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
+.rkm-top.warn .rkm-timer { color: #ff6b7f; }
+.rkm-top.warn .rkm-tbar i { background: #ff6b7f; }
+.rkm-top.warn .rkm-headbox { animation: rkWarn 1s ease-in-out infinite; }
+@keyframes rkWarn { 50% { box-shadow: 0 8px 26px rgba(0, 0, 0, .35), 0 0 0 2px rgba(255, 107, 127, .55); } }
+.rkm-cap { min-height: 1.3em; font-size: 1.05rem; color: rgba(255, 255, 255, .85); text-shadow: 0 2px 10px rgba(0, 0, 0, .6); }
+.rkm-round { font-size: .78rem; font-weight: 600; letter-spacing: .04em; color: rgba(255, 255, 255, .5); }
+
+/* corner pieces: avatar, the damage multiplier, the life bar and the name */
+.rkm-corner { position: absolute; z-index: 4; display: flex; align-items: center; gap: 0; width: min(370px, calc(30 * var(--vw))); padding: 16px 22px; transition: opacity 400ms ease, transform 500ms var(--ease-out); }
+.rkm-corner.me { left: 0; bottom: 0; }
+.rkm-corner.opp { right: 0; top: 0; flex-direction: row-reverse; text-align: right; }
+.rkm-corner::before { content: ""; position: absolute; inset: 6px 0; z-index: -1; background: linear-gradient(90deg, color-mix(in srgb, var(--sf) 92%, transparent), color-mix(in srgb, var(--sf) 0%, transparent)); }
+.rkm-corner.opp::before { background: linear-gradient(270deg, color-mix(in srgb, var(--sf) 92%, transparent), transparent); }
+.rkm.no-corners .rkm-corner.me { opacity: 0; transform: translate(-30px, 30px); pointer-events: none; }
+.rkm.no-corners .rkm-corner.opp { opacity: 0; transform: translate(30px, -30px); pointer-events: none; }
+.rkm-av { flex: 0 0 72px; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--sf) 50%, transparent); box-shadow: 0 0 0 3px var(--p), 0 6px 18px rgba(0, 0, 0, .35); transition: filter 300ms ease; }
+.rkm-av > .avatar, .rkm-av > img { width: 72px !important; height: 72px !important; border-radius: 50%; object-fit: cover; }
+.rkm-av.empty { display: grid; place-items: center; color: rgba(255, 255, 255, .4); box-shadow: 0 0 0 2px rgba(255, 255, 255, .15); }
+.rkm-av.empty .i { width: 30px; height: 30px; }
+.rkm-corner.dead .rkm-av { filter: grayscale(1) brightness(.7); }
+.rkm-corner.active .rkm-av { animation: rkActive 1.6s ease-in-out infinite; }
+@keyframes rkActive { 50% { box-shadow: 0 0 0 3px var(--p), 0 0 26px var(--p); } }
+.rkm-cinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 0 10px; }
+.rkm-row { display: flex; align-items: baseline; gap: 8px; min-height: 16px; padding: 0 4px; }
+.rkm-corner.opp .rkm-row { flex-direction: row-reverse; }
+.rkm-mult { margin-left: auto; font-size: .72rem; font-weight: 600; color: rgba(255, 255, 255, .7); }
+.rkm-corner.opp .rkm-mult { margin-left: 0; margin-right: auto; }
+.rkm-stand { font-size: .72rem; font-weight: 700; color: #ffcc22; opacity: 0; }
+.rkm-stand.show { animation: rkStand 3.5s ease both; }
+@keyframes rkStand { 0% { opacity: 0; } 4% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; } }
+.rkm-name { font-size: 1.35rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkm-won { font-size: .72rem; color: rgba(255, 255, 255, .55); white-space: nowrap; }
+.rkm-state { font-size: .72rem; font-weight: 600; color: var(--p); white-space: nowrap; }
+.rkm-hp { position: relative; height: 24px; transform: skewX(var(--sh)); border-radius: 4px; background: color-mix(in srgb, var(--sf) 85%, transparent); box-shadow: inset 0 0 0 1px var(--sb); padding: 3px 4px; }
+.rkm-corner.opp .rkm-hp { transform: skewX(calc(var(--sh) * -1)); }
+.rkm-hptrack { position: absolute; inset: 3px 4px; border-radius: 2px; overflow: hidden; }
+.rkm-hpfill { position: absolute; inset: 0; transform-origin: left; background: linear-gradient(90deg, var(--pk), var(--pd) 55%, var(--p)); box-shadow: 0 0 12px color-mix(in srgb, var(--p) 60%, transparent); }
+.rkm-corner.opp .rkm-hpfill { transform-origin: right; background: linear-gradient(270deg, var(--pk), var(--pd) 55%, var(--p)); }
+.rkm-hpfill.anim { transition: transform 900ms cubic-bezier(.16, 1, .3, 1); }
+.rkm-corner.low .rkm-hpfill { animation: rkLow 900ms ease-in-out infinite; }
+@keyframes rkLow { 50% { filter: brightness(1.6) saturate(1.3); } }
+.rkm-hptxt, .rkm-heart { position: absolute; top: 50%; transform: translateY(-50%) skewX(calc(var(--sh) * -1)); font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0, 0, 0, .7); }
+.rkm-heart { left: 10px; color: #fff; }
+.rkm-hptxt { left: 26px; }
+.rkm-corner.opp .rkm-heart { left: auto; right: 10px; }
+.rkm-corner.opp .rkm-hptxt { left: auto; right: 26px; }
+.rkm-corner.hit { animation: rkShake 420ms ease; }
+@keyframes rkShake { 15% { translate: -5px 1px; } 30% { translate: 4px -2px; } 45% { translate: -3px 2px; } 60% { translate: 2px -1px; } 75% { translate: -1px 1px; } }
+
+/* the stage overlay: the stage's name, big, for a moment */
+.rkm-ov { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+.rkm-banner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0, 0, 0, .4); animation: rkBanIn 300ms var(--ease-out) both; }
+.rkm-banner.out { animation: rkBanOut 500ms var(--ease-out) both; }
+.rkm-banner-box { width: min(560px, 80%); padding: 20px 0; border-radius: 12px; background: color-mix(in srgb, var(--sf) 80%, #000); text-align: center; transform: skewX(var(--sh)); animation: rkBanBox 500ms var(--ease-out) both; }
+.rkm-banner-box span { display: inline-block; transform: skewX(calc(var(--sh) * -1)); font-size: 3.6rem; font-weight: 600; letter-spacing: .01em; }
+.rkm-banner-who { display: flex; align-items: center; gap: 8px; font-size: 1.6rem; color: var(--p); animation: rkBanBox 500ms var(--ease-out) both; }
+.rkm-banner-av { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; }
+.rkm-banner-av > * { width: 32px !important; height: 32px !important; border-radius: 50%; }
+@keyframes rkBanIn { from { opacity: 0; } }
+@keyframes rkBanOut { to { opacity: 0; } }
+@keyframes rkBanBox { from { scale: .9; } }
+
+/* chat (bottom right) */
+.rkm-chat { position: absolute; right: 14px; bottom: 120px; z-index: 5; width: 300px; display: flex; flex-direction: column; gap: 6px; transition: opacity 300ms ease; }
+.rkm-chat.hidden { opacity: 0; pointer-events: none; }
+.rkm-chatlist { max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; mask-image: linear-gradient(180deg, transparent, #000 30px); -webkit-mask-image: linear-gradient(180deg, transparent, #000 30px); scrollbar-width: none; }
+.rkm-msg { align-self: flex-start; max-width: 100%; padding: 5px 10px; border-radius: 10px 10px 10px 3px; background: rgba(36, 32, 35, .88); font-size: .82rem; line-height: 1.35; overflow-wrap: anywhere; }
+.rkm-msg b { margin-right: 6px; color: #ff8198; }
+.rkm-msg.me { align-self: flex-end; border-radius: 10px 10px 3px 10px; background: rgba(51, 48, 61, .92); }
+.rkm-msg.me b { color: #5ebfff; }
+.rkm-msg.sys { align-self: center; background: none; color: rgba(255, 255, 255, .45); font-size: .74rem; text-align: center; }
+.rkm-chat .input { height: 32px; font-size: .82rem; background: rgba(20, 18, 24, .9); }
+
+/* waiting */
+.rkm-wait { display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: 1.2rem; color: rgba(255, 255, 255, .8); }
+.rkm-live { margin-top: 18px; }
+.rkm-live > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rkm-live span { color: rgba(255, 255, 255, .6); font-size: .85rem; }
+.rkm-live b { font-size: 2.2rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #ff8198; }
+.rkm-live small { color: rgba(255, 255, 255, .6); }
+
+/* a duel waiting for the friend */
+.rkm-duel { width: min(620px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 32px 34px 28px; border-radius: 18px; background: rgba(36, 34, 42, .92); box-shadow: 0 14px 50px rgba(0, 0, 0, .35); animation: rkUp 500ms var(--ease-out) both; }
+.rkm-duel-t { font-size: 1.6rem; font-weight: 600; }
+.rkm-duel-s { margin-top: -8px; font-size: .85rem; color: var(--text-2); text-align: center; }
+.rkm-duel-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; width: 100%; margin: 10px 0 6px; }
+.rkm-duel-x { font-size: 2rem; font-weight: 900; font-style: italic; background: linear-gradient(90deg, #5ebfff, #ff8198); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rkm-duel-p { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; text-align: center; }
+.rkm-duel-p > .avatar, .rkm-duel-p > img { width: 84px !important; height: 84px !important; border-radius: 50%; box-shadow: 0 0 0 3px #5ebfff; }
+.rkm-duel-p:last-child > .avatar, .rkm-duel-p:last-child > img { box-shadow: 0 0 0 3px #ff8198; }
+.rkm-duel-p b { max-width: 100%; font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkm-duel-p span { font-size: .8rem; color: var(--text-2); }
+.rkm-duel-ping { position: relative; width: 84px; height: 84px; display: grid; place-items: center; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .2); color: rgba(255, 255, 255, .35); }
+.rkm-duel-ping .i { width: 32px; height: 32px; }
+.rkm-duel-ping > i { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid #ff8198; opacity: 0; animation: rkPing 2.4s ease-out infinite; }
+.rkm-duel-ping > i + i { animation-delay: 1.2s; }
+@keyframes rkPing { 0% { transform: scale(.85); opacity: .7; } 100% { transform: scale(1.45); opacity: 0; } }
+.rkm-duel-l { font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rkm-code { display: flex; align-items: center; gap: 8px; }
+.rkm-code > span { padding: 6px 16px; border-radius: 10px; background: rgba(0, 0, 0, .3); font-size: 1.5rem; font-weight: 800; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+@keyframes rkUp { from { opacity: 0; transform: translateY(18px); } }
+
+/* cards */
+.rkc { --sc: #888; --cw: 168px; position: relative; width: var(--cw); height: calc(var(--cw) * 1.42); perspective: 900px; flex: 0 0 auto; }
+.rkc-in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 600ms var(--ease-out); }
+.rkc.back .rkc-in { transform: rotateY(180deg); }
+.rkc-face, .rkc-backside { position: absolute; inset: 0; border-radius: 12px; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.rkc-face { display: flex; flex-direction: column; justify-content: flex-end; background: #1d1b22; box-shadow: 0 0 0 2px var(--sc), 0 10px 26px rgba(0, 0, 0, .45), 0 0 22px color-mix(in srgb, var(--sc) 30%, transparent); }
+.rkc-cover { position: absolute; inset: 0 0 38% 0; background: center / cover no-repeat, linear-gradient(135deg, #2c2a35, #1c1a21); }
+.rkc-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .15) 40%, #1d1b22); }
+.rkc-top { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; justify-content: space-between; }
+.rkc-top .stars { font-size: .72rem; }
+.rkc-keys { padding: 2px 7px; border-radius: 99px; background: rgba(0, 0, 0, .6); font-size: .7rem; font-weight: 700; }
+.rkc-body { position: relative; padding: 0 10px 10px; display: flex; flex-direction: column; gap: 1px; }
+.rkc-t { font-size: .95rem; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rkc-a { font-size: .76rem; color: rgba(255, 255, 255, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkc-v { margin-top: 3px; font-size: .74rem; font-weight: 700; color: var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; filter: brightness(1.35); }
+.rkc-meta { display: flex; gap: 8px; margin-top: 4px; font-size: .68rem; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; }
+.rkc-meta span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rkc-meta .i { width: 11px; height: 11px; flex: none; }
+.rkc-backside { transform: rotateY(180deg); display: grid; place-items: center; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .035) 0 10px, transparent 10px 20px), linear-gradient(160deg, #3a2f55, #1f1b2c 55%, #2a1c30); box-shadow: 0 0 0 2px rgba(255, 255, 255, .14), 0 10px 26px rgba(0, 0, 0, .45); }
+.rkc-logo { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 16px; border-radius: 50%; }
+.rkc-logo span { font-size: 1.2rem; font-weight: 900; font-style: italic; color: rgba(255, 255, 255, .85); }
+.rkc-logo small { font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .45); }
+
+/* hands: cards fanned on an arc; yours along the bottom, your opponent's hanging from the top */
+.rkh { position: absolute; left: 0; right: 0; bottom: 60px; height: 280px; pointer-events: none; }
+.rkh.top { top: 0; bottom: auto; height: 200px; }
+.rkh-slot { position: absolute; left: calc(50% + var(--x) * 132px); bottom: 0; transform: translate(-50%, var(--y)) rotate(var(--r)); transform-origin: 50% 100%; transition: transform 300ms var(--ease-out), filter 200ms ease; animation: rkDeal 600ms var(--ease-out) var(--d) both; pointer-events: auto; }
+.rkh.top .rkh-slot { left: calc(50% + var(--x) * 84px); top: 0; bottom: auto; transform-origin: 50% 0; transform: translate(-50%, calc(var(--y) * -1)) rotate(calc(var(--r) * -1)); animation-name: rkDealTop; }
+.rkh.top .rkc { --cw: 112px; }
+.rkh.live .rkh-slot { cursor: pointer; }
+.rkh-slot.hover { z-index: 60 !important; transform: translate(-50%, calc(var(--y) - 46px)) rotate(0deg) scale(1.14); }
+.rkh-slot.sel { z-index: 59 !important; transform: translate(-50%, calc(var(--y) - 36px)) rotate(0deg) scale(1.1); }
+.rkh-slot.sel .rkc-face { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--sc), 0 14px 36px rgba(0, 0, 0, .5), 0 0 40px color-mix(in srgb, var(--sc) 55%, transparent); }
+.rkh.top .rkh-slot.hover { transform: translate(-50%, calc(var(--y) * -1 + 34px)) rotate(0deg) scale(1.06); }
+.rkh.top .rkh-slot.sel { transform: translate(-50%, calc(var(--y) * -1 + 48px)) rotate(0deg) scale(1.1); }
+.rkh.top .rkh-slot.sel .rkc-backside { box-shadow: 0 0 0 3px #ff8198, 0 0 32px rgba(255, 129, 152, .6); }
+.rkh-slot.playing { transform: translate(-50%, -160px) rotate(0deg) scale(1.15); opacity: 0; transition: transform 500ms var(--ease-out), opacity 500ms ease; }
+.rkh-slot.dimmed { filter: brightness(.55); }
+.rkh-play { position: absolute; left: 50%; top: -46px; transform: translateX(-50%) scale(.9); display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 18px; border: 0; border-radius: 99px; background: #5ebfff; color: #0b1c2c; font: inherit; font-weight: 700; font-size: .95rem; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 200ms, transform 200ms var(--ease-out); box-shadow: 0 6px 20px rgba(94, 191, 255, .45); }
+.rkh-play .i { width: 15px; height: 15px; }
+.rkh-slot.sel .rkh-play { opacity: 1; pointer-events: auto; transform: translateX(-50%) scale(1); }
+.rkh-play:hover { background: #8ad3ff; }
+@keyframes rkDeal { from { opacity: 0; transform: translate(-50%, 220px) rotate(0deg); } }
+@keyframes rkDealTop { from { opacity: 0; transform: translate(-50%, -200px) rotate(0deg); } }
+.rkm-opphand { position: absolute; left: 0; right: 0; top: 150px; height: 200px; pointer-events: none; transition: transform 600ms var(--ease-out), opacity 600ms ease; }
+.st-picked .rkm-opphand { transform: translateY(-60px) scale(.85); opacity: .45; }
+.st-picked .rkm-myhand { transform: translateY(150px); opacity: .55; }
+.rkm-opphand .rkh { pointer-events: none; }
+.rkm-opptag { position: absolute; left: 50%; top: 150px; z-index: 2; white-space: nowrap; transform: translateX(-50%); padding: 3px 12px; border-radius: 99px; background: rgba(255, 129, 152, .2); color: #ff8198; font-size: .8rem; font-weight: 700; }
+.rkm-myhand { position: absolute; left: 0; right: 0; bottom: 0; height: 360px; pointer-events: none; transition: transform 600ms var(--ease-out), opacity 600ms ease; }
+.st-pick .rkp-center, .st-picked .rkp-center { margin-top: 40px; }
+
+/* the played card, centre stage */
+.rkp-center { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: -30px; }
+.rkp-center .rkc { --cw: 210px; }
+.rkc.played { animation: rkPlayed 700ms var(--ease-out) both; }
+.rkc.played.from-opp .rkc-in { animation: rkFlip 900ms var(--ease-out) 150ms both; }
+@keyframes rkPlayed { from { opacity: 0; transform: translateY(160px) scale(.8); } }
+.rkc.played.from-opp { animation-name: rkPlayedOpp; }
+@keyframes rkPlayedOpp { from { opacity: 0; transform: translateY(-180px) scale(.7); } }
+@keyframes rkFlip { from { transform: rotateY(180deg); } }
+.rkp-who { font-size: 1rem; color: rgba(255, 255, 255, .7); animation: rkUp 500ms var(--ease-out) 500ms both; }
+
+/* discard phase: your hand in a row; mark cards to replace */
+.st-discard, .st-discarded { gap: 22px; }
+.rkd-explain { text-align: center; font-size: 1.15rem; color: rgba(255, 255, 255, .85); animation: rkUp 600ms var(--ease-out) 300ms both; }
+.rkd-explain p { margin: 0 0 4px; }
+.st-discarded .rkd-explain { opacity: .5; }
+.rkd-row { display: flex; justify-content: center; gap: 18px; min-height: calc(168px * 1.42 + 30px); padding-top: 26px; }
+.rkd-slot { position: relative; transition: transform 300ms var(--ease-out), opacity 400ms ease, filter 200ms ease; animation: rkUp 500ms var(--ease-out) var(--d) both; }
+.rkd-slot.live { cursor: pointer; }
+.rkd-slot.live:hover { transform: translateY(-12px) scale(1.04); }
+.rkd-slot.marked { transform: translateY(-18px); }
+.rkd-slot.marked .rkc-face { box-shadow: 0 0 0 3px #ff5f7a, 0 14px 34px rgba(0, 0, 0, .5); filter: saturate(.55) brightness(.7); }
+.rkd-mark { position: absolute; left: 50%; top: 42%; z-index: 2; display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 99px; background: #ff5f7a; color: #fff; font-size: .8rem; font-weight: 700; transform: translateX(-50%) scale(.8); opacity: 0; transition: opacity 150ms, transform 200ms var(--ease-out); pointer-events: none; }
+.rkd-mark .i { width: 13px; height: 13px; }
+.rkd-slot.marked .rkd-mark { opacity: 1; transform: translateX(-50%) scale(1); }
+.rkd-slot.gone { transform: translateY(-90px) scale(.9); opacity: 0; }
+.rkd-slot.new { animation: rkNew 650ms var(--ease-out) var(--d) both; }
+@keyframes rkNew { from { opacity: 0; transform: translateY(120px) rotate(4deg); } }
+.rkd-btn { min-width: 220px; height: 46px; padding: 0 30px; border: 0; border-radius: 10px; background: #5ebfff; color: #0b1c2c; font: inherit; font-size: 1.1rem; font-weight: 700; cursor: pointer; transform: skewX(var(--sh)); box-shadow: 0 8px 24px rgba(94, 191, 255, .35); transition: background var(--t-fast), transform var(--t-fast); animation: rkUp 500ms var(--ease-out) 600ms both; }
+.rkd-btn:hover { background: #8ad3ff; }
+.rkd-btn.replace { background: #ff8198; color: #2c0b14; box-shadow: 0 8px 24px rgba(255, 129, 152, .35); }
+.rkd-btn.replace:hover { background: #ffa5b6; }
+.rkd-btn[hidden] { display: none; }
+
+/* gameplay warmup: the card beside the beatmap's details */
+.rkw { display: grid; grid-template-columns: auto auto minmax(0, 460px); align-items: center; gap: 26px; width: min(980px, calc(100% - 48px)); }
+.rkw-card .rkc { --cw: 230px; animation: rkUp 600ms var(--ease-out) both; }
+.rkw-sep { width: 2px; height: 110px; background: rgba(255, 255, 255, .35); transform-origin: center; animation: rkSep 1s var(--ease-out) 500ms both; }
+@keyframes rkSep { from { transform: scaleY(0); opacity: 0; } }
+.rkw-details { display: flex; flex-direction: column; gap: 6px; animation: rkSlide 1s var(--ease-out) 700ms both; }
+@keyframes rkSlide { from { opacity: 0; transform: translateX(-24px) scale(.95); } }
+.rkw-wedge { padding: 14px 20px; border-radius: 10px; background: rgba(30, 28, 36, .9); transform: skewX(var(--sh)); }
+.rkw-wedge > * { transform: skewX(calc(var(--sh) * -1)); }
+.rkw-t { font-size: 1.9rem; font-weight: 700; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rkw-a { font-size: 1.05rem; color: rgba(255, 255, 255, .75); }
+.rkw-stats { display: flex; gap: 16px; margin-top: 8px; }
+.rkw-stat { display: inline-flex; align-items: center; gap: 5px; font-size: .85rem; color: rgba(255, 255, 255, .7); }
+.rkw-stat .i { width: 14px; height: 14px; }
+.rkw-wedge.diff { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: inset 4px 0 0 var(--sc); }
+.rkw-v { font-weight: 700; font-size: 1.05rem; }
+.rkw-by { font-size: .85rem; color: rgba(255, 255, 255, .6); }
+.rkw-by b { color: #fff; font-weight: 600; }
+.rkw-wedge.meta { display: flex; gap: 26px; }
+.rkw-wedge.meta > div { display: flex; flex-direction: column; gap: 1px; transform: none; }
+.rkw-wedge.meta span { font-size: .72rem; color: rgba(255, 255, 255, .5); text-transform: uppercase; letter-spacing: .06em; }
+.rkw-wedge.meta b { font-size: 1rem; }
+.rkw-count { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%) scale(.8); font-size: 4.5rem; font-weight: 300; font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 300ms ease, transform 400ms var(--ease-out); text-shadow: 0 4px 30px rgba(0, 0, 0, .6); }
+.rkw-count.on { opacity: 1; transform: translateX(-50%) scale(1); }
+
+/* round 1's intro: the face-off, then the star rating being "refined" */
+.rki { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rki-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4vw; width: min(1100px, 92%); transition: transform 900ms var(--ease-out), opacity 700ms ease; }
+.rki.sr .rki-vs { transform: translateY(-26vh) scale(.62); opacity: .55; }
+.rki-side { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; text-align: center; }
+.rki-side.l { animation: rkFromL 900ms var(--ease-out) 150ms both; }
+.rki-side.r { animation: rkFromR 900ms var(--ease-out) 150ms both; }
+@keyframes rkFromL { from { opacity: 0; transform: translateX(-30vw); } }
+@keyframes rkFromR { from { opacity: 0; transform: translateX(30vw); } }
+.rki-av { width: 132px; height: 132px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 4px var(--p), 0 0 46px color-mix(in srgb, var(--p) 55%, transparent); }
+.rki-av > * { width: 132px !important; height: 132px !important; border-radius: 50%; object-fit: cover; }
+.rki-name { max-width: 100%; font-size: 2.2rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rki-rt { font-size: 1.1rem; color: var(--p); font-weight: 600; }
+.rki-x { padding: 0 .12em; font-size: 6rem; font-weight: 900; font-style: italic; letter-spacing: -.02em; background: linear-gradient(90deg, #5ebfff, #fff 50%, #ff8198); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 6px 30px rgba(0, 0, 0, .5)); animation: rkVs 700ms cubic-bezier(.2, 1.6, .4, 1) 850ms both; }
+@keyframes rkVs { from { opacity: 0; transform: scale(2.4) rotate(-6deg); } }
+.rki-sr { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; transition: opacity 600ms ease; pointer-events: none; text-align: center; }
+.rki.sr .rki-sr { opacity: 1; }
+.rki-st { font-size: 1.5rem; font-weight: 600; }
+.rki-stars { font-size: 5rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; transition: color 200ms; text-shadow: 0 0 40px currentColor; }
+.rki.landed .rki-stars { animation: rkLand 700ms cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes rkLand { from { transform: scale(1.5); } }
+.rki-sub { font-size: 1.05rem; color: rgba(255, 255, 255, .75); }
+.rki-after { font-size: .9rem; color: rgba(255, 255, 255, .5); opacity: 0; transition: opacity 600ms ease 400ms; }
+.rki.landed .rki-after { opacity: 1; }
+
+/* results: the scores side by side, then the damage */
+.rkr { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(940px, calc(100% - 40px)); }
+.rkr-round { font-size: 2.2rem; font-weight: 600; animation: rkUp 500ms var(--ease-out) both; }
+.rkr-card .rkc { --cw: 120px; animation: rkUp 500ms var(--ease-out) 100ms both; }
+.rkr-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; width: 100%; }
+.rkr-col { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 18px 22px; border-radius: 14px; background: color-mix(in srgb, var(--sf) 92%, transparent); box-shadow: inset 0 3px 0 var(--p); animation: rkUp 500ms var(--ease-out) 200ms both; }
+.rkr-col + .rkr-col { animation-delay: 300ms; }
+.rkr-col.win { box-shadow: inset 0 3px 0 var(--p), 0 0 0 1px color-mix(in srgb, var(--p) 45%, transparent), 0 0 40px color-mix(in srgb, var(--p) 18%, transparent); }
+.rkr-col.hit { animation: rkShake 500ms ease; }
+.rkr-who { display: flex; align-items: center; gap: 12px; }
+.rkr-who > .avatar, .rkr-who > img { width: 56px !important; height: 56px !important; border-radius: 50%; box-shadow: 0 0 0 2px var(--p); }
+.rkr-who > div:not(.avatar) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rkr-who b { font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkr-who span { font-size: .82rem; color: rgba(255, 255, 255, .6); }
+.rkr-score { font-size: 2.8rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.rkr-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.rkr-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pd), var(--p)); transform-origin: left; transform: scaleX(0); transition: transform 2s cubic-bezier(.16, 1, .3, 1); }
+.rkr-bar i.go { transform: scaleX(var(--w)); }
+.rkr-hp { position: relative; height: 22px; border-radius: 4px; background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); transform: skewX(var(--sh)); }
+.rkr-hptrack { position: absolute; inset: 3px; border-radius: 2px; overflow: hidden; }
+.rkr-hpfill { position: absolute; inset: 0; transform-origin: left; background: linear-gradient(90deg, var(--pd), var(--p)); }
+.rkr-hpfill.anim { transition: transform 900ms cubic-bezier(.16, 1, .3, 1); }
+.rkr-hptxt { position: absolute; left: 10px; top: 50%; transform: translateY(-50%) skewX(calc(var(--sh) * -1)); font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0, 0, 0, .7); }
+.rkr-dmg { position: absolute; right: 22px; top: 70px; font-size: 1.9rem; font-weight: 800; color: #ff5f7a; font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(255, 95, 122, .55); opacity: 0; }
+.rkr-dmg.show { animation: rkDmg 500ms cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes rkDmg { from { opacity: 0; transform: translateY(-30px) scale(1.6); } to { opacity: 1; } }
+.rkr-stand, .rkr-ko { position: absolute; right: 18px; bottom: 50px; padding: 3px 12px; border-radius: 99px; font-size: .8rem; font-weight: 800; animation: rkUp 400ms var(--ease-out) both; }
+.rkr-stand { background: rgba(255, 204, 34, .2); color: #ffcc22; }
+.rkr-ko { background: rgba(255, 95, 122, .2); color: #ff5f7a; }
+.rkr-verdict { font-size: 1.4rem; font-weight: 600; opacity: 0; transform: translateY(10px); transition: opacity 400ms ease, transform 400ms var(--ease-out); }
+.rkr-verdict.show { opacity: 1; transform: none; }
+.rkr-break { display: flex; align-items: baseline; gap: 10px; min-height: 2.2rem; font-size: 1rem; color: rgba(255, 255, 255, .6); }
+.rkr-break b { font-size: 1.8rem; color: #ff5f7a; font-variant-numeric: tabular-nums; }
+.rkr-break b.pop { animation: rkPop 300ms ease; }
+@keyframes rkPop { 40% { transform: scale(1.25); } }
+.rkr-break em { font-style: normal; color: rgba(255, 255, 255, .7); animation: rkUp 300ms var(--ease-out) both; }
+.rkr-break em i { font-style: normal; font-weight: 800; color: #ffcc22; }
+
+/* the end of the match */
+.rke { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.rke-title { padding: 0 .14em; font-size: 7rem; font-weight: 900; font-style: italic; letter-spacing: .02em; line-height: 1.05; animation: rkVs 800ms cubic-bezier(.2, 1.6, .4, 1) both; }
+.rke.win .rke-title { background: linear-gradient(180deg, #fff3b0, #ffcc22 55%, #ee9900); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 30px rgba(255, 204, 34, .45)); }
+.rke.loss .rke-title { color: #ff5f7a; filter: drop-shadow(0 0 30px rgba(255, 95, 122, .4)); }
+.rke.draw .rke-title, .rke.none .rke-title { color: rgba(255, 255, 255, .85); }
+.rke-sub { font-size: 1.1rem; color: rgba(255, 255, 255, .7); }
+.rke-ratings { display: flex; flex-direction: column; gap: 4px; animation: rkUp 500ms var(--ease-out) 500ms both; }
+.rke-rating { font-size: 1.6rem; }
+.rke-rating span { font-weight: 300; }
+.rke-rating b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rke-rating + .rke-rating { font-size: 1.05rem; color: rgba(255, 255, 255, .7); }
+.rke-d { margin-left: 10px; font-weight: 800; color: rgba(255, 255, 255, .6); }
+.rke-d.up { color: #b3d944; }
+.rke-d.down { color: #ff5f7a; }
+.rke-rows { display: flex; flex-direction: column; gap: 6px; min-width: min(460px, 90vw); animation: rkUp 500ms var(--ease-out) 700ms both; }
+.rke-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 10px; background: rgba(255, 255, 255, .05); text-align: left; }
+.rke-row > .avatar, .rke-row > img { width: 32px !important; height: 32px !important; border-radius: 50%; }
+.rke-row b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rke-row span { font-size: .85rem; color: rgba(255, 255, 255, .65); font-variant-numeric: tabular-nums; }
+.rke-btns { display: flex; gap: 14px; margin-top: 10px; animation: rkUp 500ms var(--ease-out) 900ms both; }
+.rke-btn { min-width: 170px; height: 46px; border: 0; border-radius: 10px; font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer; transform: skewX(var(--sh)); transition: filter var(--t-fast); }
+.rke-btn:hover { filter: brightness(1.15); }
+.rke-btn.quit { background: #aa1b27; color: #fff; }
+.rke-btn.again { background: #5ebfff; color: #0b1c2c; }
+
+/* the lobby's Ranked Play panel (lazer's queue screen) */
+.rq { margin: 0 0 22px; padding: 18px 20px; border-radius: 16px; background: linear-gradient(120deg, rgba(67, 130, 255, .16), rgba(249, 77, 146, .12)), var(--panel-solid); box-shadow: 0 10px 34px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.rq-head { display: flex; align-items: center; gap: 12px; }
+.rq-ico { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: rgba(94, 191, 255, .18); color: #5ebfff; }
+.rq-ico .i { width: 22px; height: 22px; }
+.rq-t { font-size: 1.25rem; font-weight: 700; }
+.rq-s { font-size: .8rem; color: var(--text-2); }
+.rq-body { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+.rq-rating { display: flex; flex-direction: column; gap: 1px; }
+.rq-rating span { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rq-rating b { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rq-rating small { font-size: .75rem; color: var(--text-2); }
+.rq-search { display: flex; align-items: center; gap: 10px; }
+.rq-search > div { display: flex; flex-direction: column; }
+.rq-search b { font-weight: 600; }
+.rq-search span { font-size: .8rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rq-search > .i { width: 22px; height: 22px; color: #b3d944; }
+.rq-btn { min-width: 180px; height: 44px; padding: 0 22px; border: 0; border-radius: 10px; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer; transform: skewX(-10deg); transition: filter var(--t-fast); }
+.rq-btn:hover { filter: brightness(1.12); }
+.rq-btn:disabled { opacity: .5; cursor: default; filter: none; }
+.rq-btn.go { background: #5ebfff; color: #0b1c2c; box-shadow: 0 6px 20px rgba(94, 191, 255, .3); }
+.rq-btn.stop { background: rgba(255, 255, 255, .1); color: #fff; }
+.rq-hist { margin-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+.rq-hl { margin-bottom: 4px; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rq-match { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto 52px auto; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 8px; background: rgba(0, 0, 0, .2); font-size: .82rem; }
+.rq-res { font-weight: 800; }
+.rq-match.win .rq-res { color: #b3d944; }
+.rq-match.loss .rq-res { color: #ff5f7a; }
+.rq-opp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.rq-opp b { color: #fff; }
+.rq-life, .rq-won, .rq-rd, .rq-when { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+.rq-rd { font-weight: 700; text-align: right; }
+.rq-match.win .rq-rd { color: #b3d944; }
+.rq-match.loss .rq-rd { color: #ff5f7a; }
+@media (max-width: 720px) { .rq-match { grid-template-columns: 48px minmax(0, 1fr) auto; } .rq-life, .rq-when, .rq-won { display: none; } }
+.rq-offer { display: flex; flex-direction: column; align-items: stretch; gap: 14px; min-width: min(440px, 80vw); }
+.rq-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.rq-x { font-size: 1.6rem; font-weight: 900; font-style: italic; background: linear-gradient(90deg, #5ebfff, #ff8198); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rq-p { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
+.rq-p > .avatar, .rq-p > img { width: 64px !important; height: 64px !important; border-radius: 50%; }
+.rq-p b { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rq-p span { font-size: .8rem; color: var(--text-2); }
+.rq-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.rq-bar i { display: block; height: 100%; background: #5ebfff; transform-origin: left; transition: transform 1.5s linear; }
+.rq-note { text-align: center; font-size: .9rem; color: var(--text-2); }
+@media (max-width: 900px) { .rkm-corner { width: min(340px, 48vw); padding: 10px 12px; } .rkm-name { font-size: 1.05rem; } .rkh-slot { left: calc(50% + var(--x) * 96px); } .rkc { --cw: 128px; } .rkr-cols { grid-template-columns: 1fr; } .rkw { grid-template-columns: 1fr; justify-items: center; } .rkw-sep { display: none; } .rki-x { font-size: 3.6rem; } .rke-title { font-size: 4.2rem; } .rkm-chat { display: none; } }
 
 </style>
 </head>
@@ -4463,6 +4738,24 @@ const AudioManager = {
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);
     else if (name === 'sectionpass' || name === 'applause') buf = make(0.7, t => (Math.sin(2 * Math.PI * 660 * t) * (t < 0.15 ? 1 : 0) + Math.sin(2 * Math.PI * 990 * t) * (t >= 0.15 ? 1 : 0)) * env(t, 0.005, 0.2) * 0.2);
     else if (name === 'sectionfail') buf = make(0.6, t => Math.sin(2 * Math.PI * (400 - 200 * t) * t) * env(t, 0.005, 0.2) * 0.2);
+    // Ranked Play (lazer's Multiplayer/Matchmaking/Ranked samples, synthesized)
+    else if (name === 'rp-stage') buf = make(0.55, (t, n) => (n() * 0.35 * env(t, 0.09, 0.12) + Math.sin(2 * Math.PI * (180 + 700 * t) * t) * 0.25 * env(t, 0.02, 0.22)) * 0.4);
+    else if (name === 'rp-card') buf = make(0.14, (t, n) => (n() * env(t, 0.002, 0.025) * 0.3 + Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.12) * 0.7);
+    else if (name === 'rp-discard') buf = make(0.3, (t, n) => n() * env(t, 0.01, 0.07) * 0.28 * (1 - t / 0.3));
+    else if (name === 'rp-play') buf = make(0.45, (t, n) => (Math.sin(2 * Math.PI * (150 - 90 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.2) * 0.6);
+    else if (name === 'rp-tick') buf = make(0.06, t => Math.sin(2 * Math.PI * 2100 * t) * env(t, 0.0005, 0.012) * 0.25);
+    else if (name === 'rp-vs') buf = make(1.1, (t, n) => (Math.sin(2 * Math.PI * 60 * t) * env(t, 0.003, 0.25) * 0.7 + n() * env(t, 0.002, 0.08) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.05, 0.4) * 0.06) * 0.55);
+    else if (name === 'rp-impact') buf = make(0.8, (t, n) => (Math.sin(2 * Math.PI * 80 * t) * env(t, 0.002, 0.14) * 0.6 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.3) * 0.1 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);
+    else if (name === 'rp-score') buf = make(0.5, t => Math.sin(2 * Math.PI * (520 + 380 * t) * t) * env(t, 0.02, 0.18) * 0.16);
+    else if (name === 'rp-dmg') buf = make(0.35, (t, n) => (n() * env(t, 0.001, 0.05) * 0.4 + Math.sin(2 * Math.PI * (110 - 40 * t) * t) * env(t, 0.002, 0.1) * 0.5) * 0.55);
+    else if (name === 'rp-mult') buf = make(0.28, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.5) * env(t, 0.002, 0.08) * 0.2);
+    else if (name === 'rp-hit') buf = make(0.7, (t, n) => (Math.sin(2 * Math.PI * (90 - 50 * t) * t) * env(t, 0.002, 0.2) * 0.75 + n() * env(t, 0.001, 0.06) * 0.35) * 0.6);
+    else if (name === 'rp-win') buf = make(0.7, t => [660, 880, 1320].reduce((a, f, k) => a + (t > k * 0.08 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.08, 0.005, 0.2) : 0), 0) * 0.13);
+    else if (name === 'rp-lose') buf = make(0.7, t => Math.sin(2 * Math.PI * (440 - 220 * t) * t) * env(t, 0.01, 0.25) * 0.2);
+    else if (name === 'rp-victory') buf = make(1.6, t => [523, 659, 784, 1047].reduce((a, f, k) => a + (t > k * 0.12 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.12, 0.01, 0.5) : 0), 0) * 0.1);
+    else if (name === 'rp-defeat') buf = make(1.3, t => (Math.sin(2 * Math.PI * (300 - 120 * t) * t) + Math.sin(2 * Math.PI * (200 - 80 * t) * t) * 0.6) * env(t, 0.02, 0.45) * 0.16);
+    else if (name === 'rp-enqueue') buf = make(0.3, t => (Math.sin(2 * Math.PI * 880 * t) * (t < 0.1 ? 1 : 0) + Math.sin(2 * Math.PI * 1320 * t) * (t >= 0.1 ? 1 : 0)) * env(t, 0.003, 0.08) * 0.18);
+    else if (name === 'rp-found') buf = make(0.9, t => [784, 1047, 1319].reduce((a, f, k) => a + (t > k * 0.11 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.11, 0.004, 0.18) : 0), 0) * 0.14);
     else if (/^count[123]s$|^gos$/.test(name)) buf = make(0.15, t => Math.sin(2 * Math.PI * (name === 'gos' ? 1320 : 880) * t) * env(t, 0.002, 0.05) * 0.25);
     this._synthCache.set(name, buf);
     return buf;
@@ -9914,7 +10207,8 @@ const GameplayScreen = {
    *  (osu!lazer-style board). Team Versus adds lazer's red-vs-blue totals at the top. */
   updateMp(e) {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
-    const sc = e.score.score;
+    // (Ranked Play compares lazer's standardised score: it decides the damage)
+    const sc = s.mp.rp ? e.score.scoreStd : e.score.score;
     if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
       this._myPp = s.mpFailed ? 0 : this.livePp(e);
@@ -9982,9 +10276,9 @@ const GameplayScreen = {
   async mpQuit() {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
-    // Ranked Play: leaving the song gives this round to the opponent (both go back to the room; the match goes on)
+    // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `${opp ? opp.name : 'Your opponent'} wins this round. You both go back to the room and the match carries on.`, { ok: 'Leave song', danger: true })
+    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true })
       : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true });
     if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });
@@ -13383,7 +13677,8 @@ const WomImport = {
 
 /* ===== 19-multiplayer.js ===== */
 /* Online multiplayer (osu!lazer-style rooms of up to 8, Head to Head or Team Versus, and Quick Play). Talks to the
- * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules. */
+ * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules.
+ * Ranked Play's queue and match screen are in 19b-ranked-play.js. */
 
 /** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
 const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
@@ -13416,12 +13711,12 @@ const Multiplayer = {
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
   },
-  /** Open a room: regular (osu!-style head to head, up to 16) or ranked (1v1 Ranked Play), public or private. */
+  /** Open a room: regular (osu!-style head to head, up to 16) or a Ranked Play duel (1v1, unrated), public or private. */
   async create({ ranked = false, isPublic = true, keys = 4 } = {}) {
     const { code } = await this.api('api/mp/new');
-    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, skill: RankedSkill.get() } : { public: isPublic });
+    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, ...RankedRating.hello() } : { public: isPublic, cid: clientId() });
   },
-  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { skill: RankedSkill.get() }); },
+  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, RankedRating.hello()); },
 
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
@@ -13472,7 +13767,7 @@ const Multiplayer = {
       } catch (e) {
         if (this.reconnecting !== rc) return;
         // a Quick Play round moved on without us: there's no way back in
-        if ((rc.opts.mode === 'qp' || rc.opts.mode === 'rp') && /already started|full/i.test(e.message)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'rp' ? 'Ranked Play' : 'Quick Play'} match`, 'The connection dropped and the match went on without you.'); return; }
+        if (/already started|full/i.test(e.message) && (rc.opts.mode === 'qp' || rc.opts.mode === 'rp' || this.isRPCode === rc.code)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'qp' ? 'Quick Play' : 'Ranked Play'} match`, 'The connection dropped for too long and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
         rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
@@ -13490,7 +13785,7 @@ const Multiplayer = {
     // the room list may still carry the room we just left for a moment: the lobby hides it if we were alone in it
     if (this.room) this.lastLeft = { code: this.room.code, alone: this.room.players.length <= 1, at: Date.now() };
     this.ws = null; this.room = null; this.me = null; this.opps = new Map();
-    if (ws) { try { ws.close(1000, 'leave'); } catch { /* already closed */ } }
+    if (ws) { try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
   },
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
@@ -13508,6 +13803,7 @@ const Multiplayer = {
     switch (m.t) {
       case 'room': {
         const had = this.room ? this.room.players.length : 0;
+        if (m.room.rp) this.isRPCode = m.room.code;
         const key = map => map ? map.hash || 'o' + map.onlineId : null, prev = key(this.room && this.room.map);
         this.room = m.room;
         this.qpClock(m.room);
@@ -13522,15 +13818,8 @@ const Multiplayer = {
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
       case 'opp': this.opps.set(m.id, m); break;
       case 'qpPool': this.buildPool(m); break;
-      case 'abort':
-        // Ranked Play: the other player left the song — the round is ours, back to the room
-        if (m.by !== this.me && Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
-          const s = GameplayScreen.s; s.finished = true; s.running = false;
-          Music.stop(150);
-          Toast.show(`${m.name || 'Your opponent'} left the song`, 'You win the round.');
-          Screens.go('multiplayer', {}, { replace: true });
-        }
-        break;
+      case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
+      case 'hand': Bus.emit('rp:hand', m); break;
       case 'start': this.launch(m); break;
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
@@ -13538,7 +13827,8 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (this.isRP()) Toast.show('Your opponent left the match', 'The round is yours. Finish the map or press Esc to see the results.');
+          else Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
         }
         Bus.emit('mp:changed');
         break;
@@ -13631,7 +13921,7 @@ const Multiplayer = {
     const startAt = performance.now() + m.delay - this.rtt / 2;
     // the room's speed mod (everyone accepted it) plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
-    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null } });
+    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null, rp: this.isRP() } });
   },
   qpClock(room) { const g = room && (room.qp || room.rp); this.qpEndAt = g && g.left ? performance.now() + g.left - this.rtt / 2 : 0; },
   /** Quick Play host: this round's pool — ranked maps for the lobby's key count around its typical star rating from
@@ -13696,30 +13986,9 @@ const Multiplayer = {
     try { await this.join(code); Toast.ok('Joined the room', code.toUpperCase()); }
     catch (e) { Toast.err('Couldn\'t join the room', friendlyError(e)); }
   },
+  /** (Ranked Play's damage is worked out on lazer's standardised score.) */
   finish(score, forfeit = false) {
-    this.send({ t: 'finish', result: { score: score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
-  },
-};
-
-/** Ranked Play skill level (in stars, kept on this device): Beginner, Intermediate or Advanced. The deck is dealt
- *  between both players' levels. Until one is chosen it's the nearest level to the player's recent passes. */
-const RankedSkill = {
-  LEVELS: [['Beginner', 1.5, 'Easy maps to learn on'], ['Intermediate', 3, 'You can pass most normal maps'], ['Advanced', 4.5, 'Hard maps are your thing']],
-  nearest(v) { return this.LEVELS.reduce((a, b) => Math.abs(b[1] - v) < Math.abs(a[1] - v) ? b : a); },
-  get() {
-    let v = NaN;
-    try { v = +localStorage.getItem('am.rp.skill'); } catch { /* private mode */ }
-    return this.nearest(v >= 0.5 && v <= 10 ? v : Multiplayer.skillSR())[1];
-  },
-  set(v) { v = this.nearest(v)[1]; try { localStorage.setItem('am.rp.skill', String(v)); } catch { /* private mode */ } return v; },
-  name(v) { return this.nearest(v)[0]; },
-  /** Three segmented choices; onChange(stars) after each change. */
-  picker(value, onChange) {
-    const el = h('div.rk-seg', { role: 'radiogroup', 'aria-label': 'Skill level' });
-    const paint = () => clearEl(el).append(...this.LEVELS.map(([l, s, d]) => h(`button.rk-opt${this.nearest(value)[1] === s ? '.on' : ''}`, { role: 'radio', 'aria-checked': String(this.nearest(value)[1] === s), title: d,
-      onclick: () => { if (this.nearest(value)[1] === s) return; UISounds.click(); value = s; onChange(value); paint(); } }, h('b', l), h('span', `~${s}★`))));
-    paint();
-    return el;
+    this.send({ t: 'finish', result: { score: this.isRP() ? score.scoreStd : score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
   },
 };
 
@@ -13845,13 +14114,14 @@ const MultiplayerScreen = {
     this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
-    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); else if (Multiplayer.isRP() && Multiplayer.room.rp.phase === 'load') this.refreshRP(); })];
+    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); })];
     this._qpInt = setInterval(() => this.qpTick(), 250);
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); },
   onBack() {
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
       Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
       return true;
@@ -13861,6 +14131,9 @@ const MultiplayerScreen = {
   onKey(e) { return false; },
   render() {
     if (!this.body) return;
+    // a Ranked Play match takes the whole screen (lazer's RankedPlayScreen)
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.mount(this); return; }
+    RankedMatch.unmount();
     if (Multiplayer.inRoom()) { this.renderRoom(); return; }
     this.roomEl = null;
     clearEl(this.body);
@@ -13883,6 +14156,7 @@ const MultiplayerScreen = {
     const offline = !Multiplayer.available();
     this.body.append(overlayHeader('Multiplayer', { icon: 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
+      rankedQueuePanel(),
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
@@ -13892,19 +14166,18 @@ const MultiplayerScreen = {
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);
     else setTimeout(() => this.pollRooms(), 30); // (once the lobby is on the page: the screen is still being built here)
   },
-  /** Create room: regular or ranked, then public or private — nothing else to set (rooms play by osu!'s rules). */
-  openCreate() {
-    const st = { ranked: false, isPublic: true, keys: Settings.get('mp.qpKeys') === 7 ? 7 : 4, skill: RankedSkill.get() };
+  /** Create room: regular or a Ranked Play duel, then public or private — nothing else to set (rooms play by osu!'s
+   *  rules; a duel is lazer's Ranked Play with a friend, unrated). */
+  openCreate(pre = {}) {
+    const st = { ranked: !!pre.ranked, isPublic: true, keys: pre.keys === 7 || (!pre.keys && Settings.get('mp.qpKeys') === 7) ? 7 : 4 };
     const body = h('div.mp-cr');
     const choice = (cls, key, v, ic, title, sub) => h(`button.mp-cr-card.${cls}${st[key] === v ? '.on' : ''}`, { dataset: { v: String(v) }, onclick: () => { UISounds.click(); st[key] = v; paint(); } },
       h('div.mp-cr-ico', icon(ic)), h('div', h('b', title), h('span', sub)));
     const paint = () => clearEl(body).append(...[
       h('div.mp-cr-l', '1. Match type'),
       h('div.mp-cr-row', choice('type', 'ranked', false, 'multi', 'Regular', 'Head to head for up to 16 players — the highest score wins, like osu! multiplayer.'),
-        choice('type', 'ranked', true, 'trophy', 'Ranked Play', '1v1 with beatmap cards and HP: the lower score takes the damage.')),
+        choice('type', 'ranked', true, 'trophy', 'Ranked Play duel', '1v1 with a friend by lazer\'s Ranked Play rules: beatmap cards and life. Unrated — queue for rated matches.')),
       st.ranked ? h('div.mp-cr-keys', h('span', 'Key count'), h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
-      st.ranked ? h('div.mp-cr-l', 'Your skill level', h('small', 'the cards land between yours and your opponent\'s, nearer the lower')) : null,
-      st.ranked ? RankedSkill.picker(st.skill, v => { st.skill = RankedSkill.set(v); }) : null,
       h('div.mp-cr-l', '2. Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', 'Listed under Open rooms for anyone to join.'),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -13927,7 +14200,7 @@ const MultiplayerScreen = {
     // rows that haven't changed since the last poll (every 3s) are kept as they are: rebuilding them replayed their
     // slide-in and reloaded their covers, so the whole list blinked
     const prevRows = this._roomRows || new Map(), nextRows = new Map();
-    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.skill, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
+    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.rating, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
     const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
     if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     this._roomsSig = listSig;
@@ -13943,9 +14216,9 @@ const MultiplayerScreen = {
       } }, bg, h('div.mp-rshade'),
         h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
-          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play · ${r.keys || 4}K${r.skill ? ` · ${RankedSkill.name(r.skill)} (~${r.skill}★)` : ''}`))
+          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K${r.rating ? ` · host rating ${fmtInt(r.rating)}` : ''}`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
-          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · HP · you pick your level when you join' : 'Head to Head · highest score wins'))),
+          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : 'Head to Head · highest score wins'))),
         h('div.mp-rplayers', Presence.avatarEl({ name: r.host, avatar: r.avatar }, 32), h('b', `${r.players}/${r.size}`)),
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
@@ -13982,7 +14255,6 @@ const MultiplayerScreen = {
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
   },
   refreshRoom() {
-    if (Multiplayer.isRP()) { this.refreshRP(); return; }
     if (Multiplayer.isQP()) { this.refreshQP(); return; }
     this._qpKey = null;
     const r = Multiplayer.room, me = Multiplayer.self(), host = Multiplayer.isHost();
@@ -14215,131 +14487,6 @@ const MultiplayerScreen = {
     clearEl(this.footEl).append(...(q.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', q.phase === 'gather' ? 'The first round starts once enough players are in.' : 'Leaving forfeits the rest of the match.'), h('div.grow')]));
     this.qpTick();
   },
-  // ── Ranked Play: the two players with their HP up top; their hands of beatmap cards; the round as it plays out
-  refreshRP() {
-    const r = Multiplayer.room, g = r.rp, me = Multiplayer.me;
-    // waiting for an opponent / choosing levels: one calm card, nothing else on screen
-    this.roomEl.classList.toggle('rp-gathering', g.phase === 'gather');
-    if (g.phase === 'gather') { this.renderRPLobby(r, g, me); return; }
-    const PH = { gather: r.players.length < 2 ? 'Finding an opponent' : 'Choose your level', pool: 'Dealing cards', pick: g.picker === me ? 'Your pick' : 'Opponent is picking', reveal: 'Card played', load: 'Getting ready', playing: 'Match in progress', damage: 'Round results', final: 'Match over' };
-    this.qpTimer = h('span.qp-timer');
-    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    const mult = g.mult || 1;
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `Ranked Play · ${g.keys}K`), h('div.mp-room-code.qp-round', g.phase === 'gather' || g.phase === 'pool' ? r.code : g.phase === 'final' ? 'Finished' : `Round ${g.round}`)),
-      reconnecting, h('div.grow'), g.round > 0 && g.phase !== 'final' ? h('span.rp-mult', `damage ×${mult}`) : null, h('div.qp-phase', PH[g.phase] || '', this.qpTimer)].filter(Boolean));
-    // versus bar: picture, name, skill level and HP
-    const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
-    const side = (p, mine) => {
-      if (!p) return g.phase === 'final' ? h('div.rp-side.empty', h('div.rp-av', icon('user')), h('div.rp-name', 'Left the match'))
-        : h('div.rp-side.empty', h('div.rp-av', h('span.spinner')), h('div.rp-name', 'Waiting…'));
-      const hp = g.hp[p.id] ?? 1000000, hit = g.last && g.last.loser === p.id && (g.phase === 'damage' || g.phase === 'final');
-      const ready = g.phase === 'gather' && g.ready && g.ready[p.id];
-      return h(`div.rp-side${mine ? '.me' : ''}${g.picker === p.id && g.phase === 'pick' ? '.picking' : ''}${hit ? '.hit' : ''}`,
-        h('div.rp-av', mine ? ProfileManager.avatarEl(56) : Presence.avatarEl(p, 56)),
-        h('div.rp-info', h('div.rp-name', p.name, mine ? h('span.muted', ' (you)') : null, ready ? h('span.rp-ready', icon('check'), 'Ready') : null),
-          h('div.rp-rt', `${RankedSkill.name(p.skill || 2.5)} · ${(p.skill || 2.5).toFixed(1)}★`),
-          h('div.rp-hp', h('i', { style: { width: (hp / 10000).toFixed(2) + '%' } }), h('span', `${fmtInt(hp)} HP`)),
-          hit ? h('div.rp-dmg', `−${fmtInt(g.last.damage)}`) : null));
-    };
-    this._qpKey = null; // (rebuilt on every update: nothing here animates across updates)
-    // the stage is rebuilt on every room update (a chat line, a ready tick…); only a new phase or round plays the
-    // entrance animations, otherwise the whole panel blinked each time
-    const phaseKey = `${r.code}|${g.round}|${g.phase}`, fresh = this._rpPhaseKey !== phaseKey;
-    this._rpPhaseKey = phaseKey;
-    this.qpStage = h(`div.qp-stage.rp.${g.phase}${fresh ? '' : '.still'}`, h('div.rp-vs', side(meP, true), h('div.rp-vsmid', 'VS'), side(opp, false)));
-    const st = this.qpStage, cards = id => (g.hands[id] || []).map(i => this.qpCard(g.pool[i], i));
-    if (g.phase === 'pool') st.append(h('div.qp-big', h('span.spinner'), 'Dealing cards…'), h('div.qp-sub', `Finding beatmaps between ${g.range ? `${g.range.lo}★ and ${g.range.hi}★` : 'your levels'}`));
-    else if (g.phase === 'pick') {
-      const mine = g.picker === me, key = `${r.code}|${g.round}`;
-      if (this._rrKey !== key) { this._rrKey = key; this._rr = new Set(); }
-      const sel = this._rr, used = !!(g.rerolled && g.rerolled[me]);
-      const hand = cards(me);
-      hand.forEach(c => {
-        const i = +c.dataset.i;
-        if (mine) c.addEventListener('click', () => { UISounds.click(); Multiplayer.pick(i); });
-        else c.classList.add('dim');
-        if (!used) c.append(h(`span.rp-rr${sel.has(i) ? '.on' : ''}`, { title: 'Mark for reroll', role: 'button', onclick: e => { e.stopPropagation(); UISounds.click(); sel.has(i) ? sel.delete(i) : sel.add(i); this.render(); } }, icon('retry')));
-        if (sel.has(i)) c.classList.add('marked');
-      });
-      const reroll = h('button.btn.sm.rp-reroll', { disabled: used, title: used ? 'You\'ve rerolled this round' : 'Swap cards for new ones from the deck (once a round)',
-        onclick: () => { UISounds.click(); Multiplayer.send({ t: 'reroll', cards: [...sel] }); sel.clear(); } }, icon('retry'), used ? 'Rerolled' : sel.size ? `Reroll ${sel.size} card${sel.size === 1 ? '' : 's'}` : 'Reroll hand');
-      st.append(...[h('div.qp-hint', mine ? 'Your pick: play a card you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
-        !mine && opp ? h('div.rp-hand.theirs', h('div.rp-hand-l', `${opp.name}'s hand`), h('div.qp-grid', ...cards(opp.id))) : null,
-        h('div.rp-hand', h('div.rp-hand-l', 'Your hand', h('span.grow'), reroll), h('div.qp-grid', ...hand))].filter(Boolean));
-    } else if (['reveal', 'load', 'playing'].includes(g.phase)) {
-      const m = r.map, c = m ? this.qpCard(m, g.chosen) : null;
-      if (c) c.classList.add('chosen', 'wide', 'flip');
-      const who = r.players.find(p => p.id === g.picker);
-      const f = Multiplayer.fetch;
-      st.append(...[h('div.qp-hint', `${who ? (who.id === me ? 'You' : who.name) : 'The picker'} played:`), c,
-        g.phase === 'playing' ? h('div.qp-big', 'Match in progress') : h('div.qp-sub', !m ? '' : Multiplayer.localMap(m) ? 'Ready' : f && f.error ? `Download failed: ${f.error}` : f && f.progress != null ? `Downloading… ${Math.round(f.progress * 100)}%` : 'Getting the beatmap…')].filter(Boolean));
-    } else if (g.phase === 'damage' && g.last) {
-      const L = g.last, lose = r.players.find(p => p.id === L.loser);
-      st.append(...[h('div.qp-big', !L.loser ? 'Draw — no damage' : lose && lose.id === me ? `You took ${fmtInt(L.damage)} damage` : `${lose ? lose.name : 'They'} took ${fmtInt(L.damage)} damage`),
-        L.forfeit ? h('div.qp-sub', `${lose ? (lose.id === me ? 'You' : lose.name) : 'Someone'} left the song — the round went to ${lose && lose.id === me ? 'your opponent' : 'you'}`) : null,
-        // (a forfeited song has no scores worth showing)
-        L.forfeit ? null : h('div.rp-scores', ...r.players.map(p => h('div', h('span', p.name), h('b', fmtScore(L.scores[p.id] || 0))))),
-        h('div.qp-sub', `Next round: ×${1 + 0.5 * g.round} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`)].filter(Boolean));
-    } else if (g.phase === 'final') {
-      const won = g.winner === me;
-      st.append(h(`div.rp-final${won ? '.won' : ''}`, h('div.rp-final-t', won ? 'Victory' : g.winner ? 'Defeat' : 'Match over'),
-        h('div.rp-final-r', h('span', `${g.round} round${g.round === 1 ? '' : 's'}`))));
-    }
-    clearEl(this.mapEl).append(st);
-    clearEl(this.playersEl).append(h('div.mp-players.rp-help', h('h3', 'How Ranked Play works'), h('ul',
-      h('li', 'You each pick a skill level; the cards are between the two, nearer the lower.'),
-      h('li', 'You both start with 1,000,000 HP and five cards, dealt in pairs of matching difficulty.'),
-      h('li', 'Once a round you can reroll any of your cards.'),
-      h('li', 'The picker plays a card and you both play it. The lower score takes the difference as damage: ×1, then ×1.5, ×2…'),
-      h('li', 'Whoever lost the round picks next. Leaving the song gives the round away. First to 0 HP loses.'))));
-    clearEl(this.resEl);
-    const again = h('button.mp-start', { onclick: () => { UISounds.click(); Multiplayer.leave(true); this.render(); this.openCreate(); } }, 'New match');
-    const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
-    clearEl(this.footEl).append(...(g.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', 'Leaving the room forfeits the match.'), h('div.grow')]));
-    this.qpTick();
-  },
-  /** Ranked Play before the match: the two players, your level, the room code and Ready — centred, nothing more.
-   *  The rules fold away under "How it works". */
-  renderRPLobby(r, g, me) {
-    const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
-    const isPublic = !(r.settings && r.settings.public === false);
-    this.qpTimer = h('span.qp-timer');
-    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `${g.keys}K · ${isPublic ? 'Public' : 'Private'} room`), h('div.mp-room-code.qp-round', 'Ranked Play')), reconnecting].filter(Boolean));
-    const tile = (p, mine) => {
-      if (!p) return h('div.rpl-player.rpl-none', h('div.rpl-av.searching', h('i'), h('i'), icon('user')), h('b', 'Searching…'), h('span.rpl-lv', 'waiting for someone to join'));
-      const ready = g.ready && g.ready[p.id];
-      return h(`div.rpl-player${mine ? '.me' : ''}${ready ? '.ready' : ''}`,
-        h('div.rpl-av', mine ? ProfileManager.avatarEl(76) : Presence.avatarEl(p, 76), ready ? h('span.rpl-check', icon('check')) : null),
-        h('b', p.name), h('span.rpl-lv', `${RankedSkill.name(p.skill || 3)} · ~${RankedSkill.nearest(p.skill || 3)[1]}★`));
-    };
-    const ready = !!(g.ready && g.ready[me]);
-    const level = h('div.rpl-sec', h('div.rpl-label', 'Your level'),
-      RankedSkill.picker(meP && meP.skill ? meP.skill : RankedSkill.get(), v => { Multiplayer.send({ t: 'skill', skill: RankedSkill.set(v) }); }));
-    let bottom;
-    if (!opp) {
-      bottom = h('div.rpl-sec.rpl-share',
-        h('div.rpl-label', isPublic ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
-        h('div.rpl-code',
-          h('span', r.code),
-          h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('copy')),
-          h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite')));
-    } else {
-      const a = meP ? meP.skill : 3, b = opp.skill || a, lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
-      bottom = h('div.rpl-sec',
-        h('div.rpl-range', `Cards around ${Math.max(0.5, c - 0.6).toFixed(1)}–${(c + 0.6).toFixed(1)}★`),
-        h(`button.mp-start.rp-readybtn${ready ? '.on' : ''}`, { onclick: () => { UISounds.click(); Multiplayer.send({ t: 'rpready', ready: !ready }); } },
-          ready ? (g.ready[opp.id] ? 'Starting…' : `Ready — waiting for ${opp.name}`) : 'Ready'));
-    }
-    const how = h('details.rpl-how', h('summary', 'How it works'), h('ul',
-      h('li', 'Pick your level; the cards land between yours and your opponent\'s, nearer the lower.'),
-      h('li', 'You both start with 1,000,000 HP and five cards. Once a round you can reroll any of them.'),
-      h('li', 'The picker plays a card and you both play it. The lower score takes the difference as damage (×1, then ×1.5, ×2…).'),
-      h('li', 'Whoever lost the round picks next. Leaving a song gives the round away. First to 0 HP loses.')));
-    clearEl(this.mapEl).append(h('div.rpl', h('div.rpl-vs', tile(meP, true), h('div.rpl-x', 'VS'), tile(opp, false)), level, bottom, how));
-    clearEl(this.playersEl); clearEl(this.resEl);
-    clearEl(this.footEl).append(h('div.grow'));
-  },
   /** The per-second countdown in the header (and the pick timer bar). */
   qpTick() {
     const left = Math.max(0, (Multiplayer.qpEndAt - performance.now()) / 1000);
@@ -14422,6 +14569,863 @@ const MultiplayerScreen = {
   },
 };
 
+
+/* ===== 19b-ranked-play.js ===== */
+/* Ranked Play — osu!lazer's 1v1 card mode on the client: your rating, the queue, and the match screen (lazer's
+ * RankedPlayScreen: the two corner pieces with life, the stage display and its timer, the intro, the discard and pick
+ * phases with hands of beatmap cards — the opponent's hand replayed as they handle it — gameplay warmup, the results
+ * with the damage, and the end screen with the new ratings). The rules themselves are the server's: worker/ranked-play.js. */
+
+/** lazer's two colour schemes (RankedPlayColourScheme): you are blue, your opponent red. */
+const RP_BLUE = { primary: '#5ebfff', darker: '#4382ff', darkest: '#5c55ff', surface: '#33303d', border: '#514c5e' };
+const RP_RED = { primary: '#ff8198', darker: '#f94d92', darkest: '#b6104d', surface: '#242023', border: '#403b3f' };
+const RP_LIFE = 1000000;
+
+/** A lasting id for this browser: the queue knows you by it (bans; you're never matched with yourself), and a dropped
+ *  connection rejoins a match as the same player. */
+function clientId() {
+  try { let c = localStorage.getItem('am.cid'); if (!c) { c = uid() + uid(); localStorage.setItem('am.cid', c); } return c; }
+  catch { return clientId._mem || (clientId._mem = uid() + uid()); }
+}
+
+/** Your Ranked Play rating, one per key count (lazer's 4K and 7K pools), kept on this device. A new player starts where
+ *  lazer would put them from their pp (−4000 + 600·ln(pp + 4000)); matches from the queue then move it (OpenSkill,
+ *  worked out by the server). Also the history of recent matches. */
+const RankedRating = {
+  KEY: 'am.rp.ratings',
+  _read() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; } catch { return this._mem || (this._mem = {}); } },
+  _write(d) { this._mem = d; try { localStorage.setItem(this.KEY, JSON.stringify(d)); } catch { /* private mode: kept for this session */ } },
+  initial(keys) {
+    const pp = ScoreManager.totalPp(ScoreManager.scores.filter(s => s.keys === keys)).total || 0;
+    return clamp(-4000 + 600 * Math.log(pp + 4000), 0, 5000);
+  },
+  get(keys) { const p = this._read()[keys]; return p && Number.isFinite(p.mu) ? p : { mu: this.initial(keys), sigma: 150, played: 0, won: 0, fresh: true }; },
+  rating(keys) { return Math.round(this.get(keys).mu); },
+  /** What a room needs to know about you (sent in every hello). */
+  hello() { const r = k => { const p = this.get(k); return { mu: p.mu, sigma: p.sigma }; }; return { cid: clientId(), ratings: { 4: r(4), 7: r(7) } }; },
+  /** A finished match: the new rating when it was rated, and a line in the history either way (once per match). */
+  record(m) {
+    const d = this._read();
+    if ((d.history || []).some(x => x.id === m.id)) return;
+    if (m.rated && Number.isFinite(m.muAfter)) {
+      const p = this.get(m.keys);
+      d[m.keys] = { mu: m.muAfter, sigma: m.sigmaAfter, played: (p.played || 0) + 1, won: (p.won || 0) + (m.result === 'win' ? 1 : 0) };
+    }
+    d.history = [m, ...(d.history || [])].slice(0, 20);
+    this._write(d);
+    Bus.emit('rp:rating');
+  },
+  history() { return this._read().history || []; },
+};
+
+/** The Ranked Play queue (lazer's ScreenQueue / QueueController): searching, the "match found" offer to accept, then
+ *  off to the match. It polls the Worker every 1.5 s and keeps going while you look around the rest of the game. */
+const RankQueue = {
+  st: null, // { keys, ticket, status, queued, waited, since, opponent, left, accepted, opponentAccepted, room, banned }
+  get active() { return !!this.st; },
+  async api(path, body) { return Multiplayer.api('api/mp/rq/' + path, body); },
+  async start(keys) {
+    if (this.st || Multiplayer.inRoom()) return;
+    keys = keys === 7 ? 7 : 4;
+    this.st = { keys, status: 'joining', since: performance.now() };
+    Bus.emit('rq:changed');
+    try {
+      const r = await this.api('join', { ...RankedRating.hello(), name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', keys, rating: RankedRating.rating(keys) });
+      if (!this.st) { if (r.ticket) this.api('leave', { ticket: r.ticket }).catch(() => {}); return; }
+      if (r.status === 'banned') { this.st = null; Toast.err('You can\'t queue right now', `You left or declined a match. Try again in ${Math.ceil(r.left / 1000)}s.`); Bus.emit('rq:changed'); return; }
+      this.apply(r);
+      UISounds.play('rp-enqueue');
+      this.loop();
+    } catch (e) { this.st = null; Toast.err('Couldn\'t join the queue', friendlyError(e)); Bus.emit('rq:changed'); }
+  },
+  loop() {
+    clearTimeout(this._t);
+    this._t = setTimeout(async () => {
+      const st = this.st;
+      if (!st || !st.ticket) return;
+      try { const r = await this.api('poll', { ticket: st.ticket }); if (this.st === st) this.apply(r); } catch { /* a missed poll: try again */ }
+      if (this.st === st) this.loop();
+    }, 1500);
+  },
+  apply(r) {
+    const st = this.st, was = st.status;
+    Object.assign(st, r);
+    if (r.status === 'none') { this.st = null; if (was === 'found' || was === 'accepted') Toast.show('The match fell through', 'Your opponent didn\'t accept. Queue again to keep searching.'); Bus.emit('rq:changed'); this.closeOffer(); return; }
+    if (r.status === 'found' && was !== 'found') { UISounds.play('rp-found'); this.offer(); }
+    if (r.status === 'search' && was === 'found') { this.closeOffer(); Toast.show('Back to searching', 'Your opponent didn\'t accept the match.'); }
+    if (r.status === 'ready') { this.go(r); return; }
+    Bus.emit('rq:changed');
+  },
+  async accept() { if (!this.st || this.st.status !== 'found') return; UISounds.click(); this.st.accepted = true; Bus.emit('rq:changed'); try { this.apply(await this.api('accept', { ticket: this.st.ticket })); } catch { /* the poll catches up */ } },
+  async decline() { const st = this.st; if (!st) return; this.st = null; clearTimeout(this._t); this.closeOffer(); Bus.emit('rq:changed'); if (st.ticket) this.api('decline', { ticket: st.ticket }).catch(() => {}); },
+  stop() { this.decline(); },
+  /** Both accepted: into the match's room (whoever gets there first opens it). */
+  async go(r) {
+    const st = this.st;
+    clearTimeout(this._t); this.st = null; this.closeOffer();
+    Bus.emit('rq:changed');
+    try {
+      if (Screens.currentName !== 'multiplayer') await Screens.go('multiplayer');
+      await Multiplayer.connect(r.room, true, false, false, { mode: 'rp', rated: true, keys: st.keys, ...RankedRating.hello() });
+    } catch (e) { Toast.err('Couldn\'t join the match', friendlyError(e)); }
+  },
+  /** lazer's "Match found!" offer: the opponent, 30 seconds to accept. Shown over any screen but gameplay. */
+  offer() {
+    this.closeOffer();
+    const st = this.st;
+    if (Screens.currentName === 'gameplay') { Toast.show('Ranked Play: match found!', 'Finish up — accept it from the multiplayer screen within 30 seconds.'); return; }
+    const body = h('div.rq-offer');
+    const paint = () => {
+      const s = this.st;
+      if (!s || s.status !== 'found') return;
+      const o = s.opponent || { name: 'Opponent', rating: 0 };
+      clearEl(body).append(
+        h('div.rq-vs', h('div.rq-p', ProfileManager.avatarEl(64), h('b', ProfileManager.profile.name), h('span', `Rating ${fmtInt(RankedRating.rating(s.keys))}`)),
+          h('div.rq-x', 'VS'),
+          h('div.rq-p', Presence.avatarEl(o, 64), h('b', o.name), h('span', `Rating ${fmtInt(o.rating)}`))),
+        h('div.rq-bar', h('i', { style: { transform: `scaleX(${clamp((s.left || 0) / 30000, 0, 1).toFixed(3)})` } })),
+        h('div.rq-note', s.accepted ? (s.opponentAccepted ? 'Good luck!' : 'Waiting for your opponent…') : `${s.keys}K Ranked Play · accept within ${Math.ceil((s.left || 0) / 1000)}s`));
+    };
+    paint();
+    const o = Dialog.custom('Match found!', body, [
+      { label: 'Decline', onClick: () => this.decline() },
+      { label: 'Accept', primary: true, close: false, onClick: () => { this.accept(); o.el && o.el.querySelectorAll('.actions button').forEach(b => { b.disabled = true; }); } }]);
+    const off = Bus.on('rq:changed', paint);
+    const close = o.close; o.close = () => { off(); close(); if (this._offer === o) this._offer = null; };
+    this._offer = o;
+  },
+  closeOffer() { if (this._offer) { const o = this._offer; this._offer = null; o.close(); } },
+  /** Elapsed search time as m:ss. */
+  waited() { return this.st ? fmtTime(performance.now() - this.st.since) : '0:00'; },
+};
+
+/** The deck for a match, drawn up by the dealer's client (`targets`: the server's star ratings, one per card): ranked
+ *  beatmaps for the key count from the online listing, each target taking the closest one not yet used (one card per
+ *  beatmap set where it can). Without enough online, the player's own library fills in. */
+async function buildRankedDeck(m) {
+  const keys = m.keys === 7 ? 7 : 4, targets = (Array.isArray(m.targets) ? m.targets : []).map(Number).filter(Number.isFinite).slice(0, 50);
+  if (!targets.length) return;
+  const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
+  const cand = [], seen = new Set();
+  try {
+    const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
+    const pages = await Promise.race([Promise.all([0, 1, 2, 3].map(one)), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 9000))]);
+    for (const d of pages) for (const set of d.sets || []) {
+      if (seen.has(set.id)) continue;
+      seen.add(set.id);
+      for (const x of set.diffs || []) if (x.keys === keys && x.id > 0) cand.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id, group: 's' + set.id });
+    }
+  } catch (e) { console.warn('Ranked Play deck: online search failed', e); }
+  if (cand.length < targets.length) {
+    for (const x of BeatmapManager.maps.values()) {
+      if (x.keys !== keys || x.problems.length) continue;
+      const set = BeatmapManager.setById.get(x.setId), osid = set && set.onlineId > 0 ? set.onlineId : -1;
+      if (osid > 0 && cand.some(c => c.onlineId === x.onlineId && x.onlineId > 0)) continue;
+      cand.push({ hash: x.hash, title: x.title, artist: x.artist, version: x.version, creator: x.creator, keys, stars: x.stars, length: x.length, onlineSetId: osid, onlineId: x.onlineId > 0 ? x.onlineId : -1, group: osid > 0 ? 's' + osid : 'l' + x.setId });
+    }
+  }
+  if (!cand.length) return;
+  const used = new Set(), groups = new Set(), deck = [];
+  for (const t of targets) {
+    let best = null, bd = Infinity;
+    for (const c of cand) {
+      if (used.has(c)) continue;
+      const d = Math.abs(c.stars - t) + (groups.has(c.group) ? 0.75 : 0);
+      if (d < bd) { bd = d; best = c; }
+    }
+    if (!best) break;
+    used.add(best); groups.add(best.group); deck.push(best);
+  }
+  // a tiny library (offline): the same beatmaps more than once, so there are still cards to play
+  for (let i = 0; deck.length < Math.min(12, targets.length); i++) deck.push(deck[i % Math.max(1, deck.length)]);
+  const g = Multiplayer.room && Multiplayer.room.rp;
+  if (g && g.stage === 'deal') Multiplayer.send({ t: 'pool', maps: deck.map(({ group, ...c }) => c) });
+}
+
+/** The match screen. Mounted inside the multiplayer screen whenever the room is a Ranked Play match. */
+const RankedMatch = {
+  root: null, scr: null,
+  get g() { return Multiplayer.room && Multiplayer.room.rp; },
+  me() { return Multiplayer.me; },
+  oppId() { const g = this.g; return g ? Object.keys(g.users).find(id => id !== Multiplayer.me) || null : null; },
+  player(id) { return Multiplayer.room ? Multiplayer.room.players.find(p => p.id === id) || null : null; },
+  name(id) { const p = this.player(id); return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (this._names && this._names[id]) || 'Opponent'; },
+  avatar(id, size) { return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id) }, size); },
+
+  mount(scr) {
+    this.scr = scr;
+    if (!this.root || !this.root.isConnected) this.build();
+    this.update();
+  },
+  build() {
+    const s = this.scr;
+    clearEl(s.body);
+    s.roomEl = null;
+    this.root = h('div.rkm');
+    this.bg = h('div.rkm-bg'); this.bgMap = h('div.rkm-bgmap');
+    this.top = h('div.rkm-top');
+    this.cornerMe = h('div.rkm-corner.me'); this.cornerOpp = h('div.rkm-corner.opp');
+    this.main = h('div.rkm-main');
+    this.ov = h('div.rkm-ov');
+    this.chat = this.buildChat();
+    const leave = h('button.rkm-leave', { title: 'Leave the match', 'aria-label': 'Leave the match', onclick: () => this.confirmLeave() }, icon('back'), h('span', 'Leave'));
+    this.root.append(this.bg, this.bgMap, this.main, this.top, this.cornerMe, this.cornerOpp, this.chat, leave, this.ov);
+    s.el.appendChild(this.root);
+    s.el.classList.add('rkm-on');
+    $('#app').classList.add('hide-toolbar');
+    this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {};
+    this._subs = [
+      Bus.on('mp:chat', m => this.addChat(m)),
+      Bus.on('rp:hand', m => this.onHand(m)),
+      Bus.on('mp:fetch', () => this.paintCorners(true)),
+    ];
+    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); };
+    loop();
+  },
+  unmount() {
+    if (!this.root) return;
+    cancelAnimationFrame(this._raf);
+    (this._subs || []).forEach(f => f()); this._subs = [];
+    this.stopPreview();
+    this.root.remove(); this.root = null;
+    if (this.scr && this.scr.el) this.scr.el.classList.remove('rkm-on');
+    $('#app').classList.remove('hide-toolbar');
+    clearTimeout(this._handT);
+  },
+  /** Leaving: during a match it loses the match (and, from the queue, a while out of it). */
+  async confirmLeave() {
+    const g = this.g;
+    const live = g && !['ended'].includes(g.stage) && !(g.stage === 'waitjoin' && !g.rated);
+    if (live) {
+      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true });
+      if (!ok) return;
+    }
+    Multiplayer.leave();
+  },
+
+  // ── updates
+  update() {
+    const g = this.g, r = Multiplayer.room;
+    if (!g || !this.root) return;
+    for (const p of r.players) this._names[p.id] = p.name;
+    if (g.left > 0) { this.endAt = performance.now() + g.left - Multiplayer.rtt / 2; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
+    this.root.dataset.stage = g.stage;
+    const opp = this.oppId();
+    const key = `${r.code}|${g.stage}|${g.round}|${g.active}|${opp || ''}`;
+    const fresh = key !== this._key;
+    if (fresh) {
+      const prev = this._lastStage;
+      this._key = key; this._lastStage = g.stage;
+      this.stopPreview();
+      this.renderStage(g, prev);
+      this.stageOverlay(g, prev);
+    } else this.refreshStage(g);
+    this.paintTop(g);
+    this.paintCorners();
+    this.chat.classList.toggle('hidden', g.stage === 'deal' || (g.stage === 'warmup' && g.round === 1) || g.stage === 'waitjoin');
+    // the end of a match goes into your history (and moves your rating if it was rated)
+    if (g.stage === 'ended' && g.round > 0 && !this._recorded) this.recordEnd(g);
+    if (g.stage !== 'ended') this._recorded = false;
+  },
+  recordEnd(g) {
+    this._recorded = true;
+    const me = g.users[Multiplayer.me], oppId = this.oppId(), o = oppId ? g.users[oppId] : null;
+    if (!me) return;
+    const result = g.winner === Multiplayer.me ? 'win' : g.winner ? 'loss' : 'draw';
+    RankedRating.record({ id: `${Multiplayer.room.code}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
+      me: { life: me.life, won: me.won, before: me.rating, after: me.ratingAfter }, muAfter: me.muAfter, sigmaAfter: me.sigmaAfter,
+      opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
+  },
+  /** Every frame: the stage timer and its bar (and the warning sounds as it runs out). */
+  tick() {
+    const g = this.g;
+    if (!g || !this.timerEl) return;
+    const left = this.endAt ? Math.max(0, this.endAt - performance.now()) : 0;
+    const txt = this.endAt ? `${String(Math.floor(left / 60000)).padStart(2, '0')}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}.${String(Math.floor(left % 1000)).padStart(3, '0')}` : '';
+    if (txt !== this._tt) { this._tt = txt; this.timerEl.textContent = txt; }
+    const p = this.endAt && this.len ? clamp(left / this.len, 0, 1) : 0;
+    const q = Math.round(p * 500);
+    if (q !== this._tq) { this._tq = q; this.timerBar.style.transform = `scaleX(${q / 500})`; }
+    // lazer warns when the discard or your own pick is about to run out: the timer turns red, then ticks each second
+    const warn = !!this.endAt && left > 0 && left <= 10000 && (g.stage === 'discard' && !g.users[Multiplayer.me]?.discarded || (g.stage === 'pick' && g.active === Multiplayer.me));
+    if (warn !== this._warn) { this._warn = warn; this.top.classList.toggle('warn', warn); }
+    if (warn && left <= 4000) { const sec = Math.ceil(left / 1000); if (sec !== this._tickSec) { this._tickSec = sec; UISounds.play('rp-tick'); } }
+    if (this.countEl && g.stage === 'ready' && g.countdown) { const n = Math.ceil(left / 1000); if (n !== this._cd) { this._cd = n; this.countEl.textContent = n > 0 ? n : 'Go!'; } }
+    if (this._intro) this.tickIntro();
+  },
+
+  // ── the frame: stage display, corner pieces, chat
+  paintTop(g) {
+    if (!this.timerEl) {
+      this.headEl = h('div.rkm-head'); this.timerEl = h('span.rkm-timer'); this.timerBar = h('i'); this.capEl = h('div.rkm-cap');
+      this.multEl = h('div.rkm-round');
+      this.top.append(h('div.rkm-headbox', this.headEl, h('div.rkm-tbar', this.timerBar), this.timerEl), this.capEl, this.multEl);
+    }
+    const H = { waitjoin: '', deal: '', warmup: '', discard: 'Discard Phase', discarded: 'Discard Phase', pick: 'Pick Phase', picked: 'Pick Phase', ready: 'Gameplay', playing: 'Gameplay', results: 'Results', ended: 'Results' };
+    const head = H[g.stage] || '';
+    if (this.headEl.textContent !== head) this.headEl.textContent = head;
+    this.top.classList.toggle('none', !head);
+    const cap = this.caption(g);
+    if (this.capEl.textContent !== cap) this.capEl.textContent = cap;
+    const round = g.round > 0 && !['ended', 'waitjoin', 'deal'].includes(g.stage) ? `Round ${g.round} · ×${+g.mult.toFixed(1)} round damage${g.rated ? '' : ' · unrated'}` : '';
+    if (this.multEl.textContent !== round) this.multEl.textContent = round;
+  },
+  caption(g) {
+    const me = Multiplayer.me, mine = g.active === me;
+    switch (g.stage) {
+      case 'discard': return g.users[me] && g.users[me].discarded ? (this._waitCap ? 'Waiting for your opponent...' : '') : 'Replace cards from your hand';
+      case 'pick': return mine ? 'It\'s your turn to play a card!' : 'Waiting for your opponent...';
+      case 'picked': return !Multiplayer.localMap() ? 'Getting the beatmap…' : 'Waiting for your opponent to get the beatmap…';
+      case 'ready': return g.countdown ? 'Get ready!' : !Multiplayer.localMap() ? 'Getting the beatmap…' : 'Waiting for your opponent…';
+      case 'playing': return 'Gameplay is in progress...';
+    }
+    return '';
+  },
+  paintCorners(force = false) {
+    const g = this.g;
+    if (!g) return;
+    const opp = this.oppId();
+    const f = Multiplayer.fetch;
+    const sig = JSON.stringify([g.users, opp, g.stage, (Multiplayer.room.players || []).map(p => [p.id, p.hasMap, p.away]), f && [f.progress, f.error], g.mult]);
+    if (!force && sig === this._cornerKey) return;
+    this._cornerKey = sig;
+    this.corner(this.cornerMe, Multiplayer.me, RP_BLUE);
+    this.corner(this.cornerOpp, opp, RP_RED);
+  },
+  corner(el, id, sc) {
+    const g = this.g;
+    const u = id && g.users[id];
+    el.style.setProperty('--p', sc.primary); el.style.setProperty('--pd', sc.darker); el.style.setProperty('--pk', sc.darkest); el.style.setProperty('--sf', sc.surface); el.style.setProperty('--sb', sc.border);
+    if (!u) { clearEl(el).append(h('div.rkm-av.empty', icon('user')), h('div.rkm-cinfo', h('div.rkm-name', id ? this.name(id) : 'Waiting for an opponent…'))); el._built = null; return; }
+    if (el._built !== id) {
+      el._built = id;
+      el._life = null;
+      el.hp = h('i.rkm-hpfill'); el.hpTxt = h('span.rkm-hptxt'); el.multTxt = h('span.rkm-mult'); el.stand = h('span.rkm-stand', 'Last Stand!');
+      el.state = h('span.rkm-state'); el.won = h('span.rkm-won');
+      el.av = h('div.rkm-av', this.avatar(id, 72));
+      clearEl(el).append(el.av, h('div.rkm-cinfo',
+        h('div.rkm-row', el.multTxt, el.stand),
+        h('div.rkm-hp', h('div.rkm-hptrack', el.hp), h('span.rkm-heart', '♥'), el.hpTxt),
+        h('div.rkm-row', h('span.rkm-name', this.name(id)), el.won, el.state)));
+    }
+    // the bar eases to the new life; the number follows it (a hit can also arrive mid-results, animated there)
+    const life = u.life;
+    if (el._life == null || (this.g.stage !== 'results' || !this._resultsHeld)) this.setLife(el, life, el._life != null && el._life !== life);
+    el.multTxt.textContent = `${+(g.mult + u.mult).toFixed(1)}x damage`;
+    el.won.textContent = u.won ? `${u.won} round${u.won === 1 ? '' : 's'} won` : '';
+    el.classList.toggle('dead', life <= 0);
+    el.classList.toggle('low', life > 0 && life < RP_LIFE * 0.3);
+    el.classList.toggle('active', g.active === id && ['pick', 'picked'].includes(g.stage));
+    // beatmap state while it's being fetched (as lazer's "Downloading… (45%)")
+    const p = this.player(id);
+    let st = '';
+    if (p && p.away) st = 'Reconnecting…';
+    else if (['picked', 'ready'].includes(g.stage) && p && !p.hasMap) {
+      if (id === Multiplayer.me) { const f = Multiplayer.fetch; st = f && f.error ? 'Download failed' : f && f.progress != null ? `Downloading... (${Math.round(f.progress * 100)}%)` : Multiplayer.localMap() ? 'Importing...' : 'Missing Beatmap'; }
+      else st = 'Downloading...';
+    } else if (g.stage === 'ready' && g.users[id] && g.users[id].ready) st = 'Ready';
+    el.state.textContent = st;
+  },
+  setLife(el, life, animate) {
+    const prev = el._life;
+    el._life = life;
+    el.hp.style.transform = `scaleX(${clamp(life / RP_LIFE, 0, 1)})`;
+    el.hp.classList.toggle('anim', !!animate);
+    if (!animate) { el.hpTxt.textContent = fmtInt(life); }
+    else countUp(el.hpTxt, prev ?? life, life, 900);
+    if (life === 1 && prev !== 1) { el.stand.classList.remove('show'); void el.stand.offsetWidth; el.stand.classList.add('show'); }
+    if (animate && prev != null && life < prev) { el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); }
+  },
+  buildChat() {
+    this.chatList = h('div.rkm-chatlist');
+    for (const m of Multiplayer.chat.slice(-30)) this.chatList.append(this.chatLine(m));
+    const input = h('input.input', { placeholder: 'Chat with your opponent…', maxlength: 300, 'aria-label': 'Chat message' });
+    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
+    const box = h('div.rkm-chat', this.chatList, input);
+    requestAnimationFrame(() => { this.chatList.scrollTop = this.chatList.scrollHeight; });
+    return box;
+  },
+  chatLine(m) { return m.from ? h(`div.rkm-msg${m.from === Multiplayer.me ? '.me' : ''}`, h('b', m.name), h('span', m.text)) : h('div.rkm-msg.sys', m.text); },
+  addChat(m) {
+    if (!this.chatList) return;
+    this.chatList.append(this.chatLine(m));
+    while (this.chatList.childNodes.length > 60) this.chatList.firstChild.remove();
+    this.chatList.scrollTop = this.chatList.scrollHeight;
+  },
+
+  // ── stage overlay (lazer's RankedPlayStageOverlay): the stage's name, big, for a moment
+  stageOverlay(g, prev) {
+    const show = (g.stage === 'discard') || (g.stage === 'pick' && prev !== 'pick');
+    if (!show) return;
+    const mine = g.active === Multiplayer.me, picking = g.stage === 'pick';
+    const sc = picking && !mine ? RP_RED : RP_BLUE;
+    const el = h('div.rkm-banner', { style: { '--p': sc.primary, '--sf': sc.surface } },
+      h('div.rkm-banner-box', h('span', picking ? 'Pick Phase' : 'Discard Phase')),
+      picking ? h('div.rkm-banner-who', h('span.rkm-banner-av', this.avatar(g.active, 32)), h('span', `${this.name(g.active)}'s pick`)) : null);
+    this.ov.append(el);
+    UISounds.play('rp-stage');
+    AudioManager.duck(true); setTimeout(() => AudioManager.duck(false), 1500);
+    setTimeout(() => el.classList.add('out'), 1500);
+    setTimeout(() => el.remove(), 2100);
+  },
+
+  // ── the stages
+  renderStage(g, prev) {
+    this._intro = null; this.countEl = null; this._waitCap = false; this._resultsHeld = false;
+    clearTimeout(this._capT);
+    const st = g.stage;
+    this.root.classList.toggle('no-corners', st === 'deal' || (st === 'warmup' && g.round === 1) || st === 'results' || st === 'waitjoin');
+    const m = h(`div.rkm-stage.st-${st}`);
+    clearEl(this.main).append(m);
+    this.stageEl = m;
+    if (st === 'waitjoin') this.renderWait(m, g);
+    else if (st === 'deal' || st === 'warmup') this.renderIntro(m, g, prev);
+    else if (st === 'discard' || st === 'discarded') this.renderDiscard(m, g);
+    else if (st === 'pick' || st === 'picked') this.renderPick(m, g);
+    else if (st === 'ready') this.renderWarmup(m, g);
+    else if (st === 'playing') this.renderPlaying(m, g);
+    else if (st === 'results') this.renderResults(m, g);
+    else if (st === 'ended') this.renderEnded(m, g);
+  },
+  refreshStage(g) {
+    const st = g.stage;
+    if (st === 'discard' || st === 'discarded') this.refreshDiscard(g);
+    else if (st === 'pick' || st === 'picked') this.refreshPick(g);
+    else if (st === 'ready') this.refreshWarmup(g);
+    else if (st === 'waitjoin') this.renderStage(g, st);
+    else if (st === 'deal' || st === 'warmup') { if (this._intro) this._intro.stars = g.stars; }
+    else if (st === 'playing') this.refreshPlaying(g);
+  },
+
+  /** Before the match: a duel waits for the friend (code and invite); a queue match for the other player to arrive. */
+  renderWait(m, g) {
+    const r = Multiplayer.room, opp = this.oppId();
+    if (g.rated) { m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Waiting for your opponent to join…'))); return; }
+    const pub = !(r.settings && r.settings.public === false);
+    m.append(h('div.rkm-duel',
+      h('div.rkm-duel-t', `${g.keys}K Ranked Play duel`), h('div.rkm-duel-s', 'Unrated · the cards are dealt around the lower of your two ratings'),
+      h('div.rkm-duel-vs', h('div.rkm-duel-p', this.avatar(Multiplayer.me, 84), h('b', ProfileManager.profile.name), h('span', `Rating ${fmtInt(g.users[Multiplayer.me] ? g.users[Multiplayer.me].rating : RankedRating.rating(g.keys))}`)),
+        h('div.rkm-duel-x', 'VS'),
+        opp ? h('div.rkm-duel-p', this.avatar(opp, 84), h('b', this.name(opp))) : h('div.rkm-duel-p.searching', h('div.rkm-duel-ping', h('i'), h('i'), icon('user')), h('b', 'Waiting…'), h('span', 'for someone to join'))),
+      h('div.rkm-duel-l', pub ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
+      h('div.rkm-code', h('span', r.code),
+        h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('copy')),
+        h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite'))));
+  },
+
+  /** Round 1's intro (lazer's IntroScreen): the two players face off (VsSequence), then the deck's star rating is
+   *  "refined" and lands (StarRatingSequence). */
+  renderIntro(m, g, prev) {
+    if (prev === 'deal' && g.stage === 'warmup' && this._introEl) { m.replaceWith(this._introEl); this.stageEl = this._introEl; this._intro = this._introState; this._intro.stars = g.stars; return; }
+    const me = Multiplayer.me, opp = this.oppId();
+    const side = (id, cls, sc) => h(`div.rki-side.${cls}`, { style: { '--p': sc.primary, '--pd': sc.darker } },
+      h('div.rki-av', this.avatar(id, 132)), h('div.rki-name', id ? this.name(id) : '…'),
+      h('div.rki-rt', g.rated ? `Rating: ${fmtInt(id && g.users[id] ? g.users[id].rating : 0)}` : 'Unrated duel'));
+    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Difficulty range is calculated to suit the two players.');
+    const after = h('div.rki-after', 'There\'s always a chance that you get maps outside this range');
+    const rki = h('div.rki',
+      h('div.rki-vs', side(me, 'l', RP_BLUE), h('div.rki-x', 'VS'), side(opp, 'r', RP_RED)),
+      h('div.rki-sr', title, star, sub, after));
+    m.append(rki);
+    this._introEl = m;
+    this._intro = this._introState = { t0: performance.now(), rki, star, title, after, sub, stars: g.stars, landed: false };
+    UISounds.play('rp-vs');
+  },
+  tickIntro() {
+    const it = this._intro, el = it && it.rki;
+    if (!it || !el || !el.isConnected) return;
+    const t = performance.now() - it.t0;
+    el.classList.toggle('sr', t > 4200);
+    if (t < 4200) return;
+    if (!it.landed) {
+      // the number flickers through candidates until the deck is in and it has had a couple of seconds
+      if (it.stars > 0 && t > 6800) {
+        it.landed = true;
+        it.star.textContent = `~${it.stars.toFixed(2)}`;
+        it.star.style.color = starColour(it.stars);
+        it.title.textContent = 'Star rating has been decided!';
+        el.classList.add('landed');
+        UISounds.play('rp-impact');
+      } else if (!(t - (it.last || 0) < 70)) {
+        it.last = t;
+        const v = 1 + Math.random() * 7;
+        it.star.textContent = `~${v.toFixed(2)}`; it.star.style.color = starColour(v);
+      }
+    }
+  },
+
+  /** A card: the beatmap's cover, star rating and key count, title, artist, difficulty, length and mapper, framed in
+   *  the star rating's colour (lazer's RankedPlayCard), with a back for cards you can't see. */
+  card(m, i, { back = false } = {}) {
+    const el = h(`div.rkc${back ? '.back' : ''}`, { dataset: { i: String(i) } });
+    if (back || !m) { el.append(h('div.rkc-in', h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play'))))); return el; }
+    const sc = starColour(m.stars || 0), local = Multiplayer.localMap(m);
+    el.style.setProperty('--sc', sc);
+    const cover = h('div.rkc-cover');
+    if (m.onlineSetId > 0) cover.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'card')}")`;
+    else if (local) BeatmapManager.bgURL(local).then(u => u && (cover.style.backgroundImage = `url("${u}")`)).catch(() => {});
+    const len = m.length > 0 ? fmtTime(m.length) : '';
+    el.append(h('div.rkc-in',
+      h('div.rkc-face',
+        cover,
+        h('div.rkc-top', starBadge(m.stars || 0), h('span.rkc-keys', `${m.keys}K`)),
+        h('div.rkc-body',
+          h('div.rkc-t', { title: m.title }, m.title), h('div.rkc-a', m.artist), h('div.rkc-v', m.version),
+          h('div.rkc-meta', len ? h('span', icon('clock'), len) : null, m.creator ? h('span', icon('user'), m.creator) : null))),
+      h('div.rkc-backside', h('div.rkc-logo', h('span', 'ashtonk!'), h('small', 'ranked play')))));
+    return el;
+  },
+  /** A hand of cards fanned out on an arc (lazer's HandOfCards); `top` hands hang upside down from the top. */
+  hand(ids, cards, { top = false, back = false, interactive = false, sel = -1, onPick = null, onHover = null, onPlay = null } = {}) {
+    const wrap = h(`div.rkh${top ? '.top' : ''}${interactive ? '.live' : ''}`);
+    const n = ids.length;
+    ids.forEach((id, k) => {
+      const off = k - (n - 1) / 2;
+      const slot = h('div.rkh-slot', { dataset: { i: String(id) }, style: { '--x': off.toFixed(2), '--r': (off * 4).toFixed(2) + 'deg', '--y': (off * off * 6).toFixed(1) + 'px', '--d': (k * 50) + 'ms', zIndex: String(10 + k) } },
+        this.card(cards[id], id, { back }));
+      if (interactive) {
+        slot.addEventListener('pointerenter', () => { slot.classList.add('hover'); onHover && onHover(id); UISounds.hover(); });
+        slot.addEventListener('pointerleave', () => { slot.classList.remove('hover'); onHover && onHover(null); });
+        slot.addEventListener('click', () => onPick && onPick(id));
+        if (onPlay) slot.append(h('button.rkh-play', { onclick: e => { e.stopPropagation(); onPlay(id); } }, icon('play'), 'Play'));
+      } else if (!back) {
+        slot.addEventListener('pointerenter', () => slot.classList.add('hover'));
+        slot.addEventListener('pointerleave', () => slot.classList.remove('hover'));
+      }
+      if (id === sel) slot.classList.add('sel');
+      wrap.append(slot);
+    });
+    return wrap;
+  },
+
+  /** Discard phase (round 1): pick any cards to replace, once — "Keep cards" or "Replace N cards". */
+  renderDiscard(m, g) {
+    const me = g.users[Multiplayer.me];
+    this._discardSel = new Set();
+    this._handSig = null;
+    m.append(
+      this._oppTag = h('div.rkm-opptag'),
+      h('div.rkd-explain', h('p', 'These are your cards for this match!'), h('p', 'When it’s your turn, you can play a card to go head-to-head against your opponent!')),
+      this._discardRow = h('div.rkd-row'),
+      this._discardBtn = h('button.rkd-btn', { onclick: () => this.submitDiscard() }));
+    this.refreshDiscard(g);
+    if (me && me.discarded) this._discardBtn.hidden = true;
+  },
+  refreshDiscard(g) {
+    const me = g.users[Multiplayer.me], opp = this.oppId();
+    if (!me || !this._discardRow) return;
+    const sig = me.hand.join(',') + '|' + me.discarded + '|' + g.stage;
+    if (sig !== this._handSig) {
+      const prev = this._handIds || [];
+      this._handSig = sig; this._handIds = [...me.hand];
+      const done = me.discarded || g.stage === 'discarded';
+      clearEl(this._discardRow).append(...me.hand.map((id, k) => {
+        const c = this.card(g.cards[id], id);
+        const slot = h('div.rkd-slot', { style: { '--d': (k * 60) + 'ms' } }, c);
+        if (prev.length && !prev.includes(id)) { slot.classList.add('new'); UISounds.play('rp-card'); }
+        if (!done) {
+          slot.classList.add('live');
+          slot.addEventListener('click', () => { const s = this._discardSel; s.has(id) ? s.delete(id) : s.add(id); slot.classList.toggle('marked', s.has(id)); UISounds.play(s.has(id) ? 'check-on' : 'check-off'); this.paintDiscardBtn(); });
+          slot.addEventListener('pointerenter', () => this.previewCard(g.cards[id]));
+          slot.addEventListener('pointerleave', () => this.stopPreview());
+          slot.append(h('span.rkd-mark', icon('retry'), 'Replace'));
+        }
+        return slot;
+      }));
+      this.paintDiscardBtn();
+      this._discardBtn.hidden = done;
+    }
+    // (lazer's discard screen is just your cards: your opponent is a line of status)
+    const ou = opp && g.users[opp];
+    if (this._oppTag) {
+      const t = !ou || g.stage !== 'discard' ? '' : ou.discarded ? `${this.name(opp)} has chosen` : `${this.name(opp)} is choosing…`;
+      if (this._oppTag.textContent !== t) this._oppTag.textContent = t;
+      this._oppTag.hidden = !t;
+    }
+  },
+  paintDiscardBtn() {
+    const n = this._discardSel ? this._discardSel.size : 0;
+    this._discardBtn.textContent = n ? `Replace ${n} card${n === 1 ? '' : 's'}` : 'Keep cards';
+    this._discardBtn.classList.toggle('replace', n > 0);
+  },
+  submitDiscard() {
+    const g = this.g;
+    if (!g || g.stage !== 'discard') return;
+    const cards = [...(this._discardSel || [])];
+    UISounds.play(cards.length ? 'rp-discard' : 'click-short-confirm');
+    Multiplayer.send({ t: 'discard', cards });
+    this._discardBtn.hidden = true;
+    $$('.rkd-slot', this._discardRow).forEach(s => { s.classList.remove('live'); if (s.classList.contains('marked')) s.classList.add('gone'); });
+    this.stopPreview();
+    // (as lazer: "waiting for your opponent" only once the swap's animation has had its moment)
+    this._capT = setTimeout(() => { this._waitCap = true; const gg = this.g; if (gg) this.paintTop(gg); }, 3200);
+  },
+
+  /** Pick phase: on your turn, select a card from your hand and Play it; on theirs, watch their hand as they handle it. */
+  renderPick(m, g) {
+    const mine = g.active === Multiplayer.me;
+    this._sel = -1; this._hover = null; this._pickSig = null; this._oppSig = null;
+    this.center = h('div.rkp-center');
+    this.oppHandEl = h('div.rkm-opphand');
+    this.myHandEl = h('div.rkm-myhand');
+    m.append(this.oppHandEl, this.center, this.myHandEl);
+    m.classList.toggle('mine', mine);
+    this.refreshPick(g);
+  },
+  refreshPick(g) {
+    const me = g.users[Multiplayer.me], opp = this.oppId(), ou = opp && g.users[opp];
+    if (!me || !this.myHandEl) return;
+    const mine = g.active === Multiplayer.me, played = g.played;
+    const myIds = me.hand.filter(id => !(mine && id === played && g.stage === 'picked'));
+    const sig = myIds.join(',') + '|' + g.stage + '|' + mine;
+    if (sig !== this._pickSig) {
+      this._pickSig = sig;
+      const live = mine && g.stage === 'pick';
+      clearEl(this.myHandEl).append(this.hand(myIds, g.cards, {
+        interactive: live, sel: this._sel,
+        onHover: id => { this._hover = id; this.sendHand(); if (id != null) this.previewCard(g.cards[id]); else this.stopPreview(); },
+        onPick: id => { if (this._sel === id) { this.playCard(id); return; } this._sel = id; $$('.rkh-slot', this.myHandEl).forEach(s => s.classList.toggle('sel', +s.dataset.i === id)); UISounds.play('select-difficulty'); this.sendHand(true); },
+        onPlay: id => this.playCard(id),
+      }));
+    }
+    if (ou) {
+      const oppIds = ou.hand.filter(id => !(!mine && id === played && g.stage === 'picked'));
+      const osig = oppIds.join(',') + '|' + g.stage;
+      if (osig !== this._oppSig) { this._oppSig = osig; clearEl(this.oppHandEl).append(this.hand(oppIds, {}, { top: true, back: true })); }
+    }
+    // the played card: centre stage, turned face up
+    if (g.stage === 'picked' && played >= 0 && !this.center.firstChild) {
+      const c = this.card(g.cards[played], played);
+      c.classList.add('played', mine ? 'from-me' : 'from-opp');
+      this.center.append(c, h('div.rkp-who', `${mine ? 'You' : this.name(g.active)} played`));
+      UISounds.play('rp-play');
+      this.stopPreview();
+    }
+  },
+  /** lazer's hand replay: your hovered and selected card, sent as they change, so your opponent sees your hand move. */
+  sendHand(now = false) {
+    const g = this.g;
+    if (!g || g.stage !== 'pick' || g.active !== Multiplayer.me) return;
+    const send = () => { this._handT = 0; Multiplayer.send({ t: 'hand', hover: this._hover ?? -1, sel: this._sel }); };
+    if (now) { clearTimeout(this._handT); send(); return; }
+    if (!this._handT) this._handT = setTimeout(send, 90);
+  },
+  onHand(m) {
+    if (!this.oppHandEl || m.id !== this.oppId()) return;
+    $$('.rkh-slot', this.oppHandEl).forEach(s => { const i = +s.dataset.i; s.classList.toggle('hover', i === m.hover); s.classList.toggle('sel', i === m.sel); });
+  },
+  playCard(id) {
+    const g = this.g;
+    if (!g || g.stage !== 'pick' || g.active !== Multiplayer.me) return;
+    Multiplayer.send({ t: 'play', card: id });
+    $$('.rkh-slot', this.myHandEl).forEach(s => s.classList.add(+s.dataset.i === id ? 'playing' : 'dimmed'));
+    this.stopPreview();
+  },
+
+  /** Gameplay warmup (lazer's GameplayWarmupScreen): the card beside the beatmap's details, its song playing from the
+   *  preview point; you're ready as soon as you have it, and once both are, a 10 second countdown starts the song. */
+  renderWarmup(m, g) {
+    const map = Multiplayer.room.map, card = map ? this.card(map, g.played) : null;
+    const local = Multiplayer.localMap();
+    const mine = g.active === Multiplayer.me;
+    this.countEl = h('div.rkw-count');
+    const stat = (ic, v, t) => v ? h('span.rkw-stat', { title: t }, icon(ic), v) : null;
+    m.append(h('div.rkw',
+      h('div.rkw-card', card),
+      h('div.rkw-sep'),
+      h('div.rkw-details',
+        h('div.rkw-wedge.title', h('div.rkw-t', map ? map.title : ''), h('div.rkw-a', map ? map.artist : ''),
+          h('div.rkw-stats', stat('clock', map && map.length > 0 ? fmtTime(map.length) : '', 'Length'), stat('target', local && local.bpm ? String(Math.round(local.bpm)) + ' BPM' : '', 'BPM'))),
+        h('div.rkw-wedge.diff', { style: { '--sc': starColour(map ? map.stars : 0) } }, starBadge(map ? map.stars : 0), h('div.rkw-v', map ? map.version : ''), h('div.rkw-by', 'mapped by ', h('b', map ? map.creator : '')), h('span.keys-tag', `${map ? map.keys : g.keys}K`)),
+        h('div.rkw-wedge.meta', h('div', h('span', 'Played by'), h('b', mine ? 'You' : this.name(g.active))), h('div', h('span', 'Round'), h('b', String(g.round))), h('div', h('span', 'Round damage'), h('b', `×${+g.mult.toFixed(1)}`))))),
+      this.countEl);
+    this._warmReady = false;
+    this.refreshWarmup(g);
+    // the background shows the beatmap, and its song plays from the preview point
+    const bgUrl = local ? BeatmapManager.bgURL(local) : Promise.resolve(map && map.onlineSetId > 0 ? OnlineBeatmaps.coverURL(map.onlineSetId, 'cover') : null);
+    this.bgMap.classList.remove('on');
+    bgUrl.then(u => { if (u && this.bgMap) { this.bgMap.style.backgroundImage = `url("${u}")`; this.bgMap.classList.add('on'); } }).catch(() => {});
+    if (local && Settings.get('audio.previewAudio')) this.playMapPreview(local);
+  },
+  refreshWarmup(g) {
+    const me = g.users[Multiplayer.me];
+    // ready as soon as the beatmap is here (lazer readies you when the screen has loaded it)
+    if (me && !me.ready && !this._warmReady && Multiplayer.localMap() && (Multiplayer.self() || {}).hasMap) { this._warmReady = true; Multiplayer.send({ t: 'rpready', ready: true }); }
+    if (this.countEl) this.countEl.classList.toggle('on', !!g.countdown);
+  },
+  async playMapPreview(local) {
+    try {
+      const blob = await BeatmapManager.getFile(local.setId, local.audioFile);
+      if (!blob || !this.g || this.g.stage !== 'ready') return;
+      Music.stream(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
+      Music.play(previewStart(local), { fadeIn: 600 });
+    } catch (e) { /* no preview: the warmup goes on in silence */ }
+  },
+
+  /** Your song is done (or you left it) and your opponent is still playing: their live score as it comes in. */
+  renderPlaying(m, g) {
+    this._liveEl = h('div.rkm-live');
+    m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Gameplay is in progress...')), this._liveEl);
+    this.refreshPlaying(g);
+  },
+  refreshPlaying() {
+    if (!this._liveEl) return;
+    const opp = this.oppId(), o = opp && Multiplayer.opps.get(opp);
+    clearEl(this._liveEl).append(o ? h('div', h('span', this.name(opp)), h('b', fmtScore(o.score || 0)), h('small', `${fmtAcc(o.acc ?? 1)} · ${fmtInt(o.combo || 0)}x`)) : null);
+  },
+
+  /** The round's results (lazer's ResultsScreen): both scores count up side by side, then the loser takes the damage —
+   *  the score difference, then the multiplier and the bonus added on, the life bar draining with a shake. */
+  renderResults(m, g) {
+    const res = g.results;
+    if (!res) { m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Working out the round…'))); return; }
+    const me = Multiplayer.me, opp = this.oppId(), ids = [me, opp].filter(Boolean);
+    const max = Math.max(1, ...ids.map(id => res.scores[id] || 0));
+    const loser = res.winner ? ids.find(id => id !== res.winner) : null;
+    const col = (id, sc) => {
+      const u = g.users[id], score = res.scores[id] || 0, d = res.dmg && res.dmg[id];
+      const scoreEl = h('div.rkr-score', '0'), hp = h('i.rkr-hpfill'), hpTxt = h('span.rkr-hptxt'), dmgEl = h('div.rkr-dmg');
+      const oldLife = d ? d.oldLife : u.life;
+      hp.style.transform = `scaleX(${clamp(oldLife / RP_LIFE, 0, 1)})`; hpTxt.textContent = fmtInt(oldLife);
+      const el = h(`div.rkr-col${id === res.winner ? '.win' : ''}`, { style: { '--p': sc.primary, '--pd': sc.darker, '--sf': sc.surface } },
+        h('div.rkr-who', this.avatar(id, 56), h('div', h('b', this.name(id)), h('span', res.quit && res.quit[id] ? 'left the song' : `${res.accuracy && res.accuracy[id] != null ? fmtAcc(res.accuracy[id]) : ''}${res.maxCombo && res.maxCombo[id] != null ? ` · ${fmtInt(res.maxCombo[id])}x` : ''}`)),
+          res.grade && res.grade[id] && !(res.quit && res.quit[id]) ? rankPill(res.grade[id]) : null),
+        scoreEl,
+        h('div.rkr-bar', h('i', { style: { '--w': (score / max).toFixed(4) } })),
+        h('div.rkr-hp', h('div.rkr-hptrack', hp), hpTxt),
+        dmgEl);
+      return { el, scoreEl, hp, hpTxt, dmgEl, score, d, id };
+    };
+    const cols = ids.map(id => col(id, id === me ? RP_BLUE : RP_RED));
+    const card = res.card >= 0 && g.cards[res.card] ? this.card(g.cards[res.card], res.card) : null;
+    const verdict = h('div.rkr-verdict', !res.winner ? 'Draw — no damage' : res.winner === me ? 'You win the round!' : `${this.name(res.winner)} wins the round`);
+    const breakdown = h('div.rkr-break');
+    m.append(h('div.rkr', h('div.rkr-round', `Round ${res.round}`), card ? h('div.rkr-card', card) : null, h('div.rkr-cols', ...cols.map(c => c.el)), verdict, breakdown));
+    this._resultsHeld = true;
+    // 1. the scores count up together
+    for (const c of cols) countUp(c.scoreEl, 0, c.score, 2000, fmtScore);
+    m.querySelectorAll('.rkr-bar i').forEach(b => requestAnimationFrame(() => b.classList.add('go')));
+    UISounds.play('rp-score');
+    const tok = this._resTok = {};
+    const later = (ms, fn) => setTimeout(() => { if (this._resTok === tok && this.root) fn(); }, ms);
+    later(2200, () => { verdict.classList.add('show'); UISounds.play(res.winner === me ? 'rp-win' : res.winner ? 'rp-lose' : 'click-short'); });
+    // 2. the damage: the difference, then each extra (×multiplier, +bonus) landing on the number, then the life bar
+    const L = loser && cols.find(c => c.id === loser);
+    if (L && L.d && L.d.damage > 0) {
+      const d = L.d, steps = [];
+      if (Math.abs(d.multiplier - 1) > 1e-9) steps.push([Math.ceil(d.directDamage * d.multiplier) - d.directDamage, `×${+d.multiplier.toFixed(1)}`, 'multiplier']);
+      if (d.bonusDamage) steps.push([d.bonusDamage, `+${fmtInt(d.bonusDamage)}`, 'bonus']);
+      let shown = d.directDamage, t = 2900;
+      later(t, () => { L.dmgEl.classList.add('show'); L.dmgEl.textContent = `−${fmtInt(shown)}`; breakdown.replaceChildren(h('span', 'Damage'), h('b', fmtInt(shown))); UISounds.play('rp-dmg'); });
+      steps.forEach(([add, label, src], k) => {
+        t += 1100;
+        later(t, () => {
+          const from = shown; shown += add;
+          breakdown.replaceChildren(h('span', 'Damage'), h('b.pop', fmtInt(shown)), h('em', h('i', label), ` ${src}`));
+          countUp(L.dmgEl, from, shown, 350, v => `−${fmtInt(v)}`);
+          UISounds.play('rp-mult');
+        });
+      });
+      t += 1100;
+      later(t, () => {
+        L.hp.classList.add('anim'); L.hp.style.transform = `scaleX(${clamp(d.newLife / RP_LIFE, 0, 1)})`;
+        countUp(L.hpTxt, d.oldLife, d.newLife, 900);
+        L.el.classList.add('hit');
+        UISounds.play('rp-hit');
+        if (d.newLife === 1) L.el.append(h('div.rkr-stand', 'Last Stand!'));
+        if (d.newLife <= 0) L.el.append(h('div.rkr-ko', 'Defeated'));
+        this._resultsHeld = false;
+      });
+    } else later(2600, () => { this._resultsHeld = false; });
+  },
+
+  /** The end of the match (lazer's EndedScreen): victory, defeat or a draw, and the ratings. */
+  renderEnded(m, g) {
+    const me = Multiplayer.me, opp = this.oppId(), u = g.users[me], o = opp && g.users[opp];
+    const res = g.round === 0 ? 'none' : g.winner === me ? 'win' : g.winner ? 'loss' : 'draw';
+    const title = { win: 'VICTORY', loss: 'DEFEAT', draw: 'DRAW', none: 'MATCH OVER' }[res];
+    const delta = x => { const d = x.ratingAfter - x.rating; return h(`span.rke-d${d > 0 ? '.up' : d < 0 ? '.down' : ''}`, d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '±0'); };
+    const rating = (label, x) => x ? h('div.rke-rating', h('span', label), h('b', fmtInt(x.ratingAfter)), g.rated ? delta(x) : null) : null;
+    const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;
+    m.append(h(`div.rke.${res}`,
+      h('div.rke-title', title),
+      g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', 'Unrated duel'),
+      g.round ? h('div.rke-rows', lifeRow(me, u), lifeRow(opp, o)) : null,
+      h('div.rke-btns',
+        h('button.rke-btn.quit', { onclick: () => { UISounds.back(); Multiplayer.leave(); } }, 'Quit'),
+        h('button.rke-btn.again', { onclick: () => { UISounds.click(); const keys = g.keys, rated = g.rated; Multiplayer.leave(); if (rated) RankQueue.start(keys); else MultiplayerScreen.openCreate({ ranked: true, keys }); } }, g.rated ? 'Play Again' : 'New duel'))));
+    if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat');
+  },
+
+  // ── song previews while handling cards (lazer plays the hovered card's song)
+  previewCard(m) {
+    clearTimeout(this._pvT);
+    if (!m || !(m.onlineSetId > 0) || !Settings.get('audio.previewAudio')) return;
+    if (this._pvId === m.onlineSetId && this._pv) return;
+    this._pvT = setTimeout(() => {
+      this.stopPreview(true);
+      const a = new Audio(OnlineBeatmaps.previewURL(m.onlineSetId));
+      a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1) * 0.8;
+      a.play().catch(() => {});
+      this._pv = a; this._pvId = m.onlineSetId;
+      if (Music.playing) { Music.setVolume(0.15, 300); this._pvDucked = true; }
+    }, 350);
+  },
+  stopPreview(keepDuck = false) {
+    clearTimeout(this._pvT);
+    if (this._pv) { this._pv.pause(); this._pv.removeAttribute('src'); this._pv = null; this._pvId = null; }
+    if (!keepDuck && this._pvDucked) { this._pvDucked = false; Music.setVolume(1, 400); }
+  },
+};
+
+/** Count a number up (or down) in an element over `ms`, with lazer's ease-out. */
+function countUp(el, from, to, ms, fmt = fmtInt) {
+  const t0 = performance.now();
+  const tok = el._countTok = {};
+  const step = () => {
+    if (el._countTok !== tok) return;
+    const p = clamp((performance.now() - t0) / ms, 0, 1), e = 1 - Math.pow(1 - p, 4);
+    el.textContent = fmt(Math.round(from + (to - from) * e));
+    if (p < 1) requestAnimationFrame(step);
+  };
+  step();
+}
+
+/** The lobby's Ranked Play panel (lazer's queue screen): key count, your rating, Begin queueing / Stop queueing with
+ *  the time searching and how many are queued, and your recent matches. */
+function rankedQueuePanel() {
+  const el = h('div.rq');
+  const paint = () => {
+    if (!el.isConnected && el._painted) { off(); off2(); clearInterval(t); return; }
+    el._painted = true;
+    const st = RankQueue.st, keys = st ? st.keys : (Settings.get('mp.qpKeys') === 7 ? 7 : 4), p = RankedRating.get(keys);
+    const searching = st && ['joining', 'search'].includes(st.status), found = st && st.status === 'found';
+    const hist = RankedRating.history().slice(0, 4);
+    clearEl(el).append(
+      h('div.rq-head', h('div.rq-ico', icon('trophy')), h('div', h('div.rq-t', 'Ranked Play'), h('div.rq-s', '1v1 · beatmap cards · 1,000,000 life · lazer\'s rules')),
+        h('div.grow'),
+        h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${keys === k ? '.on' : ''}`, { disabled: !!st, onclick: () => { UISounds.click(); Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))),
+      h('div.rq-body',
+        h('div.rq-rating', h('span', `Your ${keys}K rating`), h('b', fmtInt(Math.round(p.mu))), h('small', p.fresh ? 'from your pp — play a match to settle it' : `${p.played} match${p.played === 1 ? '' : 'es'} · ${p.won} won`)),
+        h('div.grow'),
+        searching ? h('div.rq-search', h('span.spinner'), h('div', h('b', 'Searching for a match...'), h('span', `${RankQueue.waited()}${st.queued ? ` · ${st.queued} queued` : ''}`)))
+          : found ? h('div.rq-search', icon('check'), h('div', h('b', 'Match found!'), h('span', st.accepted ? 'Waiting for your opponent…' : 'Accept it to play'))) : null,
+        st ? (found && !st.accepted ? h('button.rq-btn.go', { onclick: () => RankQueue.accept() }, 'Accept') : h('button.rq-btn.stop', { onclick: () => { UISounds.back(); RankQueue.stop(); } }, 'Stop queueing'))
+          : h('button.rq-btn.go', { disabled: !Multiplayer.available(), onclick: () => { UISounds.click(); RankQueue.start(keys); } }, 'Begin queueing')),
+      hist.length ? h('div.rq-hist', h('div.rq-hl', 'Recent matches'), ...hist.map(m => h(`div.rq-match.${m.result}`,
+        h('span.rq-res', m.result === 'win' ? 'Won' : m.result === 'loss' ? 'Lost' : 'Draw'),
+        h('span.rq-opp', 'vs ', h('b', m.opp ? m.opp.name : '—')),
+        h('span.rq-life', `${fmtInt(m.me.life)} : ${fmtInt(m.opp ? m.opp.life : 0)}`),
+        h('span.rq-won', `${m.me.won}–${m.opp ? m.opp.won : 0}`),
+        h('span.rq-rd', m.rated ? (m.me.after - m.me.before >= 0 ? `+${m.me.after - m.me.before}` : `−${m.me.before - m.me.after}`) : 'duel'),
+        h('span.rq-when', `${m.keys}K · ${fmtDateShort(m.at)}`)))) : null);
+  };
+  const off = Bus.on('rq:changed', paint), off2 = Bus.on('rp:rating', paint);
+  const t = setInterval(() => { if (!el.isConnected) { off(); off2(); clearInterval(t); return; } if (RankQueue.st && RankQueue.st.status === 'search') paint(); }, 1000);
+  paint();
+  return el;
+}
+const fmtDateShort = t => { try { return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; } };
 
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */

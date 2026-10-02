@@ -22,6 +22,32 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play, rebuilt on osu!lazer's rules
+Ranked Play now plays exactly like lazer's. The rules come straight from lazer's server code (osu-server-spectator's Ranked Play stages), and the screens follow its RankedPlayScreen.
+- **Queue for a match:** the multiplayer lobby has a Ranked Play panel with 4K / 7K, your rating, **Begin queueing**, the time you've waited and how many are queued.
+  - When a close enough opponent is found, both get **Match found!** with 30 seconds to accept. The search widens the longer you wait.
+  - Declining costs a minute out of the queue, and your opponent goes back to searching.
+  - Your recent matches are listed underneath.
+- **Rating:** queue matches are rated with lazer's OpenSkill (Plackett–Luce on the final life, μ 1500, σ 150).
+  - A new player's rating is worked out from their pp for that key count, as lazer does: about 1.9★ cards with no pp.
+  - The old skill levels are gone; the rating decides the cards.
+  - Friend duels (Create room → Ranked Play duel, or an invite) use the same rules but are unrated.
+- **The deck:** 50 cards picked around the lower player's rating, using lazer's beatmap rating curve. You can't see your opponent's cards; only their backs and how many they hold.
+- **A match:**
+  1. **Intro:** you face off with your ratings, then the deck's star rating is "refined" and lands.
+  2. **Discard phase** (round 1, 30 s): replace any of your five cards once ("Keep cards" / "Replace 2 cards").
+  3. **Pick phase** (45 s): turns alternate, lowest rating first. Select a card and press **Play**. When time runs out, the card you last selected is played. Your opponent watches your hand move as you handle it (lazer's hand replay). From round 3 you draw a card at the start of your turn.
+  4. **Warmup:** the card sits beside the beatmap's details while its song plays from the preview point. You're ready as soon as you have the beatmap, then a 10-second countdown starts the song. Anyone not ready within 2 minutes takes 100,000 × the round multiplier and the round is skipped.
+  5. **Results:** both scores count up side by side (lazer's standardised score), then the loser takes ⌈difference × (round multiplier + winner's multiplier)⌉ + 50,000. The breakdown flies onto the number and their life bar drains with a shake. The round multiplier starts at 0.5 and grows 0.5 each round; yours grows 0.5 each round you win. A hit at full life always leaves 1 (**Last Stand**).
+  6. **End:** VICTORY / DEFEAT / DRAW with both new ratings, then **Play Again** (back into the queue) or **Quit**.
+- **Leaving:** leaving a song scores 0 for that round while your opponent plays on. Leaving the match loses it (and keeps you out of the queue for 10 minutes if it was rated), unless the cards haven't been dealt yet. A dropped connection gets 20 seconds to come back as the same player.
+- **The screen:** lazer's layout, full screen with the top bar hidden:
+  - You in blue (bottom left) and your opponent in red (top right), each with their life bar, "N.Nx damage", "Last Stand!" and download state.
+  - The stage name with its timer in the middle at the top, which turns red as your pick runs out.
+  - The big stage banner ("Pick Phase · Alice's pick").
+  - Cards fanned in an arc that lift as you hover them and play their song preview.
+  - Chat in the corner and synthesized card, stage and damage sounds.
+
 ### Smooth scrolling
 - **Notes now move by exactly the same distance every frame.** The playfield used to place notes by the moment its code ran, plus a reading of the audio clock that jittered by a few milliseconds, so some frames jumped up to 10 ms of travel too far or too short. It now follows the display's refresh: each frame is drawn for the instant it's shown, on a clock locked to the music that eases back to it rather than jumping.
 - **No hitch on the first hits.** Hit and hold lighting, stage light and keys were prepared the first time they appeared mid-song (3–13 ms each, enough to drop a frame right as a map starts). They're all prepared while the loader is up, about 15 ms in all.

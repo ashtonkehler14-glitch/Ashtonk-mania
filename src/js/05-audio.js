@@ -134,6 +134,24 @@ const AudioManager = {
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);
     else if (name === 'sectionpass' || name === 'applause') buf = make(0.7, t => (Math.sin(2 * Math.PI * 660 * t) * (t < 0.15 ? 1 : 0) + Math.sin(2 * Math.PI * 990 * t) * (t >= 0.15 ? 1 : 0)) * env(t, 0.005, 0.2) * 0.2);
     else if (name === 'sectionfail') buf = make(0.6, t => Math.sin(2 * Math.PI * (400 - 200 * t) * t) * env(t, 0.005, 0.2) * 0.2);
+    // Ranked Play (lazer's Multiplayer/Matchmaking/Ranked samples, synthesized)
+    else if (name === 'rp-stage') buf = make(0.55, (t, n) => (n() * 0.35 * env(t, 0.09, 0.12) + Math.sin(2 * Math.PI * (180 + 700 * t) * t) * 0.25 * env(t, 0.02, 0.22)) * 0.4);
+    else if (name === 'rp-card') buf = make(0.14, (t, n) => (n() * env(t, 0.002, 0.025) * 0.3 + Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.12) * 0.7);
+    else if (name === 'rp-discard') buf = make(0.3, (t, n) => n() * env(t, 0.01, 0.07) * 0.28 * (1 - t / 0.3));
+    else if (name === 'rp-play') buf = make(0.45, (t, n) => (Math.sin(2 * Math.PI * (150 - 90 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.2) * 0.6);
+    else if (name === 'rp-tick') buf = make(0.06, t => Math.sin(2 * Math.PI * 2100 * t) * env(t, 0.0005, 0.012) * 0.25);
+    else if (name === 'rp-vs') buf = make(1.1, (t, n) => (Math.sin(2 * Math.PI * 60 * t) * env(t, 0.003, 0.25) * 0.7 + n() * env(t, 0.002, 0.08) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.05, 0.4) * 0.06) * 0.55);
+    else if (name === 'rp-impact') buf = make(0.8, (t, n) => (Math.sin(2 * Math.PI * 80 * t) * env(t, 0.002, 0.14) * 0.6 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.3) * 0.1 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);
+    else if (name === 'rp-score') buf = make(0.5, t => Math.sin(2 * Math.PI * (520 + 380 * t) * t) * env(t, 0.02, 0.18) * 0.16);
+    else if (name === 'rp-dmg') buf = make(0.35, (t, n) => (n() * env(t, 0.001, 0.05) * 0.4 + Math.sin(2 * Math.PI * (110 - 40 * t) * t) * env(t, 0.002, 0.1) * 0.5) * 0.55);
+    else if (name === 'rp-mult') buf = make(0.28, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.5) * env(t, 0.002, 0.08) * 0.2);
+    else if (name === 'rp-hit') buf = make(0.7, (t, n) => (Math.sin(2 * Math.PI * (90 - 50 * t) * t) * env(t, 0.002, 0.2) * 0.75 + n() * env(t, 0.001, 0.06) * 0.35) * 0.6);
+    else if (name === 'rp-win') buf = make(0.7, t => [660, 880, 1320].reduce((a, f, k) => a + (t > k * 0.08 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.08, 0.005, 0.2) : 0), 0) * 0.13);
+    else if (name === 'rp-lose') buf = make(0.7, t => Math.sin(2 * Math.PI * (440 - 220 * t) * t) * env(t, 0.01, 0.25) * 0.2);
+    else if (name === 'rp-victory') buf = make(1.6, t => [523, 659, 784, 1047].reduce((a, f, k) => a + (t > k * 0.12 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.12, 0.01, 0.5) : 0), 0) * 0.1);
+    else if (name === 'rp-defeat') buf = make(1.3, t => (Math.sin(2 * Math.PI * (300 - 120 * t) * t) + Math.sin(2 * Math.PI * (200 - 80 * t) * t) * 0.6) * env(t, 0.02, 0.45) * 0.16);
+    else if (name === 'rp-enqueue') buf = make(0.3, t => (Math.sin(2 * Math.PI * 880 * t) * (t < 0.1 ? 1 : 0) + Math.sin(2 * Math.PI * 1320 * t) * (t >= 0.1 ? 1 : 0)) * env(t, 0.003, 0.08) * 0.18);
+    else if (name === 'rp-found') buf = make(0.9, t => [784, 1047, 1319].reduce((a, f, k) => a + (t > k * 0.11 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.11, 0.004, 0.18) : 0), 0) * 0.14);
     else if (/^count[123]s$|^gos$/.test(name)) buf = make(0.15, t => Math.sin(2 * Math.PI * (name === 'gos' ? 1320 : 880) * t) * env(t, 0.002, 0.05) * 0.25);
     this._synthCache.set(name, buf);
     return buf;

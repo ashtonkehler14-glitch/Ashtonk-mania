@@ -745,7 +745,8 @@ const GameplayScreen = {
    *  (osu!lazer-style board). Team Versus adds lazer's red-vs-blue totals at the top. */
   updateMp(e) {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
-    const sc = e.score.score;
+    // (Ranked Play compares lazer's standardised score: it decides the damage)
+    const sc = s.mp.rp ? e.score.scoreStd : e.score.score;
     if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
       this._myPp = s.mpFailed ? 0 : this.livePp(e);
@@ -813,9 +814,9 @@ const GameplayScreen = {
   async mpQuit() {
     const s = this.s;
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
-    // Ranked Play: leaving the song gives this round to the opponent (both go back to the room; the match goes on)
+    // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `${opp ? opp.name : 'Your opponent'} wins this round. You both go back to the room and the match carries on.`, { ok: 'Leave song', danger: true })
+    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true })
       : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true });
     if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });

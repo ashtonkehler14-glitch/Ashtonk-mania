@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, rpRange, cleanAvatar } from '../worker/multiplayer.js';
+import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE } from '../worker/multiplayer.js';
 
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
@@ -398,99 +398,290 @@ test('Quick Play: a full lobby starts almost at once; everyone else leaving ends
   assert.equal(r.qp.phase, 'final');
 });
 
-test('Ranked Play: skill levels set the deck, paired hands of five, reroll once a round, damage × 1, 1.5, 2…', () => {
-  const clock = { t: 0 };
-  const r = new RoomLogic('RP', () => clock.t, () => 0);
-  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, skill: 2 });
-  assert.equal(r.rp.deadline, 0, 'waits for an opponent');
-  r.join('b', 'Bob', false, { skill: 5 });
-  assert.equal(r.join('c', 'Cat', false).ok, false, 'two players only');
-  assert.deepEqual(r.snapshot().players.map(p => p.skill), [2, 5]);
-  assert.equal(r.snapshot().players[0].rating, undefined, 'no rating');
-  // both confirm their level: the cards are dealt straight away (a changed level asks again)
-  r.message('a', { t: 'rpready', ready: true });
-  r.message('b', { t: 'skill', skill: 4 });
-  assert.equal(r.rp.ready.a, false, 'changing a level un-readies both');
+// ── Ranked Play: osu!lazer's rules (osu-server-spectator RankedPlay stages)
+const deck = (n = 50) => Array.from({ length: n }, (_, i) => ({ ...MAP, hash: 'h' + i, title: 'Song ' + i, stars: 3 + i * 0.02, onlineSetId: 100 + i, onlineId: 1000 + i }));
+/** A rated match between Alice (1600) and Bob (1400), dealt and at the end of the intro. */
+function rpMatch(clock = { t: 0 }, opts = {}) {
+  const r = new RoomLogic('RP', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rated: true, rating: 1600, sigma: 150, cid: 'ca', ...opts });
+  const out = r.join('b', 'Bob', false, { rating: 1400, sigma: 150, cid: 'cb' }).out;
+  r.message('a', { t: 'pool', maps: deck() });
+  return { r, out };
+}
+const tickTo = (r, clock) => { clock.t = r.rp.deadline; return r.tick(); };
+/** Play the current card: both get it, both ready, the countdown runs out, both finish with these scores. */
+function playRound(r, clock, a, b) {
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
   r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
-  clock.t = 1500; let out = r.tick();
-  const ask = msgs(out, 'qpPool')[0].msg;
-  assert.equal(ask.count, RP.DECK);
-  assert.deepEqual([ask.sr, ask.lo, ask.hi], [2.6, 2, 3.2], 'between 2★ and 4★, leaning to the lower');
-  assert.deepEqual(rpRange(6, 1), rpRange(1, 6));
-  const pool = Array.from({ length: 16 }, (_, i) => ({ ...MAP, hash: 'h' + i, title: 'Song ' + i, stars: 2 + i * 0.08 }));
-  r.message('a', { t: 'pool', maps: pool });
-  assert.equal(r.rp.phase, 'pick');
-  assert.equal(r.rp.hands.a.length, RP.HAND); assert.equal(r.rp.hands.b.length, RP.HAND);
-  // dealt in pairs of matching difficulty: every card in one hand has a partner of (almost) the same stars in the other
-  const st = i => pool[i].stars, hb = r.rp.hands.b.map(st);
-  for (const x of r.rp.hands.a.map(st)) assert.ok(hb.some(y => Math.abs(x - y) < 0.09), `a partner for ${x}★`);
-  assert.equal(r.rp.picker, 'a');
-  // reroll: named cards (or the whole hand), once a round
-  const before = [...r.rp.hands.b];
-  r.message('b', { t: 'reroll', cards: [before[0], before[1]] });
-  assert.equal(r.rp.hands.b.length, RP.HAND);
-  assert.ok(!r.rp.hands.b.includes(before[0]) && !r.rp.hands.b.includes(before[1]) && r.rp.hands.b.includes(before[2]));
-  assert.equal(r.snapshot().rp.rerolled.b, true);
-  assert.deepEqual(r.message('b', { t: 'reroll' }), [], 'only once a round');
-  const other = r.rp.hands.b[0];
-  assert.deepEqual(r.message('a', { t: 'pick', i: other }), [], 'only cards in your own hand');
-  assert.deepEqual(r.message('b', { t: 'pick', i: r.rp.hands.a[0] }), [], 'only the picker picks');
-  const card = r.rp.hands.a[1];
-  r.message('a', { t: 'pick', i: card });
-  assert.equal(r.rp.chosen, card); assert.equal(r.rp.hands.a.length, RP.HAND - 1);
-  assert.equal(r.map.title, pool[card].title);
-  clock.t += RP.REVEAL; r.tick();
-  r.message('a', { t: 'hasMap', has: true });
-  out = r.message('b', { t: 'hasMap', has: true });
-  assert.equal(msgs(out, 'start').length, 1);
-  fin(r, 'a', { score: 900000 });
-  fin(r, 'b', { score: 700000, passed: false }); // a failed play still counts its score (as in lazer)
-  assert.equal(r.rp.hp.b, RP.HP - 200000, 'round 1: ×1');
-  assert.equal(r.rp.last.loser, 'b');
-  assert.equal(r.rp.picker, 'b', 'the round\'s loser picks next');
-  clock.t += RP.DAMAGE; r.tick();
-  assert.equal(r.rp.round, 2); assert.equal(r.rp.hands.a.length, RP.HAND, 'hands are topped up');
-  assert.equal(r.snapshot().rp.mult, 1.5);
-  assert.equal(r.snapshot().rp.rerolled.b, false, 'a new round, a new reroll');
-  clock.t += RP.PICK; r.tick(); // b doesn't pick in time: a random card from b's hand
-  assert.equal(r.rp.phase, 'reveal');
-  clock.t += RP.REVEAL; r.tick();
-  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
-  fin(r, 'a', { score: 100000 });
-  fin(r, 'b', { score: 700000 });
-  assert.equal(r.rp.hp.a, RP.HP - 900000, 'round 2: ×1.5');
-  assert.equal(r.rp.phase, 'damage');
+  const out = tickTo(r, clock);
+  fin(r, 'a', { score: a }); fin(r, 'b', { score: b });
+  return out;
+}
+
+test('Ranked Play maths: beatmap ratings from stars, a new player\'s rating from pp, the deck around the lower rating', () => {
+  assert.equal(beatmapRating(0), 800);
+  assert.equal(beatmapRating(5), Math.round(800 + 500 * (Math.exp(0.8) - 1)));
+  for (const sr of [1, 2.5, 4, 6.3]) assert.ok(Math.abs(starsForRating(beatmapRating(sr)) - sr) < 0.01);
+  assert.equal(Math.round(initialRating(0)), 976, 'no pp: about 1.9★ cards');
+  assert.ok(initialRating(5000) > initialRating(1000));
+  let seed = 1; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const t = deckTargets([1600, 1400], 50, rnd).sort((x, y) => x - y);
+  assert.equal(t.length, 50);
+  const median = t[25];
+  assert.ok(Math.abs(median - starsForRating(1400)) < 0.35, `centred on the lower rating (${median}★ vs ${starsForRating(1400).toFixed(2)}★)`);
 });
 
-test('Ranked Play: leaving the song ends the round for both, and the other player wins it', () => {
-  const clock = { t: 0 };
-  const r = new RoomLogic('RP', () => clock.t, () => 0);
-  r.join('a', 'A', true, { mode: 'rp' }); r.join('b', 'B', false);
-  clock.t = RP.GATHER; r.tick();
-  r.message('a', { t: 'pool', maps: Array.from({ length: 10 }, (_, i) => ({ ...MAP, hash: 'h' + i })) });
-  r.message('a', { t: 'pick', i: r.rp.hands.a[0] });
-  clock.t += RP.REVEAL; r.tick();
-  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
-  r.message('a', { t: 'score', score: 400000, acc: 0.98, combo: 100 });
-  r.message('b', { t: 'score', score: 100000, acc: 0.9, combo: 20 });
-  const out = r.message('a', { t: 'quit' }); // a is ahead, but leaves the song
-  assert.deepEqual(msgs(out, 'abort')[0].msg.by, 'a', 'the other player is sent back to the room');
-  assert.equal(r.state, 'lobby');
-  assert.equal(r.rp.last.loser, 'a');
-  assert.equal(r.rp.hp.a, RP.HP - RP.FORFEIT, 'at least the forfeit damage');
-  assert.equal(r.rp.phase, 'damage', 'the match goes on');
-  assert.equal(r.players.length, 2);
+test('Ranked Play rating: OpenSkill Plackett–Luce on the final life (μ 1500, σ 150, τ 15)', () => {
+  const [w, l] = rateMatch([{ mu: 1500, sigma: 150, score: 600000 }, { mu: 1500, sigma: 150, score: 0 }]);
+  assert.ok(Math.abs(w.mu - 1553.3) < 0.5 && Math.abs(l.mu - 1446.7) < 0.5, `±53 between equals (${w.mu}, ${l.mu})`);
+  assert.ok(w.sigma < 150.75 && Math.abs(w.sigma - l.sigma) < 1e-9, 'more certain afterwards');
+  const [d1, d2] = rateMatch([{ mu: 1600, sigma: 120, score: 5 }, { mu: 1400, sigma: 120, score: 5 }]);
+  assert.ok(d1.mu < 1600 && d2.mu > 1400, 'a draw pulls the ratings together');
+  const [up] = rateMatch([{ mu: 1300, sigma: 150, score: 1 }, { mu: 1700, sigma: 150, score: 0 }]);
+  assert.ok(up.mu - 1300 > 53, 'beating a stronger player is worth more');
 });
 
-test('Ranked Play: leaving hands the match to the other player', () => {
+test('Ranked Play: deal, intro, discard phase, the lower rating plays first, and the timer plays the selected card', () => {
   const clock = { t: 0 };
-  const r = new RoomLogic('RP', () => clock.t, () => 0);
-  r.join('a', 'Alice', true, { mode: 'rp' }); r.join('b', 'Bob', false);
-  clock.t = RP.GATHER; r.tick();
-  r.message('a', { t: 'pool', maps: [MAP, { ...MAP, hash: 'x' }] });
-  r.leave('a');
-  assert.equal(r.rp.phase, 'final');
-  assert.equal(r.rp.winner, 'b');
+  const r = new RoomLogic('RP', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rated: true, rating: 1600, cid: 'ca' });
+  assert.equal(r.rp.stage, 'waitjoin');
+  assert.equal(r.listing(), null, 'queue matches are not listed');
+  const out = r.join('b', 'Bob', false, { rating: 1400, cid: 'cb' }).out;
+  assert.equal(r.join('c', 'Cat', false).ok, false, 'two players only');
+  const ask = msgs(out, 'rpDeck')[0];
+  assert.equal(ask.to, 'a', 'the host\'s client draws up the deck');
+  assert.equal(ask.msg.targets.length, RP.DECK);
+  assert.equal(r.rp.stage, 'deal');
+  r.message('a', { t: 'pool', maps: deck() });
+  assert.equal(r.rp.stage, 'warmup'); assert.equal(r.rp.round, 1); assert.equal(r.rp.stageLen, RP.INTRO);
+  assert.equal(r.rp.user('a').hand.length, RP.HAND); assert.equal(r.rp.user('b').hand.length, RP.HAND);
+  assert.equal(r.rp.deck.length, 50 - 2 * RP.HAND);
+  assert.equal(r.rp.active, 'b', 'the lower-rated player plays first');
+  assert.ok(Math.abs(r.rp.stars - 3.49) < 0.01, 'the deck\'s average star rating');
+  // each player sees their own cards only
+  const va = r.snapshot('a').rp, vb = r.snapshot('b').rp;
+  assert.deepEqual(Object.keys(va.cards).map(Number).sort(), [...r.rp.user('a').hand].sort());
+  assert.ok(r.rp.user('b').hand.every(i => !(i in va.cards)) && r.rp.user('a').hand.every(i => !(i in vb.cards)));
+  assert.equal(va.users.b.hand.length, RP.HAND, 'the number of the opponent\'s cards is known');
+  // round 1 opens with the discard phase: replace any cards, once
+  tickTo(r, clock);
+  assert.equal(r.rp.stage, 'discard'); assert.equal(r.rp.stageLen, RP.DISCARD);
+  const old = [...r.rp.user('a').hand];
+  r.message('a', { t: 'discard', cards: [old[0], old[1], 999] });
+  assert.equal(r.rp.user('a').hand.length, RP.HAND);
+  assert.ok(!r.rp.user('a').hand.includes(old[0]) && !r.rp.user('a').hand.includes(old[1]) && r.rp.user('a').hand.includes(old[2]));
+  assert.deepEqual(r.message('a', { t: 'discard', cards: [old[2]] }), [], 'only once');
+  r.message('b', { t: 'discard', cards: [] }); // keeps the hand
+  assert.equal(r.rp.deadline - clock.t, RP.DISCARD_DONE, 'both done: on after the animations');
+  tickTo(r, clock); assert.equal(r.rp.stage, 'discarded');
+  tickTo(r, clock); assert.equal(r.rp.stage, 'pick'); assert.equal(r.rp.stageLen, RP.PICK);
+  // Bob's turn: Alice can't play, and watches Bob's hand; the timer plays the card Bob last selected
+  assert.deepEqual(r.message('a', { t: 'play', card: r.rp.user('a').hand[0] }), []);
+  const sel = r.rp.user('b').hand[3];
+  const relay = r.message('b', { t: 'hand', hover: r.rp.user('b').hand[1], sel });
+  assert.deepEqual(relay[0], { to: { except: 'b' }, msg: { t: 'hand', id: 'b', hover: r.rp.user('b').hand[1], sel } });
+  tickTo(r, clock);
+  assert.equal(r.rp.stage, 'picked'); assert.equal(r.rp.played, sel);
+  assert.equal(r.map.title, r.rp.pool[sel].title);
+  assert.ok(sel in r.snapshot('a').rp.cards, 'a played card is shown to both');
+  // both have it → look it over and ready up → a 10 s countdown → play
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  assert.equal(r.rp.stage, 'ready');
+  r.message('a', { t: 'rpready', ready: true });
+  assert.equal(r.rp.countdown, false);
+  r.message('b', { t: 'rpready', ready: true });
+  assert.equal(r.rp.countdown, true); assert.equal(r.rp.deadline - clock.t, RP.COUNTDOWN);
+  const start = tickTo(r, clock);
+  assert.equal(msgs(start, 'start').length, 1); assert.equal(r.rp.stage, 'playing');
+  assert.deepEqual(msgs(start, 'start')[0].msg.playerMods, {}, 'nobody brings their own mods');
+});
+
+test('Ranked Play damage: ⌈difference × (round + winner multipliers)⌉ + 50,000, multipliers grow, a card each later turn', () => {
+  const clock = { t: 0 };
+  const { r } = rpMatch(clock);
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  // round 1 (Bob's card): Alice wins by 200,000 → 200,000 × (0.5 + 0.5) + 50,000
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  playRound(r, clock, 900000, 700000);
+  assert.equal(r.rp.stage, 'results');
+  assert.equal(r.rp.user('b').life, RP.LIFE - 250000);
+  assert.deepEqual(r.rp.results.dmg.b, { damage: 250000, rawDamage: 250000, oldLife: RP.LIFE, newLife: 750000, directDamage: 200000, multiplier: 1, bonusDamage: 50000 });
+  assert.equal(r.rp.results.winner, 'a'); assert.equal(r.rp.user('a').won, 1);
+  assert.equal(r.rp.user('b').hand.length, RP.HAND - 1, 'the played card is spent');
+  // round 2 (Alice's turn, no draw yet): round ×1, Alice's own ×1 after her win → Bob wins this time, his own is still ×0.5
+  tickTo(r, clock);
+  assert.equal(r.rp.round, 2); assert.equal(r.rp.stage, 'pick'); assert.equal(r.rp.active, 'a');
+  assert.equal(r.rp.mult, 1); assert.equal(r.rp.user('a').mult, 1); assert.equal(r.rp.user('b').mult, 0.5);
+  assert.equal(r.rp.user('a').hand.length, RP.HAND);
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[2] });
+  playRound(r, clock, 600000, 800001);
+  assert.equal(r.rp.user('a').life, RP.LIFE - (Math.ceil(200001 * 1.5) + 50000));
+  // round 3 (Bob's turn): he draws a card first; round ×1.5
+  tickTo(r, clock);
+  assert.equal(r.rp.round, 3); assert.equal(r.rp.active, 'b'); assert.equal(r.rp.mult, 1.5);
+  assert.equal(r.rp.user('b').hand.length, RP.HAND, 'a card on each turn from round 3');
+  assert.equal(r.rp.user('b').mult, 1);
+  // a tie does no damage
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  const lifeA = r.rp.user('a').life, lifeB = r.rp.user('b').life;
+  playRound(r, clock, 500000, 500000);
+  assert.equal(r.rp.results.winner, null);
+  assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [lifeA, lifeB]);
+});
+
+test('Ranked Play: last stand at full life, the match ends at 0 life, and rated matches update both ratings', () => {
+  const clock = { t: 0 };
+  const { r } = rpMatch(clock);
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  playRound(r, clock, 1000000, 0); // 1,050,000 damage at full life
+  assert.equal(r.rp.user('b').life, 1, 'last stand: a hit at full life leaves 1');
+  assert.notEqual(r.rp.stage, 'ended');
+  tickTo(r, clock);
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  playRound(r, clock, 300000, 200000);
+  assert.equal(r.rp.user('b').life, 0);
+  assert.equal(r.rp.winner, 'a');
+  const u = r.snapshot('a').rp.users;
+  assert.ok(u.a.ratingAfter > 1600 && u.b.ratingAfter < 1400, `ratings move (${u.a.ratingAfter}, ${u.b.ratingAfter})`);
+  tickTo(r, clock);
+  assert.equal(r.rp.stage, 'ended');
+});
+
+test('Ranked Play: not ready in time costs 100,000 × the round multiplier and skips the round', () => {
+  const clock = { t: 0 };
+  const { r } = rpMatch(clock);
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  const card = r.rp.user('b').hand[0];
+  r.message('b', { t: 'play', card });
+  r.message('a', { t: 'hasMap', has: true }); // Bob never gets the beatmap
+  tickTo(r, clock);
+  assert.equal(r.rp.user('b').life, RP.LIFE - 50000, '100,000 × 0.5');
+  assert.equal(r.rp.user('a').life, RP.LIFE);
+  assert.ok(!r.rp.user('b').hand.includes(card), 'the card is spent');
+  assert.equal(r.rp.round, 2); assert.equal(r.rp.stage, 'pick');
+  // nobody ready: no damage, the round is skipped all the same
+  r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  tickTo(r, clock);
+  assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [RP.LIFE, RP.LIFE - 50000]);
+  assert.equal(r.rp.round, 3);
+});
+
+test('Ranked Play: leaving the song scores 0 for the round; the other player plays on', () => {
+  const clock = { t: 0 };
+  const { r } = rpMatch(clock);
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  r.message('a', { t: 'score', score: 400000, acc: 0.98, combo: 100, maxCombo: 100 });
+  r.message('a', { t: 'quit' });
+  assert.equal(r.state, 'playing', 'Bob is still playing');
+  fin(r, 'b', { score: 300000 });
+  assert.equal(r.rp.stage, 'results');
+  assert.equal(r.rp.results.scores.a, 0);
+  assert.equal(r.rp.user('a').life, RP.LIFE - (300000 + 50000));
+  assert.equal(r.players.length, 2, 'the match goes on');
+});
+
+test('Ranked Play: leaving the match loses it (and a rated one bans from the queue); a dropped connection can come back', () => {
+  const clock = { t: 0 };
+  let { r } = rpMatch(clock);
+  tickTo(r, clock);
+  // Bob's connection drops: he's away, and back as himself when the same tab reconnects
+  r.disconnect('b');
+  assert.equal(r.get('b').away, true); assert.notEqual(r.rp.stage, 'ended');
+  const back = r.join('b2', 'Bob', false, { cid: 'cb' });
+  assert.equal(back.ok, true); assert.equal(back.as, 'b');
+  assert.equal(r.get('b').away, false);
+  assert.equal(r.join('x', 'X', false, { cid: 'zz' }).ok, false, 'nobody else gets in');
+  // away too long: gone for good
+  r.disconnect('b');
+  clock.t += RP.AWAY; r.tick();
+  assert.equal(r.rp.stage, 'ended'); assert.equal(r.rp.winner, 'a');
+  assert.equal(r.rp.user('b').life, 0);
+  assert.deepEqual(r.rp.bans, [{ cid: 'cb', ms: RP.LEAVE_BAN }]);
+  assert.ok(r.snapshot('a').rp.users.a.ratingAfter > 1600);
+  // leaving before the cards are even dealt: no winner, nothing rated
+  ({ r } = { r: new RoomLogic('RQ', () => clock.t, () => 0.25) });
+  r.join('a', 'A', true, { mode: 'rp', rated: true, rating: 1500, cid: 'ca' }); r.join('b', 'B', false, { rating: 1500, cid: 'cb' });
+  r.leave('b');
+  assert.equal(r.rp.stage, 'ended'); assert.equal(r.rp.winner, null);
+  assert.equal(r.snapshot('a').rp.users.a.ratingAfter, 1500);
+  // a rated match nobody else turns up for ends after a minute
+  const lone = new RoomLogic('RL', () => clock.t, () => 0.25);
+  lone.join('a', 'A', true, { mode: 'rp', rated: true, rating: 1500 });
+  clock.t += RP.WAIT_JOIN; lone.tick();
+  assert.equal(lone.rp.stage, 'ended');
+});
+
+test('Ranked Play duels between friends: unrated, listed while public, the deck from both ratings', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('DU', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 7, rating: 1234 });
+  assert.equal(r.listing().ranked, true); assert.equal(r.listing().keys, 7); assert.equal(r.listing().rating, 1234);
+  assert.equal(r.listing().name, "Alice's Ranked Play duel");
+  clock.t += 10 * 60000; r.tick();
+  assert.equal(r.rp.stage, 'waitjoin', 'a duel waits for the friend');
+  r.join('b', 'Bob', false, { rating: 1500 });
+  r.message('a', { t: 'pool', maps: deck(12) });
+  assert.equal(r.listing().state, 'playing');
+  r.leave('b');
+  assert.equal(r.rp.winner, 'a');
+  assert.equal(r.snapshot('a').rp.users.a.ratingAfter, 1234, 'unrated');
+  const priv = new RoomLogic('DP'); priv.join('a', 'A', true, { mode: 'rp', public: false }); assert.equal(priv.listing(), null);
+});
+
+test('Ranked Play queue: pairs close ratings, both accept → one room; a decline costs a minute; the search widens', () => {
+  const clock = { t: 0 };
+  let n = 0;
+  const q = new RankedQueue(() => clock.t, () => 0.5, () => 'ROOM' + ++n);
+  const a = q.join({ cid: 'ca', name: 'Alice', keys: 4, rating: 1500 });
+  assert.equal(a.status, 'search');
+  const far = q.join({ cid: 'cf', name: 'Far', keys: 4, rating: 1900 });
+  const b = q.join({ cid: 'cb', name: 'Bob', keys: 4, rating: 1560 });
+  assert.equal(q.status(a.ticket).status, 'found');
+  assert.deepEqual(q.status(a.ticket).opponent, { name: 'Bob', avatar: '', rating: 1560 });
+  assert.equal(q.status(far.ticket).status, 'search', 'too far apart for now');
+  q.accept(a.ticket);
+  assert.equal(q.status(a.ticket).accepted, true); assert.equal(q.status(b.ticket).opponentAccepted, true);
+  q.accept(b.ticket);
+  const ra = q.status(a.ticket), rb = q.status(b.ticket);
+  assert.equal(ra.status, 'ready'); assert.equal(ra.room, rb.room);
+  // a 7K player is never paired with a 4K one
+  const s7 = q.join({ cid: 'c7', name: 'Seven', keys: 7, rating: 1900 });
+  q.update(); assert.equal(q.status(s7.ticket).status, 'search');
+  // declining: a minute out of the queue; the other one searches again
+  const c = q.join({ cid: 'cc', name: 'Cat', keys: 4, rating: 1880 });
+  assert.equal(q.status(c.ticket).status, 'found');
+  q.decline(c.ticket);
+  assert.equal(q.status(far.ticket).status, 'search');
+  assert.equal(q.join({ cid: 'cc', keys: 4 }).status, 'banned');
+  clock.t += RP.DECLINE_BAN + 1;
+  q.status(far.ticket); q.status(s7.ticket);
+  // an offer nobody answers runs out
+  const d = q.join({ cid: 'cd', name: 'Dan', keys: 4, rating: 1910 });
+  assert.equal(q.status(d.ticket).status, 'found');
+  for (let t = 0; t < QUEUE.INVITE + 1000; t += 5000) { clock.t += 5000; q.status(d.ticket); q.status(far.ticket); q.status(s7.ticket); q.update(); }
+  assert.equal(q.status(d.ticket).status, 'none'); assert.equal(q.status(far.ticket).status, 'none');
+  // the search radius doubles every 30 s (and starts wider far from 1500, where there are fewer players)
+  q.decline(s7.ticket); // (leaves: by now Seven's own search would reach the next player)
+  const lo = q.join({ cid: 'l', keys: 7, rating: 1000 }), hi = q.join({ cid: 'h', keys: 7, rating: 1700 });
+  assert.ok(q.radius({ rating: 2600, since: clock.t }) > 2000, 'a top player searches widely from the start');
+  assert.equal(q.status(lo.ticket).status, 'search');
+  for (let i = 0; i < 6; i++) { clock.t += 10000; q.status(lo.ticket); q.status(hi.ticket); q.update(); }
+  assert.equal(q.status(lo.ticket).status, 'found');
+  // players who stop polling drop out
+  const quiet = q.join({ cid: 'qq', keys: 4, rating: 3000 });
+  clock.t += QUEUE.STALE + 1; q.update();
+  assert.equal(q.status(quiet.ticket).status, 'none');
 });
 
 test('shared avatars: presets, public pictures and small inline images only', () => {
@@ -506,7 +697,7 @@ test('shared avatars: presets, public pictures and small inline images only', ()
   assert.equal(p.list()[0].avatar, 'preset:neru');
 });
 
-test('room listing: public custom rooms only; private, quick 1v1, Quick Play and Ranked Play rooms are not listed', () => {
+test('room listing: public custom rooms and duels only; private, quick 1v1, Quick Play and queue matches are not listed', () => {
   const r = new RoomLogic('ROOM1'); r.join('a', 'Alice', true, { avatar: 'preset:teto' });
   assert.equal(r.listing().name, "Alice's room");
   assert.equal(r.listing().avatar, 'preset:teto');
@@ -516,18 +707,20 @@ test('room listing: public custom rooms only; private, quick 1v1, Quick Play and
   assert.equal(r.listing(), null);
   const q = new RoomLogic('Q'); q.join('a', 'A', true, { size: 2 }); assert.equal(q.listing(), null);
   const p = new RoomLogic('P'); p.join('a', 'A', true, { mode: 'qp' }); assert.equal(p.listing(), null);
-  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp', skill: 3.4 });
-  assert.equal(k.listing().ranked, true, 'public ranked rooms are listed, open while waiting for an opponent');
-  assert.equal(k.listing().skill, 3.4);
+  const k = new RoomLogic('K'); k.join('a', 'A', true, { mode: 'rp', rating: 1400 });
+  assert.equal(k.listing().ranked, true, 'public Ranked Play duels are listed, open while waiting for an opponent');
+  assert.equal(k.listing().rating, 1400);
   assert.equal(k.listing().state, 'lobby');
   const k2 = new RoomLogic('K2'); k2.join('a', 'A', true, { mode: 'rp', public: false }); assert.equal(k2.listing(), null);
+  const k3 = new RoomLogic('K3'); k3.join('a', 'A', true, { mode: 'rp', rated: true }); assert.equal(k3.listing(), null);
 });
 
-test('Ranked Play deals round the table: a two-map pool gives each player one card', () => {
+test('Ranked Play: leaving on purpose isn\'t mistaken for a dropped connection', () => {
   const clock = { t: 0 };
-  const r = new RoomLogic('RP', () => clock.t, () => 0);
-  r.join('a', 'A', true, { mode: 'rp' }); r.join('b', 'B', false);
-  clock.t = RP.GATHER; r.tick();
-  r.message('a', { t: 'pool', maps: [MAP, { ...MAP, hash: 'x' }] });
-  assert.deepEqual([r.rp.hands.a.length, r.rp.hands.b.length], [1, 1]);
+  const { r } = rpMatch(clock);
+  tickTo(r, clock);
+  r.message('b', { t: 'bye' });
+  r.disconnect('b');
+  assert.equal(r.rp.stage, 'ended'); assert.equal(r.rp.winner, 'a');
+  assert.equal(r.players.length, 1);
 });

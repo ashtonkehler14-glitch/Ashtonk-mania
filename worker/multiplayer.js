@@ -20,9 +20,15 @@
 // picks one, and a roulette lands on one of the picked maps; everyone downloads it and plays. Placements score points
 // (8, 6, 5, 4, 3, 2, 1, 0), and after the last round the most points wins.
 //
+// Ranked Play (osu!lazer's 1v1 card mode, with its queue and rating) lives in ranked-play.js; a room in 'rp' mode hands
+// its stages to a RankedPlay instance.
+//
 // Mods: everyone picks their own mods (Hidden, Hard Rock, Mirror…). Mods that change the song's speed (DT, NC, HT, DC,
 // Rate) apply to the whole room, so they only take effect once every player accepts. Skipping the intro also needs
 // every player's vote.
+
+import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
+export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const START_DELAY = 5000;
@@ -32,20 +38,6 @@ export const WIN_CONDITIONS = ['pp', 'score', 'accuracy', 'combo'];
 export const QP = { GATHER: 20000, FULL: 3000, POOL: 15000, PICK: 25000, REVEAL: 5000, LOAD: 90000, STANDINGS: 12000, ROUNDS: 5 };
 export const QP_POINTS = [8, 6, 5, 4, 3, 2, 1, 0];
 const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'settings', 'team'];
-/** Ranked Play (osu!lazer's 1v1 card mode — a way to play, no rating): each player picks a skill level and the deck is
- *  built between the two, leaning towards the lower one. Both start with HP and a hand of five cards dealt in pairs of
- *  matching difficulty; once a round each player may reroll any of their cards. The picker plays a card, the lower score
- *  takes (score difference × the round's multiplier) damage, and the round's loser picks next. Leaving mid-song
- *  forfeits the round. First to 0 HP loses. */
-export const RP = { HP: 1000000, HAND: 5, DECK: 16, GATHER: 45000, POOL: 15000, PICK: 30000, REVEAL: 4000, LOAD: 90000, DAMAGE: 9000, FORFEIT: 250000 };
-/** Damage multiplier of a round: 1, 1.5, 2, 2.5… */
-export const rpMult = round => 1 + 0.5 * Math.max(0, round - 1);
-/** The deck's star range for two skill levels: between them, leaning towards the lower. */
-export function rpRange(a, b) {
-  const lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
-  return { sr: Math.round(c * 100) / 100, lo: Math.max(0.5, Math.round((c - 0.6) * 100) / 100), hi: Math.round((c + 0.6) * 100) / 100 };
-}
-const cleanSkill = v => Math.round(num(v, 0.5, 10, 3) * 10) / 10;
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';
@@ -105,50 +97,57 @@ export class RoomLogic {
     this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
   }
   get(id) { return this.players.find(p => p.id === id); }
-  snapshot() {
+  /** The room as one player sees it (`viewer`): in Ranked Play your own cards are shown, your opponent's are not. */
+  snapshot(viewer = null) {
     const q = this.qp;
     return {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
       mode: this.mode, settings: { ...this.settings },
-      rp: this.rp ? { keys: this.rp.keys, round: this.rp.round, phase: this.rp.phase, left: this.rp.deadline ? Math.max(0, this.rp.deadline - this.now()) : 0, pool: this.rp.pool,
-        hands: JSON.parse(JSON.stringify(this.rp.hands)), picker: this.rp.picker, chosen: this.rp.chosen, hp: { ...this.rp.hp }, last: this.rp.last, winner: this.rp.winner,
-        mult: rpMult(this.rp.round), ready: { ...this.rp.ready }, rerolled: Object.fromEntries(Object.entries(this.rp.rerolled).map(([k, v]) => [k, v === this.rp.round])), range: this.rp.range } : null,
+      rp: this.rp ? this.rp.view(viewer) : null,
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, skill: p.skill, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team })),
+      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
   listing() {
     if (!this.created || this.mode === 'qp' || !this.settings.public || !this.players.length) return null;
     const host = this.get(this.hostId), m = this.map, ranked = this.mode === 'rp';
-    return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'ranked match' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', skill: ranked && host ? host.skill : null,
+    if (ranked && this.rp.rated) return null; // (queue matches are the two players' own)
+    return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'Ranked Play duel' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', rating: ranked && host && this.rp.user(host.id) ? this.rp.user(host.id).rating : null,
       players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null,
-      state: ranked ? (this.rp.phase === 'gather' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,
+      state: ranked ? (this.rp.stage === 'waitjoin' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,
       map: m ? { title: m.title, artist: m.artist, version: m.version, stars: m.stars, keys: m.keys, onlineSetId: m.onlineSetId } : null };
   }
   /** The team with fewer players (red first), for someone joining a Team Versus room. */
   smallerTeam() { const red = this.players.filter(p => p.team === 0).length, blue = this.players.filter(p => p.team === 1).length; return red <= blue ? 0 : 1; }
   /** The next player after `id` in join order (the host rotation, and a Quick Play host who never sent a pool). */
   nextAfter(id) { const i = this.players.findIndex(p => p.id === id); return this.players.length ? this.players[(i + 1) % this.players.length].id : null; }
-  roomMsg() { return { to: 'all', msg: { t: 'room', room: this.snapshot() } }; }
+  /** The room update for everyone. In Ranked Play each player gets their own view (`each`: what one player is sent). */
+  roomMsg() { return { to: 'all', msg: { t: 'room', room: this.snapshot() }, each: this.rp ? id => ({ t: 'room', room: this.snapshot(id) }) : null }; }
   system(text) { return { to: 'all', msg: { t: 'chat', from: null, name: '', text, ts: this.now() } }; }
 
   join(id, name, create, opts = {}) {
     opts = opts && typeof opts === 'object' ? opts : {};
     if (!this.created && !create) return { ok: false, error: 'Room not found — check the code.' };
+    // Ranked Play: a player whose connection dropped comes back as themselves (same tab)
+    const back = this.rp && opts.cid ? this.players.find(p => p.away && p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
+    if (back) {
+      back.away = false; back.awayUntil = 0;
+      return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, room: this.snapshot(back.id) } }, this.roomMsg(), this.system(`${back.name} reconnected`)] };
+    }
     if (this.players.length >= this.settings.size) return { ok: false, error: 'This room is full.' };
     if (this.qp && this.qp.round > 0) return { ok: false, error: 'This Quick Play match has already started.' };
-    if (this.rp && this.rp.phase !== 'gather') return { ok: false, error: 'This Ranked Play match has already started.' };
+    if (this.rp && this.rp.stage !== 'waitjoin') return { ok: false, error: 'This Ranked Play match has already started.' };
     if (this.state !== 'lobby') return { ok: false, error: 'A match is in progress in this room.' };
     if (!this.created) {
       // whoever opens the room sets it up: Quick Play, or a custom room (a quick 1v1 match asks for 2 players)
       this.created = true;
       if (opts.mode === 'rp') {
-        this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2, public: opts.public !== false };
-        this.rp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, phase: 'gather', deadline: 0, pool: [], deck: [], hands: {}, picker: null, chosen: -1, hp: {}, last: null, winner: null, fails: 0,
-          ready: {}, rerolled: {}, range: null, forfeitBy: null };
+        // a match the queue made is rated and unlisted; a duel between friends is neither rated nor (unless public) listed
+        this.mode = 'rp'; this.settings = { ...defaultSettings(), win: 'score', size: 2, public: !opts.rated && opts.public !== false };
+        this.rp = new RankedPlay(this, { keys: opts.keys, rated: !!opts.rated });
       } else if (opts.mode === 'qp') {
         this.mode = 'qp'; this.settings = { ...defaultSettings(), win: 'score', size: 8 };
         this.qp = { keys: Number(opts.keys) === 7 ? 7 : 4, round: 0, rounds: QP.ROUNDS, phase: 'gather', deadline: 0, pool: null, picks: {}, chosen: -1, points: {}, fails: 0 };
@@ -159,18 +158,34 @@ export class RoomLogic {
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), skill: cleanSkill(opts.skill ?? opts.sr) };
+      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), away: false, awayUntil: 0 };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
-    if (this.rp) { this.rp.hp[id] = RP.HP; this.rp.hands[id] = []; this.rp.ready[id] = false; if (this.players.length === 2) this.rp.deadline = this.now() + RP.GATHER; }
-    return { ok: true, out: [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot() } }, this.roomMsg(), this.system(`${p.name} joined the room`)] };
+    const out = [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot(id) } }, this.roomMsg(), this.system(`${p.name} joined the room`)];
+    if (this.rp) {
+      this.rp.addUser(p, opts);
+      out[0].msg.room = this.snapshot(id);
+      if (this.players.length === 2) out.push(...this.rp.begin()); // both in: the match begins
+    }
+    return { ok: true, out };
   }
 
+  /** A connection closed. In a Ranked Play match under way the player gets a moment to come back first. */
+  disconnect(id) {
+    const p = this.get(id);
+    if (!p) return [];
+    if (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage) && p.cid && !p.leaving) {
+      p.away = true; p.awayUntil = this.now() + RP.AWAY;
+      return [this.system(`${p.name} lost connection — waiting for them to come back`), this.roomMsg()];
+    }
+    return this.leave(id);
+  }
   leave(id) {
     const p = this.get(id);
     if (!p) return [];
     const out = [];
+    if (this.rp) out.push(...this.rp.leave(id));
     if (this.state === 'playing' && p.playing) {
       if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
       this.departed.push({ id: p.id, name: p.name, diff: p.diff, ...p.finished, left: true });
@@ -184,11 +199,6 @@ export class RoomLogic {
     for (const x of this.players) x.ready = false;
     if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
     out.push(this.system(`${p.name} left the room`));
-    const r = this.rp;
-    if (r && r.phase !== 'final') {
-      if (r.phase === 'gather') { r.deadline = 0; delete r.ready[id]; for (const k in r.ready) r.ready[k] = false; }
-      else if (this.state !== 'playing') out.push(...this.rpFinal(this.players[0] ? this.players[0].id : null, `${p.name} left the match`));
-    }
     const q = this.qp;
     if (q && this.state !== 'playing') {
       if (q.phase === 'gather') this.qpGather();
@@ -202,7 +212,7 @@ export class RoomLogic {
   reset() {
     this.created = false; this.hostId = null; this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
     this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = [];
-    this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null;
+    this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
   }
 
   message(id, m) {
@@ -235,7 +245,7 @@ export class RoomLogic {
         p.team = m.team ? 1 : 0;
         return [this.roomMsg()];
       case 'pool': {
-        if (this.rp) return host ? this.rpPool(m.maps) : [];
+        if (this.rp) return Array.isArray(m.maps) ? this.rp.setDeck(id, m.maps.slice(0, RP.DECK).map(cleanSuggestion).filter(Boolean)) : [];
         const q = this.qp;
         if (!q || !host || q.phase !== 'pool' || !Array.isArray(m.maps)) return [];
         const maps = m.maps.slice(0, 6).map(cleanSuggestion).filter(Boolean);
@@ -243,8 +253,10 @@ export class RoomLogic {
         q.pool = maps; q.picks = {}; q.chosen = -1; q.phase = 'pick'; q.deadline = this.now() + QP.PICK;
         return [this.roomMsg()];
       }
+      case 'discard': return this.rp ? this.rp.discard(id, m.cards) : [];
+      case 'hand': return this.rp ? this.rp.hand(id, m) : [];
+      case 'play': return this.rp ? this.rp.play(id, m.card) : [];
       case 'pick': {
-        if (this.rp) { const r = this.rp, i = Number(m.i); return r.phase === 'pick' && id === r.picker && (r.hands[id] || []).includes(i) ? this.rpChoose(i) : []; }
         const q = this.qp, i = Number(m.i);
         if (!q || q.phase !== 'pick' || !Number.isInteger(i) || i < 0 || i >= q.pool.length) return [];
         q.picks[id] = i;
@@ -252,22 +264,8 @@ export class RoomLogic {
         if (this.players.every(x => q.picks[x.id] != null)) q.deadline = Math.min(q.deadline, this.now() + 1500);
         return [this.roomMsg()];
       }
-      case 'skill': {
-        // Ranked Play: your skill level, while the players are still gathering
-        if (!this.rp || this.rp.phase !== 'gather') return [];
-        p.skill = cleanSkill(m.skill);
-        for (const k in this.rp.ready) this.rp.ready[k] = false; // a change means both confirm again
-        return [this.roomMsg()];
-      }
-      case 'rpready': {
-        const r = this.rp;
-        if (!r || r.phase !== 'gather') return [];
-        r.ready[id] = !!m.ready;
-        // both ready: deal in a moment
-        if (this.players.length === 2 && this.players.every(x => r.ready[x.id])) r.deadline = this.now() + 1500;
-        return [this.roomMsg()];
-      }
-      case 'reroll': return this.rpReroll(id, m.cards);
+      case 'rpready': return this.rp && m.ready !== false ? this.rp.setReady(id) : [];
+      case 'bye': p.leaving = true; return []; // (leaving on purpose: the closed connection isn't a drop to wait out)
       case 'ping': return [{ to: id, msg: { t: 'pong', c: m.c, s: this.now() } }];
       case 'chat': {
         const text = str(m.text, 300);
@@ -319,7 +317,7 @@ export class RoomLogic {
       case 'hasMap':
         p.hasMap = !!m.has; if (!p.hasMap) p.ready = false;
         if (this.qp && this.qp.phase === 'load' && this.state === 'lobby') return [...this.qpMaybeStart(), this.roomMsg()];
-        if (this.rp && this.rp.phase === 'load' && this.state === 'lobby') return [...this.rpMaybeStart(), this.roomMsg()];
+        if (this.rp) return [...this.rp.mapState(), this.roomMsg()];
         return [this.roomMsg()];
       case 'ready':
         if (this.state !== 'lobby') return [];
@@ -352,7 +350,8 @@ export class RoomLogic {
         return this.checkFinished();
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
-        if (this.rp && this.players.length === 2) return this.rpForfeit(p);
+        // Ranked Play: leaving the song scores 0 for this round; the other player plays on
+        if (this.rp) { p.finished = { ...cleanResult({ score: 0, accuracy: p.live ? p.live.acc : 0, maxCombo: p.live ? p.live.maxCombo : 0 }), forfeit: true }; return [this.system(`${p.name} left the song`), ...this.checkFinished()]; }
         p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
         return [this.system(`${p.name} quit the match`), ...this.checkFinished()];
     }
@@ -365,9 +364,9 @@ export class RoomLogic {
     this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }
     this.departed = [];
-    const g = this.qp || this.rp;
+    const g = this.qp;
     if (g) { g.phase = 'playing'; g.deadline = 0; }
-    const playerMods = g ? {} : Object.fromEntries(list.map(x => [x.id, x.mods]));
+    const playerMods = g || this.rp ? {} : Object.fromEntries(list.map(x => [x.id, x.mods]));
     return [{ to: 'all', msg: { t: 'start', delay: START_DELAY, map: this.map, mods: this.mods, modConfig: this.modConfig, playerMods, players: list.map(x => x.id) } }, this.roomMsg()];
   }
 
@@ -450,139 +449,7 @@ export class RoomLogic {
     return [];
   }
   /** Does the room need its clock ticking (a match to time out, a Quick Play / Ranked Play phase to end)? */
-  wantsTick() { return this.state === 'playing' || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
-
-  // ── Ranked Play
-  rpAskPool() {
-    const r = this.rp;
-    r.phase = 'pool'; r.deadline = this.now() + RP.POOL;
-    const [a, b] = this.players;
-    r.range = rpRange(a ? a.skill : 2.5, b ? b.skill : a ? a.skill : 2.5);
-    return [{ to: this.hostId, msg: { t: 'qpPool', round: r.round, keys: r.keys, ...r.range, count: RP.DECK } }, this.roomMsg()];
-  }
-  /** The host's pool arrives: a deck of cards in pairs of matching difficulty (dealt one to each player, so both hands
-   *  hold the same spread from easy to hard), then everyone's hand is topped up and play goes on. */
-  rpPool(list) {
-    const r = this.rp;
-    if (r.phase !== 'pool' || !Array.isArray(list)) return [];
-    const maps = list.slice(0, RP.DECK + 4).map(cleanSuggestion).filter(Boolean);
-    if (!maps.length) return [];
-    const base = r.pool.length;
-    r.pool = r.pool.concat(maps);
-    const sorted = maps.map((m, i) => [base + i, m.stars]).sort((x, y) => x[1] - y[1]).map(x => x[0]);
-    const pairs = [];
-    for (let i = 0; i < sorted.length; i += 2) pairs.push(this.rnd() < 0.5 ? sorted.slice(i, i + 2) : sorted.slice(i, i + 2).reverse());
-    for (let i = pairs.length - 1; i > 0; i--) { const j = Math.floor(this.rnd() * (i + 1)); [pairs[i], pairs[j]] = [pairs[j], pairs[i]]; }
-    r.deck = r.deck.concat(pairs.flat());
-    this.rpDeal();
-    if (!r.picker) r.picker = this.players[Math.min(this.players.length - 1, Math.floor(this.rnd() * this.players.length))].id;
-    return this.rpNextRound();
-  }
-  /** Deal one card at a time round the table, so a small pool still gives everyone cards. */
-  rpDeal() {
-    const r = this.rp;
-    for (const p of this.players) r.hands[p.id] = r.hands[p.id] || [];
-    let dealt = true;
-    while (dealt && r.deck.length) {
-      dealt = false;
-      for (const p of this.players) if (r.hands[p.id].length < RP.HAND && r.deck.length) { r.hands[p.id].push(r.deck.shift()); dealt = true; }
-    }
-  }
-  rpNextRound() {
-    const r = this.rp;
-    if (this.players.length < 2) return this.rpFinal(this.players[0] ? this.players[0].id : null);
-    this.rpDeal();
-    if (!(r.hands[r.picker] || []).length) return this.rpAskPool(); // out of cards: deal a fresh pool
-    r.round++; r.chosen = -1; r.phase = 'pick'; r.deadline = this.now() + RP.PICK;
-    this.map = null;
-    for (const x of this.players) { x.hasMap = false; x.ready = false; }
-    const p = this.get(r.picker);
-    return [this.system(`Round ${r.round} — ${p ? p.name : 'The picker'} chooses the beatmap (damage ×${rpMult(r.round)})`), this.roomMsg()];
-  }
-  /** Once a round, each player may swap any of their cards (all of them if none are named) for new ones from the deck;
-   *  the old ones go to the bottom of the deck. */
-  rpReroll(id, cards) {
-    const r = this.rp;
-    if (!r || r.phase !== 'pick' || r.rerolled[id] === r.round) return [];
-    const hand = r.hands[id] || [];
-    let out = Array.isArray(cards) ? [...new Set(cards.map(Number))].filter(i => hand.includes(i)) : [];
-    if (!out.length) out = [...hand];
-    if (!out.length || !r.deck.length) return [];
-    const n = Math.min(out.length, r.deck.length);
-    out = out.slice(0, n);
-    r.hands[id] = hand.filter(i => !out.includes(i)).concat(r.deck.splice(0, n));
-    r.deck.push(...out);
-    r.rerolled[id] = r.round;
-    const p = this.get(id);
-    return [this.system(`${p ? p.name : 'Someone'} rerolled ${n === 1 ? 'a card' : `${n} cards`}`), this.roomMsg()];
-  }
-  /** Leaving the song in Ranked Play: the round ends for both, and the other player wins it. */
-  rpForfeit(p) {
-    const r = this.rp;
-    for (const x of this.players) if (x.playing && !x.finished) x.finished = { ...cleanResult(x.live ? { score: x.live.score, accuracy: x.live.acc, pp: x.live.pp } : {}), forfeit: x === p };
-    p.finished.forfeit = true;
-    r.forfeitBy = p.id;
-    return [{ to: 'all', msg: { t: 'abort', by: p.id, name: p.name } }, this.system(`${p.name} left the song — the round goes to their opponent`), ...this.checkFinished()];
-  }
-  rpChoose(i) {
-    const r = this.rp, hand = r.hands[r.picker];
-    hand.splice(hand.indexOf(i), 1);
-    r.chosen = i; this.map = r.pool[i];
-    for (const x of this.players) { x.hasMap = false; x.diff = null; }
-    r.phase = 'reveal'; r.deadline = this.now() + RP.REVEAL;
-    return [this.roomMsg()];
-  }
-  rpMaybeStart() {
-    const r = this.rp;
-    if (r.phase !== 'load' || !this.players.every(x => x.hasMap)) return [];
-    return this.beginMatch(this.players);
-  }
-  /** Results of a round: the lower score takes the difference × the round number as damage. */
-  rpDamage(rows) {
-    const r = this.rp;
-    const sc = id => { const x = rows.find(y => y.id === id); return !x || x.forfeit ? 0 : x.score; };
-    const [a, b] = this.players.length === 2 ? this.players : [this.players[0], null];
-    if (!b) return this.rpFinal(a ? a.id : null);
-    for (const x of rows) if (x.left) r.hp[x.id] = 0;
-    const sa = sc(a.id), sb = sc(b.id);
-    // a forfeited round is lost outright: at least RP.FORFEIT before the multiplier
-    const loser = r.forfeitBy && this.get(r.forfeitBy) ? r.forfeitBy : sa === sb ? null : sa < sb ? a.id : b.id;
-    const diff = Math.abs(sa - sb), dmg = loser ? Math.round((r.forfeitBy ? Math.max(RP.FORFEIT, diff) : diff) * rpMult(r.round)) : 0;
-    r.forfeitBy = null;
-    if (loser) r.hp[loser] = Math.max(0, r.hp[loser] - dmg);
-    r.last = { round: r.round, loser, damage: dmg, scores: { [a.id]: sa, [b.id]: sb }, forfeit: rows.some(x => x.forfeit && !x.left) };
-    const dead = this.players.find(x => r.hp[x.id] <= 0);
-    if (dead) return this.rpFinal(this.players.find(x => x !== dead).id);
-    if (loser) r.picker = loser; // the round's loser picks the next beatmap
-    r.phase = 'damage'; r.deadline = this.now() + RP.DAMAGE;
-    return [this.roomMsg()];
-  }
-  rpFinal(winner, why) {
-    const r = this.rp;
-    r.phase = 'final'; r.deadline = 0; r.winner = winner; this.map = null;
-    const w = winner && this.get(winner);
-    return [this.system(why ? `${why} — ${w ? w.name + ' wins' : 'match over'}` : `${w ? w.name : 'Nobody'} wins the Ranked Play match!`), this.roomMsg()];
-  }
-  rpTick() {
-    const r = this.rp;
-    if (!r || !r.deadline || this.now() < r.deadline || this.state !== 'lobby') return [];
-    switch (r.phase) {
-      case 'gather': return this.players.length === 2 ? this.rpAskPool() : (r.deadline = 0, []); // (both ready, or the wait ran out)
-      case 'pool':
-        if (++r.fails >= 3) return this.rpFinal(null, 'Couldn\'t find beatmaps');
-        this.hostId = this.nextAfter(this.hostId);
-        return this.rpAskPool();
-      case 'pick': { const hand = r.hands[r.picker]; return this.rpChoose(hand[Math.floor(this.rnd() * hand.length)]); }
-      case 'reveal': r.phase = 'load'; r.deadline = this.now() + RP.LOAD; return [...this.rpMaybeStart(), this.roomMsg()];
-      case 'load': {
-        const list = this.players.filter(x => x.hasMap);
-        if (list.length) return this.beginMatch(list);
-        r.round--; return [this.system('Nobody could load that beatmap — pick again'), ...this.rpNextRound()];
-      }
-      case 'damage': return this.rpNextRound();
-    }
-    return [];
-  }
+  wantsTick() { return this.state === 'playing' || !!(this.qp && this.qp.deadline) || !!(this.rp && (this.rp.deadline || this.players.some(p => p.away))); }
 
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {
@@ -604,12 +471,16 @@ export class RoomLogic {
 
   /** Called periodically: players who never report back are timed out, and Quick Play moves through its phases. */
   tick() {
+    // a dropped connection that didn't come back in time: gone for good
+    const out = [];
+    for (const p of [...this.players]) if (p.away && this.now() >= p.awayUntil) out.push(...this.leave(p.id));
     if (this.state === 'playing') {
-      if (this.now() < this.deadline) return [];
+      if (this.now() < this.deadline) return out;
       for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
-      return this.checkFinished();
+      return [...out, ...this.checkFinished()];
     }
-    return this.rp ? this.rpTick() : this.qpTick();
+    if (this.state !== 'lobby') return out;
+    return [...out, ...(this.rp ? this.rp.tick() : this.qpTick())];
   }
 
   checkFinished(someoneLeft = false) {
@@ -642,7 +513,7 @@ export class RoomLogic {
     for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; }
     const out = [];
     const q = this.qp;
-    if (this.rp) out.push(...this.rpDamage(rows));
+    if (this.rp) out.push(...this.rp.gameplayDone(rows));
     else if (q) {
       // placement points; a forfeit scores nothing
       for (const r of rows) { r.points = r.forfeit ? 0 : QP_POINTS[r.place - 1] ?? 0; if (q.points[r.id] != null) q.points[r.id] += r.points; }
@@ -697,7 +568,7 @@ export class MatchRoom {
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'Expected a WebSocket upgrade' }, 426);
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
-    const id = crypto.randomUUID().slice(0, 8);
+    let id = crypto.randomUUID().slice(0, 8);
     let joined = false;
     server.addEventListener('message', ev => {
       if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
@@ -706,7 +577,13 @@ export class MatchRoom {
         if (msg.t !== 'hello') return;
         const r = this.logic.join(id, msg.name, !!msg.create, msg);
         if (!r.ok) { try { server.send(JSON.stringify({ t: 'error', msg: r.error, fatal: true })); server.close(4000, 'rejected'); } catch { /* closed */ } return; }
+        if (r.as) { // back after a dropped connection: this socket is that player now
+          id = r.as;
+          const old = this.socks.get(id);
+          if (old && old !== server) { this.socks.delete(id); try { old.close(4003, 'replaced'); } catch { /* closed */ } }
+        }
         joined = true; this.socks.set(id, server); this.seen.set(id, Date.now());
+        this.kick.set(id, gone);
         this.dispatch(r.out);
         this.schedule();
         return;
@@ -717,12 +594,13 @@ export class MatchRoom {
     });
     const gone = () => {
       if (!joined) return;
-      joined = false; this.socks.delete(id); this.seen.delete(id); this.kick.delete(id);
-      this.dispatch(this.logic.leave(id));
+      joined = false;
+      if (this.socks.get(id) !== server) return; // (an old socket of a player who has reconnected)
+      this.socks.delete(id); this.seen.delete(id); this.kick.delete(id);
+      this.dispatch(this.logic.disconnect(id));
       this.announce(); // (the last one out leaves nothing to dispatch, but the room must leave the list)
       this.schedule();
     };
-    this.kick.set(id, gone);
     server.addEventListener('close', gone);
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
@@ -736,12 +614,18 @@ export class MatchRoom {
   }
   dispatch(out) {
     if (out && out.length) this.announce();
-    for (const { to, msg } of out || []) {
-      const data = JSON.stringify(msg);
+    for (const { to, msg, each } of out || []) {
+      const data = each ? null : JSON.stringify(msg);
       for (const [id, ws] of this.socks) {
         const hit = to === 'all' || to === id || (to && typeof to === 'object' && to.except !== id);
-        if (hit) { try { ws.send(data); } catch { /* socket closing */ } }
+        if (hit) { try { ws.send(data || JSON.stringify(each(id))); } catch { /* socket closing */ } }
       }
+    }
+    // Ranked Play: a player who left a rated match sits out of the queue for a while
+    const rp = this.logic && this.logic.rp;
+    if (rp && rp.bans.length && this.env.MATCHMAKER) {
+      const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
+      for (const b of rp.bans.splice(0)) stub.fetch('https://mm/api/mp/rq/ban', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json' } }).catch(() => {});
     }
   }
 }
@@ -797,7 +681,7 @@ const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
 export class Matchmaker {
-  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); }
+  constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
   presenceSocket() {
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
@@ -847,13 +731,19 @@ export class Matchmaker {
       for (const [c, r] of this.rooms) if (now - r.at > 40000) this.rooms.delete(c); // (live rooms check in every 15 s)
       return json({ rooms: [...this.rooms.values()].sort((a, b) => (a.state === 'playing') - (b.state === 'playing') || b.players - a.players).slice(0, 50) });
     }
-    if (url.pathname.endsWith('/ranked')) {
-      // Ranked Play: pairs two players for the same key count (the first waits, the next one joins)
-      const keys = Number(body.keys) === 7 ? 7 : 4, w = (this.rk || (this.rk = {}))[keys];
-      if (w && now - w.at < 60000 && w.code !== body.not) { this.rk[keys] = null; return json({ code: w.code, host: false }); }
-      const code = makeCode();
-      this.rk[keys] = { code, at: now };
-      return json({ code, host: true });
+    const rq = /\/api\/mp\/rq\/(join|poll|accept|decline|leave|ban|count)$/.exec(url.pathname);
+    if (rq) {
+      // the Ranked Play queue
+      const q = this.rq, t = String(body.ticket || '');
+      q.update();
+      switch (rq[1]) {
+        case 'join': return json(q.join(body));
+        case 'poll': return json(q.status(t));
+        case 'accept': return json(q.accept(t));
+        case 'decline': case 'leave': return json(q.decline(t));
+        case 'ban': q.ban(String(body.cid || ''), Math.min(RP.LEAVE_BAN, Number(body.ms) || 0)); return json({ ok: true });
+        case 'count': return json({ queued: q.counts() });
+      }
     }
     if (url.pathname.endsWith('/quickplay')) {
       // Quick Play: everyone asking within a minute for the same key count shares one lobby (the room turns away
@@ -887,7 +777,8 @@ export async function handleMultiplayer(request, env, url) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url)));
   }
-  if ((path.startsWith('/api/mp/quick') || path === '/api/mp/ranked') && request.method === 'POST') {
+  // (the queue's ban is only called by the rooms themselves, straight to the Durable Object)
+  if ((path.startsWith('/api/mp/quick') || /^\/api\/mp\/rq\/(join|poll|accept|decline|leave|count)$/.test(path)) && request.method === 'POST') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
   }

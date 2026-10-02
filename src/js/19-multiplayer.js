@@ -1,5 +1,6 @@
 /* Online multiplayer (osu!lazer-style rooms of up to 8, Head to Head or Team Versus, and Quick Play). Talks to the
- * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules. */
+ * Worker's Durable Objects over a WebSocket (/api/mp/room/<code>); see worker/multiplayer.js for the protocol and rules.
+ * Ranked Play's queue and match screen are in 19b-ranked-play.js. */
 
 /** Mods that change the song's speed: in multiplayer they apply to the whole room, once everyone accepts. */
 const MP_SPEED_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
@@ -32,12 +33,12 @@ const Multiplayer = {
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
   },
-  /** Open a room: regular (osu!-style head to head, up to 16) or ranked (1v1 Ranked Play), public or private. */
+  /** Open a room: regular (osu!-style head to head, up to 16) or a Ranked Play duel (1v1, unrated), public or private. */
   async create({ ranked = false, isPublic = true, keys = 4 } = {}) {
     const { code } = await this.api('api/mp/new');
-    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, skill: RankedSkill.get() } : { public: isPublic });
+    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, ...RankedRating.hello() } : { public: isPublic, cid: clientId() });
   },
-  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { skill: RankedSkill.get() }); },
+  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, RankedRating.hello()); },
 
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
@@ -88,7 +89,7 @@ const Multiplayer = {
       } catch (e) {
         if (this.reconnecting !== rc) return;
         // a Quick Play round moved on without us: there's no way back in
-        if ((rc.opts.mode === 'qp' || rc.opts.mode === 'rp') && /already started|full/i.test(e.message)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'rp' ? 'Ranked Play' : 'Quick Play'} match`, 'The connection dropped and the match went on without you.'); return; }
+        if (/already started|full/i.test(e.message) && (rc.opts.mode === 'qp' || rc.opts.mode === 'rp' || this.isRPCode === rc.code)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'qp' ? 'Quick Play' : 'Ranked Play'} match`, 'The connection dropped for too long and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
         rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
@@ -106,7 +107,7 @@ const Multiplayer = {
     // the room list may still carry the room we just left for a moment: the lobby hides it if we were alone in it
     if (this.room) this.lastLeft = { code: this.room.code, alone: this.room.players.length <= 1, at: Date.now() };
     this.ws = null; this.room = null; this.me = null; this.opps = new Map();
-    if (ws) { try { ws.close(1000, 'leave'); } catch { /* already closed */ } }
+    if (ws) { try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
   },
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
@@ -124,6 +125,7 @@ const Multiplayer = {
     switch (m.t) {
       case 'room': {
         const had = this.room ? this.room.players.length : 0;
+        if (m.room.rp) this.isRPCode = m.room.code;
         const key = map => map ? map.hash || 'o' + map.onlineId : null, prev = key(this.room && this.room.map);
         this.room = m.room;
         this.qpClock(m.room);
@@ -138,15 +140,8 @@ const Multiplayer = {
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
       case 'opp': this.opps.set(m.id, m); break;
       case 'qpPool': this.buildPool(m); break;
-      case 'abort':
-        // Ranked Play: the other player left the song — the round is ours, back to the room
-        if (m.by !== this.me && Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
-          const s = GameplayScreen.s; s.finished = true; s.running = false;
-          Music.stop(150);
-          Toast.show(`${m.name || 'Your opponent'} left the song`, 'You win the round.');
-          Screens.go('multiplayer', {}, { replace: true });
-        }
-        break;
+      case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
+      case 'hand': Bus.emit('rp:hand', m); break;
       case 'start': this.launch(m); break;
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
@@ -154,7 +149,8 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (this.isRP()) Toast.show('Your opponent left the match', 'The round is yours. Finish the map or press Esc to see the results.');
+          else Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
         }
         Bus.emit('mp:changed');
         break;
@@ -247,7 +243,7 @@ const Multiplayer = {
     const startAt = performance.now() + m.delay - this.rtt / 2;
     // the room's speed mod (everyone accepted it) plus this player's own mods
     const mods = ModSystem.normalize([...(m.mods || []), ...((m.playerMods && m.playerMods[this.me]) || [])]);
-    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null } });
+    Game.launch({ mapId: local.id, mods, modConfig: m.modConfig ? { ...ModSystem.config(), ...m.modConfig } : null, mode: 'play', mp: { startAt, players: m.players || null, rp: this.isRP() } });
   },
   qpClock(room) { const g = room && (room.qp || room.rp); this.qpEndAt = g && g.left ? performance.now() + g.left - this.rtt / 2 : 0; },
   /** Quick Play host: this round's pool — ranked maps for the lobby's key count around its typical star rating from
@@ -312,30 +308,9 @@ const Multiplayer = {
     try { await this.join(code); Toast.ok('Joined the room', code.toUpperCase()); }
     catch (e) { Toast.err('Couldn\'t join the room', friendlyError(e)); }
   },
+  /** (Ranked Play's damage is worked out on lazer's standardised score.) */
   finish(score, forfeit = false) {
-    this.send({ t: 'finish', result: { score: score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
-  },
-};
-
-/** Ranked Play skill level (in stars, kept on this device): Beginner, Intermediate or Advanced. The deck is dealt
- *  between both players' levels. Until one is chosen it's the nearest level to the player's recent passes. */
-const RankedSkill = {
-  LEVELS: [['Beginner', 1.5, 'Easy maps to learn on'], ['Intermediate', 3, 'You can pass most normal maps'], ['Advanced', 4.5, 'Hard maps are your thing']],
-  nearest(v) { return this.LEVELS.reduce((a, b) => Math.abs(b[1] - v) < Math.abs(a[1] - v) ? b : a); },
-  get() {
-    let v = NaN;
-    try { v = +localStorage.getItem('am.rp.skill'); } catch { /* private mode */ }
-    return this.nearest(v >= 0.5 && v <= 10 ? v : Multiplayer.skillSR())[1];
-  },
-  set(v) { v = this.nearest(v)[1]; try { localStorage.setItem('am.rp.skill', String(v)); } catch { /* private mode */ } return v; },
-  name(v) { return this.nearest(v)[0]; },
-  /** Three segmented choices; onChange(stars) after each change. */
-  picker(value, onChange) {
-    const el = h('div.rk-seg', { role: 'radiogroup', 'aria-label': 'Skill level' });
-    const paint = () => clearEl(el).append(...this.LEVELS.map(([l, s, d]) => h(`button.rk-opt${this.nearest(value)[1] === s ? '.on' : ''}`, { role: 'radio', 'aria-checked': String(this.nearest(value)[1] === s), title: d,
-      onclick: () => { if (this.nearest(value)[1] === s) return; UISounds.click(); value = s; onChange(value); paint(); } }, h('b', l), h('span', `~${s}★`))));
-    paint();
-    return el;
+    this.send({ t: 'finish', result: { score: this.isRP() ? score.scoreStd : score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
   },
 };
 
@@ -461,13 +436,14 @@ const MultiplayerScreen = {
     this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
-    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); else if (Multiplayer.isRP() && Multiplayer.room.rp.phase === 'load') this.refreshRP(); })];
+    this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); })];
     this._qpInt = setInterval(() => this.qpTick(), 250);
     this.render();
     return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._qpInt); this._qpRoll = null; RankedMatch.unmount(); },
   onBack() {
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.confirmLeave(); return true; }
     if (Multiplayer.inRoom()) {
       Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); } });
       return true;
@@ -477,6 +453,9 @@ const MultiplayerScreen = {
   onKey(e) { return false; },
   render() {
     if (!this.body) return;
+    // a Ranked Play match takes the whole screen (lazer's RankedPlayScreen)
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.mount(this); return; }
+    RankedMatch.unmount();
     if (Multiplayer.inRoom()) { this.renderRoom(); return; }
     this.roomEl = null;
     clearEl(this.body);
@@ -499,6 +478,7 @@ const MultiplayerScreen = {
     const offline = !Multiplayer.available();
     this.body.append(overlayHeader('Multiplayer', { icon: 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
+      rankedQueuePanel(),
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
@@ -508,19 +488,18 @@ const MultiplayerScreen = {
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);
     else setTimeout(() => this.pollRooms(), 30); // (once the lobby is on the page: the screen is still being built here)
   },
-  /** Create room: regular or ranked, then public or private — nothing else to set (rooms play by osu!'s rules). */
-  openCreate() {
-    const st = { ranked: false, isPublic: true, keys: Settings.get('mp.qpKeys') === 7 ? 7 : 4, skill: RankedSkill.get() };
+  /** Create room: regular or a Ranked Play duel, then public or private — nothing else to set (rooms play by osu!'s
+   *  rules; a duel is lazer's Ranked Play with a friend, unrated). */
+  openCreate(pre = {}) {
+    const st = { ranked: !!pre.ranked, isPublic: true, keys: pre.keys === 7 || (!pre.keys && Settings.get('mp.qpKeys') === 7) ? 7 : 4 };
     const body = h('div.mp-cr');
     const choice = (cls, key, v, ic, title, sub) => h(`button.mp-cr-card.${cls}${st[key] === v ? '.on' : ''}`, { dataset: { v: String(v) }, onclick: () => { UISounds.click(); st[key] = v; paint(); } },
       h('div.mp-cr-ico', icon(ic)), h('div', h('b', title), h('span', sub)));
     const paint = () => clearEl(body).append(...[
       h('div.mp-cr-l', '1. Match type'),
       h('div.mp-cr-row', choice('type', 'ranked', false, 'multi', 'Regular', 'Head to head for up to 16 players — the highest score wins, like osu! multiplayer.'),
-        choice('type', 'ranked', true, 'trophy', 'Ranked Play', '1v1 with beatmap cards and HP: the lower score takes the damage.')),
+        choice('type', 'ranked', true, 'trophy', 'Ranked Play duel', '1v1 with a friend by lazer\'s Ranked Play rules: beatmap cards and life. Unrated — queue for rated matches.')),
       st.ranked ? h('div.mp-cr-keys', h('span', 'Key count'), h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
-      st.ranked ? h('div.mp-cr-l', 'Your skill level', h('small', 'the cards land between yours and your opponent\'s, nearer the lower')) : null,
-      st.ranked ? RankedSkill.picker(st.skill, v => { st.skill = RankedSkill.set(v); }) : null,
       h('div.mp-cr-l', '2. Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', 'Listed under Open rooms for anyone to join.'),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -543,7 +522,7 @@ const MultiplayerScreen = {
     // rows that haven't changed since the last poll (every 3s) are kept as they are: rebuilding them replayed their
     // slide-in and reloaded their covers, so the whole list blinked
     const prevRows = this._roomRows || new Map(), nextRows = new Map();
-    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.skill, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
+    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.rating, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
     const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
     if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     this._roomsSig = listSig;
@@ -559,9 +538,9 @@ const MultiplayerScreen = {
       } }, bg, h('div.mp-rshade'),
         h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
-          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play · ${r.keys || 4}K${r.skill ? ` · ${RankedSkill.name(r.skill)} (~${r.skill}★)` : ''}`))
+          r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K${r.rating ? ` · host rating ${fmtInt(r.rating)}` : ''}`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
-          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · HP · you pick your level when you join' : 'Head to Head · highest score wins'))),
+          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : 'Head to Head · highest score wins'))),
         h('div.mp-rplayers', Presence.avatarEl({ name: r.host, avatar: r.avatar }, 32), h('b', `${r.players}/${r.size}`)),
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());
@@ -598,7 +577,6 @@ const MultiplayerScreen = {
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
   },
   refreshRoom() {
-    if (Multiplayer.isRP()) { this.refreshRP(); return; }
     if (Multiplayer.isQP()) { this.refreshQP(); return; }
     this._qpKey = null;
     const r = Multiplayer.room, me = Multiplayer.self(), host = Multiplayer.isHost();
@@ -830,131 +808,6 @@ const MultiplayerScreen = {
     const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
     clearEl(this.footEl).append(...(q.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', q.phase === 'gather' ? 'The first round starts once enough players are in.' : 'Leaving forfeits the rest of the match.'), h('div.grow')]));
     this.qpTick();
-  },
-  // ── Ranked Play: the two players with their HP up top; their hands of beatmap cards; the round as it plays out
-  refreshRP() {
-    const r = Multiplayer.room, g = r.rp, me = Multiplayer.me;
-    // waiting for an opponent / choosing levels: one calm card, nothing else on screen
-    this.roomEl.classList.toggle('rp-gathering', g.phase === 'gather');
-    if (g.phase === 'gather') { this.renderRPLobby(r, g, me); return; }
-    const PH = { gather: r.players.length < 2 ? 'Finding an opponent' : 'Choose your level', pool: 'Dealing cards', pick: g.picker === me ? 'Your pick' : 'Opponent is picking', reveal: 'Card played', load: 'Getting ready', playing: 'Match in progress', damage: 'Round results', final: 'Match over' };
-    this.qpTimer = h('span.qp-timer');
-    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    const mult = g.mult || 1;
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `Ranked Play · ${g.keys}K`), h('div.mp-room-code.qp-round', g.phase === 'gather' || g.phase === 'pool' ? r.code : g.phase === 'final' ? 'Finished' : `Round ${g.round}`)),
-      reconnecting, h('div.grow'), g.round > 0 && g.phase !== 'final' ? h('span.rp-mult', `damage ×${mult}`) : null, h('div.qp-phase', PH[g.phase] || '', this.qpTimer)].filter(Boolean));
-    // versus bar: picture, name, skill level and HP
-    const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
-    const side = (p, mine) => {
-      if (!p) return g.phase === 'final' ? h('div.rp-side.empty', h('div.rp-av', icon('user')), h('div.rp-name', 'Left the match'))
-        : h('div.rp-side.empty', h('div.rp-av', h('span.spinner')), h('div.rp-name', 'Waiting…'));
-      const hp = g.hp[p.id] ?? 1000000, hit = g.last && g.last.loser === p.id && (g.phase === 'damage' || g.phase === 'final');
-      const ready = g.phase === 'gather' && g.ready && g.ready[p.id];
-      return h(`div.rp-side${mine ? '.me' : ''}${g.picker === p.id && g.phase === 'pick' ? '.picking' : ''}${hit ? '.hit' : ''}`,
-        h('div.rp-av', mine ? ProfileManager.avatarEl(56) : Presence.avatarEl(p, 56)),
-        h('div.rp-info', h('div.rp-name', p.name, mine ? h('span.muted', ' (you)') : null, ready ? h('span.rp-ready', icon('check'), 'Ready') : null),
-          h('div.rp-rt', `${RankedSkill.name(p.skill || 2.5)} · ${(p.skill || 2.5).toFixed(1)}★`),
-          h('div.rp-hp', h('i', { style: { width: (hp / 10000).toFixed(2) + '%' } }), h('span', `${fmtInt(hp)} HP`)),
-          hit ? h('div.rp-dmg', `−${fmtInt(g.last.damage)}`) : null));
-    };
-    this._qpKey = null; // (rebuilt on every update: nothing here animates across updates)
-    // the stage is rebuilt on every room update (a chat line, a ready tick…); only a new phase or round plays the
-    // entrance animations, otherwise the whole panel blinked each time
-    const phaseKey = `${r.code}|${g.round}|${g.phase}`, fresh = this._rpPhaseKey !== phaseKey;
-    this._rpPhaseKey = phaseKey;
-    this.qpStage = h(`div.qp-stage.rp.${g.phase}${fresh ? '' : '.still'}`, h('div.rp-vs', side(meP, true), h('div.rp-vsmid', 'VS'), side(opp, false)));
-    const st = this.qpStage, cards = id => (g.hands[id] || []).map(i => this.qpCard(g.pool[i], i));
-    if (g.phase === 'pool') st.append(h('div.qp-big', h('span.spinner'), 'Dealing cards…'), h('div.qp-sub', `Finding beatmaps between ${g.range ? `${g.range.lo}★ and ${g.range.hi}★` : 'your levels'}`));
-    else if (g.phase === 'pick') {
-      const mine = g.picker === me, key = `${r.code}|${g.round}`;
-      if (this._rrKey !== key) { this._rrKey = key; this._rr = new Set(); }
-      const sel = this._rr, used = !!(g.rerolled && g.rerolled[me]);
-      const hand = cards(me);
-      hand.forEach(c => {
-        const i = +c.dataset.i;
-        if (mine) c.addEventListener('click', () => { UISounds.click(); Multiplayer.pick(i); });
-        else c.classList.add('dim');
-        if (!used) c.append(h(`span.rp-rr${sel.has(i) ? '.on' : ''}`, { title: 'Mark for reroll', role: 'button', onclick: e => { e.stopPropagation(); UISounds.click(); sel.has(i) ? sel.delete(i) : sel.add(i); this.render(); } }, icon('retry')));
-        if (sel.has(i)) c.classList.add('marked');
-      });
-      const reroll = h('button.btn.sm.rp-reroll', { disabled: used, title: used ? 'You\'ve rerolled this round' : 'Swap cards for new ones from the deck (once a round)',
-        onclick: () => { UISounds.click(); Multiplayer.send({ t: 'reroll', cards: [...sel] }); sel.clear(); } }, icon('retry'), used ? 'Rerolled' : sel.size ? `Reroll ${sel.size} card${sel.size === 1 ? '' : 's'}` : 'Reroll hand');
-      st.append(...[h('div.qp-hint', mine ? 'Your pick: play a card you\'re strong on — the lower score takes the damage.' : `${opp ? opp.name : 'Your opponent'} is choosing one of their cards…`),
-        !mine && opp ? h('div.rp-hand.theirs', h('div.rp-hand-l', `${opp.name}'s hand`), h('div.qp-grid', ...cards(opp.id))) : null,
-        h('div.rp-hand', h('div.rp-hand-l', 'Your hand', h('span.grow'), reroll), h('div.qp-grid', ...hand))].filter(Boolean));
-    } else if (['reveal', 'load', 'playing'].includes(g.phase)) {
-      const m = r.map, c = m ? this.qpCard(m, g.chosen) : null;
-      if (c) c.classList.add('chosen', 'wide', 'flip');
-      const who = r.players.find(p => p.id === g.picker);
-      const f = Multiplayer.fetch;
-      st.append(...[h('div.qp-hint', `${who ? (who.id === me ? 'You' : who.name) : 'The picker'} played:`), c,
-        g.phase === 'playing' ? h('div.qp-big', 'Match in progress') : h('div.qp-sub', !m ? '' : Multiplayer.localMap(m) ? 'Ready' : f && f.error ? `Download failed: ${f.error}` : f && f.progress != null ? `Downloading… ${Math.round(f.progress * 100)}%` : 'Getting the beatmap…')].filter(Boolean));
-    } else if (g.phase === 'damage' && g.last) {
-      const L = g.last, lose = r.players.find(p => p.id === L.loser);
-      st.append(...[h('div.qp-big', !L.loser ? 'Draw — no damage' : lose && lose.id === me ? `You took ${fmtInt(L.damage)} damage` : `${lose ? lose.name : 'They'} took ${fmtInt(L.damage)} damage`),
-        L.forfeit ? h('div.qp-sub', `${lose ? (lose.id === me ? 'You' : lose.name) : 'Someone'} left the song — the round went to ${lose && lose.id === me ? 'your opponent' : 'you'}`) : null,
-        // (a forfeited song has no scores worth showing)
-        L.forfeit ? null : h('div.rp-scores', ...r.players.map(p => h('div', h('span', p.name), h('b', fmtScore(L.scores[p.id] || 0))))),
-        h('div.qp-sub', `Next round: ×${1 + 0.5 * g.round} damage · ${lose ? (lose.id === me ? 'you pick' : `${lose.name} picks`) : 'same picker'}`)].filter(Boolean));
-    } else if (g.phase === 'final') {
-      const won = g.winner === me;
-      st.append(h(`div.rp-final${won ? '.won' : ''}`, h('div.rp-final-t', won ? 'Victory' : g.winner ? 'Defeat' : 'Match over'),
-        h('div.rp-final-r', h('span', `${g.round} round${g.round === 1 ? '' : 's'}`))));
-    }
-    clearEl(this.mapEl).append(st);
-    clearEl(this.playersEl).append(h('div.mp-players.rp-help', h('h3', 'How Ranked Play works'), h('ul',
-      h('li', 'You each pick a skill level; the cards are between the two, nearer the lower.'),
-      h('li', 'You both start with 1,000,000 HP and five cards, dealt in pairs of matching difficulty.'),
-      h('li', 'Once a round you can reroll any of your cards.'),
-      h('li', 'The picker plays a card and you both play it. The lower score takes the difference as damage: ×1, then ×1.5, ×2…'),
-      h('li', 'Whoever lost the round picks next. Leaving the song gives the round away. First to 0 HP loses.'))));
-    clearEl(this.resEl);
-    const again = h('button.mp-start', { onclick: () => { UISounds.click(); Multiplayer.leave(true); this.render(); this.openCreate(); } }, 'New match');
-    const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
-    clearEl(this.footEl).append(...(g.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', 'Leaving the room forfeits the match.'), h('div.grow')]));
-    this.qpTick();
-  },
-  /** Ranked Play before the match: the two players, your level, the room code and Ready — centred, nothing more.
-   *  The rules fold away under "How it works". */
-  renderRPLobby(r, g, me) {
-    const meP = r.players.find(p => p.id === me), opp = r.players.find(p => p.id !== me);
-    const isPublic = !(r.settings && r.settings.public === false);
-    this.qpTimer = h('span.qp-timer');
-    const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', `${g.keys}K · ${isPublic ? 'Public' : 'Private'} room`), h('div.mp-room-code.qp-round', 'Ranked Play')), reconnecting].filter(Boolean));
-    const tile = (p, mine) => {
-      if (!p) return h('div.rpl-player.rpl-none', h('div.rpl-av.searching', h('i'), h('i'), icon('user')), h('b', 'Searching…'), h('span.rpl-lv', 'waiting for someone to join'));
-      const ready = g.ready && g.ready[p.id];
-      return h(`div.rpl-player${mine ? '.me' : ''}${ready ? '.ready' : ''}`,
-        h('div.rpl-av', mine ? ProfileManager.avatarEl(76) : Presence.avatarEl(p, 76), ready ? h('span.rpl-check', icon('check')) : null),
-        h('b', p.name), h('span.rpl-lv', `${RankedSkill.name(p.skill || 3)} · ~${RankedSkill.nearest(p.skill || 3)[1]}★`));
-    };
-    const ready = !!(g.ready && g.ready[me]);
-    const level = h('div.rpl-sec', h('div.rpl-label', 'Your level'),
-      RankedSkill.picker(meP && meP.skill ? meP.skill : RankedSkill.get(), v => { Multiplayer.send({ t: 'skill', skill: RankedSkill.set(v) }); }));
-    let bottom;
-    if (!opp) {
-      bottom = h('div.rpl-sec.rpl-share',
-        h('div.rpl-label', isPublic ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
-        h('div.rpl-code',
-          h('span', r.code),
-          h('button.icon-btn', { title: 'Copy code', 'aria-label': 'Copy code', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); UISounds.click(); Toast.ok('Room code copied', r.code); } }, icon('copy')),
-          h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite')));
-    } else {
-      const a = meP ? meP.skill : 3, b = opp.skill || a, lo = Math.min(a, b), hi = Math.max(a, b), c = lo + (hi - lo) * 0.3;
-      bottom = h('div.rpl-sec',
-        h('div.rpl-range', `Cards around ${Math.max(0.5, c - 0.6).toFixed(1)}–${(c + 0.6).toFixed(1)}★`),
-        h(`button.mp-start.rp-readybtn${ready ? '.on' : ''}`, { onclick: () => { UISounds.click(); Multiplayer.send({ t: 'rpready', ready: !ready }); } },
-          ready ? (g.ready[opp.id] ? 'Starting…' : `Ready — waiting for ${opp.name}`) : 'Ready'));
-    }
-    const how = h('details.rpl-how', h('summary', 'How it works'), h('ul',
-      h('li', 'Pick your level; the cards land between yours and your opponent\'s, nearer the lower.'),
-      h('li', 'You both start with 1,000,000 HP and five cards. Once a round you can reroll any of them.'),
-      h('li', 'The picker plays a card and you both play it. The lower score takes the difference as damage (×1, then ×1.5, ×2…).'),
-      h('li', 'Whoever lost the round picks next. Leaving a song gives the round away. First to 0 HP loses.')));
-    clearEl(this.mapEl).append(h('div.rpl', h('div.rpl-vs', tile(meP, true), h('div.rpl-x', 'VS'), tile(opp, false)), level, bottom, how));
-    clearEl(this.playersEl); clearEl(this.resEl);
-    clearEl(this.footEl).append(h('div.grow'));
   },
   /** The per-second countdown in the header (and the pick timer bar). */
   qpTick() {
