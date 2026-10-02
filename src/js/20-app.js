@@ -63,7 +63,7 @@ const App = {
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
-    Bus.on('skin:changed', s => Toast.show('Skin changed', s.name));
+    Bus.on('skin:changed', s => OSD.show('Skin', s.name, this._skinKey || ''));
   },
 
   /** Kori 3.0 ships with the client (public/skins/kori.osk, mania assets only) and is installed and selected
@@ -200,6 +200,18 @@ const App = {
       e.preventDefault();
       if (e.code === 'ArrowUp' || e.code === 'ArrowDown') VolumeOverlay.adjust(VolumeOverlay.sel, e.code === 'ArrowUp' ? 0.05 : -0.05);
       else { const order = ['effects', 'master', 'music'], i = order.indexOf(VolumeOverlay.sel); VolumeOverlay.show(order[clamp(i + (e.code === 'ArrowRight' ? 1 : -1), 0, 2)]); }
+      return;
+    }
+    // lazer: Ctrl+Shift+R a random skin, Ctrl+Shift+E / T the previous / next one
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && ['KeyR', 'KeyE', 'KeyT'].includes(e.code) && Screens.current !== GameplayScreen) {
+      e.preventDefault();
+      const list = SkinManager.list(), cur = list.findIndex(x => x.id === (SkinManager.current && SkinManager.current.id));
+      if (list.length < 2) return;
+      let i;
+      if (e.code === 'KeyR') { do { i = Math.floor(Math.random() * list.length); } while (i === cur); }
+      else i = (cur + (e.code === 'KeyT' ? 1 : -1) + list.length) % list.length;
+      this._skinKey = e.code === 'KeyR' ? 'Ctrl+Shift+R' : 'Ctrl+Shift+E / Ctrl+Shift+T';
+      SkinManager.select(list[i].id).finally(() => { this._skinKey = ''; });
       return;
     }
     // lazer: Ctrl+P opens (or closes) your profile

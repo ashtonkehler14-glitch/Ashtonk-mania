@@ -315,7 +315,7 @@ const Shortcuts = {
       [['Ctrl', 'O'], 'Settings'], [['Esc'], 'Back / close'], [['Alt', 'Enter'], 'Fullscreen'],
       [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Alt', '↑', '↓'], 'Volume'], [['Alt', '←', '→'], 'Effects / master / music'],
       [['Alt', 'Home'], 'Main menu'], [['Ctrl', 'B'], 'Beatmap listing'], [['Ctrl', 'N'], 'Notifications'], [['Ctrl', 'P'], 'Profile'], [['F6'], 'Now playing'],
-      [['Mouse back button'], 'Back'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
+      [['Ctrl', 'Shift', 'R'], 'Random skin'], [['Ctrl', 'Shift', 'E', 'T'], 'Previous / next skin'], [['Mouse back button'], 'Back'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
     ['Main menu', [
       [['~any key'], 'Open the menu from the big logo'], [['P'], 'Play'], [['P', 'M'], 'Solo, Multi (after Play)'], [['L', 'R'], 'Lounge, Ranked Play (after Multi)'], [['E'], 'Edit'], [['S', 'I', 'B', 'C', 'R'], 'Skins, Import, Beatmaps, Collections, Replays (after Edit)'], [['B'], 'Browse beatmaps online'],
       [['U'], 'Profile'], [['O'], 'Settings'], [['←', '→', 'Enter'], 'Move and press']]],

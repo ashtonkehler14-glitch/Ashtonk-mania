@@ -31,6 +31,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 - **Anywhere:**
   - **Alt+↑ / ↓** change the volume, and **Alt+← / →** pick effects, master or music.
   - **Ctrl+P** opens your profile.
+  - **Ctrl+Shift+R** picks a random skin, and **Ctrl+Shift+E / T** switch to the previous or next one.
   - The **mouse's back button** goes back.
 - **Media keys** (and your system's media controls) play, pause and skip the menu music, and show the song's title and picture.
 - **Song select: Ctrl+↑ / ↓** change the play speed by 0.05× at a time (through Song Speed), back to no speed mod at 1×.
