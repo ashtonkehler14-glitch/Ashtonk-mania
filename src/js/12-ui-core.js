@@ -745,7 +745,7 @@ const NowPlaying = {
 
 /** osu!lazer-style back button (pink, slanted, bottom-left). */
 function backButton(onClick) {
-  const b = h('button.lz-back', { onclick: () => { UISounds.back(); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('back'), 'back'));
+  const b = h('button.lz-back', { onclick: () => { UISounds.back(); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('back'), 'back'));
   b.addEventListener('pointerenter', () => UISounds.hover());
   return b;
 }

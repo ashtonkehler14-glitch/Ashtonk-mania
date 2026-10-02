@@ -23,6 +23,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 ## What's new
 
 ### Settings, song select and loading, as in lazer
+- **Back button** is lazer's newer one: a 240 px slanted pink button with rounded corners, 12 px in from the corner. It lightens when you point at it, squeezes while held and flashes when clicked.
 - **Notifications panel** is lazer's: a "NOTIFICATIONS" heading with the count in yellow and "CLEAR ALL" beside it. Each notification is a rounded card with its icon in a dark strip on the left and a tick to dismiss it.
 - **Settings** opens under the top bar, which stays usable, and no longer dims the screen.
   - The sidebar is lazer's: 170 px wide with each section's icon and name. The section you're reading gets a small bar that springs taller.

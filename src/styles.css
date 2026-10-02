@@ -2967,3 +2967,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .nf-x { width: 28px; height: auto; border-radius: 0; color: hsl(255 10% 60%); }
 .nf-x:hover { background: rgba(0, 0, 0, .15); color: #fff; }
 .nf-x .i { width: 12px; height: 12px; }
+/* back: lazer's ScreenBackButton — a 240 × 50 ShearedButton 12px in from the corner: corners of 7, #de31ae with a 2px
+   border fading to #ff86dd at the bottom, the chevron and "back" (17px) 20px apart; 20% lighter under the pointer,
+   squeezes to 90% while held and flashes white when clicked */
+.lz-back, .lz-back:hover, .lz-back:focus-visible { width: 240px; min-width: 0; height: 50px; margin: 0 0 12px 12px; padding: 0; align-self: flex-end; border: 2px solid transparent; border-radius: 7px; transform: skewX(-11.31deg); overflow: hidden; outline: none;
+  background: linear-gradient(#de31ae, #de31ae) padding-box, linear-gradient(#de31ae, #ff86dd) border-box; color: #fff; font-size: 17px; font-weight: 400; transition: scale 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1), filter 150ms cubic-bezier(.22, 1, .36, 1); }
+.lz-back:hover, .lz-back:focus-visible { background: linear-gradient(#ff3bd1, #ff3bd1) padding-box, linear-gradient(#ff3bd1, #ffa1ff) border-box; }
+.lz-back:active { scale: .9; transition: scale 2000ms cubic-bezier(.22, 1, .36, 1); }
+.lz-back::after { content: ""; position: absolute; inset: 0; background: #fff; mix-blend-mode: plus-lighter; opacity: 0; pointer-events: none; }
+.lz-back.flash::after { animation: lzBackFlash 800ms cubic-bezier(.22, 1, .36, 1); }
+@keyframes lzBackFlash { from { opacity: .9; } to { opacity: 0; } }
+.lz-back-inner { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 20px; width: 100%; padding: 0; transform: skewX(11.31deg) translateX(-10px); }
+.lz-back-inner .i { width: 17px; height: 17px; stroke-width: 3; }
+.res-actions > .lz-back { bottom: 0; }
