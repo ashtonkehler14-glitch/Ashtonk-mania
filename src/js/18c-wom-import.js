@@ -178,7 +178,7 @@ const WomImport = {
   },
 
   /** WOM collections hold online beatmap sets: any that aren't in the library yet are downloaded (from the same
-   *  mirrors as the beatmap listing), then each collection is made here with the same name. */
+   *  mirrors as the explorer's downloads), then each collection is made here with the same name. */
   async importCollections(all, out, onStatus = () => {}) {
     const have = id => BeatmapManager.sets.find(s => s.onlineId === Number(id));
     const missing = new Map();

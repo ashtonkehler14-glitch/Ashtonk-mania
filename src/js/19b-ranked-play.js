@@ -135,9 +135,8 @@ async function buildRankedDeck(m) {
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
   try {
-    const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
-    const pages = await Promise.race([Promise.all([0, 1, 2, 3].map(one)), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 9000))]);
-    for (const d of pages) for (const set of d.sets || []) {
+    const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, nsfw: false }, 4, 9000);
+    for (const set of d.sets) {
       if (seen.has(set.id)) continue;
       seen.add(set.id);
       for (const x of set.diffs || []) if (x.keys === keys && x.id > 0) cand.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id, group: 's' + set.id });

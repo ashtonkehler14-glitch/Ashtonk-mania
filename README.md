@@ -12,14 +12,14 @@ Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore)
 
 `npx wrangler deploy` puts it on Cloudflare: the game, beatmap search and downloads, and online multiplayer.
 
-To find every song Web-Osu-Mania finds, give it an osu! API key:
+The beatmap listing comes from osu! itself, the same way Web-Osu-Mania gets it, so the server needs an osu! API key:
 
 1. On osu.ppy.sh, open **Settings → OAuth → New OAuth Application** and copy the Client ID and Secret.
 2. Run `npx wrangler secret put OSU_CLIENT_ID` and `npx wrangler secret put OSU_CLIENT_SECRET`.
 
-Without a key, search falls back to public mirror sites, which can miss songs.
+Downloads come from mirror sites (catboy.best and others) and need no key.
 
-If osu! starts refusing the key (a 429 error), add a second OAuth app the same way as `OSU_CLIENT_ID_2` and `OSU_CLIENT_SECRET_2`. It takes over while the first is refused.
+If the listing says osu! is rate-limiting the site (429), osu! is counting other sites on Cloudflare's shared addresses against yours. Like Web-Osu-Mania, you can send osu! requests through a proxy with its own address: set `OSU_API_PROXY_URL` (and `OSU_API_PROXY_KEY` if it needs one). A second OAuth app, added as `OSU_CLIENT_ID_2` and `OSU_CLIENT_SECRET_2`, takes over when osu! refuses the first one's logins.
 
 ## Develop
 

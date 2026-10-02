@@ -260,10 +260,9 @@ const Multiplayer = {
     const lo = m.lo > 0 ? m.lo : Math.max(0, sr - 0.75), hi = m.hi > 0 ? m.hi : sr + 0.75, pool = [], seen = new Set();
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     try {
-      const page = Math.floor(Math.random() * 4);
-      const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
-      const search = Promise.all(want > 8 ? [one(page), one(page + 1)] : [one(page)]).then(ds => ({ sets: ds.flatMap(d => d.sets || []) }));
-      const d = await Promise.race([search, new Promise((_, rej) => setTimeout(() => rej(new Error('search timed out')), 8000))]);
+      // (a different order each time — newest, most played, most favourited, best rated — so rounds vary)
+      const sorts = [null, 'plays_desc', 'favourites_desc', 'rating_desc'];
+      const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, nsfw: false, sort: sorts[Math.floor(Math.random() * sorts.length)] }, want > 8 ? 2 : 1, 8000);
       for (const set of shuffle([...(d.sets || [])])) {
         const diffs = set.diffs.filter(x => x.keys === keys && x.stars >= lo && x.stars <= hi && x.id > 0);
         if (!diffs.length || seen.has(set.id)) continue;
@@ -497,7 +496,6 @@ const MultiplayerScreen = {
     const offline = !Multiplayer.available();
     this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
-      ranked ? h('div.mp-note.mp-rp-about', h('b', 'Ranked Play'), ' — 1v1 with beatmap cards and 1,000,000 life each, by osu!lazer\'s rules. Before the cards are dealt, you both choose the star rating you want. Nothing here changes a rating.') : null,
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),

@@ -37,7 +37,7 @@ await context.addInitScript(() => { for (const P of [Element.prototype, Document
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-page.on('console', m => { if (m.type() === 'error' && !/status of 502/.test(m.text())) errors.push('console: ' + m.text()); }); // (502: the explorer's mocked server failure)
+page.on('console', m => { if (m.type() === 'error' && !/status of (502|429)/.test(m.text())) errors.push('console: ' + m.text()); }); // (the explorer's mocked server failures)
 const shot = async name => { if (SHOTS) await page.screenshot({ path: join(shotDir, name + '.png') }); };
 const waitBoot = async () => {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
@@ -492,11 +492,14 @@ check('now-playing previous restarts the song', await page.evaluate(() => Ashton
 await page.mouse.move(700, 700);
 await page.waitForTimeout(600);
 
-// beatmap explorer (Worker API mocked — the real mirrors are external services)
+// beatmap explorer (the game server's /api/getBeatmaps mocked with osu! API answers — osu! itself is external)
+const osuRaw = (id, title, extra = {}) => ({ id, title, title_unicode: title, artist: 'Mock', artist_unicode: 'Mock', creator: 'M', status: 'ranked', play_count: 1, favourite_count: 1, nsfw: false, ...extra,
+  beatmaps: [{ beatmapset_id: id, id: id * 10, mode: 'mania', version: '4K', difficulty_rating: 2.1, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 60, count_circles: 100, count_sliders: 10 },
+    { beatmapset_id: id, id: id * 10 + 1, mode: 'osu', version: 'Std', difficulty_rating: 3, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 60, count_circles: 100, count_sliders: 10 }] });
+const mirrorSearches = [];
+for (const u of ['https://catboy.best/api/**', 'https://api.nerinyan.moe/search**', 'https://osu.direct/api/v2/search**']) await page.route(u, r => { mirrorSearches.push(r.request().url()); r.abort(); });
 await page.route('**/api/health', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
-await page.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false,
-  sets: [{ id: 777, title: 'Explorer Song', titleUnicode: '', artist: 'Mock', artistUnicode: '', creator: 'M', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
-    diffs: [{ id: 7770, mode: 3, version: '4K', stars: 2.1, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 100, lns: 10 }] }] }) }));
+await page.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ beatmapsets: [osuRaw(777, 'Explorer Song')], cursor_string: null, total: 1 }) }));
 await page.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
 // (downloads go straight to the chosen provider, Mino by default, as on Web-Osu-Mania)
 await page.route('https://catboy.best/d/**', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
@@ -531,51 +534,52 @@ await page.waitForFunction(() => /Play/.test(document.querySelector('.bso-dl')?.
 check('once downloaded, the beatmap info page offers Play', true);
 await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 {
-  // Web-Osu-Mania ordering: "Has leaderboard" + newest ranked first by default, results kept in the chosen order
-  const mk = (id, title, status, rankedDate, plays) => ({ id, title, titleUnicode: '', artist: 'A', artistUnicode: '', creator: 'M', source: '', status, rankedDate, playCount: plays, favourites: 0, video: false, nsfw: false,
-    diffs: [{ id: id * 10, mode: 3, version: '4K', stars: 2, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 10, lns: 0 }] });
+  // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor
   const seen = [];
-  await page.unroute('**/api/search**');
-  await page.route('**/api/search**', r => { seen.push(new URL(r.request().url()).searchParams); r.fulfill({ contentType: 'application/json', body: JSON.stringify({ source: 'mock', page: 0, hasMore: false, sets: [
-    mk(801, 'Bravo', 'ranked', '2023-05-01T00:00:00Z', 5), mk(802, 'Alpha', 'loved', '2024-01-01T00:00:00Z', 50), mk(803, 'Charlie', 'graveyard', null, 9), mk(804, 'Delta', 'ranked', '2021-01-01T00:00:00Z', 500)] }) }); });
+  const pages = { '': [osuRaw(802, 'Alpha'), osuRaw(801, 'Bravo'), osuRaw(804, 'Delta', { nsfw: true })], next1: [osuRaw(805, 'Echo')] };
+  await page.unroute('**/api/getBeatmaps**');
+  await page.route('**/api/getBeatmaps**', r => { const sp = new URL(r.request().url()).searchParams; seen.push(sp); const c = sp.get('cursor_string') || '';
+    r.fulfill({ contentType: 'application/json', body: JSON.stringify({ beatmapsets: pages[c] || [], cursor_string: c ? null : 'next1', total: 4 }) }); });
   await page.evaluate(() => AshtonkMania.ExplorerScreen.newSearch());
-  await page.waitForSelector('.ex-card[data-id="801"]');
+  await page.waitForSelector('.ex-card[data-id="805"]', { timeout: 8000 }).catch(() => {});
   const order1 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
-  const p0 = seen[seen.length - 1];
-  check('explorer: default is "Has leaderboard", newest ranked first, with no sort sent (osu!\'s default, like WOM)', order1 === '802,801,804' && p0.get('sort') === null && p0.get('status') === 'leaderboard', `${order1} ${p0}`);
+  const p0 = seen[0];
+  check('explorer: asks the game server exactly as Web-Osu-Mania does (m=3, nsfw, no sort or category for the defaults) and keeps osu!\'s order',
+    order1 === '802,801,804,805' && p0.get('m') === '3' && p0.get('nsfw') === 'true' && p0.get('sort') === null && p0.get('s') === null && p0.get('q') === null && seen[1] && seen[1].get('cursor_string') === 'next1', `${order1} ${p0} | ${seen[1]}`);
   await page.click('.ex-chip:text-is("Title")');
   await page.waitForTimeout(300);
-  const order2 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
   const s2 = seen[seen.length - 1].get('sort');
   await page.click('.ex-chip:text-matches("^Title")');
   await page.waitForTimeout(300);
-  const order3 = await page.$$eval('.ex-card', a => a.map(c => c.dataset.id).join(','));
-  check('explorer: a new sort starts descending (Z→A), clicking again flips it (as on WOM)', order2 === '804,801,802' && s2 === 'title_desc' && order3 === '802,801,804' && seen[seen.length - 1].get('sort') === 'title_asc', `${order2} / ${order3}`);
-  // WOM's other filters: genre, language, explicit content (under "More filters"), key counts up to 18K, reset
+  check('explorer: a new sort starts descending (Z→A), clicking again flips it (as on WOM)', s2 === 'title_desc' && seen[seen.length - 1].get('sort') === 'title_asc', `${s2} / ${seen[seen.length - 1]}`);
+  // WOM's other filters: genre, language, explicit content (under "More filters"), key counts up to 18K, stars, reset
   await page.click('.ex-chip:text-is("More filters")');
   await page.click('.ex-chip:text-is("Anime")'); await page.waitForTimeout(150);
   await page.click('.ex-chip:text-is("Japanese")'); await page.waitForTimeout(150);
   await page.click('.ex-chip:text-is("Hide")'); await page.waitForTimeout(150);
+  await page.click('.ex-chip:text-is("Loved")'); await page.waitForTimeout(150);
+  await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.minStars = 3; st.maxStars = 6; st.q = 'camellia'; });
   await page.click('.ex-chip:text-is("18K")'); await page.waitForTimeout(300);
   const pf = seen[seen.length - 1];
-  check('explorer: genre, language, explicit content and 18K are sent as osu! filters', pf.get('g') === '3' && pf.get('l') === '3' && pf.get('nsfw') === 'false' && pf.get('keys') === '18', String(pf));
+  check('explorer: filters go to osu! as WOM writes them (key / stars in the search text, s, g, l, nsfw)',
+    pf.get('g') === '3' && pf.get('l') === '3' && pf.get('nsfw') === 'false' && pf.get('s') === 'loved' && pf.get('q') === 'stars>=3 stars<=6 key=18 camellia', String(pf));
   await page.click('.ex-reset'); await page.waitForTimeout(300);
   const pr = seen[seen.length - 1];
-  check('explorer: "Reset filters" goes back to the defaults', !pr.get('g') && !pr.get('l') && !pr.get('nsfw') && !pr.get('keys') && !pr.get('sort') && !(await page.$('.ex-reset')), String(pr));
+  check('explorer: "Reset filters" goes back to the defaults', !pr.get('g') && !pr.get('l') && pr.get('nsfw') === 'true' && !pr.get('s') && !pr.get('sort') && !(await page.$('.ex-reset')), String(pr));
   await page.click('.ex-chip:text-is("Fewer filters")');
-  await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; });
+  await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; st.q = ''; });
 }
 {
-  // the game server's search failing (mirrors often refuse cloud servers): the browser asks the mirrors itself
-  await page.unroute('**/api/search**');
-  await page.route('**/api/search**', r => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"All beatmap search providers failed.","errors":["Mino: HTTP 403"]}' }));
-  await page.route('https://catboy.best/api/v2/search**', r => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify([{ id: 909, title: 'Direct Song', artist: 'Mirror', creator: 'M', status: 'ranked', beatmaps: [{ id: 9090, mode: 'mania', version: '4K', difficulty_rating: 2.5, cs: 4, accuracy: 8, drain: 7, bpm: 160, total_length: 90 }] }]) }));
+  // osu! refusing the game server: Web-Osu-Mania's error, and the mirrors are NOT used to list songs
+  await page.unroute('**/api/getBeatmaps**');
+  await page.route('**/api/getBeatmaps**', r => r.fulfill({ status: 429, contentType: 'text/plain', body: 'The site is being rate-limited by the osu! API, please try again later.' }));
   await page.evaluate(() => AshtonkMania.ExplorerScreen.newSearch());
-  await page.waitForSelector('.ex-card[data-id="909"]', { timeout: 8000 }).catch(() => {});
-  const direct = await page.evaluate(() => ({ card: !!document.querySelector('.ex-card[data-id="909"]'), source: AshtonkMania.ExplorerScreen.source }));
-  check('explorer: when the game server can\'t search, the browser asks the mirrors directly', direct.card && /direct/.test(direct.source || ''), JSON.stringify(direct));
-  await page.unroute('https://catboy.best/api/v2/search**');
-  await page.evaluate(() => { AshtonkMania.OnlineBeatmaps._serverDown = false; });
+  await page.waitForSelector('.ex-error', { timeout: 8000 }).catch(() => {});
+  const err = await page.evaluate(() => (document.querySelector('.ex-error') || {}).textContent || '');
+  check('explorer: osu! refusing shows WOM\'s "Failed to fetch beatmaps" (code 429) and never lists from a mirror',
+    /Failed to fetch beatmaps/.test(err) && /Code 429: The site is being rate-limited/.test(err) && !mirrorSearches.length && !(await page.$('.ex-card')), `${err} | ${mirrorSearches}`);
+  await page.unroute('**/api/getBeatmaps**');
+  await page.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ beatmapsets: [osuRaw(777, 'Explorer Song')], cursor_string: null }) }));
 }
 await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version))); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
 

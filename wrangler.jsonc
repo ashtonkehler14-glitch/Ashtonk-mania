@@ -4,8 +4,8 @@
 //    multiplayer) and hands everything else to the assets.
 //  - Multiplayer uses two Durable Objects (worker/multiplayer.js): MatchRoom (one per room code)
 //    and Matchmaker (quick match). SQLite-backed classes work on the Workers free plan.
-//  - Optional: `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app)
-//    to search with the official osu! API instead of the public mirrors.
+//  - `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app): the beatmap listing comes
+//    from the osu! API, as on Web-Osu-Mania (the mirrors are only used to download).
 // Deploy: npx wrangler deploy
 {
   "$schema": "node_modules/wrangler/config-schema.json",

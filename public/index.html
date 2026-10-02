@@ -13564,19 +13564,13 @@ const WhatsNew = {
 };
 
 /* ===== 17b-screen-explorer.js ===== */
-/* Beatmap Explorer — search osu!mania beatmaps online and download them straight into the library.
- * On the Cloudflare deployment it talks to the same-origin Worker (/api/search, /api/download/:id),
- * which uses the official osu! API (if configured) or public mirrors. When the page is not served
- * by the Worker (e.g. a local copy) it calls the mirrors directly, which works where they allow CORS. */
+/* Beatmap Explorer — browse osu!mania beatmaps online and download them straight into the library.
+ * The list comes from osu! itself, exactly as on Web-Osu-Mania's home screen: the game's server (/api/getBeatmaps)
+ * asks the osu! API's beatmap search. The mirrors (catboy.best, NeriNyan, …) are only used to download a set. */
 
 const OnlineBeatmaps = {
   apiAvailable: null,
   PAGE: 40,
-  DIRECT_SEARCH: [
-    // ("Has leaderboard" asks for ranked: unfiltered pages are mostly graveyard, which left a handful of results)
-    p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' ? `&status=${({ leaderboard: 1, ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
-    p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
-  ],
   // Web-Osu-Mania's BEATMAP_API_PROVIDERS, exactly ($setId = the beatmap set number)
   DOWNLOAD_PROVIDERS: {
     mino: 'https://catboy.best/d/$setId', nerinyan: 'https://api.nerinyan.moe/d/$setId',
@@ -13620,7 +13614,7 @@ const OnlineBeatmaps = {
     } catch (e) { this.apiAvailable = false; }
     return this.apiAvailable;
   },
-  /** Mirror/osu! set → compact form (same shape as the Worker's normalizeSet). */
+  /** An osu! API beatmap set → the explorer's compact form (mania difficulties only, easiest first). */
   normalize(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const id = Number(raw.id ?? raw.beatmapset_id ?? raw.SetID);
@@ -13654,60 +13648,60 @@ const OnlineBeatmaps = {
     v.forEach((c, i) => { if (i > 0) { n += +c || 0; sum += i * (+c || 0); } });
     return n ? sum / n : 0;
   },
+  /** One page of beatmap sets, asked for exactly as Web-Osu-Mania's getBeatmapSets() asks (src/lib/osuApi.ts): the
+   *  star and key filters written into the search text, m=3, the sort only when it isn't the default (osu! then picks
+   *  relevance for a text search), the category only when it isn't "Has leaderboard", and osu!'s cursor for the next
+   *  page. Each set shows its difficulties that match the keys and stars, easiest first (WOM's useFilteredBeatmaps). */
   async search(p) {
-    // like Web-Osu-Mania, "sort" is only sent when it isn't the default: osu! then picks its own order (relevance
-    // for a text search, last update for pending / WIP / graveyard, newest ranked otherwise)
-    p = { status: 'leaderboard', ...p };
+    p = { status: 'leaderboard', keys: [], minStars: 0, maxStars: 20, nsfw: true, ...p };
     if (navigator.onLine === false) throw new Error('You\'re offline. Connect to the internet to browse and download beatmaps — this page searches again by itself once you\'re back online.');
-    const params = new URLSearchParams({ q: p.q || '', status: p.status, page: String(p.page || 0) });
-    if (p.keys.length) params.set('keys', p.keys.join(','));
+    if (!await this.checkApi()) throw new Error('Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or drag .osz files onto the window to add songs.');
+    const lo = p.minStars > 0 ? p.minStars : null, hi = p.maxStars < 20 ? p.maxStars : null;
+    const q = [lo !== null && `stars>=${lo}`, hi !== null && `stars<=${hi}`, p.keys.map(k => `key=${k}`).join(' '), p.q].filter(Boolean).join(' ');
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    params.set('m', '3'); // 3 = mania
     if (p.sort) params.set('sort', p.sort);
+    if (p.cursor) params.set('cursor_string', p.cursor);
+    if (p.status !== 'leaderboard') params.set('s', p.status);
+    params.set('nsfw', String(p.nsfw !== false));
     if (p.genre) params.set('g', p.genre);
     if (p.language) params.set('l', p.language);
-    if (p.nsfw === false) params.set('nsfw', 'false');
-    if (p.minStars > 0) params.set('minStars', p.minStars);
-    if (p.maxStars < 20) params.set('maxStars', p.maxStars);
-    if (p.cursor) params.set('cursor', p.cursor);
-    if (p.provider) params.set('provider', p.provider);
-    if (p.loose) params.set('loose', '1');
-    let serverErrors = null;
-    if (await this.checkApi() && !this._serverDown) {
-      try {
-        const r = await fetch('api/search?' + params);
-        const d = await r.json().catch(() => ({}));
-        if (r.ok) return d;
-        serverErrors = [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])];
-        this._lastServerError = serverErrors.join(' · ');
-      } catch (e) { serverErrors = [`Search failed: ${e.message}`]; }
-      // the mirrors often turn away requests from the server's cloud addresses but answer the browser itself: ask them
-      // straight from here (and keep doing so for a few minutes rather than waiting on the server every time)
-      this._serverDown = true; setTimeout(() => { this._serverDown = false; }, 5 * 60000);
+    const d = await this.api('api/getBeatmaps?' + params);
+    const sets = (d.beatmapsets || []).map(x => this.normalize(x)).filter(Boolean)
+      .map(s => ({ ...s, diffs: s.diffs.filter(x => (!p.keys.length || p.keys.includes(x.keys)) && (lo === null || x.stars >= lo) && (hi === null || x.stars <= hi)) }))
+      .filter(s => s.diffs.length);
+    return { sets, cursor: d.cursor_string || null, hasMore: !!d.cursor_string, total: d.total ?? null };
+  },
+  /** Several pages of one search, one after another (osu! pages with a cursor), as many as arrive within `ms`. */
+  async searchPages(p, n, ms = 8000) {
+    const end = Date.now() + ms, sets = [];
+    let cursor = null;
+    for (let i = 0; i < n; i++) {
+      const left = end - Date.now();
+      if (left <= 0) break;
+      const d = await Promise.race([this.search({ ...p, cursor }), new Promise(r => setTimeout(() => r(null), left))]).catch(() => null);
+      if (!d) break;
+      sets.push(...d.sets);
+      if (!(cursor = d.cursor)) break;
     }
-    const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
-    const errors = [];
-    // mirrors differ on "rating" and "relevance": if one rejects the sort, ask again in its default order
-    // (the explorer sorts what comes back itself)
-    const want = p.sort || (p.q ? 'relevance_desc' : 'ranked_desc');
-    const sorts = want.startsWith('relevance') ? [null] : want === 'ranked_desc' ? [want] : [want, null];
-    // (a mirror that doesn't understand the "key=4 stars>=3" filters finds nothing with them: ask again with just the
-    // words, and filter keys and stars here)
-    const queries = q !== (p.q || '') ? [q, p.q || ''] : [q];
-    for (const u of this.DIRECT_SEARCH) for (const qq of queries) for (const sort of sorts) {
-      try {
-        const r = await fetch(u({ ...p, q: qq, sort }));
-        if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
-        const data = await r.json();
-        const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
-        if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
-        if (!arr.length && qq !== queries[queries.length - 1]) { errors.push(`${new URL(u(p)).host}: no results with filters`); break; }
-        const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
-          .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
-          .filter(s => s.diffs.length);
-        return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)', serverError: serverErrors ? serverErrors.join(' · ') : this._lastServerError || null };
-      } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
+    return { sets };
+  },
+  /** One beatmap set by its osu! id (Web-Osu-Mania's getBeatmapSet). */
+  async getSet(id) {
+    if (!await this.checkApi()) return null;
+    return this.normalize(await this.api(`api/getBeatmap?beatmapSetId=${encodeURIComponent(id)}`));
+  },
+  /** GET from the game's server; a failure reads as WOM shows it ("Code 429: The site is being rate-limited…"). */
+  async api(url) {
+    let r;
+    try { r = await fetch(url); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    if (!r.ok) {
+      let msg = `Code ${r.status}`;
+      try { const t = (await r.text()).trim(); if (t && !/^\s*</.test(t)) msg += `: ${t.slice(0, 300)}`; } catch { /* no body */ }
+      throw Object.assign(new Error(msg), { status: r.status });
     }
-    throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
-      details: [...(serverErrors ? ['Game server:', ...serverErrors, 'From this browser:'] : []), ...errors].join('\n') + (serverErrors ? '' : '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).') });
+    return r.json();
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
@@ -13791,7 +13785,7 @@ class OnlineBeatmapProvider extends BeatmapProvider {
   get name() { return 'osu! beatmaps (online)'; }
   get online() { return true; }
   async search(query, opts = {}) { return (await OnlineBeatmaps.search({ q: query, keys: [], status: 'ranked', page: 0, minStars: 0, maxStars: 99, ...opts })).sets; }
-  async getBeatmap(id) { return (await this.search(String(id))).find(s => s.id === Number(id)) || null; }
+  async getBeatmap(id) { return OnlineBeatmaps.getSet(id); }
   async downloadBeatmap(id, onProgress) { return OnlineBeatmaps.download(id, onProgress); }
   async getMetadata(id) { return this.getBeatmap(id); }
 }
@@ -13804,36 +13798,12 @@ const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 
 const EXPLORE_GENRES = [[0, 'Any'], [1, 'Unspecified'], [2, 'Video Game'], [3, 'Anime'], [4, 'Rock'], [5, 'Pop'], [6, 'Other'], [7, 'Novelty'], [9, 'Hip Hop'], [10, 'Electronic'], [11, 'Metal'], [12, 'Classical'], [13, 'Folk'], [14, 'Jazz']];
 const EXPLORE_LANGUAGES = [[0, 'Any'], [2, 'English'], [4, 'Chinese'], [7, 'French'], [8, 'German'], [11, 'Italian'], [3, 'Japanese'], [6, 'Korean'], [10, 'Spanish'], [9, 'Swedish'], [12, 'Russian'], [13, 'Polish'], [5, 'Instrumental'], [1, 'Unspecified'], [14, 'Other']];
 const EXPLORE_DEFAULTS = { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false, genre: 0, language: 0, nsfw: true, more: false };
-function statusMatches(set, status) {
-  if (status === 'any') return true;
-  if (status === 'leaderboard') return ['ranked', 'approved', 'qualified', 'loved'].includes(set.status);
-  if (status === 'ranked') return set.status === 'ranked' || set.status === 'approved';
-  return set.status === status;
-}
 /** "Anime · Japanese" from osu!'s genre / language ids (sources that don't send them give ''). */
 function genreLanguage(set) {
   const g = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
   const l = set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null;
   return [g, l].filter(Boolean).join(' · ');
 }
-/** Order loaded results by the chosen criterion (stable), so pages from any source line up the same way. */
-function sortOnlineSets(list, sort, dir) {
-  const date = s => Date.parse(s.rankedDate || s.lastUpdated || '') || 0;
-  const key = {
-    title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(),
-    difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0, ranked: date, rating: s => s.rating || 0,
-    plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
-    updated: s => Date.parse(s.lastUpdated || s.rankedDate || '') || 0,
-  }[sort];
-  if (!key) return list; // relevance: keep the server's order
-  const sign = dir === 'asc' ? 1 : -1;
-  return list.map((s, i) => [s, key(s), i]).sort((a, b) => {
-    const x = a[1], y = b[1];
-    const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
-    return c ? c * sign : a[2] - b[2];
-  }).map(e => e[0]);
-}
-
 const ExplorerScreen = {
   tab: 'explore',
   state: { ...EXPLORE_DEFAULTS },
@@ -13933,14 +13903,6 @@ const ExplorerScreen = {
   starLabel(min = this.state.minStars, max = this.state.maxStars) { return `${min.toFixed(1)}★ – ${max >= 10 ? '∞' : max.toFixed(1) + '★'}`; },
   /** The sort sent to the server: none for the default (newest ranked first), exactly like Web-Osu-Mania. */
   sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
-  /** The order results come in: the chosen one, or osu!'s default for this search. */
-  effectiveSort() {
-    const st = this.state;
-    if (this.sortParam()) return [st.sort, st.dir];
-    if (st.q) return ['relevance', 'desc'];
-    if (['pending', 'wip', 'graveyard'].includes(st.status)) return ['updated', 'desc'];
-    return ['ranked', 'desc'];
-  },
   filtersChanged() {
     const st = this.state, d = EXPLORE_DEFAULTS;
     return st.keys.length > 0 || st.status !== d.status || st.sort !== d.sort || st.dir !== d.dir || st.minStars !== d.minStars || st.maxStars !== d.maxStars
@@ -13949,32 +13911,25 @@ const ExplorerScreen = {
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
-    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.loose = false; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+    this.page = 0; this.results = []; this.cursor = null; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
   },
   async loadMore() {
     const tok = this.token || (this.token = {});
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, loose: this.loose, genre: st.genre, language: st.language, nsfw: st.nsfw });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw });
       if (tok !== this.token) return;
+      // pages come in osu!'s own order, one after another (as Web-Osu-Mania lists them)
       const seen = new Set(this.results.map(s => s.id));
-      const merged = [...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))];
-      // the osu! API pages through one global order (as WOM shows it); mirror pages are merged back into order here
-      const [sort, dir] = this.effectiveSort();
-      this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
-      if (d.provider != null) this.provider = d.provider;
-      if (this.page === 0) this.loose = !!d.wordsOnly;
-      this.serverError = d.serverError || null;
-      // (a words-only search filters keys and stars here, so a page can come back empty with more after it)
-      this.hasMore = !!d.hasMore && (d.sets.length > 0 || (this.loose && this.page < 8));
-      this.cursor = d.cursor || null;
+      this.results = [...this.results, ...d.sets.filter(s => !seen.has(s.id))];
+      this.hasMore = d.hasMore;
+      this.cursor = d.cursor;
       this.page++;
-      this.source = d.source;
       this.error = null;
     } catch (e) {
       if (tok !== this.token) return;
-      this.error = friendlyError(e); this.errorDetails = e.details || null; this.hasMore = false;
+      this.error = e.message || String(e); this.errorStatus = e.status || 0; this.hasMore = false;
     } finally {
       if (tok === this.token) {
         this.loading = false; this.renderResults();
@@ -13995,13 +13950,12 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : 'Couldn\'t reach the beatmap servers'), h('p', this.error),
-      this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
-      h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
+    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : this.results.length ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.'), h('p', this.error),
+      // (Web-Osu-Mania's note for a 429)
+      this.errorStatus === 429 ? h('p.muted', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null,
+      h('button.btn.sm.ex-retry', { onclick: () => this.results.length ? this.loadMore() : this.newSearch() }, icon('retry'), this.results.length ? 'Retry' : 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
-    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.source ? ` · via ${this.source}` : ''}${this.hasMore ? '' : ' · end of results'}`),
-      // (searching from the browser means the game's server couldn't: say why, so it can be fixed)
-      this.serverError ? h('div.muted.ex-source.ex-server-err', `The game's server couldn't search osu!, so this came from a mirror instead: ${this.serverError}`) : null);
+    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.hasMore ? '' : ' · No more beatmaps.'}`));
   },
   renderResults() {
     if (!this.grid) return;
@@ -15268,7 +15222,7 @@ const WomImport = {
   },
 
   /** WOM collections hold online beatmap sets: any that aren't in the library yet are downloaded (from the same
-   *  mirrors as the beatmap listing), then each collection is made here with the same name. */
+   *  mirrors as the explorer's downloads), then each collection is made here with the same name. */
   async importCollections(all, out, onStatus = () => {}) {
     const have = id => BeatmapManager.sets.find(s => s.onlineId === Number(id));
     const missing = new Map();
@@ -15602,10 +15556,9 @@ const Multiplayer = {
     const lo = m.lo > 0 ? m.lo : Math.max(0, sr - 0.75), hi = m.hi > 0 ? m.hi : sr + 0.75, pool = [], seen = new Set();
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     try {
-      const page = Math.floor(Math.random() * 4);
-      const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
-      const search = Promise.all(want > 8 ? [one(page), one(page + 1)] : [one(page)]).then(ds => ({ sets: ds.flatMap(d => d.sets || []) }));
-      const d = await Promise.race([search, new Promise((_, rej) => setTimeout(() => rej(new Error('search timed out')), 8000))]);
+      // (a different order each time — newest, most played, most favourited, best rated — so rounds vary)
+      const sorts = [null, 'plays_desc', 'favourites_desc', 'rating_desc'];
+      const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, nsfw: false, sort: sorts[Math.floor(Math.random() * sorts.length)] }, want > 8 ? 2 : 1, 8000);
       for (const set of shuffle([...(d.sets || [])])) {
         const diffs = set.diffs.filter(x => x.keys === keys && x.stars >= lo && x.stars <= hi && x.id > 0);
         if (!diffs.length || seen.has(set.id)) continue;
@@ -15839,7 +15792,6 @@ const MultiplayerScreen = {
     const offline = !Multiplayer.available();
     this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
-      ranked ? h('div.mp-note.mp-rp-about', h('b', 'Ranked Play'), ' — 1v1 with beatmap cards and 1,000,000 life each, by osu!lazer\'s rules. Before the cards are dealt, you both choose the star rating you want. Nothing here changes a rating.') : null,
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
@@ -16414,9 +16366,8 @@ async function buildRankedDeck(m) {
   const sorted = [...targets].sort((a, b) => a - b), lo = Math.max(0, sorted[0] - 0.35), hi = sorted[sorted.length - 1] + 0.35;
   const cand = [], seen = new Set();
   try {
-    const one = p => OnlineBeatmaps.search({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, page: p, nsfw: false }).catch(() => ({ sets: [] }));
-    const pages = await Promise.race([Promise.all([0, 1, 2, 3].map(one)), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 9000))]);
-    for (const d of pages) for (const set of d.sets || []) {
+    const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [keys], minStars: lo, maxStars: hi, nsfw: false }, 4, 9000);
+    for (const set of d.sets) {
       if (seen.has(set.id)) continue;
       seen.add(set.id);
       for (const x of set.diffs || []) if (x.keys === keys && x.id > 0) cand.push({ hash: '', title: set.title, artist: set.artist, version: x.version, creator: set.creator, keys, stars: x.stars, length: (x.length || 0) * 1000, onlineSetId: set.id, onlineId: x.id, group: 's' + set.id });

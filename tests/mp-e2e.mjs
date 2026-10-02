@@ -189,10 +189,12 @@ check('room updates don\'t wipe what you are typing', await bob.evaluate(() => d
 await alice.click('.mp-ready');
 
 // beatmap search opens the real Browse screen (Beatmap Explorer). Online results are mocked (the mirrors are external).
-const onlineSet = { source: 'mock', page: 0, hasMore: false, sets: [{ id: 424242, title: 'Online Anthem', titleUnicode: '', artist: 'The Test Suite', artistUnicode: '', creator: 'Ashton', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
-  diffs: [{ id: 4242420, mode: 3, version: 'Online Easy', stars: 1.5, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }, { id: 4242421, mode: 3, version: 'Online Hard', stars: 1.7, keys: 4, od: 8, hp: 7, bpm: 150, length: 20, notes: 50, lns: 4 }] }] };
+const onlineDiff = (id, version, stars) => ({ beatmapset_id: 424242, id, mode: 'mania', version, difficulty_rating: stars, cs: 4, accuracy: 8, drain: 7, bpm: 150, total_length: 20, count_circles: 50, count_sliders: 4 });
+// (an osu! API answer, as the game server's /api/getBeatmaps passes it on)
+const onlineSet = { beatmapsets: [{ id: 424242, title: 'Online Anthem', title_unicode: 'Online Anthem', artist: 'The Test Suite', artist_unicode: 'The Test Suite', creator: 'Ashton', status: 'ranked', play_count: 1, favourite_count: 1, nsfw: false,
+  beatmaps: [onlineDiff(4242420, 'Online Easy', 1.5), onlineDiff(4242421, 'Online Hard', 1.7)] }], cursor_string: null };
 for (const p of [alice, bob]) {
-  await p.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
+  await p.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
   await p.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
   await p.route('https://catboy.best/d/424242', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
   await p.route('https://assets.ppy.sh/**', r => r.abort());

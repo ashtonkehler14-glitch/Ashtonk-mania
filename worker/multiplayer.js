@@ -687,7 +687,7 @@ const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
-import { officialFetch, osuLoginState } from './index.js';
+import { officialGet, osuApi, osuLoginState } from './index.js';
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -716,6 +716,22 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  /** osu! API answers kept in this object's storage (like WOM's KV cache), so they outlive a restart: the newest 300. */
+  osuStore() {
+    const st = this.state.storage, IDX = 'osuCacheIndex', MAX = 300;
+    return {
+      get: k => st.get('osu:' + k).catch(() => null),
+      put: async (k, e) => {
+        if (k.length > 1500) return; // (storage keys are limited to 2 KB)
+        try {
+          const idx = [k, ...((await st.get(IDX)) || []).filter(x => x !== k)];
+          const gone = idx.splice(MAX);
+          await st.put({ ['osu:' + k]: e, [IDX]: idx });
+          if (gone.length) await st.delete(gone.map(x => 'osu:' + x));
+        } catch { /* storage full or unavailable: the in-memory answers still work */ }
+      },
+    };
+  }
   closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
   send(out) {
     for (const { to, msg } of out || []) {
@@ -726,10 +742,14 @@ export class Matchmaker {
   async fetch(request) {
     const url = new URL(request.url);
     // the shared osu! API client (its own instance, "osu-api"): one login, cache and back-off for the whole server
-    if (url.pathname === '/osu/search') {
-      if (!this._osuLoaded) { this._osuLoaded = true; osuLoginState.set(await this.state.storage.get('osuLogin').catch(() => null)); }
-      const save = () => { const st = osuLoginState.get(); this.state.storage.put('osuLogin', st).catch(() => {}); };
-      try { const d = await officialFetch(url.search.slice(1), this.env); save(); return json(d); } catch (e) { save(); return json({ error: e.message }, 502); }
+    if (url.pathname === '/osu/get') {
+      if (!this._osuLoaded) { this._osuLoaded = true; osuLoginState.set(await this.state.storage.get('osuLogin').catch(() => null)); osuApi.store = this.osuStore(); }
+      const save = () => {
+        const st = JSON.stringify(osuLoginState.get());
+        if (st !== this._osuSaved) { this._osuSaved = st; this.state.storage.put('osuLogin', JSON.parse(st)).catch(() => {}); }
+      };
+      try { const d = await officialGet(url.searchParams.get('path') || '', this.env, fetch, Number(url.searchParams.get('ttl')) || undefined); save(); return json(d); }
+      catch (e) { save(); return json({ error: e.message }, e.status || 500); }
     }
     if (url.pathname.endsWith('/presence')) {
       if (request.headers.get('Upgrade') !== 'websocket') return json({ online: this.presence.list().length });

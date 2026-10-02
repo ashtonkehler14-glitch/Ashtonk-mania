@@ -1,29 +1,23 @@
 /* Ashtonk!mania — Cloudflare Worker.
- * Serves the static client from ./public (ASSETS binding) and provides a small same-origin API so the
- * beatmap explorer works without CORS problems:
- *   GET /api/health                     → { ok, official, multiplayer }
- *   GET /api/search?q&keys&status&sort&cursor&page&minStars&maxStars&nsfw&g&l → { sets, cursor, hasMore, source }
- *   GET /api/download/:setId            → the .osz (proxied from the first mirror that has it)
+ * Serves the static client from ./public (ASSETS binding) and a small same-origin API:
+ *   GET /api/health                                   → { ok, official, osuApps, proxy, multiplayer }
+ *   GET /api/getBeatmaps?q&m&sort&cursor_string&s&nsfw&g&l → the osu! API's beatmapsets/search answer
+ *   GET /api/getBeatmap?beatmapSetId=…                → one beatmap set from the osu! API
+ *   GET /api/downloadBeatmap?destinationUrl=…         → an .osz from one of Web-Osu-Mania's download mirrors
+ *   GET /api/download/:setId                          → the .osz from the first mirror that has it
  *
- * Browsing works like Web-Osu-Mania's home screen (MIT © 2024 Danny Duong, src/routes/api/getBeatmaps.ts and
- * src/lib/osuApi.ts): with OSU_CLIENT_ID / OSU_CLIENT_SECRET set (and optionally a second app, OSU_CLIENT_ID_2 / _SECRET_2) (`npx wrangler secret put …`), a search is the official
- * osu! API v2 beatmapsets/search with exactly the parameters WOM sends — q (with stars>= / stars<= / key filters),
- * m=3, s (category, left out for "Has leaderboard"), nsfw, g (genre), l (language), sort only when it isn't the
- * default (so osu! picks relevance for text searches) and cursor_string paging — cached for an hour. If osu!
- * rate-limits, the Worker backs off for Retry-After (or 5 minutes) like WOM and answers from the mirrors meanwhile.
- * Without credentials the public mirrors are searched. Downloads always come from mirrors. */
+ * Beatmaps are listed exactly as Web-Osu-Mania's home screen lists them (MIT © 2024 Danny Duong,
+ * src/routes/api/getBeatmaps.ts, getBeatmap.ts and -utils.ts): from the official osu! API v2, logged in with an osu!
+ * OAuth app (OSU_CLIENT_ID / OSU_CLIENT_SECRET, `npx wrangler secret put …`; optionally a second app as
+ * OSU_CLIENT_ID_2 / OSU_CLIENT_SECRET_2), passing on only WOM's parameters, keeping each answer for an hour and asking
+ * no more for Retry-After (or 5 minutes) once osu! answers 429. Like WOM it can go through a proxy with its own IP
+ * address (OSU_API_PROXY_URL / OSU_API_PROXY_KEY): Workers share addresses, so osu! can rate-limit them for other
+ * people's requests. The mirrors are only for downloading beatmaps, never for listing them. */
 
-const PAGE_SIZE = 40;
 const UA = { 'User-Agent': 'Ashtonk!mania beatmap explorer (+https://github.com/ashtonkehler14-glitch/Ashtonk-mania)' };
 
+// Web-Osu-Mania's download providers (the explorer can ask for one to be tried first)
 export const MIRRORS = {
-  search: [
-    // (sort is osu!'s "<criteria>_<asc|desc>", e.g. ranked_desc — the default, as on osu! and Web-Osu-Mania)
-    { name: 'Mino (catboy.best)', url: p => `https://catboy.best/api/v2/search?q=${enc(p.q)}&query=${enc(p.q)}&mode=3&m=3&limit=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}&s=${p.status}` : ''}${sortQ(p)}` },
-    { name: 'NeriNyan', url: p => `https://api.nerinyan.moe/search?q=${enc(p.q)}&m=3&ps=${PAGE_SIZE}&p=${p.page}${specificStatus(p) ? `&s=${p.status}` : p.status === 'leaderboard' ? '&s=ranked,approved,qualified,loved' : '&s=all'}${sortQ(p)}&nsfw=${p.nsfw !== false}${p.genre ? `&g=${p.genre}` : ''}${p.language ? `&l=${p.language}` : ''}` },
-    { name: 'osu.direct', url: p => `https://osu.direct/api/v2/search?query=${enc(p.q)}&q=${enc(p.q)}&mode=3&amount=${PAGE_SIZE}&offset=${p.page * PAGE_SIZE}${specificStatus(p) ? `&status=${statusNum(p.status)}` : ''}${sortQ(p)}` },
-  ],
-  // Web-Osu-Mania's download providers (the explorer can ask for one to be tried first)
   download: [
     { id: 'mino', name: 'Mino (catboy.best)', url: id => `https://catboy.best/d/${id}` },
     { id: 'nerinyan', name: 'NeriNyan', url: id => `https://api.nerinyan.moe/d/${id}?noVideo=true` },
@@ -33,68 +27,39 @@ export const MIRRORS = {
   ],
 };
 
-const enc = s => encodeURIComponent(s || '');
-const sortQ = p => p.sort ? `&sort=${p.sort}` : '';
-const STATUS_NUM = { ranked: 1, approved: 2, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 };
-const statusNum = s => STATUS_NUM[s] ?? 1;
-/** "Has leaderboard" (osu!'s default category) and "Any" aren't a single status on the mirrors. */
-const specificStatus = p => p.status !== 'any' && p.status !== 'leaderboard';
-const LEADERBOARD = new Set(['ranked', 'approved', 'qualified', 'loved']);
-export const SORT_CRITERIA = ['title', 'artist', 'difficulty', 'ranked', 'rating', 'plays', 'favourites', 'relevance', 'updated'];
-const DEFAULT_SORT = 'ranked_desc';
-const STATUS_NAME = { '-2': 'graveyard', '-1': 'wip', 0: 'pending', 1: 'ranked', 2: 'approved', 3: 'qualified', 4: 'loved' };
-const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', ...extra } });
+const cors = { 'Access-Control-Allow-Origin': '*' };
+const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', ...cors, ...extra } });
+/** WOM answers a failed request with the message as plain text (and as the status text). */
+const text = (msg, status) => new Response(msg, { status, statusText: status === 200 ? 'OK' : msg.replace(/[^\x20-\x7e]/g, '').slice(0, 200), headers: { 'Content-Type': 'text/plain; charset=utf-8', ...cors } });
+const timeout = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
-/** Normalise the many beatmap-set shapes (osu! API v2, mirrors) into one compact form; mania only. */
-export function normalizeSet(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const id = Number(raw.id ?? raw.beatmapset_id ?? raw.SetID ?? raw.setId);
-  if (!id) return null;
-  const diffs = (raw.beatmaps || raw.ChildrenBeatmaps || raw.children || []).map(b => ({
-    id: Number(b.id ?? b.beatmap_id ?? b.BeatmapID ?? 0),
-    mode: b.mode_int ?? (typeof b.mode === 'number' ? b.mode : b.mode === 'mania' ? 3 : b.Mode ?? (b.mode === undefined ? 3 : -1)),
-    version: String(b.version ?? b.DiffName ?? b.diff_name ?? 'Normal'),
-    stars: Number(b.difficulty_rating ?? b.DifficultyRating ?? b.stars ?? 0),
-    keys: Math.round(Number(b.cs ?? b.CS ?? b.circle_size ?? 4)),
-    od: Number(b.accuracy ?? b.OD ?? 0), hp: Number(b.drain ?? b.HP ?? 0),
-    bpm: Number(b.bpm ?? b.BPM ?? raw.bpm ?? 0),
-    length: Number(b.total_length ?? b.TotalLength ?? b.hit_length ?? 0),
-    notes: Number(b.count_circles ?? b.CountNormal ?? 0), lns: Number(b.count_sliders ?? b.CountSlider ?? 0),
-  })).filter(d => Number(d.mode) === 3).sort((a, b) => a.stars - b.stars);
-  if (!diffs.length) return null;
-  const st = raw.status ?? raw.ranked ?? raw.RankedStatus;
+/** Web-Osu-Mania's getBeatmaps: only these parameters are passed on to osu!. */
+const KEEP_KEYS = new Set(['q', 'm', 'sort', 'cursor_string', 's', 'nsfw', 'g', 'l']);
+/** WOM's getRateLimitMessage. */
+export const rateLimitMessage = retryAfter => `The site is being rate-limited by the osu! API, please try again ${retryAfter ? `after ${retryAfter} seconds` : 'later'}.`;
+const STATUS_MESSAGES = {
+  404: 'That beatmap set doesn\'t exist on osu!.',
+  500: 'The osu! API ran into an error, try again later.',
+  503: 'The osu! API is currently unavailable, try again later.',
+  504: 'The request to the osu! API timed out.',
+};
+/** An osu! API failure, with the HTTP status the browser gets (as WOM answers it). */
+export class OsuApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
+
+/** WOM's trimBeatmapSet (only what the listing uses is kept and cached), plus the few things the explorer's cards show. */
+export function trimBeatmapSet(s) {
   return {
-    id, title: String(raw.title ?? raw.Title ?? ''), titleUnicode: String(raw.title_unicode ?? raw.title ?? raw.Title ?? ''),
-    artist: String(raw.artist ?? raw.Artist ?? ''), artistUnicode: String(raw.artist_unicode ?? raw.artist ?? raw.Artist ?? ''),
-    creator: String(raw.creator ?? raw.Creator ?? ''), source: String(raw.source ?? raw.Source ?? ''),
-    status: typeof st === 'number' || /^-?\d+$/.test(String(st)) ? (STATUS_NAME[st] || 'pending') : String(st || 'pending'),
-    playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
-    video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw,
-    rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? raw.ApprovedDate ?? null,
-    lastUpdated: raw.last_updated ?? raw.LastUpdate ?? raw.submitted_date ?? null,
-    rating: setRating(raw),
-    genreId: raw.genre_id ?? raw.genre?.id ?? null, languageId: raw.language_id ?? raw.language?.id ?? null,
-    diffs,
+    artist: s.artist, artist_unicode: s.artist_unicode, creator: s.creator, id: s.id, nsfw: s.nsfw, offset: s.offset,
+    status: s.status, title: s.title, title_unicode: s.title_unicode, user_id: s.user_id, play_count: s.play_count,
+    favourite_count: s.favourite_count, rating: s.rating, genre_id: s.genre_id, language_id: s.language_id,
+    source: s.source, video: s.video, ranked_date: s.ranked_date, last_updated: s.last_updated,
+    beatmaps: (Array.isArray(s.beatmaps) ? s.beatmaps : []).map(b => ({
+      beatmapset_id: b.beatmapset_id, difficulty_rating: b.difficulty_rating, id: b.id, mode: b.mode, total_length: b.total_length,
+      user_id: b.user_id, version: b.version, bpm: b.bpm, cs: b.cs, accuracy: b.accuracy, drain: b.drain,
+      count_circles: b.count_circles, count_sliders: b.count_sliders,
+    })),
   };
 }
-/** Average user rating (0–10). osu! sends `rating`, some mirrors only the vote counts (`ratings`, index = score). */
-function setRating(raw) {
-  const r = Number(raw.rating ?? raw.Rating);
-  if (r > 0) return r;
-  const v = raw.ratings;
-  if (Array.isArray(v)) {
-    let n = 0, sum = 0;
-    v.forEach((c, i) => { if (i > 0) { n += Number(c) || 0; sum += i * (Number(c) || 0); } });
-    if (n) return sum / n;
-  }
-  return 0;
-}
-export function normalizeList(data) {
-  const arr = Array.isArray(data) ? data : (data && (data.beatmapsets || data.data || data.results || data.sets)) || [];
-  return arr.map(normalizeSet).filter(Boolean);
-}
-
-const timeout = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
 /** The osu! OAuth apps to log in with: OSU_CLIENT_ID / OSU_CLIENT_SECRET, and optionally a second one
  *  (OSU_CLIENT_ID_2 / OSU_CLIENT_SECRET_2) that takes over while osu! is refusing the first. */
@@ -110,234 +75,140 @@ let logins = [];
  *  so osu! can rate-limit them for other people's requests; a proxy with its own address avoids that. */
 const osuBase = env => (env && env.OSU_API_PROXY_URL ? String(env.OSU_API_PROXY_URL).replace(/\/+$/, '') : 'https://osu.ppy.sh');
 const proxyKey = env => (env && env.OSU_API_PROXY_KEY ? { 'X-Proxy-Key': env.OSU_API_PROXY_KEY } : {});
-/** (tests) forget the osu! logins */
-export function resetOsuLogin() { logins = []; }
+/** (tests) forget the osu! logins, back-off and cached answers */
+export function resetOsuLogin() { logins = []; osuApi.blockedUntil = 0; osuApi.cache.clear(); osuApi.store = null; }
 /** The osu! logins and back-off, to keep in Durable Object storage: they survive the object being restarted, so a login
  *  is asked for about once a day (osu! limits logins per address, and Workers share addresses). */
 export const osuLoginState = {
-  get: () => ({ logins, blockedUntil: osuApi.blockedUntil }),
+  get: () => ({ logins: logins.map(l => ({ token: l.token, blockedUntil: l.blockedUntil })), blockedUntil: osuApi.blockedUntil }),
   set: st => {
     if (!st) return;
     if (Array.isArray(st.logins) && !logins.length) logins = st.logins.map(l => ({ token: l && l.token && l.token.exp > Date.now() + 60000 ? l.token : null, blockedUntil: Number(l && l.blockedUntil) || 0 }));
     if (st.blockedUntil > osuApi.blockedUntil) osuApi.blockedUntil = st.blockedUntil;
   },
 };
-/** A login token for the first app osu! isn't refusing: { i, token }. */
+/** A login token for the first app osu! isn't refusing: { i, token } (WOM's getAccessToken, kept until it expires). */
 async function getOfficialToken(env, fetchImpl) {
   const creds = osuCredentials(env);
+  if (!creds.length) throw new OsuApiError(503, 'The game\'s server has no osu! API key yet, so it can\'t list beatmaps. Add one as OSU_CLIENT_ID and OSU_CLIENT_SECRET (see the README).');
   let lastErr = null;
   for (let i = 0; i < creds.length; i++) {
     const L = logins[i] || (logins[i] = { token: null, blockedUntil: 0 });
     if (L.token && L.token.exp > Date.now() + 60000) return { i, token: L.token.value };
-    if (Date.now() < L.blockedUntil) { lastErr = new Error(`osu! is refusing ${creds[i].name} for ${Math.ceil((L.blockedUntil - Date.now()) / 1000)}s more (429)`); continue; }
+    if (Date.now() < L.blockedUntil) { lastErr = new OsuApiError(429, rateLimitMessage(Math.ceil((L.blockedUntil - Date.now()) / 1000))); continue; }
     // (one login request per app at a time: searches arriving together wait for the same one)
     if (!L.pending) L.pending = (async () => {
       const c = creds[i];
-      const r = await fetchImpl(`${osuBase(env)}/oauth/token`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
-        body: JSON.stringify({ client_id: Number(c.id), client_secret: c.secret, grant_type: 'client_credentials', scope: 'public' }),
-        signal: timeout(10000),
-      });
+      let r;
+      try {
+        r = await fetchImpl(`${osuBase(env)}/oauth/token`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
+          body: JSON.stringify({ client_id: Number(c.id), client_secret: c.secret, grant_type: 'client_credentials', scope: 'public' }),
+          signal: timeout(10000),
+        });
+      } catch (e) { throw new OsuApiError(504, STATUS_MESSAGES[504]); }
       if (r.status === 429) {
         // osu! is limiting this app's logins: leave it alone for a while (the next app is tried meanwhile)
-        L.blockedUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 120) * 1000;
-        throw new Error(`osu! OAuth failed for ${c.name} (429: osu! is rate-limiting it for now)`);
+        const wait = Number(r.headers.get('Retry-After')) || 300;
+        L.blockedUntil = Date.now() + wait * 1000;
+        throw new OsuApiError(429, rateLimitMessage(wait));
       }
-      if (!r.ok) throw new Error(`osu! OAuth failed for ${c.name} (${r.status}${r.status === 401 ? ': check the ID and secret' : ''}) ${(await r.text().catch(() => '')).slice(0, 120)}`);
+      if (!r.ok) throw new OsuApiError(r.status >= 500 ? r.status : 500, r.status === 400 || r.status === 401
+        ? `The game's server couldn't log in to osu! with ${c.name} (${r.status}): check the client ID and secret.`
+        : `The game's server couldn't log in to osu! (${r.status}).`);
       const d = await r.json();
       L.token = { value: d.access_token, exp: Date.now() + d.expires_in * 1000 };
       return L.token.value;
     })().finally(() => { L.pending = null; });
     try { return { i, token: await L.pending }; } catch (e) { lastErr = e; }
   }
-  throw lastErr || new Error('No osu! API credentials');
+  throw lastErr;
 }
 
-/** Search params → query understood by osu!/mirrors (keys & stars are osu! search syntax, as WOM sends them). */
-export function buildParams(url) {
-  const sp = url.searchParams;
-  const keys = [...new Set((sp.get('keys') || '').split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 18))].sort((a, b) => a - b);
-  const minStars = parseFloat(sp.get('minStars') || '0') || 0, maxStars = parseFloat(sp.get('maxStars') || '0') || 0;
-  // one "key=N" per key count, exactly as Web-Osu-Mania's getBeatmapSets() writes them
-  const keyQ = keys.map(k => `key=${k}`);
-  const extra = [minStars > 0 ? `stars>=${minStars}` : '', maxStars > 0 ? `stars<=${maxStars}` : '', ...keyQ].filter(Boolean);
-  const rawQ = (sp.get('q') || '').slice(0, 200).trim();
-  const int = (k, lo, hi) => { const v = parseInt(sp.get(k) || '', 10); return v >= lo && v <= hi ? v : null; };
-  const sort = sp.get('sort') ? validSort(sp.get('sort')) : null;
-  return {
-    q: [...extra, rawQ].filter(Boolean).join(' '),
-    rawQ,
-    keys, status: STATUSES.includes(sp.get('status')) ? sp.get('status') : 'leaderboard',
-    // null = the default order, which osu! chooses (relevance for text searches, updated for pending/WIP/graveyard)
-    sort: sort === DEFAULT_SORT ? null : sort,
-    page: Math.max(0, Math.min(200, parseInt(sp.get('page') || '0', 10) || 0)),
-    minStars, maxStars: maxStars || 99,
-    cursor: (sp.get('cursor') || '').slice(0, 500),
-    nsfw: sp.get('nsfw') !== 'false',
-    genre: int('g', 1, 20), language: int('l', 1, 20),
-    // the mirror that served page 0 serves the following pages too, so the order stays consistent
-    loose: sp.get('loose') === '1',
-    provider: Math.max(0, Math.min(MIRRORS.search.length - 1, parseInt(sp.get('provider') || '0', 10) || 0)),
-  };
+/** osu! API state shared by the requests this copy answers: the back-off after a 429, the answers of the last hour,
+ *  and (in the Durable Object) `store`, which keeps those answers when the object restarts. */
+export const osuApi = { blockedUntil: 0, cache: new Map(), store: null };
+const SEARCH_TTL = 3600 * 1000, SET_TTL = 86400 * 1000; // (WOM's KV expiries: an hour, a set a day)
+const STALE_MAX = 7 * 86400 * 1000;
+const OSU_PATH = /^beatmapsets\/(?:search\?[^#]*|\d{1,10})$/;
+function remember(key, e) {
+  osuApi.cache.delete(key); osuApi.cache.set(key, e);
+  while (osuApi.cache.size > 200) osuApi.cache.delete(osuApi.cache.keys().next().value);
 }
-const STATUSES = ['any', 'leaderboard', 'ranked', 'qualified', 'loved', 'pending', 'wip', 'graveyard'];
-/** "<criteria>_<asc|desc>" (osu! API / Web-Osu-Mania); anything else falls back to ranked_desc. */
-export function validSort(s) {
-  const m = /^([a-z]+)_(asc|desc)$/.exec(s || '');
-  return m && SORT_CRITERIA.includes(m[1]) ? s : DEFAULT_SORT;
-}
-/** The order a default search has on osu! (BeatmapsetSearchRequestParams::getDefaultSortField). */
-export function effectiveSort(p) {
-  if (p.sort) return p.sort;
-  if (p.rawQ) return 'relevance_desc';
-  if (['pending', 'wip', 'graveyard'].includes(p.status)) return 'updated_desc';
-  return DEFAULT_SORT;
-}
-/** How well a set matches the search words (for "relevance" when a mirror can't order by it). */
-export function relevance(set, q) {
-  const words = String(q || '').toLowerCase().split(/\s+/).filter(w => w && !/[<>=]/.test(w));
-  if (!words.length) return 0;
-  const title = `${set.title} ${set.titleUnicode}`.toLowerCase(), artist = `${set.artist} ${set.artistUnicode}`.toLowerCase();
-  const other = `${set.creator} ${set.source} ${set.diffs.map(d => d.version).join(' ')}`.toLowerCase();
-  const phrase = words.join(' ');
-  let score = set.title.toLowerCase() === phrase ? 40 : title.includes(phrase) ? 20 : artist.includes(phrase) ? 12 : 0;
-  for (const w of words) score += title.includes(w) ? 6 : artist.includes(w) ? 4 : other.includes(w) ? 2 : 0;
-  return score;
-}
-/** Order a page ourselves when the mirror couldn't sort by the chosen criterion (stable). */
-export function localSort(sets, sort, q) {
-  const [crit, dir] = sort.split('_');
-  const date = s => Date.parse(s.rankedDate || s.lastUpdated || '') || 0;
-  const key = {
-    title: s => s.title.toLowerCase(), artist: s => s.artist.toLowerCase(), difficulty: s => s.diffs[0] ? s.diffs[0].stars : 0,
-    ranked: date, rating: s => s.rating || 0, plays: s => s.playCount || 0, favourites: s => s.favourites || 0,
-    relevance: s => relevance(s, q), updated: s => Date.parse(s.lastUpdated || s.rankedDate || '') || 0,
-  }[crit];
-  if (!key) return sets;
-  const sign = dir === 'asc' ? 1 : -1;
-  return sets.map((s, i) => [s, key(s), i]).sort((a, b) => {
-    const c = typeof a[1] === 'string' ? a[1].localeCompare(b[1]) : a[1] - b[1];
-    return c ? c * sign : a[2] - b[2];
-  }).map(e => e[0]);
-}
-/** Sorts to try on a mirror: the chosen one, then one every mirror accepts. Mirrors differ on "rating" and
- *  "relevance" (some reject them outright); relevance is their default order for a text search anyway. */
-export function sortAttempts(p) {
-  const want = effectiveSort(p);
-  if (want.startsWith('relevance')) return p.rawQ ? [null, DEFAULT_SORT] : [DEFAULT_SORT];
-  return want === DEFAULT_SORT ? [DEFAULT_SORT] : [want, null];
-}
-export function postFilter(sets, p) {
-  const statusOk = s => p.status === 'any' ? true : p.status === 'leaderboard' ? LEADERBOARD.has(s.status)
-    : p.status === 'ranked' ? s.status === 'ranked' || s.status === 'approved' : s.status === p.status;
-  // genre / language / NSFW: osu! filters these itself; mirrors that ignore them are filtered here when they say
-  const extraOk = s => (p.nsfw !== false || !s.nsfw) && (!p.genre || s.genreId == null || s.genreId === p.genre)
-    && (!p.language || s.languageId == null || s.languageId === p.language);
-  return sets.filter(s => statusOk(s) && extraOk(s))
-    .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars - 0.005 && d.stars <= p.maxStars + 0.005) }))
-    .filter(s => s.diffs.length);
-}
-
-/** osu! API state shared by requests in this isolate: the back-off after a 429 and an hour-long result cache. */
-export const osuApi = { blockedUntil: 0, cache: new Map() };
-const CACHE_TTL = 3600 * 1000;
-function cacheGet(key) {
-  const c = osuApi.cache.get(key);
-  if (!c) return null;
-  if (Date.now() - c.at > CACHE_TTL) { osuApi.cache.delete(key); return null; }
-  return c.data;
-}
-function cachePut(key, data) {
-  osuApi.cache.set(key, { at: Date.now(), data });
-  while (osuApi.cache.size > 300) osuApi.cache.delete(osuApi.cache.keys().next().value);
-}
-/** The osu! API search parameters, exactly as Web-Osu-Mania's getBeatmapSets() builds them (sorted, for caching). */
-export function officialParams(p) {
-  const qs = new URLSearchParams();
-  if (p.q) qs.set('q', p.q);
-  qs.set('m', '3');
-  if (p.sort) qs.set('sort', p.sort);
-  if (p.cursor) qs.set('cursor_string', p.cursor);
-  if (p.status !== 'leaderboard') qs.set('s', p.status);
-  qs.set('nsfw', String(p.nsfw));
-  if (p.genre) qs.set('g', String(p.genre));
-  if (p.language) qs.set('l', String(p.language));
-  qs.sort();
-  return qs;
-}
-/** One osu! API search (WOM's /api/getBeatmaps): from the hour-long cache, or osu! itself — unless osu! asked us to
- *  wait. Runs in one shared place (the "osu-api" Durable Object) on the live server, so every request shares the same
- *  osu! login, cache and back-off: each Worker copy logging in by itself got the login rate-limited (429). */
-export async function officialFetch(qs, env, fetchImpl = fetch) {
-  const key = String(qs);
-  let d = cacheGet(key);
-  if (d) return d;
-  if (Date.now() < osuApi.blockedUntil) throw new Error(`rate-limited by osu!, retrying in ${Math.ceil((osuApi.blockedUntil - Date.now()) / 1000)}s`);
+/** One request to the osu! API v2 (`path` is "beatmapsets/search?…" or "beatmapsets/<id>"), trimmed as WOM trims it. */
+async function askOsu(path, env, fetchImpl, retried = false) {
+  if (Date.now() < osuApi.blockedUntil) throw new OsuApiError(429, rateLimitMessage());
   const { i, token } = await getOfficialToken(env, fetchImpl);
-  const r = await fetchImpl(`${osuBase(env)}/api/v2/beatmapsets/search?${key}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA, ...proxyKey(env) }, signal: timeout(10000) });
-  if (r.status === 429) {
-    const wait = (Number(r.headers.get('Retry-After')) || 300) * 1000;
-    // another app can carry on while this one waits; with none left, stop asking (like WOM) for Retry-After seconds
-    logins[i].blockedUntil = Date.now() + wait; logins[i].token = null;
-    if (osuCredentials(env).some((_, k) => k !== i && Date.now() >= ((logins[k] || {}).blockedUntil || 0))) return officialFetch(qs, env, fetchImpl);
-    osuApi.blockedUntil = Date.now() + wait;
-    throw new Error('rate-limited by osu! (429)');
+  let r;
+  try {
+    r = await fetchImpl(`${osuBase(env)}/api/v2/${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA, ...proxyKey(env) }, signal: timeout(10000) });
+  } catch (e) { throw new OsuApiError(504, STATUS_MESSAGES[504]); }
+  if (r.ok) {
+    const d = await r.json().catch(() => null);
+    if (!d || typeof d !== 'object') throw new OsuApiError(500, STATUS_MESSAGES[500]);
+    if (!path.startsWith('beatmapsets/search')) return trimBeatmapSet(d);
+    return { beatmapsets: (Array.isArray(d.beatmapsets) ? d.beatmapsets : []).map(trimBeatmapSet), search: d.search, total: d.total, cursor_string: d.cursor_string || null };
   }
-  if (r.status === 401) logins[i].token = null; // expired / revoked token: fetch a new one next time
-  if (!r.ok) throw new Error(`osu! API ${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120)}`);
-  const raw = await r.json();
-  d = { sets: normalizeList(raw), cursor: raw.cursor_string || null, total: raw.total ?? null };
-  cachePut(key, d);
-  return d;
+  const retryAfter = Number(r.headers.get('Retry-After')) || 0;
+  if (r.status === 429) {
+    // (another app can carry on while this one waits; with none left, stop asking — like WOM — for Retry-After or 5 min)
+    const wait = (retryAfter || 300) * 1000;
+    logins[i].blockedUntil = Date.now() + wait; logins[i].token = null;
+    if (osuCredentials(env).some((_, k) => k !== i && Date.now() >= ((logins[k] || {}).blockedUntil || 0))) return askOsu(path, env, fetchImpl, retried);
+    osuApi.blockedUntil = Date.now() + wait;
+    throw new OsuApiError(429, rateLimitMessage(retryAfter));
+  }
+  // an expired or revoked token: log in again once
+  if (r.status === 401 && !retried) { logins[i].token = null; return askOsu(path, env, fetchImpl, true); }
+  throw new OsuApiError(r.status, STATUS_MESSAGES[r.status] ?? 'An unknown error occurred.');
 }
-async function searchOfficial(p, env, fetchImpl) {
-  const qs = officialParams(p).toString();
-  let d;
+/** An osu! API answer: from the last hour's (a set: the last day's) answers, or osu! itself. While osu! refuses or is
+ *  down, an older answer to the same request (up to a week old) is given rather than an error. Runs in one shared
+ *  place (the "osu-api" Durable Object) on the live server, so every request shares one login, cache and back-off. */
+export async function officialGet(path, env, fetchImpl = fetch, ttl = SEARCH_TTL) {
+  if (!OSU_PATH.test(path)) throw new OsuApiError(400, 'Bad request.');
+  let hit = osuApi.cache.get(path) || null;
+  if (!hit && osuApi.store) { hit = await osuApi.store.get(path); if (hit) remember(path, hit); }
+  if (hit && Date.now() - hit.at < ttl) return hit.data;
+  try {
+    const data = await askOsu(path, env, fetchImpl);
+    const e = { at: Date.now(), data };
+    remember(path, e);
+    if (osuApi.store) await osuApi.store.put(path, e);
+    return data;
+  } catch (err) {
+    if (hit && Date.now() - hit.at < STALE_MAX && (err.status === 429 || err.status >= 500)) return hit.data;
+    throw err;
+  }
+}
+async function osuRequest(path, ttl, env, fetchImpl) {
   if (env.MATCHMAKER && fetchImpl === fetch) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api'));
-    const r = await stub.fetch(`https://osu-api/osu/search?${qs}`);
-    const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
-    if (!r.ok || body.error) throw new Error(body.error || `HTTP ${r.status}`);
-    d = body;
-  } else d = await officialFetch(qs, env, fetchImpl);
-  return json({ sets: postFilter(d.sets, p), page: p.page, hasMore: !!d.cursor, cursor: d.cursor, total: d.total, source: 'osu! API' }, 200, { 'Cache-Control': 'public, max-age=3600' });
+    const r = await stub.fetch(`https://osu-api/osu/get?ttl=${ttl}&path=${encodeURIComponent(path)}`);
+    const body = await r.json().catch(() => null);
+    if (!r.ok || !body) throw new OsuApiError(r.ok ? 500 : r.status, (body && body.error) || STATUS_MESSAGES[500]);
+    return body;
+  }
+  return officialGet(path, env, fetchImpl, ttl);
 }
 
-export async function handleSearch(url, env, fetchImpl = fetch) {
-  const p = buildParams(url);
-  const errors = [];
-  if (osuCredentials(env).length) {
-    try { return await searchOfficial(p, env, fetchImpl); } catch (e) { errors.push(`osu! API: ${e.message}`); }
-  }
-  const order = MIRRORS.search.map((_, i) => (i + p.provider) % MIRRORS.search.length);
-  const want = effectiveSort(p), attempts = sortAttempts(p);
-  for (const [n, i] of order.entries()) {
-    const m = MIRRORS.search[i];
-    // mirrors that don't understand osu!'s "key=4 stars>=3" filters in the search text find nothing with them: those
-    // are asked again with just the words, and the keys and stars are filtered here (postFilter) instead
-    // (later pages ask for the same kind of search as the first page got: "loose")
-    const tries = attempts.map(sort => [sort, p.loose ? p.rawQ : p.q]);
-    if (p.q !== p.rawQ && !p.loose) tries.push(...attempts.map(sort => [sort, p.rawQ]));
-    for (const [k, [sort, q]] of tries.entries()) {
-      const tag = `${m.name}${sort === want ? '' : ` (${sort || 'default order'})`}${q === p.q ? '' : ' (words only)'}`;
-      try {
-        const r = await fetchImpl(m.url({ ...p, sort, q }), { headers: { Accept: 'application/json', ...UA }, signal: timeout(9000) });
-        // a mirror that's down (5xx, rate limit, blocked) is skipped; other 4xx may be the sort it doesn't accept
-        if (!r.ok) { errors.push(`${tag}: HTTP ${r.status}`); if (r.status >= 500 || [403, 404, 429].includes(r.status)) break; continue; }
-        const data = await r.json();
-        const raw = normalizeList(data);
-        if (!raw.length && data && !Array.isArray(data) && data.error) { errors.push(`${tag}: ${String(data.error).slice(0, 80)}`); continue; }
-        // an empty first page: a sort the mirror ignored or rejected quietly, or this mirror just has nothing —
-        // try the next order, then the next mirror
-        if (!raw.length && p.page === 0 && k < tries.length - 1) { errors.push(`${tag}: no results`); continue; }
-        if (!raw.length && p.page === 0 && p.rawQ && n < order.length - 1) { errors.push(`${tag}: no results`); break; }
-        let sets = postFilter(raw, p);
-        if (sort !== want) sets = localSort(sets, want, p.rawQ);
-        return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, sort: want, sortedLocally: sort !== want, wordsOnly: q !== p.q, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
-      } catch (e) { errors.push(`${tag}: ${e.message}`); break; } // unreachable / timed out: next mirror
-    }
-  }
-  return json({ sets: [], page: p.page, hasMore: false, source: null, errors, error: 'All beatmap search providers failed.' }, 502);
+/** Web-Osu-Mania's /api/getBeatmaps: the explorer's parameters (only WOM's, sorted so equal searches share a cached
+ *  answer) go to osu!'s beatmapsets/search, and its answer comes back as it is. */
+export async function handleGetBeatmaps(url, env, fetchImpl = fetch) {
+  const params = new URLSearchParams(url.search);
+  for (const k of [...new Set(params.keys())]) if (!KEEP_KEYS.has(k)) params.delete(k);
+  params.sort();
+  try {
+    return json(await osuRequest(`beatmapsets/search?${params}`, SEARCH_TTL, env, fetchImpl), 200, { 'Cache-Control': 'public, max-age=3600' });
+  } catch (e) { return text(e.message || STATUS_MESSAGES[500], e.status || 500); }
+}
+/** Web-Osu-Mania's /api/getBeatmap: one beatmap set by its id. */
+export async function handleGetBeatmap(url, env, fetchImpl = fetch) {
+  const id = url.searchParams.get('beatmapSetId') || '';
+  if (!/^\d{1,10}$/.test(id)) return text('URL missing beatmapSetId', 400);
+  try {
+    return json(await osuRequest(`beatmapsets/${id}`, SET_TTL, env, fetchImpl), 200, { 'Cache-Control': 'public, max-age=3600' });
+  } catch (e) { return text(e.message || STATUS_MESSAGES[500], e.status || 500); }
 }
 
 export async function handleDownload(id, fetchImpl = fetch, provider = '') {
@@ -377,7 +248,7 @@ export async function handleProxyDownload(url, fetchImpl = fetch) {
   } catch (e) { return json({ error: `Proxy fetch failed - ${e.message}` }, 500); }
 }
 
-/** Per-visitor search limit (Web-Osu-Mania allows 25 a minute; paging is cheap here, so 40), kept per isolate. */
+/** Per-visitor limit on listing requests (Web-Osu-Mania allows 25 a minute; paging is cheap here, so 40), kept per isolate. */
 const searchHits = new Map();
 export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) {
   if (!ip) return true;
@@ -394,10 +265,10 @@ import { handleMultiplayer } from './multiplayer.js';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/api/health') return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, multiplayer: !!env.ROOMS });
-    if (url.pathname === '/api/search') {
-      if (!allowSearch(request.headers.get('cf-connecting-ip'))) return json({ error: 'Too many searches — slow down for a moment.' }, 429, { 'Retry-After': '30' });
-      return handleSearch(url, env);
+    if (url.pathname === '/api/health') return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS });
+    if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
+      if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);
+      return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
     }
     if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
     const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
