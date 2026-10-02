@@ -786,7 +786,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .side-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); text-align: left; width: 100%; font-weight: 600; transition: all var(--t-fast); }
 .side-item:hover { border-color: var(--line-2); }
 .side-item.active { border-color: var(--accent); background: rgba(var(--accent-rgb), .16); }
-.side-item .cnt { margin-left: auto; color: var(--muted); font-size: .8rem; }
+.side-item .cnt { flex: none; margin-left: auto; color: var(--muted); font-size: .8rem; white-space: nowrap; }
 
 /* skins */
 .skin-preview { position: relative; height: 380px; border-radius: 16px; overflow: hidden; background: #000; border: 1px solid var(--line-2); }
