@@ -59,6 +59,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 - **The logo moves like lazer's.** It grows when you point at it, squeezes when you press it, and stretches on a rubber band if you drag it. On every beat it pulses slightly and sends out a faint ripple; in kiai it flashes.
   - Outlined triangles drift up inside the pink, and the visualiser around it is lazer's: 200 bars in five rounds, fed from the music.
 - **Song ticker:** a new song's title and artist show at the top right for a few seconds.
+- **Kiai star fountains:** when a song's kiai section starts on the main menu, stars burst up from both bottom corners as in lazer. They aim inward, straight up or outward at random, then arc back down, spin and fade.
 - **Menu tips:** a tip about the game shows at the bottom each time you come back to the menu.
 - Six seconds without input bring the big logo back, as in lazer (it was 15).
 - **Neru stands in front of the button bar** on the main menu instead of behind it.
