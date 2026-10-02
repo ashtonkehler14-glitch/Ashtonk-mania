@@ -131,13 +131,20 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
-    const urls = this.downloadURLs(id, Settings.get('online.proxyDownloads') && await this.checkApi());
+    const viaServer = Settings.get('online.proxyDownloads') && !this._dlServerDown && await this.checkApi();
+    const urls = this.downloadURLs(id, viaServer);
     let lastErr = null;
     for (const url of urls) {
+      // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
+      // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
+      const ctl = new AbortController();
+      let timer = setTimeout(() => ctl.abort(), 25000);
+      const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
       try {
-        const r = await fetch(url);
+        const r = await fetch(url, { signal: ctl.signal });
         const ct = r.headers.get('content-type') || '';
-        if (!r.ok || /json|html|text/.test(ct)) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+        if (!r.ok || /json|html|text/.test(ct)) { lastErr = new Error(`HTTP ${r.status}`); this.serverFailed(url); continue; }
+        kick();
         const total = Number(r.headers.get('content-length')) || 0;
         const reader = r.body && r.body.getReader ? r.body.getReader() : null;
         let blob;
@@ -146,6 +153,7 @@ const OnlineBeatmaps = {
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
+            kick();
             chunks.push(value); got += value.length;
             onProgress && onProgress(total ? got / total : null, got);
           }
@@ -153,14 +161,25 @@ const OnlineBeatmaps = {
         } else blob = await r.blob();
         if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
         return new File([blob], `${id}.osz`, { type: 'application/zip' });
-      } catch (e) { lastErr = e; }
+      } catch (e) { lastErr = ctl.signal.aborted ? new Error('The download stopped answering') : e; this.serverFailed(url); }
+      finally { clearTimeout(timer); }
     }
     throw lastErr || new Error('Download failed');
+  },
+  /** The game's server couldn't fetch a set (mirrors often refuse cloud servers): for the next few minutes downloads go
+   *  straight from the browser to the mirrors instead of waiting on the server first each time. */
+  serverFailed(url) {
+    if (!/^api\/download\//.test(url)) return;
+    this._dlServerDown = true;
+    clearTimeout(this._dlServerT); this._dlServerT = setTimeout(() => { this._dlServerDown = false; }, 5 * 60000);
   },
   /** Download a set and import it into the library (remembering its online id). */
   async downloadAndImport(set, onProgress, { quiet = false } = {}) {
     const file = await this.download(set.id, onProgress);
-    const report = await BeatmapManager.importFiles([file]);
+    // (downloads can run side by side; adding them to the library goes one at a time)
+    const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
+    this._importQ = run.catch(() => {});
+    const report = await run;
     if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
     for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
     if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);

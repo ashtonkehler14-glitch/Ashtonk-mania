@@ -285,7 +285,8 @@ export async function handleDownload(id, fetchImpl = fetch, provider = '') {
   const order = MIRRORS.download.slice().sort((a, b) => (b.id === provider) - (a.id === provider));
   for (const m of order) {
     try {
-      const r = await fetchImpl(m.url(id), { headers: UA, redirect: 'follow' });
+      // (a mirror that doesn't answer within 20 s is skipped instead of holding the download)
+      const r = await fetchImpl(m.url(id), { headers: UA, redirect: 'follow', signal: timeout(20000) });
       const ct = r.headers.get('content-type') || '';
       if (!r.ok || /json|html|text/.test(ct)) { errors.push(`${m.name}: ${r.status}`); continue; }
       const headers = { 'Content-Type': 'application/x-osu-beatmap-archive', 'Content-Disposition': `attachment; filename="${id}.osz"`, 'X-Mirror': m.name, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' };

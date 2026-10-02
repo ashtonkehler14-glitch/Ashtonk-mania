@@ -181,12 +181,18 @@ const WomImport = {
     }
     if (missing.size && navigator.onLine === false) out.errors.push(`${plural(missing.size, 'song')} from your collections couldn't be downloaded: you're offline`);
     else {
-      let i = 0, failed = 0;
-      for (const set of missing.values()) {
-        onStatus(`Downloading songs from your collections… ${++i}/${missing.size}`);
-        try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
-        catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
-      }
+      // three at a time (a big collection used to take one song after another, and one stuck song held the rest)
+      let done = 0, failed = 0;
+      const queue = [...missing.values()];
+      onStatus(`Downloading songs from your collections… 0/${missing.size}`);
+      const worker = async () => {
+        for (let set; (set = queue.shift());) {
+          try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
+          catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+          onStatus(`Downloading songs from your collections… ${++done}/${missing.size}`);
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
       if (failed > 3) out.errors.push(`…and ${failed - 3} more songs couldn't be downloaded`);
     }
     let n = 0;
