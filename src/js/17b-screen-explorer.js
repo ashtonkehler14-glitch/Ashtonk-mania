@@ -10,26 +10,38 @@ const OnlineBeatmaps = {
     p => `https://catboy.best/api/v2/search?q=${encodeURIComponent(p.q)}&mode=3&limit=40&offset=${p.page * 40}${p.status !== 'any' && p.status !== 'leaderboard' ? `&status=${({ ranked: 1, qualified: 3, loved: 4, pending: 0, wip: -1, graveyard: -2 })[p.status] ?? 1}` : ''}${p.sort ? `&sort=${p.sort}` : ''}`,
     p => `https://api.nerinyan.moe/search?q=${encodeURIComponent(p.q)}&m=3&ps=40&p=${p.page}&s=${p.status === 'any' ? 'all' : p.status === 'leaderboard' ? 'ranked,approved,qualified,loved' : p.status}${p.sort ? `&sort=${p.sort}` : ''}`,
   ],
-  // Web-Osu-Mania's providers ($setId = the beatmap set number)
+  // Web-Osu-Mania's BEATMAP_API_PROVIDERS, exactly ($setId = the beatmap set number)
   DOWNLOAD_PROVIDERS: {
-    mino: 'https://catboy.best/d/$setId', nerinyan: 'https://api.nerinyan.moe/d/$setId?noVideo=true',
-    sayobot: 'https://dl.sayobot.cn/beatmaps/download/novideo/$setId', osudirect: 'https://osu.direct/api/d/$setId',
+    mino: 'https://catboy.best/d/$setId', nerinyan: 'https://api.nerinyan.moe/d/$setId',
+    sayobot: 'https://dl.sayobot.cn/beatmaps/download/$setId', osudirect: 'https://osu.direct/api/d/$setId',
     nekoha: 'https://mirror.nekoha.moe/api4/download/$setId',
   },
   PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
   COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
   _covers: new Map(),
   fill(tpl, id, kind = 'cover') { return String(tpl).split('$setId').join(id).split('$kind').join(kind); },
-  /** Where to download a set from, in the order to try (chosen provider first, then the rest). */
+  /** Where to download a set from, as Web-Osu-Mania's getBeatmapSet: the chosen provider's URL — through the game's
+   *  server (/api/downloadBeatmap?destinationUrl=…) when "proxy downloads" is on, straight from the browser otherwise —
+   *  then (unlike WOM, so one provider being down doesn't stop you) the other providers directly. */
   downloadURLs(id, viaServer) {
-    const choice = Settings.get('online.downloadSource');
-    const custom = choice === 'custom' && /\$setId/.test(Settings.get('online.customDownload') || '') ? this.fill(Settings.get('online.customDownload').trim(), id) : null;
-    const order = Object.keys(this.DOWNLOAD_PROVIDERS).sort((a, b) => (b === choice) - (a === choice));
-    const direct = order.map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
-    const urls = custom ? [custom] : [];
-    // through the game's server (it tries every mirror, starting with the chosen one); straight from the mirrors if that fails
-    if (viaServer) urls.push(`api/download/${id}${choice in this.DOWNLOAD_PROVIDERS ? `?provider=${choice}` : ''}`);
-    return [...urls, ...direct];
+    const choice = Settings.get('online.downloadSource') in this.DOWNLOAD_PROVIDERS || Settings.get('online.downloadSource') === 'custom' ? Settings.get('online.downloadSource') : 'mino';
+    const customTpl = (Settings.get('online.customDownload') || '').trim();
+    const primary = choice === 'custom' && customTpl.includes('$setId') ? this.fill(customTpl, id) : this.fill(this.DOWNLOAD_PROVIDERS[choice in this.DOWNLOAD_PROVIDERS ? choice : 'mino'], id);
+    const others = Object.keys(this.DOWNLOAD_PROVIDERS).filter(k => k !== choice).map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
+    const first = viaServer && choice !== 'custom' ? `api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}` : primary;
+    return [...new Set([first, ...(first !== primary ? [primary] : []), ...others])];
+  },
+  /** Web-Osu-Mania's messages for a provider's answer. */
+  downloadError(status, retryAfter) {
+    return ({
+      400: 'Invalid beatmap set ID.',
+      404: 'Beatmap does not exist on the current beatmap provider, please switch to another provider in the settings.',
+      410: 'Beatmap is not available on the current beatmap provider, please switch to another provider in the settings.',
+      429: `The beatmap provider is experiencing too many requests, please try again ${retryAfter ? `after ${retryAfter} seconds` : 'later'} or switch to another provider in the settings.`,
+      500: 'The beatmap provider ran into an error, try again later or switch to another provider in the settings.',
+      503: 'The beatmap provider is currently unavailable, try again later or switch to another provider in the settings.',
+      504: 'Download request timed out.',
+    })[status] || 'An unknown error occurred while trying to download the beatmap, try again later or try switching to another beatmap provider in the settings.';
   },
 
   async checkApi() {
@@ -131,9 +143,9 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
-    const viaServer = Settings.get('online.proxyDownloads') && !this._dlServerDown && await this.checkApi();
+    const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
     const urls = this.downloadURLs(id, viaServer);
-    let lastErr = null;
+    let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
     for (const url of urls) {
       // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
       // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
@@ -143,7 +155,7 @@ const OnlineBeatmaps = {
       try {
         const r = await fetch(url, { signal: ctl.signal });
         const ct = r.headers.get('content-type') || '';
-        if (!r.ok || /json|html|text/.test(ct)) { lastErr = new Error(`HTTP ${r.status}`); this.serverFailed(url); continue; }
+        if (!r.ok || !r.body || /json|html|text/.test(ct)) { lastErr = new Error(this.downloadError(r.ok ? 0 : r.status, r.headers.get('Retry-After'))); firstErr = firstErr || lastErr; continue; }
         kick();
         const total = Number(r.headers.get('content-length')) || 0;
         const reader = r.body && r.body.getReader ? r.body.getReader() : null;
@@ -161,17 +173,10 @@ const OnlineBeatmaps = {
         } else blob = await r.blob();
         if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
         return new File([blob], `${id}.osz`, { type: 'application/zip' });
-      } catch (e) { lastErr = ctl.signal.aborted ? new Error('The download stopped answering') : e; this.serverFailed(url); }
+      } catch (e) { lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
       finally { clearTimeout(timer); }
     }
-    throw lastErr || new Error('Download failed');
-  },
-  /** The game's server couldn't fetch a set (mirrors often refuse cloud servers): for the next few minutes downloads go
-   *  straight from the browser to the mirrors instead of waiting on the server first each time. */
-  serverFailed(url) {
-    if (!/^api\/download\//.test(url)) return;
-    this._dlServerDown = true;
-    clearTimeout(this._dlServerT); this._dlServerT = setTimeout(() => { this._dlServerDown = false; }, 5 * 60000);
+    throw firstErr || lastErr || new Error('Download failed');
   },
   /** Download a set and import it into the library (remembering its online id). */
   async downloadAndImport(set, onProgress, { quiet = false } = {}) {

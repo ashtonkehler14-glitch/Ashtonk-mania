@@ -194,6 +194,7 @@ const onlineSet = { source: 'mock', page: 0, hasMore: false, sets: [{ id: 424242
 for (const p of [alice, bob]) {
   await p.route('**/api/search**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(onlineSet) }));
   await p.route('**/api/download/424242', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
+  await p.route('https://catboy.best/d/424242', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
   await p.route('https://assets.ppy.sh/**', r => r.abort());
   await p.route('https://b.ppy.sh/**', r => r.abort());
 }

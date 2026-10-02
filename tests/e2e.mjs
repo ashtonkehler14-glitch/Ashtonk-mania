@@ -487,6 +487,8 @@ await page.route('**/api/search**', r => r.fulfill({ contentType: 'application/j
   sets: [{ id: 777, title: 'Explorer Song', titleUnicode: '', artist: 'Mock', artistUnicode: '', creator: 'M', source: '', status: 'ranked', playCount: 1, favourites: 1, video: false, nsfw: false,
     diffs: [{ id: 7770, mode: 3, version: '4K', stars: 2.1, keys: 4, od: 8, hp: 7, bpm: 150, length: 60, notes: 100, lns: 10 }] }] }) }));
 await page.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
+// (downloads go straight to the chosen provider, Mino by default, as on Web-Osu-Mania)
+await page.route('https://catboy.best/d/**', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'online-set.osz')) }));
 await page.route('https://assets.ppy.sh/**', r => r.abort());
 await page.evaluate(() => { AshtonkMania.OnlineBeatmaps.apiAvailable = null; AshtonkMania.ExplorerScreen.results = []; AshtonkMania.Screens.go('explore'); });
 await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 10000 });
@@ -569,7 +571,7 @@ await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.fin
 // beatmap sources (Web-Osu-Mania's "Sources" settings)
 const src = await page.evaluate(async () => {
   const S = AshtonkMania.Settings, O = AshtonkMania.OnlineBeatmaps;
-  const def = { preview: O.previewURL(5), cover: O.coverURL(5, 'card@2x'), dl: O.downloadURLs(5, true) };
+  const def = { preview: O.previewURL(5), cover: O.coverURL(5, 'card@2x'), dl: O.downloadURLs(5, true), direct: O.downloadURLs(5, false)[0] };
   await S.set('online.previewSource', 'beatconnect'); await S.set('online.coverSource', 'sayobot'); await S.set('online.downloadSource', 'sayobot');
   const alt = { preview: O.previewURL(5), cover: O.coverURL(5, 'card@2x'), dl: O.downloadURLs(5, true), direct: O.downloadURLs(5, false) };
   await S.set('online.downloadSource', 'custom'); await S.set('online.customDownload', 'https://example.org/d/$setId');
@@ -577,10 +579,10 @@ const src = await page.evaluate(async () => {
   for (const k of ['online.previewSource', 'online.coverSource', 'online.downloadSource', 'online.customDownload']) S.reset(k);
   return { def, alt, custom };
 });
-check('beatmap sources: official preview / cover by default, downloads through the server first', src.def.preview === 'https://b.ppy.sh/preview/5.mp3' && src.def.cover === 'https://assets.ppy.sh/beatmaps/5/covers/card@2x.jpg' && src.def.dl[0] === 'api/download/5', JSON.stringify(src.def));
+check('beatmap sources: official preview / cover by default; downloads from Mino, proxied as WOM when asked', src.def.preview === 'https://b.ppy.sh/preview/5.mp3' && src.def.cover === 'https://assets.ppy.sh/beatmaps/5/covers/card@2x.jpg' && src.def.dl[0] === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5') && src.def.direct === 'https://catboy.best/d/5', JSON.stringify(src.def));
 check('beatmap sources: choosing Beatconnect / SayoBot / a custom URL changes where previews, covers and downloads come from',
   src.alt.preview === 'https://beatconnect.io/preview/5.mp3' && src.alt.cover === 'https://a.sayobot.cn/beatmaps/5/covers/cover.webp'
-  && src.alt.dl[0] === 'api/download/5?provider=sayobot' && src.alt.direct[0].includes('dl.sayobot.cn') && src.custom === 'https://example.org/d/5', JSON.stringify(src));
+  && src.alt.dl[0] === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://dl.sayobot.cn/beatmaps/download/5') && src.alt.direct[0] === 'https://dl.sayobot.cn/beatmaps/download/5' && src.custom === 'https://example.org/d/5', JSON.stringify(src));
 
 // pp tracking
 const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));
@@ -893,6 +895,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   // the backup's collection also holds a set that isn't in it (999): the import downloads it
   await wp.route('**/api/health', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
   await wp.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'test-set.osz')) }));
+  await wp.route('https://catboy.best/d/**', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'test-set.osz')) }));
   await wp.goto(url);
   await wp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
   await wp.fill('.ob-name', 'Kiwi'); await wp.keyboard.press('Enter');

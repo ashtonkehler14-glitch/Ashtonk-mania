@@ -80,6 +80,11 @@ const WomImport = {
       });
       Settings.set('input.keybinds', binds);
     }
+    // beatmap sources (WOM's "Sources" settings)
+    const prov = { 'Mino (catboy.best)': 'mino', NeriNyan: 'nerinyan', SayoBot: 'sayobot', 'osu.direct': 'osudirect', Nekoha: 'nekoha', Custom: 'custom' }[w.beatmapProvider];
+    if (prov) set('online.downloadSource', prov);
+    if (typeof w.customBeatmapProvider === 'string' && w.customBeatmapProvider.includes('$setId')) set('online.customDownload', w.customBeatmapProvider);
+    if (typeof w.proxyBeatmapDownloads === 'boolean') set('online.proxyDownloads', w.proxyBeatmapDownloads);
     this.applySkin(w);
     return true;
   },

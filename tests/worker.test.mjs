@@ -184,3 +184,14 @@ test('a mirror that finds nothing with osu!\'s key/star filters in the text is a
   await handleSearch(new URL('https://x/api/search?q=camellia&keys=4&page=1&loose=1'), {}, fetchImpl);
   assert.equal(calls.length, 1); assert.ok(!/key%3D/.test(calls[0]));
 });
+
+test('Web-Osu-Mania\'s /api/downloadBeatmap: passes a provider\'s file through, only for WOM\'s providers', async () => {
+  const { handleProxyDownload } = await import('../worker/index.js');
+  const calls = [];
+  const ok = await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5')), async (u) => { calls.push(u); return res(new Uint8Array(300), 200, 'application/x-osu-beatmap-archive'); });
+  assert.equal(ok.status, 200); assert.equal(calls[0], 'https://catboy.best/d/5');
+  assert.equal((await ok.arrayBuffer()).byteLength, 300);
+  assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://evil.example/x')), async () => res('x'))).status, 403);
+  assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap'), async () => res('x'))).status, 400);
+  assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://osu.direct/api/d/5')), async () => res('nope', 404, 'text/plain'))).status, 404);
+});

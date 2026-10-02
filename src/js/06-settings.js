@@ -160,9 +160,9 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
   // beatmap sources, as in Web-Osu-Mania's "Sources" settings
-  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Download source', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['mino', 'Mino'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from. The chosen one is tried first, then the others.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.downloadSource', l: 'Beatmap provider', t: 'select', d: 'mino', o: [['mino', 'Mino (catboy.best)'], ['nerinyan', 'NeriNyan'], ['sayobot', 'SayoBot'], ['osudirect', 'osu.direct'], ['nekoha', 'Nekoha'], ['custom', 'Custom…']], hint: 'Where beatmaps are downloaded from (Web-Osu-Mania\'s providers). If it fails, the others are tried.' },
   { s: 'Maintenance', g: 'Beatmap sources', k: 'online.customDownload', l: 'Custom download URL', t: 'text', d: '', hint: 'Put $setId where the beatmap set number goes, e.g. https://api.nerinyan.moe/d/$setId', when: () => Settings.get('online.downloadSource') === 'custom' },
-  { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.proxyDownloads', l: 'Download through this site\'s server', t: 'bool', d: true, hint: 'Downloads go through the game\'s own server, which tries every mirror for you. Turn it off to download straight from the mirror.' },
+  { s: 'Maintenance', g: 'Beatmap sources', k: 'online.proxyDownloads', l: 'Proxy beatmap downloads', t: 'bool', d: false, hint: 'As Web-Osu-Mania: download through this site\'s server instead of straight from the provider. Turn it on if downloads are blocked where you are.' },
   { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.previewSource', l: 'Audio preview source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['beatconnect', 'Beatconnect'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
   { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.customPreview', l: 'Custom preview URL', t: 'text', d: '', hint: 'e.g. https://b.ppy.sh/preview/$setId.mp3', when: () => Settings.get('online.previewSource') === 'custom' },
   { x: 1, s: 'Maintenance', g: 'Beatmap sources', k: 'online.coverSource', l: 'Cover image source', t: 'select', d: 'official', o: [['official', 'Official osu!'], ['sayobot', 'SayoBot'], ['custom', 'Custom…']] },
@@ -201,6 +201,8 @@ const Settings = {
     // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
     // backups imported with per-column colours
     if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }
+    // downloads work as Web-Osu-Mania's: one chosen provider (Mino by default), straight from the browser unless proxied
+    if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },

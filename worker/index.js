@@ -97,10 +97,14 @@ export function normalizeList(data) {
 const timeout = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
 let officialToken = null;
+/** Web-Osu-Mania's optional proxy for the osu! API (OSU_API_PROXY_URL / OSU_API_PROXY_KEY): Workers share IP addresses,
+ *  so osu! can rate-limit them for other people's requests; a proxy with its own address avoids that. */
+const osuBase = env => (env && env.OSU_API_PROXY_URL ? String(env.OSU_API_PROXY_URL).replace(/\/+$/, '') : 'https://osu.ppy.sh');
+const proxyKey = env => (env && env.OSU_API_PROXY_KEY ? { 'X-Proxy-Key': env.OSU_API_PROXY_KEY } : {});
 async function getOfficialToken(env, fetchImpl) {
   if (officialToken && officialToken.exp > Date.now() + 60000) return officialToken.value;
-  const r = await fetchImpl('https://osu.ppy.sh/oauth/token', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  const r = await fetchImpl(`${osuBase(env)}/oauth/token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
     body: JSON.stringify({ client_id: Number(env.OSU_CLIENT_ID), client_secret: env.OSU_CLIENT_SECRET, grant_type: 'client_credentials', scope: 'public' }),
   });
   if (!r.ok) throw new Error(`osu! OAuth failed (${r.status})`);
@@ -227,7 +231,7 @@ async function searchOfficial(p, env, fetchImpl) {
   if (!d) {
     if (Date.now() < osuApi.blockedUntil) throw new Error(`rate-limited by osu!, retrying in ${Math.ceil((osuApi.blockedUntil - Date.now()) / 1000)}s`);
     const token = await getOfficialToken(env, fetchImpl);
-    const r = await fetchImpl(`https://osu.ppy.sh/api/v2/beatmapsets/search?${qs}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA }, signal: timeout(10000) });
+    const r = await fetchImpl(`${osuBase(env)}/api/v2/beatmapsets/search?${qs}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA, ...proxyKey(env) }, signal: timeout(10000) });
     if (r.status === 429) {
       // like WOM: stop asking for Retry-After seconds (5 minutes if osu! doesn't say)
       osuApi.blockedUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 300) * 1000;
@@ -298,6 +302,24 @@ export async function handleDownload(id, fetchImpl = fetch, provider = '') {
   return json({ error: 'No mirror could provide this beatmap set.', errors }, 502);
 }
 
+/** Web-Osu-Mania's /api/downloadBeatmap (src/routes/api/downloadBeatmap.ts): fetch destinationUrl and pass the body
+ *  through. Only Web-Osu-Mania's beatmap providers are allowed, so it can't be used as an open proxy. */
+const DOWNLOAD_HOSTS = new Set(['catboy.best', 'api.nerinyan.moe', 'dl.sayobot.cn', 'osu.direct', 'mirror.nekoha.moe']);
+export async function handleProxyDownload(url, fetchImpl = fetch) {
+  const dest = url.searchParams.get('destinationUrl');
+  if (!dest) return json({ error: 'Missing "destinationUrl" query parameter.' }, 400);
+  let d;
+  try { d = new URL(dest); } catch { return json({ error: 'Invalid "destinationUrl".' }, 400); }
+  if (d.protocol !== 'https:' || !DOWNLOAD_HOSTS.has(d.hostname)) return json({ error: 'That download source isn\'t allowed.' }, 403);
+  try {
+    const r = await fetchImpl(d.href, { method: 'GET', headers: UA, redirect: 'follow' });
+    if (!r.ok) return json({ error: `Proxy fetch failed - ${r.statusText || r.status}` }, r.status >= 400 && r.status < 600 ? r.status : 500, r.headers.get('Retry-After') ? { 'Retry-After': r.headers.get('Retry-After') } : {});
+    const headers = { 'Content-Type': r.headers.get('content-type') || 'application/x-osu-beatmap-archive', 'Access-Control-Allow-Origin': '*' };
+    if (r.headers.get('content-length')) headers['Content-Length'] = r.headers.get('content-length');
+    return new Response(r.body, { status: r.status, headers });
+  } catch (e) { return json({ error: `Proxy fetch failed - ${e.message}` }, 500); }
+}
+
 /** Per-visitor search limit (Web-Osu-Mania allows 25 a minute; paging is cheap here, so 40), kept per isolate. */
 const searchHits = new Map();
 export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) {
@@ -320,6 +342,7 @@ export default {
       if (!allowSearch(request.headers.get('cf-connecting-ip'))) return json({ error: 'Too many searches — slow down for a moment.' }, 429, { 'Retry-After': '30' });
       return handleSearch(url, env);
     }
+    if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
     const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
     if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
     if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
