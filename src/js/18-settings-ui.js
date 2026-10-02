@@ -3,13 +3,6 @@
 const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', 'User Interface': 'home', Skin: 'brush', Maintenance: 'database' };
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
-const ESSENTIAL_SETTINGS = new Set([
-  'gameplay.scrollSpeed', 'gameplay.scrollDirection', 'gameplay.scrollMode', 'gameplay.laneWidth', 'gameplay.bgDim', 'gameplay.bgBlur', 'gameplay.progressDisplay', 'gameplay.showPp', 'gameplay.healthStyle',
-  'audio.master', 'audio.music', 'audio.effects', 'audio.offset',
-  'graphics.fpsLimit', 'graphics.showFps', 'graphics.performanceMode',
-  'input.keybinds', 'ui.scale', 'ui.theme', 'ui.mascot', 'ui.mascotImage', 'skin.current', 'data',
-]);
-
 const SettingsPanel = {
   o: null,
   toggle() { this.o ? this.close() : this.open(); },
@@ -61,13 +54,10 @@ const SettingsPanel = {
     this.q = q;
     const scroll = this.scrollEl;
     clearEl(scroll);
-    const all = !!Settings.get('ui.allSettings') || !!q;
     const bySec = new Map();
-    let hiddenCount = 0;
     for (const it of SETTINGS_SCHEMA) {
-      if (!it.s) continue;
+      if (!it.s || it.x) continue; // (x: kept working at its value, but no longer offered in the panel)
       if (q && !(`${it.s} ${it.g} ${it.l} ${it.hint || ''}`.toLowerCase().includes(q))) continue;
-      if (!all && !ESSENTIAL_SETTINGS.has(it.k)) { hiddenCount++; continue; }
       if (!bySec.has(it.s)) bySec.set(it.s, new Map());
       const g = bySec.get(it.s);
       if (!g.has(it.g)) g.set(it.g, []);
@@ -82,11 +72,6 @@ const SettingsPanel = {
       scroll.append(secEl);
     }
     if (!bySec.size) scroll.append(h('div.empty', 'No settings match your search.'));
-    if (!q) {
-      const more = !!Settings.get('ui.allSettings');
-      scroll.append(h('button.btn.sp-more', { onclick: () => { Settings.set('ui.allSettings', !more); UISounds.click(); this.build(''); } },
-        more ? 'Show fewer settings' : `Show all settings (${hiddenCount} more)`));
-    }
     scroll.append(h('div.sp-footer', `${APP_NAME} v${APP_VERSION} · ${WhatsNew.latest()}`, h('button.btn.sm.ghost', { onclick: () => WhatsNew.show() }, icon('sparkle'), 'What\'s new')));
     clearEl(this.nav).append(...[...bySec.keys()].map(sec => h('button.sp-nb', { 'aria-label': sec, dataset: { sec }, onclick: () => { UISounds.click(); this.scrollTo(sec); } }, h('span.sp-nb-ind'), icon(SECTION_ICONS[sec] || 'gear'), h('span', sec.toLowerCase()))));
     this.syncNav();

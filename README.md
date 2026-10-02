@@ -22,6 +22,16 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Fewer settings
+- **Settings is down to about 40 options, all on one list.** The "Show all settings" button is gone.
+- What's left are the options lazer has, plus a few of this game's own: scroll speed and direction, lane width, background dim and blur, volume and offset, frame limiter, key bindings, UI scaling, accent colour, the menu character, skin, note shape and colours, download source and replay saving.
+- The niche tweaks are gone from the panel. They keep working at whatever you last set them to, or at their defaults:
+  - stage position, spacing and opacity, the receptor and note offsets;
+  - custom timing windows, the unpause countdown, lead-in and break length;
+  - early/late, the MAX judgement toggle, the progress and pp displays, the health bar style;
+  - renderer scale and automatic resolution, particles, blur, background quality, the low-latency mode;
+  - most of the custom skin's look (receptors, glow, roundness and the like), the interface sound volume, input latency, and the preview and cover sources.
+
 ### lazer's shortcuts
 - **In game:**
   - **− / +** shift this beatmap's offset by 1 ms before the first note or while paused, with a note on screen.
