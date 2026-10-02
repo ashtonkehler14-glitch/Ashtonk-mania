@@ -46,23 +46,34 @@ const AudioManager = {
     this.uiBus.gain.setTargetAtTime(Settings.get('audio.ui'), t, 0.02);
   },
 
-  /** High precision "what the listener hears now" on the audio clock, in seconds. */
-  now() {
-    const ctx = this.ctx;
-    if (!ctx) return performance.now() / 1000;
-    const perf = performance.now() / 1000;
+  /** High precision "what the listener hears" on the audio clock, in seconds: now, or at a given performance.now()
+   *  time (`atPerfMs`, e.g. the frame's vsync timestamp). */
+  now(atPerfMs) {
+    if (!this.ctx) return (atPerfMs ?? performance.now()) / 1000;
+    this._sync();
+    return (atPerfMs ?? performance.now()) / 1000 + this._offset;
+  },
+  /** The audio clock's offset from performance.now() (seconds), read from the output timestamp at most every 4 ms.
+   *  The raw reading is only refreshed when the audio thread runs, so it jitters by a few ms from read to read; it's
+   *  eased in over about a second (the two clocks drift apart by microseconds per second) instead of being followed,
+   *  so notes move by exactly the time between frames. A big jump (a seek, a stall, the device changing) is taken at once. */
+  _sampledAt: -1e9,
+  _sync() {
+    const ctx = this.ctx, p = performance.now();
+    const dt = p - this._sampledAt;
+    if (this._offset !== null && dt < 4) return;
+    this._sampledAt = p;
     let raw = null;
     if (ctx.getOutputTimestamp) {
       const ts = ctx.getOutputTimestamp();
       if (ts && ts.contextTime > 0 && ts.performanceTime > 0) raw = ts.contextTime - ts.performanceTime / 1000;
     }
-    if (raw === null) raw = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - perf;
-    if (this._offset === null || Math.abs(raw - this._offset) > 0.03 || ctx.state !== 'running') this._offset = raw;
-    else this._offset += (raw - this._offset) * 0.05;
-    return perf + this._offset;
+    if (raw === null) raw = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - p / 1000;
+    if (this._offset === null || ctx.state !== 'running' || Math.abs(raw - this._offset) > 0.05) this._offset = raw;
+    else this._offset += (raw - this._offset) * (1 - Math.exp(-Math.min(dt, 250) / 1000));
   },
   /** Convert a performance.now()-based timestamp (e.g. KeyboardEvent.timeStamp) onto the audio clock. */
-  perfToCtx(perfMs) { if (this._offset === null) this.now(); return perfMs / 1000 + this._offset; },
+  perfToCtx(perfMs) { if (!this.ctx) return perfMs / 1000; this._sync(); return perfMs / 1000 + this._offset; },
 
   decode(arrayBuffer) {
     this.init();
@@ -242,11 +253,15 @@ const Music = {
   },
 
   /** Current song position in ms (can be negative during lead-in). */
-  get time() {
+  get time() { return this.timeAt(); },
+  /** Song position (ms) heard at a performance.now() time (default: now). */
+  timeAt(perfMs) {
     if (!this.playing) return this.pausedPos;
     if (this.el) return this.el.currentTime * 1000;
-    return this.startPos + (AudioManager.now() - this.startCtx) * 1000 * this.rate;
+    return this.startPos + (AudioManager.now(perfMs) - this.startCtx) * 1000 * this.rate;
   },
+  /** Bumped whenever the position jumps (play, seek, pause, stop): a smoothed clock following this one starts over. */
+  gen: 0,
   /** Song position at a given audio-clock time (seconds). */
   timeAtCtx(ctxT) { return this.playing ? this.startPos + (ctxT - this.startCtx) * 1000 * this.rate : this.pausedPos; },
 
@@ -273,7 +288,7 @@ const Music = {
     // map: song position `max(pos,0)` is heard at audio time `when`
     this.startCtx = when; this.startPos = Math.max(0, pos);
     if (pos < 0) { this.startPos = pos; this.startCtx = ctxNow + lead; }
-    this.source = src; this.gain = g; this.playing = true; this.loop = loop;
+    this.source = src; this.gain = g; this.playing = true; this.loop = loop; this.gen++;
     src.onended = () => { if (this.source === src) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
   },
   _playStream(pos, fadeIn, volume, loop) {
@@ -288,7 +303,7 @@ const Music = {
   },
   pause() {
     if (!this.playing) return;
-    this.pausedPos = this.time;
+    this.pausedPos = this.time; this.gen++;
     if (this.el) { this.el.pause(); this.playing = false; return; }
     this._kill();
     this.playing = false;
@@ -305,7 +320,7 @@ const Music = {
       return;
     }
     const src = this.source, g = this.gain;
-    this.source = null; this.gain = null; this.playing = false;
+    this.source = null; this.gain = null; this.playing = false; this.gen++;
     if (!src) return;
     src.onended = null;
     if (fadeOut > 0 && g) {

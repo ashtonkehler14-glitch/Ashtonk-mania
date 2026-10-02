@@ -19,6 +19,34 @@ class ScrollMap {
   velAt(t) { let i = bsearchLE(this.segs, t, 'time'); if (i < 0) i = 0; return this.segs[i].vel; }
 }
 
+/** The visible (not fully transparent) part of an image, in its own pixels — worked out once per image. Skin textures
+ *  are often mostly empty padding, and only this part is worth drawing. null: the pixels can't be read. */
+const _visibleBoxes = new WeakMap();
+function visibleBox(img) {
+  let b = _visibleBoxes.get(img);
+  if (b !== undefined) return b;
+  b = null;
+  try {
+    const W = img.width, H = img.height;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, 0, 0);
+    const d = new Uint32Array(x.getImageData(0, 0, W, H).data.buffer);
+    // (the alpha byte of each pixel: the top byte on little-endian machines, the bottom one otherwise)
+    const shift = new Uint8Array(new Uint32Array([0xff000000]).buffer)[3] === 0xff ? 24 : 0;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0, i = 0; y < H; y++) {
+      for (let xx = 0; xx < W; xx++, i++) {
+        if (!((d[i] >>> shift) & 255)) continue;
+        if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; y1 = y;
+      }
+    }
+    b = x1 < 0 ? { empty: true } : { x0, y0, x1: x1 + 1, y1: y1 + 1, W, H };
+  } catch (e) { b = null; }
+  _visibleBoxes.set(img, b);
+  return b;
+}
+
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
@@ -31,7 +59,8 @@ class ManiaRenderer {
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
       this._ro.observe(canvas.parentElement);
     }
-    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+    // (desynchronized canvases can skip vsync and tear — a torn note looks like a stutter — so low latency is opt-in)
+    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: !!Settings.get('graphics.lowLatency') });
     this.layout = null;
     this.effects = [];          // lighting + particles
     this.judgementFx = null;
@@ -43,7 +72,7 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
-    this._spr = new WeakMap(); this._noteRefW = 0;
+    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
     this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = [];
     this.resize(true);
@@ -80,7 +109,7 @@ class ManiaRenderer {
     this._geom();
   }
   _geom() {
-    this._spr = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
+    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
     const s = this.H / 480;
@@ -98,6 +127,15 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
+    // fill styles, built once per layout / settings change instead of every frame
+    const op = Settings.get('gameplay.stageOpacity');
+    this._colFill = L.colours.column.slice(0, L.keys).map(c => rgba(c, op));
+    while (this._colFill.length < L.keys) this._colFill.push('transparent');
+    const dim = Settings.get('skin.dim');
+    this._dimFill = dim > 0 ? `rgba(0,0,0,${dim})` : null;
+    this._lineFill = rgba(L.colours.columnLine, 0.5);
+    this._hasLines = L.columnLineWidth.some(w => w > 0);
+    this._bands = null;
     const pos = Settings.get('gameplay.stagePosition');
     this.stageX = pos === 'skin' ? L.columnStart * s * (this.W / this.H > 4 / 3 ? 1 : 1)
       : pos === 'left' ? this.W * 0.12 : pos === 'right' ? this.W * 0.88 - this.stageW : (this.W - this.stageW) / 2;
@@ -113,6 +151,39 @@ class ManiaRenderer {
       // a tail cap is authored flipped in downscroll; mirrored for upscroll it's flipped once more (unless not flipping)
       this.fl.tail.push(this.up ? !f(F.tail, i) : true);
     }
+    this.prewarm();
+  }
+  /** Builds every pre-scaled sprite the stage draws (notes, keys, stage light, and hit / hold lighting at each of its
+   *  sizes) as soon as the sizes are known, while the loader is up. They used to be built the first time each one
+   *  showed up mid-song — 3 to 13 ms apiece, so the first hits of a map dropped frames. */
+  prewarm() {
+    const L = this.layout;
+    if (!L || !this.colW) return;
+    const s = this.s, K = L.keys, frames = t => t ? t.frames : [];
+    const effects = Settings.get('skin.effects'), lighting = Settings.get('gameplay.hitLighting');
+    try {
+      for (let c = 0; c < K; c++) {
+        const w = this.colW[c], texN = L.tex.note[c], texH = L.tex.noteH[c], texT = L.tex.noteT[c];
+        if (texN) { const nh = this._noteH(texN, c); for (const f of frames(texN)) this._sprite(f, w, nh, this.fl.note[c]); }
+        if (texH) { const hh = this._noteH(texH, c); for (const f of frames(texH)) this._sprite(f, w, hh, this.fl.head[c]); }
+        if (texT) { const th = this._noteH(texT, c); for (const f of frames(texT)) this._sprite(f, w, th, this.fl.tail[c]); }
+        for (const [t, flip] of [[L.tex.key[c], this.fl.key[c]], [L.tex.keyD[c], this.fl.keyD[c]]]) {
+          if (!t) continue;
+          if (this.legacy && !t.fromDefault) this._cropSprite(t.img, w, t.h * this.u * (L.keyScale || 1), flip);
+          else this._sprite(t.img, w, t.h * (w / t.w), flip);
+        }
+        const sl = L.tinted.stageLight[c];
+        if (sl && effects) { const h = sl.h * (this.legacy ? this.u : s); for (const f of frames(sl)) this._cropSprite(f, w, h, this.up); }
+        if (!lighting) continue;
+        const tl = L.tinted.lightingL[c];
+        if (tl) { const lw = this._lightW(tl, c, L.lightingLWidth), hh = tl.h * (lw / tl.w); for (const f of frames(tl)) this._cropSprite(f, lw, hh, this.up); }
+        const tn = L.tinted.lightingN[c];
+        if (tn) {
+          const w0 = this._lightW(tn, c, L.lightingNWidth), multi = tn.frames.length > 1;
+          for (let k = 0; k <= (multi ? 0 : 4); k++) { const sc = 1 + k / 16; for (const f of frames(tn)) this._cropSprite(f, w0 * sc, tn.h * (w0 / tn.w) * sc, this.up); }
+        }
+      }
+    } catch (e) { console.warn('sprite prewarm', e); } // (drawn on demand instead)
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {
@@ -155,22 +226,29 @@ class ManiaRenderer {
    *  lighting is 92–97% fully transparent, its keys 89–91%), and blending those empty pixels every frame was most of
    *  the canvas's raster time. Returns { c, dx, dy }: the cropped canvas and where it sits inside the w×h sprite. */
   _cropSprite(img, w, h, flip = false) {
-    const full = this._sprite(img, w, h, flip);
-    let m = this._crop.get(full);
+    const W = Math.max(1, Math.round(w)), Hh = Math.max(1, Math.round(h));
+    let cache = this._crop.get(img);
+    if (!cache) { cache = new Map(); this._crop.set(img, cache); }
+    const key = W * 16384 + Hh * 2 + (flip ? 1 : 0);
+    let m = cache.get(key);
     if (m) return m;
-    m = { c: full, dx: 0, dy: 0 };
-    try {
-      const W = full.width, Hh = full.height, d = full.getContext('2d').getImageData(0, 0, W, Hh).data;
-      let x0 = W, y0 = Hh, x1 = -1, y1 = -1;
-      for (let y = 0; y < Hh; y++) for (let x = 0, i = y * W * 4 + 3; x < W; x++, i += 4) if (d[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-      if (x1 < 0) m = { c: null, dx: 0, dy: 0 }; // nothing visible
-      else if ((x1 - x0 + 1) * (y1 - y0 + 1) < W * Hh * 0.9) {
-        const c = document.createElement('canvas'); c.width = x1 - x0 + 1; c.height = y1 - y0 + 1;
-        c.getContext('2d').drawImage(full, -x0, -y0);
-        m = { c, dx: x0, dy: y0 };
-      }
-    } catch (e) { /* unreadable: draw it uncropped */ }
-    this._crop.set(full, m);
+    const b = visibleBox(img);
+    if (!b) m = { c: this._sprite(img, w, h, flip), dx: 0, dy: 0 }; // unreadable: drawn uncropped
+    else if (b.empty) m = { c: null, dx: 0, dy: 0 };                // nothing visible
+    else {
+      // the image's visible box, scaled to this size (a pixel of margin for the filtering at its edges)
+      const sx = W / b.W, sy = Hh / b.H;
+      const x0 = Math.max(0, Math.floor(b.x0 * sx) - 1), x1 = Math.min(W, Math.ceil(b.x1 * sx) + 1);
+      let y0 = Math.max(0, Math.floor(b.y0 * sy) - 1), y1 = Math.min(Hh, Math.ceil(b.y1 * sy) + 1);
+      if (flip) { const t = Hh - y1; y1 = Hh - y0; y0 = t; }
+      const c = document.createElement('canvas'); c.width = Math.max(1, x1 - x0); c.height = Math.max(1, y1 - y0);
+      const x = c.getContext('2d');
+      if (flip) { x.translate(-x0, Hh - y0); x.scale(1, -1); } else x.translate(-x0, -y0);
+      x.drawImage(img, 0, 0, W, Hh);
+      m = { c, dx: x0, dy: y0 };
+    }
+    cache.set(key, m);
+    if (cache.size > 24) cache.delete(cache.keys().next().value);
     return m;
   }
   _cropImg(img, x, yTop, w, h, flipY = false) {
@@ -185,6 +263,15 @@ class ManiaRenderer {
     if (this.up) yTop = this.H - yTop - h;
     const tx = this._tx; // translation from stage space to device pixels
     this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, Math.round(yTop));
+  }
+  /** A moving note: like _spriteImg, but only snapped across (its column never moves). Down the lane it keeps its
+   *  exact sub-pixel position, so it travels the same distance every frame instead of stepping by whole pixels —
+   *  which showed as uneven motion, most of all when the playfield is drawn below full resolution. */
+  _noteImg(img, x, yTop, w, h, flipY = false) {
+    if (!img || w <= 0 || h <= 0) return;
+    if (this.up) yTop = this.H - yTop - h;
+    const tx = this._tx;
+    this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, yTop);
   }
 
   /** Render a frame. g: {now, posNow, scroll:ScrollMap, pxPerMs, engine, held[], hidden:'HD'|'FI'|null, realNow} */
@@ -205,14 +292,13 @@ class ManiaRenderer {
     const sx = this.stageX;
     for (let i = 0; i < K; i++) {
       const x0 = Math.round(sx + this.colX[i]) - sx, x1 = Math.round(sx + this.colX[i] + this.colW[i]) - sx;
-      ctx.fillStyle = rgba(L.colours.column[i], Settings.get('gameplay.stageOpacity'));
+      ctx.fillStyle = this._colFill[i];
       ctx.fillRect(x0, 0, x1 - x0, H);
     }
-    const dim = Settings.get('skin.dim');
-    if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
+    if (this._dimFill) { ctx.fillStyle = this._dimFill; ctx.fillRect(0, 0, this.stageW, H); }
     // column lines
-    if (L.columnLineWidth.some(w => w > 0)) {
-      ctx.fillStyle = rgba(L.colours.columnLine, 0.5);
+    if (this._hasLines) {
+      ctx.fillStyle = this._lineFill;
       for (let i = 0; i <= K; i++) {
         const w = (L.columnLineWidth[i] || 0) * s * 0.5;
         if (w <= 0) continue;
@@ -220,16 +306,15 @@ class ManiaRenderer {
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
       }
     }
-    const pxPerMs = g.pxPerMs;
-    const noteOffset = Settings.get('gameplay.noteOffset') * s;
-    const yOf = pos => this.hitY + noteOffset - (pos - g.posNow) * pxPerMs;
+    // note y for a scroll position: hitY + noteOffset - (pos - posNow) * pxPerMs
+    this._y0 = this.hitY + Settings.get('gameplay.noteOffset') * s + g.posNow * g.pxPerMs;
     // stage light (key press glow)
     if (Settings.get('skin.effects')) {
       for (let i = 0; i < K; i++) {
         const t = L.tinted.stageLight[i];
         if (!t) continue;
         let a = 0;
-        if (g.held[i]) a = 1; else { const dt = realNow - this.keyLight[i]; if (dt < 120) a = 1 - dt / 120; }
+        if (g.held[i]) a = 1; else { const dt = Math.max(0, realNow - this.keyLight[i]); if (dt < 120) a = 1 - dt / 120; }
         if (a <= 0) continue;
         ctx.globalAlpha = a;
         const h = t.h * (this.legacy ? this.u : s);
@@ -243,37 +328,16 @@ class ManiaRenderer {
       const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u : s);
       this._img(t.img, 0, this.hitY - h / 2, this.stageW, h, this.up);
     }
-    const drawKeys = () => {
-      for (let i = 0; i < K; i++) {
-        const down = g.held[i] && L.tex.keyD[i];
-        const t = down ? L.tex.keyD[i] : L.tex.key[i];
-        if (!t) continue;
-        const flip = down ? this.fl.keyD[i] : this.fl.key[i];
-        if (this.legacy && !t.fromDefault) {
-          // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
-          // (a 4K skin played at more keys shrinks its keys about the hit position, as its columns shrank)
-          const ks = L.keyScale || 1, h = t.h * this.u * ks;
-          this._cropImg(t.img, this.colX[i], this.hitY + (H - this.hitY) * ks - h, this.colW[i], h, flip);
-        } else {
-          // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
-          // (t.anchor down the texture) centred on the notes as they're hit
-          const h = t.h * (this.colW[i] / t.w);
-          const nh = this._noteH(L.tex.note[i], i);
-          const top = this.hitY - nh / 2 - h * (t.anchor ?? 0.25);
-          this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
-        }
-      }
-    };
-    if (L.keysUnderNotes) drawKeys();
+    if (L.keysUnderNotes) this._drawKeys(g);
 
     // notes
-    if (g.engine) this._drawNotes(g, yOf, realNow);
+    if (g.engine) this._drawNotes(g, realNow);
 
     if (L.judgementLine) {
       ctx.fillStyle = rgba(L.colours.judgementLine, 0.9);
       this._rect(0, this.hitY - Math.max(1, s * 0.5), this.stageW, Math.max(1, s * 0.5));
     }
-    if (!L.keysUnderNotes) drawKeys();
+    if (!L.keysUnderNotes) this._drawKeys(g);
     // stage sides / bottom
     const us = this.legacy ? this.u : s;
     if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; ctx.drawImage(t.img, -w, 0, w, H); }
@@ -298,6 +362,28 @@ class ManiaRenderer {
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
   }
+  _drawKeys(g) {
+    const L = this.layout, K = L.keys, H = this.H;
+    for (let i = 0; i < K; i++) {
+      const down = g.held[i] && L.tex.keyD[i];
+      const t = down ? L.tex.keyD[i] : L.tex.key[i];
+      if (!t) continue;
+      const flip = down ? this.fl.keyD[i] : this.fl.key[i];
+      if (this.legacy && !t.fromDefault) {
+        // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
+        // (a 4K skin played at more keys shrinks its keys about the hit position, as its columns shrank)
+        const ks = L.keyScale || 1, h = t.h * this.u * ks;
+        this._cropImg(t.img, this.colX[i], this.hitY + (H - this.hitY) * ks - h, this.colW[i], h, flip);
+      } else {
+        // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
+        // (t.anchor down the texture) centred on the notes as they're hit
+        const h = t.h * (this.colW[i] / t.w);
+        const nh = this._noteH(L.tex.note[i], i);
+        const top = this.hitY - nh / 2 - h * (t.anchor ?? 0.25);
+        this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
+      }
+    }
+  }
 
   /** Hidden / Fade In lane cover: `coverage` is the fraction of the lane (above the receptors) that is covered. */
   _noteAlpha(y, hidden) {
@@ -320,10 +406,14 @@ class ManiaRenderer {
     if (hidden === 'HD') out.unshift([-1e6, r0, 1]); else out.push([r1, 1e6, 1]);
     return out;
   }
-  _drawNotes(g, yOf, realNow) {
+  _drawNotes(g, realNow) {
     const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll;
-    const top = -this.H * 0.1;
-    const bands = g.hidden ? this._coverBands(g.hidden) : null;
+    const top = -this.H * 0.1, y0 = this._y0, ppm = g.pxPerMs;
+    let bands = null;
+    if (g.hidden) {
+      const b = this._bands, cov = this.coverage ?? 0.5;
+      bands = b && b.h === g.hidden && b.c === cov && b.y === this.hitY ? b.list : (this._bands = { h: g.hidden, c: cov, y: this.hitY, list: this._coverBands(g.hidden) }).list;
+    }
     for (let c = 0; c < K; c++) {
       const col = eng.columns[c];
       const x = this.colX[c], w = this.colW[c];
@@ -334,32 +424,22 @@ class ManiaRenderer {
         if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
         // scroll positions don't change during a play: computed once per note
         if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
-        let yHead = yOf(n._hp);
+        let yHead = y0 - n._hp * ppm;
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
-          const yTail = yOf(n._tp);
+          const yTail = y0 - n._tp * ppm;
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
           if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
           const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
-          const draw = () => {
-            const hh = this._noteH(texH || texN, c);
-            const th = texT ? this._noteH(texT, c) : 0;
-            // body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
-            // body end in down-scroll (legacy skins author tails as "caps" that round the body off)
-            const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
-            if (texL && bodyBottom > bodyTop) this._drawBody(texL, x, w, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow, this.fl.body[c]);
-            if (texT && yTail - th < yHead - hh / 2) this._spriteImg(texT.frameAt(realNow), x, yTail - th, w, th, this.fl.tail[c]);
-            if (texH || texN) this._spriteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh, texH ? this.fl.head[c] : this.fl.note[c]);
-          };
-          if (!bands) { ctx.globalAlpha = mult; draw(); ctx.globalAlpha = 1; continue; }
-          const y0 = yTail - (texT ? this._noteH(texT, c) : 0), y1 = yHead;
+          if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, realNow); ctx.globalAlpha = 1; continue; }
+          const n0 = yTail - (texT ? this._noteH(texT, c) : 0), n1 = yHead;
           for (const [b0, b1, a] of bands) {
-            const lo = Math.max(b0, y0), hi = Math.min(b1, y1);
+            const lo = Math.max(b0, n0), hi = Math.min(b1, n1);
             if (hi <= lo || a <= 0) continue;
             ctx.save();
             ctx.beginPath(); ctx.rect(x - 1, this.up ? this.H - b1 : b0, w + 2, b1 - b0); ctx.clip();
-            ctx.globalAlpha = a * mult; draw();
+            ctx.globalAlpha = a * mult; this._drawLN(c, x, w, yHead, yTail, realNow);
             ctx.restore();
           }
         } else {
@@ -367,7 +447,7 @@ class ManiaRenderer {
           const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
           if (a <= 0) continue;
           ctx.globalAlpha = a;
-          if (texN) this._spriteImg(texN.frameAt(realNow), x, yHead - nh, w, nh, this.fl.note[c]);
+          if (texN) this._noteImg(texN.frameAt(realNow), x, yHead - nh, w, nh, this.fl.note[c]);
           ctx.globalAlpha = 1;
         }
       }
@@ -377,21 +457,34 @@ class ManiaRenderer {
     if (mf && mf.length) {
       let keep = 0;
       for (let i = 0; i < mf.length; i++) {
-        const f = mf[i], el = realNow - f.t0;
+        const f = mf[i], el = Math.max(0, realNow - f.t0);
         if (el >= 150 || f.n.col >= K) continue;
         mf[keep++] = f;
         const n = f.n, c = n.col, texN = L.tex.note[c];
         if (!texN) continue;
         if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = 0; }
-        const y = yOf(n._hp), nh = this._noteH(texN, c);
+        const y = y0 - n._hp * ppm, nh = this._noteH(texN, c);
         if (y - nh > this.H) continue;
         const k = el / 150;
         ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
-        this._spriteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh, this.fl.note[c]);
+        this._noteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh, this.fl.note[c]);
       }
       mf.length = keep;
       ctx.globalAlpha = 1;
     }
+  }
+  /** A long note: the body runs from the head's centre to the tail's centre; the tail cap is drawn flipped over the
+   *  body end in down-scroll (legacy skins author tails as "caps" that round the body off). */
+  _drawLN(c, x, w, yHead, yTail, realNow) {
+    const L = this.layout, texN = L.tex.note[c], texH = L.tex.noteH[c], texL = L.tex.noteL[c], texT = L.tex.noteT[c];
+    const hh = this._noteH(texH || texN, c);
+    const th = texT ? this._noteH(texT, c) : 0;
+    const bodyTop = yTail - th / 2, bodyBottom = yHead - hh / 2;
+    // (the body lines up exactly with the head and tail sprites: same whole-pixel column edges)
+    const bx = Math.round(x + this._tx) - this._tx, bw = Math.max(1, Math.round(w));
+    if (texL && bodyBottom > bodyTop) this._drawBody(texL, bx, bw, bodyTop, bodyBottom, L.noteBodyStyle[c], realNow, this.fl.body[c]);
+    if (texT && yTail - th < yHead - hh / 2) this._noteImg(texT.frameAt(realNow), x, yTail - th, w, th, this.fl.tail[c]);
+    if (texH || texN) this._noteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh, texH ? this.fl.head[c] : this.fl.note[c]);
   }
   _drawBody(tex, x, w, top, bottom, style, realNow, flip = false) {
     const img = tex.frameAt(realNow);
@@ -462,7 +555,7 @@ class ManiaRenderer {
       if (this._lastN && this._lastN[e.col] !== e) continue; // superseded by a newer hit in this column
       const t = L.tinted.lightingN[e.col];
       if (!t) continue;
-      const el = realNow - e.t0;
+      const el = Math.max(0, realNow - e.t0);
       const multi = t.frames.length > 1;
       const dur = multi ? t.frames.length / t.fps * 1000 : 180;
       if (el > dur) continue;
@@ -498,7 +591,7 @@ class ManiaRenderer {
     for (let i = 0; i < fx.length; i++) {
       const e = fx[i];
       if (e.type !== 'P') { fx[keep++] = e; continue; }
-      const el = realNow - e.t0;
+      const el = Math.max(0, realNow - e.t0);
       if (el > e.life) continue;
       const x = this.colX[e.col] + this.colW[e.col] / 2 + e.vx * el;
       let y = this.hitY + e.vy * el + 0.0006 * this.s * el * el;
@@ -520,7 +613,7 @@ class ManiaRenderer {
   _drawJudgement(realNow) {
     const fx = this.judgementFx;
     if (!fx) return;
-    const L = this.layout, el = realNow - fx.t0;
+    const L = this.layout, el = Math.max(0, realNow - fx.t0);
     const t = L.judgement[JUDGEMENTS[fx.j].id];
     if (!t) return;
     const total = t.frames.length > 1 ? Math.max(t.frames.length / t.fps * 1000, 300) : 360;
@@ -545,7 +638,7 @@ class ManiaRenderer {
     if (combo !== this.lastCombo) { if (combo > this.lastCombo) this.comboBump = realNow; this.lastCombo = combo; }
     if (combo < 2) return;
     const L = this.layout, ctx = this.ctx, s = this.s;
-    const el = realNow - this.comboBump;
+    const el = Math.max(0, realNow - this.comboBump);
     const bump = Settings.get('gameplay.comboEffects') && el < 90 ? 1 + 0.12 * (1 - el / 90) : 1;
     const y = L.comboPosition * s;
     const cx = this.stageW / 2;

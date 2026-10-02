@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Smooth scrolling
+- **Notes now move by exactly the same distance every frame.** The playfield used to place notes by the moment its code ran, plus a reading of the audio clock that jittered by a few milliseconds, so some frames jumped up to 10 ms of travel too far or too short. It now follows the display's refresh: each frame is drawn for the instant it's shown, on a clock locked to the music that eases back to it rather than jumping.
+- **No hitch on the first hits.** Hit and hold lighting, stage light and keys were prepared the first time they appeared mid-song (3–13 ms each, enough to drop a frame right as a map starts). They're all prepared while the loader is up, about 15 ms in all.
+- **Sub-pixel notes:** notes keep their exact position down the lane instead of snapping to whole pixels, which mattered most when the playfield is drawn below full resolution. Long note bodies line up exactly with their heads and tails.
+- **Frame limiter:** frames are spaced evenly, so a limit at or above your refresh rate never drops one because of timing jitter.
+- **Low-latency playfield** (Settings → Graphics) is now off by default. It drew without waiting for the display and could tear, which looked like stutter.
+
 ### Full-screen beatmap page, menu backgrounds, all key counts
 - **Beatmap info page:** a set's page in the beatmap listing now takes the whole screen. The cover fills it, the details sit in the middle at a larger size, and your scores and tags are in the left column instead of a strip at the bottom.
 - **Back to top:** the listing's back-to-top button has a ring around it that fills as you near the bottom of the loaded results. The button also appears sooner.

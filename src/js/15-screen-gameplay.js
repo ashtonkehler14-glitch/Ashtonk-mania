@@ -268,6 +268,7 @@ const GameplayScreen = {
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
       debug: { inputs: 0, lastErr: null },
+      hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
     };
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
     this.newEngine(practice ? null : undefined);
@@ -447,7 +448,7 @@ const GameplayScreen = {
     if (!this._videoURL || !vid) return;
     const target = (now - this.videoOffset) / 1000;
     if (target < 0 || !s.running) { if (!vid.paused) vid.pause(); if (target < 0 && vid.currentTime !== 0) vid.currentTime = 0; return; }
-    vid.playbackRate = s.rate;
+    if (vid.playbackRate !== s.rate) vid.playbackRate = s.rate;
     if (vid.paused) { vid.currentTime = target; vid.play().catch(() => {}); return; }
     if (Math.abs(vid.currentTime - target) > 0.12) vid.currentTime = target;
   },
@@ -507,21 +508,42 @@ const GameplayScreen = {
   // ─────────────────────────────── main loop ───────────────────────────────
   /** Global audio offset plus this beatmap's own offset, in ms. */
   offsetMs() { return Settings.get('audio.offset') + (this.s ? this.s.mapOffset || 0 : 0); },
-  gameTime() {
+  /** Song time (ms, offsets applied) heard at a performance.now() time (default: now). */
+  gameTime(at) {
     if (!this.s) return 0; // (a control clicked while the screen is leaving)
     // after a fail the song winds down (1.2 s ramp to 30% speed, then stops): the playfield slows with it and
     // stays put, instead of running on at full speed and then jumping back once the music is stopped
     const f = this.s.failClock;
-    if (f) { const e = Math.min(FAIL_WIND_DOWN, (performance.now() - f.real) / 1000); return f.t + this.s.rate * 1000 * (e - 0.35 * e * e / FAIL_WIND_DOWN); }
-    return Music.time - this.offsetMs() * this.s.rate;
+    if (f) { const e = clamp(((at ?? performance.now()) - f.real) / 1000, 0, FAIL_WIND_DOWN); return f.t + this.s.rate * 1000 * (e - 0.35 * e * e / FAIL_WIND_DOWN); }
+    return Music.timeAt(at) - this.offsetMs() * this.s.rate;
+  },
+  /** The playfield's clock for the frame shown at `ts` (the frame's vsync timestamp). Notes are placed by the time
+   *  between frames, not by when the frame's code happened to run, so they move by exactly the same distance every
+   *  refresh; the clock is phase-locked to the audio and drifts back to it gently (or jumps after a seek or a stall). */
+  frameTime(ts) {
+    const truth = this.gameTime(ts), c = this._vc, s = this.s;
+    if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || !(ts > c.ts) || ts - c.ts > 250 || c.off !== this.offsetMs()) {
+      this._vc = { ts, t: truth, gen: Music.gen, off: this.offsetMs() };
+      return truth;
+    }
+    const dt = ts - c.ts, pred = c.t + dt * Music.rate, err = truth - pred;
+    c.t = Math.abs(err) > 40 ? truth : pred + err * (1 - Math.exp(-dt / 300));
+    c.ts = ts;
+    return c.t;
   },
   loop() {
-    const frame = () => {
+    // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0 };
+    this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
+    const frame = ts => {
       this._raf = requestAnimationFrame(frame);
       const s = this.s;
       if (!s) return;
-      const realNow = performance.now();
-      const now = this.gameTime();
+      const realNow = ts > 0 ? ts : performance.now();
+      // the display's refresh interval, for the frame limiter
+      if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
+      this._lastTs = realNow;
+      const now = this.frameTime(realNow);
       const eng = s.engine;
       if (s.running) {
         // replay / auto input feed (exact recorded times)
@@ -544,26 +566,29 @@ const GameplayScreen = {
       }
       if (this.replayBar) this.updateReplayBar(now);
       const lim = Settings.get('graphics.fpsLimit');
-      if (lim > 0 && realNow - this.lastRender < 1000 / lim - 0.6) return;
+      if (lim > 0) {
+        // frames are due every 1/limit s, counted from when the last one was due (not drawn), and drawn on the first
+        // refresh that reaches it: the average rate is the limit, and a limit at or above the refresh rate never
+        // drops a frame because of timing jitter
+        const iv = 1000 / lim;
+        if (this._due && realNow < this._due - this._refresh / 2) return;
+        this._due = this._due && this._due > realNow - iv ? this._due + iv : realNow + iv;
+      }
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
       this.lastRender = realNow;
-      const L = s.layout;
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
-      this.renderer.render({
-        now, posNow: s.scroll.pos(now), scroll: s.scroll, pxPerMs: this.renderer.scrollLength / (timeRange * s.rate),
-        engine: eng, held: s.held,
-        hidden: s.mods.includes('HD') ? 'HD' : s.mods.includes('FI') ? 'FI' : null, realNow, keyLabels: s.keyLabels,
-        percy: s.mods.includes('PC') ? s.modConfig.percy : 0,
-      });
+      g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
+      g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
+      g.hidden = s.hidden; g.percy = s.percy;
+      this.renderer.render(g);
       this.updateHud(now);
       this.updateBreak(now);
       this.syncVideo(now);
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
-      void L;
     };
-    frame();
+    frame(performance.now());
   },
 
   // ─────────────────────────────── automatic resolution ───────────────────────────────
@@ -690,8 +715,12 @@ const GameplayScreen = {
     const me = this._lbMe;
     if (!me) return;
     const e = this.s.engine;
-    // (in step with the score and accuracy at the top right: it changes only when a note is judged)
+    // (in step with the score and accuracy at the top right: it changes only when a note is judged, and is redrawn at
+    // most ~10× a second — on a dense chart every frame's text and reordering cost a layout pass)
     if (!force && e.score.judged === this._lbJudged) return;
+    const wall = performance.now();
+    if (!force && wall - (this._lbT || 0) < 100) return;
+    this._lbT = wall;
     this._lbJudged = e.score.judged;
     const sc = ScoreManager.value(e.score);
     // ties go to the score that was set first
