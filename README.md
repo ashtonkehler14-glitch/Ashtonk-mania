@@ -45,6 +45,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   - The sidebar is lazer's: 170 px wide with each section's icon and name. The section you're reading gets a small bar that springs taller.
   - The screen behind shifts slightly to the right while settings is open, and slightly left for notifications, as lazer does for depth. The notifications panel is lazer's 320 px.
 - **Song select:** the play button is the logo, at 40% size, hanging off the bottom-right corner as in lazer. Pointing at it grows it with a bounce, and it pulses with the beat like the menu logo.
+- **Options (F3)** is lazer's popover above the Options button. It has rounded buttons under "General", "For all difficulties" and "For selected difficulty", and **1–9** press them. Right-clicking a beatmap still opens the small menu.
 - **Loading screen:** the logo is lazer's 77 px.
 - **Results:** the score card is lazer's score panel, 360 px wide. Your 80 px picture sits on its top edge with your name under it. Below come the title and artist, the accuracy circle, the score in big light numbers, then the star rating, mods, difficulty and mapper. The statistics sit under small dark labels, and the date is at the bottom.
 - **Results footer:** lazer's grey 50 px bar with the buttons centred. Watch replay and retry are wide green buttons, and save / export / share are small grey ones. Point at a button to see what it does.

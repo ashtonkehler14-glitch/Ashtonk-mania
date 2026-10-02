@@ -140,6 +140,7 @@ const SongSelect = {
   },
   leave() {
     cancelAnimationFrame(this._beatRaf);
+    this.closeOptions();
     (this._unsub || []).forEach(f => f());
     this._ro && this._ro.disconnect();
     clearTimeout(this._previewT);
@@ -654,7 +655,8 @@ const SongSelect = {
     // from the footer (its button or F3) the menu stands on the Options button like lazer's footer popover; a
     // right-click on a panel opens it where you clicked
     const btn = this.optionsBtn && this.optionsBtn.isConnected && (!e || !e.clientX || e.currentTarget === this.optionsBtn) ? this.optionsBtn.getBoundingClientRect() : null;
-    const x = btn ? btn.left : e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = btn ? btn.top - 6 : e && e.clientY ? e.clientY - 10 : innerHeight - 320;
+    if (btn) { this.optionsPopover(m, set); return; }
+    const x = e && e.clientX ? e.clientX : innerWidth / 2 - 110, y = e && e.clientY ? e.clientY - 10 : innerHeight - 320;
     showMenu(x, y, [
       { header: `${set.title} [${m.version}]` },
       { label: 'Play', icon: 'play', onClick: () => this.play() },
@@ -666,7 +668,45 @@ const SongSelect = {
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
-    ], { above: !!btn });
+    ]);
+  },
+  /** lazer's FooterButtonOptions popover: above the Options button, "General", "For all difficulties" and "For
+   *  selected difficulty", each with 265 × 50 rounded buttons (17px icon at 15px, the label at 40px); 1–9 press them. */
+  optionsPopover(m, set) {
+    if (this._opts) { this.closeOptions(); return; } // (the button and F3 toggle it)
+    const items = [];
+    const head = (t, ctx) => h('div.op-head', h('b', t), ctx ? h('span', ctx) : null);
+    const btn = (label, ic, fn, danger) => { const b = h(`button.op-btn${danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); setTimeout(() => this.closeOptions(), 50); fn(); } }, icon(ic), h('span', label)); items.push(b); return b; };
+    const el = h('div.op-pop', { role: 'menu' },
+      head('General'),
+      btn('Manage collections', 'folder', () => this.collectionMenu({ target: this.optionsBtn }, m)),
+      head('For all difficulties', `${set.artist} - ${set.title}`),
+      btn('Export .osz', 'download', () => BeatmapManager.exportOsz(set.id)),
+      btn('Delete...', 'trash', () => this.deleteSet(set), true),
+      head('For selected difficulty', m.version),
+      btn('Play', 'play', () => this.play()),
+      btn('Practice', 'flag', () => this.play('practice')),
+      btn('Watch Auto', 'film', () => this.play('auto')),
+      btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)));
+    $('#app').appendChild(el);
+    const r = this.optionsBtn.getBoundingClientRect(), z = Zoom.z;
+    el.style.left = `${Math.max(8, (r.left + r.width / 2) * z - el.offsetWidth / 2)}px`;
+    el.style.top = `${r.top * z - el.offsetHeight - 14}px`;
+    el.style.setProperty('--ax', `${(r.left + r.width / 2) * z - parseFloat(el.style.left)}px`);
+    this.optionsBtn.classList.add('on');
+    const away = ev => { if (!el.contains(ev.target) && !this.optionsBtn.contains(ev.target)) this.closeOptions(); };
+    const keys = ev => {
+      if (ev.key === 'Escape' || ev.key === 'F3') { ev.preventDefault(); ev.stopImmediatePropagation(); this.closeOptions(); return; }
+      if (!ev.ctrlKey && /^Digit[1-9]$/.test(ev.code)) { const b = items[+ev.code.slice(5) - 1]; if (b) { ev.preventDefault(); ev.stopImmediatePropagation(); b.click(); } }
+    };
+    setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
+    window.addEventListener('keydown', keys, true);
+    this._opts = { el, off: () => { document.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', keys, true); } };
+  },
+  closeOptions() {
+    if (!this._opts) return;
+    this._opts.off(); this._opts.el.remove(); this._opts = null;
+    if (this.optionsBtn) this.optionsBtn.classList.remove('on');
   },
   async deleteSet(set) {
     set = set || BeatmapManager.setById.get(BeatmapManager.maps.get(this.selectedId)?.setId);
