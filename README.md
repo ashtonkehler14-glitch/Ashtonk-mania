@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Main menu background, top bar and volume
+- **The main menu background is lazer's triangle artwork, standing still:**
+  - A gradient, big solid triangles banked up both sides with soft shadows, faint outlined triangles, and a ring of bright outlined triangles around the logo, traced from lazer's menu background.
+  - It takes the colour of the playing song's background and fades to the next song's colour. The drifting triangles are gone.
+- **Top bar:** the clock now sits to the right of your profile, then notifications, in lazer's order. Your picture there is a 32 px square with rounded corners, as in lazer, instead of a circle.
+- **Gentler volume wheel:** each notch of the mouse wheel is 5%, as in lazer. Touchpads and smooth-scrolling wheels send a notch as lots of small steps, and each of those used to count as a whole 5%. They now add up.
+
 ### Ranked Play, rebuilt on osu!lazer's rules
 Ranked Play now plays exactly like lazer's. The rules come straight from lazer's server code (osu-server-spectator's Ranked Play stages), and the screens follow its RankedPlayScreen.
 - **Queue for a match:** the multiplayer lobby has a Ranked Play panel with 4K / 7K, your rating, **Begin queueing**, the time you've waited and how many are queued.

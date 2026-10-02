@@ -421,9 +421,10 @@ const Toolbar = {
       h('div.tb-group',
         btn('download', 'Beatmap listing', 'Browse for new beatmaps', page('explore'), { dataset: { tab: 'explore' } }),
         this.npBtn,
-        this.clock,
+        // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'Your profile', onclick: () => { UISounds.click(); page('profile')(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
+        this.clock,
         this.bell),
     );
     this.updateProfile();
@@ -474,7 +475,8 @@ const Toolbar = {
   setActive(id) { $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === id)); },
   updateProfile() {
     const p = ProfileManager.profile;
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), ProfileManager.avatarEl(26));
+    // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32)));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -654,8 +656,14 @@ const VolumeOverlay = {
       }
       e.preventDefault(); e.stopPropagation();
       const which = e.altKey && e.shiftKey ? 'music' : e.altKey && e.ctrlKey ? 'effects' : this.sel;
-      const steps = Math.max(1, Math.round(Math.abs(e.deltaY) / 100));
-      this.adjust(which, (e.deltaY < 0 ? 0.05 : -0.05) * Math.min(steps, 3));
+      // lazer's VolumeMeter: 5% for each notch of the wheel. A touchpad or a smooth-scrolling wheel sends a notch as many
+      // small events, and those add up (each used to count as a whole notch, so the volume raced away)
+      const notch = e.deltaMode === 1 ? 3 : e.deltaMode === 2 ? 1 : 100;
+      if (which !== this._accFor || performance.now() - (this._accT || 0) > 600) this._acc = 0;
+      this._accFor = which; this._accT = performance.now();
+      this._acc += clamp(-e.deltaY / notch, -3, 3) * 0.05;
+      const step = Math.trunc(this._acc * 100) / 100;
+      if (step) { this._acc -= step; this.adjust(which, step); } else this.show(which);
     }, { passive: false, capture: true });
   },
 };
