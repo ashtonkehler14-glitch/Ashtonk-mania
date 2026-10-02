@@ -9345,7 +9345,12 @@ const HomeScreen = {
       this.fountainCv = h('canvas.lz-fountain'));
     this._parts = []; this._spewers = [];
     this.el = el;
-    this.setState(Screens.history.length ? 'top' : 'initial', true);
+    // coming back (from song select, the lounge…): lazer resumes the menu where you left it — the same row of buttons,
+    // growing back out of the logo — instead of starting over at the big logo
+    const resume = this._resume || (this._visited ? 'top' : null);
+    this._resume = null;
+    // (from "entering": the logo is already small in the bar, the bar fades back in and the buttons grow out)
+    if (resume) { this.menuState = 'entering'; el.dataset.state = 'entering'; this.setState(resume); } else this.setState(Screens.history.length ? 'top' : 'initial', true);
     // the end of lazer's intro: the logo appears from nothing with a white flash and its impact ring (first visit only)
     if (!Screens.history.length && !this._introDone && Settings.get('ui.animSpeed')) {
       this._introDone = true;
@@ -9425,10 +9430,11 @@ const HomeScreen = {
     b._fn();
   },
   /** Choosing something that leaves the menu: the bar folds away (lazer's EnteringMode) as the next screen opens. */
-  enterMode(go) { this.setState('entering'); go(); },
+  enterMode(go) { this._resume = ['play', 'multi', 'edit'].includes(this.menuState) ? this.menuState : 'top'; this.setState('entering'); go(); },
   setState(state, instant = false) {
     const last = this.menuState;
     if (state === last && !instant) return;
+    if (state !== 'initial') this._visited = true;
     this.menuState = state;
     this.el.dataset.state = state;
     this.el.classList.toggle('lz-instant', instant);
