@@ -7449,8 +7449,9 @@ class ManiaRenderer {
     if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
   }
   /** A tinted white shape (or WOM's arrow image) drawn once at its size and cached: tap and head sprites. */
-  _womSprite(kind, color, size, dark) {
-    const key = `${kind}|${color}|${size | 0}|${dark ? 1 : 0}`;
+  _womSprite(kind, color, size, dark, deg = 0) {
+    // (arrows are drawn already turned to their direction: no save / rotate / restore per note each frame)
+    const key = `${kind}|${color}|${size | 0}|${dark ? 1 : 0}|${deg}`;
     let c = this._womSpr.get(key);
     if (c !== undefined) return c;
     const d = this.womD, pad = Math.ceil(4 * d), n = Math.ceil(size) + pad * 2;
@@ -7464,7 +7465,12 @@ class ManiaRenderer {
     x.fillStyle = color;
     if (kind === 'circles') { x.beginPath(); x.arc(m, m, size / 2, 0, Math.PI * 2); x.fill(); }
     else if (kind === 'diamonds') { const r = size / Math.SQRT2; x.translate(m, m); x.rotate(Math.PI / 4); x.beginPath(); x.roundRect(-r / 2, -r / 2, r, r, 8 * d); x.fill(); }
-    else { x.drawImage(img, pad, pad, size, size); if (color !== '#fff') { x.globalCompositeOperation = 'source-in'; x.fillRect(0, 0, n, n); } }
+    else {
+      if (deg) { x.translate(m, m); x.rotate(deg * Math.PI / 180); x.translate(-m, -m); }
+      x.drawImage(img, pad, pad, size, size);
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      if (color !== '#fff') { x.globalCompositeOperation = 'source-in'; x.fillRect(0, 0, n, n); }
+    }
     if (dark) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(0,0,0,.5)'; x.fillRect(0, 0, n, n); }
     this._womSpr.set(key, c);
     return c;
@@ -7525,8 +7531,8 @@ class ManiaRenderer {
         if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2); ctx.globalAlpha = ro; }
       } else {
         const ang = this.womArrow[i] || 0, out = style === 'arrows' ? 'arrowOutline' : 'thickArrowOutline';
-        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY - ms / 2, ang);
-        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2, ang); ctx.globalAlpha = ro; }
+        this._womBlit(this._womSprite(out, '#fff', ms, false, ang), cx, this.hitY - ms / 2);
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms, false, ang), cx, this.hitY - ms / 2); ctx.globalAlpha = ro; }
       }
     }
     ctx.globalAlpha = 1;
@@ -7551,7 +7557,7 @@ class ManiaRenderer {
       const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
       const tap = (color, y, dark) => {
         if (style === 'bars') { ctx.fillStyle = dark ? this._womDark(color) : color; this._womRect(x, y - w * 0.4, w, w * 0.4); }
-        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y - ms / 2, ang); // (bottom on the line, as Kori's)
+        else this._womBlit(this._womSprite(style, color, ms, dark, ang), cx, y - ms / 2); // (bottom on the line, as Kori's)
       };
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
@@ -7586,7 +7592,7 @@ class ManiaRenderer {
             const ty = this.up ? this.H - (yTail - o) : yTail - o, dir = this.up ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
           }
-          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead - o, ang);
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken, ang), cx, yHead - o);
         }
         // the head note itself until it's hit (WOM's hold head is a tap of its own)
         if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);
@@ -7718,7 +7724,7 @@ class ManiaRenderer {
   }
   _drawParticles(realNow) {
     const ctx = this.ctx;
-    const fx = this.effects;
+    const fx = this.effects, batch = this._pBatch || (this._pBatch = new Map());
     let keep = 0;
     for (let i = 0; i < fx.length; i++) {
       const e = fx[i];
@@ -7728,18 +7734,33 @@ class ManiaRenderer {
       const x = this.colX[e.col] + this.colW[e.col] / 2 + e.vx * el;
       let y = this.hitY + e.vy * el + 0.0006 * this.s * el * el;
       if (this.up) y = this.H - y;
-      ctx.globalAlpha = 1 - el / e.life;
-      ctx.fillStyle = e.color;
+      if (e.star) { ctx.globalAlpha = 1 - el / e.life; ctx.fillStyle = e.color; }
       const r = (e.star ? 3.2 : 2) * this.s * 0.5 * (1 - el / e.life * 0.5);
       if (e.star) {
         ctx.beginPath();
         for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + el / 200, rr = k % 2 ? r * 0.4 : r * 1.6; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
         ctx.fill();
-      } else ctx.fillRect(x - r, y - r, r * 2, r * 2);
-      ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1;
+      } else {
+        // squares are batched: one path per colour and fade step, filled once (they were one fill each — dozens of
+        // draws a frame on a dense chart)
+        const step = Math.min(5, Math.floor((el / e.life) * 6));
+        let steps = batch.get(e.color);
+        if (!steps) { steps = [0, 1, 2, 3, 4, 5].map(k => ({ color: e.color, a: 1 - (k + 0.5) / 6, xs: [] })); batch.set(e.color, steps); }
+        steps[step].xs.push(x - r, y - r, r * 2);
+      }
       fx[keep++] = e;
     }
     fx.length = keep;
+    for (const steps of batch.values()) for (const b of steps) {
+      if (!b.xs.length) continue;
+      ctx.globalAlpha = b.a; ctx.fillStyle = b.color; ctx.beginPath();
+      for (let i = 0; i < b.xs.length; i += 3) ctx.rect(b.xs[i], b.xs[i + 1], b.xs[i + 2], b.xs[i + 2]);
+      ctx.fill();
+      b.xs.length = 0; // (kept for the next frame: no new arrays each frame)
+    }
+    ctx.globalAlpha = 1;
+    if (batch.size > 32) batch.clear();
     this._pN = 0; for (let i = 0; i < keep; i++) if (fx[i].type === 'P') this._pN++;
   }
   _drawJudgement(realNow) {
