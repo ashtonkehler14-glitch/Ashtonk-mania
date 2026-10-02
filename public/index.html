@@ -10107,15 +10107,16 @@ const NeruMascot = {
   start() {
     cancelAnimationFrame(this._raf);
     this._lean = 0; this._bob = 0; this._px = null;
-    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; };
+    // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
+    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; if (this.el && this.el.isConnected) this._rect = this.el.getBoundingClientRect(); };
     window.addEventListener('pointermove', this._onMove, { passive: true });
     let last = performance.now();
     const tick = now => {
       if (!this.el || !this.body || !this.el.isConnected) { if (this.el && !this.el.isConnected) this.stop(); else this._raf = requestAnimationFrame(tick); return; }
       const dt = Math.min(64, now - last); last = now;
       let want = 0;
-      if (this._px != null && Settings.get('ui.animSpeed')) {
-        const r = this.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * 0.3;
+      if (this._px != null && this._rect && Settings.get('ui.animSpeed')) {
+        const r = this._rect, cx = r.left + r.width / 2, cy = r.top + r.height * 0.3;
         // a few degrees towards the cursor, more the further away it is (and none once it's over her)
         want = clamp((this._px - cx) / innerWidth * 9, -4, 4) * (this._py < cy - r.height ? 0.6 : 1);
       }
