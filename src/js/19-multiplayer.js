@@ -496,10 +496,12 @@ const MultiplayerScreen = {
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       rankedQueuePanel(),
       h('div.mp-lounge-bar',
-        h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, icon('plus'), h('span', 'Create room')),
+        h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, h('span', 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
-      h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join')),
+      h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join'),
+        h('input.input.mp-search', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
+          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() })),
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);
     else setTimeout(() => this.pollRooms(), 30); // (once the lobby is on the page: the screen is still being built here)
@@ -524,6 +526,13 @@ const MultiplayerScreen = {
       { label: 'Cancel' },
       { label: 'Create', primary: true, onClick: () => this._busy('Creating room…', () => Multiplayer.create(st)) }]);
     return o;
+  },
+  /** lazer's lounge search box: rooms whose name, host or beatmap don't match are hidden. */
+  filterRooms() {
+    const q = (this._roomQuery || '').trim().toLowerCase();
+    let shown = 0;
+    for (const { row } of (this._roomRows || new Map()).values()) { row.hidden = !!q && !q.split(/\s+/).every(w => row._name.includes(w)); if (!row.hidden) shown++; }
+    if (this.roomsEl) this.roomsEl.classList.toggle('no-match', !!q && !shown && !!(this._roomRows && this._roomRows.size));
   },
   /** lazer's lounge: the open custom rooms, refreshed every few seconds while the lobby is on screen. */
   async pollRooms() {
@@ -562,10 +571,12 @@ const MultiplayerScreen = {
       row.addEventListener('pointerenter', () => UISounds.hover());
       // (the slide-in class goes once it has played: moving a row back in would otherwise replay it)
       row.classList.add('anim'); row.addEventListener('animationend', () => row.classList.remove('anim'), { once: true });
+      row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
     }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Can\'t reach the multiplayer server right now — trying again…')]));
     this._roomRows = nextRows;
+    this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);
   },
 

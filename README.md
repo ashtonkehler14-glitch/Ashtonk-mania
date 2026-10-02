@@ -34,6 +34,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ### Mod select footer and beatmap listing
 - **Multiplayer lounge:** rooms are lazer's 80 px room panels. The status (open / ranked play / playing) sits on its own line above the room name, so every room lines up.
+- **Lounge search and Create room:** a search box finds rooms by name, host or beatmap, as in lazer's lounge. "Create room" is lazer's purple 180 px button.
 - **Beatmap listing filters** use lazer's compact rows: a 100 px label column and 13 px choices 10 px apart. The chosen one is bold white with no underline.
 - **Mod select's footer is lazer's:** the back button, then a 200 px slanted "Deselect all" button (Backspace still works).
 - The speed and score multiplier sit in slanted two-part boxes at the bottom right instead of the header.

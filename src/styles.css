@@ -3035,3 +3035,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-rplayers { grid-area: players; }
 .mp-rjoin { grid-area: join; }
 .mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h) 10% 15%) 20%, hsl(var(--o-h) 10% 15% / .3)); }
+/* lounge: lazer's purple CreateRoomButton (RoundedButton #593790 lightening 20% across, corners of 5, 14px text,
+   180 × 48) and the room search box at the right of the "Open rooms" line */
+.mp-create { width: 180px; height: 48px; padding: 0; justify-content: center; font-size: 14px; font-weight: 600; }
+.mp-create::before { border-radius: 5px; transform: none; background: linear-gradient(90deg, #593790, #7a4caf); box-shadow: none; }
+.mp-sec-t { display: flex; align-items: center; gap: 8px; }
+.mp-search { margin-left: auto; width: min(60%, 420px); height: 36px; font-size: 14px; }
+.mp-room-row[hidden] { display: none; }
+.mp-roomlist.no-match::after { content: "No rooms match your search."; display: block; padding: 18px; color: var(--muted); }
