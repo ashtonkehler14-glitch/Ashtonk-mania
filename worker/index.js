@@ -101,16 +101,28 @@ let officialToken = null;
  *  so osu! can rate-limit them for other people's requests; a proxy with its own address avoids that. */
 const osuBase = env => (env && env.OSU_API_PROXY_URL ? String(env.OSU_API_PROXY_URL).replace(/\/+$/, '') : 'https://osu.ppy.sh');
 const proxyKey = env => (env && env.OSU_API_PROXY_KEY ? { 'X-Proxy-Key': env.OSU_API_PROXY_KEY } : {});
+/** (tests) forget the osu! login */
+export function resetOsuLogin() { officialToken = null; }
 async function getOfficialToken(env, fetchImpl) {
   if (officialToken && officialToken.exp > Date.now() + 60000) return officialToken.value;
-  const r = await fetchImpl(`${osuBase(env)}/oauth/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
-    body: JSON.stringify({ client_id: Number(env.OSU_CLIENT_ID), client_secret: env.OSU_CLIENT_SECRET, grant_type: 'client_credentials', scope: 'public' }),
-  });
-  if (!r.ok) throw new Error(`osu! OAuth failed (${r.status}${r.status === 401 ? ': check OSU_CLIENT_ID / OSU_CLIENT_SECRET' : ''}) ${(await r.text().catch(() => '')).slice(0, 120)}`);
-  const d = await r.json();
-  officialToken = { value: d.access_token, exp: Date.now() + d.expires_in * 1000 };
-  return officialToken.value;
+  // (one request for a token at a time: searches arriving together wait for the same one)
+  if (!getOfficialToken.pending) getOfficialToken.pending = (async () => {
+    const r = await fetchImpl(`${osuBase(env)}/oauth/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
+      body: JSON.stringify({ client_id: Number(env.OSU_CLIENT_ID), client_secret: env.OSU_CLIENT_SECRET, grant_type: 'client_credentials', scope: 'public' }),
+      signal: timeout(10000),
+    });
+    if (r.status === 429) {
+      // osu! is limiting logins from this address: stop asking for a while instead of asking on every search
+      osuApi.blockedUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 120) * 1000;
+      throw new Error('osu! OAuth failed (429: osu! is rate-limiting this server for now)');
+    }
+    if (!r.ok) throw new Error(`osu! OAuth failed (${r.status}${r.status === 401 ? ': check OSU_CLIENT_ID / OSU_CLIENT_SECRET' : ''}) ${(await r.text().catch(() => '')).slice(0, 120)}`);
+    const d = await r.json();
+    officialToken = { value: d.access_token, exp: Date.now() + d.expires_in * 1000 };
+    return officialToken.value;
+  })().finally(() => { getOfficialToken.pending = null; });
+  return getOfficialToken.pending;
 }
 
 /** Search params → query understood by osu!/mirrors (keys & stars are osu! search syntax, as WOM sends them). */
@@ -225,24 +237,38 @@ export function officialParams(p) {
   qs.sort();
   return qs;
 }
-async function searchOfficial(p, env, fetchImpl) {
-  const qs = officialParams(p), key = qs.toString();
+/** One osu! API search (WOM's /api/getBeatmaps): from the hour-long cache, or osu! itself — unless osu! asked us to
+ *  wait. Runs in one shared place (the "osu-api" Durable Object) on the live server, so every request shares the same
+ *  osu! login, cache and back-off: each Worker copy logging in by itself got the login rate-limited (429). */
+export async function officialFetch(qs, env, fetchImpl = fetch) {
+  const key = String(qs);
   let d = cacheGet(key);
-  if (!d) {
-    if (Date.now() < osuApi.blockedUntil) throw new Error(`rate-limited by osu!, retrying in ${Math.ceil((osuApi.blockedUntil - Date.now()) / 1000)}s`);
-    const token = await getOfficialToken(env, fetchImpl);
-    const r = await fetchImpl(`${osuBase(env)}/api/v2/beatmapsets/search?${qs}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA, ...proxyKey(env) }, signal: timeout(10000) });
-    if (r.status === 429) {
-      // like WOM: stop asking for Retry-After seconds (5 minutes if osu! doesn't say)
-      osuApi.blockedUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 300) * 1000;
-      throw new Error('rate-limited by osu! (429)');
-    }
-    if (r.status === 401) officialToken = null; // expired / revoked token: fetch a new one next time
-    if (!r.ok) throw new Error(`osu! API ${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120)}`);
-    const raw = await r.json();
-    d = { sets: normalizeList(raw), cursor: raw.cursor_string || null, total: raw.total ?? null };
-    cachePut(key, d);
+  if (d) return d;
+  if (Date.now() < osuApi.blockedUntil) throw new Error(`rate-limited by osu!, retrying in ${Math.ceil((osuApi.blockedUntil - Date.now()) / 1000)}s`);
+  const token = await getOfficialToken(env, fetchImpl);
+  const r = await fetchImpl(`${osuBase(env)}/api/v2/beatmapsets/search?${key}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...UA, ...proxyKey(env) }, signal: timeout(10000) });
+  if (r.status === 429) {
+    // like WOM: stop asking for Retry-After seconds (5 minutes if osu! doesn't say)
+    osuApi.blockedUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 300) * 1000;
+    throw new Error('rate-limited by osu! (429)');
   }
+  if (r.status === 401) officialToken = null; // expired / revoked token: fetch a new one next time
+  if (!r.ok) throw new Error(`osu! API ${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120)}`);
+  const raw = await r.json();
+  d = { sets: normalizeList(raw), cursor: raw.cursor_string || null, total: raw.total ?? null };
+  cachePut(key, d);
+  return d;
+}
+async function searchOfficial(p, env, fetchImpl) {
+  const qs = officialParams(p).toString();
+  let d;
+  if (env.MATCHMAKER && fetchImpl === fetch) {
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api'));
+    const r = await stub.fetch(`https://osu-api/osu/search?${qs}`);
+    const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+    if (!r.ok || body.error) throw new Error(body.error || `HTTP ${r.status}`);
+    d = body;
+  } else d = await officialFetch(qs, env, fetchImpl);
   return json({ sets: postFilter(d.sets, p), page: p.page, hasMore: !!d.cursor, cursor: d.cursor, total: d.total, source: 'osu! API' }, 200, { 'Cache-Control': 'public, max-age=3600' });
 }
 

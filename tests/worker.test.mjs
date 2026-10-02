@@ -195,3 +195,23 @@ test('Web-Osu-Mania\'s /api/downloadBeatmap: passes a provider\'s file through, 
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap'), async () => res('x'))).status, 400);
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://osu.direct/api/d/5')), async () => res('nope', 404, 'text/plain'))).status, 404);
 });
+
+test('osu! login: one token for many searches; a 429 on the login backs off instead of asking on every search', async () => {
+  const { officialFetch, resetOsuLogin } = await import('../worker/index.js');
+  osuApi.cache.clear(); osuApi.blockedUntil = 0; resetOsuLogin();
+  const env = { OSU_CLIENT_ID: '1', OSU_CLIENT_SECRET: 's' };
+  let logins = 0, searches = 0, limit = true;
+  const fetchImpl = async url => {
+    if (url.endsWith('/oauth/token')) { logins++; return limit ? new Response('Too Many Attempts.', { status: 429, headers: { 'Retry-After': '60' } }) : res({ access_token: 't', expires_in: 86400 }); }
+    searches++; return res({ beatmapsets: [osuSet(1)], cursor_string: null });
+  };
+  await assert.rejects(officialFetch('m=3&q=a', env, fetchImpl), /429/);
+  await assert.rejects(officialFetch('m=3&q=b', env, fetchImpl), /rate-limited/);
+  assert.equal(logins, 1, 'no second login attempt while backing off');
+  osuApi.blockedUntil = 0; limit = false;
+  await Promise.all([officialFetch('m=3&q=c', env, fetchImpl), officialFetch('m=3&q=d', env, fetchImpl), officialFetch('m=3&q=e', env, fetchImpl)]);
+  assert.equal(logins, 2, 'searches arriving together share one login');
+  await officialFetch('m=3&q=f', env, fetchImpl);
+  assert.equal(logins, 2); assert.equal(searches, 4);
+  osuApi.cache.clear();
+});
