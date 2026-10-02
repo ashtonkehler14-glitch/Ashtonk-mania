@@ -13,7 +13,7 @@
 //  - The lower total score takes damage: ⌈score difference × (round multiplier + the winner's own multiplier)⌉ plus
 //    50,000. The round multiplier starts at 0.5 and grows by 0.5 a round; a player's own starts at 0.5 and grows by 0.5
 //    every round they win. A hit taken at full life always leaves 1 (last stand).
-//  - The match ends when a player has no life left or the cards run out; the most life wins. Leaving loses (life 0).
+//  - The match ends when a player has no life left or the cards run out; the most life wins. Leaving loses (life 0); a dropped connection gets a minute to come back.
 //  - Matches from the queue are rated (OpenSkill Plackett–Luce on the final life, μ 1500 σ 150 τ 15, as lazer);
 //    a duel between friends is not.
 
@@ -21,7 +21,7 @@ export const RP = {
   LIFE: 1_000_000, HAND: 5, DECK: 50, BASE_DAMAGE: 50_000, NOT_READY_DAMAGE: 100_000,
   WAIT_JOIN: 60_000, DEAL: 15_000, INTRO: 20_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
   FINISH_PICK: 120_000, WARMUP: 120_000, COUNTDOWN: 10_000, RESULTS: 15_000,
-  AWAY: 20_000,        // a dropped connection gets this long to come back before the player is counted as gone
+  AWAY: 60_000,        // a dropped connection gets this long to come back before the player is counted as gone (any match)
   LEAVE_BAN: 600_000,  // leaving a rated match: 10 minutes out of the queue (lazer)
   DECLINE_BAN: 60_000, // declining (or ignoring) a match found by the queue: 1 minute
 };

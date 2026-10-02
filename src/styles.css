@@ -1140,6 +1140,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-mp { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; width: 230px; }
 .hud-mp-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: rgba(0, 0, 0, .5); transition: transform var(--t-med) var(--ease-out); }
 .hud-mp-row.me { background: rgba(var(--accent-rgb), .35); }
+.hud-mp-row.away { opacity: .55; }
 .hud-mp-row .pos { width: 16px; color: #bbb; font-size: .8rem; }
 .hud-mp-row .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .hud-mp-row .nm b { font-weight: 600; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

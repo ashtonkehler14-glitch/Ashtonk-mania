@@ -54,7 +54,7 @@ const Multiplayer = {
       ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -100,7 +100,7 @@ const Multiplayer = {
   leave(silent = false) {
     if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
     this.stopKeepAlive();
-    this.myDiffId = null; this.fetch = null;
+    this.myDiffId = null; this.fetch = null; this._outbox = null;
     if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
@@ -110,7 +110,13 @@ const Multiplayer = {
     if (ws) { try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); ws.close(1000, 'leave'); } catch { /* already closed */ } }
     if (!silent) Bus.emit('mp:changed');
   },
-  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
+  /** Send to the room. A play's result (finish / quit) that can't go out because the connection has dropped waits
+   *  and goes out once it's back: the room keeps your place in the match while you reconnect. */
+  send(m) {
+    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return; }
+    if (m && (m.t === 'finish' || m.t === 'quit') && (this.reconnecting || this.ws)) this._outbox = m;
+  },
+  flushOutbox() { const m = this._outbox; this._outbox = null; if (m) this.send(m); },
   ping() { this._pingAt = performance.now(); this.send({ t: 'ping', c: this._pingAt }); },
   startKeepAlive() {
     this.stopKeepAlive();
@@ -423,6 +429,14 @@ const Presence = {
     const close = o.close; o.close = () => { off(); close(); };
   },
 };
+
+// Closing (or reloading) the tab is leaving on purpose: the room is told at once, rather than waiting for a dropped
+// connection to come back. (A page frozen into the back/forward cache just drops, and reconnects if it's restored.)
+addEventListener('pagehide', e => {
+  const ws = Multiplayer.ws;
+  if (e.persisted || !ws) return;
+  try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); } catch { /* closing */ }
+});
 
 // Leaving the multiplayer area (anything but the room, song select, gameplay or results) leaves the room.
 Bus.on('screen:changed', name => {

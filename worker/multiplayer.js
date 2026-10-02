@@ -131,8 +131,8 @@ export class RoomLogic {
   join(id, name, create, opts = {}) {
     opts = opts && typeof opts === 'object' ? opts : {};
     if (!this.created && !create) return { ok: false, error: 'Room not found — check the code.' };
-    // Ranked Play: a player whose connection dropped comes back as themselves (same tab)
-    const back = this.rp && opts.cid ? this.players.find(p => p.away && p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
+    // a player whose connection dropped mid-match comes back as themselves (same browser)
+    const back = opts.cid ? this.players.find(p => p.away && p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
     if (back) {
       back.away = false; back.awayUntil = 0;
       return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, room: this.snapshot(back.id) } }, this.roomMsg(), this.system(`${back.name} reconnected`)] };
@@ -171,11 +171,14 @@ export class RoomLogic {
     return { ok: true, out };
   }
 
-  /** A connection closed. In a Ranked Play match under way the player gets a moment to come back first. */
+  /** A connection closed. Mid-match (a song being played, or a Ranked Play match under way) a dropped connection isn't
+   *  a loss: the player keeps their place for a while to reconnect. Leaving on purpose (the client says "bye", which
+   *  it also does when its tab is closed) or never coming back is. */
   disconnect(id) {
     const p = this.get(id);
     if (!p) return [];
-    if (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage) && p.cid && !p.leaving) {
+    const midMatch = (this.state === 'playing' && p.playing && !p.finished) || (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage));
+    if (midMatch && p.cid && !p.leaving) {
       p.away = true; p.awayUntil = this.now() + RP.AWAY;
       return [this.system(`${p.name} lost connection — waiting for them to come back`), this.roomMsg()];
     }
@@ -449,7 +452,7 @@ export class RoomLogic {
     return [];
   }
   /** Does the room need its clock ticking (a match to time out, a Quick Play / Ranked Play phase to end)? */
-  wantsTick() { return this.state === 'playing' || !!(this.qp && this.qp.deadline) || !!(this.rp && (this.rp.deadline || this.players.some(p => p.away))); }
+  wantsTick() { return this.state === 'playing' || this.players.some(p => p.away) || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
 
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {

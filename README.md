@@ -22,6 +22,11 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Dropped connections don't lose matches
+- **If your opponent's connection drops mid-match, you no longer win on the spot.** In any match (a room's song or Ranked Play), they keep their place for a minute while their game reconnects by itself, and come back as the same player. Their row on the in-game board fades and says "reconnecting…".
+- **If they come back,** their play counts as normal. A result that finished while they were offline is sent as soon as they're back.
+- **Closing or reloading the tab,** or leaving the room, still ends it straight away, and so does not coming back within the minute.
+
 ### Main menu background, top bar and volume
 - **The main menu background is lazer's triangle artwork, standing still:**
   - A gradient, big solid triangles banked up both sides with soft shadows, faint outlined triangles, and a ring of bright outlined triangles around the logo, traced from lazer's menu background.
@@ -47,7 +52,7 @@ Ranked Play now plays exactly like lazer's. The rules come straight from lazer's
   4. **Warmup:** the card sits beside the beatmap's details while its song plays from the preview point. You're ready as soon as you have the beatmap, then a 10-second countdown starts the song. Anyone not ready within 2 minutes takes 100,000 × the round multiplier and the round is skipped.
   5. **Results:** both scores count up side by side (lazer's standardised score), then the loser takes ⌈difference × (round multiplier + winner's multiplier)⌉ + 50,000. The breakdown flies onto the number and their life bar drains with a shake. The round multiplier starts at 0.5 and grows 0.5 each round; yours grows 0.5 each round you win. A hit at full life always leaves 1 (**Last Stand**).
   6. **End:** VICTORY / DEFEAT / DRAW with both new ratings, then **Play Again** (back into the queue) or **Quit**.
-- **Leaving:** leaving a song scores 0 for that round while your opponent plays on. Leaving the match loses it (and keeps you out of the queue for 10 minutes if it was rated), unless the cards haven't been dealt yet. A dropped connection gets 20 seconds to come back as the same player.
+- **Leaving:** leaving a song scores 0 for that round while your opponent plays on. Leaving the match loses it (and keeps you out of the queue for 10 minutes if it was rated), unless the cards haven't been dealt yet. A dropped connection gets a minute to come back as the same player.
 - **The screen:** lazer's layout, full screen with the top bar hidden:
   - You in blue (bottom left) and your opponent in red (top right), each with their life bar, "N.Nx damage", "Last Stand!" and download state.
   - The stage name with its timer in the middle at the top, which turns red as your pick runs out.

@@ -724,3 +724,39 @@ test('Ranked Play: leaving on purpose isn\'t mistaken for a dropped connection',
   assert.equal(r.rp.stage, 'ended'); assert.equal(r.rp.winner, 'a');
   assert.equal(r.players.length, 1);
 });
+
+test('a dropped connection mid-song keeps the player\'s place until they reconnect; leaving on purpose does not', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('DROP', () => clock.t);
+  r.join('a', 'Alice', true, { cid: 'ca' }); r.join('b', 'Bob', false, { cid: 'cb' });
+  r.message('a', { t: 'map', map: MAP }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  r.message('a', { t: 'start' });
+  assert.equal(r.state, 'playing');
+  // Bob's connection drops: Alice doesn't win on the spot
+  r.disconnect('b');
+  assert.equal(r.get('b').away, true);
+  fin(r, 'a', { score: 500000 });
+  assert.equal(r.state, 'playing', 'the match waits for Bob');
+  clock.t += 30000; r.tick();
+  assert.equal(r.state, 'playing');
+  // he's back (same browser) and finishes his song
+  const back = r.join('b2', 'Bob', false, { cid: 'cb' });
+  assert.equal(back.as, 'b');
+  const out = fin(r, 'b', { score: 700000 });
+  assert.equal(msgs(out, 'results')[0].msg.results.winner, 'b', 'his result counts');
+  // next match: Bob drops and never comes back — after a minute he's gone and Alice wins by forfeit
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  r.message('a', { t: 'start' });
+  r.disconnect('b');
+  clock.t += 60000;
+  const late = r.tick();
+  assert.equal(msgs(late, 'results')[0].msg.results.winner, 'a');
+  // a third: closing the tab (bye) ends it at once
+  const r2 = new RoomLogic('BYE', () => clock.t);
+  r2.join('a', 'Alice', true, { cid: 'ca' }); r2.join('b', 'Bob', false, { cid: 'cb' });
+  r2.message('a', { t: 'map', map: MAP }); r2.message('b', { t: 'hasMap', has: true }); r2.message('a', { t: 'ready', ready: true }); r2.message('b', { t: 'ready', ready: true }); r2.message('a', { t: 'start' });
+  r2.message('b', { t: 'bye' });
+  const now = r2.disconnect('b');
+  assert.equal(msgs(now, 'results')[0].msg.results.winner, 'a');
+});

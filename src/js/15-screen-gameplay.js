@@ -783,7 +783,10 @@ const GameplayScreen = {
     this._mpDrawn = t;
     const order = [...this._mpRows].sort((a, b) => (b.shown - a.shown) || ((b.v.score || 0) - (a.v.score || 0)));
     order.forEach((r, i) => {
-      const pos = i + 1, sub = win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
+      // (a player whose connection dropped keeps their place while they reconnect)
+      const away = !r.me && !!(room && (room.players.find(p => p.id === r.id) || {}).away);
+      if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
+      const pos = i + 1, sub = away ? 'reconnecting…' : win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
       if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
       if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
       if (r._st !== st) { r._st = st; r.sc.textContent = st; }
