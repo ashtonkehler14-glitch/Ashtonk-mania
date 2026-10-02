@@ -80,6 +80,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 - **Kiai star fountains:** when a song's kiai section starts on the main menu, stars burst up from both bottom corners as in lazer. They aim inward, straight up or outward at random, then arc back down, spin and fade.
 - **Menu tips:** a tip about the game shows at the bottom each time you come back to the menu.
 - Six seconds without input bring the big logo back, as in lazer (it was 15).
+- When the game opens, the logo pops in with a white flash and a ring, as at the end of lazer's intro.
 - **Neru stands in front of the button bar** on the main menu instead of behind it.
 
 ### Top bar and now playing, as in lazer

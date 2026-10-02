@@ -8859,6 +8859,15 @@ const HomeScreen = {
     this._parts = []; this._spewers = [];
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
+    // the end of lazer's intro: the logo appears from nothing with a white flash and its impact ring (first visit only)
+    if (!Screens.history.length && !this._introDone && Settings.get('ui.animSpeed')) {
+      this._introDone = true;
+      requestAnimationFrame(() => {
+        this.hoverEl.animate([{ scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 600, easing: 'cubic-bezier(.16, 1, .3, 1)' });
+        this.flash(0.6, 1500, 'cubic-bezier(.16, 1, .3, 1)');
+        setTimeout(() => this.impact(), 120);
+      });
+    }
     this.startMenuMusic();
     this.showTip();
     this._idleAt = performance.now();
