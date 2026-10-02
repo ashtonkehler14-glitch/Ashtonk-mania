@@ -2957,6 +2957,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pm-btn:hover .pm-label, .pm-btn:focus-visible .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
 .pm-info b { font-weight: 700; }
+/* mod select: lazer's 320px columns, 10px apart, with 42px headers */
+.modsel-cols { gap: 10px; }
+.modcol { flex: 0 0 320px; }
+.modcol-h { height: 42px; padding: 0 16px; }
+/* PopupDialog: 60px above the ring, 30px under the buttons */
+.dialog.popup { padding: 60px 0 30px; }
 
 </style>
 </head>
@@ -13742,7 +13748,7 @@ const ModSelect = {
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
     sheet.append(h('div.modsel-head',
-      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods change the way the game plays. Some affect your score multiplier.')),
+      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')),
       h('span.grow'),
       rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
       h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));

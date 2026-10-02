@@ -2940,3 +2940,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pm-btn:hover .pm-label, .pm-btn:focus-visible .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
 .pm-info b { font-weight: 700; }
+/* mod select: lazer's 320px columns, 10px apart, with 42px headers */
+.modsel-cols { gap: 10px; }
+.modcol { flex: 0 0 320px; }
+.modcol-h { height: 42px; padding: 0 16px; }
+/* PopupDialog: 60px above the ring, 30px under the buttons */
+.dialog.popup { padding: 60px 0 30px; }

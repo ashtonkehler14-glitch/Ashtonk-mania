@@ -411,7 +411,7 @@ const ModSelect = {
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
     sheet.append(h('div.modsel-head',
-      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods change the way the game plays. Some affect your score multiplier.')),
+      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')),
       h('span.grow'),
       rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
       h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));
