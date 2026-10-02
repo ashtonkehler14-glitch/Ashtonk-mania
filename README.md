@@ -42,6 +42,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 - **Song ticker:** a new song's title and artist show at the top right for a few seconds.
 - **Menu tips:** a tip about the game shows at the bottom each time you come back to the menu.
 - Six seconds without input bring the big logo back, as in lazer (it was 15).
+- **Neru stands in front of the button bar** on the main menu instead of behind it.
 
 ### Top bar and now playing, as in lazer
 - **Top bar:**
