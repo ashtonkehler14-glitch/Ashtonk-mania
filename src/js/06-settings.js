@@ -140,8 +140,8 @@ const SETTINGS_SCHEMA = [
   // the Custom skin (drawn as Web-Osu-Mania's skins): note type, colour, judgements, darker holds; the hidden ones come
   // over from a WOM backup
   { s: 'Skin', g: 'Custom skin', k: 'wom.style', l: 'Note type', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']], when: () => customSkinOn() },
-  { s: 'Skin', g: 'Custom skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
-  { s: 'Skin', g: 'Custom skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, hint: 'As Web-Osu-Mania: the inner columns take this colour, the outer ones stay white (and an odd middle one gets a contrasting colour).', when: () => womSkinOn() },
+  { x: 1, s: 'Skin', k: 'wom.colorMode', d: 'simple' },
   { s: 'Skin', g: 'Custom skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
   { s: 'Skin', g: 'Custom skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
   { x: 1, s: 'Skin', k: 'wom.customColors', d: null },
@@ -198,6 +198,9 @@ const Settings = {
     // the skin's health bar sits beside the stage, where osu!mania puts it (it used to default to the top-left corner)
     if (!v['migr.hpStage']) { if (v['gameplay.healthStyle'] === 'skin') v['gameplay.healthStyle'] = 'skinstage'; v['migr.hpStage'] = true; }
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
+    // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
+    // backups imported with per-column colours
+    if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },

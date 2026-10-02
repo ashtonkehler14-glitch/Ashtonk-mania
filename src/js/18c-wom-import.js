@@ -94,7 +94,9 @@ const WomImport = {
     // (older backups kept the hue at the top level)
     set('wom.hue', num(colors && colors.simple ? colors.simple.hue : w.hue, 0, 360));
     if (colors && Array.isArray(colors.custom)) set('wom.customColors', colors.custom.map(k => Array.isArray(k) ? k.map(c => ({ tap: String(c && c.tap || ''), holdHead: String(c && c.holdHead || ''), hold: String(c && c.hold || '') })) : null));
-    if (colors && (colors.mode === 'simple' || colors.mode === 'custom')) set('wom.colorMode', colors.mode);
+    // (the colour comes across as WOM's simple mode — white outer columns, the colour inside — whatever mode the
+    // backup used; its per-column colours are kept)
+    set('wom.colorMode', 'simple');
     if (WOM.JUDGEMENT_SETS.some(j => j[0] === sk.judgementSet)) set('wom.judgements', sk.judgementSet);
     if (typeof w.darkerHoldNotes === 'boolean') set('wom.darkerHolds', w.darkerHoldNotes);
     set('wom.noteScale', num(w.noteScale, 0.3, 1.5));

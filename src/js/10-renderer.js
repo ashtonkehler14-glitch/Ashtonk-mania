@@ -583,9 +583,10 @@ class ManiaRenderer {
       if (style === 'bars') {
         ctx.fillStyle = '#1a1a1a'; this._womRect(this.colX[i], this.hitY, this.colW[i], H - this.hitY);
         // WOM's marker: a 40 px rounded square turned 45° below the line (40 of its ~105 px column: scaled to ours)
-        const mk = this.colW[i] * 0.38;
+        // (sized to fit the key area under the line — the turned square is 1.41× its side tall — and centred in it)
+        const area = H - this.hitY, mk = Math.min(this.colW[i] * 0.38, area * 0.6), my = this.hitY + area / 2 - 0.53 * mk;
         ctx.fillStyle = on ? cols[i].tap : '#4d4d4d';
-        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - mk : this.hitY + mk); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
+        ctx.save(); ctx.translate(cx, this.up ? H - my : my); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
         ctx.beginPath(); ctx.roundRect(-mk / 8, -mk / 8, mk, mk, mk / 8); ctx.fill(); ctx.restore();
       } else if (style === 'circles' || style === 'diamonds') {
         const yy = this.up ? H - (this.hitY - ms / 2) : this.hitY - ms / 2;

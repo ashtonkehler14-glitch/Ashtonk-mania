@@ -96,7 +96,7 @@ test('official osu! API: the same request Web-Osu-Mania sends, cached, with back
   const d = await search('q=camellia&keys=4,7&minStars=3&maxStars=6');
   const u = new URL(calls.find(c => c.includes('beatmapsets/search')));
   assert.equal(u.searchParams.get('m'), '3');
-  assert.equal(u.searchParams.get('q'), 'stars>=3 stars<=6 key>=4 key<=7 camellia');
+  assert.equal(u.searchParams.get('q'), 'stars>=3 stars<=6 key=4 key=7 camellia');
   assert.equal(u.searchParams.get('sort'), null, 'the default order is left to osu! (relevance for a text search)');
   assert.equal(u.searchParams.get('s'), null, '"Has leaderboard" is osu!\'s default category');
   assert.equal(u.searchParams.get('nsfw'), 'true');

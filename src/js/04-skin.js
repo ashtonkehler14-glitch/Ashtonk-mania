@@ -648,6 +648,7 @@ const WOM = {
   /** The colours a game uses: the hue's, or the custom ones a WOM backup brought (anything that isn't a colour turns
    *  white, as WOM's patchLaneColors does). */
   colors(keys) {
+    // (per-column colours from a backup are kept, but only used if asked for: the colour setting is WOM's simple mode)
     const custom = Settings.get('wom.colorMode') === 'custom' && Settings.get('wom.customColors');
     const cols = custom && Array.isArray(custom[keys - 1]) && custom[keys - 1].length === keys ? custom[keys - 1] : null;
     if (!cols) return WOM.laneColors(keys, Settings.get('wom.hue'), Settings.get('wom.darkerHolds'));

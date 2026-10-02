@@ -4632,6 +4632,7 @@ const WOM = {
   /** The colours a game uses: the hue's, or the custom ones a WOM backup brought (anything that isn't a colour turns
    *  white, as WOM's patchLaneColors does). */
   colors(keys) {
+    // (per-column colours from a backup are kept, but only used if asked for: the colour setting is WOM's simple mode)
     const custom = Settings.get('wom.colorMode') === 'custom' && Settings.get('wom.customColors');
     const cols = custom && Array.isArray(custom[keys - 1]) && custom[keys - 1].length === keys ? custom[keys - 1] : null;
     if (!cols) return WOM.laneColors(keys, Settings.get('wom.hue'), Settings.get('wom.darkerHolds'));
@@ -5566,8 +5567,8 @@ const SETTINGS_SCHEMA = [
   // the Custom skin (drawn as Web-Osu-Mania's skins): note type, colour, judgements, darker holds; the hidden ones come
   // over from a WOM backup
   { s: 'Skin', g: 'Custom skin', k: 'wom.style', l: 'Note type', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']], when: () => customSkinOn() },
-  { s: 'Skin', g: 'Custom skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
-  { s: 'Skin', g: 'Custom skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, hint: 'As Web-Osu-Mania: the inner columns take this colour, the outer ones stay white (and an odd middle one gets a contrasting colour).', when: () => womSkinOn() },
+  { x: 1, s: 'Skin', k: 'wom.colorMode', d: 'simple' },
   { s: 'Skin', g: 'Custom skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
   { s: 'Skin', g: 'Custom skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
   { x: 1, s: 'Skin', k: 'wom.customColors', d: null },
@@ -5624,6 +5625,9 @@ const Settings = {
     // the skin's health bar sits beside the stage, where osu!mania puts it (it used to default to the top-left corner)
     if (!v['migr.hpStage']) { if (v['gameplay.healthStyle'] === 'skin') v['gameplay.healthStyle'] = 'skinstage'; v['migr.hpStage'] = true; }
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
+    // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
+    // backups imported with per-column colours
+    if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     this.applyUI();
   },
@@ -7470,9 +7474,10 @@ class ManiaRenderer {
       if (style === 'bars') {
         ctx.fillStyle = '#1a1a1a'; this._womRect(this.colX[i], this.hitY, this.colW[i], H - this.hitY);
         // WOM's marker: a 40 px rounded square turned 45° below the line (40 of its ~105 px column: scaled to ours)
-        const mk = this.colW[i] * 0.38;
+        // (sized to fit the key area under the line — the turned square is 1.41× its side tall — and centred in it)
+        const area = H - this.hitY, mk = Math.min(this.colW[i] * 0.38, area * 0.6), my = this.hitY + area / 2 - 0.53 * mk;
         ctx.fillStyle = on ? cols[i].tap : '#4d4d4d';
-        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - mk : this.hitY + mk); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
+        ctx.save(); ctx.translate(cx, this.up ? H - my : my); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
         ctx.beginPath(); ctx.roundRect(-mk / 8, -mk / 8, mk, mk, mk / 8); ctx.fill(); ctx.restore();
       } else if (style === 'circles' || style === 'diamonds') {
         const yy = this.up ? H - (this.hitY - ms / 2) : this.hitY - ms / 2;
@@ -13376,13 +13381,13 @@ const SkinsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
-  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
+  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.judgements', 'wom.darkerHolds'],
   /** The Custom skin's options next to its preview (the same controls as in Settings → Skin): note type, colour,
    *  judgement set, darker holds. */
   customPanel(wom = false) {
     const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
     // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
-    const rowOf = d => !wom ? d : d.k === 'wom.hue' ? { ...d, when: () => Settings.get('wom.colorMode') !== 'custom' } : d.k === 'wom.colorMode' ? { ...d, when: () => !!Settings.get('wom.customColors') } : { ...d, when: undefined };
+    const rowOf = d => !wom ? d : { ...d, when: undefined };
     const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of keys) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
       h('div.settings-panel.sk-custom-rows', ...keys.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(rowOf(d)))));
     paint();
@@ -15080,7 +15085,9 @@ const WomImport = {
     // (older backups kept the hue at the top level)
     set('wom.hue', num(colors && colors.simple ? colors.simple.hue : w.hue, 0, 360));
     if (colors && Array.isArray(colors.custom)) set('wom.customColors', colors.custom.map(k => Array.isArray(k) ? k.map(c => ({ tap: String(c && c.tap || ''), holdHead: String(c && c.holdHead || ''), hold: String(c && c.hold || '') })) : null));
-    if (colors && (colors.mode === 'simple' || colors.mode === 'custom')) set('wom.colorMode', colors.mode);
+    // (the colour comes across as WOM's simple mode — white outer columns, the colour inside — whatever mode the
+    // backup used; its per-column colours are kept)
+    set('wom.colorMode', 'simple');
     if (WOM.JUDGEMENT_SETS.some(j => j[0] === sk.judgementSet)) set('wom.judgements', sk.judgementSet);
     if (typeof w.darkerHoldNotes === 'boolean') set('wom.darkerHolds', w.darkerHoldNotes);
     set('wom.noteScale', num(w.noteScale, 0.3, 1.5));

@@ -363,13 +363,13 @@ const SkinsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
-  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
+  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.judgements', 'wom.darkerHolds'],
   /** The Custom skin's options next to its preview (the same controls as in Settings → Skin): note type, colour,
    *  judgement set, darker holds. */
   customPanel(wom = false) {
     const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
     // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
-    const rowOf = d => !wom ? d : d.k === 'wom.hue' ? { ...d, when: () => Settings.get('wom.colorMode') !== 'custom' } : d.k === 'wom.colorMode' ? { ...d, when: () => !!Settings.get('wom.customColors') } : { ...d, when: undefined };
+    const rowOf = d => !wom ? d : { ...d, when: undefined };
     const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of keys) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
       h('div.settings-panel.sk-custom-rows', ...keys.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(rowOf(d)))));
     paint();

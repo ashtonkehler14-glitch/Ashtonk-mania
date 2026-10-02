@@ -114,8 +114,8 @@ export function buildParams(url) {
   const sp = url.searchParams;
   const keys = [...new Set((sp.get('keys') || '').split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 18))].sort((a, b) => a - b);
   const minStars = parseFloat(sp.get('minStars') || '0') || 0, maxStars = parseFloat(sp.get('maxStars') || '0') || 0;
-  // several key counts: osu! keeps only the last "key=" filter, so ask for the range and keep the exact ones below
-  const keyQ = keys.length === 1 ? [`key=${keys[0]}`] : keys.length > 1 ? [`key>=${keys[0]}`, `key<=${keys[keys.length - 1]}`] : [];
+  // one "key=N" per key count, exactly as Web-Osu-Mania's getBeatmapSets() writes them
+  const keyQ = keys.map(k => `key=${k}`);
   const extra = [minStars > 0 ? `stars>=${minStars}` : '', maxStars > 0 ? `stars<=${maxStars}` : '', ...keyQ].filter(Boolean);
   const rawQ = (sp.get('q') || '').slice(0, 200).trim();
   const int = (k, lo, hi) => { const v = parseInt(sp.get(k) || '', 10); return v >= lo && v <= hi ? v : null; };
