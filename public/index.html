@@ -169,7 +169,7 @@ svg.i.fill { fill: currentColor; stroke: none; }
 .tb-time { font-size: 16px; font-weight: 500; line-height: 14px; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tb-run { display: flex; gap: 2px; margin-top: 3px; color: #ff99cc; font-size: 10px; font-weight: 600; line-height: 10px; white-space: nowrap; }
 .tb-run > span:last-child { letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
-@media (max-width: 900px) { .tb-profile .lbl { display: none; } .tb-profile { padding: 0 13px; } }
+@media (max-width: 900px) and (hover: none) { .tb-profile .lbl { display: none; } .tb-profile { padding: 0 13px; } }
 
 /* now playing panel */
 /* ── now playing: osu!lazer's NowPlayingOverlay — 400×130, 10px in from the right under the toolbar; fades in over
@@ -233,6 +233,18 @@ svg.i.fill { fill: currentColor; stroke: none; }
 .screen.enter.from-right { animation-name: scrInRight; }
 .screen.enter.zoom { animation-name: scrInZoom; }
 .screen.leave.zoom { animation-name: scrOutZoom; }
+/* leaving the main menu (lazer: MainMenu.OnSuspending fades it out over 400ms, InSine, while the next screen fades in
+   over 250ms on top); song select's wedge slides in from the left and its carousel from the right (800ms, OutQuint) */
+.screen.leave.from-menu { animation: scrOutMenu calc(420ms * var(--anim)) cubic-bezier(.12, 0, .39, 0) both; z-index: 0; }
+.screen.enter.after-menu { animation: scrInMenu calc(250ms * var(--anim)) linear both; z-index: 1; }
+.screen.enter.after-menu .ss-info { animation: ssWedgeIn calc(800ms * var(--anim)) var(--oq, cubic-bezier(.22, 1, .36, 1)) both; }
+.screen.enter.after-menu .ss-right { animation: ssCarIn calc(800ms * var(--anim)) var(--oq, cubic-bezier(.22, 1, .36, 1)) both; }
+.screen.enter.after-menu .ss-footer { animation: ssFootIn calc(500ms * var(--anim)) var(--oq, cubic-bezier(.22, 1, .36, 1)) both; }
+@keyframes scrOutMenu { to { opacity: 0; } }
+@keyframes scrInMenu { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ssWedgeIn { from { transform: translateX(-120px); opacity: 0; } }
+@keyframes ssCarIn { from { transform: translateX(160px); opacity: 0; } }
+@keyframes ssFootIn { from { transform: translateY(60px); } }
 @keyframes scrIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes scrInRight { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
 @keyframes scrInZoom { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
@@ -486,7 +498,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-main::before { content: ""; position: absolute; inset: 0 40% 0 0; background: linear-gradient(90deg, rgba(0, 0, 0, .3), transparent); pointer-events: none; }
 .ss-info { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0 0 10px; min-height: 0; }
 .ss-right { position: relative; display: flex; flex-direction: column; min-height: 0; background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .5)); }
-@media (max-width: 1000px) { .ss-main { grid-template-columns: 1fr; } .ss-info { display: none; } .ss { --k: .45; } }
+@media (max-width: 1000px) and (hover: none) { .ss-main { grid-template-columns: 1fr; } .ss-info { display: none; } .ss { --k: .45; } }
 /* sheared backgrounds: the box stays upright (so text isn't slanted) and a skewed ::before draws the shape */
 .wedge, .wd, .ss-filter, .ss-search, .ss-sel, .lb-head .lb-tab, .lb-head .lb-scope, .lb-row, .w-plays, .w-fav { position: relative; isolation: isolate; }
 .wedge::before, .wd::before, .wd-box::before, .ss-filter::before, .ss-search::before, .ss-sel::before, .lb-tab::before, .lb-scope::before, .lb-row::before, .w-plays::before, .w-fav::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); }
@@ -726,7 +738,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .results { padding-top: var(--toolbar-h); }
 .res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, calc(3 * var(--vw)), 48px) 26px; }
 .res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
-@media (max-width: 1000px) { .res-grid { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) { .res-grid { grid-template-columns: minmax(0, 440px); } }
 /* osu!lazer's expanded score panel */
 .rs { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: rsIn 500ms var(--ease-out) both; }
 @keyframes rsIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
@@ -798,7 +810,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .list-row .s { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list-row .grade { font-size: 1.6rem; width: 40px; text-align: center; }
 .split { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
-@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+@media (max-width: 900px) and (hover: none) { .split { grid-template-columns: 1fr; } }
 .side-list { display: flex; flex-direction: column; gap: 6px; }
 .side-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); text-align: left; width: 100%; font-weight: 600; transition: all var(--t-fast); }
 .side-item:hover { border-color: var(--line-2); }
@@ -821,7 +833,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .big-stat .v { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .big-stat .sub { font-size: .76rem; color: var(--muted); }
 .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-@media (max-width: 1000px) { .chart-row { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) and (hover: none) { .chart-row { grid-template-columns: 1fr; } }
 .table { width: 100%; border-collapse: collapse; font-size: .86rem; }
 .table th { text-align: left; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .table td { padding: 8px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
@@ -892,7 +904,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-range input[type=range].slider::-moz-range-thumb { pointer-events: auto; }
 .ex-starval { min-width: 96px; font-weight: 600; color: var(--accent-3); font-size: .85rem; }
 .ex-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 600px) { .ex-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) and (hover: none) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-statuspill { font-size: .62rem; font-weight: 700; letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; background: #444; color: #fff; }
 .st-ranked, .st-approved { background: #b3ff66; color: #1a2600; } .st-qualified { background: #66ccff; color: #00202e; } .st-loved { background: #ff66aa; color: #2e0014; }
 .st-pending, .st-wip { background: #ffd966; color: #2e2300; } .st-graveyard { background: #1a1a1a; color: #aaa; }
@@ -938,8 +950,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-action { flex: none; display: flex; align-items: center; }
 .ex-action .btn.sm { height: 30px; padding: 0 12px; }
 .ex-progress { --p: 0%; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: .56rem; font-weight: 700; background: radial-gradient(closest-side, #2a2830 76%, transparent 78% 100%), conic-gradient(var(--accent) var(--p), rgba(255, 255, 255, .12) 0); }
-@media (max-width: 1350px) { .ex-srange { display: none; } }
-@media (max-width: 1100px) { .ex-action .btn.sm { font-size: 0; width: 32px; padding: 0; gap: 0; } .ex-action .btn.sm .i { width: 16px; height: 16px; } }
+@media (max-width: 1350px) and (hover: none) { .ex-srange { display: none; } }
+@media (max-width: 1100px) and (hover: none) { .ex-action .btn.sm { font-size: 0; width: 32px; padding: 0; gap: 0; } .ex-action .btn.sm .i { width: 16px; height: 16px; } }
 
 /* ── Beatmap set overlay */
 .dialog.ex-set { width: min(860px, calc(calc(100 * var(--vw)) - 32px)); padding: 0; overflow: hidden auto; background: #26242c; }
@@ -977,7 +989,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-attr .bar i { display: block; height: 100%; border-radius: inherit; background: #fff; transition: width var(--t-med) var(--ease-out); }
 .ex-attr:last-child .bar i { background: #ffd966; }
 .ex-attr b { text-align: right; font-variant-numeric: tabular-nums; }
-@media (max-width: 700px) { .ex-set-body { grid-template-columns: 1fr; } .ex-set-t { font-size: 1.35rem; } }
+@media (max-width: 700px) and (hover: none) { .ex-set-body { grid-template-columns: 1fr; } .ex-set-t { font-size: 1.35rem; } }
 .ex-status { padding: 18px 0 30px; text-align: center; }
 .ex-loading { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-2); }
 .ex-error { text-align: left; padding: 16px 18px; border-color: rgba(255, 74, 92, .45); max-width: 760px; margin: 0 auto; }
@@ -1088,7 +1100,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pf-ppblock.failed { color: #ff6b77; font-size: .8rem; }
 .pf-ppblock.failed::after { content: ""; }
 .pf-empty { color: var(--muted); padding: 16px 4px; }
-@media (max-width: 700px) { .pf-header { margin: -16px -16px 0; } .pf-tabs { margin: 0 -16px 8px; } .pf-header, .pf-tabs { --pf-pad: 16px; } .pf-top { height: 190px; } .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; } .pf-weight, .pf-mods { display: none; } .pf-lvl-bar { width: 90px; } }
+@media (max-width: 700px) and (hover: none) { .pf-header { margin: -16px -16px 0; } .pf-tabs { margin: 0 -16px 8px; } .pf-header, .pf-tabs { --pf-pad: 16px; } .pf-top { height: 190px; } .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; } .pf-weight, .pf-mods { display: none; } .pf-lvl-bar { width: 90px; } }
 .lib-summary { color: var(--muted); font-size: .85rem; }
 
 .res-more { border-radius: 10px; }
@@ -1159,7 +1171,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-room-label { color: var(--muted); font-size: .8rem; }
 .mp-room-code { font-size: 1.8rem; font-weight: 600; letter-spacing: .12em; }
 .mp-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
-@media (max-width: 1000px) { .mp-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) and (hover: none) { .mp-grid { grid-template-columns: 1fr; } }
 .mp-left { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .mp-map { position: relative; min-height: 180px; border-radius: 10px; overflow: hidden; background: var(--panel-3); }
 .mp-map-bg { position: absolute; inset: 0; background: center / cover; opacity: .7; }
@@ -1275,7 +1287,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .modsel-foot { display: flex; align-items: center; gap: 10px; height: 54px; padding-right: 32px; background: #111014; flex: none; }
 .modsel-foot .lz-back { margin-right: 6px; }
 .modsel-hint { color: var(--muted); font-size: .78rem; margin-right: 8px; }
-@media (max-width: 900px) { .modsel-hint { display: none; } .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 900px) and (hover: none) { .modsel-hint { display: none; } .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
 .mp-side { border-radius: 10px; background: var(--panel-solid); display: flex; flex-direction: column; min-height: 320px; overflow: hidden; }
 .mp-tabs { display: flex; gap: 4px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); flex: none; }
 .mp-tab { color: var(--text); padding: 8px 12px; font-weight: 600; font-size: .9rem; border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
@@ -1430,7 +1442,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 input[type=range].slider.setup-hue::-webkit-slider-runnable-track { height: 8px; background: linear-gradient(90deg, hsl(0, 80%, 69%), hsl(60, 80%, 69%), hsl(120, 80%, 69%), hsl(180, 80%, 69%), hsl(240, 80%, 69%), hsl(300, 80%, 69%), hsl(360, 80%, 69%)); }
 input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; border-color: #fff; background: transparent; }
 .setup-hue { align-self: stretch; }
-@media (max-width: 700px) {
+@media (max-width: 700px) and (hover: none) {
   .setup-choices.two, .setup-split { grid-template-columns: 1fr; }
   .setup-pv { min-height: 260px; }
   .setup-body { padding-left: 16px; padding-right: 16px; }
@@ -1477,7 +1489,7 @@ input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; bor
 .pl-hint > span { display: inline-flex; align-items: center; gap: 5px; }
 @keyframes plIn { from { opacity: 0; transform: translateY(18px) scale(.97); } }
 @keyframes plSide { from { opacity: 0; transform: translateX(34px); } }
-@media (max-width: 820px) { .gp-loader { grid-template-columns: 1fr; overflow: auto; align-items: start; } .pl-settings { margin-top: 0; } }
+@media (max-width: 820px) and (hover: none) { .gp-loader { grid-template-columns: 1fr; overflow: auto; align-items: start; } .pl-settings { margin-top: 0; } }
 /* hold ` to retry */
 .hold-retry { position: absolute; left: 50%; top: 18px; z-index: 30; display: flex; flex-direction: column; gap: 7px; align-items: center; padding: 8px 16px 10px; border-radius: 10px; background: rgba(0, 0, 0, .72); font-size: .82rem; font-weight: 700; opacity: 0; transform: translate(-50%, -8px); pointer-events: none; transition: opacity 150ms, transform 150ms; }
 .hold-retry span { display: inline-flex; align-items: center; gap: 6px; }
@@ -1496,11 +1508,27 @@ div.res-calib .i { color: var(--good); }
 .neru { position: absolute; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; z-index: 2; height: min(calc(46 * var(--vh)), 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
 .neru[hidden] { display: none; }
 .neru-img { display: block; height: 100%; width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
-.neru.hop .neru-img { animation: neruHop 420ms var(--ease-out); }
-@keyframes neruIn { from { opacity: 0; transform: translateY(40px); } }
-@keyframes neruSway { 50% { transform: translateY(-4px) rotate(.6deg); } }
-@keyframes neruHop { 40% { transform: translateY(-14px) scale(1.02); } }
-@media (max-height: 520px), (max-width: 700px) { .neru { display: none; } }
+.neru.hop .neru-img { animation: neruHop 620ms linear; }
+/* the body leans and bobs (set per frame); breathing and the hop are on the picture; a soft shadow under her feet */
+.neru-body { display: block; height: 100%; transform-origin: 50% 100%; will-change: transform; transition: filter 300ms var(--ease-out); }
+.neru.perk .neru-body { filter: brightness(1.06); }
+.neru.perk .neru-img { translate: 0 -6px; scale: 1.015; }
+.neru-img { transition: translate 350ms cubic-bezier(.34, 1.56, .64, 1), scale 350ms cubic-bezier(.34, 1.56, .64, 1); }
+.neru-shadow { position: absolute; left: 12%; right: 18%; bottom: -6px; height: 18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); pointer-events: none; transform-origin: 50% 50%; }
+.neru.hop .neru-shadow { animation: neruShadow 620ms linear; }
+.neru-say { position: absolute; left: 62%; top: 4%; padding: 7px 13px; border-radius: 14px 14px 14px 4px; background: #fff; color: #3a2a4a; font-weight: 700; font-size: 14px; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); pointer-events: none; opacity: 0; transform-origin: 0 100%; transform: scale(.4) translateY(10px); }
+.neru-say.show { animation: neruSay 1900ms var(--ease-out) both; }
+.neru-spark { position: absolute; width: 9px; height: 9px; pointer-events: none; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
+@keyframes neruIn { 0% { opacity: 0; transform: translateY(60px); } 60% { opacity: 1; transform: translateY(-8px); } 100% { transform: none; } }
+@keyframes neruSway { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(1.005, 1.012); } }
+/* a little crouch, the jump, and a squash as she lands */
+@keyframes neruHop { 0% { transform: none; } 14% { transform: translateY(3px) scale(1.04, .94); animation-timing-function: cubic-bezier(.2, .8, .4, 1); }
+  45% { transform: translateY(-26px) scale(.97, 1.04); animation-timing-function: cubic-bezier(.6, 0, .8, .4); } 72% { transform: translateY(2px) scale(1.05, .93); }
+  86% { transform: translateY(-3px) scale(.99, 1.01); } 100% { transform: none; } }
+@keyframes neruShadow { 45% { transform: scaleX(.7); opacity: .5; } 72% { transform: scaleX(1.08); } }
+@keyframes neruSay { 0% { opacity: 0; transform: scale(.4) translateY(10px); } 12% { opacity: 1; transform: scale(1.06) translateY(0); } 20% { transform: scale(1); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.9) translateY(-6px); } }
+@media (max-height: 520px) and (hover: none), (max-width: 700px) and (hover: none) { .neru { display: none; } }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
@@ -1578,13 +1606,13 @@ div.res-calib .i { color: var(--good); }
 .ov-tab:hover::after { transform: scaleX(.6); opacity: .6; }
 .ov-tab.on { color: #fff; font-weight: 700; }
 .ov-tab.on::after { transform: none; opacity: 1; }
-@media (max-width: 700px) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
+@media (max-width: 700px) and (hover: none) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
 /* beatmap listing (explorer): lazer's BeatmapListingSearchControl — a full-width Dark6 band with the big search box
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
 .explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
 /* lazer's listing keeps wide margins either side: the content is centred at a readable width (3 columns) */
 .explorer.ov .ov-content, .explorer.ov .ov-inner { max-width: none; padding-left: max(80px, calc((100% - 1260px) / 2)); padding-right: max(80px, calc((100% - 1260px) / 2)); }
-@media (max-width: 700px) { .explorer.ov .ov-content, .explorer.ov .ov-inner { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 700px) and (hover: none) { .explorer.ov .ov-content, .explorer.ov .ov-inner { padding-left: 16px; padding-right: 16px; } }
 .explorer.ov .ex-search { background: var(--ob4); border-color: transparent; border-radius: 8px; }
 .explorer.ov .ex-search:focus { border-color: var(--ohl); box-shadow: none; }
 .explorer.ov .ex-flabel { color: var(--ol2); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: .8rem; }
@@ -1683,7 +1711,7 @@ div.res-calib .i { color: var(--good); }
 .mod-p.on .mod-ac { background: rgba(0, 0, 0, .25); color: #fff; }
 .modsel-foot { background: hsl(var(--o-h) 10% 7%); padding-right: 50px; }
 .modsel-foot .btn:not(.primary) { background: hsl(var(--o-h) 10% 20%); }
-@media (max-width: 900px) { .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 900px) and (hover: none) { .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
 
 /* ── song select footer — osu!lazer's ScreenFooter: a 50px Background5 bar (Blue scheme) with ScreenFooterButtons
    standing up out of it: sheared 116×75, 10px corners (the bottom ones hidden below the screen edge), Background3,
@@ -1757,7 +1785,7 @@ div.res-calib .i { color: var(--good); }
 .pl-group input[type=range].slider::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; box-shadow: 0 0 8px rgba(255, 204, 34, .5); }
 .pl-group input[type=range].slider::-moz-range-progress { background: #ffcc22; }
 .pl-group input[type=range].slider::-moz-range-thumb { border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; }
-@media (max-width: 800px) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
+@media (max-width: 800px) and (hover: none) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
 /* like lazer's toast tray, notifications step aside while the now-playing panel or a menu is open at the top right */
 #toasts { transition: opacity 200ms; }
 body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
@@ -1867,7 +1895,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .qp-key { height: 30px; min-width: 44px; border: 0; border-radius: 6px; background: none; color: rgba(255, 255, 255, .65); font-weight: 700; cursor: pointer; }
 .qp-key.on { background: hsl(var(--o-h, 320) 45% 45%); color: #fff; }
 .qp-play { height: 44px; padding: 0 26px; font-size: 1rem; }
-@media (max-width: 760px) { .qp-banner { flex-wrap: wrap; } .qp-banner-go { width: 100%; justify-content: space-between; } }
+@media (max-width: 760px) and (hover: none) { .qp-banner { flex-wrap: wrap; } .qp-banner-go { width: 100%; justify-content: space-between; } }
 
 .mp-rules { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: 18px; }
 .mp-rule { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .76rem; font-weight: 600; color: var(--text-2); }
@@ -1881,7 +1909,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-team-h { display: flex; align-items: center; gap: 8px; padding: 2px 4px; font-weight: 700; font-size: .85rem; }
 .mp-team.red .mp-team-h > span:first-child { color: var(--team-red-l); }
 .mp-team.blue .mp-team-h > span:first-child { color: var(--team-blue-l); }
-@media (max-width: 900px) { .mp-teams { grid-template-columns: 1fr; } }
+@media (max-width: 900px) and (hover: none) { .mp-teams { grid-template-columns: 1fr; } }
 
 .mp-set { display: flex; flex-direction: column; gap: 16px; min-width: min(560px, calc(80 * var(--vw))); }
 .mp-set-row { display: flex; flex-direction: column; gap: 7px; }
@@ -2035,8 +2063,14 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .vo-mute .i { width: 18px; height: 18px; }
 
 /* the lazer cursor everywhere outside gameplay (text fields keep the text cursor) */
-body.lz-cursor, body.lz-cursor * { cursor: var(--lz-cursor); }
-body.lz-cursor.lz-down, body.lz-cursor.lz-down * { cursor: var(--lz-cursor-down); }
+body.lz-cursor, body.lz-cursor * { cursor: none !important; }
+/* lazer's menu cursor (LazerCursor): its texture, tip at the pointer; the pink additive glow while pressed */
+#lz-cur { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; will-change: transform; }
+#lz-cur[hidden] { display: none; }
+.lzc-rot, .lzc-scale { position: absolute; left: 0; top: 0; width: var(--lzc-w); height: var(--lzc-h); transform-origin: 0 0; }
+.lzc-img { display: block; width: 100%; height: 100%; user-select: none; }
+.lzc-add { position: absolute; inset: 0; opacity: 0; background: #ff66aa; mix-blend-mode: plus-lighter;
+  -webkit-mask: url(lazer/menu-cursor-additive.png) 0 0 / 100% 100% no-repeat; mask: url(lazer/menu-cursor-additive.png) 0 0 / 100% 100% no-repeat; }
 body.lz-cursor input[type="text"], body.lz-cursor input:not([type]), body.lz-cursor input[type="search"], body.lz-cursor textarea { cursor: text; }
 
 /* Discover: online players as lazer's user cards */
@@ -2091,11 +2125,11 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-custom-h .btn { margin-left: auto; }
 .sk-custom-rows { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
-@media (max-width: 1000px) { .sk-custom-wrap { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) and (hover: none) { .sk-custom-wrap { grid-template-columns: 1fr; } }
 
 /* ── beatmap listing, lazer style: BeatmapCardNormal (thumbnail + details over the faded cover), two columns */
 .ex-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 900px) { .ex-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) and (hover: none) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card { position: relative; isolation: isolate; overflow: hidden; display: flex; height: 100px; padding: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; transition: transform 200ms var(--ease-out), box-shadow 200ms; animation: rowIn 300ms var(--ease-out) both; }
 .ex-card:hover, .ex-card:focus-visible { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); outline: none; }
 .ex-cardbg { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat; opacity: 0; transition: opacity 400ms; }
@@ -2197,7 +2231,7 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .bso-scorelist { display: flex; flex-direction: column; gap: 4px; }
 .bso-score { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); font-size: .88rem; }
 .bso-rank { width: 28px; color: rgba(255, 255, 255, .55); font-weight: 700; }
-@media (max-width: 900px) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
+@media (max-width: 900px) and (hover: none) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
 .bso-scroll { padding-top: 0; }
@@ -2258,7 +2292,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-lobby-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .mp-lobby-l { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .mp-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 26px; }
-@media (max-width: 900px) { .mp-modes { grid-template-columns: 1fr; } }
+@media (max-width: 900px) and (hover: none) { .mp-modes { grid-template-columns: 1fr; } }
 .mp-mode { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto; gap: 14px 18px; padding: 22px; border-radius: 14px; box-shadow: 0 8px 26px rgba(0, 0, 0, .35); animation: rowIn 350ms var(--ease-out) both; }
 .mp-mode::after { content: ""; position: absolute; inset: 0; z-index: -1; background: repeating-linear-gradient(-60deg, rgba(255, 255, 255, .03) 0 14px, transparent 14px 28px); }
 .mp-mode.qp { background: linear-gradient(125deg, hsl(320 45% 26%), hsl(270 35% 16%) 70%); }
@@ -2301,8 +2335,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 
 /* beatmap listing: three columns; lazer's hover panel slides out on the card's right with like / download */
 .ex-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 1100px) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .ex-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) and (hover: none) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) and (hover: none) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
 .ex-card:hover .ex-cb, .ex-card:has(:focus-visible) .ex-cb { padding-right: 52px; }
 .ex-side { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; background: hsl(var(--o-h) 10% 10% / .92); transform: translateX(100%); transition: transform 250ms var(--ease-out); }
@@ -2345,7 +2379,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-cr-card.on .mp-cr-ico { background: #ff66ab; }
 .mp-cr-ico .i { width: 20px; height: 20px; }
 .mp-cr-keys { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--text-2); }
-@media (max-width: 700px) { .mp-cr-row { grid-template-columns: 1fr; } }
+@media (max-width: 700px) and (hover: none) { .mp-cr-row { grid-template-columns: 1fr; } }
 .dialog:has(.mp-cr) { width: min(700px, calc(94 * var(--vw))) !important; max-width: none !important; }
 .mp-cr { min-width: 0; }
 
@@ -2383,7 +2417,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-grid.stats-open { grid-template-columns: 400px minmax(0, 700px); }
 .res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
 @keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-@media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
 
 /* skins: one compact key-count stepper instead of eighteen chips */
 .sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -2778,7 +2812,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rq-rd { font-weight: 700; text-align: right; }
 .rq-match.win .rq-rd { color: #b3d944; }
 .rq-match.loss .rq-rd { color: #ff5f7a; }
-@media (max-width: 720px) { .rq-match { grid-template-columns: 48px minmax(0, 1fr) auto; } .rq-life, .rq-when, .rq-won { display: none; } }
+@media (max-width: 720px) and (hover: none) { .rq-match { grid-template-columns: 48px minmax(0, 1fr) auto; } .rq-life, .rq-when, .rq-won { display: none; } }
 .rq-offer { display: flex; flex-direction: column; align-items: stretch; gap: 14px; min-width: min(440px, 80vw); }
 .rq-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
 .rq-x { font-size: 1.6rem; font-weight: 900; font-style: italic; background: linear-gradient(90deg, #5ebfff, #ff8198); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -2789,7 +2823,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rq-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .rq-bar i { display: block; height: 100%; background: #5ebfff; transform-origin: left; transition: transform 1.5s linear; }
 .rq-note { text-align: center; font-size: .9rem; color: var(--text-2); }
-@media (max-width: 900px) { .rkm-corner { width: min(340px, 48vw); padding: 10px 12px; } .rkm-name { font-size: 1.05rem; } .rkh-slot { left: calc(50% + var(--x) * 96px); } .rkc { --cw: 128px; } .rkr-cols { grid-template-columns: 1fr; } .rkw { grid-template-columns: 1fr; justify-items: center; } .rkw-sep { display: none; } .rki-x { font-size: 3.6rem; } .rke-title { font-size: 4.2rem; } .rkm-chat { display: none; } }
+@media (max-width: 900px) and (hover: none) { .rkm-corner { width: min(340px, 48vw); padding: 10px 12px; } .rkm-name { font-size: 1.05rem; } .rkh-slot { left: calc(50% + var(--x) * 96px); } .rkc { --cw: 128px; } .rkr-cols { grid-template-columns: 1fr; } .rkw { grid-template-columns: 1fr; justify-items: center; } .rkw-sep { display: none; } .rki-x { font-size: 3.6rem; } .rke-title { font-size: 4.2rem; } .rkm-chat { display: none; } }
 
 /* ── main menu: osu!lazer's ButtonSystem and OsuLogo, in lazer's units (1 unit = 1px at UI scaling 100%).
    The stage is the whole screen; with the toolbar showing it sits 20px lower (lazer pushes screens down by the bar). */
@@ -2814,6 +2848,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: -20px; }
 .lz-btn.exp { width: var(--w); opacity: 1; transition: width 500ms var(--oexpo), opacity 83ms linear; }
 .lz-btn.exp:hover, .lz-btn.exp:focus-visible { width: calc(var(--w) * 1.5); transition: width 500ms var(--el), opacity 83ms linear; }
+/* lazer's ButtonState.Contracted: the box shrinks to nothing over 500ms (OutExpo) as the button fades out over 500ms —
+   it used to vanish on the spot, so a new row of buttons appeared with a jump */
+.lz-btn.con { width: 0; opacity: 0; transition: width 500ms var(--oexpo), opacity 500ms linear; }
 .lz-btn.con1 { transition: width 400ms var(--insine), opacity 800ms linear; }
 .lz-btn.xpl { width: calc(var(--w) * 2); transition: width 200ms var(--oexpo), opacity 150ms linear; }
 /* the sheared box (wedge 20px over the 100px height) with lazer's soft shadow; the white layer under the press */
@@ -2821,7 +2858,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-bg::after { content: ""; position: absolute; inset: 0; background: #fff; mix-blend-mode: plus-lighter; opacity: 0; transition: opacity 1000ms var(--oq); }
 .lz-btn.down .lz-bg::after { opacity: .1; }
 .lz-bg.flash::after { animation: lzFlash 800ms var(--oexpo); }
-@keyframes lzFlash { from { opacity: .9; } to { opacity: 0; } }
+@keyframes lzFlash { from { opacity: .45; } to { opacity: 0; } } /* (lazer flashes .9: softened, a full white flash read as a glitch) */
 .lz-inner { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 40ms linear; }
 .lz-btn.exp .lz-inner, .lz-btn.xpl .lz-inner { opacity: 1; transition: opacity 70ms linear 45ms; }
 .lz-btn.pl .lz-inner { left: 20px; }
@@ -2878,7 +2915,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .sp-nb > span:last-child { position: absolute; left: 55px; white-space: nowrap; }
 .sp-nb-ind { position: absolute; left: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 1.5px; background: hsl(255 100% 70%); opacity: 0; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms cubic-bezier(.22, 1, .36, 1), margin-top 500ms cubic-bezier(.22, 1, .36, 1); }
 .sp-nb.active .sp-nb-ind { opacity: 1; height: 18px; margin-top: -9px; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), margin-top 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1); }
-@media (max-width: 700px) { .sp-nav { width: 60px; } .sp-nb > span:last-child { display: none; } }
+@media (max-width: 700px) and (hover: none) { .sp-nav { width: 60px; } .sp-nb > span:last-child { display: none; } }
 /* lazer's side overlays: the screen shifts 5% of the panel's width away (settings 570px → 28.5px; notifications
    320px → 16px), and settings leaves the screen undimmed with the toolbar still usable above it */
 #screen-root > .screen, .screen { transition: translate 400ms cubic-bezier(.22, 1, .36, 1); }
@@ -2900,7 +2937,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
    #555→#333 middle layer (both with corners of 20), the 80px picture straddling the top edge */
 .res-grid, .res-grid.stats-open { grid-template-columns: 360px; }
 .res-grid.stats-open { grid-template-columns: 360px minmax(0, 700px); }
-@media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
+@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
 .rs { position: relative; width: 360px; max-width: 100%; min-height: 586px; margin-top: 50px; overflow: visible; background: none; box-shadow: none; border-radius: 20px; display: flex; flex-direction: column; }
 .rs-toplayer { position: absolute; left: 0; right: 0; top: 0; height: 120px; border-radius: 20px; background: linear-gradient(#444, #333); box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
 .rs-top { position: absolute; left: 50%; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0; background: none; transform: translate(-50%, -50px); }
@@ -2939,7 +2976,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-ab:hover::after { opacity: .1; }
 .res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
 .res-ab:disabled { filter: grayscale(1) brightness(.6); cursor: default; }
-@media (max-width: 900px) { .res-ab.wide { width: 140px; } }
+@media (max-width: 900px) and (hover: none) { .res-ab.wide { width: 140px; } }
 /* pause / fail: lazer's GameplayMenuOverlay — black at 75%, "paused" in yellow 48px semibold (spaced 5px) centred above
    the DialogButtons (80px tall, the band 80% of the width, 90% under the pointer with its glow), and the retry count,
    song progress and accuracy centred below */
@@ -3254,6 +3291,15 @@ function fuzzyScore(hay, needle) {
     hi = at + 1;
   }
   return score;
+}
+
+/** lazer's song select search: a word matches only where it appears as written (any case) — no loose letter-by-letter
+ *  matching, so a search leaves just the songs it names. Earlier and word-start matches score higher. */
+function wordScore(hay, word) {
+  if (!word) return 1;
+  const at = hay.toLowerCase().indexOf(word);
+  if (at < 0) return 0;
+  return 1000 - Math.min(at, 800) + (at === 0 || /[\s([\-_/]/.test(hay[at - 1]) ? 200 : 0);
 }
 
 /** Binary search: last index i where arr[i][key] <= v (or -1). */
@@ -4547,6 +4593,69 @@ DefaultSkin.NAMES = new Set(['mania-note1', 'mania-note2', 'mania-notes', 'mania
   'mania-key1d', 'mania-key2d', 'mania-keysd', 'mania-stage-hint', 'mania-stage-light', 'mania-stage-left', 'mania-stage-right',
   'lightingn', 'lightingl', 'mania-hit300g', 'mania-hit300', 'mania-hit200', 'mania-hit100', 'mania-hit50', 'mania-hit0']);
 
+/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), drawn the way WOM draws them
+ *  (ManiaRenderer._renderWom): its five note styles, its colours (one hue, or a colour per column from a WOM backup),
+ *  its judgement sets, receptors, stage and layout. Everything else (sounds, fallbacks) is the Custom skin's. */
+const WOM = {
+  STYLES: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']],
+  JUDGEMENT_SETS: [['azureSnowfall', 'Azure Snowfall', 1], ['chocolate', '105°C Chocolate', 1], ['bangDream', 'BanG Dream!', 0.6], ['fnf', 'Friday Night Funkin\'', 0.45], ['osuStable', 'osu!(stable)', 0.35]],
+  // constants.ts: column widths (in WOM's 854-wide osu! space) and the colour of each column (primary, secondary, centre)
+  LANE_WIDTHS: [56, 56, 56, 56, 50, 47, 42, 40, 38, 35, 31, 30, 29, 27, 24, 22, 21, 20],
+  LANE_KINDS: ['p', 'pp', 'sps', 'spps', 'spcps', 'psppsp', 'pspcpsp', 'spsppsps', 'spspcpsps', 'spspsspsps', 'spspscspsps', 'spspsppspsps', 'spspspcpspsps', 'spspspsspspsps', 'spspspscspspsps', 'spspspsppspspsps', 'spspspspcpspspsps', 'spspspspsspspspsps'],
+  ARROWS: [[180], [270, 90], [270, 180, 90], [270, 180, 0, 90], [270, 315, 180, 45, 90], [270, 45, 180, 0, 45, 90], [270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90], [270, 315, 225, 315, 180, 0, 45, 135, 45, 90], [270, 315, 225, 315, 180, 0, 180, 45, 135, 45, 90], [270, 45, 180, 0, 45, 90, 270, 45, 180, 0, 45, 90], [270, 315, 225, 315, 225, 180, 0, 180, 135, 45, 135, 45, 90], [270, 315, 0, 180, 0, 45, 90, 270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 270, 315, 225, 180, 0, 180, 135, 45, 90, 135, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90, 270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 270, 315, 225, 270, 180, 0, 180, 90, 135, 45, 90, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90, 270, 315, 225, 0, 180, 0, 135, 45, 90]],
+  /** getAllLaneColors(hue, darkerHoldNotes): {tap, holdHead, hold} per column. */
+  laneColors(keys, hue, darker) {
+    const cen = hue > 35 && hue < 75 ? 212 : 62;
+    const C = { p: [`hsl(${hue}, 80%, 69%)`, `hsl(${hue}, 36%, 41%)`], s: [`hsl(${hue}, 8%, 98.45%)`, `hsl(${hue}, 0%, 59%)`], c: [`hsl(${cen}, 80%, 69%)`, `hsl(${cen}, 36%, 41%)`] };
+    return [...(WOM.LANE_KINDS[keys - 1] || 'p'.repeat(keys))].map(k => ({ tap: C[k][0], holdHead: C[k][0], hold: darker ? C[k][1] : C[k][0] }));
+  },
+  /** The colours a game uses: the hue's, or the custom ones a WOM backup brought (anything that isn't a colour turns
+   *  white, as WOM's patchLaneColors does). */
+  colors(keys) {
+    const custom = Settings.get('wom.colorMode') === 'custom' && Settings.get('wom.customColors');
+    const cols = custom && Array.isArray(custom[keys - 1]) && custom[keys - 1].length === keys ? custom[keys - 1] : null;
+    if (!cols) return WOM.laneColors(keys, Settings.get('wom.hue'), Settings.get('wom.darkerHolds'));
+    const ok = c => typeof c === 'string' && typeof CSS !== 'undefined' && CSS.supports('color', c) ? c : 'white';
+    return cols.map(c => ({ tap: ok(c && c.tap), holdHead: ok(c && c.holdHead), hold: ok(c && c.hold) }));
+  },
+  judgementScale(id) { const j = WOM.JUDGEMENT_SETS.find(x => x[0] === id); return j ? j[2] : 1; },
+  _img: new Map(),
+  /** A bundled WOM image (arrows, judgements), loaded once; null until it has loaded. */
+  image(path) {
+    let e = WOM._img.get(path);
+    if (!e) {
+      const img = new Image(); e = { img, ok: false };
+      img.onload = () => { e.ok = true; }; img.src = `wom/${path}`;
+      WOM._img.set(path, e);
+    }
+    return e.ok ? e.img : null;
+  },
+  /** Loads what a game with this skin will draw, so nothing pops in on the first notes. */
+  preload(style) {
+    const set = Settings.get('wom.judgements');
+    const files = ['300g', '300', '200', '100', '50', '0'].map(j => `judgements-${set}/mania-hit${j}.png`);
+    if (style === 'arrows') files.push('arrow.svg', 'arrowOutline.svg');
+    if (style === 'thickArrows') files.push('arrowThick.svg', 'arrowThickOutline.svg');
+    return Promise.all(files.map(f => new Promise(res => { WOM.image(f); const e = WOM._img.get(f); if (e.ok) return res(); e.img.addEventListener('load', res, { once: true }); e.img.addEventListener('error', res, { once: true }); })));
+  },
+};
+class WomSkin extends DefaultSkin {
+  constructor(style) {
+    super();
+    const name = `Web-Osu-Mania · ${WOM.STYLES.find(s => s[0] === style)[1]}`, author = 'Danny Duong (Web-Osu-Mania)';
+    this.id = `wom-${style}`; this.womStyle = style;
+    this.ini = { ...this.ini, general: { Name: name, Author: author, Version: 'WOM' } };
+    this.meta = { ...this.meta, id: this.id, name, author, version: 'WOM' };
+  }
+  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
+  async mania(keys) {
+    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
+    const p = (async () => { const L = await ManiaLayout.resolve(this, keys); L.wom = { style: this.womStyle }; await WOM.preload(this.womStyle); return L; })();
+    this.layoutCache.set(keys, p);
+    return p;
+  }
+}
+
 /** Resolved per-key-count configuration (skin.ini [Mania] + textures + fallbacks). */
 const ManiaLayout = {
   num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; },
@@ -4730,19 +4839,24 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
+    this.womSkins = WOM.STYLES.map(([st]) => new WomSkin(st));
+    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') for (const w of this.womSkins) w.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k.startsWith('skin.c.') || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
-    await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
+    await this.select(want && (want === 'default' || this.womSkins.some(s => s.id === want) || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
-    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
+    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] },
+      ...this.womSkins.map(k => ({ id: k.id, name: k.name, author: k.author, version: 'WOM', builtin: true, ini: k.ini, files: [] })), ...this.skins];
   },
 
   instance(id) {
     if (id === 'default') return this.defaultSkin;
+    const wom = this.womSkins.find(k => k.id === id);
+    if (wom) return wom;
     if (this.current && this.current.id === id) return this.current;
     const meta = this.skins.find(s => s.id === id);
     return meta ? new Skin(meta) : null;
@@ -4836,7 +4950,7 @@ const SkinManager = {
   },
 
   async remove(id) {
-    if (id === 'default') return;
+    if (id === 'default' || /^wom-/.test(id)) return;
     await DB.del('skins', id);
     await DB.delPrefix('files', `skin:${id}/`);
     this.skins = this.skins.filter(s => s.id !== id);
@@ -5349,6 +5463,10 @@ function keyLabel(code) {
 }
 
 /** [section, key, label, type, default, options] */
+/** Which skin's own options the Skin section shows. */
+function customSkinOn() { const c = Settings.get('skin.current'); return !c || c === 'default'; }
+function womSkinOn() { return /^wom-/.test(Settings.get('skin.current') || ''); }
+
 const SETTINGS_SCHEMA = [
   // ── Gameplay
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
@@ -5428,10 +5546,11 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
   { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
+  { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']] },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0 },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.pattern', l: 'Colour pattern', t: 'select', d: 'type', o: [['type', 'osu! (by column type)'], ['rainbow', 'Rainbow'], ['single', 'One colour']] },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.noteSize', l: 'Note size', t: 'range', d: 1, min: 0.6, max: 1.4, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.round', l: 'Note roundness', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -5442,6 +5561,24 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.glow', l: 'Glow', t: 'range', d: 0.7, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.lines', l: 'Column lines', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.border', l: 'Glowing stage border', t: 'bool', d: true },
+  // Web-Osu-Mania's skin options (shown when one of its skins is in use); the hidden ones come over from a WOM backup
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
+  { x: 1, s: 'Skin', k: 'wom.customColors', d: null },
+  { x: 1, s: 'Skin', k: 'wom.noteScale', d: 0.8 },
+  { x: 1, s: 'Skin', k: 'wom.hitPositionOffset', d: 130 },
+  { x: 1, s: 'Skin', k: 'wom.laneWidthAdjustment', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.laneSpacing', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.stagePosition', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.stageOpacity', d: 0.5 },
+  { x: 1, s: 'Skin', k: 'wom.stageSidesOpacity', d: 1 },
+  { x: 1, s: 'Skin', k: 'wom.receptorOpacity', d: 1 },
+  { x: 1, s: 'Skin', k: 'wom.receptorLighting', d: true },
+  { x: 1, s: 'Skin', k: 'wom.hudY', d: 0.66 },
+  { x: 1, s: 'Skin', k: 'wom.noteOffset', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.earlyLate', d: 200 },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
   // beatmap sources, as in Web-Osu-Mania's "Sources" settings
@@ -5890,7 +6027,7 @@ class LocalBeatmapProvider extends BeatmapProvider {
   get name() { return 'Local library'; }
   async search(query) {
     const q = (query || '').toLowerCase();
-    return BeatmapManager.sets.filter(s => !q || fuzzyScore(`${s.artist} ${s.title} ${s.creator} ${s.tags}`, q) > 0)
+    return BeatmapManager.sets.filter(s => !q || q.split(/\s+/).every(w => wordScore(`${s.artist} ${s.title} ${s.creator} ${s.tags}`, w) > 0))
       .map(s => ({ id: s.id, title: s.title, artist: s.artist, creator: s.creator, difficulties: s.maps.map(m => m.version) }));
   }
   async getBeatmap(id) { return BeatmapManager.maps.get(id) || null; }
@@ -6826,7 +6963,7 @@ class ManiaRenderer {
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
   /** Distance a note scrolls during one "time range" (scroll speed): osu!lazer scales the time range with the skin's
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
-  get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
+  get scrollLength() { return this.layout && this.layout.wom && this.hitY ? this.hitY : 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
@@ -6840,8 +6977,10 @@ class ManiaRenderer {
       this._geom();
       let x0 = 0, x1 = w;
       if (this.layout && Number.isFinite(this.stageX)) {
-        x0 = clamp(Math.floor(this.stageX - 40 * this.s), 0, w - 1);
-        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s), x0 + 1, w);
+        // (a Web-Osu-Mania skin's judgements can be wider than its stage)
+        const extra = this.layout.wom ? Math.max(0, 200 * this.womD - this.stageW / 2) : 0;
+        x0 = clamp(Math.floor(this.stageX - 40 * this.s - extra), 0, w - 1);
+        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s + extra), x0 + 1, w);
       }
       this.cropX = x0;
       c.width = x1 - x0; c.height = hh;
@@ -6897,6 +7036,7 @@ class ManiaRenderer {
       // a tail cap is authored flipped in downscroll; mirrored for upscroll it's flipped once more (unless not flipping)
       this.fl.tail.push(this.up ? !f(F.tail, i) : true);
     }
+    if (L.wom) { this._geomWom(); return; }
     this.prewarm();
   }
   /** Builds every pre-scaled sprite the stage draws (notes, keys, stage light, and hit / hold lighting at each of its
@@ -7025,6 +7165,7 @@ class ManiaRenderer {
     const L = this.layout;
     if (!L) return;
     this.resize();
+    if (L.wom) { this._renderWom(g); return; }
     const ctx = this.ctx, s = this.s, K = L.keys, H = this.H;
     const realNow = g.realNow ?? performance.now();
     ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
@@ -7246,6 +7387,229 @@ class ManiaRenderer {
     ctx.restore();
   }
 
+  // ── Web-Osu-Mania skins (MIT © 2024 Danny Duong): its stage, drawn the way its PixiJS game draws it — sizes in
+  //    the window's CSS pixels (columns from its 854-wide lane widths × the window width, at least 1528), the hit
+  //    position 130 px above the bottom, a #111 stage at 50% between two grey side lines, receptors under the hit
+  //    line, notes tinted in the column colours, its judgement images and a Roboto Mono combo.
+  _geomWom() {
+    const L = this.layout, K = L.keys, st = k => Settings.get(`wom.${k}`);
+    // window CSS px → canvas px
+    const d = this.womD = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale') * (this.autoScale || 1);
+    const Wc = this.W / d;
+    let cw = (WOM.LANE_WIDTHS[K - 1] + st('laneWidthAdjustment')) / 854 * Math.max(Wc, 1528) * Settings.get('gameplay.laneWidth');
+    if (cw * K > Wc) cw = Wc / K;
+    const sp = st('laneSpacing');
+    const notesW = Math.min(K * cw + sp * (K - 1), Wc);
+    this.colW = []; this.colX = [];
+    for (let i = 0; i < K; i++) { this.colX.push(i * (cw + sp) * d); this.colW.push(cw * d); }
+    this.stageW = notesW * d;
+    const outer = notesW + 4, off = st('stagePosition') * (Wc - outer) / 2;
+    this.stageX = (Wc / 2 + off - outer / 2 + 2) * d;
+    this.hitY = this.H - st('hitPositionOffset') * d;
+    this.up = Settings.get('gameplay.scrollDirection') === 'up';
+    this.womCol = WOM.colors(K);
+    this.womArrow = WOM.ARROWS[K - 1] || [];
+    this.womNS = st('noteScale');
+    this._womSpr = new Map();
+    if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
+  }
+  /** A tinted white shape (or WOM's arrow image) drawn once at its size and cached: tap and head sprites. */
+  _womSprite(kind, color, size, dark) {
+    const key = `${kind}|${color}|${size | 0}|${dark ? 1 : 0}`;
+    let c = this._womSpr.get(key);
+    if (c !== undefined) return c;
+    const d = this.womD, pad = Math.ceil(4 * d), n = Math.ceil(size) + pad * 2;
+    let img = null;
+    if (kind === 'arrows' || kind === 'thickArrows' || kind === 'arrowOutline' || kind === 'thickArrowOutline') {
+      img = WOM.image({ arrows: 'arrow.svg', thickArrows: 'arrowThick.svg', arrowOutline: 'arrowOutline.svg', thickArrowOutline: 'arrowThickOutline.svg' }[kind]);
+      if (!img) return null; // (not loaded yet: try again next frame, uncached)
+    }
+    c = document.createElement('canvas'); c.width = n; c.height = n;
+    const x = c.getContext('2d'), m = n / 2;
+    x.fillStyle = color;
+    if (kind === 'circles') { x.beginPath(); x.arc(m, m, size / 2, 0, Math.PI * 2); x.fill(); }
+    else if (kind === 'diamonds') { const r = size / Math.SQRT2; x.translate(m, m); x.rotate(Math.PI / 4); x.beginPath(); x.roundRect(-r / 2, -r / 2, r, r, 8 * d); x.fill(); }
+    else { x.drawImage(img, pad, pad, size, size); if (color !== '#fff') { x.globalCompositeOperation = 'source-in'; x.fillRect(0, 0, n, n); } }
+    if (dark) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(0,0,0,.5)'; x.fillRect(0, 0, n, n); }
+    this._womSpr.set(key, c);
+    return c;
+  }
+  /** Draws a cached sprite centred on (cx, y) in down-scroll coordinates, turned by `deg`. Arrows keep pointing the
+   *  same way in upscroll (WOM flips them back); everything else mirrors with the stage. */
+  _womBlit(spr, cx, y, deg = 0) {
+    if (!spr) return;
+    const ctx = this.ctx, yy = this.up ? this.H - y : y;
+    if (!deg) { ctx.drawImage(spr, cx - spr.width / 2, yy - spr.height / 2); return; }
+    ctx.save(); ctx.translate(cx, yy); ctx.rotate(deg * Math.PI / 180); ctx.drawImage(spr, -spr.width / 2, -spr.height / 2); ctx.restore();
+  }
+  _womRect(x, y, w, h) { this.ctx.fillRect(x, this.up ? this.H - y - h : y, w, h); }
+  _womDark(c) { const m = this._womDk || (this._womDk = new Map()); let v = m.get(c); if (!v) { const x = document.createElement('canvas').getContext('2d'); x.fillStyle = c; const hex = x.fillStyle; const n = parseInt(hex.slice(1), 16); v = `rgb(${(n >> 16 & 255) >> 1},${(n >> 8 & 255) >> 1},${(n & 255) >> 1})`; m.set(c, v); } return v; }
+  _renderWom(g) {
+    const L = this.layout, ctx = this.ctx, K = L.keys, H = this.H, d = this.womD, st = k => Settings.get(`wom.${k}`);
+    const realNow = g.realNow ?? performance.now();
+    const style = L.wom.style, ns = this.womNS, cols = this.womCol, ro = st('receptorOpacity'), lit = st('receptorLighting');
+    ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
+    ctx.clearRect(this.cropX, 0, this.canvas.width, H);
+    ctx.save();
+    ctx.translate(this.stageX, 0);
+    this._tx = this.stageX - this.cropX;
+    // stage sides: 2 px, grey up to 40% of the height, fading out towards the top (flipped in upscroll)
+    const so = st('stageSidesOpacity');
+    if (so > 0) {
+      const gr = this._womSides && this._womSides.H === H && this._womSides.up === this.up ? this._womSides.g : null;
+      const grad = gr || ctx.createLinearGradient(0, this.up ? 0 : H, 0, this.up ? H : 0);
+      if (!gr) { grad.addColorStop(0.4, 'rgba(128,128,128,1)'); grad.addColorStop(1, 'rgba(128,128,128,0)'); this._womSides = { H, up: this.up, g: grad }; }
+      ctx.globalAlpha = so; ctx.fillStyle = grad;
+      ctx.fillRect(-2 * d, 0, 2 * d, H); ctx.fillRect(this.stageW, 0, 2 * d, H);
+      ctx.globalAlpha = 1;
+    }
+    // stage background
+    ctx.globalAlpha = st('stageOpacity'); ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, this.stageW, H); ctx.globalAlpha = 1;
+    const dim = Settings.get('skin.dim'); if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
+    // stage lights: 35% of the screen tall, the column colour fading upwards; 50% while held, then 0.3 s out
+    if (lit && Settings.get('skin.effects')) {
+      const lh = H * 0.35;
+      for (let i = 0; i < K; i++) {
+        let a = 0;
+        if (g.held[i]) a = 1; else { const t = (realNow - this.keyLight[i]) / 300; if (t >= 0 && t < 1) a = (1 - t) * (1 - t); }
+        if (a <= 0) continue;
+        const gk = `l${i}|${lh | 0}|${this.up}`;
+        let grad = (this._womLg || (this._womLg = new Map())).get(gk);
+        if (!grad) {
+          const y0 = this.up ? H - this.hitY : this.hitY, y1 = this.up ? y0 + lh : y0 - lh;
+          grad = ctx.createLinearGradient(0, y0, 0, y1); grad.addColorStop(0, cols[i].tap); grad.addColorStop(1, 'rgba(255,255,255,0)');
+          this._womLg.set(gk, grad);
+        }
+        ctx.globalAlpha = 0.5 * ro * a; ctx.fillStyle = grad;
+        this._womRect(this.colX[i], this.hitY - lh, this.colW[i], lh);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // stage hint: a 10 px #ccc line across the stage at the hit position
+    ctx.globalAlpha = ro; ctx.fillStyle = '#cccccc'; this._womRect(0, this.hitY - 5 * d, this.stageW, 10 * d);
+    // receptors
+    const ms = this.colW[0] * ns;
+    for (let i = 0; i < K; i++) {
+      const cx = this.colX[i] + this.colW[i] / 2, on = lit && g.held[i];
+      if (style === 'bars') {
+        ctx.fillStyle = '#1a1a1a'; this._womRect(this.colX[i], this.hitY, this.colW[i], H - this.hitY);
+        ctx.fillStyle = on ? cols[i].tap : '#4d4d4d';
+        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - 40 * d : this.hitY + 40 * d); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
+        ctx.beginPath(); ctx.roundRect(-5 * d, -5 * d, 40 * d, 40 * d, 5 * d); ctx.fill(); ctx.restore();
+      } else if (style === 'circles' || style === 'diamonds') {
+        const yy = this.up ? H - this.hitY : this.hitY;
+        ctx.save(); ctx.translate(cx, yy); ctx.strokeStyle = '#b3b3b3'; ctx.lineWidth = 4 * d; ctx.beginPath();
+        if (style === 'circles') ctx.arc(0, 0, ms / 2, 0, Math.PI * 2);
+        else { const r = ms / Math.SQRT2; ctx.rotate(Math.PI / 4); ctx.roundRect(-r / 2, -r / 2, r, r, 8 * d); }
+        ctx.stroke(); ctx.restore();
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY); ctx.globalAlpha = ro; }
+      } else {
+        const ang = this.womArrow[i] || 0, out = style === 'arrows' ? 'arrowOutline' : 'thickArrowOutline';
+        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY, ang);
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY, ang); ctx.globalAlpha = ro; }
+      }
+    }
+    ctx.globalAlpha = 1;
+    this._y0 = this.hitY + (st('noteOffset') * d) + Settings.get('gameplay.noteOffset') * this.s + g.posNow * g.pxPerMs;
+    if (g.engine) this._drawWomNotes(g);
+    ctx.restore();
+    if (g.engine) {
+      this._drawWomJudgement(realNow); this._drawWomCombo(g.engine.score.combo);
+      ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
+      if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
+      if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
+    }
+  }
+  /** Notes and holds, as WOM's Tap and Hold sprites. */
+  _drawWomNotes(g) {
+    const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll, d = this.womD;
+    const style = L.wom.style, ns = this.womNS, cols = this.womCol, y0 = this._y0, ppm = g.pxPerMs, top = -this.H * 0.1;
+    const arrow = style === 'arrows' || style === 'thickArrows';
+    const darkHold = Settings.get('wom.darkerHolds') || Settings.get('wom.colorMode') === 'custom';
+    for (let c = 0; c < K; c++) {
+      const col = eng.columns[c], x = this.colX[c], w = this.colW[c], cx = x + w / 2, ms = w * ns, C = cols[c];
+      const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
+      const tap = (color, y, dark) => {
+        if (style === 'bars') { ctx.fillStyle = dark ? this._womDark(color) : color; this._womRect(x, y - w * 0.4, w, w * 0.4); }
+        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y, ang);
+      };
+      for (let i = eng.ptr[c]; i < col.length; i++) {
+        const n = col[i];
+        if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
+        if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
+        let yHead = y0 - n._hp * ppm;
+        if (yHead < top && !n.isLN) break;
+        if (!n.isLN) {
+          if (yHead > this.H + 60) continue;
+          ctx.globalAlpha = this._noteAlpha(yHead, g.hidden);
+          if (ctx.globalAlpha > 0) tap(C.tap, yHead);
+          ctx.globalAlpha = 1;
+          continue;
+        }
+        const yTail = y0 - n._tp * ppm;
+        if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
+        if (yHead < top && yTail < top) break;
+        const broken = n.state === NS.DROPPED || n.state === NS.MISSED;
+        if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
+        const hold = broken ? this._womDark(C.hold) : C.hold, len = Math.max(0, yHead - yTail);
+        ctx.globalAlpha = this._noteAlpha(Math.max(yTail, Math.min(yHead, this.hitY)), g.hidden);
+        if (ctx.globalAlpha <= 0) { ctx.globalAlpha = 1; continue; }
+        if (style === 'bars') {
+          ctx.fillStyle = hold; this._womRect(x, yTail, w, len);
+          if (darkHold) { this._womRect(x, yTail - w * 0.4, w, w * 0.4); ctx.fillStyle = broken ? this._womDark(C.holdHead) : C.holdHead; this._womRect(x, yHead - w * 0.4, w, w * 0.4); }
+        } else {
+          const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6);
+          ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail, bw, len);
+          if (style === 'circles') this._womBlit(this._womSprite('circles', C.hold, ms, broken), cx, yTail);
+          else {
+            // the tail: a triangle on the far end of the body
+            const ty = this.up ? this.H - yTail : yTail, dir = this.up ? 1 : -1;
+            ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
+          }
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead, ang);
+        }
+        // the head note itself until it's hit (WOM's hold head is a tap of its own)
+        if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  /** WOM's judgement: the set's image at its scale, popping from 1.2× over 0.3 s, gone 0.8 s later over 0.3 s; "Early"
+   *  / "Late" above it for 200s and below (WOM's default). */
+  _drawWomJudgement(realNow) {
+    const fx = this.judgementFx;
+    if (!fx) return;
+    const el = Math.max(0, realNow - fx.t0);
+    if (el > 1100) { this.judgementFx = null; return; }
+    const set = Settings.get('wom.judgements'), id = ['300g', '300', '200', '100', '50', '0'][fx.j];
+    const img = WOM.image(`judgements-${set}/mania-hit${fx.j === J.MARV && !Settings.get('gameplay.showMax') ? '300' : id}.png`);
+    if (!img) return;
+    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
+    const p = Math.min(1, el / 300), ease = 1 - (1 - p) * (1 - p);
+    const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * d * Settings.get('skin.scale');
+    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy - 50 * d : this.H * (1 - hy);
+    ctx.globalAlpha = el > 800 ? 1 - (el - 800) / 300 : 1;
+    const w = img.naturalWidth * k, h = img.naturalHeight * k;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(img, cx - w / 2, y - h / 2, w, h);
+    const thr = Settings.get('wom.earlyLate'), score = [320, 300, 200, 100, 50, 0][fx.j];
+    if (fx.err != null && fx.j !== J.MISS && thr >= 0 && score <= thr && fx.err !== 0) {
+      const sz = 20 * d * (el < 300 ? 1.1 - 0.1 * ease : 1);
+      ctx.font = `400 ${sz}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha *= 0.5; ctx.fillStyle = fx.err < 0 ? '#26de63' : '#de8826';
+      ctx.fillText(fx.err < 0 ? 'Early' : 'Late', cx, y - 30 * d);
+    }
+    ctx.globalAlpha = 1;
+  }
+  _drawWomCombo(combo) {
+    if (combo < 1) return;
+    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
+    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy : this.H * (1 - hy) + 50 * d;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.font = `800 ${30 * d}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#dddddd'; ctx.fillText(String(combo), cx, y);
+  }
+
   // ── effects
   onJudgement(e, realNow) {
     const L = this.layout;
@@ -7258,6 +7622,7 @@ class ManiaRenderer {
       (this._lastN || (this._lastN = []))[e.col] = fx;
       this.effects.push(fx);
     }
+    if (L.wom) { if (Settings.get('gameplay.showJudgements')) this.judgementFx = { j: e.j, t0: realNow, err: e.err }; return; }
     if (Settings.get('gameplay.showJudgements') && (e.j !== J.MARV || Settings.get('gameplay.showMax'))) {
       const thr = Settings.get('gameplay.earlyLate');
       const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
@@ -8685,30 +9050,100 @@ const VolumeOverlay = {
   },
 };
 
-/** osu!lazer's menu cursor: a white arrow with a soft outline, drawn by the browser (so it never lags) at the size
- *  chosen in settings; it shrinks a little while a button is held, like lazer's. Hidden in game as before. */
+/** osu!lazer's MenuCursor (MenuCursorContainer), drawn by the game as lazer draws it: its menu-cursor texture at 0.15×
+ *  (× the cursor size setting, × the interface scale). Pressing shrinks it to 0.9× and fades in a pink glow over
+ *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). Dragging more than 80 px turns it to point
+ *  along the drag, and it swings back on release. Each press and release plays lazer's cursor-tap, panned to where
+ *  the cursor is and pitched a little at random (lower on release). The system cursor is hidden while it's on; it's
+ *  hidden too in gameplay (until the mouse moves) and for touch. */
 const LazerCursor = {
+  TEX_W: 312, TEX_H: 442, BASE: 0.15,
+  /** CSS linear() easings for osu!framework's elastic curves. */
+  ease(fn) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(fn(i / 48).toFixed(4)); return `linear(${pts.join(', ')})`; },
   apply() {
-    const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
-    const root = document.documentElement.style;
-    if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
-    // lazer's menu cursor: a dark rounded arrow with a white rim; pressed, it shrinks slightly and glows pink
-    const mk = (k, pressed) => {
-      const S = Math.round(32 * size * k);
-      const path = 'M6.2 3.2 L25.4 17.2 Q27.3 18.7 24.9 19.2 L17.6 20.4 Q16.6 20.6 16.1 21.5 L12.4 28.2 Q11.2 30.1 10.5 28 L4.6 5.2 Q4.1 2.1 6.2 3.2 Z';
-      const glow = pressed ? '<path d="' + path + '" fill="none" stroke="#ff66ab" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round"/>' : '';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32">${glow}<path d="${path}" transform="translate(.8 1.4)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#16141c" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/><path d="M7.4 6.4 L21.6 16.8" stroke="rgba(255,255,255,.18)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
-      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5.4 * S / 32)} ${Math.round(3 * S / 32)}`;
+    const on = Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
+    document.body.classList.toggle('lz-cursor', on);
+    if (!on) { if (this.el) this.el.hidden = true; return; }
+    if (!this.el) this.build();
+    this.size();
+  },
+  build() {
+    const OUT_ELASTIC = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1;
+    const OUT_ELASTIC_QUARTER = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((0.25 * t - 0.075) * (2 * Math.PI) / 0.3 * 4) + 1;
+    this.EL = this.ease(OUT_ELASTIC); this.ELQ = this.ease(OUT_ELASTIC_QUARTER);
+    this.add = h('span.lzc-add');
+    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), this.add);
+    this.rotEl = h('span.lzc-rot', this.scaleEl);
+    this.el = h('div#lz-cur', { hidden: true, 'aria-hidden': 'true' }, this.rotEl);
+    document.body.appendChild(this.el);
+    this.rot = 0; this.drag = 0; // 0 not dragging, 1 started, 2 rotating
+    const OQ = 'cubic-bezier(.23, 1, .32, 1)';
+    const anim = (el, prop, to, ms, easing) => {
+      const from = getComputedStyle(el)[prop];
+      el.getAnimations().filter(a => a._p === prop).forEach(a => a.cancel());
+      const a = el.animate([{ [prop]: from }, { [prop]: to }], { duration: ms, easing, fill: 'forwards' }); a._p = prop;
     };
-    root.setProperty('--lz-cursor', `${mk(1)}, auto`);
-    root.setProperty('--lz-cursor-down', `${mk(0.9, true)}, auto`);
-    document.body.classList.add('lz-cursor');
+    this.rotTo = (deg, ms, easing) => { this.rot = deg; anim(this.rotEl, 'rotate', `${deg}deg`, ms, easing); };
+    let lastT = 0;
+    const move = e => {
+      if (e.pointerType === 'touch') { this.el.hidden = true; return; }
+      this.x = e.clientX; this.y = e.clientY;
+      this.el.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+      const t = e.target && e.target.closest ? e.target : null;
+      this.el.hidden = !document.body.classList.contains('lz-cursor') || !!(t && t.closest('.gameplay:not(.show-cursor)'));
+      if (this.drag) {
+        const now = performance.now(), dt = Math.max(1, now - lastT); lastT = now;
+        let dx = e.clientX - this.dx, dy = e.clientY - this.dy, dist = Math.hypot(dx, dy);
+        // (lazer lets the centre of the turn drift after the pointer once it's far away)
+        if (dist > 60) { const k = Math.min(1, 0.04 / dt * 16); this.dx += dx * k * 0.06; this.dy += dy * k * 0.06; dx = e.clientX - this.dx; dy = e.clientY - this.dy; dist = Math.hypot(dx, dy); }
+        if (this.drag === 1 && dist > 80 * this.k) this.drag = 2;
+        if (this.drag === 2 && dist > 0) {
+          let deg = Math.atan2(-dx, dy) * 180 / Math.PI + 24.3, diff = (deg - this.rot) % 360;
+          if (diff < -180) diff += 360; if (diff > 180) diff -= 360;
+          this.rotTo(this.rot + diff, 120, OQ);
+        }
+      }
+    };
+    window.addEventListener('pointermove', move, { passive: true, capture: true });
+    window.addEventListener('pointerdown', e => {
+      move(e);
+      if (e.pointerType === 'touch' || this.el.hidden) return;
+      this.scaleEl.getAnimations().forEach(a => a.cancel());
+      anim(this.scaleEl, 'scale', '0.9', 800, OQ);
+      this.add.getAnimations().forEach(a => a.cancel());
+      this.add.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: OQ, fill: 'forwards' });
+      if (Settings.get('ui.cursorRotate') !== false && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
+      this.tap(1);
+    }, true);
+    window.addEventListener('pointerup', e => {
+      if (e.buttons) return;
+      this.add.getAnimations().forEach(a => a.cancel());
+      this.add.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, easing: OQ, fill: 'forwards' });
+      anim(this.scaleEl, 'scale', '1', 500, this.EL);
+      if (this.drag) { this.rotTo(0, 400 * (0.5 + Math.abs(this.rot / 960)), this.ELQ); this.rot = 0; this.drag = 0; }
+      if (e.pointerType !== 'touch' && !this.el.hidden) this.tap(0.8);
+    }, true);
+    document.documentElement.addEventListener('pointerleave', () => { this.el.hidden = true; });
+    window.addEventListener('blur', () => { this.el.hidden = true; });
+    Bus.on('ui:scaled', () => this.size());
+  },
+  /** Texture × 0.15 × cursor size × the interface scale (lazer's cursor lives inside its scaling container). */
+  size() {
+    const k = this.k = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2) * this.BASE / (Zoom.z || 1);
+    this.el.style.setProperty('--lzc-w', `${(this.TEX_W * k).toFixed(2)}px`);
+    this.el.style.setProperty('--lzc-h', `${(this.TEX_H * k).toFixed(2)}px`);
+  },
+  /** lazer's playTapSample: ±1% pitch at random, panned by where the cursor is (at most 75%). */
+  async tap(freq) {
+    if (!Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
+    if (!this._buf) this._buf = fetch('lazer/cursor-tap.wav').then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
+    const buf = await this._buf;
+    if (!buf) return;
+    AudioManager.play(buf, { bus: 'ui', volume: freq, rate: freq - 0.01 + Math.random() * 0.02, pan: ((this.x || 0) / innerWidth * 2 - 1) * 0.75 });
   },
   init() {
     this.apply();
     Bus.on('settings:changed', k => { if (k === 'ui.lazerCursor' || k === 'ui.cursorSize' || k === '*') this.apply(); });
-    window.addEventListener('pointerdown', () => document.body.classList.add('lz-down'), true);
-    window.addEventListener('pointerup', () => document.body.classList.remove('lz-down'), true);
   },
 };
 
@@ -8801,7 +9236,11 @@ const Zoom = {
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
-    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
+    // a small window on a computer (or a browser zoom we couldn't read, such as a page opened at 300%) keeps scaling
+    // down with the window, as lazer's does, instead of laying the full-size interface into a tiny space; phones and
+    // tablets (no mouse) keep their own responsive layout
+    const desktop = typeof matchMedia === 'function' && matchMedia('(hover: hover)').matches; // (the same test the narrow-screen CSS uses)
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
     const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
@@ -8838,8 +9277,9 @@ const Screens = {
     if (!next || this.busy) return;
     if (this.currentName === name && !params.force) { next.refresh && next.refresh(params); return; }
     this.busy = true;
+    const prevName = this.currentName;
     try {
-      const prev = this.current, prevName = this.currentName;
+      const prev = this.current;
       if (prev) {
         if (prev.canLeave && !(await prev.canLeave())) return;
         if (!replace && prevName && !prev.transient) this.history.push(prevName);
@@ -8849,14 +9289,18 @@ const Screens = {
         if (oldEl) {
           oldEl.classList.remove('enter', 'zoom', 'from-right');
           oldEl.classList.add('leave'); if (transition === 'zoom') oldEl.classList.add('zoom');
+          // lazer's main menu leaves slowly (its buttons fold away, then it fades over 400ms, InSine) under the next screen
+          const fromMenu = prevName === 'home';
+          if (fromMenu) oldEl.classList.add('from-menu');
           oldEl.inert = true; // (its state is already torn down: a click during the fade-out used to reach stale handlers)
-          setTimeout(() => oldEl.remove(), 220);
+          setTimeout(() => oldEl.remove(), fromMenu ? 460 : 220);
         }
       }
       this.current = next; this.currentName = name;
       const el = await next.enter(params);
       next.el = el;
       el.classList.add('screen', 'enter');
+      if (prevName === 'home') el.classList.add('after-menu');
       if (transition === 'zoom') el.classList.add('zoom');
       if (transition === 'right') el.classList.add('from-right');
       $('#screens').appendChild(el);
@@ -9344,7 +9788,7 @@ const HomeScreen = {
       this.vis.getAnimations().forEach(x => x.cancel());
       this.vis.animate([{ opacity: 0.5, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { opacity: 0.9 * adj, offset: 60 / (60 + beatLength) }, { opacity: 0.5 }], { duration: 60 + beatLength });
     }
-    setTimeout(() => { this._kick = (this._kick || 0) + adj * (kiai ? 6 : 3); }, 60);
+    setTimeout(() => { this._kick = (this._kick || 0) + adj * (kiai ? 6 : 3); NeruMascot.beat(adj, kiai); }, 60);
   },
   /** lazer's SongTicker: fades in over 0.4s, stays 4s, fades out over 0.8s. */
   showTicker(m) {
@@ -9615,7 +10059,9 @@ const MenuMusic = {
 /* ===== 13b-neru.js ===== */
 /* Neru on the main menu: a picture of Neru standing in the bottom-left corner. It shows the image chosen in
  * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
- * public/ folder). With no picture nothing is shown. Clicking her makes her hop. */
+ * public/ folder). With no picture nothing is shown.
+ * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
+ * hovered, and clicking her makes her hop — happy face, a few sparkles and a line in a speech bubble. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -9631,14 +10077,22 @@ const NeruMascot = {
     if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(f)) return f; return null; })();
     return this._probe;
   },
+  LINES: ['Let\'s play!', 'Pick a song~', 'One more?', 'Full combo time!', 'Eyes on the notes!', 'Hehe~', 'You got this!', 'Again!'],
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', onclick: e => { e.stopPropagation(); this.hop(); } });
     if (!Settings.get('ui.mascot')) return el;
     this.source().then(async u => {
       if (!u || this.el !== el) return;
       this.img = h('img.neru-img', { src: u, alt: '', draggable: 'false' });
-      el.append(this.img);
+      // body: leans and bobs (driven per frame); img: breathing and the hop (CSS); a soft shadow on the floor
+      this.body = h('span.neru-body', this.img);
+      this.shadow = h('span.neru-shadow');
+      this.bubble = h('span.neru-say');
+      el.append(this.shadow, this.body, this.bubble);
       el.hidden = false;
+      el.addEventListener('pointerenter', () => el.classList.add('perk'));
+      el.addEventListener('pointerleave', () => el.classList.remove('perk'));
+      this.start();
       // the bundled Neru has a second, happy picture she switches to when clicked
       this.base = u; this.happy = null;
       if (!u.startsWith('blob:')) {
@@ -9647,6 +10101,36 @@ const NeruMascot = {
       }
     });
     return el;
+  },
+  /** Per frame: the lean towards the pointer (eased) and the beat's bob decaying, written as one transform. */
+  start() {
+    cancelAnimationFrame(this._raf);
+    this._lean = 0; this._bob = 0; this._px = null;
+    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; };
+    window.addEventListener('pointermove', this._onMove, { passive: true });
+    let last = performance.now();
+    const tick = now => {
+      if (!this.el || !this.body || !this.el.isConnected) { if (this.el && !this.el.isConnected) this.stop(); else this._raf = requestAnimationFrame(tick); return; }
+      const dt = Math.min(64, now - last); last = now;
+      let want = 0;
+      if (this._px != null && Settings.get('ui.animSpeed')) {
+        const r = this.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * 0.3;
+        // a few degrees towards the cursor, more the further away it is (and none once it's over her)
+        want = clamp((this._px - cx) / innerWidth * 9, -4, 4) * (this._py < cy - r.height ? 0.6 : 1);
+      }
+      this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
+      this._bob *= Math.exp(-dt / 140);
+      const b = this._bob;
+      this.body.style.transform = `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
+      if (this.shadow) this.shadow.style.transform = `scaleX(${(1 + b * 0.05).toFixed(3)})`;
+      this._raf = requestAnimationFrame(tick);
+    };
+    this._raf = requestAnimationFrame(tick);
+  },
+  /** A beat of the menu music (from the main menu's beat tracking): a little squash, harder in kiai. */
+  beat(adj = 1, kiai = false) {
+    if (!this.body || !Settings.get('ui.animSpeed')) return;
+    this._bob = Math.max(this._bob, clamp(adj, 0, 1) * (kiai ? 1 : 0.55));
   },
   hop() {
     if (!this.el) return;
@@ -9657,6 +10141,35 @@ const NeruMascot = {
       clearTimeout(this._back);
       this._back = setTimeout(() => { if (this.img) this.img.src = this.base; }, 1600);
     }
+    this.say();
+    this.sparkle();
+  },
+  /** A short line in a bubble beside her head, gone after a moment (never the same line twice running). */
+  say(text) {
+    if (!this.bubble) return;
+    let t = text;
+    if (!t) { do t = this.LINES[Math.floor(Math.random() * this.LINES.length)]; while (t === this._lastLine && this.LINES.length > 1); }
+    this._lastLine = t;
+    this.bubble.textContent = t;
+    this.bubble.classList.remove('show'); void this.bubble.offsetWidth; this.bubble.classList.add('show');
+    clearTimeout(this._sayT);
+    this._sayT = setTimeout(() => this.bubble && this.bubble.classList.remove('show'), 1900);
+  },
+  /** A handful of sparkles that burst out around her and fade. */
+  sparkle() {
+    if (!this.el || !Settings.get('ui.animSpeed')) return;
+    const colors = ['#ffd54a', '#ff8cc0', '#ffffff', '#8fd3ff'];
+    for (let i = 0; i < 7; i++) {
+      const sp = h('span.neru-spark');
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, d = 60 + Math.random() * 70;
+      sp.style.left = `${45 + (Math.random() - 0.5) * 30}%`; sp.style.top = `${22 + Math.random() * 20}%`;
+      sp.style.background = colors[i % colors.length];
+      this.el.append(sp);
+      sp.animate([{ transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${Math.cos(a) * d * 0.7}px), calc(-50% + ${Math.sin(a) * d * 0.7}px)) scale(1) rotate(90deg)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d + 18}px)) scale(.4) rotate(180deg)`, opacity: 0 }],
+        { duration: 700 + Math.random() * 300, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => sp.remove();
+    }
   },
   /** Use a picture the player chose (a File/Blob), or null to go back to the bundled one. */
   async setImage(file) {
@@ -9665,7 +10178,11 @@ const NeruMascot = {
     const old = document.querySelector('.home .neru');
     if (old) old.replaceWith(this.build());
   },
-  stop() { clearTimeout(this._back); this.el = null; this.img = null; },
+  stop() {
+    clearTimeout(this._back); clearTimeout(this._sayT); cancelAnimationFrame(this._raf);
+    if (this._onMove) window.removeEventListener('pointermove', this._onMove);
+    this.el = null; this.img = null; this.body = null; this.shadow = null; this.bubble = null;
+  },
 };
 
 Bus.on('settings:changed', k => {
@@ -9883,8 +10400,8 @@ const SongSelect = {
       if (pq.words.length) {
         setScore = 1;
         for (const w of pq.words) {
-          let best = fuzzyScore(hay, w);
-          for (const m of set.maps) best = Math.max(best, fuzzyScore(m.version, w) * 0.9);
+          let best = wordScore(hay, w);
+          for (const m of set.maps) best = Math.max(best, wordScore(m.version, w) * 0.9);
           if (!best) { setScore = 0; break; }
           setScore += best;
         }
@@ -9892,7 +10409,7 @@ const SongSelect = {
       }
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
-        if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
+        if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
@@ -10599,7 +11116,7 @@ const GameplayScreen = {
       e.preventDefault();
       if (this.pauseEl && !this.s.failed && this.pauseEl.querySelector('.pm-btn.primary')) this.resume(); else if (!this.pauseEl) this.pause();
     });
-    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
+    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
     return el;
@@ -13077,6 +13594,7 @@ const OnlineBeatmaps = {
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
     if (p.provider) params.set('provider', p.provider);
+    if (p.loose) params.set('loose', '1');
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
@@ -13333,14 +13851,14 @@ const ExplorerScreen = {
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
-    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.loose = false; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
   },
   async loadMore() {
     const tok = this.token || (this.token = {});
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, genre: st.genre, language: st.language, nsfw: st.nsfw });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, loose: this.loose, genre: st.genre, language: st.language, nsfw: st.nsfw });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
       const merged = [...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))];
@@ -13348,7 +13866,9 @@ const ExplorerScreen = {
       const [sort, dir] = this.effectiveSort();
       this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
       if (d.provider != null) this.provider = d.provider;
-      this.hasMore = !!d.hasMore && d.sets.length > 0;
+      if (this.page === 0) this.loose = !!d.wordsOnly;
+      // (a words-only search filters keys and stars here, so a page can come back empty with more after it)
+      this.hasMore = !!d.hasMore && (d.sets.length > 0 || (this.loose && this.page < 8));
       this.cursor = d.cursor || null;
       this.page++;
       this.source = d.source;
@@ -13357,7 +13877,15 @@ const ExplorerScreen = {
       if (tok !== this.token) return;
       this.error = friendlyError(e); this.errorDetails = e.details || null; this.hasMore = false;
     } finally {
-      if (tok === this.token) { this.loading = false; this.renderResults(); }
+      if (tok === this.token) {
+        this.loading = false; this.renderResults();
+        // the end of the list is still in view (a page that added nothing): the observer won't fire again, so load on
+        if (this.hasMore && this.sentinel && this.sentinel.isConnected) requestAnimationFrame(() => {
+          if (tok !== this.token || this.loading || !this.hasMore) return;
+          const r = this.sentinel.getBoundingClientRect();
+          if (r.top < innerHeight + 600) this.loadMore();
+        });
+      }
     }
   },
   /** Beatmap sets you've liked in the listing (kept in this browser). */
@@ -14535,7 +15063,37 @@ const WomImport = {
       });
       Settings.set('input.keybinds', binds);
     }
+    this.applySkin(w);
     return true;
+  },
+
+  /** WOM's skin — its note style, colours (one hue or a colour per column), judgement set and stage layout — so the
+   *  game looks the way it did there: the matching Web-Osu-Mania skin is selected with the same options. */
+  applySkin(w) {
+    const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : null;
+    const set = (k, v) => { if (v !== null && v !== undefined) Settings.set(k, v); };
+    const sk = w.skin && typeof w.skin === 'object' ? w.skin : {}, ui = w.ui && typeof w.ui === 'object' ? w.ui : {};
+    const colors = sk.colors && typeof sk.colors === 'object' ? sk.colors : null;
+    // (older backups kept the hue at the top level)
+    set('wom.hue', num(colors && colors.simple ? colors.simple.hue : w.hue, 0, 360));
+    if (colors && Array.isArray(colors.custom)) set('wom.customColors', colors.custom.map(k => Array.isArray(k) ? k.map(c => ({ tap: String(c && c.tap || ''), holdHead: String(c && c.holdHead || ''), hold: String(c && c.hold || '') })) : null));
+    if (colors && (colors.mode === 'simple' || colors.mode === 'custom')) set('wom.colorMode', colors.mode);
+    if (WOM.JUDGEMENT_SETS.some(j => j[0] === sk.judgementSet)) set('wom.judgements', sk.judgementSet);
+    if (typeof w.darkerHoldNotes === 'boolean') set('wom.darkerHolds', w.darkerHoldNotes);
+    set('wom.noteScale', num(w.noteScale, 0.3, 1.5));
+    set('wom.hitPositionOffset', num(w.hitPositionOffset, 0, 600));
+    set('wom.laneWidthAdjustment', num(w.laneWidthAdjustment, -50, 100));
+    set('wom.laneSpacing', num(w.laneSpacing, 0, 100));
+    set('wom.stagePosition', num(w.stagePosition, -1, 1));
+    set('wom.stageOpacity', num(w.stageOpacity, 0, 1));
+    set('wom.stageSidesOpacity', num(w.stageSidesOpacity, 0, 1));
+    set('wom.noteOffset', num(w.noteOffset, -500, 500));
+    set('wom.receptorOpacity', num(ui.receptorOpacity, 0, 1));
+    if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
+    set('wom.hudY', num(ui.stageHudYPosition, 0, 1));
+    if ([-1, 200, 300, 320].includes(ui.earlyLateThreshold)) set('wom.earlyLate', ui.earlyLateThreshold);
+    const style = WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars';
+    SkinManager.select(`wom-${style}`).catch(() => {});
   },
 
   /** WOM mod names → ours (and the playback rate they imply). */

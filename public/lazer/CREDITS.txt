@@ -1,0 +1,2 @@
+menu-cursor.png, menu-cursor-additive.png, cursor-tap.wav: from ppy/osu-resources (https://github.com/ppy/osu-resources),
+licensed CC BY-NC 4.0 (c) ppy Pty Ltd. Used unmodified for osu!lazer's menu cursor.

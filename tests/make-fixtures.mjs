@@ -189,6 +189,8 @@ writeFileSync(new URL('Kori-test.osk', out), zip(skinFiles.map(([n, c], i) => [n
 {
   const { readFileSync } = await import('node:fs');
   const womSettings = { state: { version: 1, volume: 0.6, musicVolume: 0.5, sfxVolume: 0.3, scrollSpeed: 27, backgroundDim: 0.9, backgroundBlur: 0.2, audioOffset: 12, upscroll: true, show300g: false,
+    style: 'diamonds', noteScale: 0.7, hitPositionOffset: 150, darkerHoldNotes: false, ui: { receptorOpacity: 0.8, receptorLighting: true, stageHudYPosition: 0.6, earlyLateThreshold: 300 },
+    skin: { colors: { mode: 'simple', simple: { hue: 120 }, custom: [] }, judgementSet: 'fnf' },
     keybinds: { keyModes: [[['Space', null]], [['KeyF', null], ['KeyJ', null]], [['KeyF', null], ['Space', null], ['KeyJ', null]], [['KeyA', 'KeyZ'], ['KeyS', null], ['KeyK', null], ['KeyL', null]]], pause: 'Escape', retry: 'Backquote', toggleHud: null } }, version: 0 };
   const womScores = { state: { highScores: { 424242: { 4242421: [{ timestamp: 1700000000000, mods: ['Double Time', 'Mirror'], replayId: 'r1', results: { score: 912345, accuracy: 0.9712, maxCombo: 321, 320: 300, 300: 40, 200: 5, 100: 2, 50: 1, 0: 3 } }] }, 999: { 9990: [{ timestamp: 1, mods: [], replayId: 'r2', results: { score: 1, accuracy: 1, maxCombo: 1, 320: 1, 300: 0, 200: 0, 100: 0, 50: 0, 0: 0 } }] } } }, version: 1 };
   const womCollections = { 'WOM favourites': [{ id: 424242, title: 'Online', artist: 'Test' }, { id: 999, title: 'Missing', artist: 'Nobody' }] };

@@ -90,6 +90,7 @@ const OnlineBeatmaps = {
     if (p.maxStars < 20) params.set('maxStars', p.maxStars);
     if (p.cursor) params.set('cursor', p.cursor);
     if (p.provider) params.set('provider', p.provider);
+    if (p.loose) params.set('loose', '1');
     if (await this.checkApi()) {
       const r = await fetch('api/search?' + params);
       const d = await r.json().catch(() => ({}));
@@ -346,14 +347,14 @@ const ExplorerScreen = {
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
-    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+    this.page = 0; this.results = []; this.cursor = null; this.provider = 0; this.loose = false; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
   },
   async loadMore() {
     const tok = this.token || (this.token = {});
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, genre: st.genre, language: st.language, nsfw: st.nsfw });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), page: this.page, minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, provider: this.provider, loose: this.loose, genre: st.genre, language: st.language, nsfw: st.nsfw });
       if (tok !== this.token) return;
       const seen = new Set(this.results.map(s => s.id));
       const merged = [...this.results, ...d.sets.filter(s => !seen.has(s.id) && statusMatches(s, st.status))];
@@ -361,7 +362,9 @@ const ExplorerScreen = {
       const [sort, dir] = this.effectiveSort();
       this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
       if (d.provider != null) this.provider = d.provider;
-      this.hasMore = !!d.hasMore && d.sets.length > 0;
+      if (this.page === 0) this.loose = !!d.wordsOnly;
+      // (a words-only search filters keys and stars here, so a page can come back empty with more after it)
+      this.hasMore = !!d.hasMore && (d.sets.length > 0 || (this.loose && this.page < 8));
       this.cursor = d.cursor || null;
       this.page++;
       this.source = d.source;
@@ -370,7 +373,15 @@ const ExplorerScreen = {
       if (tok !== this.token) return;
       this.error = friendlyError(e); this.errorDetails = e.details || null; this.hasMore = false;
     } finally {
-      if (tok === this.token) { this.loading = false; this.renderResults(); }
+      if (tok === this.token) {
+        this.loading = false; this.renderResults();
+        // the end of the list is still in view (a page that added nothing): the observer won't fire again, so load on
+        if (this.hasMore && this.sentinel && this.sentinel.isConnected) requestAnimationFrame(() => {
+          if (tok !== this.token || this.loading || !this.hasMore) return;
+          const r = this.sentinel.getBoundingClientRect();
+          if (r.top < innerHeight + 600) this.loadMore();
+        });
+      }
     }
   },
   /** Beatmap sets you've liked in the listing (kept in this browser). */

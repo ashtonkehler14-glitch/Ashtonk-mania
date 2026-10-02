@@ -170,3 +170,17 @@ test('downloads try the chosen provider first (Web-Osu-Mania providers incl. Nek
   await handleDownload('123', fetchImpl);
   assert.ok(calls[0].includes('catboy.best'), 'default order starts with Mino');
 });
+
+test('a mirror that finds nothing with osu!\'s key/star filters in the text is asked again with just the words', async () => {
+  const calls = [];
+  const fetchImpl = async url => { calls.push(url); return res(/key%3D/.test(url) ? [] : [osuSet(11, [4, 7]), osuSet(12, [7])]); };
+  const d = await (await handleSearch(new URL('https://x/api/search?q=camellia&keys=4'), {}, fetchImpl)).json();
+  assert.equal(d.wordsOnly, true);
+  assert.deepEqual(d.sets.map(s => s.id), [11], 'keys are filtered here instead');
+  assert.ok(d.sets[0].diffs.every(x => x.keys === 4));
+  assert.equal(calls[0].includes('catboy'), true);
+  // the next page goes straight to the words-only search
+  calls.length = 0;
+  await handleSearch(new URL('https://x/api/search?q=camellia&keys=4&page=1&loose=1'), {}, fetchImpl);
+  assert.equal(calls.length, 1); assert.ok(!/key%3D/.test(calls[0]));
+});

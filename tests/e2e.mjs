@@ -19,7 +19,7 @@ const server = createServer((req, res) => {
   try {
     let data;
     try { data = readFileSync(file); } catch { data = readFileSync(join(root, 'public', p)); } // bundled assets (neru.png…)
-    res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
 }).listen(0);
@@ -125,8 +125,8 @@ check('search filters difficulties', JSON.stringify(searched) === JSON.stringify
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = 'keys>=8'; s.query = 'keys>=8'; s.rebuild(true); });
 const syntax = await page.evaluate(() => AshtonkMania.SongSelect.results[0].maps.map(m => m.keys));
 check('filter syntax (keys>=8)', JSON.stringify(syntax) === '[8,9]', JSON.stringify(syntax));
-await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = 'test anthm'; s.query = 'test anthm'; s.rebuild(true); });
-check('fuzzy search tolerates typos', await page.evaluate(() => AshtonkMania.SongSelect.results.length === 1));
+const only = await page.evaluate(() => { const s = AshtonkMania.SongSelect, n = q => { s.searchInput.value = q; s.query = q; s.rebuild(true); return s.results.length; }; return { all: n(''), word: n('anthem'), loose: n('tsnhm'), none: n('zzqx') }; });
+check('search keeps only the songs it names (lazer: every word must appear; no loose letter matching)', only.all >= 1 && only.word === 1 && only.loose === 0 && only.none === 0, JSON.stringify(only));
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
 check('sorting by star rating works', await page.evaluate(() => AshtonkMania.SongSelect.results.length === 1));
 
@@ -615,6 +615,39 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   await page.evaluate(() => AshtonkMania.Screens.go('home'));
   await page.waitForTimeout(300);
 }
+// a computer window at 300% browser zoom (a 640×360 page): the interface scales down to fit, as lazer's does, instead
+// of falling apart into the phone layout
+{
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
+  await page.waitForTimeout(700);
+  const z = await page.evaluate(() => { const info = document.querySelector('.ss-info'), r = document.querySelector('.ss-right').getBoundingClientRect(); return { z: AshtonkMania.Zoom.z, info: !!info && getComputedStyle(info).display !== 'none', fits: r.right <= innerWidth + 1, overflow: document.documentElement.scrollWidth > innerWidth + 1 }; });
+  check('300% zoom (640×360): song select scales down whole — the info panel stays, nothing overflows', z.z > 1.8 && z.info && z.fits && !z.overflow, JSON.stringify(z));
+  await shot('14-songselect-300pct');
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.evaluate(() => AshtonkMania.Screens.go('home'));
+  await page.waitForTimeout(300);
+}
+
+// lazer's menu cursor, drawn by the game: follows the pointer, shrinks to 0.9× with a pink glow while pressed
+{
+  await page.mouse.move(400, 300); await page.waitForTimeout(100);
+  await page.mouse.down(); await page.waitForTimeout(900);
+  const c = await page.evaluate(() => { const el = document.querySelector('#lz-cur'), sc = document.querySelector('.lzc-scale'); return { shown: !!el && !el.hidden, at: el && el.style.transform, scale: getComputedStyle(sc).scale, glow: +getComputedStyle(document.querySelector('.lzc-add')).opacity, sys: getComputedStyle(document.body).cursor }; });
+  await page.mouse.up(); await page.waitForTimeout(600);
+  check('the osu!lazer menu cursor follows the mouse, shrinks and glows pink while pressed (system cursor hidden)', c.shown && /400px, 300px/.test(c.at) && Math.abs(+c.scale - 0.9) < 0.02 && c.glow > 0.9 && c.sys === 'none', JSON.stringify(c));
+}
+
+// the Web-Osu-Mania skins draw their own stage (each style plays without errors; judgements come from the chosen set)
+const skinBefore = await page.evaluate(() => AshtonkMania.SkinManager.current.id);
+for (const st of ['bars', 'arrows']) {
+  await page.evaluate(async st => { await AshtonkMania.SkinManager.select('wom-' + st); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.keys === 4); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, st);
+  await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.engine && AshtonkMania.GameplayScreen.s.engine.score.combo > 2, null, { timeout: 20000 });
+  const r = await page.evaluate(() => { const R = AshtonkMania.GameplayScreen.s.renderer || AshtonkMania.GameplayScreen.renderer; return { wom: !!(R && R.layout && R.layout.wom), style: R && R.layout && R.layout.wom && R.layout.wom.style, hitFromBottom: R && Math.round((R.H - R.hitY) / R.womD) }; });
+  check(`Web-Osu-Mania ${st}: its own stage (hit position 130 px from the bottom, as WOM)`, r.wom && r.style === st && r.hitFromBottom === 130, JSON.stringify(r));
+  await shot('wom-' + st);
+}
+await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); AshtonkMania.Screens.go('home', { force: true }); }, skinBefore); await page.waitForTimeout(500);
 
 // player loader, beatmap offset and hold-to-retry
 {
@@ -856,10 +889,12 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
     return { text: document.querySelector('.setup-wom').textContent, sets: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 424242).length,
       vol: S.get('audio.master'), speed: S.get('gameplay.scrollSpeed'), dir: S.get('gameplay.scrollDirection'), off: S.get('audio.offset'), k4: S.get('input.keybinds')[4],
       score: sc && { v: sc.version, mods: sc.mods, rate: sc.rate, acc: sc.accuracy, grade: sc.grade, counts: sc.counts, n: AshtonkMania.ScoreManager.scores.length },
+      skin: AshtonkMania.SkinManager.current.id, hue: S.get('wom.hue'), jud: S.get('wom.judgements'), ns: S.get('wom.noteScale'), hp: S.get('wom.hitPositionOffset'), dk: S.get('wom.darkerHolds'), el: S.get('wom.earlyLate'),
       col: (await AshtonkMania.DB.kvGet('collections')).find(c => c.name === 'WOM favourites'), downloaded: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 999).length };
   });
   check('Web-Osu-Mania backup: its stored beatmaps are imported', w.sets === 1, JSON.stringify(w));
   check('Web-Osu-Mania backup: settings and keybinds carry over', w.vol === 0.6 && w.speed === 27 && w.dir === 'up' && w.off === 12 && JSON.stringify(w.k4) === JSON.stringify([['KeyA', 'KeyZ'], ['KeyS'], ['KeyK'], ['KeyL']]), JSON.stringify(w));
+  check('Web-Osu-Mania backup: its skin comes across (style, colour, judgements, note size, hit position)', w.skin === 'wom-diamonds' && w.hue === 120 && w.jud === 'fnf' && w.ns === 0.7 && w.hp === 150 && w.dk === false && w.el === 300, JSON.stringify(w));
   check('Web-Osu-Mania backup: high scores land on the right difficulty (mods, rate, judgements); ones for missing maps are left out', w.score && w.score.v === 'Online Hard' && w.score.mods.join() === 'DT,MR' && w.score.rate === 1.5 && w.score.counts.join() === '300,40,5,2,1,3' && w.score.n === 1, JSON.stringify(w.score));
   check('Web-Osu-Mania backup: collection songs missing from the backup are downloaded, and the collection holds them all', w.col && w.col.hashes.length > 2 && w.downloaded === 1, JSON.stringify({ col: w.col && w.col.hashes.length, dl: w.downloaded }));
   check('the setup screen says what came across', /2 beatmap sets \(1 downloaded for your collections\), 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);

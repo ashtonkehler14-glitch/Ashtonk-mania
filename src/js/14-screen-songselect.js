@@ -208,8 +208,8 @@ const SongSelect = {
       if (pq.words.length) {
         setScore = 1;
         for (const w of pq.words) {
-          let best = fuzzyScore(hay, w);
-          for (const m of set.maps) best = Math.max(best, fuzzyScore(m.version, w) * 0.9);
+          let best = wordScore(hay, w);
+          for (const m of set.maps) best = Math.max(best, wordScore(m.version, w) * 0.9);
           if (!best) { setScore = 0; break; }
           setScore += best;
         }
@@ -217,7 +217,7 @@ const SongSelect = {
       }
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
-        if (pq.words.length && !pq.words.every(w => fuzzyScore(hay + ' ' + m.version, w) > 0)) return false;
+        if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;

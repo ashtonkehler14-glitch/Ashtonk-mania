@@ -80,7 +80,37 @@ const WomImport = {
       });
       Settings.set('input.keybinds', binds);
     }
+    this.applySkin(w);
     return true;
+  },
+
+  /** WOM's skin — its note style, colours (one hue or a colour per column), judgement set and stage layout — so the
+   *  game looks the way it did there: the matching Web-Osu-Mania skin is selected with the same options. */
+  applySkin(w) {
+    const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : null;
+    const set = (k, v) => { if (v !== null && v !== undefined) Settings.set(k, v); };
+    const sk = w.skin && typeof w.skin === 'object' ? w.skin : {}, ui = w.ui && typeof w.ui === 'object' ? w.ui : {};
+    const colors = sk.colors && typeof sk.colors === 'object' ? sk.colors : null;
+    // (older backups kept the hue at the top level)
+    set('wom.hue', num(colors && colors.simple ? colors.simple.hue : w.hue, 0, 360));
+    if (colors && Array.isArray(colors.custom)) set('wom.customColors', colors.custom.map(k => Array.isArray(k) ? k.map(c => ({ tap: String(c && c.tap || ''), holdHead: String(c && c.holdHead || ''), hold: String(c && c.hold || '') })) : null));
+    if (colors && (colors.mode === 'simple' || colors.mode === 'custom')) set('wom.colorMode', colors.mode);
+    if (WOM.JUDGEMENT_SETS.some(j => j[0] === sk.judgementSet)) set('wom.judgements', sk.judgementSet);
+    if (typeof w.darkerHoldNotes === 'boolean') set('wom.darkerHolds', w.darkerHoldNotes);
+    set('wom.noteScale', num(w.noteScale, 0.3, 1.5));
+    set('wom.hitPositionOffset', num(w.hitPositionOffset, 0, 600));
+    set('wom.laneWidthAdjustment', num(w.laneWidthAdjustment, -50, 100));
+    set('wom.laneSpacing', num(w.laneSpacing, 0, 100));
+    set('wom.stagePosition', num(w.stagePosition, -1, 1));
+    set('wom.stageOpacity', num(w.stageOpacity, 0, 1));
+    set('wom.stageSidesOpacity', num(w.stageSidesOpacity, 0, 1));
+    set('wom.noteOffset', num(w.noteOffset, -500, 500));
+    set('wom.receptorOpacity', num(ui.receptorOpacity, 0, 1));
+    if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
+    set('wom.hudY', num(ui.stageHudYPosition, 0, 1));
+    if ([-1, 200, 300, 320].includes(ui.earlyLateThreshold)) set('wom.earlyLate', ui.earlyLateThreshold);
+    const style = WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars';
+    SkinManager.select(`wom-${style}`).catch(() => {});
   },
 
   /** WOM mod names → ours (and the playback rate they imply). */

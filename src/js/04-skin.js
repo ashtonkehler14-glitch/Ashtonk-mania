@@ -609,6 +609,69 @@ DefaultSkin.NAMES = new Set(['mania-note1', 'mania-note2', 'mania-notes', 'mania
   'mania-key1d', 'mania-key2d', 'mania-keysd', 'mania-stage-hint', 'mania-stage-light', 'mania-stage-left', 'mania-stage-right',
   'lightingn', 'lightingl', 'mania-hit300g', 'mania-hit300', 'mania-hit200', 'mania-hit100', 'mania-hit50', 'mania-hit0']);
 
+/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), drawn the way WOM draws them
+ *  (ManiaRenderer._renderWom): its five note styles, its colours (one hue, or a colour per column from a WOM backup),
+ *  its judgement sets, receptors, stage and layout. Everything else (sounds, fallbacks) is the Custom skin's. */
+const WOM = {
+  STYLES: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']],
+  JUDGEMENT_SETS: [['azureSnowfall', 'Azure Snowfall', 1], ['chocolate', '105°C Chocolate', 1], ['bangDream', 'BanG Dream!', 0.6], ['fnf', 'Friday Night Funkin\'', 0.45], ['osuStable', 'osu!(stable)', 0.35]],
+  // constants.ts: column widths (in WOM's 854-wide osu! space) and the colour of each column (primary, secondary, centre)
+  LANE_WIDTHS: [56, 56, 56, 56, 50, 47, 42, 40, 38, 35, 31, 30, 29, 27, 24, 22, 21, 20],
+  LANE_KINDS: ['p', 'pp', 'sps', 'spps', 'spcps', 'psppsp', 'pspcpsp', 'spsppsps', 'spspcpsps', 'spspsspsps', 'spspscspsps', 'spspsppspsps', 'spspspcpspsps', 'spspspsspspsps', 'spspspscspspsps', 'spspspsppspspsps', 'spspspspcpspspsps', 'spspspspsspspspsps'],
+  ARROWS: [[180], [270, 90], [270, 180, 90], [270, 180, 0, 90], [270, 315, 180, 45, 90], [270, 45, 180, 0, 45, 90], [270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90], [270, 315, 225, 315, 180, 0, 45, 135, 45, 90], [270, 315, 225, 315, 180, 0, 180, 45, 135, 45, 90], [270, 45, 180, 0, 45, 90, 270, 45, 180, 0, 45, 90], [270, 315, 225, 315, 225, 180, 0, 180, 135, 45, 135, 45, 90], [270, 315, 0, 180, 0, 45, 90, 270, 315, 0, 180, 0, 45, 90], [270, 315, 225, 270, 315, 225, 180, 0, 180, 135, 45, 90, 135, 45, 90], [270, 315, 225, 180, 0, 135, 45, 90, 270, 315, 225, 180, 0, 135, 45, 90], [270, 315, 225, 270, 315, 225, 270, 180, 0, 180, 90, 135, 45, 90, 135, 45, 90], [270, 315, 225, 0, 180, 0, 135, 45, 90, 270, 315, 225, 0, 180, 0, 135, 45, 90]],
+  /** getAllLaneColors(hue, darkerHoldNotes): {tap, holdHead, hold} per column. */
+  laneColors(keys, hue, darker) {
+    const cen = hue > 35 && hue < 75 ? 212 : 62;
+    const C = { p: [`hsl(${hue}, 80%, 69%)`, `hsl(${hue}, 36%, 41%)`], s: [`hsl(${hue}, 8%, 98.45%)`, `hsl(${hue}, 0%, 59%)`], c: [`hsl(${cen}, 80%, 69%)`, `hsl(${cen}, 36%, 41%)`] };
+    return [...(WOM.LANE_KINDS[keys - 1] || 'p'.repeat(keys))].map(k => ({ tap: C[k][0], holdHead: C[k][0], hold: darker ? C[k][1] : C[k][0] }));
+  },
+  /** The colours a game uses: the hue's, or the custom ones a WOM backup brought (anything that isn't a colour turns
+   *  white, as WOM's patchLaneColors does). */
+  colors(keys) {
+    const custom = Settings.get('wom.colorMode') === 'custom' && Settings.get('wom.customColors');
+    const cols = custom && Array.isArray(custom[keys - 1]) && custom[keys - 1].length === keys ? custom[keys - 1] : null;
+    if (!cols) return WOM.laneColors(keys, Settings.get('wom.hue'), Settings.get('wom.darkerHolds'));
+    const ok = c => typeof c === 'string' && typeof CSS !== 'undefined' && CSS.supports('color', c) ? c : 'white';
+    return cols.map(c => ({ tap: ok(c && c.tap), holdHead: ok(c && c.holdHead), hold: ok(c && c.hold) }));
+  },
+  judgementScale(id) { const j = WOM.JUDGEMENT_SETS.find(x => x[0] === id); return j ? j[2] : 1; },
+  _img: new Map(),
+  /** A bundled WOM image (arrows, judgements), loaded once; null until it has loaded. */
+  image(path) {
+    let e = WOM._img.get(path);
+    if (!e) {
+      const img = new Image(); e = { img, ok: false };
+      img.onload = () => { e.ok = true; }; img.src = `wom/${path}`;
+      WOM._img.set(path, e);
+    }
+    return e.ok ? e.img : null;
+  },
+  /** Loads what a game with this skin will draw, so nothing pops in on the first notes. */
+  preload(style) {
+    const set = Settings.get('wom.judgements');
+    const files = ['300g', '300', '200', '100', '50', '0'].map(j => `judgements-${set}/mania-hit${j}.png`);
+    if (style === 'arrows') files.push('arrow.svg', 'arrowOutline.svg');
+    if (style === 'thickArrows') files.push('arrowThick.svg', 'arrowThickOutline.svg');
+    return Promise.all(files.map(f => new Promise(res => { WOM.image(f); const e = WOM._img.get(f); if (e.ok) return res(); e.img.addEventListener('load', res, { once: true }); e.img.addEventListener('error', res, { once: true }); })));
+  },
+};
+class WomSkin extends DefaultSkin {
+  constructor(style) {
+    super();
+    const name = `Web-Osu-Mania · ${WOM.STYLES.find(s => s[0] === style)[1]}`, author = 'Danny Duong (Web-Osu-Mania)';
+    this.id = `wom-${style}`; this.womStyle = style;
+    this.ini = { ...this.ini, general: { Name: name, Author: author, Version: 'WOM' } };
+    this.meta = { ...this.meta, id: this.id, name, author, version: 'WOM' };
+  }
+  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
+  async mania(keys) {
+    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
+    const p = (async () => { const L = await ManiaLayout.resolve(this, keys); L.wom = { style: this.womStyle }; await WOM.preload(this.womStyle); return L; })();
+    this.layoutCache.set(keys, p);
+    return p;
+  }
+}
+
 /** Resolved per-key-count configuration (skin.ini [Mania] + textures + fallbacks). */
 const ManiaLayout = {
   num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; },
@@ -792,19 +855,24 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
+    this.womSkins = WOM.STYLES.map(([st]) => new WomSkin(st));
+    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') for (const w of this.womSkins) w.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k.startsWith('skin.c.') || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
     const want = Settings.get('skin.current');
-    await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
+    await this.select(want && (want === 'default' || this.womSkins.some(s => s.id === want) || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
-    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] }, ...this.skins];
+    return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] },
+      ...this.womSkins.map(k => ({ id: k.id, name: k.name, author: k.author, version: 'WOM', builtin: true, ini: k.ini, files: [] })), ...this.skins];
   },
 
   instance(id) {
     if (id === 'default') return this.defaultSkin;
+    const wom = this.womSkins.find(k => k.id === id);
+    if (wom) return wom;
     if (this.current && this.current.id === id) return this.current;
     const meta = this.skins.find(s => s.id === id);
     return meta ? new Skin(meta) : null;
@@ -898,7 +966,7 @@ const SkinManager = {
   },
 
   async remove(id) {
-    if (id === 'default') return;
+    if (id === 'default' || /^wom-/.test(id)) return;
     await DB.del('skins', id);
     await DB.delPrefix('files', `skin:${id}/`);
     this.skins = this.skins.filter(s => s.id !== id);

@@ -154,6 +154,15 @@ function fuzzyScore(hay, needle) {
   return score;
 }
 
+/** lazer's song select search: a word matches only where it appears as written (any case) — no loose letter-by-letter
+ *  matching, so a search leaves just the songs it names. Earlier and word-start matches score higher. */
+function wordScore(hay, word) {
+  if (!word) return 1;
+  const at = hay.toLowerCase().indexOf(word);
+  if (at < 0) return 0;
+  return 1000 - Math.min(at, 800) + (at === 0 || /[\s([\-_/]/.test(hay[at - 1]) ? 200 : 0);
+}
+
 /** Binary search: last index i where arr[i][key] <= v (or -1). */
 function bsearchLE(arr, v, key) {
   let lo = 0, hi = arr.length - 1, ans = -1;

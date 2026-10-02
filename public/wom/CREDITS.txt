@@ -1,0 +1,8 @@
+Web-Osu-Mania skin assets, from https://github.com/hectickiwi/Web-Osu-Mania (MIT License, Copyright (c) 2024 Danny Duong).
+Arrow images: Web-Osu-Mania. Judgement sets, as credited by Web-Osu-Mania:
+  Azure Snowfall      - thetasigma's skin
+  105°C Chocolate     - Tkieen's skin
+  BanG Dream!         - Hello_Real's skin
+  Friday Night Funkin' - Saltssaumure's skin
+  osu!(stable)        - the official osu! assets (ppy/osu-resources)
+RobotoMono.ttf - Roboto Mono by Google (Apache License 2.0), as Web-Osu-Mania bundles it.

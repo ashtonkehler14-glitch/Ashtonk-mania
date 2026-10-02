@@ -467,7 +467,7 @@ const HomeScreen = {
       this.vis.getAnimations().forEach(x => x.cancel());
       this.vis.animate([{ opacity: 0.5, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { opacity: 0.9 * adj, offset: 60 / (60 + beatLength) }, { opacity: 0.5 }], { duration: 60 + beatLength });
     }
-    setTimeout(() => { this._kick = (this._kick || 0) + adj * (kiai ? 6 : 3); }, 60);
+    setTimeout(() => { this._kick = (this._kick || 0) + adj * (kiai ? 6 : 3); NeruMascot.beat(adj, kiai); }, 60);
   },
   /** lazer's SongTicker: fades in over 0.4s, stays 4s, fades out over 0.8s. */
   showTicker(m) {

@@ -860,30 +860,100 @@ const VolumeOverlay = {
   },
 };
 
-/** osu!lazer's menu cursor: a white arrow with a soft outline, drawn by the browser (so it never lags) at the size
- *  chosen in settings; it shrinks a little while a button is held, like lazer's. Hidden in game as before. */
+/** osu!lazer's MenuCursor (MenuCursorContainer), drawn by the game as lazer draws it: its menu-cursor texture at 0.15×
+ *  (× the cursor size setting, × the interface scale). Pressing shrinks it to 0.9× and fades in a pink glow over
+ *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). Dragging more than 80 px turns it to point
+ *  along the drag, and it swings back on release. Each press and release plays lazer's cursor-tap, panned to where
+ *  the cursor is and pitched a little at random (lower on release). The system cursor is hidden while it's on; it's
+ *  hidden too in gameplay (until the mouse moves) and for touch. */
 const LazerCursor = {
+  TEX_W: 312, TEX_H: 442, BASE: 0.15,
+  /** CSS linear() easings for osu!framework's elastic curves. */
+  ease(fn) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(fn(i / 48).toFixed(4)); return `linear(${pts.join(', ')})`; },
   apply() {
-    const on = Settings.get('ui.lazerCursor') !== false, size = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2);
-    const root = document.documentElement.style;
-    if (!on) { root.removeProperty('--lz-cursor'); root.removeProperty('--lz-cursor-down'); document.body.classList.remove('lz-cursor'); return; }
-    // lazer's menu cursor: a dark rounded arrow with a white rim; pressed, it shrinks slightly and glows pink
-    const mk = (k, pressed) => {
-      const S = Math.round(32 * size * k);
-      const path = 'M6.2 3.2 L25.4 17.2 Q27.3 18.7 24.9 19.2 L17.6 20.4 Q16.6 20.6 16.1 21.5 L12.4 28.2 Q11.2 30.1 10.5 28 L4.6 5.2 Q4.1 2.1 6.2 3.2 Z';
-      const glow = pressed ? '<path d="' + path + '" fill="none" stroke="#ff66ab" stroke-opacity=".75" stroke-width="5" stroke-linejoin="round"/>' : '';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 32 32">${glow}<path d="${path}" transform="translate(.8 1.4)" fill="rgba(0,0,0,.35)"/><path d="${path}" fill="#16141c" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/><path d="M7.4 6.4 L21.6 16.8" stroke="rgba(255,255,255,.18)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
-      return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(5.4 * S / 32)} ${Math.round(3 * S / 32)}`;
+    const on = Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
+    document.body.classList.toggle('lz-cursor', on);
+    if (!on) { if (this.el) this.el.hidden = true; return; }
+    if (!this.el) this.build();
+    this.size();
+  },
+  build() {
+    const OUT_ELASTIC = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1;
+    const OUT_ELASTIC_QUARTER = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((0.25 * t - 0.075) * (2 * Math.PI) / 0.3 * 4) + 1;
+    this.EL = this.ease(OUT_ELASTIC); this.ELQ = this.ease(OUT_ELASTIC_QUARTER);
+    this.add = h('span.lzc-add');
+    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), this.add);
+    this.rotEl = h('span.lzc-rot', this.scaleEl);
+    this.el = h('div#lz-cur', { hidden: true, 'aria-hidden': 'true' }, this.rotEl);
+    document.body.appendChild(this.el);
+    this.rot = 0; this.drag = 0; // 0 not dragging, 1 started, 2 rotating
+    const OQ = 'cubic-bezier(.23, 1, .32, 1)';
+    const anim = (el, prop, to, ms, easing) => {
+      const from = getComputedStyle(el)[prop];
+      el.getAnimations().filter(a => a._p === prop).forEach(a => a.cancel());
+      const a = el.animate([{ [prop]: from }, { [prop]: to }], { duration: ms, easing, fill: 'forwards' }); a._p = prop;
     };
-    root.setProperty('--lz-cursor', `${mk(1)}, auto`);
-    root.setProperty('--lz-cursor-down', `${mk(0.9, true)}, auto`);
-    document.body.classList.add('lz-cursor');
+    this.rotTo = (deg, ms, easing) => { this.rot = deg; anim(this.rotEl, 'rotate', `${deg}deg`, ms, easing); };
+    let lastT = 0;
+    const move = e => {
+      if (e.pointerType === 'touch') { this.el.hidden = true; return; }
+      this.x = e.clientX; this.y = e.clientY;
+      this.el.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+      const t = e.target && e.target.closest ? e.target : null;
+      this.el.hidden = !document.body.classList.contains('lz-cursor') || !!(t && t.closest('.gameplay:not(.show-cursor)'));
+      if (this.drag) {
+        const now = performance.now(), dt = Math.max(1, now - lastT); lastT = now;
+        let dx = e.clientX - this.dx, dy = e.clientY - this.dy, dist = Math.hypot(dx, dy);
+        // (lazer lets the centre of the turn drift after the pointer once it's far away)
+        if (dist > 60) { const k = Math.min(1, 0.04 / dt * 16); this.dx += dx * k * 0.06; this.dy += dy * k * 0.06; dx = e.clientX - this.dx; dy = e.clientY - this.dy; dist = Math.hypot(dx, dy); }
+        if (this.drag === 1 && dist > 80 * this.k) this.drag = 2;
+        if (this.drag === 2 && dist > 0) {
+          let deg = Math.atan2(-dx, dy) * 180 / Math.PI + 24.3, diff = (deg - this.rot) % 360;
+          if (diff < -180) diff += 360; if (diff > 180) diff -= 360;
+          this.rotTo(this.rot + diff, 120, OQ);
+        }
+      }
+    };
+    window.addEventListener('pointermove', move, { passive: true, capture: true });
+    window.addEventListener('pointerdown', e => {
+      move(e);
+      if (e.pointerType === 'touch' || this.el.hidden) return;
+      this.scaleEl.getAnimations().forEach(a => a.cancel());
+      anim(this.scaleEl, 'scale', '0.9', 800, OQ);
+      this.add.getAnimations().forEach(a => a.cancel());
+      this.add.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: OQ, fill: 'forwards' });
+      if (Settings.get('ui.cursorRotate') !== false && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
+      this.tap(1);
+    }, true);
+    window.addEventListener('pointerup', e => {
+      if (e.buttons) return;
+      this.add.getAnimations().forEach(a => a.cancel());
+      this.add.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, easing: OQ, fill: 'forwards' });
+      anim(this.scaleEl, 'scale', '1', 500, this.EL);
+      if (this.drag) { this.rotTo(0, 400 * (0.5 + Math.abs(this.rot / 960)), this.ELQ); this.rot = 0; this.drag = 0; }
+      if (e.pointerType !== 'touch' && !this.el.hidden) this.tap(0.8);
+    }, true);
+    document.documentElement.addEventListener('pointerleave', () => { this.el.hidden = true; });
+    window.addEventListener('blur', () => { this.el.hidden = true; });
+    Bus.on('ui:scaled', () => this.size());
+  },
+  /** Texture × 0.15 × cursor size × the interface scale (lazer's cursor lives inside its scaling container). */
+  size() {
+    const k = this.k = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2) * this.BASE / (Zoom.z || 1);
+    this.el.style.setProperty('--lzc-w', `${(this.TEX_W * k).toFixed(2)}px`);
+    this.el.style.setProperty('--lzc-h', `${(this.TEX_H * k).toFixed(2)}px`);
+  },
+  /** lazer's playTapSample: ±1% pitch at random, panned by where the cursor is (at most 75%). */
+  async tap(freq) {
+    if (!Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
+    if (!this._buf) this._buf = fetch('lazer/cursor-tap.wav').then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
+    const buf = await this._buf;
+    if (!buf) return;
+    AudioManager.play(buf, { bus: 'ui', volume: freq, rate: freq - 0.01 + Math.random() * 0.02, pan: ((this.x || 0) / innerWidth * 2 - 1) * 0.75 });
   },
   init() {
     this.apply();
     Bus.on('settings:changed', k => { if (k === 'ui.lazerCursor' || k === 'ui.cursorSize' || k === '*') this.apply(); });
-    window.addEventListener('pointerdown', () => document.body.classList.add('lz-down'), true);
-    window.addEventListener('pointerup', () => document.body.classList.remove('lz-down'), true);
   },
 };
 
@@ -976,7 +1046,11 @@ const Zoom = {
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
     const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
-    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : 1;
+    // a small window on a computer (or a browser zoom we couldn't read, such as a page opened at 300%) keeps scaling
+    // down with the window, as lazer's does, instead of laying the full-size interface into a tiny space; phones and
+    // tablets (no mouse) keep their own responsive layout
+    const desktop = typeof matchMedia === 'function' && matchMedia('(hover: hover)').matches; // (the same test the narrow-screen CSS uses)
+    const fit = W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
     const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
@@ -1013,8 +1087,9 @@ const Screens = {
     if (!next || this.busy) return;
     if (this.currentName === name && !params.force) { next.refresh && next.refresh(params); return; }
     this.busy = true;
+    const prevName = this.currentName;
     try {
-      const prev = this.current, prevName = this.currentName;
+      const prev = this.current;
       if (prev) {
         if (prev.canLeave && !(await prev.canLeave())) return;
         if (!replace && prevName && !prev.transient) this.history.push(prevName);
@@ -1024,14 +1099,18 @@ const Screens = {
         if (oldEl) {
           oldEl.classList.remove('enter', 'zoom', 'from-right');
           oldEl.classList.add('leave'); if (transition === 'zoom') oldEl.classList.add('zoom');
+          // lazer's main menu leaves slowly (its buttons fold away, then it fades over 400ms, InSine) under the next screen
+          const fromMenu = prevName === 'home';
+          if (fromMenu) oldEl.classList.add('from-menu');
           oldEl.inert = true; // (its state is already torn down: a click during the fade-out used to reach stale handlers)
-          setTimeout(() => oldEl.remove(), 220);
+          setTimeout(() => oldEl.remove(), fromMenu ? 460 : 220);
         }
       }
       this.current = next; this.currentName = name;
       const el = await next.enter(params);
       next.el = el;
       el.classList.add('screen', 'enter');
+      if (prevName === 'home') el.classList.add('after-menu');
       if (transition === 'zoom') el.classList.add('zoom');
       if (transition === 'right') el.classList.add('from-right');
       $('#screens').appendChild(el);

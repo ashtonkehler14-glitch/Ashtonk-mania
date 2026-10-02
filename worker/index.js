@@ -132,6 +132,7 @@ export function buildParams(url) {
     nsfw: sp.get('nsfw') !== 'false',
     genre: int('g', 1, 20), language: int('l', 1, 20),
     // the mirror that served page 0 serves the following pages too, so the order stays consistent
+    loose: sp.get('loose') === '1',
     provider: Math.max(0, Math.min(MIRRORS.search.length - 1, parseInt(sp.get('provider') || '0', 10) || 0)),
   };
 }
@@ -251,10 +252,15 @@ export async function handleSearch(url, env, fetchImpl = fetch) {
   const want = effectiveSort(p), attempts = sortAttempts(p);
   for (const [n, i] of order.entries()) {
     const m = MIRRORS.search[i];
-    for (const [k, sort] of attempts.entries()) {
-      const tag = `${m.name}${sort === want ? '' : ` (${sort || 'default order'})`}`;
+    // mirrors that don't understand osu!'s "key=4 stars>=3" filters in the search text find nothing with them: those
+    // are asked again with just the words, and the keys and stars are filtered here (postFilter) instead
+    // (later pages ask for the same kind of search as the first page got: "loose")
+    const tries = attempts.map(sort => [sort, p.loose ? p.rawQ : p.q]);
+    if (p.q !== p.rawQ && !p.loose) tries.push(...attempts.map(sort => [sort, p.rawQ]));
+    for (const [k, [sort, q]] of tries.entries()) {
+      const tag = `${m.name}${sort === want ? '' : ` (${sort || 'default order'})`}${q === p.q ? '' : ' (words only)'}`;
       try {
-        const r = await fetchImpl(m.url({ ...p, sort }), { headers: { Accept: 'application/json', ...UA }, signal: timeout(9000) });
+        const r = await fetchImpl(m.url({ ...p, sort, q }), { headers: { Accept: 'application/json', ...UA }, signal: timeout(9000) });
         // a mirror that's down (5xx, rate limit, blocked) is skipped; other 4xx may be the sort it doesn't accept
         if (!r.ok) { errors.push(`${tag}: HTTP ${r.status}`); if (r.status >= 500 || [403, 404, 429].includes(r.status)) break; continue; }
         const data = await r.json();
@@ -262,11 +268,11 @@ export async function handleSearch(url, env, fetchImpl = fetch) {
         if (!raw.length && data && !Array.isArray(data) && data.error) { errors.push(`${tag}: ${String(data.error).slice(0, 80)}`); continue; }
         // an empty first page: a sort the mirror ignored or rejected quietly, or this mirror just has nothing —
         // try the next order, then the next mirror
-        if (!raw.length && p.page === 0 && k < attempts.length - 1) { errors.push(`${tag}: no results`); continue; }
+        if (!raw.length && p.page === 0 && k < tries.length - 1) { errors.push(`${tag}: no results`); continue; }
         if (!raw.length && p.page === 0 && p.rawQ && n < order.length - 1) { errors.push(`${tag}: no results`); break; }
         let sets = postFilter(raw, p);
         if (sort !== want) sets = localSort(sets, want, p.rawQ);
-        return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, sort: want, sortedLocally: sort !== want, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
+        return json({ sets, page: p.page, hasMore: raw.length >= PAGE_SIZE / 2, source: m.name, provider: i, sort: want, sortedLocally: sort !== want, wordsOnly: q !== p.q, errors }, 200, { 'Cache-Control': 'public, max-age=300' });
       } catch (e) { errors.push(`${tag}: ${e.message}`); break; } // unreachable / timed out: next mirror
     }
   }

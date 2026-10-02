@@ -358,7 +358,7 @@ class LocalBeatmapProvider extends BeatmapProvider {
   get name() { return 'Local library'; }
   async search(query) {
     const q = (query || '').toLowerCase();
-    return BeatmapManager.sets.filter(s => !q || fuzzyScore(`${s.artist} ${s.title} ${s.creator} ${s.tags}`, q) > 0)
+    return BeatmapManager.sets.filter(s => !q || q.split(/\s+/).every(w => wordScore(`${s.artist} ${s.title} ${s.creator} ${s.tags}`, w) > 0))
       .map(s => ({ id: s.id, title: s.title, artist: s.artist, creator: s.creator, difficulties: s.maps.map(m => m.version) }));
   }
   async getBeatmap(id) { return BeatmapManager.maps.get(id) || null; }

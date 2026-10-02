@@ -39,6 +39,10 @@ function keyLabel(code) {
 }
 
 /** [section, key, label, type, default, options] */
+/** Which skin's own options the Skin section shows. */
+function customSkinOn() { const c = Settings.get('skin.current'); return !c || c === 'default'; }
+function womSkinOn() { return /^wom-/.test(Settings.get('skin.current') || ''); }
+
 const SETTINGS_SCHEMA = [
   // ── Gameplay
   { s: 'Gameplay', g: 'Scrolling', k: 'gameplay.scrollSpeed', l: 'Scroll speed', t: 'range', d: 22, min: 1, max: 40, step: 1,
@@ -118,10 +122,11 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
   { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
+  { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']] },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']] },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0 },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.pattern', l: 'Colour pattern', t: 'select', d: 'type', o: [['type', 'osu! (by column type)'], ['rainbow', 'Rainbow'], ['single', 'One colour']] },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.noteSize', l: 'Note size', t: 'range', d: 1, min: 0.6, max: 1.4, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.round', l: 'Note roundness', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -132,6 +137,24 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.glow', l: 'Glow', t: 'range', d: 0.7, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.lines', l: 'Column lines', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.border', l: 'Glowing stage border', t: 'bool', d: true },
+  // Web-Osu-Mania's skin options (shown when one of its skins is in use); the hidden ones come over from a WOM backup
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
+  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
+  { x: 1, s: 'Skin', k: 'wom.customColors', d: null },
+  { x: 1, s: 'Skin', k: 'wom.noteScale', d: 0.8 },
+  { x: 1, s: 'Skin', k: 'wom.hitPositionOffset', d: 130 },
+  { x: 1, s: 'Skin', k: 'wom.laneWidthAdjustment', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.laneSpacing', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.stagePosition', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.stageOpacity', d: 0.5 },
+  { x: 1, s: 'Skin', k: 'wom.stageSidesOpacity', d: 1 },
+  { x: 1, s: 'Skin', k: 'wom.receptorOpacity', d: 1 },
+  { x: 1, s: 'Skin', k: 'wom.receptorLighting', d: true },
+  { x: 1, s: 'Skin', k: 'wom.hudY', d: 0.66 },
+  { x: 1, s: 'Skin', k: 'wom.noteOffset', d: 0 },
+  { x: 1, s: 'Skin', k: 'wom.earlyLate', d: 200 },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
   // beatmap sources, as in Web-Osu-Mania's "Sources" settings
