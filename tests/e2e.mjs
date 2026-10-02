@@ -37,7 +37,7 @@ await context.addInitScript(() => { for (const P of [Element.prototype, Document
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+page.on('console', m => { if (m.type() === 'error' && !/status of 502/.test(m.text())) errors.push('console: ' + m.text()); }); // (502: the explorer's mocked server failure)
 const shot = async name => { if (SHOTS) await page.screenshot({ path: join(shotDir, name + '.png') }); };
 const waitBoot = async () => {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
@@ -552,6 +552,18 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.click('.ex-chip:text-is("Fewer filters")');
   await page.evaluate(() => { const st = AshtonkMania.ExplorerScreen.state; st.sort = 'ranked'; st.dir = 'desc'; });
 }
+{
+  // the game server's search failing (mirrors often refuse cloud servers): the browser asks the mirrors itself
+  await page.unroute('**/api/search**');
+  await page.route('**/api/search**', r => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"All beatmap search providers failed.","errors":["Mino: HTTP 403"]}' }));
+  await page.route('https://catboy.best/api/v2/search**', r => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify([{ id: 909, title: 'Direct Song', artist: 'Mirror', creator: 'M', status: 'ranked', beatmaps: [{ id: 9090, mode: 'mania', version: '4K', difficulty_rating: 2.5, cs: 4, accuracy: 8, drain: 7, bpm: 160, total_length: 90 }] }]) }));
+  await page.evaluate(() => AshtonkMania.ExplorerScreen.newSearch());
+  await page.waitForSelector('.ex-card[data-id="909"]', { timeout: 8000 }).catch(() => {});
+  const direct = await page.evaluate(() => ({ card: !!document.querySelector('.ex-card[data-id="909"]'), source: AshtonkMania.ExplorerScreen.source }));
+  check('explorer: when the game server can\'t search, the browser asks the mirrors directly', direct.card && /direct/.test(direct.source || ''), JSON.stringify(direct));
+  await page.unroute('https://catboy.best/api/v2/search**');
+  await page.evaluate(() => { AshtonkMania.OnlineBeatmaps._serverDown = false; });
+}
 await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version))); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
 
 // beatmap sources (Web-Osu-Mania's "Sources" settings)
@@ -648,10 +660,10 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
 // the Web-Osu-Mania skins draw their own stage (each style plays without errors; judgements come from the chosen set)
 const skinBefore = await page.evaluate(() => AshtonkMania.SkinManager.current.id);
 for (const st of ['bars', 'arrows']) {
-  await page.evaluate(async st => { await AshtonkMania.SkinManager.select('wom-' + st); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.keys === 4); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, st);
+  await page.evaluate(async st => { await AshtonkMania.Settings.set('wom.style', st); await AshtonkMania.SkinManager.select('default'); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.keys === 4); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, st);
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.engine && AshtonkMania.GameplayScreen.s.engine.score.combo > 2, null, { timeout: 20000 });
-  const r = await page.evaluate(() => { const R = AshtonkMania.GameplayScreen.s.renderer || AshtonkMania.GameplayScreen.renderer; return { wom: !!(R && R.layout && R.layout.wom), style: R && R.layout && R.layout.wom && R.layout.wom.style, hitFromBottom: R && Math.round((R.H - R.hitY) / R.womD) }; });
-  check(`Web-Osu-Mania ${st}: its own stage (hit position 130 px from the bottom, as WOM)`, r.wom && r.style === st && r.hitFromBottom === 130, JSON.stringify(r));
+  const r = await page.evaluate(() => { const R = AshtonkMania.GameplayScreen.s.renderer || AshtonkMania.GameplayScreen.renderer; return { wom: !!(R && R.layout && R.layout.wom), style: R && R.layout && R.layout.wom && R.layout.wom.style, hit: R && Math.round(R.hitY / R.s), colW: R && Math.round(R.colW[0] / R.s / AshtonkMania.Settings.get('gameplay.laneWidth')) }; });
+  check(`Custom skin, ${st}: Web-Osu-Mania's notes, sized and placed like Kori (72-wide columns, hit position 434 of 480)`, r.wom && r.style === st && r.hit === 434 && r.colW === 72, JSON.stringify(r));
   await shot('wom-' + st);
 }
 await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); AshtonkMania.Screens.go('home', { force: true }); }, skinBefore); await page.waitForTimeout(500);
@@ -843,9 +855,9 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const skinNames = await sp.$$eval('.setup-skinitem b', a => a.map(x => x.textContent).join(','));
   await sp.click('.setup-skinitem[data-id="default"]');
   await sp.waitForSelector('.setup-custom');
-  await sp.click('.setup-custom .setup-seg >> nth=0 >> button >> nth=3');
-  await sp.click('.setup-custom .setup-seg >> nth=1 >> button >> nth=1');
-  check('setup: skins are Kori / Chemuss / Custom / Import; Custom has shape and colour options', /^Kori,(Chemuss mixed edit,)?Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('skin.noteStyle') === 'arrows' && AshtonkMania.Settings.get('skin.hue') >= 0), skinNames);
+  await sp.click('.setup-custom .setup-seg >> nth=0 >> button >> nth=2');
+  await sp.selectOption('.setup-custom select', 'fnf');
+  check('setup: skins are Kori / Chemuss / Custom / Import; Custom has note type, colour and judgement options', /^Kori,(Chemuss mixed edit,)?Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('wom.style') === 'arrows' && AshtonkMania.Settings.get('wom.judgements') === 'fnf'), skinNames);
   await sp.click('.setup-next'); await sp.waitForTimeout(600);
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
   await sp.waitForFunction(() => { const i = document.querySelector('.home .neru:not([hidden]) img'); return i && /neru\.png$/.test(i.src); }, null, { timeout: 5000 });
@@ -896,12 +908,12 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
     return { text: document.querySelector('.setup-wom').textContent, sets: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 424242).length,
       vol: S.get('audio.master'), speed: S.get('gameplay.scrollSpeed'), dir: S.get('gameplay.scrollDirection'), off: S.get('audio.offset'), k4: S.get('input.keybinds')[4],
       score: sc && { v: sc.version, mods: sc.mods, rate: sc.rate, acc: sc.accuracy, grade: sc.grade, counts: sc.counts, n: AshtonkMania.ScoreManager.scores.length },
-      skin: AshtonkMania.SkinManager.current.id, hue: S.get('wom.hue'), jud: S.get('wom.judgements'), ns: S.get('wom.noteScale'), hp: S.get('wom.hitPositionOffset'), dk: S.get('wom.darkerHolds'), el: S.get('wom.earlyLate'),
+      skin: AshtonkMania.SkinManager.current.id, style: S.get('wom.style'), hue: S.get('wom.hue'), jud: S.get('wom.judgements'), ns: S.get('wom.noteScale'), hp: S.get('wom.hitPositionOffset'), dk: S.get('wom.darkerHolds'), el: S.get('wom.earlyLate'),
       col: (await AshtonkMania.DB.kvGet('collections')).find(c => c.name === 'WOM favourites'), downloaded: AshtonkMania.BeatmapManager.sets.filter(s => s.onlineId === 999).length };
   });
   check('Web-Osu-Mania backup: its stored beatmaps are imported', w.sets === 1, JSON.stringify(w));
   check('Web-Osu-Mania backup: settings and keybinds carry over', w.vol === 0.6 && w.speed === 27 && w.dir === 'up' && w.off === 12 && JSON.stringify(w.k4) === JSON.stringify([['KeyA', 'KeyZ'], ['KeyS'], ['KeyK'], ['KeyL']]), JSON.stringify(w));
-  check('Web-Osu-Mania backup: its skin comes across (style, colour, judgements, note size, hit position)', w.skin === 'wom-diamonds' && w.hue === 120 && w.jud === 'fnf' && w.ns === 0.7 && w.hp === 150 && w.dk === false && w.el === 300, JSON.stringify(w));
+  check('Web-Osu-Mania backup: its skin comes across (style, colour, judgements, note size, hit position)', w.skin === 'default' && w.style === 'diamonds' && w.hue === 120 && w.jud === 'fnf' && w.ns === 0.7 && w.hp === 150 && w.dk === false && w.el === 300, JSON.stringify(w));
   check('Web-Osu-Mania backup: high scores land on the right difficulty (mods, rate, judgements); ones for missing maps are left out', w.score && w.score.v === 'Online Hard' && w.score.mods.join() === 'DT,MR' && w.score.rate === 1.5 && w.score.counts.join() === '300,40,5,2,1,3' && w.score.n === 1, JSON.stringify(w.score));
   check('Web-Osu-Mania backup: collection songs missing from the backup are downloaded, and the collection holds them all', w.col && w.col.hashes.length > 2 && w.downloaded === 1, JSON.stringify({ col: w.col && w.col.hashes.length, dl: w.downloaded }));
   check('the setup screen says what came across', /2 beatmap sets \(1 downloaded for your collections\), 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);

@@ -80,7 +80,7 @@ class ManiaRenderer {
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
   /** Distance a note scrolls during one "time range" (scroll speed): osu!lazer scales the time range with the skin's
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
-  get scrollLength() { return this.layout && this.layout.wom && this.hitY ? this.hitY : 402 * (this.s || this.H / 480 || 1); }
+  get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
@@ -510,23 +510,13 @@ class ManiaRenderer {
   //    line, notes tinted in the column colours, its judgement images and a Roboto Mono combo.
   _geomWom() {
     const L = this.layout, K = L.keys, st = k => Settings.get(`wom.${k}`);
-    // window CSS px → canvas px
-    const d = this.womD = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale') * (this.autoScale || 1);
-    const Wc = this.W / d;
-    let cw = (WOM.LANE_WIDTHS[K - 1] + st('laneWidthAdjustment')) / 854 * Math.max(Wc, 1528) * Settings.get('gameplay.laneWidth');
-    if (cw * K > Wc) cw = Wc / K;
-    const sp = st('laneSpacing');
-    const notesW = Math.min(K * cw + sp * (K - 1), Wc);
-    this.colW = []; this.colX = [];
-    for (let i = 0; i < K; i++) { this.colX.push(i * (cw + sp) * d); this.colW.push(cw * d); }
-    this.stageW = notesW * d;
-    const outer = notesW + 4, off = st('stagePosition') * (Wc - outer) / 2;
-    this.stageX = (Wc / 2 + off - outer / 2 + 2) * d;
-    this.hitY = this.H - st('hitPositionOffset') * d;
+    // (the columns, stage position and hit position are the ones _geom worked out from the Kori-like layout; d is
+    // the window's CSS px in canvas px, for WOM's fixed line widths)
+    this.womD = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale') * (this.autoScale || 1);
     this.up = Settings.get('gameplay.scrollDirection') === 'up';
     this.womCol = WOM.colors(K);
     this.womArrow = WOM.ARROWS[K - 1] || [];
-    this.womNS = st('noteScale');
+    this.womNS = 0.9; // (sized like Kori's notes: nine tenths of the column)
     this._womSpr = new Map();
     if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
   }
@@ -583,47 +573,31 @@ class ManiaRenderer {
     // stage background
     ctx.globalAlpha = st('stageOpacity'); ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, this.stageW, H); ctx.globalAlpha = 1;
     const dim = Settings.get('skin.dim'); if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
-    // stage lights: 35% of the screen tall, the column colour fading upwards; 50% while held, then 0.3 s out
-    if (lit && Settings.get('skin.effects')) {
-      const lh = H * 0.35;
-      for (let i = 0; i < K; i++) {
-        let a = 0;
-        if (g.held[i]) a = 1; else { const t = (realNow - this.keyLight[i]) / 300; if (t >= 0 && t < 1) a = (1 - t) * (1 - t); }
-        if (a <= 0) continue;
-        const gk = `l${i}|${lh | 0}|${this.up}`;
-        let grad = (this._womLg || (this._womLg = new Map())).get(gk);
-        if (!grad) {
-          const y0 = this.up ? H - this.hitY : this.hitY, y1 = this.up ? y0 + lh : y0 - lh;
-          grad = ctx.createLinearGradient(0, y0, 0, y1); grad.addColorStop(0, cols[i].tap); grad.addColorStop(1, 'rgba(255,255,255,0)');
-          this._womLg.set(gk, grad);
-        }
-        ctx.globalAlpha = 0.5 * ro * a; ctx.fillStyle = grad;
-        this._womRect(this.colX[i], this.hitY - lh, this.colW[i], lh);
-      }
-      ctx.globalAlpha = 1;
-    }
-    // stage hint: a 10 px #ccc line across the stage at the hit position
-    ctx.globalAlpha = ro; ctx.fillStyle = '#cccccc'; this._womRect(0, this.hitY - 5 * d, this.stageW, 10 * d);
+    // (WOM's stage lights — a tall glow up a held column — are left out: the receptor lights up instead)
+    // (WOM's stage hint — a thick grey line across the stage at the hit position — is left out: it read as clutter)
+    ctx.globalAlpha = ro;
     // receptors
     const ms = this.colW[0] * ns;
     for (let i = 0; i < K; i++) {
       const cx = this.colX[i] + this.colW[i] / 2, on = lit && g.held[i];
       if (style === 'bars') {
         ctx.fillStyle = '#1a1a1a'; this._womRect(this.colX[i], this.hitY, this.colW[i], H - this.hitY);
+        // WOM's marker: a 40 px rounded square turned 45° below the line (40 of its ~105 px column: scaled to ours)
+        const mk = this.colW[i] * 0.38;
         ctx.fillStyle = on ? cols[i].tap : '#4d4d4d';
-        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - 40 * d : this.hitY + 40 * d); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
-        ctx.beginPath(); ctx.roundRect(-5 * d, -5 * d, 40 * d, 40 * d, 5 * d); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - mk : this.hitY + mk); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
+        ctx.beginPath(); ctx.roundRect(-mk / 8, -mk / 8, mk, mk, mk / 8); ctx.fill(); ctx.restore();
       } else if (style === 'circles' || style === 'diamonds') {
-        const yy = this.up ? H - this.hitY : this.hitY;
+        const yy = this.up ? H - (this.hitY - ms / 2) : this.hitY - ms / 2;
         ctx.save(); ctx.translate(cx, yy); ctx.strokeStyle = '#b3b3b3'; ctx.lineWidth = 4 * d; ctx.beginPath();
         if (style === 'circles') ctx.arc(0, 0, ms / 2, 0, Math.PI * 2);
         else { const r = ms / Math.SQRT2; ctx.rotate(Math.PI / 4); ctx.roundRect(-r / 2, -r / 2, r, r, 8 * d); }
         ctx.stroke(); ctx.restore();
-        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY); ctx.globalAlpha = ro; }
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2); ctx.globalAlpha = ro; }
       } else {
         const ang = this.womArrow[i] || 0, out = style === 'arrows' ? 'arrowOutline' : 'thickArrowOutline';
-        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY, ang);
-        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY, ang); ctx.globalAlpha = ro; }
+        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY - ms / 2, ang);
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2, ang); ctx.globalAlpha = ro; }
       }
     }
     ctx.globalAlpha = 1;
@@ -648,7 +622,7 @@ class ManiaRenderer {
       const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
       const tap = (color, y, dark) => {
         if (style === 'bars') { ctx.fillStyle = dark ? this._womDark(color) : color; this._womRect(x, y - w * 0.4, w, w * 0.4); }
-        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y, ang);
+        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y - ms / 2, ang); // (bottom on the line, as Kori's)
       };
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
@@ -675,15 +649,15 @@ class ManiaRenderer {
           ctx.fillStyle = hold; this._womRect(x, yTail, w, len);
           if (darkHold) { this._womRect(x, yTail - w * 0.4, w, w * 0.4); ctx.fillStyle = broken ? this._womDark(C.holdHead) : C.holdHead; this._womRect(x, yHead - w * 0.4, w, w * 0.4); }
         } else {
-          const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6);
-          ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail, bw, len);
-          if (style === 'circles') this._womBlit(this._womSprite('circles', C.hold, ms, broken), cx, yTail);
+          const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6), o = ms / 2;
+          ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail - o, bw, len);
+          if (style === 'circles') this._womBlit(this._womSprite('circles', C.hold, ms, broken), cx, yTail - o);
           else {
             // the tail: a triangle on the far end of the body
-            const ty = this.up ? this.H - yTail : yTail, dir = this.up ? 1 : -1;
+            const ty = this.up ? this.H - (yTail - o) : yTail - o, dir = this.up ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
           }
-          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead, ang);
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead - o, ang);
         }
         // the head note itself until it's hit (WOM's hold head is a tap of its own)
         if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);
@@ -701,29 +675,30 @@ class ManiaRenderer {
     const set = Settings.get('wom.judgements'), id = ['300g', '300', '200', '100', '50', '0'][fx.j];
     const img = WOM.image(`judgements-${set}/mania-hit${fx.j === J.MARV && !Settings.get('gameplay.showMax') ? '300' : id}.png`);
     if (!img) return;
-    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
+    const ctx = this.ctx;
     const p = Math.min(1, el / 300), ease = 1 - (1 - p) * (1 - p);
-    const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * d * Settings.get('skin.scale');
-    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy - 50 * d : this.H * (1 - hy);
+    // (placed and sized like the Kori skin's: at its score position, in osu!'s 480-tall space)
+    const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * this.s * 0.5 * Settings.get('skin.scale');
+    const cx = this._tx + this.stageW / 2, y0 = this.layout.scorePosition * this.s, y = this.up ? this.H - y0 : y0;
     ctx.globalAlpha = el > 800 ? 1 - (el - 800) / 300 : 1;
     const w = img.naturalWidth * k, h = img.naturalHeight * k;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(img, cx - w / 2, y - h / 2, w, h);
     const thr = Settings.get('wom.earlyLate'), score = [320, 300, 200, 100, 50, 0][fx.j];
     if (fx.err != null && fx.j !== J.MISS && thr >= 0 && score <= thr && fx.err !== 0) {
-      const sz = 20 * d * (el < 300 ? 1.1 - 0.1 * ease : 1);
+      const sz = 9 * this.s * (el < 300 ? 1.1 - 0.1 * ease : 1);
       ctx.font = `400 ${sz}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.globalAlpha *= 0.5; ctx.fillStyle = fx.err < 0 ? '#26de63' : '#de8826';
-      ctx.fillText(fx.err < 0 ? 'Early' : 'Late', cx, y - 30 * d);
+      ctx.fillText(fx.err < 0 ? 'Early' : 'Late', cx, y - 13 * this.s);
     }
     ctx.globalAlpha = 1;
   }
   _drawWomCombo(combo) {
     if (combo < 1) return;
-    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
-    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy : this.H * (1 - hy) + 50 * d;
+    const ctx = this.ctx, y0 = this.layout.comboPosition * this.s;
+    const cx = this._tx + this.stageW / 2, y = this.up ? this.H - y0 : y0;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = `800 ${30 * d}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.round(14 * this.s)}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#dddddd'; ctx.fillText(String(combo), cx, y);
   }
 

@@ -85,7 +85,7 @@ const WomImport = {
   },
 
   /** WOM's skin — its note style, colours (one hue or a colour per column), judgement set and stage layout — so the
-   *  game looks the way it did there: the matching Web-Osu-Mania skin is selected with the same options. */
+   *  game looks the way it did there: the Custom skin is selected with the same note type and options. */
   applySkin(w) {
     const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : null;
     const set = (k, v) => { if (v !== null && v !== undefined) Settings.set(k, v); };
@@ -109,8 +109,9 @@ const WomImport = {
     if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
     set('wom.hudY', num(ui.stageHudYPosition, 0, 1));
     if ([-1, 200, 300, 320].includes(ui.earlyLateThreshold)) set('wom.earlyLate', ui.earlyLateThreshold);
-    const style = WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars';
-    SkinManager.select(`wom-${style}`).catch(() => {});
+    // (WOM's note style is the Custom skin's note type)
+    set('wom.style', WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars');
+    SkinManager.select('default').catch(() => {});
   },
 
   /** WOM mod names → ours (and the playback rate they imply). */

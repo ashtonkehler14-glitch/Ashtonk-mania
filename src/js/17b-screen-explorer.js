@@ -91,11 +91,17 @@ const OnlineBeatmaps = {
     if (p.cursor) params.set('cursor', p.cursor);
     if (p.provider) params.set('provider', p.provider);
     if (p.loose) params.set('loose', '1');
-    if (await this.checkApi()) {
-      const r = await fetch('api/search?' + params);
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), { details: [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])].join('\n') });
-      return d;
+    let serverErrors = null;
+    if (await this.checkApi() && !this._serverDown) {
+      try {
+        const r = await fetch('api/search?' + params);
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) return d;
+        serverErrors = [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])];
+      } catch (e) { serverErrors = [`Search failed: ${e.message}`]; }
+      // the mirrors often turn away requests from the server's cloud addresses but answer the browser itself: ask them
+      // straight from here (and keep doing so for a few minutes rather than waiting on the server every time)
+      this._serverDown = true; setTimeout(() => { this._serverDown = false; }, 5 * 60000);
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
     const errors = [];
@@ -103,13 +109,17 @@ const OnlineBeatmaps = {
     // (the explorer sorts what comes back itself)
     const want = p.sort || (p.q ? 'relevance_desc' : 'ranked_desc');
     const sorts = want.startsWith('relevance') ? [null] : want === 'ranked_desc' ? [want] : [want, null];
-    for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
+    // (a mirror that doesn't understand the "key=4 stars>=3" filters finds nothing with them: ask again with just the
+    // words, and filter keys and stars here)
+    const queries = q !== (p.q || '') ? [q, p.q || ''] : [q];
+    for (const u of this.DIRECT_SEARCH) for (const qq of queries) for (const sort of sorts) {
       try {
-        const r = await fetch(u({ ...p, q, sort }));
+        const r = await fetch(u({ ...p, q: qq, sort }));
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
         if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
+        if (!arr.length && qq !== queries[queries.length - 1]) { errors.push(`${new URL(u(p)).host}: no results with filters`); break; }
         const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
@@ -117,7 +127,7 @@ const OnlineBeatmaps = {
       } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
     }
     throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
-      details: errors.join('\n') + '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).' });
+      details: [...(serverErrors ? ['Game server:', ...serverErrors, 'From this browser:'] : []), ...errors].join('\n') + (serverErrors ? '' : '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).') });
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {

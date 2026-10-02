@@ -363,9 +363,9 @@ const SkinsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
-  WOM_KEYS: ['wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
-  /** The skin's options next to its preview (the same controls as in Settings → Skin): the Custom skin's, or for a
-   *  Web-Osu-Mania skin WOM's own (colour, judgement set, darker holds). */
+  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
+  /** The Custom skin's options next to its preview (the same controls as in Settings → Skin): note type, colour,
+   *  judgement set, darker holds. */
   customPanel(wom = false) {
     const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
     // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
@@ -405,7 +405,7 @@ const SkinsScreen = {
         h('span.sk-k', `${this.keys}K`),
         h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
         h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
-      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(/^wom-/.test(meta.id))) : pv,
+      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);

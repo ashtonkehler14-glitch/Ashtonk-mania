@@ -2123,10 +2123,13 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* skin viewer: the Custom skin's options beside its live preview */
 .sk-custom-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
 .sk-custom-wrap .skin-preview { height: 520px; }
+.sk-custom-rows .set-row { min-width: 0; max-width: 100%; }
+/* the preview plays on a dimmed version of the menu background, as the stage does in game, instead of plain black */
+.skin-preview { background: radial-gradient(120% 90% at 50% 0%, #2a1a40, #120c1c 60%, #0a0710); }
 .sk-custom { display: flex; flex-direction: column; max-height: 520px; border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
 .sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-custom-h .btn { margin-left: auto; }
-.sk-custom-rows { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
+.sk-custom-rows { position: static; width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
 @media (max-width: 1000px) and (hover: none) { .sk-custom-wrap { grid-template-columns: 1fr; } }
 
 /* ── beatmap listing, lazer style: BeatmapCardNormal (thumbnail + details over the faded cover), two columns */
@@ -2980,11 +2983,10 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
 .pm-buttons { padding: 0 50px; gap: 2px; }
 .pm-btn { height: 80px; font-size: 28px; font-weight: 700; }
-/* the buttons sit small (a narrow band, smaller label) until the pointer is on one, then widen to full size */
-.pm-btn .pm-label { display: inline-block; scale: .8; transition: scale 200ms cubic-bezier(.22, 1, .36, 1), letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
-.pm-btn:hover .pm-label { scale: 1; transition-duration: 400ms; }
+/* lazer's DialogButton: long bars (80% of the width); hovered, one widens a little with a glow and its label spreads */
+.pm-btn .pm-label { display: inline-block; transition: letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
 .pm-btn:focus-visible .pm-band { filter: brightness(1.15); }
-.pm-btn .pm-band { left: 30%; right: 30%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn .pm-band { left: 10%; right: 10%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
 .pm-btn:hover .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
 .pm-btn .pm-label { letter-spacing: 0; }
 .pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
@@ -4319,7 +4321,27 @@ class DefaultSkin extends Skin {
   }
   get builtin() { return true; }
   has(name) { const k = this._key(name); return DefaultSkin.NAMES.has(k) || k.startsWith('am-'); }
-  supportedKeys() { return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; }
+  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
+  /** The Custom skin is drawn as Web-Osu-Mania draws its skins (ManiaRenderer._renderWom), in the note type, judgement
+   *  set and colours chosen for it; its generated textures stay as fallbacks for imported skins. */
+  async mania(keys) {
+    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
+    const style = WOM.STYLES.some(x => x[0] === Settings.get('wom.style')) ? Settings.get('wom.style') : 'bars';
+    const p = (async () => {
+      const L = await ManiaLayout.resolve(this, keys);
+      L.wom = { style };
+      // sized and placed like the Kori skin: 72-wide columns up to 5K, 48 to 10K, 32 beyond; the hit position 434
+      // (460 from 6K) and the combo and judgement high on the stage (115 / 150), in osu!'s 480-tall space
+      const w = keys <= 5 ? 72 : keys <= 10 ? 48 : 32;
+      L.columnWidth = Array(keys).fill(w); L.columnSpacing = Array(Math.max(0, keys - 1)).fill(0);
+      L.columnStart = Math.max(0, 320 - w * keys / 2);
+      L.hitPosition = keys <= 5 ? 434 : 460; L.comboPosition = 115; L.scorePosition = 150;
+      await WOM.preload(style);
+      return L;
+    })();
+    this.layoutCache.set(keys, p);
+    return p;
+  }
   async texture(name) {
     const key = this._key(name);
     if (this.gen.has(key)) return this.gen.get(key);
@@ -4591,9 +4613,9 @@ DefaultSkin.NAMES = new Set(['mania-note1', 'mania-note2', 'mania-notes', 'mania
   'mania-key1d', 'mania-key2d', 'mania-keysd', 'mania-stage-hint', 'mania-stage-light', 'mania-stage-left', 'mania-stage-right',
   'lightingn', 'lightingl', 'mania-hit300g', 'mania-hit300', 'mania-hit200', 'mania-hit100', 'mania-hit50', 'mania-hit0']);
 
-/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), drawn the way WOM draws them
- *  (ManiaRenderer._renderWom): its five note styles, its colours (one hue, or a colour per column from a WOM backup),
- *  its judgement sets, receptors, stage and layout. Everything else (sounds, fallbacks) is the Custom skin's. */
+/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), which the Custom skin is drawn
+ *  as (ManiaRenderer._renderWom): its five note types, its colours (one hue, or a colour per column from a WOM backup),
+ *  its judgement sets, receptors, stage and layout. */
 const WOM = {
   STYLES: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']],
   JUDGEMENT_SETS: [['azureSnowfall', 'Azure Snowfall', 1], ['chocolate', '105°C Chocolate', 1], ['bangDream', 'BanG Dream!', 0.6], ['fnf', 'Friday Night Funkin\'', 0.45], ['osuStable', 'osu!(stable)', 0.35]],
@@ -4637,23 +4659,6 @@ const WOM = {
     return Promise.all(files.map(f => new Promise(res => { WOM.image(f); const e = WOM._img.get(f); if (e.ok) return res(); e.img.addEventListener('load', res, { once: true }); e.img.addEventListener('error', res, { once: true }); })));
   },
 };
-class WomSkin extends DefaultSkin {
-  constructor(style) {
-    super();
-    const name = `Web-Osu-Mania · ${WOM.STYLES.find(s => s[0] === style)[1]}`, author = 'Danny Duong (Web-Osu-Mania)';
-    this.id = `wom-${style}`; this.womStyle = style;
-    this.ini = { ...this.ini, general: { Name: name, Author: author, Version: 'WOM' } };
-    this.meta = { ...this.meta, id: this.id, name, author, version: 'WOM' };
-  }
-  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
-  async mania(keys) {
-    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
-    const p = (async () => { const L = await ManiaLayout.resolve(this, keys); L.wom = { style: this.womStyle }; await WOM.preload(this.womStyle); return L; })();
-    this.layoutCache.set(keys, p);
-    return p;
-  }
-}
-
 /** Resolved per-key-count configuration (skin.ini [Mania] + textures + fallbacks). */
 const ManiaLayout = {
   num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; },
@@ -4837,24 +4842,23 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
-    this.womSkins = WOM.STYLES.map(([st]) => new WomSkin(st));
-    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') for (const w of this.womSkins) w.layoutCache.clear(); });
+    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') this.defaultSkin.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k.startsWith('skin.c.') || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
-    const want = Settings.get('skin.current');
-    await this.select(want && (want === 'default' || this.womSkins.some(s => s.id === want) || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
+    let want = Settings.get('skin.current');
+    // (the five Web-Osu-Mania skins became the Custom skin's note types)
+    if (/^wom-/.test(want || '')) { Settings.set('wom.style', want.slice(4)); want = 'default'; }
+    await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
     return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] },
-      ...this.womSkins.map(k => ({ id: k.id, name: k.name, author: k.author, version: 'WOM', builtin: true, ini: k.ini, files: [] })), ...this.skins];
+      ...this.skins];
   },
 
   instance(id) {
     if (id === 'default') return this.defaultSkin;
-    const wom = this.womSkins.find(k => k.id === id);
-    if (wom) return wom;
     if (this.current && this.current.id === id) return this.current;
     const meta = this.skins.find(s => s.id === id);
     return meta ? new Skin(meta) : null;
@@ -4948,7 +4952,7 @@ const SkinManager = {
   },
 
   async remove(id) {
-    if (id === 'default' || /^wom-/.test(id)) return;
+    if (id === 'default') return;
     await DB.del('skins', id);
     await DB.delPrefix('files', `skin:${id}/`);
     this.skins = this.skins.filter(s => s.id !== id);
@@ -5463,7 +5467,7 @@ function keyLabel(code) {
 /** [section, key, label, type, default, options] */
 /** Which skin's own options the Skin section shows. */
 function customSkinOn() { const c = Settings.get('skin.current'); return !c || c === 'default'; }
-function womSkinOn() { return /^wom-/.test(Settings.get('skin.current') || ''); }
+function womSkinOn() { return customSkinOn(); }
 
 const SETTINGS_SCHEMA = [
   // ── Gameplay
@@ -5546,9 +5550,9 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 0.7, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: false },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
-  { s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
+  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
+  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
+  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.pattern', l: 'Colour pattern', t: 'select', d: 'type', o: [['type', 'osu! (by column type)'], ['rainbow', 'Rainbow'], ['single', 'One colour']] },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.noteSize', l: 'Note size', t: 'range', d: 1, min: 0.6, max: 1.4, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.round', l: 'Note roundness', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -5559,11 +5563,13 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.glow', l: 'Glow', t: 'range', d: 0.7, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.lines', l: 'Column lines', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.border', l: 'Glowing stage border', t: 'bool', d: true },
-  // Web-Osu-Mania's skin options (shown when one of its skins is in use); the hidden ones come over from a WOM backup
-  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
-  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
-  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
-  { s: 'Skin', g: 'Web-Osu-Mania skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
+  // the Custom skin (drawn as Web-Osu-Mania's skins): note type, colour, judgements, darker holds; the hidden ones come
+  // over from a WOM backup
+  { s: 'Skin', g: 'Custom skin', k: 'wom.style', l: 'Note type', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']], when: () => customSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.hue', l: 'Colour', t: 'range', d: 212, min: 0, max: 360, step: 1, fmt: v => `${v}°`, when: () => womSkinOn() && Settings.get('wom.colorMode') !== 'custom' },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.colorMode', l: 'Colours', t: 'select', d: 'simple', o: [['simple', 'One colour (WOM simple)'], ['custom', 'Per column (from your WOM backup)']], when: () => womSkinOn() && !!Settings.get('wom.customColors') },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.judgements', l: 'Judgements', t: 'select', d: 'azureSnowfall', o: [['azureSnowfall', 'Azure Snowfall'], ['chocolate', '105°C Chocolate'], ['bangDream', 'BanG Dream!'], ['fnf', 'Friday Night Funkin\''], ['osuStable', 'osu!(stable)']], when: () => womSkinOn() },
+  { s: 'Skin', g: 'Custom skin', k: 'wom.darkerHolds', l: 'Darker hold notes', t: 'bool', d: true, when: () => womSkinOn() },
   { x: 1, s: 'Skin', k: 'wom.customColors', d: null },
   { x: 1, s: 'Skin', k: 'wom.noteScale', d: 0.8 },
   { x: 1, s: 'Skin', k: 'wom.hitPositionOffset', d: 130 },
@@ -6961,7 +6967,7 @@ class ManiaRenderer {
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
   /** Distance a note scrolls during one "time range" (scroll speed): osu!lazer scales the time range with the skin's
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
-  get scrollLength() { return this.layout && this.layout.wom && this.hitY ? this.hitY : 402 * (this.s || this.H / 480 || 1); }
+  get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
@@ -7391,23 +7397,13 @@ class ManiaRenderer {
   //    line, notes tinted in the column colours, its judgement images and a Roboto Mono combo.
   _geomWom() {
     const L = this.layout, K = L.keys, st = k => Settings.get(`wom.${k}`);
-    // window CSS px → canvas px
-    const d = this.womD = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale') * (this.autoScale || 1);
-    const Wc = this.W / d;
-    let cw = (WOM.LANE_WIDTHS[K - 1] + st('laneWidthAdjustment')) / 854 * Math.max(Wc, 1528) * Settings.get('gameplay.laneWidth');
-    if (cw * K > Wc) cw = Wc / K;
-    const sp = st('laneSpacing');
-    const notesW = Math.min(K * cw + sp * (K - 1), Wc);
-    this.colW = []; this.colX = [];
-    for (let i = 0; i < K; i++) { this.colX.push(i * (cw + sp) * d); this.colW.push(cw * d); }
-    this.stageW = notesW * d;
-    const outer = notesW + 4, off = st('stagePosition') * (Wc - outer) / 2;
-    this.stageX = (Wc / 2 + off - outer / 2 + 2) * d;
-    this.hitY = this.H - st('hitPositionOffset') * d;
+    // (the columns, stage position and hit position are the ones _geom worked out from the Kori-like layout; d is
+    // the window's CSS px in canvas px, for WOM's fixed line widths)
+    this.womD = (window.devicePixelRatio || 1) * Settings.get('graphics.renderScale') * (this.autoScale || 1);
     this.up = Settings.get('gameplay.scrollDirection') === 'up';
     this.womCol = WOM.colors(K);
     this.womArrow = WOM.ARROWS[K - 1] || [];
-    this.womNS = st('noteScale');
+    this.womNS = 0.9; // (sized like Kori's notes: nine tenths of the column)
     this._womSpr = new Map();
     if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
   }
@@ -7464,47 +7460,31 @@ class ManiaRenderer {
     // stage background
     ctx.globalAlpha = st('stageOpacity'); ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, this.stageW, H); ctx.globalAlpha = 1;
     const dim = Settings.get('skin.dim'); if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
-    // stage lights: 35% of the screen tall, the column colour fading upwards; 50% while held, then 0.3 s out
-    if (lit && Settings.get('skin.effects')) {
-      const lh = H * 0.35;
-      for (let i = 0; i < K; i++) {
-        let a = 0;
-        if (g.held[i]) a = 1; else { const t = (realNow - this.keyLight[i]) / 300; if (t >= 0 && t < 1) a = (1 - t) * (1 - t); }
-        if (a <= 0) continue;
-        const gk = `l${i}|${lh | 0}|${this.up}`;
-        let grad = (this._womLg || (this._womLg = new Map())).get(gk);
-        if (!grad) {
-          const y0 = this.up ? H - this.hitY : this.hitY, y1 = this.up ? y0 + lh : y0 - lh;
-          grad = ctx.createLinearGradient(0, y0, 0, y1); grad.addColorStop(0, cols[i].tap); grad.addColorStop(1, 'rgba(255,255,255,0)');
-          this._womLg.set(gk, grad);
-        }
-        ctx.globalAlpha = 0.5 * ro * a; ctx.fillStyle = grad;
-        this._womRect(this.colX[i], this.hitY - lh, this.colW[i], lh);
-      }
-      ctx.globalAlpha = 1;
-    }
-    // stage hint: a 10 px #ccc line across the stage at the hit position
-    ctx.globalAlpha = ro; ctx.fillStyle = '#cccccc'; this._womRect(0, this.hitY - 5 * d, this.stageW, 10 * d);
+    // (WOM's stage lights — a tall glow up a held column — are left out: the receptor lights up instead)
+    // (WOM's stage hint — a thick grey line across the stage at the hit position — is left out: it read as clutter)
+    ctx.globalAlpha = ro;
     // receptors
     const ms = this.colW[0] * ns;
     for (let i = 0; i < K; i++) {
       const cx = this.colX[i] + this.colW[i] / 2, on = lit && g.held[i];
       if (style === 'bars') {
         ctx.fillStyle = '#1a1a1a'; this._womRect(this.colX[i], this.hitY, this.colW[i], H - this.hitY);
+        // WOM's marker: a 40 px rounded square turned 45° below the line (40 of its ~105 px column: scaled to ours)
+        const mk = this.colW[i] * 0.38;
         ctx.fillStyle = on ? cols[i].tap : '#4d4d4d';
-        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - 40 * d : this.hitY + 40 * d); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
-        ctx.beginPath(); ctx.roundRect(-5 * d, -5 * d, 40 * d, 40 * d, 5 * d); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.translate(cx, this.up ? H - this.hitY - mk : this.hitY + mk); ctx.rotate(this.up ? -Math.PI / 4 * 3 : Math.PI / 4);
+        ctx.beginPath(); ctx.roundRect(-mk / 8, -mk / 8, mk, mk, mk / 8); ctx.fill(); ctx.restore();
       } else if (style === 'circles' || style === 'diamonds') {
-        const yy = this.up ? H - this.hitY : this.hitY;
+        const yy = this.up ? H - (this.hitY - ms / 2) : this.hitY - ms / 2;
         ctx.save(); ctx.translate(cx, yy); ctx.strokeStyle = '#b3b3b3'; ctx.lineWidth = 4 * d; ctx.beginPath();
         if (style === 'circles') ctx.arc(0, 0, ms / 2, 0, Math.PI * 2);
         else { const r = ms / Math.SQRT2; ctx.rotate(Math.PI / 4); ctx.roundRect(-r / 2, -r / 2, r, r, 8 * d); }
         ctx.stroke(); ctx.restore();
-        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY); ctx.globalAlpha = ro; }
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2); ctx.globalAlpha = ro; }
       } else {
         const ang = this.womArrow[i] || 0, out = style === 'arrows' ? 'arrowOutline' : 'thickArrowOutline';
-        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY, ang);
-        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY, ang); ctx.globalAlpha = ro; }
+        this._womBlit(this._womSprite(out, '#fff', ms), cx, this.hitY - ms / 2, ang);
+        if (on) { ctx.globalAlpha = 0.7 * ro; this._womBlit(this._womSprite(style, '#fff', ms), cx, this.hitY - ms / 2, ang); ctx.globalAlpha = ro; }
       }
     }
     ctx.globalAlpha = 1;
@@ -7529,7 +7509,7 @@ class ManiaRenderer {
       const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
       const tap = (color, y, dark) => {
         if (style === 'bars') { ctx.fillStyle = dark ? this._womDark(color) : color; this._womRect(x, y - w * 0.4, w, w * 0.4); }
-        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y, ang);
+        else this._womBlit(this._womSprite(style, color, ms, dark), cx, y - ms / 2, ang); // (bottom on the line, as Kori's)
       };
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
@@ -7556,15 +7536,15 @@ class ManiaRenderer {
           ctx.fillStyle = hold; this._womRect(x, yTail, w, len);
           if (darkHold) { this._womRect(x, yTail - w * 0.4, w, w * 0.4); ctx.fillStyle = broken ? this._womDark(C.holdHead) : C.holdHead; this._womRect(x, yHead - w * 0.4, w, w * 0.4); }
         } else {
-          const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6);
-          ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail, bw, len);
-          if (style === 'circles') this._womBlit(this._womSprite('circles', C.hold, ms, broken), cx, yTail);
+          const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6), o = ms / 2;
+          ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail - o, bw, len);
+          if (style === 'circles') this._womBlit(this._womSprite('circles', C.hold, ms, broken), cx, yTail - o);
           else {
             // the tail: a triangle on the far end of the body
-            const ty = this.up ? this.H - yTail : yTail, dir = this.up ? 1 : -1;
+            const ty = this.up ? this.H - (yTail - o) : yTail - o, dir = this.up ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
           }
-          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead, ang);
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken), cx, yHead - o, ang);
         }
         // the head note itself until it's hit (WOM's hold head is a tap of its own)
         if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);
@@ -7582,29 +7562,30 @@ class ManiaRenderer {
     const set = Settings.get('wom.judgements'), id = ['300g', '300', '200', '100', '50', '0'][fx.j];
     const img = WOM.image(`judgements-${set}/mania-hit${fx.j === J.MARV && !Settings.get('gameplay.showMax') ? '300' : id}.png`);
     if (!img) return;
-    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
+    const ctx = this.ctx;
     const p = Math.min(1, el / 300), ease = 1 - (1 - p) * (1 - p);
-    const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * d * Settings.get('skin.scale');
-    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy - 50 * d : this.H * (1 - hy);
+    // (placed and sized like the Kori skin's: at its score position, in osu!'s 480-tall space)
+    const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * this.s * 0.5 * Settings.get('skin.scale');
+    const cx = this._tx + this.stageW / 2, y0 = this.layout.scorePosition * this.s, y = this.up ? this.H - y0 : y0;
     ctx.globalAlpha = el > 800 ? 1 - (el - 800) / 300 : 1;
     const w = img.naturalWidth * k, h = img.naturalHeight * k;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(img, cx - w / 2, y - h / 2, w, h);
     const thr = Settings.get('wom.earlyLate'), score = [320, 300, 200, 100, 50, 0][fx.j];
     if (fx.err != null && fx.j !== J.MISS && thr >= 0 && score <= thr && fx.err !== 0) {
-      const sz = 20 * d * (el < 300 ? 1.1 - 0.1 * ease : 1);
+      const sz = 9 * this.s * (el < 300 ? 1.1 - 0.1 * ease : 1);
       ctx.font = `400 ${sz}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.globalAlpha *= 0.5; ctx.fillStyle = fx.err < 0 ? '#26de63' : '#de8826';
-      ctx.fillText(fx.err < 0 ? 'Early' : 'Late', cx, y - 30 * d);
+      ctx.fillText(fx.err < 0 ? 'Early' : 'Late', cx, y - 13 * this.s);
     }
     ctx.globalAlpha = 1;
   }
   _drawWomCombo(combo) {
     if (combo < 1) return;
-    const ctx = this.ctx, d = this.womD, hy = Settings.get('wom.hudY');
-    const cx = this._tx + this.stageW / 2, y = this.up ? this.H * hy : this.H * (1 - hy) + 50 * d;
+    const ctx = this.ctx, y0 = this.layout.comboPosition * this.s;
+    const cx = this._tx + this.stageW / 2, y = this.up ? this.H - y0 : y0;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = `800 ${30 * d}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.round(14 * this.s)}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#dddddd'; ctx.fillText(String(combo), cx, y);
   }
 
@@ -13395,9 +13376,9 @@ const SkinsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
-  WOM_KEYS: ['wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
-  /** The skin's options next to its preview (the same controls as in Settings → Skin): the Custom skin's, or for a
-   *  Web-Osu-Mania skin WOM's own (colour, judgement set, darker holds). */
+  WOM_KEYS: ['wom.style', 'wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
+  /** The Custom skin's options next to its preview (the same controls as in Settings → Skin): note type, colour,
+   *  judgement set, darker holds. */
   customPanel(wom = false) {
     const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
     // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
@@ -13437,7 +13418,7 @@ const SkinsScreen = {
         h('span.sk-k', `${this.keys}K`),
         h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
         h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
-      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(/^wom-/.test(meta.id))) : pv,
+      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
@@ -13588,11 +13569,17 @@ const OnlineBeatmaps = {
     if (p.cursor) params.set('cursor', p.cursor);
     if (p.provider) params.set('provider', p.provider);
     if (p.loose) params.set('loose', '1');
-    if (await this.checkApi()) {
-      const r = await fetch('api/search?' + params);
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), { details: [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])].join('\n') });
-      return d;
+    let serverErrors = null;
+    if (await this.checkApi() && !this._serverDown) {
+      try {
+        const r = await fetch('api/search?' + params);
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) return d;
+        serverErrors = [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])];
+      } catch (e) { serverErrors = [`Search failed: ${e.message}`]; }
+      // the mirrors often turn away requests from the server's cloud addresses but answer the browser itself: ask them
+      // straight from here (and keep doing so for a few minutes rather than waiting on the server every time)
+      this._serverDown = true; setTimeout(() => { this._serverDown = false; }, 5 * 60000);
     }
     const q = [p.q, p.keys.length === 1 ? `key=${p.keys[0]}` : '', p.minStars > 0 ? `stars>=${p.minStars}` : '', p.maxStars < 20 ? `stars<=${p.maxStars}` : ''].filter(Boolean).join(' ');
     const errors = [];
@@ -13600,13 +13587,17 @@ const OnlineBeatmaps = {
     // (the explorer sorts what comes back itself)
     const want = p.sort || (p.q ? 'relevance_desc' : 'ranked_desc');
     const sorts = want.startsWith('relevance') ? [null] : want === 'ranked_desc' ? [want] : [want, null];
-    for (const u of this.DIRECT_SEARCH) for (const sort of sorts) {
+    // (a mirror that doesn't understand the "key=4 stars>=3" filters finds nothing with them: ask again with just the
+    // words, and filter keys and stars here)
+    const queries = q !== (p.q || '') ? [q, p.q || ''] : [q];
+    for (const u of this.DIRECT_SEARCH) for (const qq of queries) for (const sort of sorts) {
       try {
-        const r = await fetch(u({ ...p, q, sort }));
+        const r = await fetch(u({ ...p, q: qq, sort }));
         if (!r.ok) { errors.push(`${new URL(u(p)).host}: HTTP ${r.status}`); continue; }
         const data = await r.json();
         const arr = Array.isArray(data) ? data : data.beatmapsets || data.data || [];
         if (!arr.length && sort && sorts.length > 1) { errors.push(`${new URL(u(p)).host}: no results for ${sort}`); continue; }
+        if (!arr.length && qq !== queries[queries.length - 1]) { errors.push(`${new URL(u(p)).host}: no results with filters`); break; }
         const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
@@ -13614,7 +13605,7 @@ const OnlineBeatmaps = {
       } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
     }
     throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
-      details: errors.join('\n') + '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).' });
+      details: [...(serverErrors ? ['Game server:', ...serverErrors, 'From this browser:'] : []), ...errors].join('\n') + (serverErrors ? '' : '\nTip: the explorer works best on the Cloudflare deployment (its server searches osu! and the mirrors for you).') });
   },
   /** Download an .osz with progress; returns a File. */
   async download(id, onProgress) {
@@ -14661,7 +14652,7 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
-const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']];
+const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
   STEPS: [
@@ -14891,7 +14882,7 @@ const Onboarding = {
         h('div.setup-skins',
           kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
           chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'sparkle') : null,
-          card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
+          card('default', 'Custom', 'Pick the note type, judgements and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
         ...(cur === 'default' ? [this.customSkinOptions(() => { paint(); show(); })] : []));
@@ -14903,21 +14894,21 @@ const Onboarding = {
     return [h('div.setup-split', pv, side)];
   },
 
-  /** The Custom (built-in) skin's options — Web-Osu-Mania's note styles and single-hue colouring. */
+  /** The Custom (built-in) skin's options: Web-Osu-Mania's note types, its colour, judgement sets and darker holds. */
   customSkinOptions(refresh) {
-    const style = Settings.get('skin.noteStyle'), hue = Settings.get('skin.hue');
-    const hueSlider = h('input.slider.setup-hue', { type: 'range', min: 0, max: 360, step: 1, value: hue < 0 ? 270 : hue, 'aria-label': 'Note colour' });
-    hueSlider.addEventListener('change', () => { Settings.set('skin.hue', +hueSlider.value); refresh(); });
+    const style = Settings.get('wom.style');
+    const hueSlider = h('input.slider.setup-hue', { type: 'range', min: 0, max: 360, step: 1, value: Settings.get('wom.hue'), 'aria-label': 'Note colour' });
+    hueSlider.addEventListener('change', () => { Settings.set('wom.hue', +hueSlider.value); refresh(); });
     hueSlider.addEventListener('keydown', e => e.stopPropagation());
-    const t = h(`button.toggle${Settings.get('skin.darkerHolds') ? '.on' : ''}`, { role: 'switch', 'aria-label': 'Darker hold notes', onclick: () => {
-      Settings.set('skin.darkerHolds', !Settings.get('skin.darkerHolds')); UISounds.click(); refresh(); } });
+    const t = h(`button.toggle${Settings.get('wom.darkerHolds') ? '.on' : ''}`, { role: 'switch', 'aria-label': 'Darker hold notes', onclick: () => {
+      Settings.set('wom.darkerHolds', !Settings.get('wom.darkerHolds')); UISounds.click(); refresh(); } });
+    const jud = h('select.select', { 'aria-label': 'Judgements', onchange: e => { Settings.set('wom.judgements', e.target.value); refresh(); } },
+      ...WOM.JUDGEMENT_SETS.map(([v, l]) => h('option', { value: v, selected: v === Settings.get('wom.judgements') }, l)));
     return h('div.setup-custom',
-      h('div.setup-label', 'Note shape'),
-      h('div.setup-seg', ...SETUP_NOTE_STYLES.map(([v, l]) => h(`button${style === v ? '.on' : ''}`, { onclick: () => { Settings.set('skin.noteStyle', v); UISounds.click(); refresh(); } }, l))),
-      h('div.setup-label', 'Note colour'),
-      h('div.setup-seg', h(`button${hue < 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', -1); UISounds.click(); refresh(); } }, 'Match my colour'),
-        h(`button${hue >= 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', +hueSlider.value); UISounds.click(); refresh(); } }, 'Pick a colour')),
-      hue >= 0 ? hueSlider : null,
+      h('div.setup-label', 'Note type'),
+      h('div.setup-seg', ...SETUP_NOTE_STYLES.map(([v, l]) => h(`button${style === v ? '.on' : ''}`, { onclick: () => { Settings.set('wom.style', v); UISounds.click(); refresh(); } }, l))),
+      h('div.setup-label', 'Note colour'), hueSlider,
+      h('div.setup-label', 'Judgements'), jud,
       h('div.setup-row', h('span.setup-row-t', 'Darker hold notes'), t));
   },
 
@@ -15061,7 +15052,7 @@ const WomImport = {
   },
 
   /** WOM's skin — its note style, colours (one hue or a colour per column), judgement set and stage layout — so the
-   *  game looks the way it did there: the matching Web-Osu-Mania skin is selected with the same options. */
+   *  game looks the way it did there: the Custom skin is selected with the same note type and options. */
   applySkin(w) {
     const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : null;
     const set = (k, v) => { if (v !== null && v !== undefined) Settings.set(k, v); };
@@ -15085,8 +15076,9 @@ const WomImport = {
     if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
     set('wom.hudY', num(ui.stageHudYPosition, 0, 1));
     if ([-1, 200, 300, 320].includes(ui.earlyLateThreshold)) set('wom.earlyLate', ui.earlyLateThreshold);
-    const style = WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars';
-    SkinManager.select(`wom-${style}`).catch(() => {});
+    // (WOM's note style is the Custom skin's note type)
+    set('wom.style', WOM.STYLES.some(s => s[0] === w.style) ? w.style : 'bars');
+    SkinManager.select('default').catch(() => {});
   },
 
   /** WOM mod names → ours (and the playback rate they imply). */

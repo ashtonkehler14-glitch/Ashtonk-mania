@@ -337,7 +337,27 @@ class DefaultSkin extends Skin {
   }
   get builtin() { return true; }
   has(name) { const k = this._key(name); return DefaultSkin.NAMES.has(k) || k.startsWith('am-'); }
-  supportedKeys() { return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; }
+  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
+  /** The Custom skin is drawn as Web-Osu-Mania draws its skins (ManiaRenderer._renderWom), in the note type, judgement
+   *  set and colours chosen for it; its generated textures stay as fallbacks for imported skins. */
+  async mania(keys) {
+    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
+    const style = WOM.STYLES.some(x => x[0] === Settings.get('wom.style')) ? Settings.get('wom.style') : 'bars';
+    const p = (async () => {
+      const L = await ManiaLayout.resolve(this, keys);
+      L.wom = { style };
+      // sized and placed like the Kori skin: 72-wide columns up to 5K, 48 to 10K, 32 beyond; the hit position 434
+      // (460 from 6K) and the combo and judgement high on the stage (115 / 150), in osu!'s 480-tall space
+      const w = keys <= 5 ? 72 : keys <= 10 ? 48 : 32;
+      L.columnWidth = Array(keys).fill(w); L.columnSpacing = Array(Math.max(0, keys - 1)).fill(0);
+      L.columnStart = Math.max(0, 320 - w * keys / 2);
+      L.hitPosition = keys <= 5 ? 434 : 460; L.comboPosition = 115; L.scorePosition = 150;
+      await WOM.preload(style);
+      return L;
+    })();
+    this.layoutCache.set(keys, p);
+    return p;
+  }
   async texture(name) {
     const key = this._key(name);
     if (this.gen.has(key)) return this.gen.get(key);
@@ -609,9 +629,9 @@ DefaultSkin.NAMES = new Set(['mania-note1', 'mania-note2', 'mania-notes', 'mania
   'mania-key1d', 'mania-key2d', 'mania-keysd', 'mania-stage-hint', 'mania-stage-light', 'mania-stage-left', 'mania-stage-right',
   'lightingn', 'lightingl', 'mania-hit300g', 'mania-hit300', 'mania-hit200', 'mania-hit100', 'mania-hit50', 'mania-hit0']);
 
-/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), drawn the way WOM draws them
- *  (ManiaRenderer._renderWom): its five note styles, its colours (one hue, or a colour per column from a WOM backup),
- *  its judgement sets, receptors, stage and layout. Everything else (sounds, fallbacks) is the Custom skin's. */
+/** Web-Osu-Mania's skins (MIT © 2024 Danny Duong, github.com/hectickiwi/Web-Osu-Mania), which the Custom skin is drawn
+ *  as (ManiaRenderer._renderWom): its five note types, its colours (one hue, or a colour per column from a WOM backup),
+ *  its judgement sets, receptors, stage and layout. */
 const WOM = {
   STYLES: [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick Arrows'], ['diamonds', 'Diamonds']],
   JUDGEMENT_SETS: [['azureSnowfall', 'Azure Snowfall', 1], ['chocolate', '105°C Chocolate', 1], ['bangDream', 'BanG Dream!', 0.6], ['fnf', 'Friday Night Funkin\'', 0.45], ['osuStable', 'osu!(stable)', 0.35]],
@@ -655,23 +675,6 @@ const WOM = {
     return Promise.all(files.map(f => new Promise(res => { WOM.image(f); const e = WOM._img.get(f); if (e.ok) return res(); e.img.addEventListener('load', res, { once: true }); e.img.addEventListener('error', res, { once: true }); })));
   },
 };
-class WomSkin extends DefaultSkin {
-  constructor(style) {
-    super();
-    const name = `Web-Osu-Mania · ${WOM.STYLES.find(s => s[0] === style)[1]}`, author = 'Danny Duong (Web-Osu-Mania)';
-    this.id = `wom-${style}`; this.womStyle = style;
-    this.ini = { ...this.ini, general: { Name: name, Author: author, Version: 'WOM' } };
-    this.meta = { ...this.meta, id: this.id, name, author, version: 'WOM' };
-  }
-  supportedKeys() { return Array.from({ length: 18 }, (_, i) => i + 1); }
-  async mania(keys) {
-    if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
-    const p = (async () => { const L = await ManiaLayout.resolve(this, keys); L.wom = { style: this.womStyle }; await WOM.preload(this.womStyle); return L; })();
-    this.layoutCache.set(keys, p);
-    return p;
-  }
-}
-
 /** Resolved per-key-count configuration (skin.ini [Mania] + textures + fallbacks). */
 const ManiaLayout = {
   num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; },
@@ -855,24 +858,23 @@ const SkinManager = {
   },
   async init() {
     this.defaultSkin = new DefaultSkin();
-    this.womSkins = WOM.STYLES.map(([st]) => new WomSkin(st));
-    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') for (const w of this.womSkins) w.layoutCache.clear(); });
+    Bus.on('settings:changed', k => { if (k.startsWith('wom.') || k === '*') this.defaultSkin.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'skin.extend4K' && this.current) this.current.layoutCache.clear(); });
     Bus.on('settings:changed', k => { if (k === 'ui.theme' || k === 'skin.noteStyle' || k === 'skin.darkerHolds' || k === 'skin.hue' || k.startsWith('skin.c.') || k === '*') this.invalidateGenerated(); });
     this.skins = await DB.getAll('skins');
-    const want = Settings.get('skin.current');
-    await this.select(want && (want === 'default' || this.womSkins.some(s => s.id === want) || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
+    let want = Settings.get('skin.current');
+    // (the five Web-Osu-Mania skins became the Custom skin's note types)
+    if (/^wom-/.test(want || '')) { Settings.set('wom.style', want.slice(4)); want = 'default'; }
+    await this.select(want && (want === 'default' || this.skins.some(s => s.id === want)) ? want : (this.skins[0]?.id || 'default'), { silent: true });
   },
 
   list() {
     return [{ id: 'default', name: 'Custom', author: 'Ashtonk!mania', version: 'latest', builtin: true, ini: this.defaultSkin.ini, files: [] },
-      ...this.womSkins.map(k => ({ id: k.id, name: k.name, author: k.author, version: 'WOM', builtin: true, ini: k.ini, files: [] })), ...this.skins];
+      ...this.skins];
   },
 
   instance(id) {
     if (id === 'default') return this.defaultSkin;
-    const wom = this.womSkins.find(k => k.id === id);
-    if (wom) return wom;
     if (this.current && this.current.id === id) return this.current;
     const meta = this.skins.find(s => s.id === id);
     return meta ? new Skin(meta) : null;
@@ -966,7 +968,7 @@ const SkinManager = {
   },
 
   async remove(id) {
-    if (id === 'default' || /^wom-/.test(id)) return;
+    if (id === 'default') return;
     await DB.del('skins', id);
     await DB.delPrefix('files', `skin:${id}/`);
     this.skins = this.skins.filter(s => s.id !== id);

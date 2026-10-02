@@ -2106,10 +2106,13 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* skin viewer: the Custom skin's options beside its live preview */
 .sk-custom-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
 .sk-custom-wrap .skin-preview { height: 520px; }
+.sk-custom-rows .set-row { min-width: 0; max-width: 100%; }
+/* the preview plays on a dimmed version of the menu background, as the stage does in game, instead of plain black */
+.skin-preview { background: radial-gradient(120% 90% at 50% 0%, #2a1a40, #120c1c 60%, #0a0710); }
 .sk-custom { display: flex; flex-direction: column; max-height: 520px; border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
 .sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-custom-h .btn { margin-left: auto; }
-.sk-custom-rows { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
+.sk-custom-rows { position: static; width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
 @media (max-width: 1000px) and (hover: none) { .sk-custom-wrap { grid-template-columns: 1fr; } }
 
 /* ── beatmap listing, lazer style: BeatmapCardNormal (thumbnail + details over the faded cover), two columns */
@@ -2963,11 +2966,10 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
 .pm-buttons { padding: 0 50px; gap: 2px; }
 .pm-btn { height: 80px; font-size: 28px; font-weight: 700; }
-/* the buttons sit small (a narrow band, smaller label) until the pointer is on one, then widen to full size */
-.pm-btn .pm-label { display: inline-block; scale: .8; transition: scale 200ms cubic-bezier(.22, 1, .36, 1), letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
-.pm-btn:hover .pm-label { scale: 1; transition-duration: 400ms; }
+/* lazer's DialogButton: long bars (80% of the width); hovered, one widens a little with a glow and its label spreads */
+.pm-btn .pm-label { display: inline-block; transition: letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
 .pm-btn:focus-visible .pm-band { filter: brightness(1.15); }
-.pm-btn .pm-band { left: 30%; right: 30%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn .pm-band { left: 10%; right: 10%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
 .pm-btn:hover .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
 .pm-btn .pm-label { letter-spacing: 0; }
 .pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }

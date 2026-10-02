@@ -16,7 +16,7 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
-const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']];
+const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
   STEPS: [
@@ -246,7 +246,7 @@ const Onboarding = {
         h('div.setup-skins',
           kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
           chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'sparkle') : null,
-          card('default', 'Custom', 'Choose the note shape and colour', 'brush'),
+          card('default', 'Custom', 'Pick the note type, judgements and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
         ...(cur === 'default' ? [this.customSkinOptions(() => { paint(); show(); })] : []));
@@ -258,21 +258,21 @@ const Onboarding = {
     return [h('div.setup-split', pv, side)];
   },
 
-  /** The Custom (built-in) skin's options — Web-Osu-Mania's note styles and single-hue colouring. */
+  /** The Custom (built-in) skin's options: Web-Osu-Mania's note types, its colour, judgement sets and darker holds. */
   customSkinOptions(refresh) {
-    const style = Settings.get('skin.noteStyle'), hue = Settings.get('skin.hue');
-    const hueSlider = h('input.slider.setup-hue', { type: 'range', min: 0, max: 360, step: 1, value: hue < 0 ? 270 : hue, 'aria-label': 'Note colour' });
-    hueSlider.addEventListener('change', () => { Settings.set('skin.hue', +hueSlider.value); refresh(); });
+    const style = Settings.get('wom.style');
+    const hueSlider = h('input.slider.setup-hue', { type: 'range', min: 0, max: 360, step: 1, value: Settings.get('wom.hue'), 'aria-label': 'Note colour' });
+    hueSlider.addEventListener('change', () => { Settings.set('wom.hue', +hueSlider.value); refresh(); });
     hueSlider.addEventListener('keydown', e => e.stopPropagation());
-    const t = h(`button.toggle${Settings.get('skin.darkerHolds') ? '.on' : ''}`, { role: 'switch', 'aria-label': 'Darker hold notes', onclick: () => {
-      Settings.set('skin.darkerHolds', !Settings.get('skin.darkerHolds')); UISounds.click(); refresh(); } });
+    const t = h(`button.toggle${Settings.get('wom.darkerHolds') ? '.on' : ''}`, { role: 'switch', 'aria-label': 'Darker hold notes', onclick: () => {
+      Settings.set('wom.darkerHolds', !Settings.get('wom.darkerHolds')); UISounds.click(); refresh(); } });
+    const jud = h('select.select', { 'aria-label': 'Judgements', onchange: e => { Settings.set('wom.judgements', e.target.value); refresh(); } },
+      ...WOM.JUDGEMENT_SETS.map(([v, l]) => h('option', { value: v, selected: v === Settings.get('wom.judgements') }, l)));
     return h('div.setup-custom',
-      h('div.setup-label', 'Note shape'),
-      h('div.setup-seg', ...SETUP_NOTE_STYLES.map(([v, l]) => h(`button${style === v ? '.on' : ''}`, { onclick: () => { Settings.set('skin.noteStyle', v); UISounds.click(); refresh(); } }, l))),
-      h('div.setup-label', 'Note colour'),
-      h('div.setup-seg', h(`button${hue < 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', -1); UISounds.click(); refresh(); } }, 'Match my colour'),
-        h(`button${hue >= 0 ? '.on' : ''}`, { onclick: () => { Settings.set('skin.hue', +hueSlider.value); UISounds.click(); refresh(); } }, 'Pick a colour')),
-      hue >= 0 ? hueSlider : null,
+      h('div.setup-label', 'Note type'),
+      h('div.setup-seg', ...SETUP_NOTE_STYLES.map(([v, l]) => h(`button${style === v ? '.on' : ''}`, { onclick: () => { Settings.set('wom.style', v); UISounds.click(); refresh(); } }, l))),
+      h('div.setup-label', 'Note colour'), hueSlider,
+      h('div.setup-label', 'Judgements'), jud,
       h('div.setup-row', h('span.setup-row-t', 'Darker hold notes'), t));
   },
 
