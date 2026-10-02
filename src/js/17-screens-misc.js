@@ -356,22 +356,26 @@ const SkinsScreen = {
     page.append(h('div.split', this.side, this.main));
     this._unsub = [Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
       // customising the Custom skin redraws the preview (debounced: sliders send many changes)
-      Bus.on('settings:changed', k => { if (!(k.startsWith('skin.c.') || ['skin.noteStyle', 'skin.hue', 'skin.darkerHolds', 'ui.theme'].includes(k)) || !this.preview || !this.previewSkin) return;
+      Bus.on('settings:changed', k => { if (!(k.startsWith('skin.c.') || k.startsWith('wom.') || ['skin.noteStyle', 'skin.hue', 'skin.darkerHolds', 'ui.theme'].includes(k)) || !this.preview || !this.previewSkin) return;
         clearTimeout(this._pvT); this._pvT = setTimeout(() => { this.previewSkin.layoutCache.clear(); this.preview.show(this.previewSkin, this.keys); }, 120); })];
     this.render();
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
-  /** The Custom skin's options next to its preview (the same controls as in Settings → Skin). */
-  customPanel() {
-    const box = h('div.sk-custom');
-    const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of this.CUSTOM_KEYS) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
-      h('div.settings-panel.sk-custom-rows', ...this.CUSTOM_KEYS.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(d))));
+  WOM_KEYS: ['wom.hue', 'wom.colorMode', 'wom.judgements', 'wom.darkerHolds'],
+  /** The skin's options next to its preview (the same controls as in Settings → Skin): the Custom skin's, or for a
+   *  Web-Osu-Mania skin WOM's own (colour, judgement set, darker holds). */
+  customPanel(wom = false) {
+    const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
+    // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
+    const rowOf = d => !wom ? d : d.k === 'wom.hue' ? { ...d, when: () => Settings.get('wom.colorMode') !== 'custom' } : d.k === 'wom.colorMode' ? { ...d, when: () => !!Settings.get('wom.customColors') } : { ...d, when: undefined };
+    const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of keys) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
+      h('div.settings-panel.sk-custom-rows', ...keys.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(rowOf(d)))));
     paint();
-    // the Custom hue row only shows with the "Custom hue" palette
+    // rows that depend on another one (the Custom hue on its palette, WOM's hue on its colour mode)
     if (this._customOff) this._customOff();
-    this._customOff = Bus.on('settings:changed', k => { if (k === 'skin.c.palette' && box.isConnected) paint(); });
+    this._customOff = Bus.on('settings:changed', k => { if ((k === 'skin.c.palette' || k === 'wom.colorMode') && box.isConnected) paint(); });
     return box;
   },
   render() {
@@ -401,7 +405,7 @@ const SkinsScreen = {
         h('span.sk-k', `${this.keys}K`),
         h('button.sk-step', { 'aria-label': 'More keys', disabled: this.keys >= MAX_KEYS, onclick: () => { this.keys = Math.min(MAX_KEYS, this.keys + 1); this.render(); } }, icon('chevron')),
         h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
-      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel()) : pv,
+      meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(/^wom-/.test(meta.id))) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
