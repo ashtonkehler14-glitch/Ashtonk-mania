@@ -880,7 +880,8 @@ const Notifications = {
     if (!this.el) {
       this.listEl = h('div.nf-list');
       this.el = h('div.nf-panel', { role: 'dialog', 'aria-label': 'Notifications' },
-        h('div.nf-head', h('div.nf-title', 'notifications'), h('div.nf-sub', 'waiting for \'ya'), h('button.btn.sm.nf-clear', { onclick: () => this.clear() }, 'Clear all')),
+        // lazer's NotificationSection: "NOTIFICATIONS" and its count in yellow, "CLEAR ALL" on the right
+        h('div.nf-head', h('div.nf-title', 'NOTIFICATIONS', this.countEl = h('span.nf-count')), h('button.nf-clear', { onclick: () => { UISounds.click(); this.clear(); } }, 'CLEAR ALL')),
         this.listEl);
       $('#app').appendChild(this.el);
       document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn')) this.close(); }, true);
@@ -902,7 +903,8 @@ const Notifications = {
     clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
       h('div.nf-ico', icon(ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
       h('div.nf-body', h('div.nf-t', n.title), n.body ? h('div.nf-b', n.body) : null, h('div.nf-time', this.ago(n.at))),
-      h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('x')))) : [h('div.nf-empty', 'No notifications')]));
+      h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('check')))) : []));
+    if (this.countEl) this.countEl.textContent = String(this.list.length);
   },
 };
 

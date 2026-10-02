@@ -23,6 +23,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 ## What's new
 
 ### Settings, song select and loading, as in lazer
+- **Notifications panel** is lazer's: a "NOTIFICATIONS" heading with the count in yellow and "CLEAR ALL" beside it. Each notification is a rounded card with its icon in a dark strip on the left and a tick to dismiss it.
 - **Settings** opens under the top bar, which stays usable, and no longer dims the screen.
   - The sidebar is lazer's: 170 px wide with each section's icon and name. The section you're reading gets a small bar that springs taller.
   - The screen behind shifts slightly to the right while settings is open, and slightly left for notifications, as lazer does for depth. The notifications panel is lazer's 320 px.

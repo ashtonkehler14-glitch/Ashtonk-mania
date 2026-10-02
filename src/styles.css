@@ -2946,3 +2946,24 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .modcol-h { height: 42px; padding: 0 16px; }
 /* PopupDialog: 60px above the ring, 30px under the buttons */
 .dialog.popup { padding: 60px 0 30px; }
+/* notifications: lazer's NotificationOverlay (purple Background4, 320px) — a section header 10px from the top and 20px
+   in, then items with corners of 6, at least 60px tall: a 40px Background5 strip with the 16px icon, 14px text with
+   10px padding, and a 28px close strip; Background3, Background2 under the pointer */
+.nf-panel { background: hsl(255 10% 20%); }
+.nf-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px 5px; border: 0; }
+.nf-title { display: flex; gap: 5px; font-size: 16px; font-weight: 700; }
+.nf-count { color: #ffcc22; }
+.nf-clear { padding: 0; border: 0; background: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .8; }
+.nf-clear:hover { opacity: 1; }
+.nf-list { gap: 0; padding: 0 20px 5px; }
+.nf-item { align-items: stretch; gap: 0; min-height: 60px; margin: 3px 0; padding: 0; border-radius: 6px; overflow: hidden; background: hsl(255 10% 25%); transition: background 200ms cubic-bezier(.22, 1, .36, 1); }
+.nf-item:hover { background: hsl(255 10% 30%); }
+.nf-ico, .nf-item.ok .nf-ico, .nf-item.err .nf-ico { width: 40px; height: auto; border-radius: 0; background: hsl(255 10% 15%); color: #fff; }
+.nf-item.ok .nf-ico { color: #88b300; } .nf-item.err .nf-ico { color: #ff5a5a; } .nf-item.info .nf-ico { color: #66ccff; }
+.nf-body { padding: 10px; }
+.nf-t { font-size: 14px; font-weight: 600; }
+.nf-b { margin-top: 2px; font-size: 14px; font-weight: 500; color: #fff; }
+.nf-time { margin-top: 4px; font-size: 11px; color: hsl(255 10% 60%); }
+.nf-x { width: 28px; height: auto; border-radius: 0; color: hsl(255 10% 60%); }
+.nf-x:hover { background: rgba(0, 0, 0, .15); color: #fff; }
+.nf-x .i { width: 12px; height: 12px; }
