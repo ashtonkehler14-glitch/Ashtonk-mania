@@ -91,7 +91,9 @@ const SongSelect = {
 
     // footer
     this.modsOn = h('div.mods-on');
-    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' }, h('span.ss-cookie-disc', icon('play', 'fill')));
+    this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
+      // lazer's OsuLogo at 40% (205px), centred 76px from the right and 36px from the bottom, hanging off the corner
+      h('span.ss-logo', h('span.lz-cookie-disc.lz-home-disc'), h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))));
     // lazer's ScreenFooterButtons: sheared 116×75 buttons standing up out of the footer, icon over the label and an
     // accent bar along the bottom (Mods Lime1, Random Blue1, Options Purple1)
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));

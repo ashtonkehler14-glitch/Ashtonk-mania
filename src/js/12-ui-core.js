@@ -497,6 +497,9 @@ const Toolbar = {
     cancelAnimationFrame(this._syncRaf);
     this._syncRaf = requestAnimationFrame(() => {
       const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen() };
+      // lazer pushes the screen 5% of a side panel's width away from it, for a sense of depth
+      $('#app').classList.toggle('side-l', on.settings);
+      $('#app').classList.toggle('side-r', on.notifications && !on.settings);
       $$('#toolbar [data-ov]').forEach(b => b.classList.toggle('on', !!on[b.dataset.ov]));
       $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === this._tab));
     });

@@ -1715,8 +1715,8 @@ div.res-calib .i { color: var(--good); }
 .gp-loader { grid-template-columns: minmax(0, 1fr); }
 .gp-loader .pl-settings { position: absolute; top: 40px; right: 28px; width: 270px; margin: 0; }
 .pl-card { width: auto; max-width: max(320px, min(820px, calc(100% - 660px))); display: flex; flex-direction: column; align-items: center; text-align: center; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
-.pl-logo { position: relative; width: 120px; height: 120px; container-type: size; margin-bottom: 4px; animation: setupLogo 2.4s ease-in-out infinite; }
-.pl-logo .lz-cookie-disc { border-width: 6px; }
+.pl-logo { position: relative; width: 77px; height: 77px; container-type: size; margin-bottom: 4px; animation: setupLogo 2.4s ease-in-out infinite; }
+.pl-logo .lz-cookie-disc { border-width: 3.6px; }
 .pl-card .pl-t { margin-top: 15px; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 2.25rem; font-weight: 400; font-style: italic; line-height: 1.15; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .pl-card .pl-a { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
 .pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
@@ -1973,7 +1973,7 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .lz-tri canvas.in { opacity: 0; transition: none; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
-.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
+.nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 320px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
   transform: translateX(105%); transition: transform 300ms var(--ease-out); }
 .nf-panel.open { transform: none; }
 .nf-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 10px; padding: 18px 18px 12px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
@@ -2852,3 +2852,30 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-tipbox:empty { display: none; }
 .rq.rq-hi { animation: rqHi 1.2s var(--ease-out); }
 @keyframes rqHi { 0%, 40% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 2px transparent; } }
+/* settings: lazer's SettingsPanel — below the toolbar, the 170px sidebar (Background5) with each section's icon and
+   name, then the 400px panel (Background4). The section showing gets a 4px Highlight1 bar that springs to 18px. */
+.settings-panel { top: var(--toolbar-h); width: min(570px, calc(100 * var(--vw))); }
+.sp-nav { width: 170px; padding: 10px 0; gap: 0; }
+.sp-nb { position: relative; display: flex; align-items: center; height: 46px; margin: 0 5px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: rgb(98, 89, 125); font-size: 16px; text-align: left; cursor: pointer; transition: color 500ms cubic-bezier(.22, 1, .36, 1), background 500ms cubic-bezier(.22, 1, .36, 1); }
+.sp-nb:hover { color: rgb(116, 110, 134); background: hsl(255 40% 50% / .1); }
+.sp-nb.active { color: #999; }
+.sp-nb .i { position: absolute; left: 25px; top: 50%; width: 20px; height: 20px; margin-top: -10px; }
+.sp-nb > span:last-child { position: absolute; left: 55px; white-space: nowrap; }
+.sp-nb-ind { position: absolute; left: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 1.5px; background: hsl(255 100% 70%); opacity: 0; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms cubic-bezier(.22, 1, .36, 1), margin-top 500ms cubic-bezier(.22, 1, .36, 1); }
+.sp-nb.active .sp-nb-ind { opacity: 1; height: 18px; margin-top: -9px; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1), height 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1), margin-top 500ms linear(0, .388, .75, 1, 1.125, 1.153, 1.125, 1.077, 1.031, 1, .984, .981, .984, .99, .996, 1, 1.002, 1.002, 1.002, 1.001, 1); }
+@media (max-width: 700px) { .sp-nav { width: 60px; } .sp-nb > span:last-child { display: none; } }
+/* lazer's side overlays: the screen shifts 5% of the panel's width away (settings 570px → 28.5px; notifications
+   320px → 16px), and settings leaves the screen undimmed with the toolbar still usable above it */
+#screen-root > .screen, .screen { transition: translate 400ms cubic-bezier(.22, 1, .36, 1); }
+#app.side-l .screen { translate: 28.5px 0; }
+#app.side-r .screen { translate: -16px 0; }
+#app.in-game .screen { translate: none; }
+#overlay-root > div:has(> .settings-panel) > .backdrop { background: transparent; animation: none; }
+#app:has(.settings-panel) #toolbar { z-index: 61; }
+/* song select's logo (lazer's SongSelect: the OsuLogo at scale 0.4 tracked to the footer at (-76, -36) from the corner) */
+.ss-footer .ss-cookie { position: absolute; right: 76px; bottom: 36px; width: 192.5px; height: 192.5px; margin: 0; transform: translate(50%, 50%); border-radius: 50%; z-index: 3; transition: none; }
+.ss-footer .ss-cookie:hover, .ss-footer .ss-cookie:active { transform: translate(50%, 50%); }
+.ss-logo { position: absolute; left: 50%; top: 50%; width: 512px; height: 512px; margin: -256px 0 0 -256px; scale: .4; transition: scale 500ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); pointer-events: none; }
+.ss-cookie:hover .ss-logo { scale: .44; }
+.ss-cookie:active .ss-logo { scale: .36; transition: scale 1000ms cubic-bezier(.5, 1, .89, 1); }
+.ss-logo .lz-home-disc { inset: 3%; }

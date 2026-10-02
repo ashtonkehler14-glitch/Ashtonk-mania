@@ -22,6 +22,13 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Settings, song select and loading, as in lazer
+- **Settings** opens under the top bar, which stays usable, and no longer dims the screen.
+  - The sidebar is lazer's: 170 px wide with each section's icon and name. The section you're reading gets a small bar that springs taller.
+  - The screen behind shifts slightly to the right while settings is open, and slightly left for notifications, as lazer does for depth. The notifications panel is lazer's 320 px.
+- **Song select:** the play button is the logo, at 40% size, hanging off the bottom-right corner as in lazer. Pointing at it grows it with a bounce.
+- **Loading screen:** the logo is lazer's 77 px.
+
 ### Main menu, as in lazer
 - **The big logo waits on its own.** The top bar is hidden until you click the logo or press a key, as in lazer. The logo is now lazer's size: 512 px across while waiting, then half that in the bar.
 - **The button bar is lazer's:**
