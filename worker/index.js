@@ -107,7 +107,7 @@ async function getOfficialToken(env, fetchImpl) {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...proxyKey(env) },
     body: JSON.stringify({ client_id: Number(env.OSU_CLIENT_ID), client_secret: env.OSU_CLIENT_SECRET, grant_type: 'client_credentials', scope: 'public' }),
   });
-  if (!r.ok) throw new Error(`osu! OAuth failed (${r.status})`);
+  if (!r.ok) throw new Error(`osu! OAuth failed (${r.status}${r.status === 401 ? ': check OSU_CLIENT_ID / OSU_CLIENT_SECRET' : ''}) ${(await r.text().catch(() => '')).slice(0, 120)}`);
   const d = await r.json();
   officialToken = { value: d.access_token, exp: Date.now() + d.expires_in * 1000 };
   return officialToken.value;
@@ -238,7 +238,7 @@ async function searchOfficial(p, env, fetchImpl) {
       throw new Error('rate-limited by osu! (429)');
     }
     if (r.status === 401) officialToken = null; // expired / revoked token: fetch a new one next time
-    if (!r.ok) throw new Error(`osu! API ${r.status}`);
+    if (!r.ok) throw new Error(`osu! API ${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120)}`);
     const raw = await r.json();
     d = { sets: normalizeList(raw), cursor: raw.cursor_string || null, total: raw.total ?? null };
     cachePut(key, d);

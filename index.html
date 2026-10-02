@@ -13595,6 +13595,7 @@ const OnlineBeatmaps = {
         const d = await r.json().catch(() => ({}));
         if (r.ok) return d;
         serverErrors = [d.error || `Search failed (HTTP ${r.status})`, ...(d.errors || [])];
+        this._lastServerError = serverErrors.join(' · ');
       } catch (e) { serverErrors = [`Search failed: ${e.message}`]; }
       // the mirrors often turn away requests from the server's cloud addresses but answer the browser itself: ask them
       // straight from here (and keep doing so for a few minutes rather than waiting on the server every time)
@@ -13620,7 +13621,7 @@ const OnlineBeatmaps = {
         const sets = arr.map(x => this.normalize(x)).filter(Boolean).filter(s => statusMatches(s, p.status) && (p.nsfw !== false || !s.nsfw))
           .map(s => ({ ...s, diffs: s.diffs.filter(d => (!p.keys.length || p.keys.includes(d.keys)) && d.stars >= p.minStars && d.stars <= p.maxStars) }))
           .filter(s => s.diffs.length);
-        return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)' };
+        return { sets, page: p.page, hasMore: arr.length >= 20, source: new URL(u(p)).host + ' (direct)', serverError: serverErrors ? serverErrors.join(' · ') : this._lastServerError || null };
       } catch (e) { errors.push(`${new URL(u(p)).host}: ${e.message}`); }
     }
     throw Object.assign(new Error('The beatmap servers aren\'t answering right now. Try again in a minute.'), {
@@ -13882,6 +13883,7 @@ const ExplorerScreen = {
       this.results = d.source === 'osu! API' ? merged : sortOnlineSets(merged, sort, dir);
       if (d.provider != null) this.provider = d.provider;
       if (this.page === 0) this.loose = !!d.wordsOnly;
+      this.serverError = d.serverError || null;
       // (a words-only search filters keys and stars here, so a page can come back empty with more after it)
       this.hasMore = !!d.hasMore && (d.sets.length > 0 || (this.loose && this.page < 8));
       this.cursor = d.cursor || null;
@@ -13915,7 +13917,9 @@ const ExplorerScreen = {
       this.errorDetails ? h('details', h('summary', 'Details'), h('pre', this.errorDetails)) : null,
       h('button.btn.sm.ex-retry', { onclick: () => this.newSearch() }, icon('retry'), 'Try again')));
     else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
-    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.source ? ` · via ${this.source}` : ''}${this.hasMore ? '' : ' · end of results'}`));
+    else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.source ? ` · via ${this.source}` : ''}${this.hasMore ? '' : ' · end of results'}`),
+      // (searching from the browser means the game's server couldn't: say why, so it can be fixed)
+      this.serverError ? h('div.muted.ex-source.ex-server-err', `The game's server couldn't search osu!, so this came from a mirror instead: ${this.serverError}`) : null);
   },
   renderResults() {
     if (!this.grid) return;
