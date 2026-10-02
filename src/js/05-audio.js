@@ -16,7 +16,7 @@ const AudioManager = {
     this.ctx.onstatechange = () => Bus.emit('audio:state', this.ctx.state);
     this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
     this.musicBus = this.ctx.createGain();
-    this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 256; this.analyser.smoothingTimeConstant = 0.7;
+    this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 512; this.analyser.smoothingTimeConstant = 0; // (256 bins sampled raw, as lazer's BASS FFT512)
     // music → analyser → duck (a low-pass plus a little volume) → master: lazer muffles the music behind a dialog
     this.duckFilter = this.ctx.createBiquadFilter(); this.duckFilter.type = 'lowpass'; this.duckFilter.frequency.value = 22000;
     this.duckGain = this.ctx.createGain();

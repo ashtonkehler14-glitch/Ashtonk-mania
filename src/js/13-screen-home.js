@@ -1,86 +1,180 @@
-/* Main menu (osu!lazer's ButtonSystem): the logo sits in the middle of the screen; clicking it (or pressing any key)
- * opens the slanted button bar — Settings to the left of the logo; Play (→ Solo / Multi), Edit (→ skins, importing
- * and the library) and Browse to its right. Fifteen idle seconds bring the big logo back. Behind it all is lazer's
- * triangle artwork, in the colour of the playing song's background. */
+/* Main menu (osu!lazer's MainMenu + ButtonSystem + OsuLogo). The 512px logo waits in the middle of the screen with the
+ * toolbar hidden; clicking it (or pressing any key) shrinks it to half size 228px left of centre and opens the button
+ * bar around it: settings on its left; play (→ solo / multi → lounge / ranked play), edit and browse on its right.
+ * Six idle seconds bring the big logo back. Behind it is lazer's triangle artwork in the colour of the playing song. */
 
 const HomeScreen = {
   tab: 'home',
   menuState: 'initial',
-  IDLE_MS: 15000,
+  IDLE_MS: 6000, // lazer's GameIdleTracker(6000)
+  // ButtonSystemState order: a button shows between its min and max state, contracts below and explodes above
+  ORDER: { initial: 1, top: 2, play: 3, multi: 4, edit: 5, entering: 6 },
   enter() {
     this.logo = this.buildLogo();
-    this.leftBtns = h('div.lz-buttons.lz-left');
-    this.rightBtns = h('div.lz-buttons.lz-right');
-    this.bar = h('div.lz-bar', h('div.lz-logo-slot', this.logo), this.leftBtns, this.rightBtns);
+    this.left = h('div.lz-left'); this.right = h('div.lz-right');
+    this.buildButtons();
+    this.area = h('div.lz-area', h('div.lz-area-bg'), this.left, this.right);
     this.flashL = h('div.msf.l'); this.flashR = h('div.msf.r');
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), this.flashL, this.flashR, h('div.lz-stage', this.bar), NeruMascot.build());
+    // lazer's SongTicker: the new song's title and artist at the top right for a few seconds
+    this.ticker = h('div.lz-ticker', this.tkTitle = h('div.lz-tk-t'), this.tkArtist = h('div.lz-tk-a'));
+    this.tip = h('div.lz-tipbox');
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), this.flashL, this.flashR,
+      h('div.lz-stage', this.area, this.logo), this.ticker, h('div.lz-bottom', this.tip), NeruMascot.build());
     this.el = el;
     this.setState(Screens.history.length ? 'top' : 'initial', true);
     this.startMenuMusic();
+    this.showTip();
     this._idleAt = performance.now();
     this._poke = () => { this._idleAt = performance.now(); };
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
+    this._offMusic = Bus.on('music:changed', m => this.showTicker(m));
     this.loop();
     return el;
   },
   leave() {
     cancelAnimationFrame(this._raf); NeruMascot.stop(); MenuTriangles.stop();
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
+    if (this._offMusic) this._offMusic();
+    clearTimeout(this._tbT); $('#app').classList.remove('hide-toolbar');
   },
 
-  /** Button definitions (colours are osu!lazer's main-menu colours). */
-  menuButtons(state) {
-    const back = ['Back', 'back', '#555555', () => this.setState('top'), 'Esc'];
-    if (state === 'play') return {
-      left: [back],
-      right: [
-        ['Solo', 'user', '#6644cc', () => Screens.go('songselect', {}, { transition: 'zoom' }), 'S'],
-        ['Multi', 'multi', '#5e3fba', () => Screens.go('multiplayer'), 'M'],
-      ],
-    };
-    // where lazer has Edit (beatmap / skin editor): everything for changing what's installed
-    if (state === 'edit') return {
-      left: [back],
-      right: [
-        ['Skins', 'brush', '#eeaa00', () => Screens.go('skins'), 'S'],
-        ['Import', 'upload', '#dca000', () => importViaPicker('.osz,.osk,.zip,.osu,.osr'), 'I'],
-        ['Beatmaps', 'music', '#eeaa00', () => Screens.go('beatmaps'), 'B'],
-        ['Collections', 'folder', '#dca000', () => Screens.go('collections'), 'C'],
-        ['Replays', 'film', '#eeaa00', () => Screens.go('replays'), 'R'],
-      ],
-    };
+  /** The buttons, in lazer's flow order (left of the logo: settings, back; right: the multi, play, edit and top-level
+   *  groups). [id, label, icon, colour, keys, min state, max state, padded side, action]. Colours are lazer's. */
+  buttonDefs() {
+    const solo = () => this.enterMode(() => Screens.go('songselect', {}, { transition: 'zoom' }));
     return {
-      left: [['Settings', 'gear', '#555555', () => SettingsPanel.open(), 'O']],
+      left: [
+        ['settings', 'settings', 'gear', '#555555', ['KeyO', 'KeyS'], 'top', 'top', 'r', () => SettingsPanel.open()],
+        ['back', 'back', 'backcircle', '#333a5e', [], 'play', 'edit', 'r', () => this.setState(this.menuState === 'multi' ? 'play' : 'top')],
+      ],
       right: [
-        ['Play', 'play', '#6644cc', () => this.setState('play'), 'P'],
-        ['Edit', 'edit', '#eeaa00', () => this.setState('edit'), 'E'],
-        ['Browse', 'download', '#a5cc00', () => Screens.go('explore'), 'B'],
+        ['lounge', 'lounge', 'couch', '#5e3fba', ['KeyL', 'KeyM'], 'multi', 'multi', 'l', () => this.enterMode(() => Screens.go('multiplayer'))],
+        ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
+        ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
+        ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
+        // where lazer has the beatmap and skin editors: everything for changing what's installed
+        ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('skins'))],
+        ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
+        ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB', 'KeyE'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
+        ['collections', 'collections', 'folder', '#dca000', ['KeyC'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('collections'))],
+        ['replays', 'replays', 'film', '#eeaa00', ['KeyR'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('replays'))],
+        ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
+        ['edit', 'edit', 'editcircle', '#eeaa00', ['KeyE'], 'top', 'top', null, () => this.setState('edit')],
+        ['browse', 'browse', 'beatmap', '#a5cc00', ['KeyB', 'KeyD'], 'top', 'top', null, () => this.enterMode(() => Screens.go('explore'))],
       ],
     };
   },
+  buildButtons() {
+    this.btns = [];
+    const d = this.buttonDefs();
+    const mk = ([id, label, ic, color, keys, min, max, pad, fn]) => {
+      const ico = h('span.lz-ico', h('span.lz-ico-b', icon(ic)));
+      const b = h(`button.lz-btn.gone${pad ? '.p' + pad : ''}`, { style: { '--c': color, '--w': pad ? '160px' : '140px' }, dataset: { id }, 'aria-label': label, tabindex: -1 },
+        h('span.lz-bg'), h('span.lz-inner', ico, h('span.lz-label', label)));
+      Object.assign(b, { _keys: keys, _min: this.ORDER[min], _max: this.ORDER[max], _fn: fn, _ico: ico });
+      b.addEventListener('click', () => this.trigger(b));
+      b.addEventListener('pointerenter', () => this.hoverIn(b));
+      b.addEventListener('pointerleave', () => this.hoverOut(b));
+      b.addEventListener('pointerdown', () => b.classList.add('down'));
+      this.btns.push(b);
+      return b;
+    };
+    this.left.append(...d.left.map(mk));
+    this.right.append(...d.right.map(mk));
+    window.addEventListener('pointerup', () => this.btns && this.btns.forEach(b => b.classList.remove('down')));
+  },
+  /** lazer's MainMenuButton.trigger: the click sound, the action, and a white flash that fades over 800ms. */
+  trigger(b) {
+    if (!b.classList.contains('exp')) return;
+    UISounds.click();
+    const bg = b.firstChild;
+    bg.classList.remove('flash'); void bg.offsetWidth; bg.classList.add('flash');
+    b._fn();
+  },
+  /** Choosing something that leaves the menu: the bar folds away (lazer's EnteringMode) as the next screen opens. */
+  enterMode(go) { this.setState('entering'); go(); },
   setState(state, instant = false) {
+    const last = this.menuState;
+    if (state === last && !instant) return;
     this.menuState = state;
     this.el.dataset.state = state;
     this.el.classList.toggle('lz-instant', instant);
-    const mk = ([label, ic, color, fn, key]) => {
-      const b = h('button.lz-btn', { style: { '--c': color }, 'aria-label': label, title: key ? `${label} (${key})` : label, onclick: () => { UISounds.click(); fn(); } },
-        h('span.lz-inner', h('span.lz-ico', icon(ic)), h('span.lz-label', label)));
-      b.addEventListener('pointerenter', () => UISounds.hover());
-      return b;
+    if (instant) requestAnimationFrame(() => requestAnimationFrame(() => this.el && this.el.classList.remove('lz-instant')));
+    const S = this.ORDER[state];
+    // the bar fades in 150ms after the logo starts moving when coming from the big logo (lazer's delayed sequence)
+    const delay = last === 'initial' && !instant ? 150 : 0;
+    clearTimeout(this._stT);
+    const apply = () => {
+      for (const b of this.btns) {
+        let st;
+        if (state === 'initial') st = 'con';
+        else if (state === 'entering') st = 'con1';
+        else st = S >= b._min && S <= b._max ? 'exp' : S < b._min ? 'con' : 'xpl';
+        this.btnState(b, st, instant);
+      }
     };
-    const d = this.menuButtons(state);
-    clearEl(this.leftBtns).append(...d.left.map(mk));
-    clearEl(this.rightBtns).append(...d.right.map(mk));
+    if (delay) this._stT = setTimeout(apply, delay); else apply();
+    // lazer hides the toolbar while the big logo waits, and brings it back as the logo lands in the bar
+    clearTimeout(this._tbT);
+    if (state === 'initial') $('#app').classList.add('hide-toolbar');
+    else if (last === 'initial' && !instant) this._tbT = setTimeout(() => $('#app').classList.remove('hide-toolbar'), 200);
+    else $('#app').classList.remove('hide-toolbar');
+    // the logo's impact ring as it lands in the bar
+    if (last === 'initial' && (state === 'top' || state === 'play') && !instant) setTimeout(() => this.impact(), 200);
   },
-  /** lazer's MainMenuButton: the hovered button's icon sways from side to side and bounces with the beat. */
-  onBeat(len) {
-    this._beatN = (this._beatN || 0) ^ 1;
-    const b = this.el && this.el.querySelector('.lz-btn:hover');
+  btnState(b, st, instant) {
+    const cur = b._st;
+    if (cur === st) return;
+    b._st = st;
+    clearTimeout(b._goneT);
+    b.classList.remove('exp', 'con', 'con1', 'xpl');
+    if (st === 'exp') {
+      if (b.classList.contains('gone') && !instant) {
+        b.classList.remove('gone');
+        void b.offsetWidth; // start from nothing so the width grows out
+      }
+      b.classList.remove('gone');
+      b.classList.add('exp');
+      b.tabIndex = 0;
+    } else {
+      b.tabIndex = -1;
+      if (b.classList.contains('gone') || instant) { b.classList.add(st, 'gone'); return; }
+      b.classList.add(st);
+      b._goneT = setTimeout(() => { if (b._st === st) b.classList.add('gone'); }, st === 'con1' ? 820 : st === 'xpl' ? 220 : 520);
+    }
+  },
+  /** lazer's MainMenuButton hover: the button widens to 1.5× with an elastic spring, and its icon tips over and starts
+   *  bouncing to the beat. */
+  hoverIn(b) {
+    if (!b.classList.contains('exp')) return;
+    UISounds.hover();
+    const ico = b._ico, until = clamp(this._nextBeatIn || 300, 60, 1000);
+    this._rightward = !!this._rightward;
+    ico.getAnimations().forEach(a => a.cancel());
+    ico.firstChild.getAnimations().forEach(a => a.cancel());
+    ico.animate([{ rotate: '0deg' }, { rotate: `${this._rightward ? -8 : 8}deg` }], { duration: until, easing: 'cubic-bezier(.37, 0, .63, 1)', fill: 'forwards' });
+    ico.firstChild.animate([{ scale: '1 1' }, { scale: '1.2 1.08' }], { duration: until, easing: 'cubic-bezier(.5, 1, .89, 1)', fill: 'forwards' });
+  },
+  hoverOut(b) {
+    const ico = b._ico, inner = ico.firstChild;
+    const r = getComputedStyle(ico).rotate, s = getComputedStyle(inner).scale, t = getComputedStyle(inner).translate;
+    ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());
+    ico.animate([{ rotate: r === 'none' ? '0deg' : r }, { rotate: '0deg' }], { duration: 500, easing: 'cubic-bezier(.5, 1, .89, 1)' });
+    inner.animate([{ scale: s === 'none' ? '1' : s, translate: t === 'none' ? '0 0' : t }, { scale: '1', translate: '0 0', offset: 0.4 }, { scale: '1', translate: '0 0' }], { duration: 500, easing: 'cubic-bezier(.5, 1, .89, 1)' });
+  },
+  /** On each beat the hovered button's icon swings to the other side over the beat and hops up 10px and back. */
+  onBeat(beatLength) {
+    this._rightward = !this._rightward;
+    const b = this.el && this.btns.find(x => x.matches(':hover') && x.classList.contains('exp'));
     if (!b) return;
-    const ico = b.querySelector('.lz-ico');
-    ico.style.setProperty('--bt', `${Math.round(clamp(len, 250, 900))}ms`);
-    ico.classList.toggle('bl', !this._beatN); ico.classList.toggle('br', !!this._beatN);
-    ico.classList.remove('bounce'); void ico.offsetWidth; ico.classList.add('bounce');
+    const ico = b._ico, inner = ico.firstChild, half = beatLength / 2;
+    const r = getComputedStyle(ico).rotate;
+    ico.getAnimations().forEach(a => a.cancel()); inner.getAnimations().forEach(a => a.cancel());
+    ico.animate([{ rotate: r === 'none' ? '0deg' : r }, { rotate: `${this._rightward ? 8 : -8}deg` }], { duration: half * 2, easing: 'cubic-bezier(.37, 0, .63, 1)', fill: 'forwards' });
+    inner.animate([
+      { translate: '0 0', scale: '1.2 1.08', easing: 'cubic-bezier(.5, 1, .89, 1)' },
+      { translate: '0 -10px', scale: '1.2 1.2', offset: 0.5, easing: 'cubic-bezier(.11, 0, .5, 0)' },
+      { translate: '0 0', scale: '1.2 1.08' }], { duration: half * 2, fill: 'forwards' });
   },
   /** lazer's MenuSideFlashes: the screen's edges light up with the music — both on each bar's first beat, or
    *  left and right in turn on every beat during kiai — as bright as the track is loud, fading over a beat. */
@@ -97,19 +191,20 @@ const HomeScreen = {
     if (kiai ? beat % 2 === 1 : beat % meter === 0) flash(this.flashR);
   },
   onKey(e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return false;
-    if (this.menuState === 'initial' && !['Escape', 'Tab', 'Shift'].includes(e.key)) { UISounds.click(); this.setState('top'); return true; }
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return false;
+    if (/^F\d+$/.test(e.key)) return false;
+    // lazer: any key at the big logo presses the logo
+    if (this.menuState === 'initial' && !['Escape', 'Tab'].includes(e.key)) { this.logoClick(); return true; }
     if (e.code === 'KeyU') { UISounds.click(); Screens.go('profile'); return true; } // (listed under ? as a main menu key)
-    const d = this.menuButtons(this.menuState);
-    const hit = [...d.left, ...d.right].find(b => b[4] && b[4].length === 1 && e.code === 'Key' + b[4]);
-    if (hit) { UISounds.click(); hit[3](); return true; }
     if (e.key === 'Enter') {
       if (document.activeElement && document.activeElement.classList.contains('lz-btn')) document.activeElement.click();
-      else { UISounds.click(); if (this.menuState === 'top') this.setState('play'); else Screens.go('songselect', {}, { transition: 'zoom' }); }
+      else this.logoClick();
       return true;
     }
+    const hit = this.btns.find(b => b.classList.contains('exp') && b._keys.includes(e.code));
+    if (hit) { this.trigger(hit); return true; }
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      const btns = $$('.lz-btn', this.el), i = btns.indexOf(document.activeElement);
+      const btns = this.btns.filter(b => b.classList.contains('exp')), i = btns.indexOf(document.activeElement);
       const n = btns[clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, btns.length - 1)];
       if (n) { n.focus(); UISounds.hover(); }
       return true;
@@ -117,77 +212,230 @@ const HomeScreen = {
     return false;
   },
   onBack() {
+    if (this.menuState === 'multi') { UISounds.back(); this.setState('play'); return true; }
     if (this.menuState === 'play' || this.menuState === 'edit') { UISounds.back(); this.setState('top'); return true; }
     if (this.menuState === 'top') { UISounds.back(); this.setState('initial'); return true; }
     return true;
   },
+  /** The logo: from the big logo, open the bar; in the bar, press the first button of the row showing. */
+  logoClick() {
+    this.flash(0.4, 1500, 'cubic-bezier(.16, 1, .3, 1)');
+    const first = { top: 'play', play: 'solo', multi: 'lounge', edit: 'skins' }[this.menuState];
+    if (this.menuState === 'initial') { UISounds.click(); this.setState('top'); return; }
+    const b = first && this.btns.find(x => x.dataset.id === first);
+    if (b) this.trigger(b);
+  },
 
+  /** osu!lazer's OsuLogo, 512px at full size: the pink disc (Gray gradient #ff66ab → #cc5289 with outlined triangles
+   *  drifting up) at 94%, the white ring and wordmark over it, the music visualiser around it, and the hover (1.1×,
+   *  elastic), press (0.9×), drag (rubber band), beat (a 2% squeeze, a ripple, a white flash in kiai) and impact
+   *  animations. */
   buildLogo() {
     this.vis = h('canvas.lz-vis');
-    this.cookie = h('button.lz-cookie', { 'aria-label': 'Play', title: 'Play',
-      onclick: () => {
-        UISounds.click();
-        if (this.menuState === 'initial') this.setState('top');
-        else if (this.menuState === 'top') this.setState('play');
-        else Screens.go('songselect', {}, { transition: 'zoom' });
-      } },
-      h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania'))));
-    this.cookie.addEventListener('pointerenter', () => UISounds.hover());
-    return h('div.lz-logo', this.vis, this.cookie);
+    this.tris = h('canvas.lz-tris');
+    this.flashEl = h('span.lz-flash');
+    this.impactEl = h('span.lz-impact');
+    this.ripple = h('span.lz-ripple', h('span.lz-ring'));
+    this.beatEl = h('div.lz-lbt', this.vis,
+      h('span.lz-cookie-disc.lz-home-disc', this.tris, this.flashEl),
+      h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania'))),
+      this.impactEl);
+    this.ampEl = h('div.lz-la', this.beatEl);
+    this.bounceEl = h('div.lz-lb', this.ripple, this.ampEl);
+    this.hoverEl = h('div.lz-lh', this.bounceEl);
+    this.cookie = h('button.lz-cookie', { 'aria-label': 'osu! logo', onclick: e => { if (this._dragged) { this._dragged = false; return; } this.logoClick(); } });
+    this.cookie.addEventListener('pointerenter', () => { UISounds.hover(); this.hoverEl.classList.add('hover'); });
+    this.cookie.addEventListener('pointerleave', () => this.hoverEl.classList.remove('hover'));
+    this.cookie.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      this.bounceEl.classList.add('down');
+      const x0 = e.clientX, y0 = e.clientY, k = 1 / (this.menuState === 'initial' ? 1 : 0.5);
+      this._dragged = false;
+      const move = ev => {
+        const dx = ev.clientX - x0, dy = ev.clientY - y0, len = Math.hypot(dx, dy);
+        if (len > 4) this._dragged = true;
+        const f = len > 0 ? Math.pow(len, 0.6) / len : 0;
+        this.bounceEl.style.translate = `${dx * f * k}px ${dy * f * k}px`;
+        this.bounceEl.classList.add('drag');
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+        this.bounceEl.classList.remove('down', 'drag'); this.bounceEl.style.translate = '';
+      };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    });
+    return h('div.lz-logo', this.hoverEl, this.cookie);
   },
-  /** Logo visualiser (radial FFT bars) + beat pulse from the playing track's timing points. */
+  flash(alpha, ms, easing) {
+    this.flashEl.getAnimations().forEach(a => a.cancel());
+    this.flashEl.animate([{ opacity: alpha }, { opacity: 0 }], { duration: ms, easing });
+  },
+  impact() {
+    this.impactEl.getAnimations().forEach(a => a.cancel());
+    this.impactEl.animate([{ opacity: 1, scale: 0.94 }, { opacity: 0, scale: 1.12 }], { duration: 250, easing: 'linear' });
+  },
+  /** One frame of the logo: lazer's LogoVisualisation (200 bars × 5 rounds around the disc, fed from the music's
+   *  spectrum every 50ms and decaying smoothly), the cookie's triangles and the beat. */
   loop() {
-    const amps = new Float32Array(64);
-    let lastBeat = -1, pulseT = 0;
+    const freq = new Float32Array(200), N = 200;
+    let indexOffset = 0, lastUpd = 0, lastBeat = -1, lastT = performance.now(), triY = null, vel = 0.5, amp = 1, visA = 0.5;
+    const S = 512, R = S * 0.47, M = 300, CW = S * 0.94 + M * 2;
+    const tris = [];
+    const spawn = (randomY) => ({ x: Math.random(), y: randomY ? -260 / (S * 0.94) + Math.random() * (1 + 260 / (S * 0.94)) : 1, sp: Math.max(0.5, Math.max(0.1, 0.5 + 0.16 * Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.sin(2 * Math.PI * Math.random()))) });
+    for (let i = 0; i < 14; i++) tris.push(spawn(true));
+    const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
+    const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
+    for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
       if (!cv.isConnected) return;
-      const r = cv.getBoundingClientRect();
-      const dpr = devicePixelRatio || 1;
-      const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
-      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-      const x = cv.getContext('2d');
-      x.clearRect(0, 0, W, H);
-      const an = AudioManager.analyser;
-      if (an && Music.playing) {
-        const d = this._fft || (this._fft = new Uint8Array(an.frequencyBinCount));
-        an.getByteFrequencyData(d);
-        for (let i = 0; i < amps.length; i++) amps[i] = Math.max(amps[i] * 0.86, d[i + 2] / 255);
-      } else for (let i = 0; i < amps.length; i++) amps[i] *= 0.9;
-      const cx = W / 2, cy = H / 2, inner = W * 0.285, maxLen = W * 0.21;
-      const rot = now / 9000;
-      x.fillStyle = 'rgba(255,255,255,0.2)';
-      const bars = 200, bw = Math.max(1.5, inner * Math.PI * 2 / bars * 0.55);
-      for (let i = 0; i < bars; i++) {
-        const a = rot + i / bars * Math.PI * 2;
-        const v = amps[(i * 7) % amps.length];
-        const len = v * v * maxLen;
-        if (len < 1) continue;
-        x.save(); x.translate(cx, cy); x.rotate(a); x.fillRect(inner, -bw / 2, len, bw); x.restore();
+      const dt = Math.min(100, now - lastT); lastT = now;
+      const an = AudioManager.analyser, playing = an && Music.playing;
+      // ── amplitudes (lazer: every 50ms, the spectrum shifted 5 bars round each time; half as tall outside kiai)
+      let peak = 0;
+      if (now - lastUpd >= 50) {
+        lastUpd = now;
+        if (playing) {
+          const d = this._fft || (this._fft = new Float32Array(an.frequencyBinCount));
+          an.getFloatFrequencyData(d);
+          const td = this._td || (this._td = new Float32Array(an.fftSize));
+          an.getFloatTimeDomainData(td);
+          for (let i = 0; i < td.length; i += 4) { const v = Math.abs(td[i]); if (v > peak) peak = v; }
+          this._peak = peak;
+          const kiaiMul = this._kiai ? 1 : 0.5;
+          for (let i = 0; i < N; i++) {
+            const db = d[(i + indexOffset) % N];
+            const target = (db > -200 ? Math.pow(10, db / 20) * 2 : 0) * kiaiMul;
+            if (target > freq[i]) freq[i] = target;
+          }
+        } else this._peak = 0;
+        indexOffset = (indexOffset + 5) % N;
       }
-      // beat pulse
+      const decay = dt * 0.0024;
+      for (let i = 0; i < N; i++) { freq[i] -= decay * (freq[i] + 0.03); if (freq[i] < 0) freq[i] = 0; }
+      // ── visualiser canvas: logo-local units, the disc's edge at radius 0.47 × 512
+      const dpr = 1;
+      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); }
+      const x = cv.getContext('2d');
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+      x.clearRect(0, 0, CW, CW);
+      x.globalCompositeOperation = 'lighter';
+      x.fillStyle = 'rgba(255,255,255,0.2)';
+      x.beginPath();
+      const c = CW / 2;
+      for (let k = 0; k < N * 5; k++) {
+        const i = k % N, v = freq[i];
+        if (v < 1 / 600) continue;
+        const len = Math.min(M, 600 * v), co = cosA[k], si = sinA[k];
+        const px = c + co * R, py = c + si * R, ox = -si * bw / 2, oy = co * bw / 2, ax = co * len, ay = si * len;
+        x.moveTo(px - ox, py - oy); x.lineTo(px - ox + ax, py - oy + ay); x.lineTo(px + ox + ax, py + oy + ay); x.lineTo(px + ox, py + oy); x.closePath();
+      }
+      x.fill();
+      // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
+      vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
+      if (this._kick) { vel += this._kick; this._kick = 0; }
+      const tc = this.tris, TS = 384;
+      if (tc.width !== TS) { tc.width = tc.height = TS; }
+      const tx = tc.getContext('2d');
+      tx.clearRect(0, 0, TS, TS);
+      const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
+      const moved = dt / 1000 * vel * 50 / D;
+      for (let i = tris.length - 1; i >= 0; i--) {
+        const t = tris[i];
+        t.y -= Math.max(0.5, t.sp) * moved;
+        if (t.y + 260 / D < 0) tris.splice(i, 1);
+      }
+      while (tris.length < 14) tris.push(spawn(false));
+      if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
+      tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
+      tx.beginPath();
+      for (const t of tris) {
+        const lx = t.x * TS, ty = t.y * TS;
+        tx.moveTo(lx + triW / 2, ty); tx.lineTo(lx + triW, ty + triH); tx.lineTo(lx, ty + triH); tx.closePath();
+      }
+      tx.stroke();
+      // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
-        const t = Music.time, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
+        const t = Music.time + 60, i = Math.max(0, bsearchLE(tm, t, 'time')), tp = tm[i];
         const beat = Math.floor((t - tp.time) / tp.beatLength), key = i * 100000 + beat;
-        if (key !== lastBeat && t >= tp.time) {
-          lastBeat = key; pulseT = now; this.onBeat(tp.beatLength);
+        this._nextBeatIn = tp.time + (beat + 1) * tp.beatLength - 60 - Music.time;
+        if (key !== lastBeat && t >= tp.time && beat >= 0) {
+          lastBeat = key;
           const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
-          let amp = 0; for (let j = 0; j < 8; j++) amp = Math.max(amp, amps[j]);
           const kiai = !!(kp && kp.on && t >= kp.time);
-          this.sideFlash(beat, tp, kiai, amp);
-          // (lazer's logo pulses harder and flashes on each beat during kiai)
           this._kiai = kiai;
-          if (kiai && Settings.get('ui.animSpeed')) this.cookie.animate([{ filter: 'brightness(1.12)' }, { filter: 'brightness(1)' }], { duration: tp.beatLength, easing: 'cubic-bezier(.25, .6, .3, 1)' });
+          const adj = Math.min(1, 0.4 + (this._peak || 0));
+          this.logoBeat(tp.beatLength, adj, kiai);
+          setTimeout(() => this.onBeat(tp.beatLength), 60);
+          let a = 0; for (let j = 0; j < 8; j++) a = Math.max(a, freq[j] * 4);
+          this.sideFlash(beat, tp, kiai, a);
         }
-      } else if (now - pulseT > 600) { pulseT = now; this._kiai = false; this.onBeat(600); } // no beat to follow: sway at a steady pace
+      } else { this._kiai = false; this._nextBeatIn = 300; if (now - (this._idleBeat || 0) > 600) { this._idleBeat = now; this.onBeat(600); } }
+      // the logo's amplitude breathing: 4% smaller as the music gets loud (lazer's Damp(0.9))
+      const target = 1 - Math.max(0, (this._peak || 0) - 0.4) * 0.04;
+      amp = target + (amp - target) * Math.pow(0.9, dt);
+      this.ampEl.style.scale = amp.toFixed(4);
       // idle for a while: back to the big logo, as when the game opens
-      if (this.menuState !== 'initial' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !(NowPlaying.open)) this.setState('initial');
-      const k = clamp((now - pulseT) / 260, 0, 1);
-      this.cookie.style.transform = `scale(${1 + (this._kiai ? 0.045 : 0.035) * (1 - k) * (1 - k)})`;
+      if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
     };
     this._raf = requestAnimationFrame(tick);
+  },
+  /** lazer's OsuLogo.OnNewBeat: a 2% squeeze over 60ms then out over two beats, a ripple of the ring growing 4% as it
+   *  fades, and in kiai a white flash and a brighter visualiser; the triangles get a push. */
+  logoBeat(beatLength, adj, kiai) {
+    if (!Settings.get('ui.animSpeed')) return;
+    const b = this.beatEl;
+    b.getAnimations().forEach(a => a.cancel());
+    b.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 1 - 0.02 * adj, offset: 60 / (60 + beatLength * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + beatLength * 2 });
+    const a = +this.ampEl.style.scale || 1;
+    this.ripple.getAnimations().forEach(x => x.cancel());
+    this.ripple.animate([{ scale: a, opacity: 0.15 * adj }, { scale: a * (1 + 0.04 * adj), opacity: 0 }], { duration: beatLength, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    if (kiai && (+getComputedStyle(this.flashEl).opacity || 0) < 0.4) {
+      this.flashEl.getAnimations().forEach(x => x.cancel());
+      this.flashEl.animate([{ opacity: 0, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { opacity: 0.2 * adj, offset: 60 / (60 + beatLength) }, { opacity: 0 }], { duration: 60 + beatLength });
+      this.vis.getAnimations().forEach(x => x.cancel());
+      this.vis.animate([{ opacity: 0.5, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { opacity: 0.9 * adj, offset: 60 / (60 + beatLength) }, { opacity: 0.5 }], { duration: 60 + beatLength });
+    }
+    setTimeout(() => { this._kick = (this._kick || 0) + adj * (kiai ? 6 : 3); }, 60);
+  },
+  /** lazer's SongTicker: fades in over 0.4s, stays 4s, fades out over 0.8s. */
+  showTicker(m) {
+    if (!m || !this.ticker || m.id === this._tickerFor) return;
+    this._tickerFor = m.id;
+    this.tkTitle.textContent = m.title; this.tkArtist.textContent = m.artist;
+    this.ticker.getAnimations().forEach(a => a.cancel());
+    this.ticker.animate([{ opacity: 0 }, { opacity: 1, offset: 400 / 5200 }, { opacity: 1, offset: 4400 / 5200 }, { opacity: 0 }], { duration: 5200 });
+  },
+  /** lazer's MenuTipDisplay: a tip at the bottom each time you come back to the menu — it pops in after 0.6s and
+   *  fades out once there's been time to read it. */
+  TIPS: [
+    'Press Ctrl+O anywhere in the game to access settings!',
+    'If you find the UI too large or small, try adjusting UI scaling in settings!',
+    'Press F6 anywhere to see what\'s playing, skip songs or open the playlist!',
+    'Scroll over the note in the top bar to change the volume from any screen!',
+    'Press ? on any screen to see its keyboard shortcuts!',
+    'Use F3 and F4 (or Ctrl − and Ctrl +) while playing to change your scroll speed!',
+    'Press Tab while playing to show or hide the leaderboard!',
+    'Get more options for a beatmap by right-clicking on its panel at song select!',
+    'Press F2 at song select for a random beatmap; Shift+F2 goes back to the one before!',
+    'Drop .osz, .osk and .osr files anywhere on the game to import them!',
+    'Ranked Play lets you queue for rated 1v1 matches against players of your skill!',
+    'Press Ctrl+B anywhere to browse for new beatmaps!',
+  ],
+  showTip() {
+    if (Settings.get('ui.menuTips') === false || !this.tip) return;
+    let i; do { i = Math.floor(Math.random() * this.TIPS.length); } while (this.TIPS.length > 1 && i === this._lastTip);
+    this._lastTip = i;
+    const tip = this.TIPS[i];
+    clearEl(this.tip).append(h('div.lz-tip-t', icon('bulb'), h('b', 'Menu tip')), h('div.lz-tip-b', tip));
+    const hold = 1000 + 80 * tip.length, total = 600 + 800 + hold + 2000;
+    this.tip.getAnimations().forEach(a => a.cancel());
+    this.tip.animate([
+      { opacity: 0, scale: 0.9 }, { opacity: 0, scale: 0.9, offset: 600 / total, easing: 'cubic-bezier(.22, 1, .36, 1)' },
+      { opacity: 1, scale: 1, offset: 1400 / total }, { opacity: 1, scale: 1, offset: (1400 + hold) / total, easing: 'cubic-bezier(.22, 1, .36, 1)' },
+      { opacity: 0, scale: 1 }], { duration: total, fill: 'both' });
   },
   async startMenuMusic() {
     const id = Settings.get('last.map');

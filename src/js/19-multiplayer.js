@@ -446,8 +446,10 @@ Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap()
 
 const MultiplayerScreen = {
   tab: 'multiplayer',
-  enter() {
+  enter(params = {}) {
     this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
+    // the main menu's "ranked play" button: straight to the Ranked Play queue
+    if (params.ranked) setTimeout(() => { const rq = this.el && this.el.querySelector('.rq'); if (rq) { rq.scrollIntoView({ block: 'center' }); rq.classList.add('rq-hi'); } }, 120);
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
     this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); })];

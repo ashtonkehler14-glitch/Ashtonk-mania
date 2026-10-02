@@ -60,6 +60,13 @@ const ICONS = {
   npplay: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M10 8.1v7.8l6.1-3.9z" class="fillme"/>',
   nppause: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M9.2 8.3h2v7.4h-2zM12.8 8.3h2v7.4h-2z" class="fillme"/>',
   bars: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  backcircle: '<circle cx="12" cy="12" r="9.5"/><path d="M13.6 8.2L9.8 12l3.8 3.8"/>',
+  osulogo: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.2"/>',
+  editcircle: '<circle cx="12" cy="12" r="9.5"/><path d="M8.3 15.7l.7-2.8 5.1-5.1 2.1 2.1-5.1 5.1z"/>',
+  beatmap: '<circle cx="12" cy="12" r="9.5"/><path d="M10.6 15.4V8.6l4.6-1.1v6.1"/><circle cx="9.2" cy="15.4" r="1.5" class="fillme"/><circle cx="13.8" cy="13.6" r="1.5" class="fillme"/>',
+  couch: '<path d="M5.5 11V8.6A2.6 2.6 0 018.1 6h7.8a2.6 2.6 0 012.6 2.6V11"/><path d="M3 13a1.5 1.5 0 013 0v1.5h12V13a1.5 1.5 0 013 0v5H3z"/><path d="M5.5 18v2M18.5 18v2"/>',
+  crown: '<path d="M3.5 8.5l4.6 3.9L12 6l3.9 6.4 4.6-3.9-1.9 9.5H5.4z"/>',
+  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0012 3z"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
 };
 function icon(name, cls = '') {

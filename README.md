@@ -22,6 +22,20 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Main menu, as in lazer
+- **The big logo waits on its own.** The top bar is hidden until you click the logo or press a key, as in lazer. The logo is now lazer's size: 512 px across while waiting, then half that in the bar.
+- **The button bar is lazer's:**
+  - It's a solid dark grey band, and the logo sits 228 px left of centre. Settings is on its left; play, edit and browse are on its right.
+  - Buttons are 140 px slanted boxes with lowercase labels, overlapping by the 20 px slant.
+  - Buttons grow out from the logo when they appear. Pointing at one stretches it to 1.5× with a springy bounce, and its icon tips over and hops to the beat. Clicking flashes it white.
+  - Opening a row makes the old buttons burst outwards as the new ones grow in.
+- **Play → solo / multi.** Multi opens lazer's second row: **lounge** (the multiplayer lobby) and **ranked play** (straight to the Ranked Play queue). The new back button is lazer's dark blue.
+- **The logo moves like lazer's.** It grows when you point at it, squeezes when you press it, and stretches on a rubber band if you drag it. On every beat it pulses slightly and sends out a faint ripple; in kiai it flashes.
+  - Outlined triangles drift up inside the pink, and the visualiser around it is lazer's: 200 bars in five rounds, fed from the music.
+- **Song ticker:** a new song's title and artist show at the top right for a few seconds.
+- **Menu tips:** a tip about the game shows at the bottom each time you come back to the menu.
+- Six seconds without input bring the big logo back, as in lazer (it was 15).
+
 ### Top bar and now playing, as in lazer
 - **Top bar:**
   - The bar is lazer's flat dark grey, and every button is 40 px wide with a 20 px icon.

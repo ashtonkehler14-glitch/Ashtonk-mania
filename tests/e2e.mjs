@@ -83,7 +83,7 @@ check('mouse wheel on the main menu changes the volume (lazer volume overlay)', 
 check('KPS counter, judgement counter and hit error bar removed', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.judgementCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && !document.querySelector('.hud-kps')));
 check('touch controls, hitsounds and the old Neru easter-egg settings removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
-check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn').length === 4 && !document.querySelector('.continue, .lz-footer')));
+check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn.exp').length === 4 && document.querySelector('#app:not(.hide-toolbar)') && !document.querySelector('.continue, .lz-footer')));
 await shot('01-home-empty');
 
 // import via synthetic drop event (exercises the drag & drop pipeline)

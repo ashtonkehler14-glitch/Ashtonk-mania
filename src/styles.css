@@ -989,47 +989,15 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── main menu (osu!lazer): centred logo; clicking it slides the button bar out to the right */
-.lz-menu { padding-top: var(--toolbar-h); }
-.lz-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-.lz-bar { position: relative; width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; }
-.lz-bar::before { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .55); transition: transform var(--t-med) var(--ease-out), opacity var(--t-med); }
-.lz-menu[data-state="initial"] .lz-bar::before { transform: scaleY(0); opacity: 0; }
-.lz-menu { --shift: 280px; }
-.lz-menu[data-state="play"] { --shift: 210px; }
-.lz-logo-slot { position: relative; z-index: 2; flex: none; width: 190px; height: 100px; display: grid; place-items: center; transform: translateX(calc(var(--shift) * -1)); transition: width var(--t-slow) var(--ease-out), transform var(--t-slow) var(--ease-out); }
-.lz-menu[data-state="initial"] .lz-logo-slot { transform: none; }
-.lz-menu[data-state="initial"] .lz-logo-slot { width: 440px; }
-.lz-logo { position: absolute; left: 50%; top: 50%; width: 260px; height: 260px; transform: translate(-50%, -50%); transition: width var(--t-slow) var(--ease-out), height var(--t-slow) var(--ease-out); }
-.lz-menu[data-state="initial"] .lz-logo { width: 560px; height: 560px; }
-.lz-vis { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.lz-cookie { position: absolute; inset: 21%; border: 0; padding: 0; border-radius: 50%; background: transparent; will-change: transform; }
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
   background: #ff66ab; border: 7px solid #fff; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
   transition: transform var(--t-med) var(--ease-out), filter var(--t-fast), border-width var(--t-slow) var(--ease-out); }
-.lz-menu[data-state="initial"] .lz-cookie-disc { border-width: 15px; }
 .lz-cookie-disc::before { content: ""; position: absolute; inset: 0; opacity: .5;
   background: linear-gradient(60deg, transparent 46%, rgba(255, 255, 255, .12) 46% 54%, transparent 54%) 0 0 / 28% 48%,
               linear-gradient(-60deg, transparent 46%, rgba(0, 0, 0, .06) 46% 54%, transparent 54%) 14% 24% / 28% 48%,
               radial-gradient(circle at 50% 30%, #ff85bd, #e6428e 80%); }
-.lz-cookie:hover .lz-cookie-disc { transform: scale(1.06); }
-.lz-cookie:active .lz-cookie-disc { transform: scale(.97); filter: brightness(.95); }
-.lz-cookie { container-type: size; }
 .lz-cookie-text { position: relative; display: flex; flex-direction: column; align-items: center; line-height: .9; color: #fff; font-weight: 600; letter-spacing: -.02em; font-size: 17cqw; white-space: nowrap; text-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
 .lz-cookie-text small { font-size: .5em; font-weight: 700; letter-spacing: .12em; opacity: .9; margin-top: .25em; }
-.lz-buttons { position: relative; z-index: 1; display: flex; height: 100%; align-items: stretch; transition: opacity var(--t-med); }
-.lz-menu[data-state="initial"] .lz-buttons { opacity: 0; pointer-events: none; }
-.lz-left { position: absolute; right: calc(50% + var(--shift) + 95px); top: 0; bottom: 0; }
-.lz-right { position: absolute; left: calc(50% - var(--shift) + 95px); top: 0; bottom: 0; }
-.lz-menu[data-state="initial"] .lz-left, .lz-menu[data-state="initial"] .lz-right { display: none; }
-.lz-btn { --c: #555; position: relative; flex: none; width: 140px; margin-right: -1px; border: 0; padding: 0; background: var(--c); color: #fff; transform: skewX(-12deg); transition: width var(--t-med) var(--ease-out), filter var(--t-fast); animation: lzIn var(--t-med) var(--ease-out) both; }
-.lz-right .lz-btn:nth-child(2) { animation-delay: calc(30ms * var(--anim)); } .lz-right .lz-btn:nth-child(3) { animation-delay: calc(60ms * var(--anim)); }
-.lz-right .lz-btn:nth-child(4) { animation-delay: calc(90ms * var(--anim)); }
-@keyframes lzIn { from { opacity: 0; transform: skewX(-12deg) translateX(-30px); } }
-.lz-btn:hover, .lz-btn:focus-visible { width: 170px; filter: brightness(1.12); outline: none; }
-.lz-btn:active { filter: brightness(.9); }
-.lz-inner { position: absolute; inset: 0; transform: skewX(12deg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: .95rem; }
-.lz-inner .i { width: 30px; height: 30px; }
-.lz-menu.lz-instant * { transition: none !important; animation: none !important; }
 
 /* ── profile (osu!lazer user profile) */
 /* ── profile — osu!lazer's UserProfileOverlay (Pink scheme via .ov): cover + avatar + name, a centre strip with the
@@ -2003,15 +1971,6 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .lz-tri { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: #1c1018; }
 .lz-tri canvas { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; }
 .lz-tri canvas.in { opacity: 0; transition: none; }
-.lz-menu > .lz-stage { position: relative; z-index: 3; } /* the button bar stays in front of the mascot */
-.lz-menu > .lz-stage { pointer-events: none; } .lz-menu > .lz-stage .lz-bar { pointer-events: auto; }
-.lz-ico { display: grid; place-items: center; transition: transform var(--bt, 400ms) cubic-bezier(.45, 0, .55, 1); }
-.lz-btn:hover .lz-ico.bl { transform: rotate(-10deg); }
-.lz-btn:hover .lz-ico.br { transform: rotate(10deg); }
-.lz-btn:hover .lz-ico.bounce .i { animation: lzBounce var(--bt, 400ms) cubic-bezier(.2, .8, .3, 1); }
-@keyframes lzBounce { 0% { transform: translateY(-5px) scale(1.12, .9); } 100% { transform: none; } }
-.lz-right .lz-btn:nth-child(5) { animation-delay: calc(120ms * var(--anim)); }
-.lz-menu[data-state="edit"] { --shift: 330px; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
 .nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 340px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
@@ -2324,10 +2283,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-room-row:disabled .mp-rjoin { background: rgba(255, 255, 255, .12); }
 .mp-left, .qp-stage { min-width: 0; }
 
-/* main menu: the bar sits right of centre so Settings clears the mascot on the left */
-.lz-menu { --shift: 40px; }
-.lz-menu[data-state="play"] { --shift: 0px; }
-.lz-menu[data-state="edit"] { --shift: 150px; }
 
 /* beatmap listing: three columns; lazer's hover panel slides out on the card's right with like / download */
 .ex-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2820,3 +2775,80 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rq-bar i { display: block; height: 100%; background: #5ebfff; transform-origin: left; transition: transform 1.5s linear; }
 .rq-note { text-align: center; font-size: .9rem; color: var(--text-2); }
 @media (max-width: 900px) { .rkm-corner { width: min(340px, 48vw); padding: 10px 12px; } .rkm-name { font-size: 1.05rem; } .rkh-slot { left: calc(50% + var(--x) * 96px); } .rkc { --cw: 128px; } .rkr-cols { grid-template-columns: 1fr; } .rkw { grid-template-columns: 1fr; justify-items: center; } .rkw-sep { display: none; } .rki-x { font-size: 3.6rem; } .rke-title { font-size: 4.2rem; } .rkm-chat { display: none; } }
+
+/* ── main menu: osu!lazer's ButtonSystem and OsuLogo, in lazer's units (1 unit = 1px at UI scaling 100%).
+   The stage is the whole screen; with the toolbar showing it sits 20px lower (lazer pushes screens down by the bar). */
+.lz-menu { --oq: cubic-bezier(.22, 1, .36, 1); --oexpo: cubic-bezier(.16, 1, .3, 1); --insine: cubic-bezier(.12, 0, .39, 0);
+  --el: linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.lz-stage { position: absolute; inset: 0; z-index: 3; pointer-events: none; transform: translateY(20px); transition: transform 500ms var(--oq); }
+.lz-menu[data-state="initial"] .lz-stage { transform: none; }
+/* the 100px band: Gray(50), squashed flat while the big logo waits; fades in 150ms after the logo starts to move */
+.lz-area { position: absolute; left: 0; right: 0; top: 50%; height: 100px; margin-top: -50px; opacity: 1; transition: opacity 300ms linear 150ms; }
+.lz-menu[data-state="initial"] .lz-area, .lz-menu[data-state="entering"] .lz-area { opacity: 0; transition-delay: 0s; }
+.lz-menu[data-state="initial"] .lz-area { pointer-events: none; }
+.lz-area-bg { position: absolute; inset: 0; background: #323232; transition: transform 400ms var(--oq) 150ms; }
+.lz-menu[data-state="initial"] .lz-area-bg, .lz-menu[data-state="entering"] .lz-area-bg { transform: scale(2, 0); transition: transform 300ms var(--insine); }
+/* the buttons flow out from the logo, overlapping by the 20px wedge: the logo sits 228px left of centre, half of it
+   (0.74 × 256 / 2) minus the wedge each side */
+.lz-left, .lz-right { position: absolute; top: 0; bottom: 0; display: flex; align-items: stretch; pointer-events: auto; }
+.lz-left { right: calc(50% + 228px + 74.72px); justify-content: flex-end; }
+.lz-right { left: calc(50% - 228px + 74.72px); }
+.lz-btn { position: relative; flex: none; width: 0; height: 100px; padding: 0; border: 0; background: none; color: #fff; opacity: 0; outline: none; cursor: pointer;
+  transition: width 500ms var(--oexpo), opacity 500ms linear; }
+.lz-btn.gone { display: none; }
+.lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: -20px; }
+.lz-btn.exp { width: var(--w); opacity: 1; transition: width 500ms var(--oexpo), opacity 83ms linear; }
+.lz-btn.exp:hover, .lz-btn.exp:focus-visible { width: calc(var(--w) * 1.5); transition: width 500ms var(--el), opacity 83ms linear; }
+.lz-btn.con1 { transition: width 400ms var(--insine), opacity 800ms linear; }
+.lz-btn.xpl { width: calc(var(--w) * 2); transition: width 200ms var(--oexpo), opacity 150ms linear; }
+/* the sheared box (wedge 20px over the 100px height) with lazer's soft shadow; the white layer under the press */
+.lz-bg { position: absolute; inset: 0; transform: skewX(-11.31deg); background: var(--c); box-shadow: 0 0 8px rgba(0, 0, 0, .2); overflow: hidden; }
+.lz-bg::after { content: ""; position: absolute; inset: 0; background: #fff; mix-blend-mode: plus-lighter; opacity: 0; transition: opacity 1000ms var(--oq); }
+.lz-btn.down .lz-bg::after { opacity: .1; }
+.lz-bg.flash::after { animation: lzFlash 800ms var(--oexpo); }
+@keyframes lzFlash { from { opacity: .9; } to { opacity: 0; } }
+.lz-inner { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 40ms linear; }
+.lz-btn.exp .lz-inner, .lz-btn.xpl .lz-inner { opacity: 1; transition: opacity 70ms linear 45ms; }
+.lz-btn.pl .lz-inner { left: 20px; }
+.lz-btn.pr .lz-inner { right: 20px; }
+.lz-ico { position: absolute; left: 50%; top: 50%; width: 32px; height: 32px; margin: -18px 0 0 -16px; display: grid; place-items: center; }
+.lz-ico-b { display: grid; place-items: center; transform-origin: 50% 50%; }
+.lz-ico .i { width: 32px; height: 32px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .2)); }
+.lz-label { position: absolute; left: 0; right: 0; bottom: 7px; margin-left: -3px; text-align: center; font-size: 16px; font-weight: 500; line-height: 16px; white-space: nowrap; text-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
+/* the logo: 512px, in the middle while waiting; half size, 228px left of centre, in the bar */
+.lz-logo { position: absolute; left: 50%; top: 50%; width: 512px; height: 512px; margin: -256px 0 0 -256px; pointer-events: none;
+  translate: -228px 0; scale: .5; transition: translate 200ms cubic-bezier(.11, 0, .5, 0), scale 200ms cubic-bezier(.11, 0, .5, 0); }
+.lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: 1; transition: translate 800ms var(--oexpo) 150ms, scale 800ms var(--oexpo) 150ms; }
+.lz-lh, .lz-lb, .lz-la, .lz-lbt { position: absolute; inset: 0; }
+.lz-lh { transition: scale 500ms var(--el); }
+.lz-lh.hover { scale: 1.1; }
+.lz-lb { transition: scale 500ms var(--el), translate 800ms var(--el); }
+.lz-lb.down { scale: .9; transition: scale 1000ms cubic-bezier(.5, 1, .89, 1), translate 800ms var(--el); }
+.lz-lb.drag { transition: scale 1000ms cubic-bezier(.5, 1, .89, 1); }
+.lz-vis { position: absolute; left: 50%; top: 50%; width: 1081.28px; height: 1081.28px; margin: -540.64px 0 0 -540.64px; opacity: .5; pointer-events: none; }
+.lz-home-disc { position: absolute; inset: 3%; border: 0 !important; border-radius: 50%; overflow: hidden; background: #ff66ab linear-gradient(#ff66ab, #cc5289); box-shadow: none; }
+.lz-home-disc::before { display: none; }
+.lz-tris { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lz-flash { position: absolute; inset: 0; background: #fff; mix-blend-mode: plus-lighter; opacity: 0; }
+/* the white ring: 94.7% across and 4.7% thick, as on lazer's logo texture, with its faint shadow both ways */
+.lz-ring { position: absolute; inset: 2.65%; border-radius: 50%; border: 24px solid #fff; display: grid; place-items: center;
+  box-shadow: 0 0 14px rgba(0, 0, 0, .14), inset 0 0 14px rgba(0, 0, 0, .14); }
+.lz-ring .lz-cookie-text { font-size: 78px; font-weight: 600; letter-spacing: -1px; line-height: .9; text-shadow: 0 4px 10px rgba(0, 0, 0, .12); }
+.lz-ripple { position: absolute; inset: 0; opacity: 0; mix-blend-mode: plus-lighter; pointer-events: none; }
+.lz-ripple .lz-ring { box-shadow: none; }
+.lz-impact { position: absolute; inset: 0; border-radius: 50%; border: 10px solid #fff; opacity: 0; pointer-events: none; }
+.lz-cookie { position: absolute; inset: 3%; border: 0; padding: 0; border-radius: 50%; background: transparent; pointer-events: auto; cursor: pointer; }
+.lz-menu.lz-instant *, .lz-menu.lz-instant { transition: none !important; }
+/* lazer's SongTicker: top right, 15px in and 5px down; a 24px light italic title over the 16px artist */
+.lz-ticker { position: absolute; right: 15px; top: calc(var(--toolbar-h) + 5px); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; opacity: 0; pointer-events: none; text-shadow: 0 0 40px rgba(10, 10, 10, .5); }
+.lz-tk-t { font-size: 24px; font-weight: 300; font-style: italic; line-height: 1.1; }
+.lz-tk-a { font-size: 16px; line-height: 1.1; }
+/* lazer's MenuTipDisplay: bottom centre, #171a1c at 75% with 10px corners, 600px of text */
+.lz-bottom { position: absolute; left: 50%; bottom: 0; z-index: 4; transform: translateX(-50%); pointer-events: none; }
+.lz-tipbox { width: 620px; max-width: calc(100 * var(--vw) - 20px); padding: 10px; border-radius: 10px; background: rgba(23, 26, 28, .75); text-align: center; font-size: 16px; line-height: 1.3; opacity: 0; transform-origin: 50% 100%; }
+.lz-tip-t { display: inline-flex; align-items: center; gap: 5px; color: #ff99c7; font-weight: 600; }
+.lz-tip-t .i { width: 16px; height: 16px; }
+.lz-tip-b { margin-top: 2px; }
+.lz-tipbox:empty { display: none; }
+.rq.rq-hi { animation: rqHi 1.2s var(--ease-out); }
+@keyframes rqHi { 0%, 40% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 2px transparent; } }
