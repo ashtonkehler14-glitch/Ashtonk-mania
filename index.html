@@ -2898,6 +2898,36 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .ss-logo .lz-home-disc { inset: 3%; }
 /* main menu: Neru stands in front of the button bar */
 .home .neru { z-index: 5; }
+/* results: lazer's expanded ScorePanel — 360 × 586; a #444→#333 top layer whose first 53px show above the
+   #555→#333 middle layer (both with corners of 20), the 80px picture straddling the top edge */
+.res-grid, .res-grid.stats-open { grid-template-columns: 360px; }
+.res-grid.stats-open { grid-template-columns: 360px minmax(0, 700px); }
+@media (max-width: 1000px) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
+.rs { position: relative; width: 360px; max-width: 100%; min-height: 586px; margin-top: 50px; overflow: visible; background: none; box-shadow: none; border-radius: 20px; display: flex; flex-direction: column; }
+.rs-toplayer { position: absolute; left: 0; right: 0; top: 0; height: 120px; border-radius: 20px; background: linear-gradient(#444, #333); box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
+.rs-top { position: absolute; left: 50%; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0; background: none; transform: translate(-50%, -50px); }
+.rs-av { width: 80px; height: 80px; border-radius: 20px; overflow: hidden; display: grid; place-items: center; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); }
+.rs-av > .avatar, .rs-av > img { width: 80px !important; height: 80px !important; border-radius: 0 !important; }
+.rs-av .rs-initial { width: 80px; height: 80px; border-radius: 0; background: #555; }
+.rs-name { margin-top: 2px; font-size: 16px; font-weight: 600; line-height: 20px; max-width: 320px; }
+.rs-tag { position: absolute; left: calc(100% + 8px); top: 32px; }
+.rs-mid { position: relative; z-index: 1; flex: 1; margin-top: 53px; padding: 10px 10px 26px; gap: 0; border-radius: 20px; background: linear-gradient(#555, #333); box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
+.rs-title { font-size: 20px; font-weight: 600; line-height: 24px; }
+.rs-artist { font-size: 14px; font-weight: 600; line-height: 17px; color: #fff; }
+.rs-ring { width: 230px; height: 230px; margin: 40px 0 0; }
+.rs .res-score { margin: 0 0 5px; font-size: 60px; font-weight: 300; line-height: 66px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.rs-diff { margin: 0; gap: 5px; font-size: 13px; }
+.rs-diff .rs-mods { scale: .5; margin: -10px -40px; }
+.rs-dv { margin-top: 4px; }
+.rs-version { font-size: 16px; font-weight: 600; line-height: 20px; max-width: 340px; }
+.rs-mapper { margin-top: 0; font-size: 12px; line-height: 15px; }
+.rs-stats { margin-top: 20px; gap: 0; padding: 0; }
+.rs-judges { margin-top: 5px; gap: 0; padding: 0; border-top: 0; }
+.rs-stat .k, .rs-j .k { height: 12px; margin: 0 2px; border-radius: 6px; background: #222; font-size: 12px; font-weight: 600; line-height: 12px; letter-spacing: 0; color: #fff; }
+.rs-stat .v { margin-top: 2px; font-size: 20px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.rs-j .v { margin-top: 2px; font-size: 20px; font-weight: 400; }
+.rs-played { position: absolute; left: 0; right: 0; bottom: 8px; font-size: 10px; font-weight: 600; text-align: center; color: #fff; }
+.rs .res-ppdelta, .rs .res-pb, .rs .res-prev, .rs .res-calib { margin-top: 8px; }
 
 </style>
 </head>
@@ -11685,8 +11715,9 @@ const ResultsScreen = {
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${fmtDateTime(s.date)}`)),
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    // lazer's ExpandedPanelTopContent: an 80px picture (corners of 20) straddling the top of the panel, the name under it
+    const top = h('div.rs-top', h('div.rs-av', av), h('div.rs-name', s.player || 'Player'),
       p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
@@ -11731,15 +11762,16 @@ const ResultsScreen = {
     const pp = ScoreManager.ppOf(s);
     const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
+    // lazer's ExpandedPanelMiddleContent: title and artist, the accuracy circle 40px below, the score, the star rating
+    // with the mods, the difficulty and mapper, then the statistics under their little #222 pill headers
     const mid = h('div.rs-mid',
-      h('div.rs-map',
-        h('div.rs-title', s.title), h('div.rs-artist', s.artist),
-        h('div.rs-diff', starBadge(s.stars || 0), h('span.rs-version', { title: s.version }, s.version)),
-        h('div.rs-mapper', h('span.muted', `${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+      h('div.rs-map', h('div.rs-title', s.title), h('div.rs-artist', s.artist)),
       ring,
-      (s.mods || []).length ? h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
       !s.passed ? h('div.rs-failed', 'FAILED') : null,
       scoreEl,
+      h('div.rs-diff', starBadge(s.stars || 0), h('span.keys-tag', `${s.keys}K`),
+        ...((s.mods || []).length ? [h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null)))] : [])),
+      h('div.rs-dv', h('div.rs-version', { title: s.version }, s.version), h('div.rs-mapper', 'mapped by ', h('b', s.creator || '?'))),
       h('div.rs-stats',
         stat('Accuracy', fmtAcc(s.accuracy)),
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
@@ -11764,7 +11796,8 @@ const ResultsScreen = {
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return h('div.rs', { style: { '--rc': rc } }, top, mid);
+    mid.append(h('div.rs-played', `Played on ${fmtDateTime(s.date)}`));
+    return h('div.rs', { style: { '--rc': rc } }, h('div.rs-toplayer'), top, mid);
   },
   rightCol(s) {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));

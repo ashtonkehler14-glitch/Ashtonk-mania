@@ -67,8 +67,9 @@ const ResultsScreen = {
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(64) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
-    const top = h('div.rs-top', av, h('div.rs-who', h('div.rs-name', s.player || 'Player'), h('div.rs-when', `Played on ${fmtDateTime(s.date)}`)),
+    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    // lazer's ExpandedPanelTopContent: an 80px picture (corners of 20) straddling the top of the panel, the name under it
+    const top = h('div.rs-top', h('div.rs-av', av), h('div.rs-name', s.player || 'Player'),
       p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
@@ -113,15 +114,16 @@ const ResultsScreen = {
     const pp = ScoreManager.ppOf(s);
     const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
+    // lazer's ExpandedPanelMiddleContent: title and artist, the accuracy circle 40px below, the score, the star rating
+    // with the mods, the difficulty and mapper, then the statistics under their little #222 pill headers
     const mid = h('div.rs-mid',
-      h('div.rs-map',
-        h('div.rs-title', s.title), h('div.rs-artist', s.artist),
-        h('div.rs-diff', starBadge(s.stars || 0), h('span.rs-version', { title: s.version }, s.version)),
-        h('div.rs-mapper', h('span.muted', `${s.keys}K · mapped by `), h('b', s.creator || '?'))),
+      h('div.rs-map', h('div.rs-title', s.title), h('div.rs-artist', s.artist)),
       ring,
-      (s.mods || []).length ? h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null))) : null,
       !s.passed ? h('div.rs-failed', 'FAILED') : null,
       scoreEl,
+      h('div.rs-diff', starBadge(s.stars || 0), h('span.keys-tag', `${s.keys}K`),
+        ...((s.mods || []).length ? [h('div.rs-mods', ...s.mods.map(m => ModSystem.badge(m, false, s.modConfig || null)))] : [])),
+      h('div.rs-dv', h('div.rs-version', { title: s.version }, s.version), h('div.rs-mapper', 'mapped by ', h('b', s.creator || '?'))),
       h('div.rs-stats',
         stat('Accuracy', fmtAcc(s.accuracy)),
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
@@ -146,7 +148,8 @@ const ResultsScreen = {
         btn.replaceWith(h('div.muted.res-calib', icon('check'), `Beatmap offset is now ${cur + sug > 0 ? '+' : ''}${cur + sug}ms`));
       } }, icon('clock'), `You hit ${Math.abs(sug)}ms ${sug > 0 ? 'late' : 'early'} on average · fix offset`));
     }
-    return h('div.rs', { style: { '--rc': rc } }, top, mid);
+    mid.append(h('div.rs-played', `Played on ${fmtDateTime(s.date)}`));
+    return h('div.rs', { style: { '--rc': rc } }, h('div.rs-toplayer'), top, mid);
   },
   rightCol(s) {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));
