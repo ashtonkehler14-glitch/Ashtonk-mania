@@ -695,7 +695,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pm-buttons { width: 100%; display: flex; flex-direction: column; gap: 6px; }
 .pm-btn { position: relative; height: 54px; width: 100%; border: 0; padding: 0; background: rgba(0, 0, 0, .25); color: #fff; font: inherit; font-size: 1.3rem; font-weight: 600; cursor: pointer; outline: none; overflow: hidden; }
 .pm-btn .pm-band { position: absolute; top: 0; bottom: 0; left: 12%; right: 12%; background: var(--c); transform: skewX(-18deg); transition: left 250ms var(--ease-out), right 250ms var(--ease-out), box-shadow 250ms, filter 250ms; box-shadow: 0 0 0 transparent; }
-.pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
+.pm-btn:hover .pm-band { left: 6%; right: 6%; box-shadow: 0 0 26px var(--c); filter: brightness(1.12); }
 .pm-btn:active .pm-band { filter: brightness(.9); }
 .pm-btn .pm-label { position: relative; text-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
 .pause-box .pb-sub { color: var(--muted); font-weight: 600; margin-top: 18px; max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2067,6 +2067,8 @@ body.lz-cursor, body.lz-cursor * { cursor: none !important; }
 /* lazer's menu cursor (LazerCursor): its texture, tip at the pointer; the pink additive glow while pressed */
 #lz-cur { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; will-change: transform; }
 #lz-cur[hidden] { display: none; }
+#lz-cur > .lzc-rot { transition: opacity 250ms cubic-bezier(.23, 1, .32, 1), scale 400ms cubic-bezier(.23, 1, .32, 1); }
+#lz-cur.kb > .lzc-rot { opacity: 0; scale: .6; transition: opacity 250ms cubic-bezier(.23, 1, .32, 1), scale 250ms cubic-bezier(.55, 0, 1, .45); }
 .lzc-rot, .lzc-scale { position: absolute; left: 0; top: 0; width: var(--lzc-w); height: var(--lzc-h); transform-origin: 0 0; }
 .lzc-img { display: block; width: 100%; height: 100%; user-select: none; }
 .lzc-add { position: absolute; inset: 0; opacity: 0; background: #ff66aa; mix-blend-mode: plus-lighter;
@@ -2442,16 +2444,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
   -webkit-mask: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent); mask: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent); }
 .msf.l { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--g) 70%, transparent), color-mix(in srgb, var(--g) 32%, transparent) 22%, color-mix(in srgb, var(--g) 10%, transparent) 55%, transparent); }
 .msf.r { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--g) 70%, transparent), color-mix(in srgb, var(--g) 32%, transparent) 22%, color-mix(in srgb, var(--g) 10%, transparent) 55%, transparent); }
-
-/* lazer's "hold for menu" button: bottom-right, fades in while the mouse moves; holding fills its ring */
-.hold-menu { position: absolute; right: 18px; bottom: 54px; display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none; transition: opacity var(--t-med); --p: 0; }
-.gameplay.show-cursor .hold-menu, .hold-menu.holding, .hold-menu:hover { opacity: 1; pointer-events: auto; }
-.hm-label { font-size: .78rem; font-weight: 600; color: rgba(255, 255, 255, .8); text-shadow: var(--hud-shadow, 0 1px 3px rgba(0, 0, 0, .6)); opacity: 0; transform: translateX(6px); transition: opacity var(--t-fast), transform var(--t-fast); }
-.hold-menu:hover .hm-label, .hold-menu.holding .hm-label { opacity: 1; transform: none; }
-.hm-btn { position: relative; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .55); cursor: pointer; }
-.hm-btn .i { width: 18px; height: 18px; position: relative; }
-.hm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%); }
-.hm-btn:hover { background: rgba(0, 0, 0, .75); }
 
 /* ── Ranked Play (osu!lazer's RankedPlayScreen): you in blue at the bottom left, your opponent in red at the top right,
       the stage and its timer up top, hands of beatmap cards, and the intro, results and end screens */
@@ -2840,8 +2832,10 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 /* the buttons flow out from the logo, overlapping by the 20px wedge: the logo sits 228px left of centre, half of it
    (0.74 × 256 / 2) minus the wedge each side */
 .lz-left, .lz-right { position: absolute; top: 0; bottom: 0; display: flex; align-items: stretch; pointer-events: auto; }
-.lz-left { right: calc(50% + 228px + 74.72px); justify-content: flex-end; }
-.lz-right { left: calc(50% - 228px + 74.72px); }
+/* (the whole row sits --lz-x further right than lazer's, so it clears Neru in the bottom-left) */
+.lz-menu { --lz-x: 110px; }
+.lz-left { right: calc(50% + 228px - var(--lz-x) + 74.72px); justify-content: flex-end; }
+.lz-right { left: calc(50% - 228px + var(--lz-x) + 74.72px); }
 .lz-btn { position: relative; flex: none; width: 0; height: 100px; padding: 0; border: 0; background: none; color: #fff; opacity: 0; outline: none; cursor: pointer;
   transition: width 500ms var(--oexpo), opacity 500ms linear; }
 .lz-btn.gone { display: none; }
@@ -2869,7 +2863,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-label { position: absolute; left: 0; right: 0; bottom: 7px; margin-left: -3px; text-align: center; font-size: 16px; font-weight: 500; line-height: 16px; white-space: nowrap; text-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
 /* the logo: 512px, in the middle while waiting; half size, 228px left of centre, in the bar */
 .lz-logo { position: absolute; left: 50%; top: 50%; width: 512px; height: 512px; margin: -256px 0 0 -256px; pointer-events: none;
-  translate: -228px 0; scale: .5; transition: translate 200ms cubic-bezier(.11, 0, .5, 0), scale 200ms cubic-bezier(.11, 0, .5, 0); }
+  translate: calc(var(--lz-x) - 228px) 0; scale: .5; transition: translate 200ms cubic-bezier(.11, 0, .5, 0), scale 200ms cubic-bezier(.11, 0, .5, 0); }
 .lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: 1; transition: translate 800ms var(--oexpo) 150ms, scale 800ms var(--oexpo) 150ms; }
 .lz-lh, .lz-lb, .lz-la, .lz-lbt { position: absolute; inset: 0; }
 .lz-lh { transition: scale 500ms var(--el); }
@@ -2986,10 +2980,14 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
 .pm-buttons { padding: 0 50px; gap: 2px; }
 .pm-btn { height: 80px; font-size: 28px; font-weight: 700; }
-.pm-btn .pm-band { left: 10%; right: 10%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
-.pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
-.pm-btn .pm-label { letter-spacing: 0; transition: letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
-.pm-btn:hover .pm-label, .pm-btn:focus-visible .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
+/* the buttons sit small (a narrow band, smaller label) until the pointer is on one, then widen to full size */
+.pm-btn .pm-label { display: inline-block; scale: .8; transition: scale 200ms cubic-bezier(.22, 1, .36, 1), letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
+.pm-btn:hover .pm-label { scale: 1; transition-duration: 400ms; }
+.pm-btn:focus-visible .pm-band { filter: brightness(1.15); }
+.pm-btn .pm-band { left: 30%; right: 30%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn:hover .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn .pm-label { letter-spacing: 0; }
+.pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
 .pm-info b { font-weight: 700; }
 /* mod select: lazer's 320px columns, 10px apart, with 42px headers */
@@ -5545,8 +5543,8 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
-  { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
-  { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: true },
+  { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 0.7, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
+  { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: false },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
   { s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
   { s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
@@ -9052,10 +9050,10 @@ const VolumeOverlay = {
 
 /** osu!lazer's MenuCursor (MenuCursorContainer), drawn by the game as lazer draws it: its menu-cursor texture at 0.15×
  *  (× the cursor size setting, × the interface scale). Pressing shrinks it to 0.9× and fades in a pink glow over
- *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). Dragging more than 80 px turns it to point
- *  along the drag, and it swings back on release. Each press and release plays lazer's cursor-tap, panned to where
+ *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). (lazer can also turn it to point along a drag;
+ *  that's off by default here.) Each press and release plays lazer's cursor-tap, panned to where
  *  the cursor is and pitched a little at random (lower on release). The system cursor is hidden while it's on; it's
- *  hidden too in gameplay (until the mouse moves) and for touch. */
+ *  hidden too in gameplay (until the mouse moves), for touch, and while keys are being pressed. */
 const LazerCursor = {
   TEX_W: 312, TEX_H: 442, BASE: 0.15,
   /** CSS linear() easings for osu!framework's elastic curves. */
@@ -9104,7 +9102,10 @@ const LazerCursor = {
         }
       }
     };
-    window.addEventListener('pointermove', move, { passive: true, capture: true });
+    window.addEventListener('pointermove', e => { move(e); if (this.el.classList.contains('kb')) this.el.classList.remove('kb'); }, { passive: true, capture: true });
+    // lazer hides the menu cursor while you use the keyboard (PopOut: fades over 250ms, shrinking to 0.6×); moving
+    // the mouse brings it back
+    window.addEventListener('keydown', e => { if (!e.repeat && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) this.el.classList.add('kb'); }, true);
     window.addEventListener('pointerdown', e => {
       move(e);
       if (e.pointerType === 'touch' || this.el.hidden) return;
@@ -9112,7 +9113,7 @@ const LazerCursor = {
       anim(this.scaleEl, 'scale', '0.9', 800, OQ);
       this.add.getAnimations().forEach(a => a.cancel());
       this.add.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: OQ, fill: 'forwards' });
-      if (Settings.get('ui.cursorRotate') !== false && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
+      if (Settings.get('ui.cursorRotate') && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
       this.tap(1);
     }, true);
     window.addEventListener('pointerup', e => {
@@ -9129,7 +9130,7 @@ const LazerCursor = {
   },
   /** Texture × 0.15 × cursor size × the interface scale (lazer's cursor lives inside its scaling container). */
   size() {
-    const k = this.k = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2) * this.BASE / (Zoom.z || 1);
+    const k = this.k = clamp(Settings.get('ui.cursorSize') || 0.7, 0.5, 2) * this.BASE / (Zoom.z || 1);
     this.el.style.setProperty('--lzc-w', `${(this.TEX_W * k).toFixed(2)}px`);
     this.el.style.setProperty('--lzc-h', `${(this.TEX_H * k).toFixed(2)}px`);
   },
@@ -11409,7 +11410,6 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
-    this.hud.append(this.buildHoldForMenu());
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -12022,24 +12022,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
-  },
-  /** lazer's HoldForMenuButton: bottom-right, shown while the mouse moves; hold it (its ring fills) to leave. */
-  buildHoldForMenu() {
-    const ring = h('i.hm-ring'), btn = h('button.hm-btn', { 'aria-label': 'Hold for menu', tabindex: '-1' }, ring, icon('x'));
-    const wrap = h('div.hold-menu', h('span.hm-label', 'hold for menu'), btn);
-    const HOLD = 600;
-    let t0 = 0, raf = 0;
-    const stop = () => { cancelAnimationFrame(raf); t0 = 0; wrap.style.setProperty('--p', 0); wrap.classList.remove('holding'); };
-    const tick = () => {
-      const p = clamp((performance.now() - t0) / HOLD, 0, 1);
-      wrap.style.setProperty('--p', p);
-      if (p < 1) { raf = requestAnimationFrame(tick); return; }
-      stop(); UISounds.back();
-      if (this.s && this.s.mp) this.mpQuit(); else this.quit();
-    };
-    btn.addEventListener('pointerdown', e => { if (e.button !== 0 || !this.s) return; e.preventDefault(); t0 = performance.now(); wrap.classList.add('holding'); tick(); });
-    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
-    return wrap;
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   resume() {

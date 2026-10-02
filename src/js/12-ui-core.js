@@ -862,10 +862,10 @@ const VolumeOverlay = {
 
 /** osu!lazer's MenuCursor (MenuCursorContainer), drawn by the game as lazer draws it: its menu-cursor texture at 0.15×
  *  (× the cursor size setting, × the interface scale). Pressing shrinks it to 0.9× and fades in a pink glow over
- *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). Dragging more than 80 px turns it to point
- *  along the drag, and it swings back on release. Each press and release plays lazer's cursor-tap, panned to where
+ *  800 ms (OutQuint); letting go springs it back (500 ms, OutElastic). (lazer can also turn it to point along a drag;
+ *  that's off by default here.) Each press and release plays lazer's cursor-tap, panned to where
  *  the cursor is and pitched a little at random (lower on release). The system cursor is hidden while it's on; it's
- *  hidden too in gameplay (until the mouse moves) and for touch. */
+ *  hidden too in gameplay (until the mouse moves), for touch, and while keys are being pressed. */
 const LazerCursor = {
   TEX_W: 312, TEX_H: 442, BASE: 0.15,
   /** CSS linear() easings for osu!framework's elastic curves. */
@@ -914,7 +914,10 @@ const LazerCursor = {
         }
       }
     };
-    window.addEventListener('pointermove', move, { passive: true, capture: true });
+    window.addEventListener('pointermove', e => { move(e); if (this.el.classList.contains('kb')) this.el.classList.remove('kb'); }, { passive: true, capture: true });
+    // lazer hides the menu cursor while you use the keyboard (PopOut: fades over 250ms, shrinking to 0.6×); moving
+    // the mouse brings it back
+    window.addEventListener('keydown', e => { if (!e.repeat && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) this.el.classList.add('kb'); }, true);
     window.addEventListener('pointerdown', e => {
       move(e);
       if (e.pointerType === 'touch' || this.el.hidden) return;
@@ -922,7 +925,7 @@ const LazerCursor = {
       anim(this.scaleEl, 'scale', '0.9', 800, OQ);
       this.add.getAnimations().forEach(a => a.cancel());
       this.add.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: OQ, fill: 'forwards' });
-      if (Settings.get('ui.cursorRotate') !== false && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
+      if (Settings.get('ui.cursorRotate') && this.drag !== 2) { this.drag = 1; this.dx = e.clientX; this.dy = e.clientY; lastT = performance.now(); }
       this.tap(1);
     }, true);
     window.addEventListener('pointerup', e => {
@@ -939,7 +942,7 @@ const LazerCursor = {
   },
   /** Texture × 0.15 × cursor size × the interface scale (lazer's cursor lives inside its scaling container). */
   size() {
-    const k = this.k = clamp(Settings.get('ui.cursorSize') || 1, 0.5, 2) * this.BASE / (Zoom.z || 1);
+    const k = this.k = clamp(Settings.get('ui.cursorSize') || 0.7, 0.5, 2) * this.BASE / (Zoom.z || 1);
     this.el.style.setProperty('--lzc-w', `${(this.TEX_W * k).toFixed(2)}px`);
     this.el.style.setProperty('--lzc-h', `${(this.TEX_H * k).toFixed(2)}px`);
   },

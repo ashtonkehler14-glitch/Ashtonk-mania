@@ -461,7 +461,9 @@ await page.waitForTimeout(400);
 check('hovering the toolbar note only shows its tooltip (like lazer)', await page.evaluate(() => !document.querySelector('.np-panel.show') && getComputedStyle(document.querySelector('.tb-music .tb-tip')).opacity > 0.5));
 await page.click('.tb-music');
 await page.waitForSelector('.np-panel.show', { timeout: 3000 });
-check('clicking the toolbar note opens the now-playing panel and turns the button carmine', await page.evaluate(() => document.querySelector('.tb-music').classList.contains('on')) && await page.evaluate(() => document.querySelector('.np-title').textContent.length > 0));
+await page.waitForFunction(() => document.querySelector('.tb-music.on'), null, { timeout: 2000 }).catch(() => {}); // (the toolbar updates on the next frame)
+const npState = await page.evaluate(() => ({ on: document.querySelector('.tb-music').classList.contains('on'), title: document.querySelector('.np-title').textContent, cls: document.querySelector('.tb-music').className }));
+check('clicking the toolbar note opens the now-playing panel and turns the button carmine', npState.on && npState.title.length > 0, JSON.stringify(npState));
 const wasPlaying = await page.evaluate(() => AshtonkMania.Music.playing);
 await page.click('.np-ctls .np-ctl:nth-child(2)');
 await page.waitForTimeout(200);
@@ -636,6 +638,11 @@ for (const [w, hh, n] of [[1280, 720, '720p'], [2560, 1080, 'ultrawide'], [1440,
   const c = await page.evaluate(() => { const el = document.querySelector('#lz-cur'), sc = document.querySelector('.lzc-scale'); return { shown: !!el && !el.hidden, at: el && el.style.transform, scale: getComputedStyle(sc).scale, glow: +getComputedStyle(document.querySelector('.lzc-add')).opacity, sys: getComputedStyle(document.body).cursor }; });
   await page.mouse.up(); await page.waitForTimeout(600);
   check('the osu!lazer menu cursor follows the mouse, shrinks and glows pink while pressed (system cursor hidden)', c.shown && /400px, 300px/.test(c.at) && Math.abs(+c.scale - 0.9) < 0.02 && c.glow > 0.9 && c.sys === 'none', JSON.stringify(c));
+  await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(350);
+  const kbHidden = await page.evaluate(() => +getComputedStyle(document.querySelector('.lzc-rot')).opacity < 0.05);
+  await page.mouse.move(420, 310); await page.waitForTimeout(450);
+  const back = await page.evaluate(() => +getComputedStyle(document.querySelector('.lzc-rot')).opacity > 0.95);
+  check('pressing a key hides the cursor (as lazer); moving the mouse brings it back', kbHidden && back, JSON.stringify({ kbHidden, back }));
 }
 
 // the Web-Osu-Mania skins draw their own stage (each style plays without errors; judgements come from the chosen set)
