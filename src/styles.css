@@ -3027,3 +3027,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .explorer.ov .ex-chip.on { color: hsl(var(--o-h) 40% 100%); }
 .explorer.ov .ex-chip.on::after { content: none; }
 .toast.act { cursor: pointer; }
+/* lounge rooms: lazer's RoomPanel — 80px, corners of 10, the status pill on its own line above the room name and
+   the beatmap, the players and the join button on the right; the cover shows through on the right */
+.mp-room-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "state players join" "body players join"; align-content: center; column-gap: 10px; row-gap: 3px; min-height: 80px; padding: 5px 10px 5px 20px; border-radius: 10px; }
+.mp-rstate { grid-area: state; justify-self: start; padding: 0 8px; height: 16px; line-height: 16px; border-radius: 8px; font-size: 10px; font-weight: 700; text-transform: lowercase; }
+.mp-rbody { grid-area: body; }
+.mp-rplayers { grid-area: players; }
+.mp-rjoin { grid-area: join; }
+.mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h) 10% 15%) 20%, hsl(var(--o-h) 10% 15% / .3)); }
