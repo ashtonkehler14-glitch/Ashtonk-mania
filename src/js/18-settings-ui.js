@@ -400,9 +400,7 @@ const ModSelect = {
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
     sheet.append(h('div.modsel-head',
       h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')),
-      h('span.grow'),
-      rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
-      h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));
+      h('span.grow')));
     const cols = h('div.modsel-cols');
     for (const [gid, gname] of MOD_GROUPS) {
       const mods = MODS.filter(x => x.group === gid);
@@ -430,12 +428,15 @@ const ModSelect = {
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
     if (cfgMods.length) cols.append(this.configPanel(cfgMods));
     this.colsEl = cols;
+    // lazer's footer: the back button, a 200px sheared "Deselect all" (Backspace), and at the right the speed and score
+    // multiplier in a sheared two-part box (ModFooterInformationDisplay)
+    const info = (label, value, cls = '') => h(`div.ms-info${cls}`, h('span.ms-info-l', h('i', label)), h('span.ms-info-r', h('i', value)));
     sheet.append(cols, h('div.modsel-foot',
       backButton(() => this.close()),
-      h('button.btn', { disabled: !cur.length, onclick: () => setMods([]) }, 'Deselect all'),
+      h('button.sh-btn.ms-deselect', { disabled: !cur.length, title: 'Backspace', onclick: () => { UISounds.click(); setMods([]); } }, h('span', 'Deselect all')),
       h('span.grow'),
-      h('span.modsel-hint', 'Tip: every mod has a letter shortcut (hover to see it) · Backspace clears'),
-      h('button.btn.primary', { onclick: () => this.close() }, 'Done')));
+      rate !== 1 ? info('Speed', `${rate}x`) : null,
+      info('Score multiplier', `${mult.toFixed(2)}x`, mult > 1 ? '.up' : mult < 1 ? '.down' : '')));
     cols.scrollLeft = scrollX;
     [...cols.querySelectorAll('.modcol-list')].forEach((l, i) => { if (tops[i]) l.scrollTop = tops[i]; });
     // the Customise column is added past the right edge on smaller screens: bring it into view when it appears

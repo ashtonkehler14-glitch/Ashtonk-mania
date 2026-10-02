@@ -3016,6 +3016,24 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .op-btn .i { position: absolute; left: 15px; top: 50%; width: 17px; height: 17px; margin-top: -8.5px; }
 .op-btn.danger { color: #ff6666; }
 .ss-footer .foot-btn.on { background: hsl(200 10% 32%); }
+/* lazer's ShearedButton (default colours: the overlay's Background3 with a border fading to Background1) */
+.sh-btn { position: relative; height: 50px; padding: 0 15px; border: 2px solid transparent; border-radius: 7px; transform: skewX(-11.31deg); color: hsl(var(--o-h, 200) 40% 100%); font-size: 17px; cursor: pointer; overflow: hidden;
+  background: linear-gradient(hsl(var(--o-h, 200) 10% 25%), hsl(var(--o-h, 200) 10% 25%)) padding-box, linear-gradient(hsl(var(--o-h, 200) 10% 25%), hsl(var(--o-h, 200) 10% 40%)) border-box; transition: scale 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.sh-btn > span { display: inline-block; transform: skewX(11.31deg); }
+.sh-btn:hover:not(:disabled) { background: linear-gradient(hsl(var(--o-h, 200) 10% 30%), hsl(var(--o-h, 200) 10% 30%)) padding-box, linear-gradient(hsl(var(--o-h, 200) 10% 30%), hsl(var(--o-h, 200) 10% 48%)) border-box; }
+.sh-btn:active:not(:disabled) { scale: .9; transition: scale 2000ms cubic-bezier(.22, 1, .36, 1); }
+.sh-btn:disabled { filter: brightness(.45); cursor: default; }
+.sh-btn:disabled > span { opacity: .6; }
+.modsel-foot { align-items: flex-end; gap: 10px; padding: 0 20px 12px 0; }
+.modsel-foot .lz-back { margin-right: 0; }
+.ms-deselect { width: 200px; margin-bottom: 12px; }
+.modsel-foot > .sh-btn { margin-bottom: 0; }
+.ms-info { display: flex; align-items: stretch; height: 50px; border: 2px solid hsl(var(--o-h) 10% 30%); border-radius: 7px; transform: skewX(-11.31deg); overflow: hidden; background: hsl(var(--o-h) 10% 20%); }
+.ms-info > span { display: grid; place-items: center; padding: 0 14px; }
+.ms-info-l { font-size: 14px; font-weight: 600; }
+.ms-info-r { min-width: 70px; background: hsl(var(--o-h) 10% 30%); font-size: 17px; font-weight: 600; }
+.ms-info.up .ms-info-r { color: #88b300; } .ms-info.down .ms-info-r { color: #ff6666; }
+.ms-info i { font-style: normal; display: inline-block; transform: skewX(11.31deg); }
 
 </style>
 </head>
@@ -13976,9 +13994,7 @@ const ModSelect = {
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
     sheet.append(h('div.modsel-head',
       h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')),
-      h('span.grow'),
-      rate !== 1 ? h('div.modsel-stat', h('span', 'Speed'), h('b', `${rate}×`)) : null,
-      h(`div.modsel-stat${mult > 1 ? '.up' : mult < 1 ? '.down' : ''}`, h('span', 'Score multiplier'), h('b', `${mult.toFixed(2)}×`))));
+      h('span.grow')));
     const cols = h('div.modsel-cols');
     for (const [gid, gname] of MOD_GROUPS) {
       const mods = MODS.filter(x => x.group === gid);
@@ -14006,12 +14022,15 @@ const ModSelect = {
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
     if (cfgMods.length) cols.append(this.configPanel(cfgMods));
     this.colsEl = cols;
+    // lazer's footer: the back button, a 200px sheared "Deselect all" (Backspace), and at the right the speed and score
+    // multiplier in a sheared two-part box (ModFooterInformationDisplay)
+    const info = (label, value, cls = '') => h(`div.ms-info${cls}`, h('span.ms-info-l', h('i', label)), h('span.ms-info-r', h('i', value)));
     sheet.append(cols, h('div.modsel-foot',
       backButton(() => this.close()),
-      h('button.btn', { disabled: !cur.length, onclick: () => setMods([]) }, 'Deselect all'),
+      h('button.sh-btn.ms-deselect', { disabled: !cur.length, title: 'Backspace', onclick: () => { UISounds.click(); setMods([]); } }, h('span', 'Deselect all')),
       h('span.grow'),
-      h('span.modsel-hint', 'Tip: every mod has a letter shortcut (hover to see it) · Backspace clears'),
-      h('button.btn.primary', { onclick: () => this.close() }, 'Done')));
+      rate !== 1 ? info('Speed', `${rate}x`) : null,
+      info('Score multiplier', `${mult.toFixed(2)}x`, mult > 1 ? '.up' : mult < 1 ? '.down' : '')));
     cols.scrollLeft = scrollX;
     [...cols.querySelectorAll('.modcol-list')].forEach((l, i) => { if (tops[i]) l.scrollTop = tops[i]; });
     // the Customise column is added past the right edge on smaller screens: bring it into view when it appears

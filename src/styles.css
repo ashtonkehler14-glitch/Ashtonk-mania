@@ -2999,3 +2999,21 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .op-btn .i { position: absolute; left: 15px; top: 50%; width: 17px; height: 17px; margin-top: -8.5px; }
 .op-btn.danger { color: #ff6666; }
 .ss-footer .foot-btn.on { background: hsl(200 10% 32%); }
+/* lazer's ShearedButton (default colours: the overlay's Background3 with a border fading to Background1) */
+.sh-btn { position: relative; height: 50px; padding: 0 15px; border: 2px solid transparent; border-radius: 7px; transform: skewX(-11.31deg); color: hsl(var(--o-h, 200) 40% 100%); font-size: 17px; cursor: pointer; overflow: hidden;
+  background: linear-gradient(hsl(var(--o-h, 200) 10% 25%), hsl(var(--o-h, 200) 10% 25%)) padding-box, linear-gradient(hsl(var(--o-h, 200) 10% 25%), hsl(var(--o-h, 200) 10% 40%)) border-box; transition: scale 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.sh-btn > span { display: inline-block; transform: skewX(11.31deg); }
+.sh-btn:hover:not(:disabled) { background: linear-gradient(hsl(var(--o-h, 200) 10% 30%), hsl(var(--o-h, 200) 10% 30%)) padding-box, linear-gradient(hsl(var(--o-h, 200) 10% 30%), hsl(var(--o-h, 200) 10% 48%)) border-box; }
+.sh-btn:active:not(:disabled) { scale: .9; transition: scale 2000ms cubic-bezier(.22, 1, .36, 1); }
+.sh-btn:disabled { filter: brightness(.45); cursor: default; }
+.sh-btn:disabled > span { opacity: .6; }
+.modsel-foot { align-items: flex-end; gap: 10px; padding: 0 20px 12px 0; }
+.modsel-foot .lz-back { margin-right: 0; }
+.ms-deselect { width: 200px; margin-bottom: 12px; }
+.modsel-foot > .sh-btn { margin-bottom: 0; }
+.ms-info { display: flex; align-items: stretch; height: 50px; border: 2px solid hsl(var(--o-h) 10% 30%); border-radius: 7px; transform: skewX(-11.31deg); overflow: hidden; background: hsl(var(--o-h) 10% 20%); }
+.ms-info > span { display: grid; place-items: center; padding: 0 14px; }
+.ms-info-l { font-size: 14px; font-weight: 600; }
+.ms-info-r { min-width: 70px; background: hsl(var(--o-h) 10% 30%); font-size: 17px; font-weight: 600; }
+.ms-info.up .ms-info-r { color: #88b300; } .ms-info.down .ms-info-r { color: #ff6666; }
+.ms-info i { font-style: normal; display: inline-block; transform: skewX(11.31deg); }
