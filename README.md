@@ -19,6 +19,8 @@ To find every song Web-Osu-Mania finds, give it an osu! API key:
 
 Without a key, search falls back to public mirror sites, which can miss songs.
 
+If osu! starts refusing the key (a 429 error), add a second OAuth app the same way as `OSU_CLIENT_ID_2` and `OSU_CLIENT_SECRET_2`. It takes over while the first is refused.
+
 ## Develop
 
 ```bash

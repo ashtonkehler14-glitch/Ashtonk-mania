@@ -79,7 +79,7 @@ test('search reports every provider failure', async () => {
 });
 
 test('official osu! API: the same request Web-Osu-Mania sends, cached, with back-off on 429', async () => {
-  osuApi.cache.clear(); osuApi.blockedUntil = 0;
+  osuApi.cache.clear(); osuApi.blockedUntil = 0; (await import('../worker/index.js')).resetOsuLogin();
   const calls = [];
   const env = { OSU_CLIENT_ID: '1', OSU_CLIENT_SECRET: 's' };
   let limited = false;
@@ -119,7 +119,7 @@ test('official osu! API: the same request Web-Osu-Mania sends, cached, with back
   const n = calls.length;
   await search('q=third');
   assert.ok(!calls.slice(n).some(c => c.includes('osu.ppy.sh')), 'no osu! requests while blocked');
-  osuApi.blockedUntil = 0; osuApi.cache.clear();
+  osuApi.blockedUntil = 0; osuApi.cache.clear(); (await import('../worker/index.js')).resetOsuLogin();
 });
 
 test('official osu! API is used when credentials are configured', async () => {
@@ -206,12 +206,34 @@ test('osu! login: one token for many searches; a 429 on the login backs off inst
     searches++; return res({ beatmapsets: [osuSet(1)], cursor_string: null });
   };
   await assert.rejects(officialFetch('m=3&q=a', env, fetchImpl), /429/);
-  await assert.rejects(officialFetch('m=3&q=b', env, fetchImpl), /rate-limited/);
+  await assert.rejects(officialFetch('m=3&q=b', env, fetchImpl), /refusing/);
   assert.equal(logins, 1, 'no second login attempt while backing off');
-  osuApi.blockedUntil = 0; limit = false;
+  resetOsuLogin(); osuApi.blockedUntil = 0; limit = false;
   await Promise.all([officialFetch('m=3&q=c', env, fetchImpl), officialFetch('m=3&q=d', env, fetchImpl), officialFetch('m=3&q=e', env, fetchImpl)]);
   assert.equal(logins, 2, 'searches arriving together share one login');
   await officialFetch('m=3&q=f', env, fetchImpl);
   assert.equal(logins, 2); assert.equal(searches, 4);
   osuApi.cache.clear();
+});
+
+test('a second osu! app (OSU_CLIENT_ID_2) takes over while osu! refuses the first', async () => {
+  const { officialFetch, resetOsuLogin } = await import('../worker/index.js');
+  osuApi.cache.clear(); osuApi.blockedUntil = 0; resetOsuLogin();
+  const env = { OSU_CLIENT_ID: '1', OSU_CLIENT_SECRET: 'a', OSU_CLIENT_ID_2: '2', OSU_CLIENT_SECRET_2: 'b' };
+  const logins = [];
+  const fetchImpl = async (url, init) => {
+    if (url.endsWith('/oauth/token')) {
+      const id = JSON.parse(init.body).client_id; logins.push(id);
+      return id === 1 ? new Response('Too Many Attempts.', { status: 429, headers: { 'Retry-After': '600' } }) : res({ access_token: 't2', expires_in: 86400 });
+    }
+    assert.equal(init.headers.Authorization, 'Bearer t2');
+    return res({ beatmapsets: [osuSet(3)], cursor_string: null });
+  };
+  const d = await officialFetch('m=3&q=x', env, fetchImpl);
+  assert.equal(d.sets.length, 1);
+  await officialFetch('m=3&q=y', env, fetchImpl);
+  assert.deepEqual(logins, [1, 2], 'the first app is left alone while refused; the second one\'s login is reused');
+  const h = await (await worker.fetch(new Request('https://x/api/health'), env)).json();
+  assert.equal(h.osuApps, 2);
+  osuApi.cache.clear(); resetOsuLogin();
 });
