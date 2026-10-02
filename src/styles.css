@@ -2925,3 +2925,18 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
 .res-ab:disabled { filter: grayscale(1) brightness(.6); cursor: default; }
 @media (max-width: 900px) { .res-ab.wide { width: 140px; } }
+/* pause / fail: lazer's GameplayMenuOverlay — black at 75%, "paused" in yellow 48px semibold (spaced 5px) centred above
+   the DialogButtons (80px tall, the band 80% of the width, 90% under the pointer with its glow), and the retry count,
+   song progress and accuracy centred below */
+.pause-menu { display: block; }
+.pause-box { position: absolute; inset: 0; width: auto; display: grid; grid-template-rows: 1fr auto 1fr; align-items: center; }
+.pm-head { display: grid; place-items: center; }
+.pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
+.pm-buttons { padding: 0 50px; gap: 2px; }
+.pm-btn { height: 80px; font-size: 28px; font-weight: 700; }
+.pm-btn .pm-band { left: 10%; right: 10%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn:hover .pm-band, .pm-btn:focus-visible .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+.pm-btn .pm-label { letter-spacing: 0; transition: letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
+.pm-btn:hover .pm-label, .pm-btn:focus-visible .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
+.pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
+.pm-info b { font-weight: 700; }

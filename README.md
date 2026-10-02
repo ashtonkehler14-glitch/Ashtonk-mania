@@ -30,6 +30,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 - **Loading screen:** the logo is lazer's 77 px.
 - **Results:** the score card is lazer's score panel, 360 px wide. Your 80 px picture sits on its top edge with your name under it. Below come the title and artist, the accuracy circle, the score in big light numbers, then the star rating, mods, difficulty and mapper. The statistics sit under small dark labels, and the date is at the bottom.
 - **Results footer:** lazer's grey 50 px bar with the buttons centred. Watch replay and retry are wide green buttons, and save / export / share are small grey ones. Point at a button to see what it does.
+- **Pause and fail screens** are lazer's: "paused" (or "failed") in big yellow letters, then 80 px buttons that span most of the screen and widen and glow when selected. Below them are your retry count, how far into the song you are and your accuracy. Holding R still retries.
 
 ### Main menu, as in lazer
 - **The big logo waits on its own.** The top bar is hidden until you click the logo or press a key, as in lazer. The logo is now lazer's size: 512 px across while waiting, then half that in the bar.

@@ -1040,12 +1040,17 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (failed && this.failedScore) btns.push(btn('View results', '#66ccff', () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true })));
     btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
+    // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
+    // width), and "Retry count / Song progress / Accuracy" centred in the space below
+    let prog = null;
+    try { const now = this.gameTime(); if (s.endTime > s.firstNote) prog = Math.round(clamp((now - s.firstNote) / (s.endTime - s.firstNote), 0, 1) * 100); } catch { prog = null; }
     const el = h('div.pause-menu', h('div.pause-box',
-      h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
+      h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase())),
       h('div.pm-buttons', ...btns),
-      this.retryCount ? h('div.pb-retries', `You've retried ${this.retryCount} time${this.retryCount === 1 ? '' : 's'} in this session`) : null,
-      h('div.pb-sub', failed ? `${fmtAcc(s.engine.score.accuracy)} · ${fmtInt(s.engine.score.maxCombo)}x` : `${s.rec.title} [${s.rec.version}]`),
-      s.mp ? null : h('div.pb-keys', 'hold ', h('span.kbd', 'R'), ' to retry', failed ? null : [' · ', h('span.kbd', 'Esc'), ' continue'])));
+      h('div.pm-info',
+        h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
+        prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
+        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
