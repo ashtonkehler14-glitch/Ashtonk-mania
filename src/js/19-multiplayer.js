@@ -38,7 +38,7 @@ const Multiplayer = {
     const { code } = await this.api('api/mp/new');
     return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, ...RankedRating.hello() } : { public: isPublic, cid: clientId() });
   },
-  join(code) { return this.connect(String(code).trim().toUpperCase(), false, false, false, RankedRating.hello()); },
+  join(code, want) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { ...RankedRating.hello(), ...(want ? { want } : {}) }); },
 
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
@@ -447,9 +447,9 @@ Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap()
 const MultiplayerScreen = {
   tab: 'multiplayer',
   enter(params = {}) {
+    // two lounges: the multiplayer lounge (regular rooms) and the Ranked Play lounge (1v1 card duels, no rating)
+    this.mode = params.ranked ? 'ranked' : 'lounge';
     this.el = h('div.mp.ov', { style: { '--o-h': OVERLAY_HUES.plum } });
-    // the main menu's "ranked play" button: straight to the Ranked Play queue
-    if (params.ranked) setTimeout(() => { const rq = this.el && this.el.querySelector('.rq'); if (rq) { rq.scrollIntoView({ block: 'center' }); rq.classList.add('rq-hi'); } }, 120);
     this.body = h('div.mp-body');
     this.el.append(this.body, h('div.page-back', backButton(() => this.onBack() || Screens.back())));
     this._unsub = [Bus.on('mp:changed', () => this.render()), Bus.on('mp:chat', m => this.appendChat(m)), Bus.on('mp:fetch', () => { this.updateFetch(); if (Multiplayer.isQP() && Multiplayer.room.qp.phase === 'load') this.qpUpdate(Multiplayer.room); })];
@@ -470,9 +470,10 @@ const MultiplayerScreen = {
   render() {
     if (!this.body) return;
     // a Ranked Play match takes the whole screen (lazer's RankedPlayScreen)
-    if (Multiplayer.inRoom() && Multiplayer.isRP()) { RankedMatch.mount(this); return; }
+    // (a room's kind decides which lounge you return to when you leave it)
+    if (Multiplayer.inRoom() && Multiplayer.isRP()) { this.mode = 'ranked'; RankedMatch.mount(this); return; }
     RankedMatch.unmount();
-    if (Multiplayer.inRoom()) { this.renderRoom(); return; }
+    if (Multiplayer.inRoom()) { this.mode = 'lounge'; this.renderRoom(); return; }
     this.roomEl = null;
     clearEl(this.body);
     this.renderLobby();
@@ -490,42 +491,54 @@ const MultiplayerScreen = {
     const code = h('input.input.mp-code', { placeholder: 'ROOM CODE', maxlength: 8, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Room code' });
     code.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') joinBtn.click(); });
     code.addEventListener('input', () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
-    const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => Multiplayer.join(code.value)) }, 'Join');
+    const ranked = this.mode === 'ranked';
+    // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
+    const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader('Multiplayer', { icon: 'multi' }), h('div.mp-lobby',
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
-      rankedQueuePanel(),
+      ranked ? h('div.mp-note.mp-rp-about', h('b', 'Ranked Play'), ' — 1v1 with beatmap cards and 1,000,000 life each, by osu!lazer\'s rules. Before the cards are dealt, you both choose the star rating you want. Nothing here changes a rating.') : null,
       h('div.mp-lounge-bar',
-        h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate(); } }, h('span', 'Create room')),
+        h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
       h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join'),
         h('input.input.mp-search', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
           oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() })),
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
+    this._roomsSig = null; this._roomRows = null; // (a fresh list for this lounge)
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);
     else setTimeout(() => this.pollRooms(), 30); // (once the lobby is on the page: the screen is still being built here)
   },
   /** Create room: regular or a Ranked Play duel, then public or private — nothing else to set (rooms play by osu!'s
    *  rules; a duel is lazer's Ranked Play with a friend, unrated). */
+  /** Create a room in this lounge: the multiplayer lounge makes a regular room (head to head, up to 16); the Ranked
+   *  Play lounge makes a 1v1 duel (pick 4K or 7K). Either can be public (listed) or private (code only). */
   openCreate(pre = {}) {
     const st = { ranked: !!pre.ranked, isPublic: true, keys: pre.keys === 7 || (!pre.keys && Settings.get('mp.qpKeys') === 7) ? 7 : 4 };
     const body = h('div.mp-cr');
     const choice = (cls, key, v, ic, title, sub) => h(`button.mp-cr-card.${cls}${st[key] === v ? '.on' : ''}`, { dataset: { v: String(v) }, onclick: () => { UISounds.click(); st[key] = v; paint(); } },
       h('div.mp-cr-ico', icon(ic)), h('div', h('b', title), h('span', sub)));
     const paint = () => clearEl(body).append(...[
-      h('div.mp-cr-l', '1. Match type'),
-      h('div.mp-cr-row', choice('type', 'ranked', false, 'multi', 'Regular', 'Head to head for up to 16 players — the highest score wins, like osu! multiplayer.'),
-        choice('type', 'ranked', true, 'trophy', 'Ranked Play duel', '1v1 with a friend by lazer\'s Ranked Play rules: beatmap cards and life. Unrated — queue for rated matches.')),
-      st.ranked ? h('div.mp-cr-keys', h('span', 'Key count'), h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
-      h('div.mp-cr-l', '2. Who can join'),
-      h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', 'Listed under Open rooms for anyone to join.'),
+      st.ranked ? h('div.mp-cr-l', 'Key count') : null,
+      st.ranked ? h('div.mp-cr-keys', h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
+      h('div.mp-cr-l', 'Who can join'),
+      h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
     paint();
-    const o = Dialog.custom('Create room', body, [
+    const o = Dialog.custom(st.ranked ? 'Create a Ranked Play duel' : 'Create room', body, [
       { label: 'Cancel' },
       { label: 'Create', primary: true, onClick: () => this._busy('Creating room…', () => Multiplayer.create(st)) }]);
     return o;
+  },
+  /** Join by code, but only a room of this lounge's kind: Ranked Play rooms open from Ranked Play, others from the lounge. */
+  async joinHere(code) {
+    await Multiplayer.join(code, this.mode === 'ranked' ? 'rp' : 'room');
+    const ranked = Multiplayer.isRP();
+    if (ranked !== (this.mode === 'ranked')) {
+      Multiplayer.leave();
+      throw new Error(ranked ? 'That\'s a Ranked Play room — join it from Ranked Play on the main menu.' : 'That\'s a regular room — join it from the multiplayer lounge.');
+    }
   },
   /** lazer's lounge search box: rooms whose name, host or beatmap don't match are hidden. */
   filterRooms() {
@@ -551,6 +564,8 @@ const MultiplayerScreen = {
     const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
     if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     this._roomsSig = listSig;
+    // each lounge lists only its own kind of room
+    if (rooms) rooms = rooms.filter(r => !!r.ranked === (this.mode === 'ranked'));
     clearEl(el).append(...(rooms && rooms.length ? rooms.map(r => {
       const sig = sigOf(r), old = prevRows.get(r.code);
       if (old && old.sig === sig) { nextRows.set(r.code, old); old.row.disabled = r.players >= r.size || r.state === 'playing'; return old.row; }
@@ -559,7 +574,7 @@ const MultiplayerScreen = {
       const full = r.players >= r.size, playing = r.state === 'playing';
       const row = h(`button.mp-room-row${playing ? '.playing' : ''}`, { disabled: full || playing, onclick: async () => {
         UISounds.click(); row.disabled = true;
-        try { await Multiplayer.join(r.code); } catch (e) { Toast.err('Couldn\'t join', friendlyError(e)); row.disabled = false; this.pollRooms(); }
+        try { await this.joinHere(r.code); } catch (e) { Toast.err('Couldn\'t join', friendlyError(e)); row.disabled = false; this.pollRooms(); }
       } }, bg, h('div.mp-rshade'),
         h(`span.mp-rstate${playing ? '.on' : ''}${r.ranked ? '.ranked' : ''}`, r.ranked ? (playing ? 'Ranked Play · playing' : 'Ranked Play') : playing ? 'Playing' : 'Open'),
         h('div.mp-rbody', h('div.mp-rname', r.name),
@@ -574,7 +589,7 @@ const MultiplayerScreen = {
       row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
-    }) : [h('div.mp-rooms-empty', rooms ? 'No open rooms right now — create one and it shows up here for everyone.' : 'Can\'t reach the multiplayer server right now — trying again…')]));
+    }) : [h('div.mp-rooms-empty', rooms ? (this.mode === 'ranked' ? 'No duels open right now — create one and it shows up here for everyone.' : 'No open rooms right now — create one and it shows up here for everyone.') : 'Can\'t reach the multiplayer server right now — trying again…')]));
     this._roomRows = nextRows;
     this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);

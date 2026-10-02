@@ -19,7 +19,7 @@
 
 export const RP = {
   LIFE: 1_000_000, HAND: 5, DECK: 50, BASE_DAMAGE: 50_000, NOT_READY_DAMAGE: 100_000,
-  WAIT_JOIN: 60_000, DEAL: 15_000, INTRO: 20_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
+  WAIT_JOIN: 60_000, STARS: 60_000, DEAL: 15_000, INTRO: 20_000, DISCARD: 30_000, DISCARD_DONE: 3_000, FINISH_DISCARD: 5_000, PICK: 45_000,
   FINISH_PICK: 120_000, WARMUP: 120_000, COUNTDOWN: 10_000, RESULTS: 15_000,
   AWAY: 60_000,        // a dropped connection gets this long to come back before the player is counted as gone (any match)
   LEAVE_BAN: 600_000,  // leaving a rated match: 10 minutes out of the queue (lazer)
@@ -27,7 +27,7 @@ export const RP = {
 };
 export const RATING = { MU: 1500, SIGMA: 150, TAU: 15, BETA: 0, KAPPA: 0.0001 };
 /** Stage names, in lazer's order (RankedPlayStage). `deal` is ours: the deck is being drawn up after both joined. */
-export const RP_STAGES = ['waitjoin', 'deal', 'warmup', 'discard', 'discarded', 'pick', 'picked', 'ready', 'playing', 'results', 'ended'];
+export const RP_STAGES = ['waitjoin', 'stars', 'deal', 'warmup', 'discard', 'discarded', 'pick', 'picked', 'ready', 'playing', 'results', 'ended'];
 
 const num = (v, lo, hi, def = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
 
@@ -36,6 +36,17 @@ export const beatmapRating = sr => Math.round(800 + 500 * (Math.exp(0.16 * sr) -
 export const starsForRating = r => Math.max(0.5, Math.log(Math.max(1e-6, (r - 800) / 500 + 1)) / 0.16);
 /** A new player's rating, estimated from their pp (MatchmakingQueueBackgroundService). */
 export const initialRating = pp => -4000 + 600 * Math.log(Math.max(0, pp) + 4000);
+
+/** The deck around the star rating both players asked for: `n` targets drawn from N(their average, 0.35²), at least
+ *  0.5★ (Box–Muller). */
+export function deckTargetsForStars(prefs, n = RP.DECK, rnd = Math.random) {
+  const want = prefs.length ? prefs.reduce((a, b) => a + b, 0) / prefs.length : 3, out = [];
+  while (out.length < n) {
+    const theta = 2 * Math.PI * rnd(), r = Math.sqrt(-2 * Math.log(Math.max(1e-12, rnd())));
+    out.push(want + 0.35 * r * Math.cos(theta), want + 0.35 * r * Math.sin(theta));
+  }
+  return out.slice(0, n).map(x => Math.round(Math.max(0.5, x) * 100) / 100);
+}
 
 /** The deck's target star ratings: `n` ratings drawn from N(lowest player rating, 100²) (Box–Muller), as stars. */
 export function deckTargets(ratings, n = RP.DECK, rnd = Math.random) {
@@ -97,7 +108,7 @@ export class RankedPlay {
   addUser(p, opts) {
     const own = opts.ratings && typeof opts.ratings === 'object' && opts.ratings[this.keys] && typeof opts.ratings[this.keys] === 'object' ? opts.ratings[this.keys] : opts;
     const rating = num(own.mu ?? own.rating, 0, 5000, RATING.MU), sigma = num(own.sigma, 1, 500, RATING.SIGMA);
-    this.users[p.id] = { rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), life: RP.LIFE, hand: [], won: 0, mult: 0.5, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
+    this.users[p.id] = { rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), pref: null, life: RP.LIFE, hand: [], won: 0, mult: 0.5, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
   }
   alive() { return Object.values(this.users).filter(u => u.life > 0).length; }
   cardsLeft() { return this.deck.length + Object.values(this.users).reduce((a, u) => a + u.hand.length, 0); }
@@ -112,7 +123,9 @@ export class RankedPlay {
     for (const h of this.history) show(h.card);
     const users = {};
     for (const [id, u] of Object.entries(this.users)) {
-      users[id] = { rating: u.rating, ratingAfter: u.ratingAfter, muAfter: u.muAfter ?? null, sigmaAfter: u.sigmaAfter ?? null, life: u.life, hand: [...u.hand], won: u.won, mult: u.mult, dmg: u.dmg,
+      // a star rating stays hidden from the other player until both have locked theirs in
+      const showPref = id === viewer || this.stage !== 'stars';
+      users[id] = { rating: u.rating, ratingAfter: u.ratingAfter, muAfter: u.muAfter ?? null, sigmaAfter: u.sigmaAfter ?? null, pref: showPref ? u.pref : null, picked: u.pref != null, life: u.life, hand: [...u.hand], won: u.won, mult: u.mult, dmg: u.dmg,
         discarded: !!this.discarded[id], ready: !!this.ready[id], away: !!(this.room.get(id) || {}).away };
     }
     return { keys: this.keys, rated: this.rated, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,
@@ -131,6 +144,12 @@ export class RankedPlay {
     if (!this.deadline || this.now() < this.deadline) return [];
     switch (this.stage) {
       case 'waitjoin': return this.end('Your opponent never joined');
+      case 'stars': {
+        // time's up: anyone who didn't choose takes the other's choice (or 3★)
+        const set = Object.values(this.users).map(u => u.pref).filter(v => v != null);
+        for (const u of Object.values(this.users)) if (u.pref == null) u.pref = set.length ? set[0] : 3;
+        return this.afterStars();
+      }
       case 'deal':
         // the dealer's client never sent the deck: ask the other player (three tries)
         if (++this.dealFails >= 3) return this.end('Couldn\'t find beatmaps for the deck');
@@ -178,17 +197,33 @@ export class RankedPlay {
   }
   /** Start of the match: both players are in. Draw up the deck (the dealer's client finds the beatmaps). */
   begin() {
-    // turn order: lowest rating first (ties at random)
+    // first both players say how hard they want it: the deck is drawn up around their star ratings
+    this.go('stars', RP.STARS);
+    return [this.room.system('Both players: enter the star rating you want to play'), this.room.roomMsg()];
+  }
+  /** A player locks in the star rating they want (0.5–15★). Once both have, the deck is dealt. */
+  setStars(id, v) {
+    const u = this.user(id);
+    if (!u || this.stage !== 'stars' || u.pref != null) return [];
+    const n = Number(v);
+    if (!Number.isFinite(n)) return [];
+    u.pref = Math.round(Math.min(15, Math.max(0.5, n)) * 100) / 100;
+    if (Object.values(this.users).every(x => x.pref != null)) return this.afterStars();
+    return [this.room.roomMsg()];
+  }
+  afterStars() {
+    // turn order: whoever asked for the lower star rating goes first (ties at random)
     const ids = this.players.map(p => p.id);
     const tie = Object.fromEntries(ids.map(id => [id, this.room.rnd()]));
-    this.order = ids.sort((a, b) => this.user(a).rating - this.user(b).rating || tie[a] - tie[b]);
+    this.order = ids.sort((a, b) => (this.user(a).pref ?? 0) - (this.user(b).pref ?? 0) || tie[a] - tie[b]);
     this.active = this.order[0];
     this.dealer = this.room.hostId;
     return this.askDeck();
   }
   askDeck() {
     this.go('deal', RP.DEAL);
-    const targets = deckTargets(Object.values(this.users).map(u => u.mu), RP.DECK, this.room.rnd);
+    const prefs = Object.values(this.users).map(u => u.pref).filter(v => v != null);
+    const targets = prefs.length ? deckTargetsForStars(prefs, RP.DECK, this.room.rnd) : deckTargets(Object.values(this.users).map(u => u.mu), RP.DECK, this.room.rnd);
     return [{ to: this.dealer, msg: { t: 'rpDeck', keys: this.keys, targets } }, this.room.roomMsg()];
   }
   /** The dealer's beatmaps arrive: shuffle them into the deck, deal five each, and the first round starts. */
@@ -320,6 +355,7 @@ export class RankedPlay {
       case 'ended': return [];
       // before the first round: no loss, the match just can't go ahead (a lone duel host leaving empties the room)
       case 'waitjoin': delete this.users[id]; return [];
+      case 'stars':
       case 'deal': delete this.users[id]; this.order = this.order.filter(x => x !== id); return this.end(`${name} left before the match started`);
       case 'playing': this.kill(id); return [];
       case 'results': if (this.roundsRemaining()) this.kill(id); return [];

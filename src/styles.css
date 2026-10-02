@@ -3043,3 +3043,18 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mp-search { margin-left: auto; width: min(60%, 420px); height: 36px; font-size: 14px; }
 .mp-room-row[hidden] { display: none; }
 .mp-roomlist.no-match::after { content: "No rooms match your search."; display: block; padding: 18px; color: var(--muted); }
+/* Ranked Play: both players choose a star rating before the cards are dealt */
+.rks { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(560px, 92%); margin: auto; padding: 28px; border-radius: 16px; background: rgba(0, 0, 0, .45); text-align: center; }
+.rks-t { font-size: 28px; font-weight: 600; }
+.rks-s { max-width: 440px; color: rgba(255, 255, 255, .7); font-size: 14px; line-height: 1.4; }
+.rks-val { font-size: 56px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; transition: color 200ms; }
+.rks-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+.rks-slider { flex: 1; }
+.rks-num { width: 90px; text-align: center; }
+.rks-presets { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.rks-pre { padding: 6px 12px; border: 0; border-radius: 99px; background: rgba(255, 255, 255, .1); color: #fff; font-weight: 600; cursor: pointer; }
+.rks-pre:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+.rks-pre:disabled { opacity: .4; cursor: default; }
+.rks-lock { min-width: 220px; height: 44px; font-size: 16px; }
+.rks-status { display: flex; gap: 18px; justify-content: center; color: rgba(255, 255, 255, .65); font-size: 13px; }
+.rkm-stage.st-stars { display: flex; }

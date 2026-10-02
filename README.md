@@ -22,6 +22,17 @@ In the dashboard, leave the build command empty and set the deploy command to `n
 
 ## What's new
 
+### Ranked Play is its own lounge now
+- **Ranked Play opens only from the main menu** (Play → multi → ranked play). The multiplayer lounge no longer has a Ranked Play queue or a "Ranked Play duel" option, and its room list shows regular rooms only.
+- **The Ranked Play lounge lists open duels.** Create a duel (4K or 7K, public or private), or join one from the list.
+- **Each lounge only joins its own kind of room.** Typing a duel's code into the multiplayer lounge, or a regular room's code into the Ranked Play lounge, is refused with a note saying where to join it. An invite link still works from anywhere.
+- **No rating.** There's no queue and nothing is rated. The end screen shows the result and how many rounds were played, and **New duel** opens another one.
+- **Both players choose a star rating before the match.** Once both are in, each picks a star rating: a slider, a number box (0.5–15★) or the 2–7★ presets. Then press **Lock in**.
+  - You can't see your opponent's pick until you've both locked in.
+  - The cards are dealt around the average of the two picks.
+  - The intro shows what each of you chose.
+  - If someone doesn't pick within a minute, they get the other player's pick (3★ if neither picked).
+
 ### Fewer settings
 - **Settings is down to about 40 options, all on one list.** The "Show all settings" button is gone.
 - What's left are the options lazer has, plus a few of this game's own: scroll speed and direction, lane width, background dim and blur, volume and offset, frame limiter, key bindings, UI scaling, accent colour, the menu character, skin, note shape and colours, download source and replay saving.
@@ -77,7 +88,7 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   - Buttons are 140 px slanted boxes with lowercase labels, overlapping by the 20 px slant.
   - Buttons grow out from the logo when they appear. Pointing at one stretches it to 1.5× with a springy bounce, and its icon tips over and hops to the beat. Clicking flashes it white.
   - Opening a row makes the old buttons burst outwards as the new ones grow in.
-- **Play → solo / multi.** Multi opens lazer's second row: **lounge** (the multiplayer lobby) and **ranked play** (straight to the Ranked Play queue). The new back button is lazer's dark blue.
+- **Play → solo / multi.** Multi opens lazer's second row: **lounge** (the multiplayer lobby) and **ranked play** (the Ranked Play lounge). The new back button is lazer's dark blue.
 - **The logo moves like lazer's.** It grows when you point at it, squeezes when you press it, and stretches on a rubber band if you drag it. On every beat it pulses slightly and sends out a faint ripple; in kiai it flashes.
   - Outlined triangles drift up inside the pink, and the visualiser around it is lazer's: 200 bars in five rounds, fed from the music.
 - **Song ticker:** a new song's title and artist show at the top right for a few seconds.

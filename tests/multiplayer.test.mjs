@@ -404,7 +404,9 @@ const deck = (n = 50) => Array.from({ length: n }, (_, i) => ({ ...MAP, hash: 'h
 function rpMatch(clock = { t: 0 }, opts = {}) {
   const r = new RoomLogic('RP', () => clock.t, () => 0.25);
   r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rated: true, rating: 1600, sigma: 150, cid: 'ca', ...opts });
-  const out = r.join('b', 'Bob', false, { rating: 1400, sigma: 150, cid: 'cb' }).out;
+  const joined = r.join('b', 'Bob', false, { rating: 1400, sigma: 150, cid: 'cb' }).out;
+  // both pick the star rating they want (Bob the lower, so he goes first)
+  const out = [...joined, ...r.message('a', { t: 'rpStars', stars: 4 }), ...r.message('b', { t: 'rpStars', stars: 2 })];
   r.message('a', { t: 'pool', maps: deck() });
   return { r, out };
 }
@@ -447,8 +449,15 @@ test('Ranked Play: deal, intro, discard phase, the lower rating plays first, and
   r.join('a', 'Alice', true, { mode: 'rp', keys: 4, rated: true, rating: 1600, cid: 'ca' });
   assert.equal(r.rp.stage, 'waitjoin');
   assert.equal(r.listing(), null, 'queue matches are not listed');
-  const out = r.join('b', 'Bob', false, { rating: 1400, cid: 'cb' }).out;
+  const joined = r.join('b', 'Bob', false, { rating: 1400, cid: 'cb' }).out;
   assert.equal(r.join('c', 'Cat', false).ok, false, 'two players only');
+  assert.equal(r.rp.stage, 'stars', 'both choose a star rating first');
+  assert.deepEqual(msgs(joined, 'rpDeck'), [], 'no deck until both have chosen');
+  const half = r.message('b', { t: 'rpStars', stars: 2.5 });
+  assert.equal(r.rp.view('a').users.b.pref, null, 'the other player\'s choice stays hidden until both have chosen');
+  assert.equal(r.rp.view('a').users.b.picked, true);
+  const out = [...half, ...r.message('a', { t: 'rpStars', stars: 3.5 })];
+  assert.ok(msgs(out, 'rpDeck')[0].msg.targets.every(t => t >= 0.5 && Math.abs(t - 3) < 2), 'the deck is drawn around both choices');
   const ask = msgs(out, 'rpDeck')[0];
   assert.equal(ask.to, 'a', 'the host\'s client draws up the deck');
   assert.equal(ask.msg.targets.length, RP.DECK);
@@ -631,6 +640,7 @@ test('Ranked Play duels between friends: unrated, listed while public, the deck 
   clock.t += 10 * 60000; r.tick();
   assert.equal(r.rp.stage, 'waitjoin', 'a duel waits for the friend');
   r.join('b', 'Bob', false, { rating: 1500 });
+  r.message('a', { t: 'rpStars', stars: 3 }); r.message('b', { t: 'rpStars', stars: 3 });
   r.message('a', { t: 'pool', maps: deck(12) });
   assert.equal(r.listing().state, 'playing');
   r.leave('b');
@@ -759,4 +769,38 @@ test('a dropped connection mid-song keeps the player\'s place until they reconne
   r2.message('b', { t: 'bye' });
   const now = r2.disconnect('b');
   assert.equal(msgs(now, 'results')[0].msg.results.winner, 'a');
+});
+
+test('Ranked Play: both choose a star rating; one who doesn\'t in time takes the other\'s, and the deck follows it', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('ST', () => clock.t, () => 0.25);
+  r.join('a', 'Alice', true, { mode: 'rp', keys: 4 });
+  r.join('b', 'Bob', false, {});
+  assert.equal(r.rp.stage, 'stars');
+  assert.deepEqual(r.message('a', { t: 'rpStars', stars: 'abc' }), [], 'not a number: ignored');
+  r.message('a', { t: 'rpStars', stars: 99 });
+  assert.equal(r.rp.user('a').pref, 15, 'clamped to 15★');
+  assert.deepEqual(r.message('a', { t: 'rpStars', stars: 2 }), [], 'locked in once chosen');
+  clock.t = r.rp.deadline;
+  const out = r.tick();
+  assert.equal(r.rp.stage, 'deal');
+  assert.equal(r.rp.user('b').pref, 15, 'the other player\'s choice');
+  const ask = out.find(o => o.msg && o.msg.t === 'rpDeck');
+  assert.ok(ask && ask.msg.targets.every(t => t > 13), 'deck drawn around 15★');
+});
+
+test('each lounge joins only its own kind of room: a duel from the Ranked Play lounge, a room from the multiplayer lounge', () => {
+  const duel = new RoomLogic('RD', () => 0);
+  duel.join('a', 'Alice', true, { mode: 'rp', keys: 4 });
+  const no = duel.join('b', 'Bob', false, { want: 'room' });
+  assert.equal(no.ok, false); assert.match(no.error, /Ranked Play/);
+  assert.equal(duel.players.length, 1, 'the refused player never entered');
+  assert.equal(duel.rp.stage, 'waitjoin');
+  assert.ok(duel.join('b', 'Bob', false, { want: 'rp' }).ok);
+  const room = new RoomLogic('RR', () => 0);
+  room.join('a', 'Alice', true, {});
+  const no2 = room.join('b', 'Bob', false, { want: 'rp' });
+  assert.equal(no2.ok, false); assert.match(no2.error, /regular room/);
+  assert.ok(room.join('b', 'Bob', false, { want: 'room' }).ok);
+  assert.ok(room.join('c', 'Cat', false, {}).ok, 'an invite link joins whatever the room is');
 });

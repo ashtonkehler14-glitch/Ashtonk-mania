@@ -224,7 +224,7 @@ const RankedMatch = {
     const g = this.g;
     const live = g && !['ended'].includes(g.stage) && !(g.stage === 'waitjoin' && !g.rated);
     if (live) {
-      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true });
+      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'stars' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true });
       if (!ok) return;
     }
     Multiplayer.leave();
@@ -249,7 +249,7 @@ const RankedMatch = {
     } else this.refreshStage(g);
     this.paintTop(g);
     this.paintCorners();
-    this.chat.classList.toggle('hidden', g.stage === 'deal' || (g.stage === 'warmup' && g.round === 1) || g.stage === 'waitjoin');
+    this.chat.classList.toggle('hidden', g.stage === 'stars' || g.stage === 'deal' || (g.stage === 'warmup' && g.round === 1) || g.stage === 'waitjoin');
     // the end of a match goes into your history (and moves your rating if it was rated)
     if (g.stage === 'ended' && g.round > 0 && !this._recorded) this.recordEnd(g);
     if (g.stage !== 'ended') this._recorded = false;
@@ -288,13 +288,13 @@ const RankedMatch = {
       this.multEl = h('div.rkm-round');
       this.top.append(h('div.rkm-headbox', this.headEl, h('div.rkm-tbar', this.timerBar), this.timerEl), this.capEl, this.multEl);
     }
-    const H = { waitjoin: '', deal: '', warmup: '', discard: 'Discard Phase', discarded: 'Discard Phase', pick: 'Pick Phase', picked: 'Pick Phase', ready: 'Gameplay', playing: 'Gameplay', results: 'Results', ended: 'Results' };
+    const H = { waitjoin: '', stars: 'Star Rating', deal: '', warmup: '', discard: 'Discard Phase', discarded: 'Discard Phase', pick: 'Pick Phase', picked: 'Pick Phase', ready: 'Gameplay', playing: 'Gameplay', results: 'Results', ended: 'Results' };
     const head = H[g.stage] || '';
     if (this.headEl.textContent !== head) this.headEl.textContent = head;
     this.top.classList.toggle('none', !head);
     const cap = this.caption(g);
     if (this.capEl.textContent !== cap) this.capEl.textContent = cap;
-    const round = g.round > 0 && !['ended', 'waitjoin', 'deal'].includes(g.stage) ? `Round ${g.round} · ×${+g.mult.toFixed(1)} round damage${g.rated ? '' : ' · unrated'}` : '';
+    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round} · ×${+g.mult.toFixed(1)} round damage` : '';
     if (this.multEl.textContent !== round) this.multEl.textContent = round;
   },
   caption(g) {
@@ -401,11 +401,12 @@ const RankedMatch = {
     this._intro = null; this.countEl = null; this._waitCap = false; this._resultsHeld = false;
     clearTimeout(this._capT);
     const st = g.stage;
-    this.root.classList.toggle('no-corners', st === 'deal' || (st === 'warmup' && g.round === 1) || st === 'results' || st === 'waitjoin');
+    this.root.classList.toggle('no-corners', st === 'stars' || st === 'deal' || (st === 'warmup' && g.round === 1) || st === 'results' || st === 'waitjoin');
     const m = h(`div.rkm-stage.st-${st}`);
     clearEl(this.main).append(m);
     this.stageEl = m;
     if (st === 'waitjoin') this.renderWait(m, g);
+    else if (st === 'stars') this.renderStars(m, g);
     else if (st === 'deal' || st === 'warmup') this.renderIntro(m, g, prev);
     else if (st === 'discard' || st === 'discarded') this.renderDiscard(m, g);
     else if (st === 'pick' || st === 'picked') this.renderPick(m, g);
@@ -420,6 +421,7 @@ const RankedMatch = {
     else if (st === 'pick' || st === 'picked') this.refreshPick(g);
     else if (st === 'ready') this.refreshWarmup(g);
     else if (st === 'waitjoin') this.renderStage(g, st);
+    else if (st === 'stars') this.refreshStars(g);
     else if (st === 'deal' || st === 'warmup') { if (this._intro) this._intro.stars = g.stars; }
     else if (st === 'playing') this.refreshPlaying(g);
   },
@@ -430,8 +432,8 @@ const RankedMatch = {
     if (g.rated) { m.append(h('div.rkm-wait', h('span.spinner'), h('div', 'Waiting for your opponent to join…'))); return; }
     const pub = !(r.settings && r.settings.public === false);
     m.append(h('div.rkm-duel',
-      h('div.rkm-duel-t', `${g.keys}K Ranked Play duel`), h('div.rkm-duel-s', 'Unrated · the cards are dealt around the lower of your two ratings'),
-      h('div.rkm-duel-vs', h('div.rkm-duel-p', this.avatar(Multiplayer.me, 84), h('b', ProfileManager.profile.name), h('span', `Rating ${fmtInt(g.users[Multiplayer.me] ? g.users[Multiplayer.me].rating : RankedRating.rating(g.keys))}`)),
+      h('div.rkm-duel-t', `${g.keys}K Ranked Play`), h('div.rkm-duel-s', 'No rating at stake · you\'ll both choose a star rating, and the cards are dealt around it'),
+      h('div.rkm-duel-vs', h('div.rkm-duel-p', this.avatar(Multiplayer.me, 84), h('b', ProfileManager.profile.name)),
         h('div.rkm-duel-x', 'VS'),
         opp ? h('div.rkm-duel-p', this.avatar(opp, 84), h('b', this.name(opp))) : h('div.rkm-duel-p.searching', h('div.rkm-duel-ping', h('i'), h('i'), icon('user')), h('b', 'Waiting…'), h('span', 'for someone to join'))),
       h('div.rkm-duel-l', pub ? 'Listed under Open rooms — or share the code' : 'Private — share the code'),
@@ -440,6 +442,42 @@ const RankedMatch = {
         h('button.btn.sm.primary.mp-invite', { onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite'))));
   },
 
+  /** Before the cards are dealt, both players choose how hard they want the match: a star rating from 0.5★ to 15★
+   *  (a slider, the number, or a preset), locked in with the button. The other's choice stays hidden until both
+   *  have chosen; the deck is then drawn around their average. */
+  renderStars(m, g) {
+    const me = g.users[Multiplayer.me] || {};
+    const last = clamp(+Settings.get('mp.rpStars') || 3, 0.5, 15);
+    const val = h('div.rks-val'), slider = h('input.slider.rks-slider', { type: 'range', min: 0.5, max: 10, step: 0.05, value: Math.min(10, last), 'aria-label': 'Star rating' });
+    const num = h('input.input.rks-num', { type: 'number', min: 0.5, max: 15, step: 0.01, value: last.toFixed(2), 'aria-label': 'Star rating' });
+    const set = v => { v = clamp(Math.round((+v || 0.5) * 100) / 100, 0.5, 15); val.textContent = `${v.toFixed(2)}★`; val.style.color = starColour(v); slider.value = Math.min(10, v); if (document.activeElement !== num) num.value = v.toFixed(2); this._starsPick = v; };
+    slider.addEventListener('input', () => set(slider.value));
+    num.addEventListener('input', () => set(num.value));
+    num.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') lock.click(); });
+    const presets = h('div.rks-presets', ...[2, 3, 4, 5, 6, 7].map(v => h('button.rks-pre', { onclick: () => { UISounds.click(); set(v); } }, `${v}★`)));
+    const lock = h('button.btn.primary.rks-lock', { onclick: () => {
+      UISounds.play('rp-card'); Settings.set('mp.rpStars', this._starsPick);
+      Multiplayer.send({ t: 'rpStars', stars: this._starsPick });
+    } }, 'Lock in');
+    this._stars = { val, slider, num, lock, presets, status: h('div.rks-status') };
+    m.append(h('div.rks',
+      h('div.rks-t', 'Choose your star rating'),
+      h('div.rks-s', 'Both players pick how hard they want the match. The cards are dealt around the average of your two picks.'),
+      val, h('div.rks-row', slider, num), presets, lock, this._stars.status));
+    set(me.pref != null ? me.pref : last);
+    this.refreshStars(g);
+  },
+  refreshStars(g) {
+    const it = this._stars;
+    if (!it) return;
+    const me = g.users[Multiplayer.me] || {}, oppId = this.oppId(), opp = oppId ? g.users[oppId] : null;
+    const mine = me.pref != null;
+    for (const el of [it.slider, it.num, it.lock, ...it.presets.children]) el.disabled = mine;
+    it.lock.textContent = mine ? `Locked in at ${me.pref.toFixed(2)}★` : 'Lock in';
+    clearEl(it.status).append(
+      h('span', mine ? 'You: locked in' : 'You: choosing…'),
+      h('span', opp ? `${this.name(oppId)}: ${opp.picked ? 'locked in' : 'choosing…'}` : ''));
+  },
   /** Round 1's intro (lazer's IntroScreen): the two players face off (VsSequence), then the deck's star rating is
    *  "refined" and lands (StarRatingSequence). */
   renderIntro(m, g, prev) {
@@ -447,8 +485,8 @@ const RankedMatch = {
     const me = Multiplayer.me, opp = this.oppId();
     const side = (id, cls, sc) => h(`div.rki-side.${cls}`, { style: { '--p': sc.primary, '--pd': sc.darker } },
       h('div.rki-av', this.avatar(id, 132)), h('div.rki-name', id ? this.name(id) : '…'),
-      h('div.rki-rt', g.rated ? `Rating: ${fmtInt(id && g.users[id] ? g.users[id].rating : 0)}` : 'Unrated duel'));
-    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Difficulty range is calculated to suit the two players.');
+      h('div.rki-rt', id && g.users[id] && g.users[id].pref != null ? `Chose ${g.users[id].pref.toFixed(2)}★` : ''));
+    const star = h('div.rki-stars', '~0.00'), title = h('div.rki-st', 'Refining star difficulty range...'), sub = h('div.rki-sub', 'Drawn around the star ratings you both chose.');
     const after = h('div.rki-after', 'There\'s always a chance that you get maps outside this range');
     const rki = h('div.rki',
       h('div.rki-vs', side(me, 'l', RP_BLUE), h('div.rki-x', 'VS'), side(opp, 'r', RP_RED)),
@@ -776,7 +814,7 @@ const RankedMatch = {
     const lifeRow = (id, x) => x ? h('div.rke-row', this.avatar(id, 32), h('b', this.name(id)), h('span', `${fmtInt(x.life)} life`), h('span', `${x.won} round${x.won === 1 ? '' : 's'} won`)) : null;
     m.append(h(`div.rke.${res}`,
       h('div.rke-title', title),
-      g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', 'Unrated duel'),
+      g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', `${g.keys}K duel · ${g.round} round${g.round === 1 ? '' : 's'} played`),
       g.round ? h('div.rke-rows', lifeRow(me, u), lifeRow(opp, o)) : null,
       h('div.rke-btns',
         h('button.rke-btn.quit', { onclick: () => { UISounds.back(); Multiplayer.leave(); } }, 'Quit'),

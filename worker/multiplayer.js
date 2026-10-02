@@ -141,6 +141,9 @@ export class RoomLogic {
     if (this.qp && this.qp.round > 0) return { ok: false, error: 'This Quick Play match has already started.' };
     if (this.rp && this.rp.stage !== 'waitjoin') return { ok: false, error: 'This Ranked Play match has already started.' };
     if (this.state !== 'lobby') return { ok: false, error: 'A match is in progress in this room.' };
+    // each lounge joins only its own kind of room (the client says which it's joining from)
+    if (this.created && opts.want === 'rp' && !this.rp) return { ok: false, error: 'That\'s a regular room — join it from the multiplayer lounge.' };
+    if (this.created && opts.want === 'room' && (this.rp || this.qp)) return { ok: false, error: 'That\'s a Ranked Play room — join it from Ranked Play on the main menu.' };
     if (!this.created) {
       // whoever opens the room sets it up: Quick Play, or a custom room (a quick 1v1 match asks for 2 players)
       this.created = true;
@@ -268,6 +271,7 @@ export class RoomLogic {
         return [this.roomMsg()];
       }
       case 'rpready': return this.rp && m.ready !== false ? this.rp.setReady(id) : [];
+      case 'rpStars': return this.rp ? this.rp.setStars(id, m.stars) : [];
       case 'bye': p.leaving = true; return []; // (leaving on purpose: the closed connection isn't a drop to wait out)
       case 'ping': return [{ to: id, msg: { t: 'pong', c: m.c, s: this.now() } }];
       case 'chat': {

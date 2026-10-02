@@ -60,11 +60,10 @@ async function player(name) {
   return page;
 }
 
-// Create room: regular or ranked, then public or private
+// Create room: public or private (the lounge only makes regular rooms)
 async function createRoom(page, ranked, isPublic) {
   await page.click('.mp-create');
   await page.waitForSelector('.mp-cr');
-  await page.click(`.mp-cr-card.type[data-v="${ranked}"]`);
   await page.click(`.mp-cr-card.vis[data-v="${isPublic}"]`);
   await page.click('.dialog .actions .btn.primary');
   await page.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
@@ -295,25 +294,44 @@ await bob.waitForFunction(() => window.AshtonkMania && AshtonkMania.Multiplayer.
 check('opening an invite link joins the room', await bob.evaluate(c => AshtonkMania.Multiplayer.room.code === c && !location.search.includes('join'), await alice.evaluate(() => AshtonkMania.Multiplayer.room.code)));
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
 
-// Ranked Play (osu!lazer's 1v1 card mode): both queue for 4K, the queue pairs them and both accept
+// Ranked Play (osu!lazer's 1v1 card mode) has its own lounge, opened from the main menu, with no rating at stake:
+// Alice opens a public 4K duel, Bob finds it there (and not in the normal lounge), then both choose a star rating
 await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
 await bob.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
-await Promise.all([alice, bob].map(p => p.waitForSelector('.rq .rq-btn.go', { timeout: 10000 })));
-check('the lobby has the Ranked Play queue with your rating (a new player\'s comes from their pp, as lazer)', await alice.evaluate(() => /Ranked Play/.test(document.querySelector('.rq').textContent) && +document.querySelector('.rq-rating b').textContent.replace(/,/g, '') === Math.round(-4000 + 600 * Math.log(AshtonkMania.ScoreManager.totalPp(AshtonkMania.ScoreManager.scores.filter(s => s.keys === 4)).total + 4000))));
-await alice.click('.rq .rq-btn.go');
-await alice.waitForFunction(() => /Searching for a match/.test((document.querySelector('.rq-search') || {}).textContent || ''), null, { timeout: 10000 });
-check('queueing: "Searching for a match..." with the time waited, and Stop queueing', await alice.evaluate(() => !!document.querySelector('.rq .rq-btn.stop')));
-await shot(alice, 'mp-rp-queue');
-await bob.click('.rq .rq-btn.go');
-await Promise.all([alice, bob].map(p => p.waitForSelector('.rq-offer', { timeout: 15000 })));
-check('match found: each is offered the match against the other, with a timer', await alice.evaluate(() => /Bob/.test(document.querySelector('.rq-offer').textContent) && !!document.querySelector('.rq-bar')) && await bob.evaluate(() => /Alice/.test(document.querySelector('.rq-offer').textContent)));
-await shot(alice, 'mp-rp-found');
-for (const p of [alice, bob]) await p.click('.dialog .actions .btn.primary');
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 15000 })));
-check('both accepted: one rated match for the two of them', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code) && await alice.evaluate(() => AshtonkMania.Multiplayer.room.rp.rated));
+await alice.waitForSelector('.mp-create', { timeout: 10000 });
+check('the normal lounge has no Ranked Play queue or match-type choice', await alice.evaluate(() => !document.querySelector('.rq') && !/Ranked Play/.test(document.querySelector('.mp-create').textContent)));
+await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer', { ranked: true, force: true }));
+await alice.waitForFunction(() => /Ranked Play/.test(document.querySelector('#app').textContent) && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
+check('the Ranked Play lounge: "Create duel", no rating shown', await alice.evaluate(() => !document.querySelector('.rq-rating') && !/Your \dK rating/.test(document.querySelector('#app').textContent)));
+await alice.click('.mp-create');
+await alice.waitForSelector('.dialog .mp-cr', { timeout: 5000 });
+await alice.click('.dialog .actions .btn.primary');
+await alice.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.rp.stage === 'waitjoin', null, { timeout: 15000 });
+const duel = await alice.evaluate(() => AshtonkMania.Multiplayer.room.code);
+check('the duel is unrated', await alice.evaluate(() => !AshtonkMania.Multiplayer.room.rp.rated));
+await bob.waitForFunction(c => document.querySelector('.mp-roomlist') && AshtonkMania.MultiplayerScreen._roomRows && !AshtonkMania.MultiplayerScreen._roomRows.has(c), duel, { timeout: 15000 });
+check('the duel isn\'t listed in the normal lounge', true);
+const refused = await bob.evaluate(async c => { try { await AshtonkMania.MultiplayerScreen.joinHere(c); return 'joined'; } catch (e) { return e.message; } }, duel);
+check('joining a duel\'s code from the normal lounge is refused', /Ranked Play/.test(refused) && !(await bob.evaluate(() => AshtonkMania.Multiplayer.inRoom())), refused);
+await bob.evaluate(() => AshtonkMania.Screens.go('multiplayer', { ranked: true, force: true }));
+await bob.waitForFunction(c => AshtonkMania.MultiplayerScreen._roomRows && AshtonkMania.MultiplayerScreen._roomRows.has(c), duel, { timeout: 15000 });
+check('…but it is in the Ranked Play lounge', true);
+await shot(bob, 'mp-rp-lounge');
+await bob.evaluate(c => AshtonkMania.MultiplayerScreen._roomRows.get(c).row.click(), duel);
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Multiplayer.isRP() && AshtonkMania.Multiplayer.room.rp.stage === 'stars' && document.querySelector('.rks .rks-lock'), null, { timeout: 15000 })));
+check('both in: each chooses a star rating first', await alice.evaluate(() => /Choose your star rating/.test(document.querySelector('.rks').textContent) && /Star Rating/.test(document.querySelector('.rkm-head').textContent)));
+await alice.click('.rks-pre:nth-child(3)');
+await alice.click('.rks-lock');
+await alice.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.rp.users[AshtonkMania.Multiplayer.me].pref === 4; }, null, { timeout: 5000 });
+check('the other player\'s pick stays hidden until both lock in', await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room, me = AshtonkMania.Multiplayer.me, o = Object.keys(r.rp.users).find(id => id !== me); return r.rp.users[o].picked && r.rp.users[o].pref == null && r.rp.stage === 'stars'; }));
+await shot(bob, 'mp-rp-pick-stars');
+await bob.fill('.rks-num', '2.5');
+await bob.click('.rks-lock');
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => !['waitjoin', 'stars'].includes(AshtonkMania.Multiplayer.room.rp.stage), null, { timeout: 15000 })));
+check('both locked in: the cards are dealt', true);
 // round 1's intro: the face-off, then the deck's star rating; no corner pieces or chat yet
 await alice.waitForSelector('.rki .rki-x', { timeout: 10000 });
-check('the intro: both players face off with their ratings', await alice.evaluate(() => document.querySelectorAll('.rki-side').length === 2 && /Rating: /.test(document.querySelector('.rki-side').textContent) && document.querySelector('.rkm').classList.contains('no-corners') && document.querySelector('.rkm-chat').classList.contains('hidden') && document.querySelector('#app').classList.contains('hide-toolbar')));
+check('the intro: both players face off with the star ratings they chose', await alice.evaluate(() => document.querySelectorAll('.rki-side').length === 2 && /Chose 4\.00★/.test(document.querySelector('.rkm').textContent) && /Chose 2\.50★/.test(document.querySelector('.rkm').textContent) && !/Rating: /.test(document.querySelector('.rki-side').textContent) && document.querySelector('.rkm').classList.contains('no-corners') && document.querySelector('.rkm-chat').classList.contains('hidden') && document.querySelector('#app').classList.contains('hide-toolbar')));
 await shot(alice, 'mp-rp-intro');
 await alice.waitForFunction(() => document.querySelector('.rki.landed'), null, { timeout: 15000 });
 check('…then the star rating is decided', await alice.evaluate(() => /Star rating has been decided/.test(document.querySelector('.rki').textContent) && /~\d+\.\d\d/.test(document.querySelector('.rki-stars').textContent)));
@@ -375,17 +393,17 @@ check('…you wait in the match while your opponent plays on', await bob.evaluat
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 45000 })));
 const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id; return { score: r.rp.results.scores[b], life: r.rp.users[b].life }; });
 check('…and take the damage for a score of 0', r2.score === 0 && r2.life < lifeBefore, JSON.stringify({ ...r2, lifeBefore }));
-// Bob leaves the match: he loses it, and Alice's rating goes up
+// Bob leaves the match: he loses it (nothing rated)
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.Multiplayer.room.rp.stage === 'ended', null, { timeout: 30000 });
 await alice.waitForSelector('.rke-title', { timeout: 5000 });
-const end = await alice.evaluate(() => ({ title: document.querySelector('.rke-title').textContent, rating: document.querySelector('.rke-rating') && document.querySelector('.rke-rating').textContent, stored: AshtonkMania.Multiplayer.room && JSON.parse(localStorage.getItem('am.rp.ratings') || '{}') }));
-check('the opponent leaving ends the match: VICTORY, and the rating goes up (rated)', end.title === 'VICTORY' && /Your Rating: [\d,]+\+\d+/.test(end.rating) && end.stored['4'] && end.stored['4'].played === 1 && end.stored.history.length === 1, JSON.stringify(end));
+const end = await alice.evaluate(() => ({ title: document.querySelector('.rke-title').textContent, rating: !!document.querySelector('.rke-rating'), sub: (document.querySelector('.rke-sub') || {}).textContent, again: document.querySelector('.rke-btn.again').textContent }));
+check('the opponent leaving ends the match: VICTORY, with no rating change', end.title === 'VICTORY' && !end.rating && /4K duel · 2 rounds played/.test(end.sub) && end.again === 'New duel', JSON.stringify(end));
 await alice.waitForTimeout(1600); await shot(alice, 'mp-rp-ended');
 check('the match screen shows no stray "null" / "undefined" / "NaN" text', await alice.evaluate(() => !/\b(null|undefined|NaN)\b/.test(document.querySelector('.rkm').innerText)));
 await alice.click('.rke-btn.quit');
-await alice.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom() && document.querySelector('.rq-match.win'), null, { timeout: 10000 });
-check('back in the lobby: the match is in your recent matches', true);
+await alice.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom() && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
+check('back in the Ranked Play lounge', true);
 
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
