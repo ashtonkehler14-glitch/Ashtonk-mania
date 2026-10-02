@@ -3017,3 +3017,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .ms-info-r { min-width: 70px; background: hsl(var(--o-h) 10% 30%); font-size: 17px; font-weight: 600; }
 .ms-info.up .ms-info-r { color: #88b300; } .ms-info.down .ms-info-r { color: #ff6666; }
 .ms-info i { font-style: normal; display: inline-block; transform: skewX(11.31deg); }
+/* beatmap listing filters: lazer's BeatmapSearchFilterRow — a 100px label column and 13px tabs 10px apart, the active
+   one bold in Content1 (no underline), the rest Light2; rows 5px apart */
+.explorer.ov .ex-filters { gap: 5px; padding: 0 10px; margin-top: 20px; }
+.explorer.ov .ex-filter { gap: 0; }
+.explorer.ov .ex-flabel { width: 100px; padding-top: 2px; font-size: 13px; font-weight: 400; }
+.explorer.ov .ex-chips { gap: 0 10px; }
+.explorer.ov .ex-chip { margin: 0; padding: 2px 0; font-size: 13px; color: hsl(var(--o-h) 40% 75%); }
+.explorer.ov .ex-chip.on { color: hsl(var(--o-h) 40% 100%); }
+.explorer.ov .ex-chip.on::after { content: none; }

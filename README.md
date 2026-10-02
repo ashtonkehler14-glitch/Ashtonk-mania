@@ -32,7 +32,8 @@ In the dashboard, leave the build command empty and set the deploy command to `n
   - renderer scale and automatic resolution, particles, blur, background quality, the low-latency mode;
   - most of the custom skin's look (receptors, glow, roundness and the like), the interface sound volume, input latency, and the preview and cover sources.
 
-### Mod select footer
+### Mod select footer and beatmap listing
+- **Beatmap listing filters** use lazer's compact rows: a 100 px label column and 13 px choices 10 px apart. The chosen one is bold white with no underline.
 - **Mod select's footer is lazer's:** the back button, then a 200 px slanted "Deselect all" button (Backspace still works).
 - The speed and score multiplier sit in slanted two-part boxes at the bottom right instead of the header.
 - The Done button and the tip line are gone. Esc, the back button or clicking outside closes mod select, as in lazer.
