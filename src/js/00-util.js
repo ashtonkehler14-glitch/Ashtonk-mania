@@ -154,6 +154,14 @@ function fuzzyScore(hay, needle) {
   return score;
 }
 
+/** Set an element's text by changing its text node in place when it has one: replacing the node (textContent =) counts
+ *  as a DOM insertion, which re-checks every :has() and sibling rule on the page — on the gameplay HUD, every update. */
+function setText(el, text) {
+  const n = el.firstChild;
+  if (n && n.nodeType === 3 && !n.nextSibling) { if (n.data !== text) n.data = text; }
+  else el.textContent = text;
+}
+
 /** lazer's song select search: a word matches only where it appears as written (any case) — no loose letter-by-letter
  *  matching, so a search leaves just the songs it names. Earlier and word-start matches score higher. */
 function wordScore(hay, word) {

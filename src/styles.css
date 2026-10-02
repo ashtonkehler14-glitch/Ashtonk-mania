@@ -662,10 +662,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes msgPop { from { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
 .hud-replay { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .55); border: 1px solid var(--line-2); font-weight: 700; font-size: .85rem; letter-spacing: .06em; }
 .hud-replay.low { top: auto; bottom: 16px; } /* upscroll: the keys are up top, so the badge goes under the stage */
-.hud-replay .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-right: 8px; animation: blink 1s infinite; }
-@keyframes blink { 50% { opacity: .2; } }
-.gp-fail { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 30, 60, .0), rgba(255, 30, 60, .35)); pointer-events: none; opacity: 0; transition: opacity 600ms; }
-.gp-fail.on { opacity: 1; }
+.hud-replay .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-right: 8px; animation: blink 1s steps(1) infinite; } /* (stepped: a smooth fade restyled the page every frame) */
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: .25; } }
+/* (hidden until a fail, not just transparent: a transparent full-screen layer was still blended into every frame) */
+.gp-fail { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 30, 60, .0), rgba(255, 30, 60, .35)); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 600ms, visibility 0s 600ms; }
+.gp-fail.on { opacity: 1; visibility: visible; transition: opacity 600ms; }
 .gameplay.failing > canvas { animation: failSink 1.2s cubic-bezier(.55, 0, 1, .45) forwards; transform-origin: 50% 100%; }
 @keyframes failSink { to { transform: translateY(7%) scale(.97); filter: brightness(.55) saturate(.4); } }
 /* pause / fail: osu!lazer's GameplayMenuOverlay — a plain black dim (no blur), lowercase title with its line, and
@@ -1825,6 +1826,8 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
    a shadow for contrast, one right-hand stack for the numbers, and a sheared, fading leaderboard at the left edge */
 .gp-hud { --hud-shadow: 0 1px 3px rgba(0, 0, 0, .55), 0 0 18px rgba(0, 0, 0, .35); }
 .hud-score { top: 14px; right: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+/* (the score and accuracy text change many times a second: containment keeps each change's layout inside this box) */
+.hud-score { contain: layout style; }
 .hud-score .sc { font-weight: 600; letter-spacing: .01em; text-shadow: var(--hud-shadow); }
 .hud-score .acc { font-weight: 600; color: rgba(255, 255, 255, .88); text-shadow: var(--hud-shadow); }
 .hud-accrow { gap: 8px; }

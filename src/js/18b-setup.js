@@ -16,6 +16,9 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
+/** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
+const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(navigator.userAgent || '');
+
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
@@ -181,7 +184,7 @@ const Onboarding = {
     };
     return [h('div.setup-choices.two', ...Object.entries(SETUP_DEVICES).map(([id, o]) =>
       h(`button.setup-choice${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => pick(id) },
-        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', o.sub), h('span.setup-check', icon('check')))))];
+        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && IS_CHROMEBOOK ? 'Recommended: you\'re on a Chromebook' : o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_look() {

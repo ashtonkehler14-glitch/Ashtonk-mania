@@ -679,10 +679,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @keyframes msgPop { from { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
 .hud-replay { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 6px 16px; border-radius: 99px; background: rgba(0, 0, 0, .55); border: 1px solid var(--line-2); font-weight: 700; font-size: .85rem; letter-spacing: .06em; }
 .hud-replay.low { top: auto; bottom: 16px; } /* upscroll: the keys are up top, so the badge goes under the stage */
-.hud-replay .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-right: 8px; animation: blink 1s infinite; }
-@keyframes blink { 50% { opacity: .2; } }
-.gp-fail { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 30, 60, .0), rgba(255, 30, 60, .35)); pointer-events: none; opacity: 0; transition: opacity 600ms; }
-.gp-fail.on { opacity: 1; }
+.hud-replay .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-right: 8px; animation: blink 1s steps(1) infinite; } /* (stepped: a smooth fade restyled the page every frame) */
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: .25; } }
+/* (hidden until a fail, not just transparent: a transparent full-screen layer was still blended into every frame) */
+.gp-fail { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 30, 60, .0), rgba(255, 30, 60, .35)); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 600ms, visibility 0s 600ms; }
+.gp-fail.on { opacity: 1; visibility: visible; transition: opacity 600ms; }
 .gameplay.failing > canvas { animation: failSink 1.2s cubic-bezier(.55, 0, 1, .45) forwards; transform-origin: 50% 100%; }
 @keyframes failSink { to { transform: translateY(7%) scale(.97); filter: brightness(.55) saturate(.4); } }
 /* pause / fail: osu!lazer's GameplayMenuOverlay — a plain black dim (no blur), lowercase title with its line, and
@@ -1842,6 +1843,8 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
    a shadow for contrast, one right-hand stack for the numbers, and a sheared, fading leaderboard at the left edge */
 .gp-hud { --hud-shadow: 0 1px 3px rgba(0, 0, 0, .55), 0 0 18px rgba(0, 0, 0, .35); }
 .hud-score { top: 14px; right: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+/* (the score and accuracy text change many times a second: containment keeps each change's layout inside this box) */
+.hud-score { contain: layout style; }
 .hud-score .sc { font-weight: 600; letter-spacing: .01em; text-shadow: var(--hud-shadow); }
 .hud-score .acc { font-weight: 600; color: rgba(255, 255, 255, .88); text-shadow: var(--hud-shadow); }
 .hud-accrow { gap: 8px; }
@@ -3291,6 +3294,14 @@ function fuzzyScore(hay, needle) {
     hi = at + 1;
   }
   return score;
+}
+
+/** Set an element's text by changing its text node in place when it has one: replacing the node (textContent =) counts
+ *  as a DOM insertion, which re-checks every :has() and sibling rule on the page — on the gameplay HUD, every update. */
+function setText(el, text) {
+  const n = el.firstChild;
+  if (n && n.nodeType === 3 && !n.nextSibling) { if (n.data !== text) n.data = text; }
+  else el.textContent = text;
 }
 
 /** lazer's song select search: a word matches only where it appears as written (any case) — no loose letter-by-letter
@@ -5631,6 +5642,13 @@ const Settings = {
     // downloads work as Web-Osu-Mania's: one chosen provider (Mino by default), straight from the browser unless proxied
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
+    // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
+    if (!v['migr.crosAuto']) {
+      v['migr.crosAuto'] = true;
+      if (typeof IS_CHROMEBOOK !== 'undefined' && IS_CHROMEBOOK && !v['setup.device'] && typeof SETUP_DEVICES !== 'undefined') {
+        Object.assign(v, SETUP_DEVICES.chromebook.values()); v['setup.device'] = 'chromebook';
+      }
+    }
     this.applyUI();
   },
   get(k) {
@@ -6989,8 +7007,9 @@ class ManiaRenderer {
       if (this.layout && Number.isFinite(this.stageX)) {
         // (a Web-Osu-Mania skin's judgements can be wider than its stage)
         const extra = this.layout.wom ? Math.max(0, 200 * this.womD - this.stageW / 2) : 0;
-        x0 = clamp(Math.floor(this.stageX - 40 * this.s - extra), 0, w - 1);
-        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s + extra), x0 + 1, w);
+        const [ml, mr] = this._cropMargins();
+        x0 = clamp(Math.floor(this.stageX - ml - extra), 0, w - 1);
+        x1 = clamp(Math.ceil(this.stageX + this.stageW + mr + extra), x0 + 1, w);
       }
       this.cropX = x0;
       c.width = x1 - x0; c.height = hh;
@@ -7002,6 +7021,22 @@ class ManiaRenderer {
     c.width = w; c.height = hh;
     this.W = w; this.H = hh;
     this._geom();
+  }
+  /** How far beyond the stage the cropped canvas reaches, left and right: only as far as something is drawn there (the
+   *  skin's stage sides, hit lighting wider than its column, the health bar, the key overlay). Every pixel of the canvas
+   *  is cleared, drawn and handed to the compositor each frame, so a tighter canvas is a cheaper frame. */
+  _cropMargins() {
+    const L = this.layout, s = this.s, us = this.legacy ? this.u : s;
+    const sideL = L.tex && L.tex.stageLeft ? L.tex.stageLeft.w * us : 0, sideR = L.tex && L.tex.stageRight ? L.tex.stageRight.w * us : 0;
+    // (hit lighting is centred on its column and can be wider than it: half the overflow on each side)
+    const colW = this.colW && this.colW.length ? Math.max(...this.colW) : 30 * s;
+    const light = Settings.get('gameplay.hitLighting') && !L.wom ? colW * 0.5 : 0;
+    let right = Math.max(sideR, light, 4 * s);
+    const hm = this.healthMode;
+    if (hm === 'stage') right = Math.max(right, 10 * s);
+    if (hm === 'skinstage') right = Math.max(right, 70 * s);
+    if (Settings.get('input.keyOverlay')) right = Math.max(right, 48 * s);
+    return [Math.ceil(Math.max(sideL, light, 4 * s) + 2), Math.ceil(right + 2)];
   }
   _geom() {
     this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
@@ -11177,6 +11212,7 @@ const GameplayScreen = {
     this.healthMode = healthModeFor(layout);
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
+    this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -11577,9 +11613,9 @@ const GameplayScreen = {
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
       const sc = s.mp ? e.score.score : ScoreManager.value(e.score);
-      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
+      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else setText(this.scoreEl, fmtScore(sc)); }
       const acc = e.score.accuracy;
-      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
+      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else setText(this.accEl, fmtAcc(acc)); }
     }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
@@ -11604,7 +11640,7 @@ const GameplayScreen = {
       if (e.score.judged !== this._ppJudged) {
         this._ppJudged = e.score.judged;
         const t = String(Math.round(this.livePp(e))); // (the "pp" is a smaller suffix drawn by CSS, as lazer's counter)
-        if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+        setText(this.ppEl, t);
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
@@ -11659,12 +11695,12 @@ const GameplayScreen = {
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
-      me._pos = above + 1; me.pos.textContent = above + 1; me.el.style.order = above * 2 + 1;
-      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); r.pos.textContent = p; r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
+      me._pos = above + 1; setText(me.pos, String(above + 1)); me.el.style.order = above * 2 + 1;
+      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, String(p)); r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
     }
     const sub = `${fmtAcc(e.score.accuracy)} · ${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
-    if (me._sub !== sub) { me._sub = sub; me.sub.textContent = sub; }
-    if (me._st !== st) { me._st = st; me.sc.textContent = st; }
+    if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
+    if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
   },
   /** The board Tab toggles: the multiplayer standings, or the local leaderboard. */
   board() { return this.mpBoard && this.s.mp ? this.mpBoard : this.lbEl; },
@@ -11720,9 +11756,9 @@ const GameplayScreen = {
       const away = !r.me && !!(room && (room.players.find(p => p.id === r.id) || {}).away);
       if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
       const pos = i + 1, sub = away ? 'reconnecting…' : win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
-      if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
-      if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
-      if (r._st !== st) { r._st = st; r.sc.textContent = st; }
+      if (r._pos !== pos) { r._pos = pos; setText(r.pos, String(pos)); r.el.style.order = pos; }
+      if (r._sub !== sub) { r._sub = sub; setText(r.sub, String(sub)); }
+      if (r._st !== st) { r._st = st; setText(r.sc, String(st)); }
     });
     if (this.mpTeams) {
       const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
@@ -12162,7 +12198,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     }
     if (!g) return;
     const left = Math.max(0, Math.ceil((g[1] - 800 * s.rate - now) / 1000 / s.rate));
-    if (left !== this._brkLeft) { this._brkLeft = left; this.brkCount.textContent = left; }
+    if (left !== this._brkLeft) { this._brkLeft = left; setText(this.brkCount, String(left)); }
     const rem = clamp((g[1] - 800 * s.rate - now) / (g[1] - g[0] - 1600 * s.rate), 0, 1);
     const q = Math.round(rem * 300);
     if (q !== this._brkQ) { this._brkQ = q; this.brkBar.style.transform = `scaleX(${q / 300})`; }
@@ -12248,7 +12284,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpFill.style.transform = `scaleX(${p})`;
     this.rpHead.style.transform = `translateX(${p * 100}%)`;
     const t = `${fmtTime(Math.max(0, now / s.rate))} / ${fmtTime(s.endTime / s.rate)}`;
-    if (this.rpTime.textContent !== t) this.rpTime.textContent = t;
+    setText(this.rpTime, t);
     const ic = s.running ? 'pause' : 'play';
     if (this.rpPlay.dataset.ic !== ic) { this.rpPlay.dataset.ic = ic; this.rpPlay.replaceChildren(icon(ic)); }
     this.replayBar.classList.toggle('paused', !s.running);
@@ -12479,8 +12515,8 @@ const FPS = {
           // osu!lazer style: big fps number + frame time, tinted by how healthy the frame rate is
           if (!this.fpsEl) { this.fpsEl = h('b'); this.msEl = h('i'); clearEl(el).append(h('span.fc-fps', this.fpsEl, h('small', 'fps')), this.msEl); }
           el.hidden = false;
-          this.fpsEl.textContent = this.fps.toFixed(0);
-          this.msEl.textContent = `${this.frameMs.toFixed(1)}ms`;
+          setText(this.fpsEl, this.fps.toFixed(0));
+          setText(this.msEl, `${this.frameMs.toFixed(1)}ms`);
           const lvl = this.fps >= 55 ? 'good' : this.fps >= 30 ? 'ok' : 'bad';
           if (el.dataset.lvl !== lvl) el.dataset.lvl = lvl;
         } else if (!el.hidden) el.hidden = true;
@@ -14691,6 +14727,9 @@ const SETUP_DEVICES = {
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
 };
 
+/** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
+const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(navigator.userAgent || '');
+
 const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 'Arrows'], ['thickArrows', 'Thick'], ['diamonds', 'Diamonds']];
 
 const Onboarding = {
@@ -14856,7 +14895,7 @@ const Onboarding = {
     };
     return [h('div.setup-choices.two', ...Object.entries(SETUP_DEVICES).map(([id, o]) =>
       h(`button.setup-choice${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => pick(id) },
-        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', o.sub), h('span.setup-check', icon('check')))))];
+        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && IS_CHROMEBOOK ? 'Recommended: you\'re on a Chromebook' : o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_look() {

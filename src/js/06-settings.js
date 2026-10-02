@@ -204,6 +204,13 @@ const Settings = {
     // downloads work as Web-Osu-Mania's: one chosen provider (Mino by default), straight from the browser unless proxied
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
+    // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
+    if (!v['migr.crosAuto']) {
+      v['migr.crosAuto'] = true;
+      if (typeof IS_CHROMEBOOK !== 'undefined' && IS_CHROMEBOOK && !v['setup.device'] && typeof SETUP_DEVICES !== 'undefined') {
+        Object.assign(v, SETUP_DEVICES.chromebook.values()); v['setup.device'] = 'chromebook';
+      }
+    }
     this.applyUI();
   },
   get(k) {

@@ -252,6 +252,7 @@ const GameplayScreen = {
     this.healthMode = healthModeFor(layout);
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
+    this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -652,9 +653,9 @@ const GameplayScreen = {
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
       const sc = s.mp ? e.score.score : ScoreManager.value(e.score);
-      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else this.scoreEl.textContent = fmtScore(sc); }
+      if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else setText(this.scoreEl, fmtScore(sc)); }
       const acc = e.score.accuracy;
-      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else this.accEl.textContent = fmtAcc(acc); }
+      if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else setText(this.accEl, fmtAcc(acc)); }
     }
     const dur = s.endTime;
     const p = clamp((now - s.firstNote) / Math.max(1, dur - s.firstNote), 0, 1);
@@ -679,7 +680,7 @@ const GameplayScreen = {
       if (e.score.judged !== this._ppJudged) {
         this._ppJudged = e.score.judged;
         const t = String(Math.round(this.livePp(e))); // (the "pp" is a smaller suffix drawn by CSS, as lazer's counter)
-        if (this.ppEl.textContent !== t) this.ppEl.textContent = t;
+        setText(this.ppEl, t);
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
     const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
@@ -734,12 +735,12 @@ const GameplayScreen = {
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
-      me._pos = above + 1; me.pos.textContent = above + 1; me.el.style.order = above * 2 + 1;
-      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); r.pos.textContent = p; r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
+      me._pos = above + 1; setText(me.pos, String(above + 1)); me.el.style.order = above * 2 + 1;
+      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, String(p)); r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
     }
     const sub = `${fmtAcc(e.score.accuracy)} · ${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
-    if (me._sub !== sub) { me._sub = sub; me.sub.textContent = sub; }
-    if (me._st !== st) { me._st = st; me.sc.textContent = st; }
+    if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
+    if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
   },
   /** The board Tab toggles: the multiplayer standings, or the local leaderboard. */
   board() { return this.mpBoard && this.s.mp ? this.mpBoard : this.lbEl; },
@@ -795,9 +796,9 @@ const GameplayScreen = {
       const away = !r.me && !!(room && (room.players.find(p => p.id === r.id) || {}).away);
       if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
       const pos = i + 1, sub = away ? 'reconnecting…' : win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
-      if (r._pos !== pos) { r._pos = pos; r.pos.textContent = pos; r.el.style.order = pos; }
-      if (r._sub !== sub) { r._sub = sub; r.sub.textContent = sub; }
-      if (r._st !== st) { r._st = st; r.sc.textContent = st; }
+      if (r._pos !== pos) { r._pos = pos; setText(r.pos, String(pos)); r.el.style.order = pos; }
+      if (r._sub !== sub) { r._sub = sub; setText(r.sub, String(sub)); }
+      if (r._st !== st) { r._st = st; setText(r.sc, String(st)); }
     });
     if (this.mpTeams) {
       const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
@@ -1237,7 +1238,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     }
     if (!g) return;
     const left = Math.max(0, Math.ceil((g[1] - 800 * s.rate - now) / 1000 / s.rate));
-    if (left !== this._brkLeft) { this._brkLeft = left; this.brkCount.textContent = left; }
+    if (left !== this._brkLeft) { this._brkLeft = left; setText(this.brkCount, String(left)); }
     const rem = clamp((g[1] - 800 * s.rate - now) / (g[1] - g[0] - 1600 * s.rate), 0, 1);
     const q = Math.round(rem * 300);
     if (q !== this._brkQ) { this._brkQ = q; this.brkBar.style.transform = `scaleX(${q / 300})`; }
@@ -1323,7 +1324,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.rpFill.style.transform = `scaleX(${p})`;
     this.rpHead.style.transform = `translateX(${p * 100}%)`;
     const t = `${fmtTime(Math.max(0, now / s.rate))} / ${fmtTime(s.endTime / s.rate)}`;
-    if (this.rpTime.textContent !== t) this.rpTime.textContent = t;
+    setText(this.rpTime, t);
     const ic = s.running ? 'pause' : 'play';
     if (this.rpPlay.dataset.ic !== ic) { this.rpPlay.dataset.ic = ic; this.rpPlay.replaceChildren(icon(ic)); }
     this.replayBar.classList.toggle('paused', !s.running);
@@ -1554,8 +1555,8 @@ const FPS = {
           // osu!lazer style: big fps number + frame time, tinted by how healthy the frame rate is
           if (!this.fpsEl) { this.fpsEl = h('b'); this.msEl = h('i'); clearEl(el).append(h('span.fc-fps', this.fpsEl, h('small', 'fps')), this.msEl); }
           el.hidden = false;
-          this.fpsEl.textContent = this.fps.toFixed(0);
-          this.msEl.textContent = `${this.frameMs.toFixed(1)}ms`;
+          setText(this.fpsEl, this.fps.toFixed(0));
+          setText(this.msEl, `${this.frameMs.toFixed(1)}ms`);
           const lvl = this.fps >= 55 ? 'good' : this.fps >= 30 ? 'ok' : 'bad';
           if (el.dataset.lvl !== lvl) el.dataset.lvl = lvl;
         } else if (!el.hidden) el.hidden = true;

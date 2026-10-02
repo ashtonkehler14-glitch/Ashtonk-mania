@@ -96,8 +96,9 @@ class ManiaRenderer {
       if (this.layout && Number.isFinite(this.stageX)) {
         // (a Web-Osu-Mania skin's judgements can be wider than its stage)
         const extra = this.layout.wom ? Math.max(0, 200 * this.womD - this.stageW / 2) : 0;
-        x0 = clamp(Math.floor(this.stageX - 40 * this.s - extra), 0, w - 1);
-        x1 = clamp(Math.ceil(this.stageX + this.stageW + 72 * this.s + extra), x0 + 1, w);
+        const [ml, mr] = this._cropMargins();
+        x0 = clamp(Math.floor(this.stageX - ml - extra), 0, w - 1);
+        x1 = clamp(Math.ceil(this.stageX + this.stageW + mr + extra), x0 + 1, w);
       }
       this.cropX = x0;
       c.width = x1 - x0; c.height = hh;
@@ -109,6 +110,22 @@ class ManiaRenderer {
     c.width = w; c.height = hh;
     this.W = w; this.H = hh;
     this._geom();
+  }
+  /** How far beyond the stage the cropped canvas reaches, left and right: only as far as something is drawn there (the
+   *  skin's stage sides, hit lighting wider than its column, the health bar, the key overlay). Every pixel of the canvas
+   *  is cleared, drawn and handed to the compositor each frame, so a tighter canvas is a cheaper frame. */
+  _cropMargins() {
+    const L = this.layout, s = this.s, us = this.legacy ? this.u : s;
+    const sideL = L.tex && L.tex.stageLeft ? L.tex.stageLeft.w * us : 0, sideR = L.tex && L.tex.stageRight ? L.tex.stageRight.w * us : 0;
+    // (hit lighting is centred on its column and can be wider than it: half the overflow on each side)
+    const colW = this.colW && this.colW.length ? Math.max(...this.colW) : 30 * s;
+    const light = Settings.get('gameplay.hitLighting') && !L.wom ? colW * 0.5 : 0;
+    let right = Math.max(sideR, light, 4 * s);
+    const hm = this.healthMode;
+    if (hm === 'stage') right = Math.max(right, 10 * s);
+    if (hm === 'skinstage') right = Math.max(right, 70 * s);
+    if (Settings.get('input.keyOverlay')) right = Math.max(right, 48 * s);
+    return [Math.ceil(Math.max(sideL, light, 4 * s) + 2), Math.ceil(right + 2)];
   }
   _geom() {
     this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
