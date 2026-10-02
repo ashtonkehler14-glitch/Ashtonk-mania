@@ -3043,6 +3043,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .explorer.ov .ex-chip { margin: 0; padding: 2px 0; font-size: 13px; color: hsl(var(--o-h) 40% 75%); }
 .explorer.ov .ex-chip.on { color: hsl(var(--o-h) 40% 100%); }
 .explorer.ov .ex-chip.on::after { content: none; }
+.toast.act { cursor: pointer; }
 
 </style>
 </head>
@@ -7983,7 +7984,7 @@ function gradeEl(g, cls = '') {
 
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
-  show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
+  show(title, body = '', { type = 'info', timeout = 4200, log = true, onClick = null } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
     const box = $('#toasts');
     const key = `${type}\n${title}\n${body}`;
@@ -8002,7 +8003,8 @@ const Toast = {
     el._close = close;
     el.addEventListener('pointerenter', () => clearTimeout(timer));
     el.addEventListener('pointerleave', () => { if (timeout) timer = setTimeout(close, 1500); });
-    el.addEventListener('click', close);
+    el.addEventListener('click', () => { if (onClick) onClick(); close(); });
+    if (onClick) el.classList.add('act');
     el._arm();
     return close;
   },
@@ -10725,6 +10727,9 @@ const GameplayScreen = {
     const el = h('div.gp-loader', card, settings,
       h('div.pl-hint', p.mp ? 'Get ready!' : h('span', h('span.kbd', 'Space'), ' start now · ', h('span.kbd', 'Esc'), ' back')));
     this.loaderT0 = performance.now();
+    // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
+    const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
+    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
     return el;
   },
   loaderSlider(k, label, min, max, step, fmt, after) {

@@ -190,7 +190,7 @@ function gradeEl(g, cls = '') {
 
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
-  show(title, body = '', { type = 'info', timeout = 4200, log = true } = {}) {
+  show(title, body = '', { type = 'info', timeout = 4200, log = true, onClick = null } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
     const box = $('#toasts');
     const key = `${type}\n${title}\n${body}`;
@@ -209,7 +209,8 @@ const Toast = {
     el._close = close;
     el.addEventListener('pointerenter', () => clearTimeout(timer));
     el.addEventListener('pointerleave', () => { if (timeout) timer = setTimeout(close, 1500); });
-    el.addEventListener('click', close);
+    el.addEventListener('click', () => { if (onClick) onClick(); close(); });
+    if (onClick) el.classList.add('act');
     el._arm();
     return close;
   },

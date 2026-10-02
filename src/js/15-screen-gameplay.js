@@ -346,6 +346,9 @@ const GameplayScreen = {
     const el = h('div.gp-loader', card, settings,
       h('div.pl-hint', p.mp ? 'Get ready!' : h('span', h('span.kbd', 'Space'), ' start now · ', h('span.kbd', 'Esc'), ' back')));
     this.loaderT0 = performance.now();
+    // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
+    const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
+    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
     return el;
   },
   loaderSlider(k, label, min, max, step, fmt, after) {
