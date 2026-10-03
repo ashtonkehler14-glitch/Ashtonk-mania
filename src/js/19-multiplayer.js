@@ -405,7 +405,7 @@ const Presence = {
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog)? */
-  watching() { return !!document.querySelector('.inv-list') || (typeof OnlinePanel !== 'undefined' && OnlinePanel.isOpen()); },
+  watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard'; },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {

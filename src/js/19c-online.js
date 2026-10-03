@@ -256,73 +256,190 @@ const Spectate = {
   },
 };
 
-/** lazer's online users list (here a panel from the top bar): who's online right now, and your friends. */
-const OnlinePanel = {
-  el: null, tab: 'online',
-  isOpen() { return !!(this.el && this.el.classList.contains('open')); },
-  toggle() { this.isOpen() ? this.close() : this.open(); },
-  open() {
-    if (!this.el) {
-      this.listEl = h('div.ol-list');
-      this.tabsEl = h('div.ol-tabs');
-      this.el = h('div.ol-panel', { role: 'dialog', 'aria-label': 'Online players' },
-        h('div.nf-head', h('div.nf-title', 'ONLINE', this.countEl = h('span.nf-count'))), this.tabsEl, this.listEl);
-      $('#app').appendChild(this.el);
-      document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn') && !e.target.closest('.dialog')) this.close(); }, true);
-      window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
-      Bus.on('screen:changed', () => this.close());
-      Bus.on('presence:changed', () => this.isOpen() && this.render());
-      Bus.on('friends:changed', () => this.isOpen() && this.render());
-      Bus.on('mp:changed', () => this.isOpen() && this.render());
-    }
-    if (typeof Notifications !== 'undefined') Notifications.close();
+/** When each friend was last seen online (kept in this browser), for "Last seen …" and lazer's "Last visit" sort. */
+const LastSeen = {
+  KEY: 'am.lastSeen',
+  map() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; } catch { return {}; } },
+  get(pid) { return this.map()[pid] || 0; },
+  touch(pids) {
+    const m = this.map(), t = Date.now();
+    let changed = false;
+    for (const p of pids) if (p && (!m[p] || t - m[p] > 30000)) { m[p] = t; changed = true; }
+    if (changed) try { localStorage.setItem(this.KEY, JSON.stringify(m)); } catch { /* private mode */ }
+  },
+};
+
+/** osu!lazer's user panels (osu.Game/Users): UserGridPanel (a 120px card), UserListPanel (a 40px row) and
+ *  UserBrickPanel (a name pill), with ExtendedUserPanel's status icon and message, and UserPanel's context menu —
+ *  here also behind a ⋯ button. `u`: { id (online connection), pid, name, avatar, status, song, online }. */
+const UserPanels = {
+  /** lazer's status colours: offline black, online green, and the activity's colour while doing something. */
+  statusColour(u) {
+    if (!u.online) return '#000';
+    return { playing: '#44aadd', watching: '#8866ee', room: '#eeaa00' }[u.status] || '#88b300';
+  },
+  statusText(u) {
+    if (!u.online) return 'Offline';
+    if (u.status === 'playing') return u.song ? `Playing ${u.song.artist} - ${u.song.title} [${u.song.version}]` : 'Playing';
+    return { room: 'In a multiplayer room', watching: 'Spectating' }[u.status] || 'Online';
+  },
+  lastSeen(u) {
+    if (u.online) return null;
+    const t = LastSeen.get(u.pid);
+    return t ? `Last seen ${Notifications.ago(t)}` : null;
+  },
+  statusIcon(u) { return h('span.up-status', { style: { '--sc': this.statusColour(u) } }); },
+  statusMsg(u, right = false) {
+    const ls = this.lastSeen(u);
+    return h(`div.up-msg${right ? '.r' : ''}`, ls ? h('small', ls) : null, h('span', { title: u.song ? `${u.song.artist} - ${u.song.title} [${u.song.version}] · ★${(u.song.stars || 0).toFixed(2)}` : '' }, this.statusText(u)));
+  },
+  cover(u) {
+    const a = typeof u.avatar === 'string' ? u.avatar : '';
+    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
+    return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
+  },
+  canSpectate(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && u.status === 'playing'; },
+  canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
+  /** UserPanel.ContextMenuItems: View profile first, then what you can do with them. */
+  menuItems(u) {
+    const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
+    if (me) return items;
+    if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
+    if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
+    if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });
+    else if (Friends.incoming(u.pid)) items.push({ sep: true }, { label: 'Accept friend request', icon: 'heart', onClick: () => Friends.answer(u.pid, true) });
+    else if (Friends.requested(u.pid)) items.push({ sep: true }, { label: 'Friend request sent', icon: 'check', onClick: () => {} });
+    else if (u.online && u.id) items.push({ sep: true }, { label: 'Add friend', icon: 'plus', onClick: () => Friends.toggle(u) });
+    return items;
+  },
+  openMenu(u, x, y) { showMenu(x, y, this.menuItems(u)); },
+  moreBtn(u) {
+    return h('button.up-more', { title: 'More', 'aria-label': `More options for ${u.name}`, onclick: e => { e.stopPropagation(); UISounds.click(); const r = e.currentTarget.getBoundingClientRect(); this.openMenu(u, r.right - 160, r.bottom + 4); } }, h('i'), h('i'), h('i'));
+  },
+  wire(el, u) {
+    el.dataset.pid = u.pid || ''; el.dataset.name = u.name;
+    el.addEventListener('click', () => { UISounds.click(); this.profile(u); });
+    el.addEventListener('contextmenu', e => { e.preventDefault(); this.openMenu(u, e.clientX, e.clientY); });
+    el.addEventListener('pointerenter', () => UISounds.hover());
+    return el;
+  },
+  /** UserGridPanel: 120px tall, 10px padding; a 60px avatar (6px corners), the name beside it, the status along the bottom. */
+  card(u) {
+    const me = u.id && u.id === Presence.me;
+    return this.wire(h(`div.up.up-card${u.online ? '' : '.off'}`, this.cover(u),
+      h('div.up-grid',
+        Presence.avatarEl(u, 60),
+        h('div.up-who', h('div.up-name', u.name, me ? h('span.up-you', 'you') : null, Friends.has(u.pid) && !me ? h('span.up-fr', icon('heart', 'fill')) : null)),
+        h('div.up-iconcell', this.statusIcon(u)),
+        this.statusMsg(u)),
+      me ? null : this.moreBtn(u)), u);
+  },
+  /** UserListPanel: a 40px row, the cover over its right half, the status on the right. */
+  row(u) {
+    const me = u.id && u.id === Presence.me;
+    return this.wire(h(`div.up.up-list${u.online ? '' : '.off'}`, this.cover(u),
+      h('div.up-l', Presence.avatarEl(u, 40), h('div.up-name', u.name, me ? h('span.up-you', 'you') : null)),
+      h('div.up-r', this.statusIcon(u), this.statusMsg(u, true), me ? null : this.moreBtn(u))), u);
+  },
+  /** UserBrickPanel: a 4×13 colour bar and the name in 13px bold. */
+  brick(u) { return this.wire(h(`div.up.up-brick${u.online ? '' : '.off'}`, h('span.up-bar', { style: { background: this.statusColour(u) === '#000' ? '#555' : this.statusColour(u) } }), h('span', u.name)), u); },
+  panel(u, style) { return style === 'list' ? this.row(u) : style === 'brick' ? this.brick(u) : this.card(u); },
+  /** A player's profile (lazer opens UserProfileOverlay): their card, what they're doing, and what you can do. */
+  profile(u) {
+    const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
+    const acts = [];
+    if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });
+    if (this.canInvite(u)) acts.push({ label: 'Invite to room', primary: !acts.length, onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
+    if (!me && !friend && u.online && u.id) acts.push(Friends.incoming(u.pid) ? { label: 'Accept friend request', primary: true, onClick: () => Friends.answer(u.pid, true) }
+      : Friends.requested(u.pid) ? { label: 'Friend request sent', close: false } : { label: 'Add friend', primary: !acts.length, onClick: () => Friends.toggle(u) });
+    acts.push({ label: 'Close' });
+    const body = h('div.up-profile',
+      h('div.up-ph', this.cover(u), Presence.avatarEl(u, 84), h('div', h('h3', u.name), h('div.up-ph-st', this.statusIcon(u), this.statusMsg(u)))),
+      h('div.up-ph-rows',
+        h('div', h('span', 'Status'), h('b', this.statusText(u))),
+        friend ? h('div', h('span', 'Friend'), h('b', 'Yes — you can invite and spectate each other')) : !me ? h('div', h('span', 'Friend'), h('b', Friends.requested(u.pid) ? 'Request sent' : 'No')) : null,
+        u.watchers ? h('div', h('span', 'Spectators'), h('b', String(u.watchers))) : null),
+      friend && !me ? h('button.up-unfriend', { onclick: () => { o.close(); Friends.toggle(u); } }, 'Remove friend…') : null);
+    const o = Dialog.custom(me ? 'Your profile' : `${u.name}'s profile`, body, acts);
+  },
+};
+
+/** osu!lazer's Dashboard overlay (DashboardOverlay): "friends" — FriendDisplay: All / Online / Offline stream
+ *  control, a search box, the sort tabs and display-style buttons, then the panels — and "currently online". */
+const DashboardScreen = {
+  tab: 'friends', filter: 'all', query: '',
+  sort() { return Settings.get('ui.dashSort') || 'lastVisit'; },
+  style() { return Settings.get('ui.dashStyle') || 'card'; },
+  enter(params = {}) {
+    if (params.tab) this.tab = params.tab;
     Presence.start(); Presence.refresh();
+    this.tabsEl = h('div.dash-tabs');
+    const { el, page } = pageShell('dashboard', 'view your friends and who\'s online', [], { icon: 'social', hue: 'purple', tabs: this.tabsEl, wide: true });
+    this.page = page;
+    const r = () => this.render();
+    this._unsub = [Bus.on('presence:changed', r), Bus.on('friends:changed', r), Bus.on('mp:changed', r)];
+    this._tick = setInterval(() => Presence.refresh(), 10000);
     this.render();
-    this.el.classList.add('open');
-    Toolbar.sync();
+    return el;
   },
-  close() { if (this.el) this.el.classList.remove('open'); if (typeof Toolbar !== 'undefined') Toolbar.sync(); },
-  statusText(p) {
-    if (p.status === 'playing') return p.song ? `Playing ${p.song.artist} - ${p.song.title} [${p.song.version}]` : 'Playing';
-    return { room: 'In a multiplayer room', watching: 'Spectating', menu: 'In the menus' }[p.status] || 'Online';
-  },
-  row(p, online) {
-    const friend = Friends.has(p.pid), me = p.id === Presence.me;
-    const asked = !friend && Friends.requested(p.pid), theyAsked = !friend && Friends.incoming(p.pid);
-    const canInvite = online && !me && friend && Multiplayer.inRoom() && p.status === 'menu';
-    const watching = Spectate.target && Spectate.target.id === p.id;
-    return h(`div.ol-row${online ? '' : '.off'}${friend ? '.friend' : ''}`,
-      Presence.avatarEl(p, 40),
-      h('div.ol-who', h('b', p.name, me ? h('span.muted', ' (you)') : null, friend ? h('span.ol-fr', icon('heart', 'fill')) : null),
-        h('small', online ? this.statusText(p) : 'Offline'), online && p.watchers ? h('small.ol-watch', `${p.watchers} watching`) : null),
-      h('div.ol-acts',
-        !me && p.pid && !asked && (friend || online) ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}${theyAsked ? '.ask' : ''}`, { title: friend ? 'Remove friend' : theyAsked ? 'Accept their friend request' : 'Send a friend request', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon(friend || theyAsked ? 'heart' : 'plus', friend ? 'fill' : '')) : null,
-        asked ? h('span.ol-asked', 'Request sent') : null,
-        online && !me && friend && (p.status === 'playing' || watching) ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: 'Watch them play', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
-        canInvite ? h('button.btn.sm', { onclick: () => { UISounds.click(); Presence.invite(p.id); Toast.ok('Invited', p.name); } }, 'Invite') : null));
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._tick); },
+  users() {
+    const online = Presence.players || [];
+    LastSeen.touch(online.filter(p => Friends.has(p.pid)).map(p => p.pid));
+    return online.map(p => ({ ...p, online: true }));
   },
   render() {
-    if (!this.el) return;
-    const online = Presence.players || [];
-    const friends = Friends.list();
-    clearEl(this.tabsEl).append(...[['online', `Online (${online.length})`], ['friends', `Friends (${friends.length})${Friends.requests.length ? ` · ${Friends.requests.length} new` : ''}`]].map(([k, l]) =>
-      h(`button.ol-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.render(); } }, l)));
-    this.countEl.textContent = String(online.length);
-    let rows;
-    if (!Presence.ws) rows = [h('div.inv-empty', Multiplayer.available() ? 'Connecting to the online service…' : 'Online play needs the game\'s server (open the game from its website).')];
-    else if (this.tab === 'online') {
-      const sorted = [...online].sort((a, b) => (b.id === Presence.me) - (a.id === Presence.me) || Friends.has(b.pid) - Friends.has(a.pid) || a.name.localeCompare(b.name));
-      rows = sorted.length ? sorted.map(p => this.row(p, true)) : [h('div.inv-empty', 'Nobody is online right now.')];
+    if (!this.page) return;
+    const keepFocus = document.activeElement && document.activeElement.classList.contains('dash-search');
+    clearEl(this.tabsEl).append(...[['friends', 'friends'], ['online', 'currently online']].map(([k, l]) =>
+      h(`button.ov-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.render(); } }, l)));
+    const online = this.users();
+    const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => e.stopPropagation() });
+    const style = this.style();
+    const styleBtns = h('div.dash-styles', ...[['card', 'Card'], ['list', 'List'], ['brick', 'Brick']].map(([k, l]) =>
+      h(`button.dash-style${style === k ? '.on' : ''}`, { title: l, 'aria-label': `${l} view`, onclick: () => { UISounds.click(); Settings.set('ui.dashStyle', k); this.render(); } }, h(`span.dsi.${k}`))));
+    const sorts = h('div.dash-sorts', h('span.dash-sl', 'Sort by'), ...[['lastVisit', 'Last visit'], ['username', 'Username']].map(([k, l]) =>
+      h(`button.dash-sort${this.sort() === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('ui.dashSort', k); this.render(); } }, l)));
+    this.listEl = h('div.dash-list');
+    if (this.tab === 'friends') {
+      const friends = Friends.list().map(f => { const p = online.find(x => x.pid === f.pid); return p || { ...f, online: false, status: 'offline' }; });
+      const counts = { all: friends.length, online: friends.filter(f => f.online).length, offline: friends.filter(f => !f.online).length };
+      const stream = h('div.dash-stream', ...[['all', 'All', '#fff'], ['online', 'Online', '#b3d944'], ['offline', 'Offline', '#000']].map(([k, l, c]) =>
+        h(`button.dash-si${this.filter === k ? '.on' : ''}`, { style: { '--bar': c }, onclick: () => { UISounds.click(); this.filter = k; this.render(); } }, h('b', l), h('span', String(counts[k])), h('i'))));
+      const reqs = Friends.requests;
+      clearEl(this.page).append(
+        h('div.dash-streamwrap', stream),
+        h('div.dash-body',
+          reqs.length ? h('div.dash-reqs', h('div.dash-h', `Friend requests (${reqs.length})`), ...reqs.map(r => h('div.up.up-list.fr-req', h('div.up-l', Presence.avatarEl({ name: r.name }, 40), h('div.up-name', r.name), h('span.up-sub', 'wants to be friends')),
+            h('div.up-r', h('button.btn.sm.primary', { onclick: () => { UISounds.click(); Friends.answer(r.pid, true); } }, 'Accept'), h('button.btn.sm', { onclick: () => { UISounds.click(); Friends.answer(r.pid, false); } }, 'Decline'))))) : null,
+          h('div.dash-bar', search, h('div.grow'), sorts, styleBtns),
+          this.listEl));
+      this._source = () => friends.filter(f => this.filter === 'all' || (this.filter === 'online') === f.online);
     } else {
-      // online friends first, then the rest (by name)
-      const list = friends.map(f => ({ f, p: online.find(x => x.pid === f.pid) })).sort((a, b) => !!b.p - !!a.p || a.f.name.localeCompare(b.f.name));
-      const reqs = Friends.requests.map(r => h('div.ol-row.req', Presence.avatarEl({ name: r.name }, 40),
-        h('div.ol-who', h('b', r.name), h('small', 'wants to be friends')),
-        h('div.ol-acts', h('button.btn.sm.primary', { onclick: () => { UISounds.click(); Friends.answer(r.pid, true); } }, 'Accept'), h('button.btn.sm', { onclick: () => { UISounds.click(); Friends.answer(r.pid, false); } }, 'Decline'))));
-      rows = [...(reqs.length ? [h('div.ol-sec', 'Friend requests'), ...reqs, h('div.ol-sec', 'Friends')] : [])];
-      rows.push(...(list.length ? list.map(({ f, p }) => p ? this.row(p, true) : this.row({ ...f, id: null }, false))
-        : [h('div.inv-empty', 'No friends yet — press + next to someone online to send them a friend request.')]));
+      clearEl(this.page).append(h('div.dash-body', h('div.dash-bar', search, h('div.grow'), sorts, styleBtns), this.listEl));
+      this._source = () => online;
     }
-    clearEl(this.listEl).append(...rows);
+    this.renderList();
+    if (keepFocus) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
   },
+  renderList() {
+    if (!this.listEl) return;
+    const q = this.query.trim().toLowerCase();
+    let list = this._source().filter(u => !q || u.name.toLowerCase().includes(q));
+    const sort = this.sort();
+    list = list.sort((a, b) => sort === 'username' ? a.name.localeCompare(b.name)
+      : (b.online - a.online) || ((b.online ? Date.now() : LastSeen.get(b.pid)) - (a.online ? Date.now() : LastSeen.get(a.pid))) || a.name.localeCompare(b.name));
+    const style = this.style();
+    this.listEl.className = `dash-list s-${style}`;
+    if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? 'Connecting to the online service…' : 'Online play needs the game\'s server (open the game from its website).')); return; }
+    clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
+      : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
+  },
+};
+
+/** The top bar's button: opens (or closes) the dashboard. */
+const OnlinePanel = {
+  isOpen() { return Screens.currentName === 'dashboard'; },
+  toggle() { if (this.isOpen()) Screens.back(); else Screens.go('dashboard'); },
+  close() {},
 };

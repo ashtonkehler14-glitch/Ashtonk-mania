@@ -74,20 +74,26 @@ const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 
-// friends: invites and spectating are only between friends. Alice sends Bob a request from the online users list;
-// he accepts it from the prompt that pops up
-await alice.click('#toolbar [data-ov="online"]');
-await alice.waitForFunction(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob')), null, { timeout: 10000 });
-const bobRow = () => alice.evaluate(() => { const r = [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')); return { spec: !!r.querySelector('.ol-spec'), add: !!r.querySelector('.ol-friend'), asked: !!r.querySelector('.ol-asked') }; });
-const frBefore = await bobRow();
-await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-friend').click());
+// friends: invites and spectating are only between friends. Alice opens the dashboard (lazer's), finds Bob under
+// "currently online" and sends a request from his panel's ⋯ menu; he accepts it from the prompt that pops up
+const panelMenu = async (page, name) => { await page.evaluate(n => document.querySelector(`.up[data-name="${n}"] .up-more`).click(), name); await page.waitForSelector('.menu button'); return page.$$eval('.menu button', b => b.map(x => x.textContent.trim())); };
+const menuPick = (page, label) => page.evaluate(l => [...document.querySelectorAll('.menu button')].find(b => b.textContent.trim() === l).click(), label);
+await alice.click('#toolbar [data-tab="dashboard"]');
+await alice.waitForSelector('.dash-tabs');
+await alice.evaluate(() => [...document.querySelectorAll('.dash-tabs .ov-tab')].find(b => /currently online/.test(b.textContent)).click());
+await alice.waitForSelector('.up[data-name="Bob"]', { timeout: 10000 });
+const frBefore = await panelMenu(alice, 'Bob');
+await menuPick(alice, 'Add friend');
 await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice wants to be friends/.test(x.textContent)), null, { timeout: 5000 });
-const pending = await bobRow();
+const pending = await panelMenu(alice, 'Bob'); await alice.keyboard.press('Escape');
 await bob.click('.dialog .pd-btn.ok');
 await alice.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Bob'), null, { timeout: 5000 });
 const both = await bob.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Alice'), null, { timeout: 5000 }).then(() => true, () => false);
-check('friend requests: + sends one ("Request sent"), the other player accepts from a prompt, and both become friends', !frBefore.spec && frBefore.add && pending.asked && both, JSON.stringify({ frBefore, pending, both }));
-await alice.keyboard.press('Escape');
+check('friend requests: the ⋯ menu\'s "Add friend" sends one, the other player accepts from a prompt, and both become friends', frBefore.includes('View profile') && frBefore.includes('Add friend') && !frBefore.includes('Spectate') && pending.includes('Friend request sent') && both, JSON.stringify({ frBefore, pending, both }));
+// unfriending is in the ⋯ menu (not one click away) and asks first
+const fm = await panelMenu(alice, 'Bob'); await alice.keyboard.press('Escape');
+check('…once friends, "Remove friend" is in the ⋯ menu', fm.includes('Remove friend'), JSON.stringify(fm));
+await alice.evaluate(() => AshtonkMania.Screens.go('multiplayer')); await alice.waitForTimeout(400);
 
 // Alice creates a room, Bob joins with the code
 await createRoom(alice, false, false);
@@ -446,22 +452,23 @@ await alice.click('.rke-btn.quit');
 await alice.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom() && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
 check('back in the Ranked Play lounge', true);
 
-// online users: Alice sees Bob, adds him as a friend, and spectates his play live
+// the dashboard: Alice's friends (Bob among them), then she spectates his play live from his panel's ⋯ menu
 await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(() => AshtonkMania.Screens.go('home'));
 await alice.waitForTimeout(500);
-await alice.click('#toolbar [data-ov="online"]');
-await alice.waitForFunction(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob')), null, { timeout: 8000 });
-const fr = await alice.evaluate(() => ({ n: JSON.parse(localStorage.getItem('am.friends') || '[]').length, mark: !!document.querySelector('.ol-row.friend') }));
-check('online users panel lists who\'s online, friends marked (and kept for when they\'re offline)', fr.n === 1 && fr.mark, JSON.stringify(fr));
-await alice.evaluate(() => [...document.querySelectorAll('.ol-tab')].find(b => /Friends/.test(b.textContent)).click());
-check('the Friends tab shows them', await alice.evaluate(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob'))));
-// Bob plays (real key presses); Alice spectates from the list
+await alice.click('#toolbar [data-tab="dashboard"]');
+await alice.evaluate(() => [...document.querySelectorAll('.dash-tabs .ov-tab')].find(b => /^friends$/.test(b.textContent)).click());
+await alice.waitForSelector('.dash-list .up[data-name="Bob"]', { timeout: 8000 });
+const fr = await alice.evaluate(() => ({ n: JSON.parse(localStorage.getItem('am.friends') || '[]').length, stream: [...document.querySelectorAll('.dash-si')].map(b => b.textContent).join('|') }));
+check('dashboard → friends: lazer\'s All / Online / Offline counts and the friend panels (kept for when they\'re offline)', fr.n === 1 && /All1/.test(fr.stream) && /Online1/.test(fr.stream) && /Offline0/.test(fr.stream), JSON.stringify(fr));
+// Bob plays (real key presses); Alice spectates from the ⋯ menu
 await bob.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['NF'], force: true }); });
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 30000 });
 const mash = setInterval(() => { for (const k of ['KeyD', 'KeyF', 'KeyJ', 'KeyK']) bob.keyboard.press(k).catch(() => {}); }, 150);
-await alice.waitForFunction(() => /Playing/.test([...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob'))?.textContent || ''), null, { timeout: 12000 });
+await alice.waitForFunction(() => /Playing/.test(document.querySelector('.up[data-name="Bob"]')?.textContent || ''), null, { timeout: 12000 });
 await bob.waitForTimeout(3500);
-await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-spec').click());
+const playingMenu = await panelMenu(alice, 'Bob');
+await menuPick(alice, 'Spectate');
+check('…his panel says what he\'s playing, and its menu offers Spectate', playingMenu.includes('Spectate'), JSON.stringify(playingMenu));
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 20000 });
 await alice.waitForTimeout(5000);
 const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, pill: !!document.querySelector('.spec-pill'), synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
