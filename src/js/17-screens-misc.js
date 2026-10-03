@@ -29,7 +29,7 @@ const BeatmapsScreen = {
   enter() {
     const { el, page } = pageShell('Beatmap library', null, [
       h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'),
-      h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
+      h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.osr,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
     ], { icon: 'music', hue: 'blue' });
     this.page = page;
     this.summary = h('div.lib-summary');
@@ -255,7 +255,7 @@ const ProfileScreen = {
 const ReplaysScreen = {
   enter() {
     const { el, page } = pageShell('Replays', null, [
-      h('button.btn', { onclick: () => importViaPicker('.amr,.json') }, icon('upload'), 'Import .amr')], { icon: 'film', hue: 'plum' });
+      h('button.btn', { onclick: () => importViaPicker('.osr,.amr,.json') }, icon('upload'), 'Import replay')], { icon: 'film', hue: 'plum' });
     this.list = h('div.list');
     page.append(this.list);
     this._unsub = [Bus.on('replays:changed', () => this.render())];
@@ -276,7 +276,8 @@ const ReplaysScreen = {
         h('div.main', h('div.t', `${r.title} [${r.version}]`, h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(sm.grade || 'D'))), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${fmtDateTime(r.date)}${map ? '' : ' · beatmap missing'}`)),
         h('span.row', { style: { gap: '3px' } }, ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         h('button.btn.sm', { disabled: !map, title: map ? '' : 'This beatmap isn\'t in your library', onclick: () => Game.launch({ mapId: map.id, mode: 'replay', replay: r }) }, icon('play'), 'Watch'),
-        h('button.icon-btn', { title: 'Export .amr', onclick: () => ReplayManager.export(r) }, icon('download')),
+        h('button.btn.sm', { disabled: !map, title: 'Export as .osr — opens in osu!lazer', onclick: () => Osr.exportReplay(r) }, icon('download'), '.osr'),
+        h('button.icon-btn', { title: 'Export .amr (this game\'s own format)', onclick: () => ReplayManager.export(r) }, icon('download')),
         h('button.icon-btn', { title: 'Delete', onclick: async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); } }, icon('trash'))));
     }
   },

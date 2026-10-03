@@ -200,7 +200,8 @@ const ResultsScreen = {
       save.disabled = true; save.title = 'replay saved';
       bar.insertBefore(exp, save.nextSibling);
     }, title: 'save replay', 'aria-label': 'Save replay' }, icon('save'));
-    const exp = h('button.res-ab', { onclick: async () => { const r = replay || await ReplayManager.get(s.replayId); if (r) ReplayManager.export(r); }, title: 'export .amr', 'aria-label': 'Export replay' }, icon('download'));
+    // export: lazer's .osr (opens in osu!lazer), or this game's own .amr
+    const exp = h('button.res-ab', { onclick: async e => { const r = replay || await ReplayManager.get(s.replayId); if (!r) return; const b = e.currentTarget.getBoundingClientRect(); showMenu(b.left, b.top - 6, [{ label: 'Export .osr (osu!lazer)', icon: 'download', onClick: () => Osr.exportReplay(r) }, { label: 'Export .amr', icon: 'download', onClick: () => ReplayManager.export(r) }], { above: true }); }, title: 'export replay', 'aria-label': 'Export replay' }, icon('download'));
     // lazer's results footer: #333, 50px, the buttons centred — watch replay and retry (300 × 30, green), then the
     // small ones (75 × 30)
     bar.append(backButton(() => this.onBack()));

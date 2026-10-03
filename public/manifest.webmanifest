@@ -22,6 +22,7 @@
       "accept": {
         "application/x-osu-beatmap-archive": [".osz"],
         "application/x-osu-skin-archive": [".osk"],
+        "application/x-osu-replay": [".osr"],
         "application/x-ashtonk-replay": [".amr"]
       }
     }

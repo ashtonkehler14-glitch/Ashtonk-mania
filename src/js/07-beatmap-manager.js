@@ -104,6 +104,7 @@ const BeatmapManager = {
         if (ext === 'osz') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'osk') { status('skin ', f); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
+        else if (ext === 'osr') { status('replay ', f); report.replays.push(await Osr.importFile(f)); } // (osu!lazer / osu!stable replays)
         else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
           // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
           const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });

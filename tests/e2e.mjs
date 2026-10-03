@@ -257,6 +257,21 @@ const rres = await page.evaluate(() => { const s = AshtonkMania.Screens.current.
 check('replay playback reproduces the original score exactly', rres.score === rp.summary.score && JSON.stringify(rres.counts) === JSON.stringify(rp.summary.counts), `${rres.score} vs ${rp.summary.score}`);
 
 check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
+// osu!lazer replays (.osr): ours export as .osr and an .osr imports back (by the beatmap's MD5) with the same inputs
+{
+  const ox = await page.evaluate(async (id) => {
+    const A = AshtonkMania, rep = await A.ReplayManager.get(id);
+    const bytes = await A.Osr.bytesFor(rep);
+    const back = A.Osr.decode(bytes.buffer);
+    const report = await A.App.importFiles([new File([bytes], 'lazer replay.osr')]);
+    const imp = report.replays[0];
+    const round = ev => ev.map((v, i) => i % 3 === 0 ? Math.round(v) : v).join();
+    return { mode: back.mode, md5ok: back.beatmapMD5 === await A.Osr.mapMD5(A.BeatmapManager.mapByHash(rep.mapHash)), player: back.player === rep.player,
+      counts: JSON.stringify(back.counts) === JSON.stringify(rep.summary.counts), imported: !!imp && imp.source === 'osr' && imp.mapHash === rep.mapHash,
+      sameInputs: !!imp && round(imp.events) === round(rep.events), mods: !!imp && imp.mods.join() === rep.mods.join() };
+  }, rp.id);
+  check('replays export as osu!lazer\'s .osr and an .osr imports back onto its beatmap with the same key presses', ox.mode === 3 && ox.md5ok && ox.player && ox.counts && ox.imported && ox.sameInputs && ox.mods, JSON.stringify(ox));
+}
 
 // a pointer that just rests where the loader's settings panel appears (Watch on the Replays page sits there) must not
 // hold the loader: only moving over the panel does
