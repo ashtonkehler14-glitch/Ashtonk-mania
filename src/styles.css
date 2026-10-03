@@ -3245,17 +3245,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-body { overflow: hidden; display: grid; place-items: center; place-content: center; }
 .res-grid { width: max-content; max-width: none; margin: 0; transform-origin: center; }
 
-/* phones: turn sideways (osu!lazer on Android is landscape) */
-.mob-rotate { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 24px; text-align: center; background: rgba(16, 15, 20, .94); color: #fff; animation: mobFade 300ms ease both; }
-.mob-rotate { font-size: 15px; }
-.mob-rotate h2 { margin: 6px 0 0; font-size: 22px; }
-.mob-rotate p { margin: 0; max-width: 300px; color: var(--text-2); line-height: 1.45; }
-.mob-rot-btns { display: flex; flex-direction: column; gap: 10px; width: min(300px, 100%); margin-top: 10px; }
-.mob-rot-btns .btn { justify-content: center; height: 46px; font-size: 15px; }
-.mob-rot-ic { position: relative; width: 64px; height: 100px; }
-.mob-rot-ic i { position: absolute; inset: 0; border: 4px solid #fff; border-radius: 12px; animation: mobTurn 2.4s cubic-bezier(.6, 0, .3, 1) infinite; }
-.mob-rot-ic i::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 4px; margin-left: -5px; border-radius: 2px; background: #fff; }
-@keyframes mobTurn { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @keyframes mobFade { from { opacity: 0; } }
 /* feel like an app, not a web page: no blue tap flash, focus boxes, callouts, double-tap zoom or pull-to-refresh */
 html { -webkit-tap-highlight-color: transparent; }
@@ -3277,3 +3266,39 @@ html.touch img { -webkit-user-drag: none; }
 @media (orientation: landscape) and (max-height: 500px) { .mob-inst-box { width: min(560px, 100%); gap: 6px; padding: 14px 18px 10px; } .mob-inst-box img { width: 44px; height: 44px; } .mob-inst-box h2 { font-size: 18px; } }
 /* touch gameplay: FNF's mobile hitboxes (one full-height strip per column) work without being drawn: the game looks as it always does */
 .fnf-hitbox { display: none; }
+
+/* ── Phones held upright: the main menu stacks — the logo above, its buttons in a column under it (the row of
+   lazer's button system doesn't fit across a portrait screen) */
+@media (hover: none) and (orientation: portrait) and (max-width: 700px) {
+  .lz-menu .lz-logo { translate: 0 -150px; scale: .5; }
+  .lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: .68; }
+  .lz-area { top: calc(50% - 10px); height: auto; margin-top: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .lz-area-bg { display: none; }
+  .lz-left, .lz-right { position: static; flex-direction: column; align-items: center; gap: 10px; }
+  .lz-right { order: 1; }
+  .lz-left { order: 2; }
+  .lz-btn { height: 62px; width: min(78vw, 300px); max-height: 0; transition: max-height 400ms var(--oexpo), opacity 300ms linear; }
+  .lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: 0; }
+  .lz-btn.exp, .lz-btn.exp:hover, .lz-btn.exp:focus-visible, .lz-btn.xpl { width: min(78vw, 300px); max-height: 62px; transition: max-height 400ms var(--oexpo), opacity 120ms linear; }
+  .lz-btn.con { width: min(78vw, 300px); max-height: 0; }
+  .lz-btn.pl .lz-inner, .lz-btn.pr .lz-inner { left: 0; right: 0; }
+  .lz-bg { transform: skewX(-8deg); border-radius: 4px; }
+  .lz-ico { left: 28px; margin: -16px 0 0 0; }
+  .lz-label { left: 72px; right: auto; top: 50%; bottom: auto; margin: -9px 0 0; font-size: 18px; line-height: 18px; text-align: left; }
+  /* screen headers wrap their buttons under the title; library rows put the buttons on a line of their own */
+  .ov-titlebar .ov-inner { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+  .ov-titlebar .ov-inner > .btn { flex: 1 1 auto; justify-content: center; }
+  .list-row { flex-wrap: wrap; }
+  .list-row .main { flex: 1 1 calc(100% - 110px); }
+  .ov-content .row { flex-wrap: wrap; }
+  .ov-content .row > .search, .ov-content .row > input.input { flex: 1 1 100% !important; max-width: none !important; }
+  .split > * { min-width: 0; }
+  /* song select's footer: narrower buttons, so Random and Options aren't under the play button */
+  .ss-footer .foot-btn { width: 64px; font-size: .74rem; }
+  .ss-footer .ss-cookie { width: 96px; height: 96px; right: 30px; bottom: 26px; }
+  .ss-footer .lz-back { width: 112px; min-width: 0; }
+  /* the top bar: the clock gives its room to the buttons (the notifications bell was pushed off the screen) */
+  #toolbar .tb-clock { display: none; }
+}
+/* touch screens: keyboard hints mean nothing there */
+html.touch .pl-hint:has(.kbd) { visibility: hidden; }

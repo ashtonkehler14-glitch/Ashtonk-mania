@@ -1,8 +1,8 @@
-/* Phones and tablets. Menus as osu!lazer on Android plays them: the full interface in landscape (Zoom scales it) and a
- * prompt to turn an upright phone sideways. Gameplay laid out and played as Friday Night Funkin' is on phones (the
- * renderer's touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen.
- * And, straight away, a recommendation
- * to install the app (full screen, offline, turning either way: manifest.webmanifest), since a browser tab plays worse. */
+/* Phones and tablets. Menus: held sideways, the full interface as osu!lazer on Android shows it (Zoom scales it);
+ * held upright, the portrait layout. Gameplay laid out and played as Friday Night Funkin' is on phones (the renderer's
+ * touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen. And, straight
+ * away, a recommendation to install the app (full screen, offline, turning either way: manifest.webmanifest), since a
+ * browser tab plays worse. */
 
 const Mobile = {
   get touch() { return typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches; },
@@ -19,9 +19,6 @@ const Mobile = {
   init() {
     if (!this.touch) return;
     this.undoFnfSkin();
-    window.addEventListener('resize', () => this.sync());
-    Bus.on('screen:changed', () => this.sync());
-    this.sync();
   },
   /** An earlier version set the custom skin up as FNF's on phones (arrows, FNF colours and judgements): put back the
    *  skin's own defaults, once. The FNF part is how gameplay is laid out and played (ManiaRenderer, hitboxes), not a skin. */
@@ -32,26 +29,6 @@ const Mobile = {
     if (Settings.get('wom.judgements') === 'fnf') Settings.set('wom.judgements', 'azureSnowfall');
     if (Settings.get('wom.colorMode') === 'custom') Settings.set('wom.colorMode', 'simple');
     Settings.set('wom.customColors', null);
-  },
-  /** Full screen, then landscape (browsers only lock the orientation of a full-screen page). */
-  async goLandscape() {
-    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch {}
-    try { await screen.orientation.lock('landscape'); } catch {}
-  },
-  /** Upright on a phone: ask to rotate (gameplay itself is fine upright, so it's never interrupted). */
-  sync() {
-    // (the installed app turns freely: holding it upright there is a choice, not something to ask about)
-    const want = this.touch && this.portrait && !App.installed && !this._dismissed && !this.inst && Screens.currentName !== 'gameplay' && Math.min(innerWidth, innerHeight) < 700;
-    if (!want) { if (this.rot) { this.rot.remove(); this.rot = null; } return; }
-    if (this.rot) return;
-    this.rot = h('div.mob-rotate', { role: 'dialog', 'aria-label': 'Rotate your device' },
-      h('div.mob-rot-ic', h('i')),
-      h('h2', 'Turn your device sideways'),
-      h('p', 'Ashtonk!mania is laid out for landscape, like osu!lazer on Android.'),
-      h('div.mob-rot-btns',
-        document.documentElement.requestFullscreen || (screen.orientation && screen.orientation.lock) ? h('button.btn.primary', { onclick: () => this.goLandscape() }, 'Full screen & landscape') : null,
-        h('button.btn', { onclick: () => { this._dismissed = true; this.sync(); } }, 'Stay upright')));
-    document.body.append(this.rot);
   },
   /** "Install the app": every time the game opens in a phone's browser. The browser's own install prompt where there is
    *  one; iPhones and iPads only add to the home screen by hand, so they're told how. */
@@ -65,7 +42,7 @@ const Mobile = {
     const el = this.inst;
     if (!el) return;
     clearEl(el);
-    const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } this.sync(); };
+    const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } };
     const canPrompt = !!App.installPrompt;
     const how = canPrompt ? null
       : this.ios ? h('ol.mob-inst-how', h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen'))

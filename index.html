@@ -3262,17 +3262,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-body { overflow: hidden; display: grid; place-items: center; place-content: center; }
 .res-grid { width: max-content; max-width: none; margin: 0; transform-origin: center; }
 
-/* phones: turn sideways (osu!lazer on Android is landscape) */
-.mob-rotate { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 24px; text-align: center; background: rgba(16, 15, 20, .94); color: #fff; animation: mobFade 300ms ease both; }
-.mob-rotate { font-size: 15px; }
-.mob-rotate h2 { margin: 6px 0 0; font-size: 22px; }
-.mob-rotate p { margin: 0; max-width: 300px; color: var(--text-2); line-height: 1.45; }
-.mob-rot-btns { display: flex; flex-direction: column; gap: 10px; width: min(300px, 100%); margin-top: 10px; }
-.mob-rot-btns .btn { justify-content: center; height: 46px; font-size: 15px; }
-.mob-rot-ic { position: relative; width: 64px; height: 100px; }
-.mob-rot-ic i { position: absolute; inset: 0; border: 4px solid #fff; border-radius: 12px; animation: mobTurn 2.4s cubic-bezier(.6, 0, .3, 1) infinite; }
-.mob-rot-ic i::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 4px; margin-left: -5px; border-radius: 2px; background: #fff; }
-@keyframes mobTurn { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @keyframes mobFade { from { opacity: 0; } }
 /* feel like an app, not a web page: no blue tap flash, focus boxes, callouts, double-tap zoom or pull-to-refresh */
 html { -webkit-tap-highlight-color: transparent; }
@@ -3294,6 +3283,42 @@ html.touch img { -webkit-user-drag: none; }
 @media (orientation: landscape) and (max-height: 500px) { .mob-inst-box { width: min(560px, 100%); gap: 6px; padding: 14px 18px 10px; } .mob-inst-box img { width: 44px; height: 44px; } .mob-inst-box h2 { font-size: 18px; } }
 /* touch gameplay: FNF's mobile hitboxes (one full-height strip per column) work without being drawn: the game looks as it always does */
 .fnf-hitbox { display: none; }
+
+/* ── Phones held upright: the main menu stacks — the logo above, its buttons in a column under it (the row of
+   lazer's button system doesn't fit across a portrait screen) */
+@media (hover: none) and (orientation: portrait) and (max-width: 700px) {
+  .lz-menu .lz-logo { translate: 0 -150px; scale: .5; }
+  .lz-menu[data-state="initial"] .lz-logo { translate: 0 0; scale: .68; }
+  .lz-area { top: calc(50% - 10px); height: auto; margin-top: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .lz-area-bg { display: none; }
+  .lz-left, .lz-right { position: static; flex-direction: column; align-items: center; gap: 10px; }
+  .lz-right { order: 1; }
+  .lz-left { order: 2; }
+  .lz-btn { height: 62px; width: min(78vw, 300px); max-height: 0; transition: max-height 400ms var(--oexpo), opacity 300ms linear; }
+  .lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: 0; }
+  .lz-btn.exp, .lz-btn.exp:hover, .lz-btn.exp:focus-visible, .lz-btn.xpl { width: min(78vw, 300px); max-height: 62px; transition: max-height 400ms var(--oexpo), opacity 120ms linear; }
+  .lz-btn.con { width: min(78vw, 300px); max-height: 0; }
+  .lz-btn.pl .lz-inner, .lz-btn.pr .lz-inner { left: 0; right: 0; }
+  .lz-bg { transform: skewX(-8deg); border-radius: 4px; }
+  .lz-ico { left: 28px; margin: -16px 0 0 0; }
+  .lz-label { left: 72px; right: auto; top: 50%; bottom: auto; margin: -9px 0 0; font-size: 18px; line-height: 18px; text-align: left; }
+  /* screen headers wrap their buttons under the title; library rows put the buttons on a line of their own */
+  .ov-titlebar .ov-inner { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+  .ov-titlebar .ov-inner > .btn { flex: 1 1 auto; justify-content: center; }
+  .list-row { flex-wrap: wrap; }
+  .list-row .main { flex: 1 1 calc(100% - 110px); }
+  .ov-content .row { flex-wrap: wrap; }
+  .ov-content .row > .search, .ov-content .row > input.input { flex: 1 1 100% !important; max-width: none !important; }
+  .split > * { min-width: 0; }
+  /* song select's footer: narrower buttons, so Random and Options aren't under the play button */
+  .ss-footer .foot-btn { width: 64px; font-size: .74rem; }
+  .ss-footer .ss-cookie { width: 96px; height: 96px; right: 30px; bottom: 26px; }
+  .ss-footer .lz-back { width: 112px; min-width: 0; }
+  /* the top bar: the clock gives its room to the buttons (the notifications bell was pushed off the screen) */
+  #toolbar .tb-clock { display: none; }
+}
+/* touch screens: keyboard hints mean nothing there */
+html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 
 </style>
 </head>
@@ -18360,11 +18385,11 @@ const OnlinePanel = {
 };
 
 /* ===== 19d-mobile.js ===== */
-/* Phones and tablets. Menus as osu!lazer on Android plays them: the full interface in landscape (Zoom scales it) and a
- * prompt to turn an upright phone sideways. Gameplay laid out and played as Friday Night Funkin' is on phones (the
- * renderer's touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen.
- * And, straight away, a recommendation
- * to install the app (full screen, offline, turning either way: manifest.webmanifest), since a browser tab plays worse. */
+/* Phones and tablets. Menus: held sideways, the full interface as osu!lazer on Android shows it (Zoom scales it);
+ * held upright, the portrait layout. Gameplay laid out and played as Friday Night Funkin' is on phones (the renderer's
+ * touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen. And, straight
+ * away, a recommendation to install the app (full screen, offline, turning either way: manifest.webmanifest), since a
+ * browser tab plays worse. */
 
 const Mobile = {
   get touch() { return typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches; },
@@ -18381,9 +18406,6 @@ const Mobile = {
   init() {
     if (!this.touch) return;
     this.undoFnfSkin();
-    window.addEventListener('resize', () => this.sync());
-    Bus.on('screen:changed', () => this.sync());
-    this.sync();
   },
   /** An earlier version set the custom skin up as FNF's on phones (arrows, FNF colours and judgements): put back the
    *  skin's own defaults, once. The FNF part is how gameplay is laid out and played (ManiaRenderer, hitboxes), not a skin. */
@@ -18394,26 +18416,6 @@ const Mobile = {
     if (Settings.get('wom.judgements') === 'fnf') Settings.set('wom.judgements', 'azureSnowfall');
     if (Settings.get('wom.colorMode') === 'custom') Settings.set('wom.colorMode', 'simple');
     Settings.set('wom.customColors', null);
-  },
-  /** Full screen, then landscape (browsers only lock the orientation of a full-screen page). */
-  async goLandscape() {
-    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch {}
-    try { await screen.orientation.lock('landscape'); } catch {}
-  },
-  /** Upright on a phone: ask to rotate (gameplay itself is fine upright, so it's never interrupted). */
-  sync() {
-    // (the installed app turns freely: holding it upright there is a choice, not something to ask about)
-    const want = this.touch && this.portrait && !App.installed && !this._dismissed && !this.inst && Screens.currentName !== 'gameplay' && Math.min(innerWidth, innerHeight) < 700;
-    if (!want) { if (this.rot) { this.rot.remove(); this.rot = null; } return; }
-    if (this.rot) return;
-    this.rot = h('div.mob-rotate', { role: 'dialog', 'aria-label': 'Rotate your device' },
-      h('div.mob-rot-ic', h('i')),
-      h('h2', 'Turn your device sideways'),
-      h('p', 'Ashtonk!mania is laid out for landscape, like osu!lazer on Android.'),
-      h('div.mob-rot-btns',
-        document.documentElement.requestFullscreen || (screen.orientation && screen.orientation.lock) ? h('button.btn.primary', { onclick: () => this.goLandscape() }, 'Full screen & landscape') : null,
-        h('button.btn', { onclick: () => { this._dismissed = true; this.sync(); } }, 'Stay upright')));
-    document.body.append(this.rot);
   },
   /** "Install the app": every time the game opens in a phone's browser. The browser's own install prompt where there is
    *  one; iPhones and iPads only add to the home screen by hand, so they're told how. */
@@ -18427,7 +18429,7 @@ const Mobile = {
     const el = this.inst;
     if (!el) return;
     clearEl(el);
-    const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } this.sync(); };
+    const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } };
     const canPrompt = !!App.installPrompt;
     const how = canPrompt ? null
       : this.ios ? h('ol.mob-inst-how', h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen'))

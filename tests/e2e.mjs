@@ -1025,7 +1025,9 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.waitForTimeout(500);
-  check('phone upright: asked to turn sideways, outside gameplay (as osu!lazer on Android is landscape)', !!(await mp.$('.mob-rotate')));
+  await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
+  check('phone upright: no rotate prompt — the main menu stacks its buttons under the logo and they fit the screen', await mp.evaluate(() => {
+    const bs = [...document.querySelectorAll('.lz-btn.exp')]; return !document.querySelector('.mob-rotate') && bs.length > 0 && bs.every(b => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; }); }));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
   const land = await mp.evaluate(() => ({ rot: !!document.querySelector('.mob-rotate'), z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
   check('phone sideways: the full desktop interface (1366×768), scaled to the screen as on lazer for Android (no rotate prompt)', !land.rot && land.z > 1.3 && land.w >= 1366, JSON.stringify(land));
