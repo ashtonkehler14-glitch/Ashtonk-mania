@@ -2889,7 +2889,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @keyframes rqHi { 0%, 40% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 2px transparent; } }
 /* settings: lazer's SettingsPanel — below the toolbar, the 170px sidebar (Background5) with each section's icon and
    name, then the 400px panel (Background4). The section showing gets a 4px Highlight1 bar that springs to 18px. */
-.settings-panel { top: var(--toolbar-h); width: min(570px, calc(100 * var(--vw))); }
+.settings-panel { top: 0; width: min(570px, calc(100 * var(--vw))); }
 .sp-nav { width: 170px; padding: 10px 0; gap: 0; }
 .sp-nb { position: relative; display: flex; align-items: center; height: 46px; margin: 0 5px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: rgb(98, 89, 125); font-size: 16px; text-align: left; cursor: pointer; transition: color 500ms cubic-bezier(.22, 1, .36, 1), background 500ms cubic-bezier(.22, 1, .36, 1); }
 .sp-nb:hover { color: rgb(116, 110, 134); background: hsl(255 40% 50% / .1); }
