@@ -1276,6 +1276,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mod-p.on { background: var(--c); color: #111; }
 .mod-p.on:hover { filter: brightness(1.06); }
 .mod-p.blocked { opacity: .45; }
+.mod-p.unavail { opacity: .3; filter: grayscale(1); cursor: not-allowed; }
+.mod-p.unavail:hover { transform: none; box-shadow: none; }
 .mod-ac { flex: none; width: 50px; height: 26px; display: grid; place-items: center; border-radius: 6px; transform: skewX(-12deg); background: rgba(0, 0, 0, .35); color: var(--c); font-weight: 700; font-size: .78rem; letter-spacing: .02em; }
 .mod-ac span { transform: skewX(12deg); }
 .mod-p.on .mod-ac { background: rgba(0, 0, 0, .8); color: var(--c); }
@@ -10355,7 +10357,7 @@ const SongSelect = {
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
+      fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1'),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
@@ -10751,7 +10753,7 @@ const SongSelect = {
       case 'PageDown': this.moveSet(5); return true;
       case 'PageUp': this.moveSet(-5); return true;
       case 'Enter': this.play(e.ctrlKey ? 'auto' : 'play'); return true;
-      case 'F1': ModSelect.open(); return true;
+      case 'F1': this.openMods(); return true;
       case 'F2': if (e.shiftKey) this.randomRewind(); else this.random(); return true;
       case 'F3': this.options(); return true;
       case 'F4': this.play('practice'); return true;
@@ -10775,6 +10777,8 @@ const SongSelect = {
     Bus.emit('mods:changed');
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
+  /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT'], why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;
@@ -14597,14 +14601,18 @@ const DataPanel = {
 // ─────────────────────────────── Mod select ───────────────────────────────
 const ModSelect = {
   o: null,
-  open() {
+  /** Mods that can't be picked right now (greyed out), e.g. Auto in a multiplayer room; and why. */
+  disabled: new Set(), disabledWhy: '',
+  open({ disabled = [], why = '', onClose = null } = {}) {
     if (this.o) { this.close(); return; }
     UISounds.click();
+    this.disabled = new Set(disabled); this.disabledWhy = why;
+    if (this.disabled.size) Settings.set('songselect.mods', (Settings.get('songselect.mods') || []).filter(x => !this.disabled.has(x)));
     const sheet = h('div.modsel', { role: 'dialog', 'aria-label': 'Mod select' });
     this.sheet = sheet;
     this.render();
     this.o = makeOverlay(sheet, {
-      onClose: () => { this.o = null; Bus.emit('mods:changed'); },
+      onClose: () => { this.o = null; this.disabled = new Set(); this.disabledWhy = ''; Bus.emit('mods:changed'); if (onClose) onClose(); },
       onKey: e => {
         if (e.key === 'F1' || e.key === 'Enter') { this.close(); return true; }
         if (e.key === 'Backspace') { Settings.set('songselect.mods', []); this.render(); return true; }
@@ -14616,6 +14624,7 @@ const ModSelect = {
   },
   close() { if (this.o) this.o.close(); },
   toggle(id) {
+    if (this.disabled.has(id)) { UISounds.play('check-off'); return; }
     const cur = Settings.get('songselect.mods') || [];
     const next = ModSystem.toggle(cur, id);
     Settings.set('songselect.mods', next);
@@ -14647,10 +14656,11 @@ const ModSelect = {
       const list = h('div.modcol-list');
       for (const m of mods) {
         const on = cur.includes(m.id);
-        const blocked = !on && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
-        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
-          'aria-pressed': String(on), onclick: () => this.toggle(m.id),
-          title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+        const off = this.disabled.has(m.id);
+        const blocked = !on && !off && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
+        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}${off ? '.unavail' : ''}`, {
+          'aria-pressed': String(on), 'aria-disabled': off ? 'true' : null, onclick: () => this.toggle(m.id),
+          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
         }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);
@@ -15526,9 +15536,10 @@ const Multiplayer = {
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
   /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
-  setMods(list) {
+  setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
     this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && x !== 'AT') });
+    if (!propose) return;
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
     const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
@@ -16035,8 +16046,9 @@ const MultiplayerScreen = {
     const r = Multiplayer.room, me = Multiplayer.self();
     if (!r) return;
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
-    const off = Bus.on('mods:changed', () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); });
-    ModSelect.open();
+    // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
+    const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
+    ModSelect.open({ disabled: ['AT'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;

@@ -227,9 +227,10 @@ const Multiplayer = {
     if (has !== me.hasMap) this.send({ t: 'hasMap', has });
   },
   /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
-  setMods(list) {
+  setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
     this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && x !== 'AT') });
+    if (!propose) return;
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
     const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
@@ -736,8 +737,9 @@ const MultiplayerScreen = {
     const r = Multiplayer.room, me = Multiplayer.self();
     if (!r) return;
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
-    const off = Bus.on('mods:changed', () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); });
-    ModSelect.open();
+    // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
+    const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
+    ModSelect.open({ disabled: ['AT'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;

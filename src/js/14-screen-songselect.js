@@ -99,7 +99,7 @@ const SongSelect = {
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', '#b2ff66', 'mods', () => ModSelect.open(), 'F1'),
+      fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1'),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
       this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
@@ -495,7 +495,7 @@ const SongSelect = {
       case 'PageDown': this.moveSet(5); return true;
       case 'PageUp': this.moveSet(-5); return true;
       case 'Enter': this.play(e.ctrlKey ? 'auto' : 'play'); return true;
-      case 'F1': ModSelect.open(); return true;
+      case 'F1': this.openMods(); return true;
       case 'F2': if (e.shiftKey) this.randomRewind(); else this.random(); return true;
       case 'F3': this.options(); return true;
       case 'F4': this.play('practice'); return true;
@@ -519,6 +519,8 @@ const SongSelect = {
     Bus.emit('mods:changed');
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
+  /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT'], why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;

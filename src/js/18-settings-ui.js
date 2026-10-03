@@ -363,14 +363,18 @@ const DataPanel = {
 // ─────────────────────────────── Mod select ───────────────────────────────
 const ModSelect = {
   o: null,
-  open() {
+  /** Mods that can't be picked right now (greyed out), e.g. Auto in a multiplayer room; and why. */
+  disabled: new Set(), disabledWhy: '',
+  open({ disabled = [], why = '', onClose = null } = {}) {
     if (this.o) { this.close(); return; }
     UISounds.click();
+    this.disabled = new Set(disabled); this.disabledWhy = why;
+    if (this.disabled.size) Settings.set('songselect.mods', (Settings.get('songselect.mods') || []).filter(x => !this.disabled.has(x)));
     const sheet = h('div.modsel', { role: 'dialog', 'aria-label': 'Mod select' });
     this.sheet = sheet;
     this.render();
     this.o = makeOverlay(sheet, {
-      onClose: () => { this.o = null; Bus.emit('mods:changed'); },
+      onClose: () => { this.o = null; this.disabled = new Set(); this.disabledWhy = ''; Bus.emit('mods:changed'); if (onClose) onClose(); },
       onKey: e => {
         if (e.key === 'F1' || e.key === 'Enter') { this.close(); return true; }
         if (e.key === 'Backspace') { Settings.set('songselect.mods', []); this.render(); return true; }
@@ -382,6 +386,7 @@ const ModSelect = {
   },
   close() { if (this.o) this.o.close(); },
   toggle(id) {
+    if (this.disabled.has(id)) { UISounds.play('check-off'); return; }
     const cur = Settings.get('songselect.mods') || [];
     const next = ModSystem.toggle(cur, id);
     Settings.set('songselect.mods', next);
@@ -413,10 +418,11 @@ const ModSelect = {
       const list = h('div.modcol-list');
       for (const m of mods) {
         const on = cur.includes(m.id);
-        const blocked = !on && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
-        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}`, {
-          'aria-pressed': String(on), onclick: () => this.toggle(m.id),
-          title: `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+        const off = this.disabled.has(m.id);
+        const blocked = !on && !off && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
+        const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}${off ? '.unavail' : ''}`, {
+          'aria-pressed': String(on), 'aria-disabled': off ? 'true' : null, onclick: () => this.toggle(m.id),
+          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
         }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);

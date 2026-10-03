@@ -232,6 +232,20 @@ check('guests suggest from Browse; the suggestion reaches the host with a Pick b
 await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Easy', null, { timeout: 10000 });
 check('host picks a suggested beatmap', true);
+// mod select in a room: every toggle reaches the room (on, off, on again); Auto is greyed out and can't be picked
+const bobMods = () => alice.evaluate(() => (AshtonkMania.Multiplayer.room.players.find(p => p.name === 'Bob') || {}).mods || []);
+const m0 = await bobMods();
+await bob.evaluate(() => AshtonkMania.MultiplayerScreen.openMods());
+await bob.waitForSelector('.modsel .mod-p', { timeout: 3000 });
+const clickMod = id => bob.evaluate(id => [...document.querySelectorAll('.modsel .mod-p')].find(b => b.querySelector('.mod-id')?.textContent === id).click(), id);
+const waitHD = on => alice.waitForFunction(on => ((AshtonkMania.Multiplayer.room.players.find(p => p.name === 'Bob') || {}).mods || []).includes('HD') === on, on, { timeout: 4000 }).catch(() => {});
+const seq = [];
+for (const on of [true, false, true]) { await clickMod('HD'); await waitHD(on); seq.push((await bobMods()).includes('HD')); }
+const auto = await bob.evaluate(() => { const b = [...document.querySelectorAll('.modsel .mod-p')].find(b => b.querySelector('.mod-id')?.textContent === 'AT'); b.click(); return { grey: b.classList.contains('unavail'), picked: (AshtonkMania.Settings.get('songselect.mods') || []).includes('AT') }; });
+await clickMod('HD'); await waitHD(false);
+await bob.keyboard.press('Escape'); await bob.waitForTimeout(400);
+const mEnd = await bobMods();
+check('mods in a room: selecting and deselecting reach the room every time; Auto is greyed out', !m0.includes('HD') && seq.join() === 'true,false,true' && auto.grey && !auto.picked && mEnd.join() === m0.join(), JSON.stringify({ m0, seq, auto, mEnd }));
 // other menus keep you in the room; going back (or home) from them returns to it
 await alice.evaluate(() => AshtonkMania.Screens.go('profile'));
 await alice.waitForTimeout(400);

@@ -1259,6 +1259,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mod-p.on { background: var(--c); color: #111; }
 .mod-p.on:hover { filter: brightness(1.06); }
 .mod-p.blocked { opacity: .45; }
+.mod-p.unavail { opacity: .3; filter: grayscale(1); cursor: not-allowed; }
+.mod-p.unavail:hover { transform: none; box-shadow: none; }
 .mod-ac { flex: none; width: 50px; height: 26px; display: grid; place-items: center; border-radius: 6px; transform: skewX(-12deg); background: rgba(0, 0, 0, .35); color: var(--c); font-weight: 700; font-size: .78rem; letter-spacing: .02em; }
 .mod-ac span { transform: skewX(12deg); }
 .mod-p.on .mod-ac { background: rgba(0, 0, 0, .8); color: var(--c); }
