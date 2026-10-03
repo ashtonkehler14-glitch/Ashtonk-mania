@@ -197,7 +197,7 @@ const OnlineBeatmaps = {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
-    if (known) { el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
+    if (known) { el.style.transition = 'none'; el.style.backgroundImage = `url("${known}")`; done && done(null); return; }
     const next = i => {
       if (i >= urls.length) return;
       const img = new Image();
@@ -306,8 +306,7 @@ const ExplorerScreen = {
       this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => this.shield.classList.remove('on'), 160);
     }, { passive: true });
     el.append(scroller, this.topBtn);
-    this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
-    this.coverIO = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { this.coverIO.unobserve(e.target); const f = e.target._loadCovers; e.target._loadCovers = null; f && f(); } }, { root: scroller, rootMargin: '500px 0px' });
+    this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { root: scroller, rootMargin: '0px 0px 3000px 0px' });
     this.io.observe(this.sentinel);
     // back online after an offline error: search again by itself
     const online = () => { if (this.error) this.newSearch(); };
@@ -318,7 +317,7 @@ const ExplorerScreen = {
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
-  leave() { this.io && this.io.disconnect(); this.coverIO && this.coverIO.disconnect(); this.coverIO = null; this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  leave() { this.io && this.io.disconnect(); this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
   /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
@@ -410,7 +409,6 @@ const ExplorerScreen = {
       const card = c && c.sig === sig && c.set === set ? c.el : this.card(set);
       // a card new to the list fades in once (and drops the animation after)
       if (!c) { card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
-      if (card._loadCovers && this.coverIO) this.coverIO.observe(card); // (a kept card whose cover hadn't loaded yet)
       next.set(set.id, { el: card, sig, set });
       return card;
     });
@@ -443,11 +441,16 @@ const ExplorerScreen = {
       const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
       // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
       // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
-      const [needA, needB] = range(sc.clientHeight * 0.5);
+      const [needA, needB] = range(sc.clientHeight);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(sc.clientHeight * 1.5);
-    }
+      else [from, to] = range(sc.clientHeight * 2);
+      // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
+      const [pa, pb] = range(sc.clientHeight * 3);
+      for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) { const f = all[i]._loadCovers; if (f) { all[i]._loadCovers = null; f(); } }
+      // and the next page is asked for long before the end of the list comes into view
+      if (this.hasMore && !this.loading && !this.error && pb >= rows - 2) this.loadMore();
+    } else for (const c of all) { const f = c._loadCovers; if (f) { c._loadCovers = null; f(); } }
     this._win = { from, to, cols, n: all.length };
     const shown = all.slice(from * cols, to * cols);
     const pt = from ? `${from * rowH}px` : '', pb = to < rows ? `${(rows - to) * rowH}px` : '';
@@ -520,7 +523,6 @@ const ExplorerScreen = {
       h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
     card._loadCovers = loadCovers;
-    if (this.coverIO) this.coverIO.observe(card); else loadCovers();
     return card;
   },
   /** The card's / overlay's main action: Play, Download (with progress), or Pick / Suggest for a room. */

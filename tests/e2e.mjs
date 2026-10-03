@@ -892,6 +892,10 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('a drawn preset saved by an older version shows that character\'s picture', await sp.evaluate(() => AshtonkMania.AvatarPresets.url('teto-2') === 'avatars/teto.jpg'));
   await sp.evaluate(() => AshtonkMania.Screens.go('home')); await sp.waitForTimeout(400);
   check('no FPS box in the corner when the FPS counter is off', await sp.evaluate(() => getComputedStyle(document.querySelector('#fps-counter')).display === 'none'));
+  await sp.keyboard.press('Control+F11'); await sp.waitForTimeout(700);
+  const fc = await sp.evaluate(() => { const e = document.querySelector('#fps-counter'); return { on: !e.hidden, ms: (e.querySelector('.fc-ms') || {}).textContent, fps: (e.querySelector('.fc-fps') || {}).textContent, col: e.querySelector('.fc-fps') && getComputedStyle(e.querySelector('.fc-fps')).color }; });
+  check('Ctrl+F11 shows lazer\'s FPS counter: frame time over frame rate, tinted by how healthy they are', fc.on && /^\d+(\.\d)? ms$/.test(fc.ms) && /^[\d,]+ fps$/.test(fc.fps) && /^rgb/.test(fc.col), JSON.stringify(fc));
+  await sp.keyboard.press('Control+F11'); await sp.waitForTimeout(200);
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await sp.waitForTimeout(600);

@@ -193,6 +193,8 @@ const App = {
     }
     // global shortcuts
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
+    // lazer's Ctrl+F11: show / hide the FPS counter
+    if ((e.ctrlKey || e.metaKey) && e.code === 'F11') { e.preventDefault(); Settings.set('graphics.showFps', !Settings.get('graphics.showFps')); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); OSD.show('Debug overlay', v ? 'shown' : 'hidden', 'Ctrl+Shift+D'); return; }
     if (e.altKey && e.code === 'Enter') { e.preventDefault(); toggleFullscreen(); return; }
     // lazer: Alt+↑/↓ change the volume (the meter you're on), Alt+←/→ move between the meters

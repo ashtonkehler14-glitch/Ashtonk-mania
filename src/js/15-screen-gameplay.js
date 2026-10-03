@@ -1553,27 +1553,70 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
 };
 
-/** Global frame statistics (FPS counter + debug). */
+/** osu!lazer's FPSCounter (osu.Game/Graphics/UserInterface/FPSCounter.cs), bottom right: the frame time on top
+ *  (here: how long each frame keeps the browser busy, measured once the frame has been drawn — the browser has no
+ *  separate update thread) and the frame rate under it, each tinted red → orange → lime by how close it is to the
+ *  target (the display's refresh rate, or the frame limiter). Values are damped with a 100 ms half-life; a spike shows
+ *  at once and brightens the counter, which dims to 70% after two quiet seconds. Hovering it shows the details. */
 const FPS = {
-  last: 0, fps: 0, frameMs: 0, acc: 0, n: 0,
+  last: 0, fps: 0, frameMs: 0, // (also read by the debug overlays)
+  shownFps: 0, shownMs: 0, aim: 60, deltas: [], stamps: [], lastText: 0, shownAt: 0, displayed: false, hovered: false,
+  colour(r) {
+    const lerp = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * clamp(t, 0, 1)));
+    const RED = [237, 17, 33], ORANGE2 = [235, 194, 71], LIME0 = [204, 255, 153];
+    const c = r < 0.5 ? lerp(RED, ORANGE2, r / 0.5) : lerp(ORANGE2, LIME0, (r - 0.5) / 0.4);
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  },
+  build(el) {
+    this.el = el;
+    this.msEl = h('span.fc-ms'); this.fpsEl = h('span.fc-fps');
+    this.tipEl = h('div.fc-tip');
+    clearEl(el).append(h('div.fc-main', h('div.fc-bg'), h('div.fc-counters', this.msEl, this.fpsEl)), this.tipEl);
+    el.addEventListener('pointerenter', () => { this.hovered = true; el.classList.add('hover'); this.request(); });
+    el.addEventListener('pointerleave', () => { this.hovered = false; el.classList.remove('hover'); this.request(); });
+    // the frame's work, measured after it has been drawn (a message posted during the frame runs after rendering)
+    this.mc = new MessageChannel();
+    this.mc.port1.onmessage = e => { this.work = performance.now() - e.data; };
+  },
+  request() { this.shownAt = performance.now(); if (!this.displayed) { this.displayed = true; this.el.classList.add('shown'); } },
   frame(now) {
-    if (this.last) {
+    const el = $('#fps-counter');
+    const on = Settings.get('graphics.showFps');
+    if (!on) { if (el && !el.hidden) { el.hidden = true; this.displayed = false; el.classList.remove('shown'); } this.last = now; return; }
+    if (!this.el) this.build(el);
+    if (el.hidden) { el.hidden = false; this.request(); }
+    this.mc.port2.postMessage(now);
+    if (this.last && now > this.last) {
       const dt = now - this.last;
-      this.frameMs = this.frameMs * 0.9 + dt * 0.1;
-      this.acc += dt; this.n++;
-      if (this.acc >= 500) {
-        this.fps = this.n * 1000 / this.acc; this.acc = 0; this.n = 0;
-        const el = $('#fps-counter');
-        if (Settings.get('graphics.showFps')) {
-          // osu!lazer style: big fps number + frame time, tinted by how healthy the frame rate is
-          if (!this.fpsEl) { this.fpsEl = h('b'); this.msEl = h('i'); clearEl(el).append(h('span.fc-fps', this.fpsEl, h('small', 'fps')), this.msEl); }
-          el.hidden = false;
-          setText(this.fpsEl, this.fps.toFixed(0));
-          setText(this.msEl, `${this.frameMs.toFixed(1)}ms`);
-          const lvl = this.fps >= 55 ? 'good' : this.fps >= 30 ? 'ok' : 'bad';
-          if (el.dataset.lvl !== lvl) el.dataset.lvl = lvl;
-        } else if (!el.hidden) el.hidden = true;
+      if (dt > 10000) { this.last = now; return; } // (the tab was in the background)
+      // the target: the display's refresh rate (the quickest frames seen lately), or the frame limiter below it
+      this.deltas.push(dt); if (this.deltas.length > 120) this.deltas.shift();
+      const sorted = [...this.deltas].sort((a, b) => a - b), refresh = 1000 / sorted[Math.floor(sorted.length * 0.1)];
+      const lim = Settings.get('graphics.fpsLimit');
+      const aim = Math.round(lim > 0 ? Math.min(lim, refresh) : refresh);
+      const aimChanged = Math.abs(aim - this.aim) > 2;
+      if (aimChanged) this.aim = aim;
+      // frames in the last second (lazer's FramesPerSecond)
+      this.stamps.push(now); while (this.stamps.length && now - this.stamps[0] > 1000) this.stamps.shift();
+      this.fps = this.stamps.length * 1000 / Math.max(250, now - this.stamps[0] || 1000);
+      const work = Math.max(0.1, this.work || dt * 0.2);
+      this.frameMs = work;
+      const damp = (cur, target, half, el2) => target + (cur - target) * Math.pow(0.5, el2 / half);
+      const updateSpike = this.shownMs < 20 && work > 20, drawSpike = this.shownFps > 1000 / 20 && dt > 20;
+      this.shownMs = damp(this.shownMs, work, updateSpike ? 1e-9 : 100, work);
+      this.shownFps = drawSpike ? 1000 / dt : damp(this.shownFps || this.fps, this.fps, 100, dt);
+      if (now - this.lastText > 10) {
+        this.lastText = now;
+        setText(this.msEl, this.shownMs < 5 ? `${this.shownMs.toFixed(1)} ms` : `${Math.round(this.shownMs)} ms`);
+        setText(this.fpsEl, `${Math.round(this.shownFps).toLocaleString('en-US')} fps`);
+        const cf = this.colour(this.shownFps / this.aim), cm = this.colour((1000 / this.shownMs) / this.aim);
+        if (cf !== this._cf) { this._cf = cf; this.fpsEl.style.color = cf; }
+        if (cm !== this._cm) { this._cm = cm; this.msEl.style.color = cm; }
+        if (this.hovered) setText(this.tipEl, `Draw ${Math.round(this.fps)} fps · Frame ${this.shownMs.toFixed(1)} ms · Target ${this.aim} Hz`);
       }
+      const significant = aimChanged || drawSpike || updateSpike || this.shownFps < this.aim * 0.8 || 1000 / this.shownMs < this.aim * 0.8;
+      if (significant) this.request();
+      else if (this.displayed && performance.now() - this.shownAt > 2000 && !this.hovered) { this.displayed = false; el.classList.remove('shown'); }
     }
     this.last = now;
   },
