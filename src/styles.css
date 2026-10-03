@@ -3299,9 +3299,16 @@ html.touch img { -webkit-user-drag: none; }
   .ov-content .row > .search, .ov-content .row > input.input { flex: 1 1 100% !important; max-width: none !important; }
   .split > * { min-width: 0; }
   /* song select's footer: narrower buttons, so Random and Options aren't under the play button */
-  .ss-footer .foot-btn { width: clamp(44px, calc((var(--vw) * 100 - 112px - 136px) / 3), 72px); font-size: .74rem; }
+  .ss-footer .foot-btn { width: clamp(44px, calc((var(--vw) * 100 - 112px - 168px) / 3), 72px); font-size: .7rem; }
   .ss-footer .ss-cookie { width: 96px; height: 96px; right: 30px; bottom: 26px; }
+  .ss-footer .foot-btn .fb-t { display: none; }
+  .ss-footer .foot-btn .i { width: 22px; height: 22px; }
   .ss-footer .lz-back { width: 112px; min-width: 0; }
+  /* results footer: the buttons sit to the right of the back button instead of under it */
+  .res-actions { justify-content: flex-end; gap: 6px; padding: 0 8px 0 118px; }
+  .res-actions > .lz-back { width: 112px; min-width: 0; }
+  .res-ab, .res-ab.wide { width: auto; flex: 1 1 0; max-width: 90px; height: 34px; }
+  .res-actions > .muted { display: none; }
   /* the top bar: the clock gives its room to the buttons (the notifications bell was pushed off the screen) */
   #toolbar .tb-clock { display: none; }
 }
