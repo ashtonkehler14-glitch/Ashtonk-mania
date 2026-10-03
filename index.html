@@ -2906,7 +2906,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @keyframes rqHi { 0%, 40% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 2px transparent; } }
 /* settings: lazer's SettingsPanel — below the toolbar, the 170px sidebar (Background5) with each section's icon and
    name, then the 400px panel (Background4). The section showing gets a 4px Highlight1 bar that springs to 18px. */
-.settings-panel { top: 0; width: min(570px, calc(100 * var(--vw))); }
+.settings-panel { top: var(--toolbar-h); width: min(570px, calc(100 * var(--vw))); transition: top 500ms cubic-bezier(.22, 1, .36, 1); }
+#app.in-game .settings-panel, #app.hide-toolbar .settings-panel { top: 0; } /* (full height only while the top bar is hidden) */
 .sp-nav { width: 170px; padding: 10px 0; gap: 0; }
 .sp-nb { position: relative; display: flex; align-items: center; height: 46px; margin: 0 5px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: rgb(98, 89, 125); font-size: 16px; text-align: left; cursor: pointer; transition: color 500ms cubic-bezier(.22, 1, .36, 1), background 500ms cubic-bezier(.22, 1, .36, 1); }
 .sp-nb:hover { color: rgb(116, 110, 134); background: hsl(255 40% 50% / .1); }
@@ -5509,7 +5510,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
-  { s: 'Gameplay', g: 'HUD', k: 'gameplay.scoring', l: 'Score display mode', t: 'select', d: 'classic', o: [['classic', 'Classic (ScoreV1)'], ['standardised', 'osu!lazer standardised']], hint: 'Classic is osu!stable\'s ScoreV1 for mania. Standardised is osu!lazer\'s: 150,000 for combo and 850,000 for accuracy, so accuracy counts most. Every play records both, and leaderboards and personal bests follow this choice (scores from before it existed keep their classic score). Multiplayer matches always use classic.' },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
@@ -7913,9 +7913,9 @@ const ScoreManager = {
       this.byHash.get(s.mapHash).push(s);
     }
   },
-  /** The score shown and compared: osu!lazer's standardised score when that's the chosen display (scores set
-   *  before it existed keep their classic one), else the classic ScoreV1 score. Works on saved scores and live ones. */
-  value(s) { return Settings.get('gameplay.scoring') === 'standardised' && s.scoreStd != null ? s.scoreStd : s.score; },
+  /** The score shown and compared: osu!lazer's standardised score (scores saved before it was recorded keep their
+   *  classic ScoreV1 score). Works on saved scores and live ones. */
+  value(s) { return s.scoreStd != null ? s.scoreStd : s.score; },
   forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => this.value(b) - this.value(a) || b.accuracy - a.accuracy); },
   best(hash) { const l = this.forMap(hash).filter(s => s.passed); return l[0] || null; },
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
@@ -9328,6 +9328,8 @@ const Screens = {
   busy: false,
   register(name, screen) { this.registry[name] = screen; },
   async go(name, params = {}, { replace = false, transition = 'default' } = {}) {
+    // (a screen may be swapped for another first: in a multiplayer room, "home" means back to the room)
+    if (this.redirect && !params.noRedirect) { name = this.redirect(name, this.currentName); if (!name) return; }
     const next = this.registry[name];
     if (!next || this.busy) return;
     if (this.currentName === name && !params.force) { next.refresh && next.refresh(params); return; }
@@ -11657,7 +11659,7 @@ const GameplayScreen = {
     const wall0 = performance.now();
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
-      const sc = s.mp ? e.score.score : ScoreManager.value(e.score);
+      const sc = e.score.scoreStd;
       if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else setText(this.scoreEl, fmtScore(sc)); }
       const acc = e.score.accuracy;
       if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else setText(this.accEl, fmtAcc(acc)); }
@@ -11760,7 +11762,7 @@ const GameplayScreen = {
   updateMp(e) {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
     // (Ranked Play compares lazer's standardised score: it decides the damage)
-    const sc = s.mp.rp ? e.score.scoreStd : e.score.score;
+    const sc = e.score.scoreStd;
     if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
       this._myPp = s.mpFailed ? 0 : this.livePp(e);
@@ -15612,7 +15614,7 @@ const Multiplayer = {
   },
   /** (Ranked Play's damage is worked out on lazer's standardised score.) */
   finish(score, forfeit = false) {
-    this.send({ t: 'finish', result: { score: this.isRP() ? score.scoreStd : score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
+    this.send({ t: 'finish', result: { score: score.scoreStd ?? score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
   },
 };
 
@@ -15709,11 +15711,11 @@ const Presence = {
     const paint = () => {
       const others = this.others();
       clearEl(list).append(...(others.length ? others.map(p => {
-        const busy = p.status === 'playing';
+        const busy = p.status === 'playing' || p.status === 'room'; // (already in a room: can't be invited)
         const done = invited.has(p.id);
         return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
           h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
-          h(`button.btn.sm${done ? '' : '.primary'}`, { disabled: done || busy, onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : 'Invite'));
+          h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
       }) : [h('div.inv-empty', this.ws ? 'Nobody else is online right now.' : 'Connecting…')]));
     };
     paint();
@@ -15734,10 +15736,15 @@ addEventListener('pagehide', e => {
   try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); } catch { /* closing */ }
 });
 
-// Leaving the multiplayer area (anything but the room, song select, gameplay or results) leaves the room.
-Bus.on('screen:changed', name => {
-  if (Multiplayer.inRoom() && !['multiplayer', 'songselect', 'gameplay', 'results', 'explore'].includes(name)) { Multiplayer.leave(); Toast.show('Left the multiplayer room'); }
-});
+// In a room, other menus (profile, skins, collections…) keep you in it, and going back or home from them returns to
+// the room. Heading home from the room itself asks first; only "Leave" (or confirming that) leaves.
+Screens.redirect = (name, from) => {
+  if (name !== 'home' || !Multiplayer.inRoom()) return name;
+  if (from !== 'multiplayer') return 'multiplayer';
+  if (Multiplayer.isRP()) { RankedMatch.confirmLeave(); return null; }
+  Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); Screens.go('home', { noRedirect: true }); } });
+  return null;
+};
 Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap());
 
 const MultiplayerScreen = {

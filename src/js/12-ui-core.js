@@ -1086,6 +1086,8 @@ const Screens = {
   busy: false,
   register(name, screen) { this.registry[name] = screen; },
   async go(name, params = {}, { replace = false, transition = 'default' } = {}) {
+    // (a screen may be swapped for another first: in a multiplayer room, "home" means back to the room)
+    if (this.redirect && !params.noRedirect) { name = this.redirect(name, this.currentName); if (!name) return; }
     const next = this.registry[name];
     if (!next || this.busy) return;
     if (this.currentName === name && !params.force) { next.refresh && next.refresh(params); return; }

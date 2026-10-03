@@ -11,6 +11,9 @@ test('presence: online list, statuses and invites between players', () => {
   assert.deepEqual(p.list().map(x => [x.name, x.status]), [['Alice', 'menu'], ['Bob', 'room']]);
   const st = p.message('a', { t: 'status', status: 'playing' });
   assert.equal(st[0].msg.players[0].status, 'playing');
+  // Bob is in a room: he can't be invited until he's back in the menus
+  assert.equal(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' })[0].msg.msg, 'That player is already in a room.');
+  p.message('b', { t: 'status', status: 'menu' });
   const inv = p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' });
   assert.deepEqual(inv[0], { to: 'b', msg: { t: 'invite', from: { id: 'a', name: 'Alice' }, code: 'ABCDEF' } });
   assert.equal(inv[1].msg.t, 'invited');

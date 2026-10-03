@@ -232,6 +232,12 @@ check('guests suggest from Browse; the suggestion reaches the host with a Pick b
 await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.room.map && AshtonkMania.Multiplayer.room.map.version === 'Online Easy', null, { timeout: 10000 });
 check('host picks a suggested beatmap', true);
+// other menus keep you in the room; going back (or home) from them returns to it
+await alice.evaluate(() => AshtonkMania.Screens.go('profile'));
+await alice.waitForTimeout(400);
+await alice.evaluate(() => AshtonkMania.Screens.go('home'));
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 }).catch(() => {});
+check('opening another menu (profile) doesn\'t leave the room; home from there goes back to the room', await alice.evaluate(() => AshtonkMania.Multiplayer.inRoom() && AshtonkMania.Screens.currentName === 'multiplayer'));
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 10000 });
 
 // each player picks their own difficulty

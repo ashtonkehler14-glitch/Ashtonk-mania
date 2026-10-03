@@ -315,7 +315,7 @@ const Multiplayer = {
   },
   /** (Ranked Play's damage is worked out on lazer's standardised score.) */
   finish(score, forfeit = false) {
-    this.send({ t: 'finish', result: { score: this.isRP() ? score.scoreStd : score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
+    this.send({ t: 'finish', result: { score: score.scoreStd ?? score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
   },
 };
 
@@ -412,11 +412,11 @@ const Presence = {
     const paint = () => {
       const others = this.others();
       clearEl(list).append(...(others.length ? others.map(p => {
-        const busy = p.status === 'playing';
+        const busy = p.status === 'playing' || p.status === 'room'; // (already in a room: can't be invited)
         const done = invited.has(p.id);
         return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
           h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
-          h(`button.btn.sm${done ? '' : '.primary'}`, { disabled: done || busy, onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : 'Invite'));
+          h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
       }) : [h('div.inv-empty', this.ws ? 'Nobody else is online right now.' : 'Connecting…')]));
     };
     paint();
@@ -437,10 +437,15 @@ addEventListener('pagehide', e => {
   try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); } catch { /* closing */ }
 });
 
-// Leaving the multiplayer area (anything but the room, song select, gameplay or results) leaves the room.
-Bus.on('screen:changed', name => {
-  if (Multiplayer.inRoom() && !['multiplayer', 'songselect', 'gameplay', 'results', 'explore'].includes(name)) { Multiplayer.leave(); Toast.show('Left the multiplayer room'); }
-});
+// In a room, other menus (profile, skins, collections…) keep you in it, and going back or home from them returns to
+// the room. Heading home from the room itself asks first; only "Leave" (or confirming that) leaves.
+Screens.redirect = (name, from) => {
+  if (name !== 'home' || !Multiplayer.inRoom()) return name;
+  if (from !== 'multiplayer') return 'multiplayer';
+  if (Multiplayer.isRP()) { RankedMatch.confirmLeave(); return null; }
+  Dialog.confirm('Leave room?', 'You will leave this multiplayer room.', { ok: 'Leave' }).then(ok => { if (ok) { Multiplayer.leave(); Screens.go('home', { noRedirect: true }); } });
+  return null;
+};
 Bus.on('library:changed', () => Multiplayer.inRoom() && Multiplayer.syncHasMap());
 
 const MultiplayerScreen = {

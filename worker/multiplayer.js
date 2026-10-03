@@ -674,6 +674,7 @@ export class PresenceLogic {
     if (msg.t === 'invite') {
       const code = str(msg.code, 8).toUpperCase();
       if (!validCode(code) || !this.users.has(msg.to) || msg.to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (this.users.get(msg.to).status !== 'menu') return [{ to: id, msg: { t: 'error', msg: 'That player is already in a room.' } }];
       const key = `${msg.to}|${code}`, t = this.now();
       if (this.lastInvite.get(id)?.key === key && t - this.lastInvite.get(id).at < 3000) return []; // double-click
       this.lastInvite.set(id, { key, at: t });

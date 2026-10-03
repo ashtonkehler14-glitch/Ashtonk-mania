@@ -659,7 +659,7 @@ const GameplayScreen = {
     const wall0 = performance.now();
     if (!(wall0 - (this._scT || 0) < 50)) {
       this._scT = wall0;
-      const sc = s.mp ? e.score.score : ScoreManager.value(e.score);
+      const sc = e.score.scoreStd;
       if (sc !== this._lastSc) { this._lastSc = sc; if (this._scoreDigits) this._scoreDigits.set(fmtScore(sc)); else setText(this.scoreEl, fmtScore(sc)); }
       const acc = e.score.accuracy;
       if (acc !== this._lastAcc) { this._lastAcc = acc; if (this._accDigits) this._accDigits.set(fmtAcc(acc)); else setText(this.accEl, fmtAcc(acc)); }
@@ -762,7 +762,7 @@ const GameplayScreen = {
   updateMp(e) {
     const t = performance.now(), s = this.s, room = Multiplayer.room;
     // (Ranked Play compares lazer's standardised score: it decides the damage)
-    const sc = s.mp.rp ? e.score.scoreStd : e.score.score;
+    const sc = e.score.scoreStd;
     if (t - this._mpSent > 250 && s.running) {
       this._mpSent = t;
       this._myPp = s.mpFailed ? 0 : this.livePp(e);

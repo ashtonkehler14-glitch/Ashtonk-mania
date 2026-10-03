@@ -14,9 +14,9 @@ const ScoreManager = {
       this.byHash.get(s.mapHash).push(s);
     }
   },
-  /** The score shown and compared: osu!lazer's standardised score when that's the chosen display (scores set
-   *  before it existed keep their classic one), else the classic ScoreV1 score. Works on saved scores and live ones. */
-  value(s) { return Settings.get('gameplay.scoring') === 'standardised' && s.scoreStd != null ? s.scoreStd : s.score; },
+  /** The score shown and compared: osu!lazer's standardised score (scores saved before it was recorded keep their
+   *  classic ScoreV1 score). Works on saved scores and live ones. */
+  value(s) { return s.scoreStd != null ? s.scoreStd : s.score; },
   forMap(hash) { return (this.byHash.get(hash) || []).slice().sort((a, b) => this.value(b) - this.value(a) || b.accuracy - a.accuracy); },
   best(hash) { const l = this.forMap(hash).filter(s => s.passed); return l[0] || null; },
   playCount(hash) { return (this.byHash.get(hash) || []).length; },
