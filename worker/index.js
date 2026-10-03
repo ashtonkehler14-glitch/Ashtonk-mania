@@ -80,9 +80,10 @@ export function resetOsuLogin() { logins = []; osuApi.blockedUntil = 0; osuApi.c
 /** The osu! logins and back-off, to keep in Durable Object storage: they survive the object being restarted, so a login
  *  is asked for about once a day (osu! limits logins per address, and Workers share addresses). */
 export const osuLoginState = {
-  get: () => ({ logins: logins.map(l => ({ token: l.token, blockedUntil: l.blockedUntil })), blockedUntil: osuApi.blockedUntil }),
+  get: () => ({ logins: logins.map(l => ({ token: l.token, blockedUntil: l.blockedUntil })), blockedUntil: osuApi.blockedUntil, lastError: osuApi.lastError }),
   set: st => {
     if (!st) return;
+    if (st.lastError && !osuApi.lastError) osuApi.lastError = st.lastError;
     if (Array.isArray(st.logins) && !logins.length) logins = st.logins.map(l => ({ token: l && l.token && l.token.exp > Date.now() + 60000 ? l.token : null, blockedUntil: Number(l && l.blockedUntil) || 0 }));
     if (st.blockedUntil > osuApi.blockedUntil) osuApi.blockedUntil = st.blockedUntil;
   },
@@ -107,6 +108,7 @@ async function getOfficialToken(env, fetchImpl) {
           signal: timeout(10000),
         });
       } catch (e) { throw new OsuApiError(504, STATUS_MESSAGES[504]); }
+      if (!r.ok) await noteRefusal('login', r);
       if (r.status === 429) {
         // osu! is limiting this app's logins: leave it alone for a while (the next app is tried meanwhile)
         const wait = Number(r.headers.get('Retry-After')) || 300;
@@ -127,7 +129,19 @@ async function getOfficialToken(env, fetchImpl) {
 
 /** osu! API state shared by the requests this copy answers: the back-off after a 429, the answers of the last hour,
  *  and (in the Durable Object) `store`, which keeps those answers when the object restarts. */
-export const osuApi = { blockedUntil: 0, cache: new Map(), store: null };
+export const osuApi = { blockedUntil: 0, cache: new Map(), store: null, lastError: null };
+/** What osu! said the last time it refused (for /api/health): the login or the search, the status, how long it asked us
+ *  to wait, and the start of its answer — "Too Many Attempts." is osu!'s own limit, a Cloudflare page (error 1015)
+ *  means the shared Workers address is being limited. */
+async function noteRefusal(where, r) {
+  const body = (await r.clone().text().catch(() => '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+  osuApi.lastError = { where, status: r.status, retryAfter: r.headers.get('Retry-After'), server: r.headers.get('server'), at: new Date().toISOString(), body };
+}
+/** The osu! connection's state, for /api/health. */
+export function osuStatus() {
+  const left = t => Math.max(0, Math.ceil((t - Date.now()) / 1000));
+  return { waitingSeconds: left(osuApi.blockedUntil), apps: logins.map(l => ({ loggedIn: !!(l.token && l.token.exp > Date.now()), waitingSeconds: left(l.blockedUntil) })), lastRefusal: osuApi.lastError };
+}
 const SEARCH_TTL = 3600 * 1000, SET_TTL = 86400 * 1000; // (WOM's KV expiries: an hour, a set a day)
 const STALE_MAX = 7 * 86400 * 1000;
 const OSU_PATH = /^beatmapsets\/(?:search\?[^#]*|\d{1,10})$/;
@@ -149,6 +163,7 @@ async function askOsu(path, env, fetchImpl, retried = false) {
     if (!path.startsWith('beatmapsets/search')) return trimBeatmapSet(d);
     return { beatmapsets: (Array.isArray(d.beatmapsets) ? d.beatmapsets : []).map(trimBeatmapSet), search: d.search, total: d.total, cursor_string: d.cursor_string || null };
   }
+  await noteRefusal('search', r);
   const retryAfter = Number(r.headers.get('Retry-After')) || 0;
   if (r.status === 429) {
     // (another app can carry on while this one waits; with none left, stop asking — like WOM — for Retry-After or 5 min)
@@ -265,7 +280,13 @@ import { handleMultiplayer } from './multiplayer.js';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/api/health') return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS });
+    if (url.pathname === '/api/health') {
+      let osu = null;
+      if (env.MATCHMAKER) {
+        try { osu = await (await env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api')).fetch('https://osu-api/osu/state')).json(); } catch { /* no state yet */ }
+      }
+      return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu }, 200, { 'Cache-Control': 'no-store' });
+    }
     if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
       if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);
       return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
