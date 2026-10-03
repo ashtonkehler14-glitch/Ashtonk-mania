@@ -95,6 +95,13 @@ const Spectate = {
       if (m.last) c.ready = true;
       return;
     }
+    if (m.t === 'specPause') {
+      const c = this.cur;
+      if (!c || c.id !== m.id) return;
+      c.pause = m.paused ? m.at : null;
+      if (!m.paused && c.pauseShown && this.watchingNow()) this.hidePause(GameplayScreen, GameplayScreen.s);
+      return;
+    }
     if (m.t === 'specEnd') {
       if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
       if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; }
@@ -105,7 +112,7 @@ const Spectate = {
   async start(m) {
     // (never takes over your own play)
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.show(`${m.name} started a song`, 'Finish yours, then spectate again from the online list.'); return; }
-    const c = this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false };
+    const c = this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, pause: m.paused ?? null };
     this.paintPill(`${m.head.artist} - ${m.head.title} [${m.head.version}]`);
     let map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
     if (!map && m.head.onlineSetId > 0) {
@@ -134,10 +141,46 @@ const Spectate = {
       if (c.buffering) this.buffer(screen, s, false);
       return;
     }
+    // the player paused: once playback reaches that moment, the watcher sees the pause screen too
+    if (c.pause != null) {
+      if (!c.pauseShown && now >= c.pause - 20 * s.rate) this.showPause(screen, s);
+      if (c.pauseShown || now >= c.pause - 400 * s.rate) return; // (waiting at the pause isn't "waiting for the stream")
+    }
     if (c.ended) { if (c.buffering) this.buffer(screen, s, false); return; }
     if (s.running && now > c.at - 150 * s.rate) this.buffer(screen, s, true);
     else if (c.buffering && c.at - now > SPEC_DELAY * 0.6 * s.rate) this.buffer(screen, s, false);
   },
+  showPause(screen, s) {
+    const c = s.spectate;
+    if (c.buffering) this.buffer(screen, s, false);
+    c.pauseShown = true;
+    s.running = false; Music.pause();
+    // the pause menu as the player sees it, without its buttons (it's theirs): just a way to stop watching
+    c.pauseEl = h('div.pause-menu.spec-pause', h('div.pause-box',
+      h('div.pm-head', h('h2', 'paused')),
+      h('div.spec-pause-sub', `${c.name} paused the game — it carries on when they continue.`),
+      h('div.pm-buttons', h('button.pm-btn.danger', { style: { '--c': '#aa1b27' }, onclick: () => { UISounds.click(); this.stop(); } }, h('span.pm-band'), h('span.pm-label', 'Stop spectating')))));
+    screen.el.appendChild(c.pauseEl);
+    screen.el.classList.add('show-cursor');
+  },
+  hidePause(screen, s) {
+    const c = s && s.spectate;
+    if (!c || !c.pauseShown) return;
+    c.pauseShown = false;
+    if (c.pauseEl) { c.pauseEl.remove(); c.pauseEl = null; }
+    screen.el.classList.remove('show-cursor');
+    s.running = true; Music.play(Music.pausedPos);
+  },
+  /** Back in the tab after a while: straight back to the live play (a couple of seconds behind it). */
+  catchUp(screen, s) {
+    const c = s.spectate;
+    if (!c || !c.synced || c.ended || c.pauseShown || s.finished) return;
+    if (AudioManager.ctx && AudioManager.ctx.state !== 'running') AudioManager.resume();
+    const target = c.at - SPEC_DELAY * s.rate, now = screen.gameTime();
+    if (target - now > 1500 * s.rate || now > c.at) screen.replaySeek(Math.max(0, target));
+    if (!s.running && !c.buffering) { s.running = true; Music.play(Music.pausedPos); }
+  },
+  hostPause(paused, at) { if (Presence.ws) Presence.send({ t: 'pause', paused, at }); },
   buffer(screen, s, on) {
     const c = s.spectate;
     if (!!c.buffering === on) return;

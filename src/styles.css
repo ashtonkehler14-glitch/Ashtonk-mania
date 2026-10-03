@@ -3152,3 +3152,4 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .ol-row.req { box-shadow: inset 3px 0 0 #66ccff; }
 .ol-asked { font-size: .72rem; color: hsl(255 20% 75%); white-space: nowrap; }
 .ol-friend.ask { color: #66ccff; }
+.spec-pause-sub { margin: -10px 0 18px; text-align: center; color: rgba(255, 255, 255, .75); font-size: 1rem; }

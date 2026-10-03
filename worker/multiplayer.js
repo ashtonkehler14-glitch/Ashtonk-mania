@@ -790,7 +790,7 @@ export class PresenceLogic {
       tu.watchers.add(id); u.watching = to;
       if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
-      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist } });
+      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, paused: tu.paused ?? null } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
       return out;
     }
@@ -799,7 +799,7 @@ export class PresenceLogic {
       if (!msg.head || typeof msg.head !== 'object') return [];
       const head = cleanHead(msg.head);
       if (!head) return [];
-      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; // (a fresh play: nothing to catch up on)
+      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; u.paused = null; // (a fresh play: nothing to catch up on)
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true } }));
     }
     if (msg.t === 'frames') {
@@ -810,6 +810,11 @@ export class PresenceLogic {
       u.t = Math.max(u.t, t);
       if (msg.last) u.hist = true;
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last } }));
+    }
+    if (msg.t === 'pause') {
+      if (!u.play) return [];
+      u.paused = msg.paused ? num(msg.at, -1e4, 1e8) : null;
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specPause', id, paused: !!msg.paused, at: u.paused } }));
     }
     if (msg.t === 'playEnd') {
       if (!u.play) return [];

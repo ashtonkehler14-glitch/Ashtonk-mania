@@ -472,6 +472,19 @@ const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.n
 check('…and shows as spectating on the online list', st === 'watching', st);
 const seen = await bob.evaluate(() => [...document.querySelectorAll('.spec-list')].map(e => e.textContent).join());
 check('Bob sees who\'s spectating him on his HUD', /Spectators \(1\)/.test(seen) && /Alice/.test(seen), seen);
+// Alice's window losing focus doesn't pause what she's watching
+await alice.evaluate(() => window.dispatchEvent(new Event('blur'))); await alice.waitForTimeout(300);
+check('spectating: switching away doesn\'t bring up the pause menu', await alice.evaluate(() => !document.querySelector('.pause-menu') && AshtonkMania.GameplayScreen.s.running));
+// Bob pauses: once Alice's playback reaches that moment she sees the pause screen; it goes when he continues
+await bob.keyboard.press('Escape');
+await bob.waitForSelector('.pause-menu', { timeout: 3000 });
+const sawPause = await alice.waitForSelector('.spec-pause', { timeout: 8000 }).then(() => true, () => false);
+const pausedT = await alice.evaluate(() => AshtonkMania.Music.time);
+await alice.waitForTimeout(600);
+const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running, pausedT);
+await bob.click('.pause-menu .pm-btn.primary');
+const resumed = await alice.waitForFunction(() => !document.querySelector('.spec-pause') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 6000 }).then(() => true, () => false);
+check('spectating: the player pausing shows the watcher the pause screen, held there, and it carries on when they continue', sawPause && held && resumed, JSON.stringify({ sawPause, held, resumed }));
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'gameplay' && !document.querySelector('.spec-pill'), null, { timeout: 8000 });
 await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});

@@ -171,7 +171,10 @@ const GameplayScreen = {
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
     // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
-    this._blur = () => { if (this.s && this.s.running) { if (!this.s.mp) this.pause(); else this.releaseAll(); } };
+    this._blur = () => { if (this.s && this.s.running) { if (this.s.spectate) return; if (!this.s.mp) this.pause(); else this.releaseAll(); } };
+    // spectating: coming back to the tab goes straight back to the live play (no pause menu)
+    this._vis = () => { if (document.visibilityState === 'visible' && this.s && this.s.spectate) Spectate.catchUp(this, this.s); };
+    document.addEventListener('visibilitychange', this._vis);
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
     window.addEventListener('blur', this._blur);
@@ -204,6 +207,7 @@ const GameplayScreen = {
     if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
     window.removeEventListener('keyup', this._keyup, true);
     window.removeEventListener('blur', this._blur);
+    document.removeEventListener('visibilitychange', this._vis);
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
     this._settingsSub && this._settingsSub();
@@ -1071,6 +1075,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.releaseAll();
     s.running = false;
     Music.pause();
+    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime()); // (whoever's watching sees the pause too)
     SkinManager.sample('pause-loop').then(() => {});
     this.showPause('Paused');
   },
@@ -1113,6 +1118,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (!s || s.running || s.failed || s.finished) return;
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
+    if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
     if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
     const steps = 3, stepMs = delay / steps;
     const cd = h('div.countdown', '3');
