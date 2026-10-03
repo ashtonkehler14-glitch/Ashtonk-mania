@@ -810,3 +810,47 @@ test('each lounge joins only its own kind of room: a duel from the Ranked Play l
   assert.ok(room.join('b', 'Bob', false, { want: 'room' }).ok);
   assert.ok(room.join('c', 'Cat', false, {}).ok, 'an invite link joins whatever the room is');
 });
+
+test('presence: public ids and songs on the list; spectating streams a play only while someone watches', () => {
+  const clock = { t: 0 };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  assert.equal(p.list().find(x => x.id === 'a').pid, 'alicepid1');
+  p.message('a', { t: 'status', status: 'playing', song: { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 } });
+  assert.deepEqual(p.list().find(x => x.id === 'a').song, { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 });
+  const head = { mapHash: 'abc', onlineSetId: 5, title: 'Song', keys: 4, mods: ['HD', 'AT'], rate: 1, seed: 7 };
+  // nobody watching: the play is announced, but its inputs aren't streamed
+  assert.deepEqual(p.message('a', { t: 'play', head }), []);
+  assert.deepEqual(p.message('a', { t: 'frames', ev: [100, 0, 1], at: 200 }), []);
+  // Bob starts watching mid-play: he gets the header, and Alice is asked for everything so far
+  const w = p.message('b', { t: 'watch', to: 'a' });
+  const start = w.find(o => o.msg.t === 'specStart'), ask = w.find(o => o.msg.t === 'spectators');
+  assert.equal(start.to, 'b'); assert.equal(start.msg.head.mapHash, 'abc'); assert.deepEqual(start.msg.head.mods, ['HD'], 'no Auto');
+  assert.equal(start.msg.hist, false);
+  assert.deepEqual(ask, { to: 'a', msg: { t: 'spectators', n: 1, full: true } });
+  // her full upload (in chunks), then live frames, reach him
+  const f1 = p.message('a', { t: 'frames', ev: [100, 0, 1], at: 300, reset: true });
+  assert.deepEqual(f1[0], { to: 'b', msg: { t: 'specFrames', id: 'a', ev: [100, 0, 1], at: 300, reset: true, last: false } });
+  p.message('a', { t: 'frames', ev: [150, 0, 0], at: 400, last: true });
+  p.message('a', { t: 'frames', ev: [500, 1, 1], at: 600 });
+  // a second watcher joining later gets all of it at once, with nothing more asked of Alice
+  p.join('c', { name: 'Cat' });
+  const w2 = p.message('c', { t: 'watch', to: 'a' });
+  const s2 = w2.find(o => o.msg.t === 'specStart');
+  assert.deepEqual(s2.msg.ev, [100, 0, 1, 150, 0, 0, 500, 1, 1]); assert.equal(s2.msg.hist, true); assert.equal(s2.msg.at, 600);
+  assert.equal(w2.find(o => o.msg.t === 'spectators').msg.full, false);
+  // the play ends: watchers are told, and stay subscribed for her next one
+  const end = p.message('a', { t: 'playEnd' });
+  assert.deepEqual(end.map(o => o.to).sort(), ['b', 'c']); assert.equal(end[0].msg.t, 'specEnd');
+  const next = p.message('a', { t: 'play', head });
+  assert.deepEqual(next.map(o => o.msg.t), ['specStart', 'specStart']);
+  // everyone stops watching: she stops streaming; watching someone in the menus waits for their next play
+  p.message('b', { t: 'unwatch', to: 'a' });
+  const last = p.message('c', { t: 'unwatch', to: 'a' });
+  assert.deepEqual(last, [{ to: 'a', msg: { t: 'spectators', n: 0 } }]);
+  assert.deepEqual(p.message('a', { t: 'frames', ev: [1, 0, 1], at: 5 }), []);
+  assert.equal(p.message('a', { t: 'watch', to: 'b' }).find(o => o.to === 'a').msg.t, 'specWait');
+  // a watched player leaving tells their watchers
+  const gone = p.leave('b');
+  assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
+});

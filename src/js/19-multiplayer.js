@@ -52,7 +52,7 @@ const Multiplayer = {
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), ...opts })); this.ping(); };
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
@@ -333,7 +333,22 @@ const Presence = {
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
   },
-  status() { return Screens.currentName === 'gameplay' ? 'playing' : Multiplayer.inRoom() ? 'room' : 'menu'; },
+  status() {
+    if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
+    return Multiplayer.inRoom() ? 'room' : 'menu';
+  },
+  /** What's being played (shown on the online list). */
+  song() {
+    const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
+    return s && s.rec && !s.spectate && !s.replay ? { title: s.rec.title, artist: s.rec.artist, version: s.rec.version, stars: +(s.stars || s.rec.stars || 0).toFixed(2), keys: s.keys } : null;
+  },
+  /** This player's public id: kept in this browser, so friends recognise you between visits. */
+  pid() {
+    if (this._pid) return this._pid;
+    let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
+    if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
+    return (this._pid = p);
+  },
   connect() {
     const u = new URL('api/mp/presence', location.href);
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -345,22 +360,33 @@ const Presence = {
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid }));
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid() }));
+      this._song = null; this.pushStatus();
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
       clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') this.me = m.you;
-      else if (m.t === 'online') { this.players = Array.isArray(m.players) ? m.players : []; Bus.emit('presence:changed'); }
+      if (m.t === 'welcome') { this.me = m.you; if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      else if (m.t === 'online') {
+        const before = new Set(this.players.map(x => x.pid));
+        this.players = Array.isArray(m.players) ? m.players : [];
+        // a friend coming online (as lazer tells you)
+        if (this._listed) for (const x of this.players) if (x.pid && !before.has(x.pid) && x.id !== this.me && Friends.has(x.pid)) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+        this._listed = true;
+        Bus.emit('presence:changed');
+      }
+      else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
-      this.ws = null; this.players = []; clearInterval(this._ping);
+      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
+      // (spectating carries on after the reconnect: ask again)
+      if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
       this.later();
     };
@@ -368,14 +394,14 @@ const Presence = {
   later() { clearTimeout(this._t); this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
   pushStatus() {
-    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '';
-    if (st === this._sent && name === this._name && av === this._av) return;
-    this._sent = st; this._name = name; this._av = av;
-    this.send({ t: 'status', status: st, name, avatar: av });
+    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
+    if (st === this._sent && name === this._name && av === this._av && sk === this._song) return;
+    this._sent = st; this._name = name; this._av = av; this._song = sk;
+    this.send({ t: 'status', status: st, name, avatar: av, song });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog)? */
-  watching() { return !!document.querySelector('.inv-list'); },
+  watching() { return !!document.querySelector('.inv-list') || (typeof OnlinePanel !== 'undefined' && OnlinePanel.isOpen()); },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -707,7 +733,14 @@ const MultiplayerScreen = {
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
           r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
             ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
-        h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
+        h('span.grow'),
+        // still playing while you're back in the room: watch them finish
+        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
+          UISounds.click();
+          const pp = Presence.players.find(x => x.pid === p.pid);
+          if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
+        } }, icon('film'), 'Spectate') : null,
+        state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {

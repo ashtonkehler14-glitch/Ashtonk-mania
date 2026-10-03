@@ -107,7 +107,7 @@ export class RoomLogic {
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
+      players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
@@ -166,7 +166,7 @@ export class RoomLogic {
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), away: false, awayUntil: 0 };
+      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), pid: /^[a-z0-9]{6,24}$/.test(String(opts.pid || '')) ? String(opts.pid) : '', away: false, awayUntil: 0 };
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
@@ -642,29 +642,54 @@ export class MatchRoom {
   }
 }
 
-/** Who's online, and invites between them. Presence protocol (client → server): hello {name, status},
- *  status {status, room}, invite {to, code}, ping. Server → client: welcome {you}, online {players},
- *  invite {from: {id, name}, code}, invited {to}, error {msg}. Plain JS so it can be unit-tested. */
+/** Who's online, invites, and spectating. Presence protocol (client → server): hello {name, status, avatar, cid, pid},
+ *  status {status, name?, avatar?, song?}, invite {to, code}, list, ping; spectating: play {head} (a play started:
+ *  the replay header), frames {ev, at, reset?, last?} (its inputs, streamed only while someone watches), playEnd {quit?},
+ *  watch {to}, unwatch {to}. Server → client: welcome {you}, online {players}, invite {from, code}, invited {to},
+ *  error {msg}; to a player: spectators {n, full?} (full: send everything so far); to a watcher: specStart {id, name,
+ *  head, ev, at, hist}, specFrames {id, ev, at, reset?, last?}, specEnd {id, quit?, gone?}, specWait {id, name}.
+ *  Plain JS so it can be unit-tested. */
 export class PresenceLogic {
   constructor(now = () => Date.now()) { this.now = now; this.users = new Map(); this.lastInvite = new Map(); }
   static STALE = 70000; // clients ping every 10 s (a background tab maybe once a minute); silent this long = gone (a dropped connection may never say so)
-  list() { return [...this.users.entries()].map(([id, u]) => ({ id, name: u.name, status: u.status, avatar: u.avatar })); }
+  static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
+  list() { return [...this.users.entries()].map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
-    const cid = str(msg && msg.cid, 40), gone = [];
-    if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { this.users.delete(oid); gone.push(oid); }
-    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid, seen: this.now() });
+    const cid = str(msg && msg.cid, 40), gone = [], out = [];
+    if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { out.push(...this.forget(oid)); gone.push(oid); }
+    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
+      pid: /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '', song: null, seen: this.now(),
+      play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
-    return [{ to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
+    return [...out, { to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
-    const t = this.now(), gone = [];
-    for (const [id, u] of this.users) if (t - u.seen > PresenceLogic.STALE) { this.users.delete(id); this.lastInvite.delete(id); gone.push(id); }
-    return { gone, out: gone.length ? [this.broadcast()] : [] };
+    const t = this.now(), gone = [], out = [];
+    for (const [id, u] of this.users) if (t - u.seen > PresenceLogic.STALE) { out.push(...this.forget(id)); gone.push(id); }
+    return { gone, out: gone.length ? [...out, this.broadcast()] : [] };
   }
-  leave(id) { if (!this.users.delete(id)) return []; this.lastInvite.delete(id); return [this.broadcast()]; }
+  /** Take a player off the list: their watchers are told the stream ended, and they stop watching anyone. */
+  forget(id) {
+    const u = this.users.get(id);
+    if (!u) return [];
+    const out = [];
+    for (const w of u.watchers) { const wu = this.users.get(w); if (wu && wu.watching === id) wu.watching = null; out.push({ to: w, msg: { t: 'specEnd', id, gone: true } }); }
+    if (u.watching) out.push(...this.unwatch(id, u.watching));
+    this.users.delete(id); this.lastInvite.delete(id);
+    return out;
+  }
+  leave(id) { if (!this.users.has(id)) return []; const out = this.forget(id); return [...out, this.broadcast()]; }
   broadcast() { return { to: 'all', msg: { t: 'online', players: this.list() } }; }
+  unwatch(id, target) {
+    const u = this.users.get(id), tu = this.users.get(target);
+    if (u && u.watching === target) u.watching = null;
+    if (!tu || !tu.watchers.delete(id)) return [];
+    // nobody left watching: the player stops streaming, and what was kept is dropped
+    if (!tu.watchers.size) { tu.hist = false; tu.ev = []; }
+    return [{ to: target, msg: { t: 'spectators', n: tu.watchers.size } }];
+  }
   message(id, msg) {
     const u = this.users.get(id);
     if (!u || !msg || typeof msg !== 'object') return [];
@@ -672,8 +697,9 @@ export class PresenceLogic {
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
     if (msg.t === 'status') {
       const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
-      if (st === u.status && name === u.name && av === u.avatar) return [];
-      u.status = st; u.name = name; u.avatar = av;
+      const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
+      if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return [];
+      u.status = st; u.name = name; u.avatar = av; u.song = song;
       return [this.broadcast()];
     }
     if (msg.t === 'invite') {
@@ -685,11 +711,61 @@ export class PresenceLogic {
       this.lastInvite.set(id, { key, at: t });
       return [{ to: msg.to, msg: { t: 'invite', from: { id, name: u.name }, code } }, { to: id, msg: { t: 'invited', to: msg.to } }];
     }
+    // ── spectating
+    if (msg.t === 'watch') {
+      const to = String(msg.to || ''), tu = this.users.get(to);
+      if (!tu || to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
+      const first = !tu.watchers.size;
+      tu.watchers.add(id); u.watching = to;
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size } }];
+      // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
+      out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist } });
+      out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, full: first || !tu.hist } });
+      return out;
+    }
+    if (msg.t === 'unwatch') return this.unwatch(id, String(msg.to || u.watching || ''));
+    if (msg.t === 'play') {
+      if (!msg.head || typeof msg.head !== 'object') return [];
+      const head = cleanHead(msg.head);
+      if (!head) return [];
+      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; // (a fresh play: nothing to catch up on)
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true } }));
+    }
+    if (msg.t === 'frames') {
+      if (!u.play || !u.watchers.size || !Array.isArray(msg.ev)) return [];
+      const ev = msg.ev.slice(0, 6000).map(Number).filter(Number.isFinite), t = num(msg.at, -1e4, 1e8);
+      if (msg.reset) u.ev = [];
+      if (u.ev.length + ev.length <= PresenceLogic.MAX_EV) for (const x of ev) u.ev.push(x);
+      u.t = Math.max(u.t, t);
+      if (msg.last) u.hist = true;
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last } }));
+    }
+    if (msg.t === 'playEnd') {
+      if (!u.play) return [];
+      u.play = null; u.ev = []; u.hist = false;
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specEnd', id, quit: !!msg.quit } }));
+    }
     if (msg.t === 'ping') return [{ to: id, msg: { t: 'pong' } }];
     return [];
   }
 }
-const cleanStatus = s => ['menu', 'room', 'playing'].includes(s) ? s : 'menu';
+/** What a player is playing, as shown on the online list. */
+const cleanSong = s => s && typeof s === 'object' && s.title ? { title: str(s.title, 120), artist: str(s.artist, 120), version: str(s.version, 80), stars: num(s.stars, 0, 20, 0), keys: Math.round(num(s.keys, 1, 18, 4)) } : null;
+/** A play's replay header (what a watcher needs to play it back), checked and trimmed. */
+const cleanHead = h => {
+  const hash = str(h.mapHash, 64);
+  if (!hash) return null;
+  const nums = o => o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).slice(0, 16).map(([k, v]) => [str(k, 16), typeof v === 'number' ? num(v, -1e6, 1e6) : str(String(v), 32)])) : {};
+  return {
+    mapHash: hash, onlineId: Math.round(num(h.onlineId, -1, 1e10, -1)), onlineSetId: Math.round(num(h.onlineSetId, -1, 1e10, -1)),
+    title: str(h.title, 120), artist: str(h.artist, 120), version: str(h.version, 80), creator: str(h.creator, 40),
+    keys: Math.round(num(h.keys, 1, 18, 4)), mods: cleanMods(h.mods), rate: num(h.rate, 0.25, 4, 1), seed: Math.round(num(h.seed, 0, 2 ** 32, 0)),
+    windows: Array.isArray(h.windows) ? h.windows.slice(0, 8).map(x => num(x, 0, 1000, 100)) : nums(h.windows), accuracyMode: str(h.accuracyMode, 16), hp: num(h.hp, 0, 10, 5), modConfig: nums(h.modConfig),
+    noFail: !!h.noFail, rules: Math.round(num(h.rules, 0, 100, 1)), player: str(h.player, 24),
+  };
+};
+const cleanStatus = s => ['menu', 'room', 'playing', 'watching'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
@@ -703,7 +779,7 @@ export class Matchmaker {
     const id = crypto.randomUUID().slice(0, 8);
     let joined = false;
     server.addEventListener('message', ev => {
-      if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
+      if (typeof ev.data !== 'string' || ev.data.length > 65536) return; // (a play's inputs go up in chunks of up to ~60 KB)
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;

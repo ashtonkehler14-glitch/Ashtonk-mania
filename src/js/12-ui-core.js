@@ -471,6 +471,7 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
         btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
+        btn('social', 'online users', 'see who\'s online, add friends and spectate', () => OnlinePanel.toggle(), { right: true, dataset: { ov: 'online' } }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
@@ -520,10 +521,10 @@ const Toolbar = {
   sync() {
     cancelAnimationFrame(this._syncRaf);
     this._syncRaf = requestAnimationFrame(() => {
-      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen() };
+      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen(), online: typeof OnlinePanel !== 'undefined' && OnlinePanel.isOpen() };
       // lazer pushes the screen 5% of a side panel's width away from it, for a sense of depth
       $('#app').classList.toggle('side-l', on.settings);
-      $('#app').classList.toggle('side-r', on.notifications && !on.settings);
+      $('#app').classList.toggle('side-r', (on.notifications || on.online) && !on.settings);
       $$('#toolbar [data-ov]').forEach(b => b.classList.toggle('on', !!on[b.dataset.ov]));
       $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === this._tab));
     });
@@ -986,6 +987,7 @@ const Notifications = {
       window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
       Bus.on('screen:changed', () => this.close());
     }
+    if (typeof OnlinePanel !== 'undefined') OnlinePanel.close();
     this.render();
     this.el.classList.add('open');
     this.unread = 0; Bus.emit('notif:changed');

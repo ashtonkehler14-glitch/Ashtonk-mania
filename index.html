@@ -3124,6 +3124,31 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .perf .neru.hop .neru-img { animation: neruHop 620ms linear; }
 .perf .settings-panel, .perf .np-panel, .perf .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 
+/* Online users panel (like the notifications panel, from the right), and the "Spectating …" pill */
+.ol-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 360px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: hsl(255 10% 20%); box-shadow: -8px 0 30px rgba(0, 0, 0, .45); transform: translateX(105%); transition: transform 400ms cubic-bezier(.22, 1, .36, 1); }
+.ol-panel.open { transform: none; }
+.ol-tabs { display: flex; gap: 4px; padding: 0 12px 8px; }
+.ol-tab { flex: 1; padding: 7px 8px; border: 0; border-radius: 6px; background: hsl(255 10% 15%); color: hsl(255 40% 90% / .7); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.ol-tab.on { background: hsl(255 40% 45%); color: #fff; }
+.ol-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+.ol-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: hsl(255 10% 15%); }
+.ol-row.friend { box-shadow: inset 3px 0 0 #ff66ab; }
+.ol-row.off { opacity: .55; }
+.ol-row .avatar { flex: none; border-radius: 8px; object-fit: cover; }
+.ol-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ol-who b { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-who small { font-size: .72rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-who .ol-watch { color: #66ccff; }
+.ol-fr { margin-left: 5px; color: #ff66ab; display: inline-flex; vertical-align: -2px; }
+.ol-fr svg { width: 12px; height: 12px; }
+.ol-acts { flex: none; display: flex; align-items: center; gap: 4px; }
+.ol-friend.on { color: #ff66ab; }
+.spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
+.spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
+.spec-pill-t b { font-size: .82rem; }
+.spec-pill-t small { font-size: .7rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+#app.in-game .spec-pill { bottom: auto; top: 10px; opacity: .8; }
+
 </style>
 </head>
 <body>
@@ -8719,6 +8744,7 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
         btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
+        btn('social', 'online users', 'see who\'s online, add friends and spectate', () => OnlinePanel.toggle(), { right: true, dataset: { ov: 'online' } }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
@@ -8768,10 +8794,10 @@ const Toolbar = {
   sync() {
     cancelAnimationFrame(this._syncRaf);
     this._syncRaf = requestAnimationFrame(() => {
-      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen() };
+      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen(), online: typeof OnlinePanel !== 'undefined' && OnlinePanel.isOpen() };
       // lazer pushes the screen 5% of a side panel's width away from it, for a sense of depth
       $('#app').classList.toggle('side-l', on.settings);
-      $('#app').classList.toggle('side-r', on.notifications && !on.settings);
+      $('#app').classList.toggle('side-r', (on.notifications || on.online) && !on.settings);
       $$('#toolbar [data-ov]').forEach(b => b.classList.toggle('on', !!on[b.dataset.ov]));
       $$('#toolbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === this._tab));
     });
@@ -9234,6 +9260,7 @@ const Notifications = {
       window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
       Bus.on('screen:changed', () => this.close());
     }
+    if (typeof OnlinePanel !== 'undefined') OnlinePanel.close();
     this.render();
     this.el.classList.add('open');
     this.unread = 0; Bus.emit('notif:changed');
@@ -11210,6 +11237,7 @@ const GameplayScreen = {
   },
   leave() {
     document.title = APP_NAME;
+    if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
@@ -11227,6 +11255,7 @@ const GameplayScreen = {
     this.closePause();
   },
   onBack() {
+    if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
@@ -11289,7 +11318,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
+      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
     };
@@ -11319,6 +11348,9 @@ const GameplayScreen = {
     s.running = true;
     this.lastRender = 0;
     this.loop();
+    // someone may be spectating: announce the play (its inputs are streamed only while they watch)
+    if (s.mode === 'play') Spectate.hostStart(s);
+    Presence.pushStatus();
   },
 
   // ─────────────────────────────── player loader ───────────────────────────────
@@ -11524,7 +11556,7 @@ const GameplayScreen = {
     }
     if (s.practice) this.buildPracticeBar();
     this.replayBar = null;
-    if (s.feed && !s.practice && !s.mp) this.buildReplayBar();
+    if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
   },
@@ -11575,6 +11607,7 @@ const GameplayScreen = {
       this._lastTs = realNow;
       const now = this.frameTime(realNow);
       const eng = s.engine;
+      if (s.spectate) Spectate.tick(this, s, now); else if (Spectate.host.s === s) Spectate.hostTick(s, now);
       if (s.running) {
         // replay / auto input feed (exact recorded times)
         if (s.feed) {
@@ -15373,7 +15406,7 @@ const Multiplayer = {
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), ...opts })); this.ping(); };
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
@@ -15654,7 +15687,22 @@ const Presence = {
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
   },
-  status() { return Screens.currentName === 'gameplay' ? 'playing' : Multiplayer.inRoom() ? 'room' : 'menu'; },
+  status() {
+    if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
+    return Multiplayer.inRoom() ? 'room' : 'menu';
+  },
+  /** What's being played (shown on the online list). */
+  song() {
+    const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
+    return s && s.rec && !s.spectate && !s.replay ? { title: s.rec.title, artist: s.rec.artist, version: s.rec.version, stars: +(s.stars || s.rec.stars || 0).toFixed(2), keys: s.keys } : null;
+  },
+  /** This player's public id: kept in this browser, so friends recognise you between visits. */
+  pid() {
+    if (this._pid) return this._pid;
+    let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
+    if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
+    return (this._pid = p);
+  },
   connect() {
     const u = new URL('api/mp/presence', location.href);
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -15666,22 +15714,33 @@ const Presence = {
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid }));
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid() }));
+      this._song = null; this.pushStatus();
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
       clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') this.me = m.you;
-      else if (m.t === 'online') { this.players = Array.isArray(m.players) ? m.players : []; Bus.emit('presence:changed'); }
+      if (m.t === 'welcome') { this.me = m.you; if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      else if (m.t === 'online') {
+        const before = new Set(this.players.map(x => x.pid));
+        this.players = Array.isArray(m.players) ? m.players : [];
+        // a friend coming online (as lazer tells you)
+        if (this._listed) for (const x of this.players) if (x.pid && !before.has(x.pid) && x.id !== this.me && Friends.has(x.pid)) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+        this._listed = true;
+        Bus.emit('presence:changed');
+      }
+      else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
-      this.ws = null; this.players = []; clearInterval(this._ping);
+      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
+      // (spectating carries on after the reconnect: ask again)
+      if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
       this.later();
     };
@@ -15689,14 +15748,14 @@ const Presence = {
   later() { clearTimeout(this._t); this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
   pushStatus() {
-    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '';
-    if (st === this._sent && name === this._name && av === this._av) return;
-    this._sent = st; this._name = name; this._av = av;
-    this.send({ t: 'status', status: st, name, avatar: av });
+    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
+    if (st === this._sent && name === this._name && av === this._av && sk === this._song) return;
+    this._sent = st; this._name = name; this._av = av; this._song = sk;
+    this.send({ t: 'status', status: st, name, avatar: av, song });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog)? */
-  watching() { return !!document.querySelector('.inv-list'); },
+  watching() { return !!document.querySelector('.inv-list') || (typeof OnlinePanel !== 'undefined' && OnlinePanel.isOpen()); },
   refresh() { this.send({ t: 'list' }); },
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
@@ -16028,7 +16087,14 @@ const MultiplayerScreen = {
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
           r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
             ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
-        h('span.grow'), state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
+        h('span.grow'),
+        // still playing while you're back in the room: watch them finish
+        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
+          UISounds.click();
+          const pp = Presence.players.find(x => x.pid === p.pid);
+          if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
+        } }, icon('film'), 'Spectate') : null,
+        state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
@@ -17155,6 +17221,247 @@ function rankedQueuePanel() {
 }
 const fmtDateShort = t => { try { return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; } };
 
+/* ===== 19c-online.js ===== */
+/* Online players, friends and spectating.
+ * - OnlinePanel: lazer's "currently online" list (a top bar button): everyone online, what they're doing, with Add
+ *   friend, Spectate and Invite. Friends come first, and a Friends tab keeps them even while they're offline.
+ * - Friends: kept in this browser, by each player's public id (Presence's pid), so a renamed friend stays a friend.
+ * - Spectate: watch someone's play live. Their game streams its key presses through the presence server — only while
+ *   someone is watching — and the watcher's game plays them back like a replay, a couple of seconds behind (so a
+ *   hiccup in the stream doesn't stop the playback). Watching someone follows them from song to song. */
+
+const Friends = {
+  KEY: 'am.friends',
+  list() { try { const l = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(l) ? l.filter(f => f && f.pid) : []; } catch { return []; } },
+  save(l) { try { localStorage.setItem(this.KEY, JSON.stringify(l)); } catch { /* private mode */ } Bus.emit('friends:changed'); },
+  has(pid) { return !!pid && this.list().some(f => f.pid === pid); },
+  toggle(p) {
+    if (!p || !p.pid) return;
+    const l = this.list();
+    if (this.has(p.pid)) { this.save(l.filter(f => f.pid !== p.pid)); Toast.show('Removed from friends', p.name); }
+    else { this.save([...l, { pid: p.pid, name: p.name, avatar: p.avatar || '', since: Date.now() }]); Toast.ok('Added to friends', p.name); }
+  },
+  /** Keep a friend's saved name and picture up to date when they're seen online. */
+  touch(p) {
+    const l = this.list(), f = l.find(x => x.pid === p.pid);
+    if (f && (f.name !== p.name || (p.avatar && f.avatar !== p.avatar))) { f.name = p.name; if (p.avatar) f.avatar = p.avatar; try { localStorage.setItem(this.KEY, JSON.stringify(l)); } catch { /* private mode */ } }
+  },
+};
+
+const SPEC_DELAY = 2500; // ms of song time the watcher stays behind the player
+
+const Spectate = {
+  target: null, // { id, name }: who we're watching (we follow them from play to play)
+  cur: null,    // the play being watched: { id, name, head, feed, at, ready, ended, quit }
+  host: { watchers: 0, s: null, sent: 0, lastSend: 0 },
+
+  // ── watching
+  watch(p) {
+    if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
+    if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
+    if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
+    this.target = { id: p.id, name: p.name };
+    this.cur = null;
+    Presence.send({ t: 'watch', to: p.id });
+    this.paintPill();
+    Presence.pushStatus();
+  },
+  stop({ quiet = false } = {}) {
+    if (!this.target) return;
+    Presence.send({ t: 'unwatch', to: this.target.id });
+    const name = this.target.name;
+    this.target = null; this.cur = null;
+    this.paintPill();
+    if (this.watchingNow()) Screens.go('home');
+    if (!quiet) Toast.show('Stopped spectating', name);
+    Presence.pushStatus();
+  },
+  watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
+  on(m) {
+    if (m.t === 'spectators') { this.onSpectators(m); return; }
+    if (!this.target || m.id !== this.target.id) return;
+    if (m.t === 'specWait') { this.paintPill(`waiting for ${m.name} to play…`); return; }
+    if (m.t === 'specStart') { this.start(m); return; }
+    if (m.t === 'specFrames') {
+      const c = this.cur;
+      if (!c || c.id !== m.id) return;
+      if (m.reset) c.feed.length = 0;
+      for (const x of m.ev || []) c.feed.push(x);
+      c.at = Math.max(c.at, m.at || 0);
+      if (m.last) c.ready = true;
+      return;
+    }
+    if (m.t === 'specEnd') {
+      if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; }
+      if (m.quit && this.watchingNow()) { Toast.show(`${this.target.name} quit the song`, 'Waiting for their next one…'); Screens.go('home'); }
+      this.paintPill(`waiting for ${this.target.name}'s next song…`);
+    }
+  },
+  async start(m) {
+    // (never takes over your own play)
+    if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.show(`${m.name} started a song`, 'Finish yours, then spectate again from the online list.'); return; }
+    const c = this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false };
+    this.paintPill(`${m.head.artist} - ${m.head.title} [${m.head.version}]`);
+    let map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+    if (!map && m.head.onlineSetId > 0) {
+      Toast.show(`Getting the beatmap ${m.name} is playing…`, `${m.head.artist} - ${m.head.title}`);
+      try { await OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true }); } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
+      if (this.cur !== c) return;
+      map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+    }
+    if (!map) { Toast.err(`Can't spectate ${m.name}'s song`, 'That beatmap isn\'t in your library and couldn\'t be downloaded.'); return; }
+    if (this.cur !== c) return;
+    const replay = { ...m.head, events: c.feed, player: m.name, mapId: map.id, summary: null };
+    Game.launch({ mapId: map.id, mode: 'replay', replay, spectate: c });
+  },
+
+  /** Called by the watcher's gameplay every frame: start a little behind the player, and wait for the stream
+   *  whenever playback catches up with it. */
+  tick(screen, s, now) {
+    const c = s.spectate;
+    if (!c || s.finished) return;
+    if (c.quit) return;
+    if (!c.synced) {
+      if (!c.ready) { if (s.running) this.buffer(screen, s, true); return; }
+      c.synced = true;
+      const target = c.at - SPEC_DELAY * s.rate;
+      if (target > now + 1000) screen.replaySeek(target);
+      if (c.buffering) this.buffer(screen, s, false);
+      return;
+    }
+    if (c.ended) { if (c.buffering) this.buffer(screen, s, false); return; }
+    if (s.running && now > c.at - 150 * s.rate) this.buffer(screen, s, true);
+    else if (c.buffering && c.at - now > SPEC_DELAY * 0.6 * s.rate) this.buffer(screen, s, false);
+  },
+  buffer(screen, s, on) {
+    const c = s.spectate;
+    if (!!c.buffering === on) return;
+    c.buffering = on;
+    if (on) { s.running = false; Music.pause(); c.msg = h('div.hud-center-msg.spec-wait', `Waiting for ${c.name}…`); screen.hud.append(c.msg); }
+    else { if (c.msg) { c.msg.remove(); c.msg = null; } s.running = true; Music.play(Music.pausedPos); }
+  },
+
+  // ── being watched: stream this play's inputs while anyone watches
+  onSpectators(m) {
+    const H = this.host;
+    H.watchers = m.n || 0;
+    if (m.full && H.s && GameplayScreen.s === H.s && !H.s.finished) this.upload(H.s);
+  },
+  /** Everything so far, in chunks (the first resets what the server kept, the last says it's complete). */
+  upload(s) {
+    const H = this.host, ev = s.events.map(x => Math.round(x * 100) / 100), CH = 3000;
+    const at = this.songTime(s);
+    if (!ev.length) Presence.send({ t: 'frames', ev: [], at, reset: true, last: true });
+    for (let i = 0; i < ev.length; i += CH) Presence.send({ t: 'frames', ev: ev.slice(i, i + CH), at, reset: i === 0, last: i + CH >= ev.length });
+    H.sent = s.events.length; H.lastSend = performance.now();
+  },
+  songTime(s) { return GameplayScreen.s === s && GameplayScreen._vc ? GameplayScreen._vc.t : 0; },
+  hostStart(s) {
+    const H = this.host;
+    H.s = s; H.sent = 0; H.lastSend = 0;
+    if (!Presence.ws) return;
+    const set = BeatmapManager.setById.get(s.rec.setId);
+    Presence.send({ t: 'play', head: {
+      mapHash: s.rec.hash, onlineId: s.rec.onlineId > 0 ? s.rec.onlineId : -1, onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1,
+      title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
+      keys: s.keys, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp,
+      modConfig: s.modConfig, noFail: !!s.mp, rules: s.rules, player: ProfileManager.profile.name,
+    } });
+  },
+  hostTick(s, now) {
+    const H = this.host;
+    if (H.s !== s || !H.watchers || s.finished) return;
+    const t = performance.now();
+    if (t - H.lastSend < 400) return;
+    H.lastSend = t;
+    const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100);
+    H.sent = s.events.length;
+    Presence.send({ t: 'frames', ev, at: now });
+  },
+  hostEnd(s, quit) {
+    const H = this.host;
+    if (H.s !== s) return;
+    if (H.watchers && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
+    H.s = null;
+    Presence.send({ t: 'playEnd', quit: !!quit });
+  },
+
+  /** The "Spectating …" pill: who you're watching, with Stop. */
+  paintPill(sub) {
+    if (!this.target) { if (this.pill) { this.pill.remove(); this.pill = null; } return; }
+    if (!this.pill) { this.pill = h('div.spec-pill'); $('#app').appendChild(this.pill); }
+    clearEl(this.pill).append(icon('film'), h('div.spec-pill-t', h('b', `Spectating ${this.target.name}`), sub ? h('small', sub) : null),
+      h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop'));
+  },
+};
+
+/** lazer's online users list (here a panel from the top bar): who's online right now, and your friends. */
+const OnlinePanel = {
+  el: null, tab: 'online',
+  isOpen() { return !!(this.el && this.el.classList.contains('open')); },
+  toggle() { this.isOpen() ? this.close() : this.open(); },
+  open() {
+    if (!this.el) {
+      this.listEl = h('div.ol-list');
+      this.tabsEl = h('div.ol-tabs');
+      this.el = h('div.ol-panel', { role: 'dialog', 'aria-label': 'Online players' },
+        h('div.nf-head', h('div.nf-title', 'ONLINE', this.countEl = h('span.nf-count'))), this.tabsEl, this.listEl);
+      $('#app').appendChild(this.el);
+      document.addEventListener('pointerdown', e => { if (this.isOpen() && !this.el.contains(e.target) && !e.target.closest('.tb-btn') && !e.target.closest('.dialog')) this.close(); }, true);
+      window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); UISounds.back(); this.close(); } }, true);
+      Bus.on('screen:changed', () => this.close());
+      Bus.on('presence:changed', () => this.isOpen() && this.render());
+      Bus.on('friends:changed', () => this.isOpen() && this.render());
+      Bus.on('mp:changed', () => this.isOpen() && this.render());
+    }
+    if (typeof Notifications !== 'undefined') Notifications.close();
+    Presence.start(); Presence.refresh();
+    this.render();
+    this.el.classList.add('open');
+    Toolbar.sync();
+  },
+  close() { if (this.el) this.el.classList.remove('open'); if (typeof Toolbar !== 'undefined') Toolbar.sync(); },
+  statusText(p) {
+    if (p.status === 'playing') return p.song ? `Playing ${p.song.artist} - ${p.song.title} [${p.song.version}]` : 'Playing';
+    return { room: 'In a multiplayer room', watching: 'Spectating', menu: 'In the menus' }[p.status] || 'Online';
+  },
+  row(p, online) {
+    const friend = Friends.has(p.pid), me = p.id === Presence.me;
+    const canInvite = online && !me && Multiplayer.inRoom() && p.status === 'menu';
+    const watching = Spectate.target && Spectate.target.id === p.id;
+    return h(`div.ol-row${online ? '' : '.off'}${friend ? '.friend' : ''}`,
+      Presence.avatarEl(p, 40),
+      h('div.ol-who', h('b', p.name, me ? h('span.muted', ' (you)') : null, friend ? h('span.ol-fr', icon('heart', 'fill')) : null),
+        h('small', online ? this.statusText(p) : 'Offline'), online && p.watchers ? h('small.ol-watch', `${p.watchers} watching`) : null),
+      h('div.ol-acts',
+        !me && p.pid ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}`, { title: friend ? 'Remove friend' : 'Add friend', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon('heart', friend ? 'fill' : '')) : null,
+        online && !me ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: p.status === 'playing' ? 'Watch them play' : 'Watch their next song', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
+        canInvite ? h('button.btn.sm', { onclick: () => { UISounds.click(); Presence.invite(p.id); Toast.ok('Invited', p.name); } }, 'Invite') : null));
+  },
+  render() {
+    if (!this.el) return;
+    const online = Presence.players || [];
+    for (const p of online) if (p.pid && Friends.has(p.pid)) Friends.touch(p);
+    const friends = Friends.list();
+    clearEl(this.tabsEl).append(...[['online', `Online (${online.length})`], ['friends', `Friends (${friends.length})`]].map(([k, l]) =>
+      h(`button.ol-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.render(); } }, l)));
+    this.countEl.textContent = String(online.length);
+    let rows;
+    if (!Presence.ws) rows = [h('div.inv-empty', Multiplayer.available() ? 'Connecting to the online service…' : 'Online play needs the game\'s server (open the game from its website).')];
+    else if (this.tab === 'online') {
+      const sorted = [...online].sort((a, b) => (b.id === Presence.me) - (a.id === Presence.me) || Friends.has(b.pid) - Friends.has(a.pid) || a.name.localeCompare(b.name));
+      rows = sorted.length ? sorted.map(p => this.row(p, true)) : [h('div.inv-empty', 'Nobody is online right now.')];
+    } else {
+      // online friends first, then the rest (by name)
+      const list = friends.map(f => ({ f, p: online.find(x => x.pid === f.pid) })).sort((a, b) => !!b.p - !!a.p || a.f.name.localeCompare(b.f.name));
+      rows = list.length ? list.map(({ f, p }) => p ? this.row(p, true) : this.row({ ...f, id: null }, false))
+        : [h('div.inv-empty', 'No friends yet — press the heart next to someone online to add them.')];
+    }
+    clearEl(this.listEl).append(...rows);
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -17203,7 +17510,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

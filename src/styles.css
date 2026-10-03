@@ -3106,3 +3106,28 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .perf .neru-img { animation: none; filter: none; }
 .perf .neru.hop .neru-img { animation: neruHop 620ms linear; }
 .perf .settings-panel, .perf .np-panel, .perf .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+
+/* Online users panel (like the notifications panel, from the right), and the "Spectating …" pill */
+.ol-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 360px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: hsl(255 10% 20%); box-shadow: -8px 0 30px rgba(0, 0, 0, .45); transform: translateX(105%); transition: transform 400ms cubic-bezier(.22, 1, .36, 1); }
+.ol-panel.open { transform: none; }
+.ol-tabs { display: flex; gap: 4px; padding: 0 12px 8px; }
+.ol-tab { flex: 1; padding: 7px 8px; border: 0; border-radius: 6px; background: hsl(255 10% 15%); color: hsl(255 40% 90% / .7); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.ol-tab.on { background: hsl(255 40% 45%); color: #fff; }
+.ol-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+.ol-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: hsl(255 10% 15%); }
+.ol-row.friend { box-shadow: inset 3px 0 0 #ff66ab; }
+.ol-row.off { opacity: .55; }
+.ol-row .avatar { flex: none; border-radius: 8px; object-fit: cover; }
+.ol-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ol-who b { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-who small { font-size: .72rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-who .ol-watch { color: #66ccff; }
+.ol-fr { margin-left: 5px; color: #ff66ab; display: inline-flex; vertical-align: -2px; }
+.ol-fr svg { width: 12px; height: 12px; }
+.ol-acts { flex: none; display: flex; align-items: center; gap: 4px; }
+.ol-friend.on { color: #ff66ab; }
+.spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
+.spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
+.spec-pill-t b { font-size: .82rem; }
+.spec-pill-t small { font-size: .7rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+#app.in-game .spec-pill { bottom: auto; top: 10px; opacity: .8; }

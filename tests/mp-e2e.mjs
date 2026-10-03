@@ -432,6 +432,37 @@ await alice.click('.rke-btn.quit');
 await alice.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom() && /Create duel/.test((document.querySelector('.mp-create') || {}).textContent || ''), null, { timeout: 10000 });
 check('back in the Ranked Play lounge', true);
 
+// online users: Alice sees Bob, adds him as a friend, and spectates his play live
+await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+await alice.waitForTimeout(500);
+await alice.click('#toolbar [data-ov="online"]');
+await alice.waitForFunction(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob')), null, { timeout: 8000 });
+await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-friend').click());
+const fr = await alice.evaluate(() => ({ n: JSON.parse(localStorage.getItem('am.friends') || '[]').length, mark: !!document.querySelector('.ol-row.friend') }));
+check('online users panel lists who\'s online; the heart adds a friend (kept in this browser)', fr.n === 1 && fr.mark, JSON.stringify(fr));
+await alice.evaluate(() => [...document.querySelectorAll('.ol-tab')].find(b => /Friends/.test(b.textContent)).click());
+check('the Friends tab shows them', await alice.evaluate(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob'))));
+// Bob plays (real key presses); Alice spectates from the list
+await bob.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['NF'], force: true }); });
+await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 30000 });
+const mash = setInterval(() => { for (const k of ['KeyD', 'KeyF', 'KeyJ', 'KeyK']) bob.keyboard.press(k).catch(() => {}); }, 150);
+await alice.waitForFunction(() => /Playing/.test([...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob'))?.textContent || ''), null, { timeout: 12000 });
+await bob.waitForTimeout(3500);
+await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-spec').click());
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.spectate, null, { timeout: 20000 });
+await alice.waitForTimeout(5000);
+const sp = await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return { feed: s.feed.length, judged: s.engine.score.judged, t: AshtonkMania.Music.time, pill: !!document.querySelector('.spec-pill'), synced: !!s.spectate.synced, bar: !!document.querySelector('.rp-bar, .replay-bar') }; });
+const bobT = await bob.evaluate(() => AshtonkMania.Music.time);
+clearInterval(mash);
+check('spectating: Alice watches Bob\'s play live, a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && sp.pill && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
+const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.name === 'Alice') || {}).status);
+check('…and shows as spectating on the online list', st === 'watching', st);
+await alice.keyboard.press('Escape');
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'gameplay' && !document.querySelector('.spec-pill'), null, { timeout: 8000 });
+await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
+check('Esc stops spectating; Bob stops streaming', await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
+await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
 await mf.dispose();

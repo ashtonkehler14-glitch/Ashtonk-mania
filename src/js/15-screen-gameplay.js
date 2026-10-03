@@ -194,6 +194,7 @@ const GameplayScreen = {
   },
   leave() {
     document.title = APP_NAME;
+    if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
@@ -211,6 +212,7 @@ const GameplayScreen = {
     this.closePause();
   },
   onBack() {
+    if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
@@ -273,7 +275,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash),
+      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
     };
@@ -303,6 +305,9 @@ const GameplayScreen = {
     s.running = true;
     this.lastRender = 0;
     this.loop();
+    // someone may be spectating: announce the play (its inputs are streamed only while they watch)
+    if (s.mode === 'play') Spectate.hostStart(s);
+    Presence.pushStatus();
   },
 
   // ─────────────────────────────── player loader ───────────────────────────────
@@ -508,7 +513,7 @@ const GameplayScreen = {
     }
     if (s.practice) this.buildPracticeBar();
     this.replayBar = null;
-    if (s.feed && !s.practice && !s.mp) this.buildReplayBar();
+    if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
   },
@@ -559,6 +564,7 @@ const GameplayScreen = {
       this._lastTs = realNow;
       const now = this.frameTime(realNow);
       const eng = s.engine;
+      if (s.spectate) Spectate.tick(this, s, now); else if (Spectate.host.s === s) Spectate.hostTick(s, now);
       if (s.running) {
         // replay / auto input feed (exact recorded times)
         if (s.feed) {
