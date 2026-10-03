@@ -18364,7 +18364,7 @@ const OnlinePanel = {
  * prompt to turn an upright phone sideways. Gameplay laid out and played as Friday Night Funkin' is on phones (the
  * renderer's touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen.
  * And, straight away, a recommendation
- * to install the app (full screen, landscape, offline: manifest.webmanifest), since a browser tab plays worse. */
+ * to install the app (full screen, offline, turning either way: manifest.webmanifest), since a browser tab plays worse. */
 
 const Mobile = {
   get touch() { return typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches; },
@@ -18402,7 +18402,8 @@ const Mobile = {
   },
   /** Upright on a phone: ask to rotate (gameplay itself is fine upright, so it's never interrupted). */
   sync() {
-    const want = this.touch && this.portrait && !this._dismissed && !this.inst && Screens.currentName !== 'gameplay' && Math.min(innerWidth, innerHeight) < 700;
+    // (the installed app turns freely: holding it upright there is a choice, not something to ask about)
+    const want = this.touch && this.portrait && !App.installed && !this._dismissed && !this.inst && Screens.currentName !== 'gameplay' && Math.min(innerWidth, innerHeight) < 700;
     if (!want) { if (this.rot) { this.rot.remove(); this.rot = null; } return; }
     if (this.rot) return;
     this.rot = h('div.mob-rotate', { role: 'dialog', 'aria-label': 'Rotate your device' },
@@ -18435,7 +18436,7 @@ const Mobile = {
       h('img', { src: 'icons/icon-192.png', alt: '' }),
       h('h2', 'Install the app to play'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
-      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen and sideways, runs smoother and plays offline.'),
+      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, turns either way, runs smoother and plays offline.'),
       how,
       h('div.mob-inst-btns',
         canPrompt ? h('button.btn.primary', { onclick: async () => { if (await App.install()) close(); } }, 'Install the app') : null,
