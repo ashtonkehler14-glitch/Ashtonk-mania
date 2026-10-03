@@ -71,13 +71,13 @@ const OsuMath = {
     if (mods.includes('EZ')) value *= 0.5;
     return value;
   },
-  /** Profile total pp: best score per map, weighted 0.95^i, plus the play-count bonus osu! adds. */
+  /** Profile total pp: best score per map, weighted 0.95^i. */
   totalPp(ppList) {
     const sorted = ppList.filter(p => p > 0).sort((a, b) => b - a);
     let total = 0, w = 1;
     for (const p of sorted) { total += p * w; w *= 0.95; }
-    const bonus = 416.6667 * (1 - Math.pow(0.995, Math.min(sorted.length, 1000)));
-    return { total: total + bonus, weighted: total, bonus };
+    // (no "bonus pp" for the number of scores: with one play the total is exactly that play's pp, as players expect)
+    return { total, weighted: total, bonus: 0 };
   },
 
   /** Letter grade (osu!lazer ManiaScoreProcessor.RankFromScore): SS = only MAX / 300 hits; then 95 / 90 / 80 / 70%

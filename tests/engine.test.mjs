@@ -217,6 +217,8 @@ test('accuracy and pp formulas', () => {
   assert.ok(OsuMath.pp(5, [1000, 0, 0, 0, 0, 0], ['NF']) < OsuMath.pp(5, [1000, 0, 0, 0, 0, 0], []));
   const t = OsuMath.totalPp([100, 100]);
   assert.equal(Math.round(t.weighted), 195);
+  assert.equal(OsuMath.totalPp([123.4]).total, 123.4, 'one play: the total is exactly its pp');
+  assert.equal(Math.round(t.total), 195);
 });
 
 test('grades use osu!mania thresholds (SS needs no 200/100/50/miss)', () => {

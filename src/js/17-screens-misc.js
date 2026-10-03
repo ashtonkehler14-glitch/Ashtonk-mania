@@ -193,7 +193,7 @@ const ProfileScreen = {
       h('div.pf-detail-l',
         h('div.pf-bigs',
           // (hit accuracy is in the box on the right, as in lazer: it isn't repeated here)
-          h('div.pf-big', { title: `${fmtInt(pp.weighted)}pp from top plays (weighted 0.95ⁿ) + ${fmtInt(pp.bonus)}pp bonus` }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
+          h('div.pf-big', { title: 'Your best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
         h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
       h('div.pf-detail-r',
         dl('Ranked score', fmtInt(rankedScore)), dl('Hit accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), dl('Play count', fmtInt(st.plays)),
