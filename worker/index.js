@@ -207,6 +207,34 @@ async function osuRequest(path, ttl, env, fetchImpl) {
   return officialGet(path, env, fetchImpl, ttl);
 }
 
+/** While osu! refuses this server (Cloudflare's shared address gets its logins rate-limited), the same request goes to
+ *  Web-Osu-Mania's own server, whose /api/getBeatmaps and /api/getBeatmap answer in exactly this format. Its answers are
+ *  kept in Cloudflare's cache for an hour, so its server is asked as little as possible. */
+const WOM_API = 'https://webosumania.com/api/';
+export const womApi = { lastError: null };
+async function fromWom(route, qs, fetchImpl) {
+  let r;
+  try {
+    r = await fetchImpl(`${WOM_API}${route}?${qs}`, { headers: { Accept: 'application/json', ...UA }, signal: timeout(12000), cf: { cacheTtl: 3600, cacheEverything: true } });
+  } catch (e) { womApi.lastError = { at: new Date().toISOString(), error: String(e && e.message || e).slice(0, 120) }; return null; }
+  if (!r.ok) { womApi.lastError = { at: new Date().toISOString(), status: r.status, body: (await r.text().catch(() => '')).slice(0, 160) }; return null; }
+  const d = await r.json().catch(() => null);
+  if (!d || typeof d !== 'object') return null;
+  womApi.lastError = null;
+  return d;
+}
+/** osu! first; if it refuses or fails, Web-Osu-Mania's server; if that fails too, osu!'s error. */
+async function listing(route, path, qs, ttl, env, fetchImpl) {
+  try {
+    return { data: await osuRequest(path, ttl, env, fetchImpl), source: 'osu!' };
+  } catch (e) {
+    if (e.status === 400 || e.status === 404) throw e;
+    const d = await fromWom(route, qs, fetchImpl);
+    if (d) return { data: d, source: 'webosumania.com' };
+    throw e;
+  }
+}
+
 /** Web-Osu-Mania's /api/getBeatmaps: the explorer's parameters (only WOM's, sorted so equal searches share a cached
  *  answer) go to osu!'s beatmapsets/search, and its answer comes back as it is. */
 export async function handleGetBeatmaps(url, env, fetchImpl = fetch) {
@@ -214,7 +242,8 @@ export async function handleGetBeatmaps(url, env, fetchImpl = fetch) {
   for (const k of [...new Set(params.keys())]) if (!KEEP_KEYS.has(k)) params.delete(k);
   params.sort();
   try {
-    return json(await osuRequest(`beatmapsets/search?${params}`, SEARCH_TTL, env, fetchImpl), 200, { 'Cache-Control': 'public, max-age=3600' });
+    const { data, source } = await listing('getBeatmaps', `beatmapsets/search?${params}`, String(params), SEARCH_TTL, env, fetchImpl);
+    return json(data, 200, { 'Cache-Control': 'public, max-age=3600', 'X-Beatmap-Source': source });
   } catch (e) { return text(e.message || STATUS_MESSAGES[500], e.status || 500); }
 }
 /** Web-Osu-Mania's /api/getBeatmap: one beatmap set by its id. */
@@ -222,7 +251,8 @@ export async function handleGetBeatmap(url, env, fetchImpl = fetch) {
   const id = url.searchParams.get('beatmapSetId') || '';
   if (!/^\d{1,10}$/.test(id)) return text('URL missing beatmapSetId', 400);
   try {
-    return json(await osuRequest(`beatmapsets/${id}`, SET_TTL, env, fetchImpl), 200, { 'Cache-Control': 'public, max-age=3600' });
+    const { data, source } = await listing('getBeatmap', `beatmapsets/${id}`, `beatmapSetId=${id}`, SET_TTL, env, fetchImpl);
+    return json(data, 200, { 'Cache-Control': 'public, max-age=3600', 'X-Beatmap-Source': source });
   } catch (e) { return text(e.message || STATUS_MESSAGES[500], e.status || 500); }
 }
 
@@ -285,7 +315,7 @@ export default {
       if (env.MATCHMAKER) {
         try { osu = await (await env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api')).fetch('https://osu-api/osu/state')).json(); } catch { /* no state yet */ }
       }
-      return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu }, 200, { 'Cache-Control': 'no-store' });
+      return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu, womFallbackError: womApi.lastError }, 200, { 'Cache-Control': 'no-store' });
     }
     if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
       if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);

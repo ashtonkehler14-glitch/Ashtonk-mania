@@ -10,9 +10,10 @@ const osuSet = (id, keys = [4, 7], mode = 'mania') => ({
 const res = (body, status = 200, ct = 'application/json') => new Response(typeof body === 'string' || body instanceof Uint8Array ? body : JSON.stringify(body), { status, headers: { 'content-type': ct } });
 const env = { OSU_CLIENT_ID: '1', OSU_CLIENT_SECRET: 's' };
 /** A pretend osu!: logins and searches, recorded. */
-function fakeOsu({ search = () => res({ beatmapsets: [osuSet(9)], cursor_string: 'abc', total: 1 }), set = id => res(osuSet(Number(id))) } = {}) {
-  const calls = [];
+function fakeOsu({ search = () => res({ beatmapsets: [osuSet(9)], cursor_string: 'abc', total: 1 }), set = id => res(osuSet(Number(id))), wom = () => res('down', 503, 'text/plain') } = {}) {
+  const calls = [], womCalls = [];
   const fetchImpl = async (url, init = {}) => {
+    if (url.startsWith('https://webosumania.com/')) { womCalls.push(url); return wom(new URL(url), init); }
     calls.push(url);
     if (url.endsWith('/oauth/token')) return res({ access_token: 'tok', expires_in: 86400 });
     if (url.includes('/api/v2/beatmapsets/search')) return search(new URL(url), init);
@@ -20,7 +21,7 @@ function fakeOsu({ search = () => res({ beatmapsets: [osuSet(9)], cursor_string:
     if (m) return set(m[1], init);
     throw new Error('unexpected ' + url);
   };
-  return { calls, fetchImpl, searches: () => calls.filter(c => c.includes('beatmapsets/search')) };
+  return { calls, womCalls, fetchImpl, searches: () => calls.filter(c => c.includes('beatmapsets/search')) };
 }
 const get = (path, fetchImpl, e = env) => (path.startsWith('/api/getBeatmaps') ? handleGetBeatmaps : handleGetBeatmap)(new URL('https://x' + path), e, fetchImpl);
 
@@ -223,5 +224,32 @@ test('a second osu! app (OSU_CLIENT_ID_2) takes over while osu! refuses the firs
   assert.deepEqual(logins, [1, 2], 'the first app is left alone while refused; the second one\'s login is reused');
   const h = await (await worker.fetch(new Request('https://x/api/health'), env2)).json();
   assert.equal(h.osuApps, 2);
+  resetOsuLogin();
+});
+
+test('while osu! refuses the server, the list comes from Web-Osu-Mania\'s server (same request, same format)', async () => {
+  resetOsuLogin();
+  const womSet = { beatmapsets: [osuSet(42)], cursor_string: 'w1', total: 1 };
+  const o = fakeOsu({
+    wom: (u) => u.pathname === '/api/getBeatmaps' ? res(womSet) : res(osuSet(Number(u.searchParams.get('beatmapSetId')))),
+  });
+  // osu! refusing the login, as on Cloudflare's shared address
+  const refusing = async (url, init) => url.endsWith('/oauth/token') ? new Response('<html>429 Too Many Requests nginx</html>', { status: 429 }) : o.fetchImpl(url, init);
+  const r = await get('/api/getBeatmaps?m=3&nsfw=true&q=key%3D4&evil=1', refusing);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('X-Beatmap-Source'), 'webosumania.com');
+  assert.equal((await r.json()).beatmapsets[0].id, 42);
+  assert.equal(o.womCalls[0], 'https://webosumania.com/api/getBeatmaps?m=3&nsfw=true&q=key%3D4', 'only WOM\'s parameters, sorted');
+  const one = await get('/api/getBeatmap?beatmapSetId=7', refusing);
+  assert.equal(one.status, 200); assert.equal((await one.json()).id, 7);
+  assert.equal(o.womCalls[1], 'https://webosumania.com/api/getBeatmap?beatmapSetId=7');
+  // no osu! key at all: straight to WOM's server
+  resetOsuLogin();
+  assert.equal((await get('/api/getBeatmaps?m=3', o.fetchImpl, {})).headers.get('X-Beatmap-Source'), 'webosumania.com');
+  // osu! working: osu! is used, WOM's server isn't asked
+  resetOsuLogin();
+  const n = o.womCalls.length;
+  assert.equal((await get('/api/getBeatmaps?m=3&q=ok', o.fetchImpl)).headers.get('X-Beatmap-Source'), 'osu!');
+  assert.equal(o.womCalls.length, n);
   resetOsuLogin();
 });
