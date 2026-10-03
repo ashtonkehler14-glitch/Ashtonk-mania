@@ -19,7 +19,7 @@ The beatmap listing comes from osu! itself, the same way Web-Osu-Mania gets it, 
 
 Downloads come from mirror sites (catboy.best and others) and need no key.
 
-If the listing says osu! is rate-limiting the site (429), osu! is counting other sites on Cloudflare's shared addresses against yours. Like Web-Osu-Mania, you can send osu! requests through a proxy with its own address: set `OSU_API_PROXY_URL` (and `OSU_API_PROXY_KEY` if it needs one). A second OAuth app, added as `OSU_CLIENT_ID_2` and `OSU_CLIENT_SECRET_2`, takes over when osu! refuses the first one's logins.
+If the listing says osu! is rate-limiting the site (429), osu! is counting other sites on Cloudflare's shared addresses against yours. Like Web-Osu-Mania, you can send osu! requests through a proxy with its own address: set `OSU_API_PROXY_URL` (and `OSU_API_PROXY_KEY` if it needs one). `proxy/osu-proxy.js` is a ready-made one (instructions at its top). A second OAuth app, added as `OSU_CLIENT_ID_2` and `OSU_CLIENT_SECRET_2`, takes over when osu! refuses the first one's logins.
 
 ## Develop
 
