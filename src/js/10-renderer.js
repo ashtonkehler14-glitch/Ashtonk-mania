@@ -111,6 +111,19 @@ class ManiaRenderer {
     this.W = w; this.H = hh;
     this._geom();
   }
+  /** The column under a point on screen (clientX), or the nearest one — for touch input. */
+  columnAt(clientX) {
+    const host = this.canvas.parentElement, r = host.getBoundingClientRect();
+    if (!this.colX || !r.width) return -1;
+    const k = r.width / (this.W / (this._dpr || 1)), x = (clientX - r.left) / k * (this._dpr || 1) - this.stageX;
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < this.colX.length; i++) {
+      const a = this.colX[i], b = a + this.colW[i];
+      const d = x < a ? a - x : x > b ? x - b : 0;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
   /** How far beyond the stage the cropped canvas reaches, left and right: only as far as something is drawn there (the
    *  skin's stage sides, hit lighting wider than its column, the health bar, the key overlay). Every pixel of the canvas
    *  is cleared, drawn and handed to the compositor each frame, so a tighter canvas is a cheaper frame. */
@@ -146,6 +159,10 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
+    // a narrow screen (a phone held upright): the columns narrow to fit across it
+    const fit = this.W * 0.98 / x;
+    this.narrow = fit < 1;
+    if (this.narrow) { this.colW = this.colW.map(w => w * fit); this.colX = this.colX.map(v => v * fit); this.stageW = x * fit; }
     // fill styles, built once per layout / settings change instead of every frame
     const op = Settings.get('gameplay.stageOpacity');
     this._colFill = L.colours.column.slice(0, L.keys).map(c => rgba(c, op));
@@ -156,7 +173,7 @@ class ManiaRenderer {
     this._hasLines = L.columnLineWidth.some(w => w > 0);
     this._bands = null;
     const pos = Settings.get('gameplay.stagePosition');
-    this.stageX = pos === 'skin' ? L.columnStart * s * (this.W / this.H > 4 / 3 ? 1 : 1)
+    this.stageX = this.narrow ? (this.W - this.stageW) / 2 : pos === 'skin' ? L.columnStart * s * (this.W / this.H > 4 / 3 ? 1 : 1)
       : pos === 'left' ? this.W * 0.12 : pos === 'right' ? this.W * 0.88 - this.stageW : (this.W - this.stageW) / 2;
     this.stageX += Settings.get('gameplay.stageOffset') / 100 * this.W;
     this.hitY = clamp((clamp(L.hitPosition, 240, 480) + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);

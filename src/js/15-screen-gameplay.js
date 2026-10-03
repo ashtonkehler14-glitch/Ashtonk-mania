@@ -177,6 +177,10 @@ const GameplayScreen = {
     document.addEventListener('visibilitychange', this._vis);
     window.addEventListener('keydown', this._keydown, true);
     window.addEventListener('keyup', this._keyup, true);
+    // touch screens: each finger presses the column under it (sliding across moves it), as on osu!lazer mobile
+    this._touches = new Map();
+    this._touch = e => this.onTouch(e);
+    for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) el.addEventListener(t, this._touch, { passive: false });
     window.addEventListener('blur', this._blur);
     this._audioSub = Bus.on('audio:state', st => { if (st !== 'running') this._blur(); });
     this._mm = () => {
@@ -207,6 +211,7 @@ const GameplayScreen = {
     if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
     window.removeEventListener('keyup', this._keyup, true);
     window.removeEventListener('blur', this._blur);
+    if (this.el && this._touch) for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) this.el.removeEventListener(t, this._touch);
     document.removeEventListener('visibilitychange', this._vis);
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
@@ -485,6 +490,8 @@ const GameplayScreen = {
       // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
+      // touch screens have no Escape key: a pause button only shows for coarse pointers
+      s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
     );
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
@@ -992,6 +999,26 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (e.code === 'Space' && !e.repeat) { e.preventDefault(); this.skip(); return; }
     if (e.code === 'F11') return;
     if (s.running && !e.ctrlKey && !e.metaKey && !e.altKey && e.code !== 'Tab') e.preventDefault();
+  },
+  onTouch(e) {
+    const s = this.s;
+    if (!s || Screens.current !== this) return;
+    if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input')) return; // (buttons work as buttons)
+    e.preventDefault();
+    if (s.feed) return;
+    const t = this.inputTime(e);
+    for (const tc of e.changedTouches) {
+      const id = 'touch' + tc.identifier, was = this._touches.get(id);
+      if (e.type === 'touchend' || e.type === 'touchcancel') {
+        if (was != null) { this._touches.delete(id); if (s.running) this.keyUp(was, id, t); else { s.down[was].delete(id); s.held[was] = s.down[was].size > 0; } }
+        continue;
+      }
+      const col = this.renderer.columnAt(tc.clientX);
+      if (col < 0 || col === was) continue;
+      if (was != null) this.keyUp(was, id, t);
+      this._touches.set(id, col);
+      if (s.running) this.keyDown(col, id, t);
+    }
   },
   isRetryKey(e) { return e.code === 'Backquote' || (e.code === 'KeyR' && !(this.s && this.s.keyMap.has('KeyR'))); },
   onKeyUp(e) {

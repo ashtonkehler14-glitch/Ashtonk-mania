@@ -3224,3 +3224,20 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .up-ph-rows span { opacity: .7; }
 .up-unfriend { align-self: flex-start; border: 0; background: none; color: #ff6b77; font: inherit; font-size: .82rem; cursor: pointer; padding: 0; opacity: .8; }
 .up-unfriend:hover { opacity: 1; text-decoration: underline; }
+
+/* touch devices: no hover tooltips, a pause button, and no browser gestures over the playfield */
+@media (hover: none) { .tb-tip { display: none; } }
+.hud-touch-pause { display: none; }
+@media (pointer: coarse) {
+  .gameplay { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .hud-touch-pause { display: flex; gap: 6px; align-items: center; justify-content: center; position: absolute; left: 14px; top: 14px; width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .45); pointer-events: auto; z-index: 5; }
+  .hud-touch-pause i { width: 6px; height: 18px; border-radius: 2px; background: #fff; }
+}
+/* phones held upright: a smaller play button, narrower footer buttons and toasts that fit */
+@media (max-width: 600px) and (hover: none) {
+  .ss-footer .ss-cookie { width: 120px; height: 120px; right: 40px; bottom: 30px; }
+  .ss-footer .foot-btn { width: 78px; font-size: .8rem; }
+  .ss-filter { padding: 8px 20px 8px 16px; }
+  #toasts { left: 12px; right: 12px; align-items: stretch; }
+  .toast { min-width: 0; max-width: none; }
+}
