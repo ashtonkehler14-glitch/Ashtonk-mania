@@ -56,6 +56,6 @@ const Mobile = {
       h('div.mob-in-btns',
         canPrompt ? h('button.btn.primary', { onclick: async () => { const ok = await App.install(); close(!ok); } }, 'Install') : null,
         h('button.btn', { onclick: () => close(true) }, canPrompt ? 'Not now' : 'Got it')));
-    document.body.append(this.card);
+    (document.getElementById('app') || document.body).append(this.card); // (inside the app, so it scales with the rest)
   },
 };

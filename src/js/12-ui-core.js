@@ -1054,11 +1054,11 @@ const Zoom = {
     // down with the window, as lazer's does, instead of laying the full-size interface into a tiny space; phones and
     // tablets (no mouse) keep their own responsive layout
     const desktop = typeof matchMedia === 'function' && matchMedia('(hover: hover)').matches; // (the same test the narrow-screen CSS uses)
-    // a phone or tablet held sideways gets the full interface too, as osu!lazer on Android does: laid out for a
-    // 1100×620 space (a little roomier than a computer's, for fingers) and scaled to the screen. Held upright, it
-    // keeps the narrow responsive layout (and is asked to rotate).
+    // a phone or tablet held sideways gets the full interface too, exactly as osu!lazer on Android does: the same
+    // 1366×768 layout as a computer, scaled to the screen (so a phone shows what a desktop window shows, smaller).
+    // Held upright, it keeps the narrow responsive layout (and is asked to rotate).
     const touchLand = !desktop && W > H;
-    const fit = touchLand ? clamp(Math.min(W / 1100, H / 620), 0.3, 4)
+    const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4)
       : W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
     const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;

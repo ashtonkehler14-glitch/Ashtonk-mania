@@ -1021,7 +1021,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone upright: asked to turn sideways, outside gameplay (as osu!lazer on Android is landscape)', !!(await mp.$('.mob-rotate')));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
   const land = await mp.evaluate(() => ({ rot: !!document.querySelector('.mob-rotate'), z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
-  check('phone sideways: the full interface, scaled to the screen (no rotate prompt)', !land.rot && land.z > 1.3 && land.w > 1100, JSON.stringify(land));
+  check('phone sideways: the full desktop interface (1366×768), scaled to the screen as on lazer for Android (no rotate prompt)', !land.rot && land.z > 1.3 && land.w >= 1366, JSON.stringify(land));
   await mctx.close();
 }
 

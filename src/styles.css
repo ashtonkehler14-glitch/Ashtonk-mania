@@ -3257,13 +3257,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mob-rot-ic i::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 4px; margin-left: -5px; border-radius: 2px; background: #fff; }
 @keyframes mobTurn { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @keyframes mobFade { from { opacity: 0; } }
-.mob-install { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 8999; display: flex; align-items: center; gap: 12px; max-width: 400px; font-size: 12px; padding: 10px 12px; margin: 0 auto; padding: 12px 14px; border-radius: 14px; background: #2a2833; box-shadow: 0 10px 36px rgba(0, 0, 0, .6); color: #fff; animation: mobUp 400ms var(--ease-out) both; transition: opacity 250ms, transform 250ms; }
+.mob-install { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 8999; display: flex; align-items: center; gap: 12px; max-width: 440px; font-size: 14px; padding: 12px 14px; margin: 0 auto; padding: 12px 14px; border-radius: 14px; background: #2a2833; box-shadow: 0 10px 36px rgba(0, 0, 0, .6); color: #fff; animation: mobUp 400ms var(--ease-out) both; transition: opacity 250ms, transform 250ms; }
 .mob-install.out { opacity: 0; transform: translateY(20px); }
-.mob-install img { width: 40px; height: 40px; flex: none; border-radius: 12px; }
+.mob-install img { width: 48px; height: 48px; flex: none; border-radius: 12px; }
 .mob-in-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.35; }
-.mob-in-txt b { font-size: 13.5px; }
+.mob-in-txt b { font-size: 16px; }
 .mob-in-txt span { color: var(--text-2); }
 .mob-in-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
-.mob-in-btns .btn { justify-content: center; min-height: 34px; padding: 0 12px; font-size: 13px; }
-@media (orientation: landscape) { .mob-install { left: auto; right: 12px; width: 360px; } }
+.mob-in-btns .btn { justify-content: center; min-height: 38px; padding: 0 14px; font-size: 15px; }
+@media (orientation: landscape) { .mob-install { left: auto; right: 16px; bottom: 66px; width: 440px; } }
 @keyframes mobUp { from { opacity: 0; transform: translateY(30px); } }
