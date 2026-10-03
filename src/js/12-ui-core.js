@@ -1023,6 +1023,8 @@ const Zoom = {
     window.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) e.preventDefault(); }, { passive: false, capture: true });
     ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
     window.addEventListener('resize', () => this.update());
+    // (a phone's address bar sliding in or out changes the visible height: the layout follows it)
+    if (window.visualViewport) visualViewport.addEventListener('resize', () => this.update());
     this.update();
   },
   /** The browser's zoom level. The first reading compares the window's outer and inner widths; after that, zooming

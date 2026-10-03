@@ -1026,6 +1026,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
+  check('phone: the whole app fits the visible screen (its bottom isn\'t cut off)', await mp.evaluate(() => { const r = document.querySelector('#app').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && Math.abs(r.right - innerWidth) < 2; }));
   check('phone upright: no rotate prompt — the main menu stacks its buttons under the logo and they fit the screen', await mp.evaluate(() => {
     const bs = [...document.querySelectorAll('.lz-btn.exp')]; return !document.querySelector('.mob-rotate') && bs.length > 0 && bs.every(b => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; }); }));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);

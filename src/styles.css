@@ -68,7 +68,8 @@ a { color: var(--accent); }
 svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
 svg.i.fill { fill: currentColor; stroke: none; }
 
-#app { position: fixed; inset: 0; overflow: hidden; }
+/* (inside the phone's safe area: not under a notch, a rounded corner or the gesture bar) */
+#app { position: fixed; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); overflow: hidden; }
 
 /* ── background layer */
 #bg-layer { position: absolute; inset: -40px; z-index: 0; transition: transform var(--t-slow) var(--ease-out); }
@@ -1130,7 +1131,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .set-row .lbl { min-width: 140px; }
 .set-row .ctl .select { max-width: 210px; text-overflow: ellipsis; }
 /* browser-zoom compensation (see Zoom in 12-ui-core.js) */
-#app.zoomfix { right: auto; bottom: auto; width: calc(100vw * var(--zoom)); height: calc(100vh * var(--zoom)); transform: scale(var(--zoom-inv)); transform-origin: 0 0; }
+/* (sized from the window's real inner size, --vw / --vh: 100vh on a phone is the height with the address bar hidden,
+   which cut off the bottom of the screen while the bar shows) */
+#app.zoomfix { right: auto; bottom: auto; transform: scale(var(--zoom-inv)); transform-origin: 0 0;
+  width: calc(var(--vw) * 100 - (env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)) * var(--zoom));
+  height: calc(var(--vh) * 100 - (env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) * var(--zoom)); }
 
 /* ── multiplayer (lobby, room, in-game board) */
 .mp { padding-top: var(--toolbar-h); }
@@ -3294,7 +3299,7 @@ html.touch img { -webkit-user-drag: none; }
   .ov-content .row > .search, .ov-content .row > input.input { flex: 1 1 100% !important; max-width: none !important; }
   .split > * { min-width: 0; }
   /* song select's footer: narrower buttons, so Random and Options aren't under the play button */
-  .ss-footer .foot-btn { width: 64px; font-size: .74rem; }
+  .ss-footer .foot-btn { width: clamp(44px, calc((var(--vw) * 100 - 112px - 136px) / 3), 72px); font-size: .74rem; }
   .ss-footer .ss-cookie { width: 96px; height: 96px; right: 30px; bottom: 26px; }
   .ss-footer .lz-back { width: 112px; min-width: 0; }
   /* the top bar: the clock gives its room to the buttons (the notifications bell was pushed off the screen) */
