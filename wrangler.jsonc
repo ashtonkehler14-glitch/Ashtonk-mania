@@ -25,12 +25,8 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["MatchRoom", "Matchmaker"] }
-  ]
-}
-{
-  // ...
+  ],
   "vars": {
     "TRUST_CF_CONNECTING_IP": "true"
-  },
-  // ...
+  }
 }
