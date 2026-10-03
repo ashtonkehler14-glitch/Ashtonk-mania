@@ -1017,6 +1017,11 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone: touching a column holds that column, letting go releases it', held.join() === '1000,0100,0010,0001' && await mp.evaluate(() => !AshtonkMania.GameplayScreen.s.held.some(Boolean)), held.join());
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
+  await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.waitForTimeout(500);
+  check('phone upright: asked to turn sideways, outside gameplay (as osu!lazer on Android is landscape)', !!(await mp.$('.mob-rotate')));
+  await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
+  const land = await mp.evaluate(() => ({ rot: !!document.querySelector('.mob-rotate'), z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
+  check('phone sideways: the full interface, scaled to the screen (no rotate prompt)', !land.rot && land.z > 1.3 && land.w > 1100, JSON.stringify(land));
   await mctx.close();
 }
 
