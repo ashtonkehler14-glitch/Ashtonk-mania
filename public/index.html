@@ -5276,8 +5276,13 @@ const AudioManager = {
       if (ts && ts.contextTime > 0 && ts.performanceTime > 0) raw = ts.contextTime - ts.performanceTime / 1000;
     }
     if (raw === null) raw = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - p / 1000;
-    if (this._offset === null || ctx.state !== 'running' || Math.abs(raw - this._offset) > 0.05) this._offset = raw;
-    else this._offset += (raw - this._offset) * (1 - Math.exp(-Math.min(dt, 250) / 1000));
+    // a big difference is only taken at once when it lasts (a quarter of a second): phones' output timestamps (Android
+    // above all) now and then report one stale or early reading tens of ms off, and following it made the notes skip
+    if (this._offset === null || ctx.state !== 'running') { this._offset = raw; this._farSince = 0; }
+    else if (Math.abs(raw - this._offset) > 0.05) {
+      if (!this._farSince) this._farSince = p;
+      else if (p - this._farSince > 250) { this._offset = raw; this._farSince = 0; }
+    } else { this._farSince = 0; this._offset += (raw - this._offset) * (1 - Math.exp(-Math.min(dt, 250) / 1000)); }
   },
   /** Convert a performance.now()-based timestamp (e.g. KeyboardEvent.timeStamp) onto the audio clock. */
   perfToCtx(perfMs) { if (!this.ctx) return perfMs / 1000; this._sync(); return perfMs / 1000 + this._offset; },
@@ -7189,6 +7194,7 @@ class ManiaRenderer {
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
   get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
+    this._hostRect = null;
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale') * (this.autoScale || 1);
@@ -7219,10 +7225,23 @@ class ManiaRenderer {
     this._geom();
   }
   /** The column under a point on screen (clientX), or the nearest one — for touch input. */
-  columnAt(clientX) {
-    const host = this.canvas.parentElement, r = host.getBoundingClientRect();
+  columnAt(clientX, current = -1) {
+    // (the host's place on screen is read once per layout, not on every touch move: a layout read per move event
+    // forced style recalculation mid-frame)
+    let r = this._hostRect;
+    const now = performance.now();
+    if (!r || r.W !== this.W || r.sx !== this.stageX || now - r.at > 1000) { // (and once a second, after the intro's transitions)
+      const b = this.canvas.parentElement.getBoundingClientRect();
+      r = this._hostRect = { left: b.left, width: b.width, W: this.W, sx: this.stageX, at: now };
+    }
     if (!this.colX || !r.width) return -1;
     const k = r.width / (this.W / (this._dpr || 1)), x = (clientX - r.left) / k * (this._dpr || 1) - this.stageX;
+    // a finger holding a column keeps it until it's well inside another (a third of the way in), so a slight drift
+    // across the line doesn't drop a long note
+    if (current >= 0 && current < this.colX.length) {
+      const m = this.colW[current] / 3;
+      if (x >= this.colX[current] - m && x <= this.colX[current] + this.colW[current] + m) return current;
+    }
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.colX.length; i++) {
       const a = this.colX[i], b = a + this.colW[i];
@@ -11693,7 +11712,8 @@ const GameplayScreen = {
     for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) el.addEventListener(t, this._touch, { passive: false });
     window.addEventListener('blur', this._blur);
     this._audioSub = Bus.on('audio:state', st => { if (st !== 'running') this._blur(); });
-    this._mm = () => {
+    this._mm = e => {
+      if (e.pointerType === 'touch') return; // (fingers playing aren't a cursor to show)
       if (!el.classList.contains('show-cursor') && this.replayBar && this.s) this.updateReplayBar(this.gameTime(), true); // it's about to fade in
       el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500);
     };
@@ -12523,7 +12543,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         if (was != null) { this._touches.delete(id); if (s.running) this.keyUp(was, id, t); else { s.down[was].delete(id); s.held[was] = s.down[was].size > 0; } }
         continue;
       }
-      const col = this.renderer.columnAt(tc.clientX);
+      const col = this.renderer.columnAt(tc.clientX, was ?? -1);
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);

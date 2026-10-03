@@ -82,6 +82,7 @@ class ManiaRenderer {
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
   get scrollLength() { return 402 * (this.s || this.H / 480 || 1); }
   resize(force = false) {
+    this._hostRect = null;
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
     const dpr = Zoom.dpr() * Settings.get('graphics.renderScale') * (this.autoScale || 1);
@@ -112,10 +113,23 @@ class ManiaRenderer {
     this._geom();
   }
   /** The column under a point on screen (clientX), or the nearest one — for touch input. */
-  columnAt(clientX) {
-    const host = this.canvas.parentElement, r = host.getBoundingClientRect();
+  columnAt(clientX, current = -1) {
+    // (the host's place on screen is read once per layout, not on every touch move: a layout read per move event
+    // forced style recalculation mid-frame)
+    let r = this._hostRect;
+    const now = performance.now();
+    if (!r || r.W !== this.W || r.sx !== this.stageX || now - r.at > 1000) { // (and once a second, after the intro's transitions)
+      const b = this.canvas.parentElement.getBoundingClientRect();
+      r = this._hostRect = { left: b.left, width: b.width, W: this.W, sx: this.stageX, at: now };
+    }
     if (!this.colX || !r.width) return -1;
     const k = r.width / (this.W / (this._dpr || 1)), x = (clientX - r.left) / k * (this._dpr || 1) - this.stageX;
+    // a finger holding a column keeps it until it's well inside another (a third of the way in), so a slight drift
+    // across the line doesn't drop a long note
+    if (current >= 0 && current < this.colX.length) {
+      const m = this.colW[current] / 3;
+      if (x >= this.colX[current] - m && x <= this.colX[current] + this.colW[current] + m) return current;
+    }
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.colX.length; i++) {
       const a = this.colX[i], b = a + this.colW[i];

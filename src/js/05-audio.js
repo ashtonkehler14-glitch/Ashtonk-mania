@@ -80,8 +80,13 @@ const AudioManager = {
       if (ts && ts.contextTime > 0 && ts.performanceTime > 0) raw = ts.contextTime - ts.performanceTime / 1000;
     }
     if (raw === null) raw = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - p / 1000;
-    if (this._offset === null || ctx.state !== 'running' || Math.abs(raw - this._offset) > 0.05) this._offset = raw;
-    else this._offset += (raw - this._offset) * (1 - Math.exp(-Math.min(dt, 250) / 1000));
+    // a big difference is only taken at once when it lasts (a quarter of a second): phones' output timestamps (Android
+    // above all) now and then report one stale or early reading tens of ms off, and following it made the notes skip
+    if (this._offset === null || ctx.state !== 'running') { this._offset = raw; this._farSince = 0; }
+    else if (Math.abs(raw - this._offset) > 0.05) {
+      if (!this._farSince) this._farSince = p;
+      else if (p - this._farSince > 250) { this._offset = raw; this._farSince = 0; }
+    } else { this._farSince = 0; this._offset += (raw - this._offset) * (1 - Math.exp(-Math.min(dt, 250) / 1000)); }
   },
   /** Convert a performance.now()-based timestamp (e.g. KeyboardEvent.timeStamp) onto the audio clock. */
   perfToCtx(perfMs) { if (!this.ctx) return perfMs / 1000; this._sync(); return perfMs / 1000 + this._offset; },

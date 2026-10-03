@@ -183,7 +183,8 @@ const GameplayScreen = {
     for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) el.addEventListener(t, this._touch, { passive: false });
     window.addEventListener('blur', this._blur);
     this._audioSub = Bus.on('audio:state', st => { if (st !== 'running') this._blur(); });
-    this._mm = () => {
+    this._mm = e => {
+      if (e.pointerType === 'touch') return; // (fingers playing aren't a cursor to show)
       if (!el.classList.contains('show-cursor') && this.replayBar && this.s) this.updateReplayBar(this.gameTime(), true); // it's about to fade in
       el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 1500);
     };
@@ -1013,7 +1014,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         if (was != null) { this._touches.delete(id); if (s.running) this.keyUp(was, id, t); else { s.down[was].delete(id); s.held[was] = s.down[was].size > 0; } }
         continue;
       }
-      const col = this.renderer.columnAt(tc.clientX);
+      const col = this.renderer.columnAt(tc.clientX, was ?? -1);
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);
