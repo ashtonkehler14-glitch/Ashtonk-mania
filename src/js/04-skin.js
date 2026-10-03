@@ -400,7 +400,7 @@ class DefaultSkin extends Skin {
     let P;
     if (o.palette === 'custom' || (o.palette === 'theme' && o.hue >= 0)) P = DefaultSkin.huePalette(o.hue >= 0 ? o.hue : 280);
     else if (DefaultSkin.NAMED_PALETTES[o.palette]) { const N = DefaultSkin.NAMED_PALETTES[o.palette]; P = { ...N, glow: rgb(N.n2[0]), glowS: rgb(N.s[0]) }; }
-    else P = THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+    else P = THEME_PALETTES.kori;
     return P;
   }
   /** Note colours from one hue, as Web-Osu-Mania's "simple" colour mode (MIT © 2024 Danny Duong): coloured

@@ -63,8 +63,9 @@ const NeruMascot = {
       this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
       this._bob *= Math.exp(-dt / 140);
       const b = this._bob;
-      this.body.style.transform = `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
-      if (this.shadow) this.shadow.style.transform = `scaleX(${(1 + b * 0.05).toFixed(3)})`;
+      // (written only when it changes: a style write every frame restyles her even when she's still)
+      const tf = `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
+      if (tf !== this._tf) { this._tf = tf; this.body.style.transform = tf; if (this.shadow) this.shadow.style.transform = `scaleX(${(1 + b * 0.05).toFixed(3)})`; }
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);

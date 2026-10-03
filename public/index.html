@@ -3119,6 +3119,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rks-status { display: flex; gap: 18px; justify-content: center; color: rgba(255, 255, 255, .65); font-size: 13px; }
 .rkm-stage.st-stars { display: flex; }
 
+/* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
+.perf .neru-img { animation: none; filter: none; }
+.perf .neru.hop .neru-img { animation: neruHop 620ms linear; }
+.perf .settings-panel, .perf .np-panel, .perf .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+
 </style>
 </head>
 <body>
@@ -4398,7 +4403,7 @@ class DefaultSkin extends Skin {
     let P;
     if (o.palette === 'custom' || (o.palette === 'theme' && o.hue >= 0)) P = DefaultSkin.huePalette(o.hue >= 0 ? o.hue : 280);
     else if (DefaultSkin.NAMED_PALETTES[o.palette]) { const N = DefaultSkin.NAMED_PALETTES[o.palette]; P = { ...N, glow: rgb(N.n2[0]), glowS: rgb(N.s[0]) }; }
-    else P = THEME_PALETTES[(typeof Settings !== 'undefined' && Settings.get('ui.theme')) || 'kori'] || THEME_PALETTES.kori;
+    else P = THEME_PALETTES.kori;
     return P;
   }
   /** Note colours from one hue, as Web-Osu-Mania's "simple" colour mode (MIT © 2024 Danny Duong): coloured
@@ -5549,7 +5554,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
@@ -5565,7 +5569,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: false },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
-  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
+  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Default'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.pattern', l: 'Colour pattern', t: 'select', d: 'type', o: [['type', 'osu! (by column type)'], ['rainbow', 'Rainbow'], ['single', 'One colour']] },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.noteSize', l: 'Note size', t: 'range', d: 1, min: 0.6, max: 1.4, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -5630,8 +5634,7 @@ const Settings = {
     const v = this.values;
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
-    // v4: the accent colours are Kori, Neru, Teto and Miku only
-    if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
+    delete v['ui.theme']; // (the accent colour setting is gone: always Kori purple)
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
     // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
     if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
@@ -5690,9 +5693,10 @@ const Settings = {
     if (typeof Zoom !== 'undefined' && Zoom.z !== undefined) Zoom.update();
     const sp = this.get('ui.animSpeed');
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
-    r.dataset.theme = this.get('ui.theme');
+    r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (lighter menus: see .perf in the styles)
   },
 };
 
@@ -9683,11 +9687,14 @@ const HomeScreen = {
     const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
     const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
+    let frame = 0;
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
+      // Performance (Chromebook) mode: the visualiser at half resolution, both canvases redrawn every other frame
+      const lite = document.documentElement.classList.contains('perf'), draw = !lite || (++frame & 1) === 0;
       const an = AudioManager.analyser, playing = an && Music.playing;
       // ── amplitudes (lazer: every 50ms, the spectrum shifted 5 bars round each time; half as tall outside kiai)
       let peak = 0;
@@ -9712,9 +9719,10 @@ const HomeScreen = {
       const decay = dt * 0.0024;
       for (let i = 0; i < N; i++) { freq[i] -= decay * (freq[i] + 0.03); if (freq[i] < 0) freq[i] = 0; }
       // ── visualiser canvas: logo-local units, the disc's edge at radius 0.47 × 512
-      const dpr = 1;
+      const dpr = lite ? 0.5 : 1;
       if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); }
       const x = cv.getContext('2d');
+      if (draw) {
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -9729,13 +9737,13 @@ const HomeScreen = {
         x.moveTo(px - ox, py - oy); x.lineTo(px - ox + ax, py - oy + ay); x.lineTo(px + ox + ax, py + oy + ay); x.lineTo(px + ox, py + oy); x.closePath();
       }
       x.fill();
+      }
       // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
       vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
       if (this._kick) { vel += this._kick; this._kick = 0; }
-      const tc = this.tris, TS = 384;
-      if (tc.width !== TS) { tc.width = tc.height = TS; }
+      const tc = this.tris, TS = lite ? 192 : 384;
+      if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const tx = tc.getContext('2d');
-      tx.clearRect(0, 0, TS, TS);
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
       const moved = dt / 1000 * vel * 50 / D;
       for (let i = tris.length - 1; i >= 0; i--) {
@@ -9745,13 +9753,16 @@ const HomeScreen = {
       }
       while (tris.length < 14) tris.push(spawn(false));
       if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
-      tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
-      tx.beginPath();
-      for (const t of tris) {
-        const lx = t.x * TS, ty = t.y * TS;
-        tx.moveTo(lx + triW / 2, ty); tx.lineTo(lx + triW, ty + triH); tx.lineTo(lx, ty + triH); tx.closePath();
+      if (draw) {
+        tx.clearRect(0, 0, TS, TS);
+        tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
+        tx.beginPath();
+        for (const t of tris) {
+          const lx = t.x * TS, ty = t.y * TS;
+          tx.moveTo(lx + triW / 2, ty); tx.lineTo(lx + triW, ty + triH); tx.lineTo(lx, ty + triH); tx.closePath();
+        }
+        tx.stroke();
       }
-      tx.stroke();
       // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
@@ -9763,7 +9774,7 @@ const HomeScreen = {
           const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
           const kiai = !!(kp && kp.on && t >= kp.time);
           // lazer's KiaiMenuFountains: stars burst from both bottom corners as kiai starts (not when joining mid-kiai)
-          if (kiai && !this._kiai && Math.abs(t - kp.time) < 500) this.shootFountains();
+          if (kiai && !this._kiai && Math.abs(t - kp.time) < 500 && !lite) this.shootFountains();
           this._kiai = kiai;
           const adj = Math.min(1, 0.4 + (this._peak || 0));
           this.logoBeat(tp.beatLength, adj, kiai);
@@ -10187,8 +10198,9 @@ const NeruMascot = {
       this._lean += (want - this._lean) * (1 - Math.exp(-dt / 260));
       this._bob *= Math.exp(-dt / 140);
       const b = this._bob;
-      this.body.style.transform = `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
-      if (this.shadow) this.shadow.style.transform = `scaleX(${(1 + b * 0.05).toFixed(3)})`;
+      // (written only when it changes: a style write every frame restyles her even when she's still)
+      const tf = `rotate(${this._lean.toFixed(2)}deg) translateY(${(b * 6).toFixed(2)}px) scale(${(1 + b * 0.012).toFixed(4)}, ${(1 - b * 0.022).toFixed(4)})`;
+      if (tf !== this._tf) { this._tf = tf; this.body.style.transform = tf; if (this.shadow) this.shadow.style.transform = `scaleX(${(1 + b * 0.05).toFixed(3)})`; }
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);

@@ -303,11 +303,14 @@ const HomeScreen = {
     const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
     const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
+    let frame = 0;
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
+      // Performance (Chromebook) mode: the visualiser at half resolution, both canvases redrawn every other frame
+      const lite = document.documentElement.classList.contains('perf'), draw = !lite || (++frame & 1) === 0;
       const an = AudioManager.analyser, playing = an && Music.playing;
       // ── amplitudes (lazer: every 50ms, the spectrum shifted 5 bars round each time; half as tall outside kiai)
       let peak = 0;
@@ -332,9 +335,10 @@ const HomeScreen = {
       const decay = dt * 0.0024;
       for (let i = 0; i < N; i++) { freq[i] -= decay * (freq[i] + 0.03); if (freq[i] < 0) freq[i] = 0; }
       // ── visualiser canvas: logo-local units, the disc's edge at radius 0.47 × 512
-      const dpr = 1;
+      const dpr = lite ? 0.5 : 1;
       if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); }
       const x = cv.getContext('2d');
+      if (draw) {
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -349,13 +353,13 @@ const HomeScreen = {
         x.moveTo(px - ox, py - oy); x.lineTo(px - ox + ax, py - oy + ay); x.lineTo(px + ox + ax, py + oy + ay); x.lineTo(px + ox, py + oy); x.closePath();
       }
       x.fill();
+      }
       // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
       vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
       if (this._kick) { vel += this._kick; this._kick = 0; }
-      const tc = this.tris, TS = 384;
-      if (tc.width !== TS) { tc.width = tc.height = TS; }
+      const tc = this.tris, TS = lite ? 192 : 384;
+      if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const tx = tc.getContext('2d');
-      tx.clearRect(0, 0, TS, TS);
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
       const moved = dt / 1000 * vel * 50 / D;
       for (let i = tris.length - 1; i >= 0; i--) {
@@ -365,13 +369,16 @@ const HomeScreen = {
       }
       while (tris.length < 14) tris.push(spawn(false));
       if (!this._triGrad) { const g = tx.createLinearGradient(0, 0, 0, TS); g.addColorStop(0, '#ff66ab'); g.addColorStop(1, '#b6346f'); this._triGrad = g; }
-      tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
-      tx.beginPath();
-      for (const t of tris) {
-        const lx = t.x * TS, ty = t.y * TS;
-        tx.moveTo(lx + triW / 2, ty); tx.lineTo(lx + triW, ty + triH); tx.lineTo(lx, ty + triH); tx.closePath();
+      if (draw) {
+        tx.clearRect(0, 0, TS, TS);
+        tx.strokeStyle = this._triGrad; tx.lineWidth = 0.009 * 260 * sc * 2.6; tx.lineJoin = 'round';
+        tx.beginPath();
+        for (const t of tris) {
+          const lx = t.x * TS, ty = t.y * TS;
+          tx.moveTo(lx + triW / 2, ty); tx.lineTo(lx + triW, ty + triH); tx.lineTo(lx, ty + triH); tx.closePath();
+        }
+        tx.stroke();
       }
-      tx.stroke();
       // ── beat (60ms early, as lazer's logo), from the playing track's red lines
       const tm = Music.meta && Music.meta.timing;
       if (tm && Music.playing) {
@@ -383,7 +390,7 @@ const HomeScreen = {
           const kp = tm.kiai && tm.kiai.length ? tm.kiai[Math.max(0, bsearchLE(tm.kiai, t, 'time'))] : null;
           const kiai = !!(kp && kp.on && t >= kp.time);
           // lazer's KiaiMenuFountains: stars burst from both bottom corners as kiai starts (not when joining mid-kiai)
-          if (kiai && !this._kiai && Math.abs(t - kp.time) < 500) this.shootFountains();
+          if (kiai && !this._kiai && Math.abs(t - kp.time) < 500 && !lite) this.shootFountains();
           this._kiai = kiai;
           const adj = Math.min(1, 0.4 + (this._peak || 0));
           this.logoBeat(tp.beatLength, adj, kiai);

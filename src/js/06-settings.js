@@ -108,7 +108,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
   // ── Interface
   { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'User Interface', g: 'Style', k: 'ui.theme', l: 'Accent colour', t: 'select', d: 'kori', o: [['kori', 'Kori purple'], ['neru', 'Neru yellow'], ['teto', 'Teto red'], ['miku', 'Miku teal']] },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
@@ -124,7 +123,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.cursorRotate', l: 'Rotate cursor when dragging', t: 'bool', d: false },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.effects', l: 'Column lighting on key press', t: 'bool', d: true },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.noteStyle', l: 'Note shape', t: 'select', d: 'bars', o: [['bars', 'Bars'], ['circles', 'Circles'], ['diamonds', 'Diamonds'], ['arrows', 'Arrows']], when: () => customSkinOn() },
-  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Accent colour'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
+  { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.palette', l: 'Colours', t: 'select', d: 'theme', o: [['theme', 'Default'], ['ocean', 'Ocean'], ['sunset', 'Sunset'], ['neon', 'Neon'], ['mint', 'Mint'], ['mono', 'Monochrome'], ['custom', 'Custom hue']], when: () => customSkinOn() },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.hue', l: 'Custom hue', t: 'range', d: -1, min: -1, max: 360, step: 1, fmt: v => v < 0 ? 'Off' : `${v}°`, when: () => customSkinOn() && (Settings.get('skin.c.palette') === 'custom' || Settings.get('skin.hue') >= 0) },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.pattern', l: 'Colour pattern', t: 'select', d: 'type', o: [['type', 'osu! (by column type)'], ['rainbow', 'Rainbow'], ['single', 'One colour']] },
   { x: 1, s: 'Skin', g: 'Custom skin', k: 'skin.c.noteSize', l: 'Note size', t: 'range', d: 1, min: 0.6, max: 1.4, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
@@ -189,8 +188,7 @@ const Settings = {
     const v = this.values;
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
-    // v4: the accent colours are Kori, Neru, Teto and Miku only
-    if (v['ui.theme'] && !['kori', 'neru', 'teto', 'miku'].includes(v['ui.theme'])) delete v['ui.theme'];
+    delete v['ui.theme']; // (the accent colour setting is gone: always Kori purple)
     // v5: menu blur is baked once into the background image, so Chromebook mode (which used to switch it off) gets it too
     // the default interface size became 80% (100% felt zoomed in); move people still on the old default along
     if (!v['migr.uiScale80']) { if (v['ui.scale'] === 1) v['ui.scale'] = 0.8; v['migr.uiScale80'] = true; }
@@ -249,8 +247,9 @@ const Settings = {
     if (typeof Zoom !== 'undefined' && Zoom.z !== undefined) Zoom.update();
     const sp = this.get('ui.animSpeed');
     r.style.setProperty('--anim', sp <= 0 ? 0 : (1 / sp));
-    r.dataset.theme = this.get('ui.theme');
+    r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (lighter menus: see .perf in the styles)
   },
 };
