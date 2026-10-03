@@ -15368,7 +15368,8 @@ const Multiplayer = {
       u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
-      this.ws = ws; this.code = code; this.quick = quick; this.opps = new Map(); this.opts = opts;
+      this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
+      if (!rejoin) this.opps = new Map(); // (a reconnect keeps the other players' last scores on screen)
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };

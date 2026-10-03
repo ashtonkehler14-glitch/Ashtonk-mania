@@ -746,6 +746,7 @@ test('a dropped connection mid-song keeps the player\'s place until they reconne
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   r.message('a', { t: 'start' });
   assert.equal(r.state, 'playing');
+  r.message('a', { t: 'score', score: 123456, acc: 0.98, combo: 50, maxCombo: 50, hp: 1, pp: 10 });
   // Bob's connection drops: Alice doesn't win on the spot
   r.disconnect('b');
   assert.equal(r.get('b').away, true);
@@ -756,6 +757,8 @@ test('a dropped connection mid-song keeps the player\'s place until they reconne
   // he's back (same browser) and finishes his song
   const back = r.join('b2', 'Bob', false, { cid: 'cb' });
   assert.equal(back.as, 'b');
+  const caught = back.out.find(o => o.msg.t === 'opp');
+  assert.ok(caught && caught.to === 'b' && caught.msg.id === 'a' && caught.msg.score === 123456, 'he gets Alice\'s latest score straight back');
   const out = fin(r, 'b', { score: 700000 });
   assert.equal(msgs(out, 'results')[0].msg.results.winner, 'b', 'his result counts');
   // next match: Bob drops and never comes back — after a minute he's gone and Alice wins by forfeit

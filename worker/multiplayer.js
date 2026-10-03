@@ -135,7 +135,12 @@ export class RoomLogic {
     const back = opts.cid ? this.players.find(p => p.away && p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
     if (back) {
       back.away = false; back.awayUntil = 0;
-      return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, room: this.snapshot(back.id) } }, this.roomMsg(), this.system(`${back.name} reconnected`)] };
+      // catch them up: everyone's latest live score (so the in-game leaderboard fills straight back in), and the
+      // match's results if it ended while they were reconnecting
+      const catchUp = [];
+      if (this.state === 'playing') for (const q of this.players) if (q !== back && q.playing && q.live) catchUp.push({ to: back.id, msg: { t: 'opp', id: q.id, ...q.live } });
+      if (this.state === 'lobby' && this.lastResults && this.lastResults.rows.some(r => r.id === back.id)) catchUp.push({ to: back.id, msg: { t: 'results', results: this.lastResults } });
+      return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, room: this.snapshot(back.id) } }, ...catchUp, this.roomMsg(), this.system(`${back.name} reconnected`)] };
     }
     if (this.players.length >= this.settings.size) return { ok: false, error: 'This room is full.' };
     if (this.qp && this.qp.round > 0) return { ok: false, error: 'This Quick Play match has already started.' };
