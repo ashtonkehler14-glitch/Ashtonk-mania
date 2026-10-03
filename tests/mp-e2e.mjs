@@ -74,6 +74,21 @@ const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 
+// friends: invites and spectating are only between friends. Alice sends Bob a request from the online users list;
+// he accepts it from the prompt that pops up
+await alice.click('#toolbar [data-ov="online"]');
+await alice.waitForFunction(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob')), null, { timeout: 10000 });
+const bobRow = () => alice.evaluate(() => { const r = [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')); return { spec: !!r.querySelector('.ol-spec'), add: !!r.querySelector('.ol-friend'), asked: !!r.querySelector('.ol-asked') }; });
+const frBefore = await bobRow();
+await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-friend').click());
+await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice wants to be friends/.test(x.textContent)), null, { timeout: 5000 });
+const pending = await bobRow();
+await bob.click('.dialog .pd-btn.ok');
+await alice.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Bob'), null, { timeout: 5000 });
+const both = await bob.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Alice'), null, { timeout: 5000 }).then(() => true, () => false);
+check('friend requests: + sends one ("Request sent"), the other player accepts from a prompt, and both become friends', !frBefore.spec && frBefore.add && pending.asked && both, JSON.stringify({ frBefore, pending, both }));
+await alice.keyboard.press('Escape');
+
 // Alice creates a room, Bob joins with the code
 await createRoom(alice, false, false);
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
@@ -83,7 +98,7 @@ check('room created with a code', /^[A-Z0-9]{6}$/.test(code), code);
 await alice.waitForFunction(() => AshtonkMania.Presence.others().some(p => p.name === 'Bob'), null, { timeout: 10000 });
 await alice.click('.mp-invite');
 await alice.waitForSelector('.inv-row');
-check('invite dialog lists online players and offers a link', await alice.evaluate(() => [...document.querySelectorAll('.inv-row b')].some(b => b.textContent === 'Bob') && !!document.querySelector('.inv-link')));
+check('invite dialog lists friends who are online and offers a link', await alice.evaluate(() => [...document.querySelectorAll('.inv-row b')].some(b => b.textContent === 'Bob') && !!document.querySelector('.inv-link')));
 await alice.click('.inv-row .btn.primary');
 await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice invited you/.test(x.textContent)), null, { timeout: 5000 });
 check('the invited player gets a Join prompt', await bob.evaluate(code => document.querySelector('.dialog .body').textContent.includes(code), code));
@@ -436,9 +451,8 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
 await alice.waitForTimeout(500);
 await alice.click('#toolbar [data-ov="online"]');
 await alice.waitForFunction(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob')), null, { timeout: 8000 });
-await alice.evaluate(() => [...document.querySelectorAll('.ol-row')].find(r => r.querySelector('b').textContent.startsWith('Bob')).querySelector('.ol-friend').click());
 const fr = await alice.evaluate(() => ({ n: JSON.parse(localStorage.getItem('am.friends') || '[]').length, mark: !!document.querySelector('.ol-row.friend') }));
-check('online users panel lists who\'s online; the heart adds a friend (kept in this browser)', fr.n === 1 && fr.mark, JSON.stringify(fr));
+check('online users panel lists who\'s online, friends marked (and kept for when they\'re offline)', fr.n === 1 && fr.mark, JSON.stringify(fr));
 await alice.evaluate(() => [...document.querySelectorAll('.ol-tab')].find(b => /Friends/.test(b.textContent)).click());
 check('the Friends tab shows them', await alice.evaluate(() => [...document.querySelectorAll('.ol-row b')].some(b => b.textContent.startsWith('Bob'))));
 // Bob plays (real key presses); Alice spectates from the list
@@ -456,6 +470,8 @@ clearInterval(mash);
 check('spectating: Alice watches Bob\'s play live, a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && sp.pill && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
 const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.name === 'Alice') || {}).status);
 check('…and shows as spectating on the online list', st === 'watching', st);
+const seen = await bob.evaluate(() => [...document.querySelectorAll('.spec-list')].map(e => e.textContent).join());
+check('Bob sees who\'s spectating him on his HUD', /Spectators \(1\)/.test(seen) && /Alice/.test(seen), seen);
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'gameplay' && !document.querySelector('.spec-pill'), null, { timeout: 8000 });
 await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});

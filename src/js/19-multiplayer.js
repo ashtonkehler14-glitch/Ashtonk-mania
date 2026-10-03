@@ -378,6 +378,10 @@ const Presence = {
         Bus.emit('presence:changed');
       }
       else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
+      else if (m.t === 'friends') Friends.sync(m);
+      else if (m.t === 'friendReq') Friends.onRequest(m);
+      else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
+      else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite and spectate each other.'); }
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
@@ -438,19 +442,19 @@ const Presence = {
     const invited = new Set();
     const list = h('div.inv-list');
     const paint = () => {
-      const others = this.others();
+      const others = this.others().filter(p => Friends.has(p.pid)); // (only friends can be invited)
       clearEl(list).append(...(others.length ? others.map(p => {
         const busy = p.status === 'playing' || p.status === 'room'; // (already in a room: can't be invited)
         const done = invited.has(p.id);
         return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
           h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
           h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
-      }) : [h('div.inv-empty', this.ws ? 'Nobody else is online right now.' : 'Connecting…')]));
+      }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));
     };
     paint();
     const off = Bus.on('presence:changed', paint);
     const o = Dialog.custom(`Invite to room ${Multiplayer.room.code}`, h('div.inv',
-      h('div.inv-label', 'Online players'), list,
+      h('div.inv-label', 'Friends online'), list,
       h('div.inv-label', 'Or send a link'),
       h('button.btn.inv-link', { onclick: () => { Multiplayer.invite(); } }, icon('upload'), 'Copy invite link')), [{ label: 'Done' }]);
     const close = o.close; o.close = () => { off(); close(); };
@@ -733,7 +737,7 @@ const MultiplayerScreen = {
             ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
         h('span.grow'),
         // still playing while you're back in the room: watch them finish
-        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
+        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid && Friends.has(p.pid) ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
           UISounds.click();
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);

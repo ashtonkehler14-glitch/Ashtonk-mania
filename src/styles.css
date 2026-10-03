@@ -3143,3 +3143,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .spec-pill-t b { font-size: .82rem; }
 .spec-pill-t small { font-size: .7rem; color: hsl(255 20% 75%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
 #app.in-game .spec-pill { bottom: auto; top: 10px; opacity: .8; }
+/* lazer's spectator list on the HUD (left, under the score area), and friend request bits in the online list */
+.spec-list { position: absolute; left: 12px; top: 45%; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, .35); color: #fff; pointer-events: none; font-size: 12px; }
+.spec-list-h { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.spec-list-n { opacity: .85; }
+.spec-list-n.more { opacity: .6; font-style: italic; }
+.ol-sec { margin: 6px 4px 2px; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: hsl(255 20% 75%); }
+.ol-row.req { box-shadow: inset 3px 0 0 #66ccff; }
+.ol-asked { font-size: .72rem; color: hsl(255 20% 75%); white-space: nowrap; }
+.ol-friend.ask { color: #66ccff; }

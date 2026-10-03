@@ -6,21 +6,47 @@
  *   someone is watching — and the watcher's game plays them back like a replay, a couple of seconds behind (so a
  *   hiccup in the stream doesn't stop the playback). Watching someone follows them from song to song. */
 
+/** Friends are mutual: a request, which the other player accepts. The server keeps them (by public id), so they're
+ *  the same in every tab; a copy is kept here to show them while offline. */
 const Friends = {
   KEY: 'am.friends',
-  list() { try { const l = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(l) ? l.filter(f => f && f.pid) : []; } catch { return []; } },
-  save(l) { try { localStorage.setItem(this.KEY, JSON.stringify(l)); } catch { /* private mode */ } Bus.emit('friends:changed'); },
-  has(pid) { return !!pid && this.list().some(f => f.pid === pid); },
-  toggle(p) {
-    if (!p || !p.pid) return;
-    const l = this.list();
-    if (this.has(p.pid)) { this.save(l.filter(f => f.pid !== p.pid)); Toast.show('Removed from friends', p.name); }
-    else { this.save([...l, { pid: p.pid, name: p.name, avatar: p.avatar || '', since: Date.now() }]); Toast.ok('Added to friends', p.name); }
+  server: null, requests: [], sent: new Set(),
+  list() {
+    if (this.server) return this.server;
+    try { const l = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(l) ? l.filter(f => f && f.pid) : []; } catch { return []; }
   },
-  /** Keep a friend's saved name and picture up to date when they're seen online. */
-  touch(p) {
-    const l = this.list(), f = l.find(x => x.pid === p.pid);
-    if (f && (f.name !== p.name || (p.avatar && f.avatar !== p.avatar))) { f.name = p.name; if (p.avatar) f.avatar = p.avatar; try { localStorage.setItem(this.KEY, JSON.stringify(l)); } catch { /* private mode */ } }
+  has(pid) { return !!pid && this.list().some(f => f.pid === pid); },
+  requested(pid) { return this.sent.has(pid); },
+  incoming(pid) { return this.requests.some(r => r.pid === pid); },
+  /** The server's list (on connecting, and whenever it changes). */
+  sync(m) {
+    this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name }));
+    this.requests = m.requests || [];
+    for (const f of this.server) this.sent.delete(f.pid);
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
+    Bus.emit('friends:changed');
+  },
+  /** The heart: send a request (or accept theirs), or — already friends — remove them. */
+  async toggle(p) {
+    if (!p || !p.pid) return;
+    if (this.has(p.pid)) {
+      if (!(await Dialog.confirm(`Remove ${p.name} from your friends?`, 'You won\'t be able to invite or spectate each other until you\'re friends again.', { ok: 'Remove', danger: true }))) return;
+      Presence.send({ t: 'unfriend', pid: p.pid });
+      return;
+    }
+    if (this.incoming(p.pid)) { this.answer(p.pid, true); return; }
+    if (!p.id) return;
+    Presence.send({ t: 'friendReq', to: p.id });
+    this.sent.add(p.pid); Bus.emit('friends:changed');
+  },
+  answer(pid, yes) { Presence.send({ t: 'friendAnswer', pid, yes }); this.requests = this.requests.filter(r => r.pid !== pid); Bus.emit('friends:changed'); },
+  /** A friend request arrived: asked straight away (or once the current song is over). */
+  async onRequest(m) {
+    const from = m.from || {};
+    if (Screens.currentName === 'gameplay') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
+    UISounds.play('check-on');
+    const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and spectate each other\'s plays.', { ok: 'Accept', cancel: 'Not now' });
+    if (ok) this.answer(from.pid, true);
   },
 };
 
@@ -34,6 +60,7 @@ const Spectate = {
   // ── watching
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
+    if (!Friends.has(p.pid)) { Toast.show('Friends only', `Add ${p.name} as a friend to spectate them.`); return; }
     if (p.status !== 'playing') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
@@ -123,6 +150,7 @@ const Spectate = {
   onSpectators(m) {
     const H = this.host;
     H.watchers = m.n || 0;
+    this.paintWatchers(m.names || []);
     if (m.full && H.s && GameplayScreen.s === H.s && !H.s.finished) this.upload(H.s);
   },
   /** Everything so far, in chunks (the first resets what the server kept, the last says it's complete). */
@@ -137,6 +165,7 @@ const Spectate = {
   hostStart(s) {
     const H = this.host;
     H.s = s; H.sent = 0; H.lastSend = 0;
+    this.watchEl = null; this.paintWatchers(this._names || []); // (the new play's HUD shows who's still watching)
     if (!Presence.ws) return;
     const set = BeatmapManager.setById.get(s.rec.setId);
     Presence.send({ t: 'play', head: {
@@ -164,6 +193,17 @@ const Spectate = {
     Presence.send({ t: 'playEnd', quit: !!quit });
   },
 
+  /** lazer's spectator list on the HUD: who's watching you play. */
+  paintWatchers(names) {
+    const prev = this._names || [];
+    this._names = names;
+    for (const n of names) if (!prev.includes(n) && Screens.currentName !== 'gameplay') Toast.show(`${n} is spectating you`);
+    const hud = Screens.currentName === 'gameplay' && GameplayScreen.hud;
+    if (this.watchEl && (!hud || !names.length || !hud.contains(this.watchEl))) { this.watchEl.remove(); this.watchEl = null; }
+    if (!hud || !names.length) return;
+    if (!this.watchEl) { this.watchEl = h('div.spec-list'); hud.append(this.watchEl); }
+    clearEl(this.watchEl).append(h('div.spec-list-h', `Spectators (${names.length})`), ...names.slice(0, 10).map(n => h('div.spec-list-n', n)), names.length > 10 ? h('div.spec-list-n.more', `and ${names.length - 10} more`) : null);
+  },
   /** The "Spectating …" pill: who you're watching, with Stop. */
   paintPill(sub) {
     if (!this.target) { if (this.pill) { this.pill.remove(); this.pill = null; } return; }
@@ -205,23 +245,24 @@ const OnlinePanel = {
   },
   row(p, online) {
     const friend = Friends.has(p.pid), me = p.id === Presence.me;
-    const canInvite = online && !me && Multiplayer.inRoom() && p.status === 'menu';
+    const asked = !friend && Friends.requested(p.pid), theyAsked = !friend && Friends.incoming(p.pid);
+    const canInvite = online && !me && friend && Multiplayer.inRoom() && p.status === 'menu';
     const watching = Spectate.target && Spectate.target.id === p.id;
     return h(`div.ol-row${online ? '' : '.off'}${friend ? '.friend' : ''}`,
       Presence.avatarEl(p, 40),
       h('div.ol-who', h('b', p.name, me ? h('span.muted', ' (you)') : null, friend ? h('span.ol-fr', icon('heart', 'fill')) : null),
         h('small', online ? this.statusText(p) : 'Offline'), online && p.watchers ? h('small.ol-watch', `${p.watchers} watching`) : null),
       h('div.ol-acts',
-        !me && p.pid ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}`, { title: friend ? 'Remove friend' : 'Add friend', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon('heart', friend ? 'fill' : '')) : null,
-        online && !me && (p.status === 'playing' || watching) ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: 'Watch them play', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
+        !me && p.pid && !asked && (friend || online) ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}${theyAsked ? '.ask' : ''}`, { title: friend ? 'Remove friend' : theyAsked ? 'Accept their friend request' : 'Send a friend request', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon(friend || theyAsked ? 'heart' : 'plus', friend ? 'fill' : '')) : null,
+        asked ? h('span.ol-asked', 'Request sent') : null,
+        online && !me && friend && (p.status === 'playing' || watching) ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: 'Watch them play', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
         canInvite ? h('button.btn.sm', { onclick: () => { UISounds.click(); Presence.invite(p.id); Toast.ok('Invited', p.name); } }, 'Invite') : null));
   },
   render() {
     if (!this.el) return;
     const online = Presence.players || [];
-    for (const p of online) if (p.pid && Friends.has(p.pid)) Friends.touch(p);
     const friends = Friends.list();
-    clearEl(this.tabsEl).append(...[['online', `Online (${online.length})`], ['friends', `Friends (${friends.length})`]].map(([k, l]) =>
+    clearEl(this.tabsEl).append(...[['online', `Online (${online.length})`], ['friends', `Friends (${friends.length})${Friends.requests.length ? ` · ${Friends.requests.length} new` : ''}`]].map(([k, l]) =>
       h(`button.ol-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.render(); } }, l)));
     this.countEl.textContent = String(online.length);
     let rows;
@@ -232,8 +273,12 @@ const OnlinePanel = {
     } else {
       // online friends first, then the rest (by name)
       const list = friends.map(f => ({ f, p: online.find(x => x.pid === f.pid) })).sort((a, b) => !!b.p - !!a.p || a.f.name.localeCompare(b.f.name));
-      rows = list.length ? list.map(({ f, p }) => p ? this.row(p, true) : this.row({ ...f, id: null }, false))
-        : [h('div.inv-empty', 'No friends yet — press the heart next to someone online to add them.')];
+      const reqs = Friends.requests.map(r => h('div.ol-row.req', Presence.avatarEl({ name: r.name }, 40),
+        h('div.ol-who', h('b', r.name), h('small', 'wants to be friends')),
+        h('div.ol-acts', h('button.btn.sm.primary', { onclick: () => { UISounds.click(); Friends.answer(r.pid, true); } }, 'Accept'), h('button.btn.sm', { onclick: () => { UISounds.click(); Friends.answer(r.pid, false); } }, 'Decline'))));
+      rows = [...(reqs.length ? [h('div.ol-sec', 'Friend requests'), ...reqs, h('div.ol-sec', 'Friends')] : [])];
+      rows.push(...(list.length ? list.map(({ f, p }) => p ? this.row(p, true) : this.row({ ...f, id: null }, false))
+        : [h('div.inv-empty', 'No friends yet — press + next to someone online to send them a friend request.')]));
     }
     clearEl(this.listEl).append(...rows);
   },

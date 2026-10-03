@@ -5,9 +5,12 @@ import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_PO
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
   const p = new PresenceLogic(() => clock.t);
-  const joinOut = p.join('a', { name: 'Alice' });
+  const joinOut = p.join('a', { name: 'Alice', pid: 'alicepid' });
   assert.equal(joinOut[0].msg.t, 'welcome');
-  p.join('b', { name: 'Bob', status: 'room' });
+  p.join('b', { name: 'Bob', status: 'room', pid: 'bobpid1' });
+  // only friends can be invited
+  assert.equal(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' })[0].msg.msg, 'You can only invite your friends.');
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid', yes: true });
   assert.deepEqual(p.list().map(x => [x.name, x.status]), [['Alice', 'menu'], ['Bob', 'room']]);
   const st = p.message('a', { t: 'status', status: 'playing' });
   assert.equal(st[0].msg.players[0].status, 'playing');
@@ -824,6 +827,9 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.equal(p.list().find(x => x.id === 'a').pid, 'alicepid1');
   p.message('a', { t: 'status', status: 'playing', song: { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 } });
   assert.deepEqual(p.list().find(x => x.id === 'a').song, { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 });
+  // only friends can spectate each other
+  assert.equal(p.message('b', { t: 'watch', to: 'a' })[0].msg.msg, 'You can only spectate your friends.');
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
   const head = { mapHash: 'abc', onlineSetId: 5, title: 'Song', keys: 4, mods: ['HD', 'AT'], rate: 1, seed: 7 };
   // nobody watching: the play is announced, but its inputs aren't streamed
   assert.deepEqual(p.message('a', { t: 'play', head }), []);
@@ -833,14 +839,15 @@ test('presence: public ids and songs on the list; spectating streams a play only
   const start = w.find(o => o.msg.t === 'specStart'), ask = w.find(o => o.msg.t === 'spectators');
   assert.equal(start.to, 'b'); assert.equal(start.msg.head.mapHash, 'abc'); assert.deepEqual(start.msg.head.mods, ['HD'], 'no Auto');
   assert.equal(start.msg.hist, false);
-  assert.deepEqual(ask, { to: 'a', msg: { t: 'spectators', n: 1, full: true } });
+  assert.deepEqual(ask, { to: 'a', msg: { t: 'spectators', n: 1, names: ['Bob'], full: true } });
   // her full upload (in chunks), then live frames, reach him
   const f1 = p.message('a', { t: 'frames', ev: [100, 0, 1], at: 300, reset: true });
   assert.deepEqual(f1[0], { to: 'b', msg: { t: 'specFrames', id: 'a', ev: [100, 0, 1], at: 300, reset: true, last: false } });
   p.message('a', { t: 'frames', ev: [150, 0, 0], at: 400, last: true });
   p.message('a', { t: 'frames', ev: [500, 1, 1], at: 600 });
   // a second watcher joining later gets all of it at once, with nothing more asked of Alice
-  p.join('c', { name: 'Cat' });
+  p.join('c', { name: 'Cat', pid: 'catpid9' });
+  p.message('c', { t: 'friendReq', to: 'a' }); p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: true });
   const w2 = p.message('c', { t: 'watch', to: 'a' });
   const s2 = w2.find(o => o.msg.t === 'specStart');
   assert.deepEqual(s2.msg.ev, [100, 0, 1, 150, 0, 0, 500, 1, 1]); assert.equal(s2.msg.hist, true); assert.equal(s2.msg.at, 600);
@@ -853,10 +860,50 @@ test('presence: public ids and songs on the list; spectating streams a play only
   // everyone stops watching: she stops streaming; watching someone in the menus waits for their next play
   p.message('b', { t: 'unwatch', to: 'a' });
   const last = p.message('c', { t: 'unwatch', to: 'a' });
-  assert.deepEqual(last, [{ to: 'a', msg: { t: 'spectators', n: 0 } }]);
+  assert.deepEqual(last, [{ to: 'a', msg: { t: 'spectators', n: 0, names: [] } }]);
   assert.deepEqual(p.message('a', { t: 'frames', ev: [1, 0, 1], at: 5 }), []);
   assert.equal(p.message('a', { t: 'watch', to: 'b' }).find(o => o.to === 'a').msg.t, 'specWait');
   // a watched player leaving tells their watchers
   const gone = p.leave('b');
   assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
+});
+
+test('presence: friend requests — sent, answered, mutual, kept, and removable; watchers are named', () => {
+  const p = new PresenceLogic(() => 0);
+  const kept = {};
+  p.persist = (kind, pid, list) => { kept[kind + ':' + pid] = list; };
+  p.join('a', { name: 'Alice', pid: 'alicepid' }); p.join('b', { name: 'Bob', pid: 'bobpid1' });
+  const sent = p.message('a', { t: 'friendReq', to: 'b' });
+  assert.ok(sent.some(o => o.to === 'a' && o.msg.t === 'friendSent'));
+  assert.ok(sent.some(o => o.to === 'b' && o.msg.t === 'friendReq' && o.msg.from.name === 'Alice'));
+  assert.deepEqual(kept['fq:bobpid1'], [['alicepid', 'Alice']], 'the request is kept until answered');
+  assert.equal(p.areFriends('alicepid', 'bobpid1'), false);
+  // Bob says yes: both have each other, both are told
+  const yes = p.message('b', { t: 'friendAnswer', pid: 'alicepid', yes: true });
+  assert.ok(p.areFriends('alicepid', 'bobpid1') && p.areFriends('bobpid1', 'alicepid'));
+  assert.ok(yes.some(o => o.to === 'a' && o.msg.t === 'friendAdded' && o.msg.name === 'Bob'));
+  assert.deepEqual(yes.find(o => o.to === 'a' && o.msg.t === 'friends').msg.list.map(f => f.pid), ['bobpid1']);
+  assert.deepEqual(kept['fr:alicepid'], [['bobpid1', 'Bob']]); assert.deepEqual(kept['fq:bobpid1'], []);
+  // friends come back after a restart (loaded from storage), and a new tab gets the list on joining
+  const q = new PresenceLogic(() => 0);
+  q.load({ alicepid: kept['fr:alicepid'], bobpid1: kept['fr:bobpid1'] }, {});
+  const hello = q.join('x', { name: 'Alice', pid: 'alicepid' });
+  assert.deepEqual(hello.find(o => o.msg.t === 'friends').msg.list.map(f => f.name), ['Bob']);
+  // a declined request goes away
+  p.join('c', { name: 'Cat', pid: 'catpid9' });
+  p.message('c', { t: 'friendReq', to: 'a' });
+  p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: false });
+  assert.equal(p.areFriends('alicepid', 'catpid9'), false); assert.equal(p.friendsMsg('alicepid').requests.length, 0);
+  // two requests crossing: friends straight away
+  p.message('c', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendReq', to: 'c' });
+  assert.ok(p.areFriends('bobpid1', 'catpid9'));
+  // Bob watches Alice: she's told who's watching
+  p.message('a', { t: 'play', head: { mapHash: 'h', keys: 4 } });
+  const w = p.message('b', { t: 'watch', to: 'a' });
+  assert.deepEqual(w.find(o => o.to === 'a').msg.names, ['Bob']);
+  // unfriending ends it
+  const un = p.message('a', { t: 'unfriend', pid: 'bobpid1' });
+  assert.equal(p.areFriends('alicepid', 'bobpid1'), false);
+  assert.ok(un.some(o => o.to === 'b' && o.msg.t === 'specEnd'));
+  assert.equal(p.users.get('a').watchers.size, 0);
 });

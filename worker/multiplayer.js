@@ -659,7 +659,33 @@ export class MatchRoom {
  *  head, ev, at, hist}, specFrames {id, ev, at, reset?, last?}, specEnd {id, quit?, gone?}, specWait {id, name}.
  *  Plain JS so it can be unit-tested. */
 export class PresenceLogic {
-  constructor(now = () => Date.now()) { this.now = now; this.users = new Map(); this.lastInvite = new Map(); }
+  constructor(now = () => Date.now()) {
+    this.now = now; this.users = new Map(); this.lastInvite = new Map();
+    // friends, by public id: pid → Map(pid → name), and friend requests waiting for an answer: pid → Map(from pid → name).
+    // `persist(key, value)` keeps them (the Durable Object's storage); `load` fills them back in on start.
+    this.friends = new Map(); this.requests = new Map(); this.persist = null;
+  }
+  load(friends, requests) {
+    for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
+    for (const [pid, l] of Object.entries(requests || {})) this.requests.set(pid, new Map(l));
+  }
+  areFriends(a, b) { return !!a && !!b && !!this.friends.get(a)?.has(b); }
+  save(kind, pid) { if (this.persist && pid) this.persist(kind, pid, [...((kind === 'fr' ? this.friends : this.requests).get(pid) || new Map())]); }
+  /** Everyone online with this public id (a player can have the game open in two tabs). */
+  byPid(pid) { return [...this.users.entries()].filter(([, u]) => u.pid && u.pid === pid).map(([id]) => id); }
+  friendsMsg(pid) {
+    const online = new Set([...this.users.values()].map(u => u.pid));
+    return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ pid: p, name, online: online.has(p) })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => ({ pid: p, name })) };
+  }
+  /** Tell both sides (every tab of each) their friends changed. */
+  friendsOut(...pids) { return pids.flatMap(p => this.byPid(p).map(id => ({ to: id, msg: this.friendsMsg(p) }))); }
+  makeFriends(a, an, b, bn) {
+    if (!this.friends.has(a)) this.friends.set(a, new Map());
+    if (!this.friends.has(b)) this.friends.set(b, new Map());
+    this.friends.get(a).set(b, bn); this.friends.get(b).set(a, an);
+    this.requests.get(a)?.delete(b); this.requests.get(b)?.delete(a);
+    for (const p of [a, b]) { this.save('fr', p); this.save('fq', p); }
+  }
   static STALE = 70000; // clients ping every 10 s (a background tab maybe once a minute); silent this long = gone (a dropped connection may never say so)
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   list() { return [...this.users.entries()].map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size })); }
@@ -671,7 +697,8 @@ export class PresenceLogic {
       pid: /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '', song: null, seen: this.now(),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
-    return [...out, { to: id, msg: { t: 'welcome', you: id } }, this.broadcast()];
+    const me = this.users.get(id);
+    return [...out, { to: id, msg: { t: 'welcome', you: id } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -691,13 +718,14 @@ export class PresenceLogic {
   }
   leave(id) { if (!this.users.has(id)) return []; const out = this.forget(id); return [...out, this.broadcast()]; }
   broadcast() { return { to: 'all', msg: { t: 'online', players: this.list() } }; }
+  watcherNames(u) { return [...u.watchers].map(w => this.users.get(w)?.name).filter(Boolean); }
   unwatch(id, target) {
     const u = this.users.get(id), tu = this.users.get(target);
     if (u && u.watching === target) u.watching = null;
     if (!tu || !tu.watchers.delete(id)) return [];
     // nobody left watching: the player stops streaming, and what was kept is dropped
     if (!tu.watchers.size) { tu.hist = false; tu.ev = []; }
-    return [{ to: target, msg: { t: 'spectators', n: tu.watchers.size } }];
+    return [{ to: target, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
   }
   message(id, msg) {
     const u = this.users.get(id);
@@ -714,23 +742,56 @@ export class PresenceLogic {
     if (msg.t === 'invite') {
       const code = str(msg.code, 8).toUpperCase();
       if (!validCode(code) || !this.users.has(msg.to) || msg.to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (!this.areFriends(u.pid, this.users.get(msg.to).pid)) return [{ to: id, msg: { t: 'error', msg: 'You can only invite your friends.' } }];
       if (this.users.get(msg.to).status !== 'menu') return [{ to: id, msg: { t: 'error', msg: 'That player is already in a room.' } }];
       const key = `${msg.to}|${code}`, t = this.now();
       if (this.lastInvite.get(id)?.key === key && t - this.lastInvite.get(id).at < 3000) return []; // double-click
       this.lastInvite.set(id, { key, at: t });
       return [{ to: msg.to, msg: { t: 'invite', from: { id, name: u.name }, code } }, { to: id, msg: { t: 'invited', to: msg.to } }];
     }
+    // ── friends: a request, answered by the other player; friends are mutual
+    if (msg.t === 'friendReq') {
+      const tu = this.users.get(String(msg.to || ''));
+      if (!tu || !u.pid || !tu.pid || tu.pid === u.pid) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (this.areFriends(u.pid, tu.pid)) return [];
+      // they had already asked you: that's a yes from both
+      if (this.requests.get(u.pid)?.has(tu.pid)) { this.makeFriends(u.pid, u.name, tu.pid, tu.name); return this.friendsOut(u.pid, tu.pid); }
+      if (!this.requests.has(tu.pid)) this.requests.set(tu.pid, new Map());
+      const fresh = !this.requests.get(tu.pid).has(u.pid);
+      this.requests.get(tu.pid).set(u.pid, u.name); this.save('fq', tu.pid);
+      return [{ to: id, msg: { t: 'friendSent', pid: tu.pid, name: tu.name } },
+        ...(fresh ? this.byPid(tu.pid).map(t => ({ to: t, msg: { t: 'friendReq', from: { pid: u.pid, name: u.name } } })) : []),
+        ...this.friendsOut(tu.pid)];
+    }
+    if (msg.t === 'friendAnswer') {
+      const from = String(msg.pid || ''), name = this.requests.get(u.pid)?.get(from);
+      if (!u.pid || name == null) return [];
+      if (msg.yes) { this.makeFriends(u.pid, u.name, from, name); return [...this.friendsOut(u.pid, from), ...this.byPid(from).map(t => ({ to: t, msg: { t: 'friendAdded', pid: u.pid, name: u.name } }))]; }
+      this.requests.get(u.pid).delete(from); this.save('fq', u.pid);
+      return this.friendsOut(u.pid);
+    }
+    if (msg.t === 'unfriend') {
+      const other = String(msg.pid || '');
+      if (!u.pid || !this.areFriends(u.pid, other)) return [];
+      this.friends.get(u.pid).delete(other); this.friends.get(other)?.delete(u.pid);
+      this.save('fr', u.pid); this.save('fr', other);
+      // (no more watching each other)
+      const out = [];
+      for (const [wid, wu] of this.users) if (wu.pid === u.pid || wu.pid === other) { const tgt = wu.watching && this.users.get(wu.watching); if (tgt && (tgt.pid === u.pid || tgt.pid === other) && tgt.pid !== wu.pid) { out.push(...this.unwatch(wid, wu.watching), { to: wid, msg: { t: 'specEnd', id: wu.watching, gone: true } }); } }
+      return [...out, ...this.friendsOut(u.pid, other)];
+    }
     // ── spectating
     if (msg.t === 'watch') {
       const to = String(msg.to || ''), tu = this.users.get(to);
       if (!tu || to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (!this.areFriends(u.pid, tu.pid)) return [{ to: id, msg: { t: 'error', msg: 'You can only spectate your friends.' } }];
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size } }];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
       out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist } });
-      out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, full: first || !tu.hist } });
+      out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
       return out;
     }
     if (msg.t === 'unwatch') return this.unwatch(id, String(msg.to || u.watching || ''));
@@ -807,6 +868,19 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
+  async loadFriends() {
+    if (this._friendsLoaded) return this._friendsLoaded;
+    return (this._friendsLoaded = (async () => {
+      const st = this.state.storage, fr = {}, fq = {};
+      try {
+        for (const [k, v] of await st.list({ prefix: 'fr:' })) fr[k.slice(3)] = v;
+        for (const [k, v] of await st.list({ prefix: 'fq:' })) fq[k.slice(3)] = v;
+      } catch { /* storage unavailable: start empty */ }
+      this.presence.load(fr, fq);
+      this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
+    })());
+  }
   /** osu! API answers kept in this object's storage (like WOM's KV cache), so they outlive a restart: the newest 300. */
   osuStore() {
     const st = this.state.storage, IDX = 'osuCacheIndex', MAX = 300;
@@ -845,6 +919,7 @@ export class Matchmaker {
     }
     if (url.pathname.endsWith('/presence')) {
       if (request.headers.get('Upgrade') !== 'websocket') return json({ online: this.presence.list().length });
+      await this.loadFriends();
       return this.presenceSocket();
     }
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
