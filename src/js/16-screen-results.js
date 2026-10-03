@@ -24,8 +24,27 @@ const ResultsScreen = {
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
+    this.fitToScreen(body, grid);
     if (p.fresh && s.passed) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
     return el;
+  },
+  /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
+   *  or a small window / phone), the way lazer's results always sit whole on screen. */
+  fitToScreen(body, grid) {
+    let raf = 0, shown = false;
+    // (one observer per screen: the next results screen enters before this one leaves)
+    const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(fit); });
+    const fit = () => {
+      raf = 0;
+      if (!grid.isConnected) { if (shown) ro.disconnect(); return; } // (left: done)
+      shown = true;
+      const cs = getComputedStyle(body);
+      const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const k = Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight);
+      grid.style.scale = k < 0.995 ? k.toFixed(4) : '';
+    };
+    ro.observe(body); ro.observe(grid);
   },
   leave() { cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the

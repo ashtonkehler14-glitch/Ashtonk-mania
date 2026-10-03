@@ -1020,6 +1020,26 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mctx.close();
 }
 
+// results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
+{
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await page.evaluate(() => { const S = AshtonkMania.ScoreManager.scores.find(s => s.passed); AshtonkMania.Screens.go('results', { score: S, fromList: true }); });
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results'); await page.waitForTimeout(800);
+  await page.evaluate(() => { const g = [...document.querySelectorAll('.res-grid')].pop(); g.classList.add('stats-open'); const d = g.querySelector('.res-more'); if (d) d.open = true; });
+  await page.waitForTimeout(600);
+  const rf = await page.evaluate(() => { const b = [...document.querySelectorAll('.res-body')].pop(), g = [...document.querySelectorAll('.res-grid')].pop(), B = b.getBoundingClientRect(), G = g.getBoundingClientRect();
+    return { inside: G.top >= B.top - 1 && G.bottom <= B.bottom + 1 && G.left >= B.left - 1 && G.right <= B.right + 1, scroll: b.scrollHeight > b.clientHeight + 1 && getComputedStyle(b).overflowY !== 'hidden', scale: g.style.scale }; });
+  check('results: everything fits on screen without scrolling, even with all statistics open in a small window', rf.inside && !rf.scroll, JSON.stringify(rf));
+  await page.setViewportSize({ width: 1600, height: 900 });
+}
+// the profile's cover is the background of your highest-pp play
+{
+  await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(800);
+  const pc = await page.evaluate(async () => { const SM = AshtonkMania.ScoreManager, BM = AshtonkMania.BeatmapManager, top = SM.bestPpPerMap().map(t => BM.mapByHash(t.score.mapHash)).find(Boolean);
+    const want = top && await BM.bgURL(top), got = (document.querySelector('.pf-cover').style.backgroundImage.match(/url\("(.*)"\)/) || [])[1]; return { ok: !top || !want || got === want, want, got }; });
+  check('profile: the cover is your top pp play\'s background', pc.ok, JSON.stringify(pc));
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

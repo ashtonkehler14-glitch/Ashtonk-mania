@@ -166,11 +166,13 @@ const ProfileScreen = {
     avatar.classList.add('pf-avatar');
     avatar.title = 'Change avatar';
     avatar.addEventListener('click', () => AvatarPicker.open());
-    // osu!lazer's UserProfileOverlay: the cover (here the background of your latest play) with the avatar and name,
+    // osu!lazer's UserProfileOverlay: the cover (here the background of your top pp play) with the avatar and name,
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const cover = h('div.pf-cover');
-    const last = ScoreManager.recent(1)[0], lastMap = last && BeatmapManager.mapByHash(last.mapHash);
+    // your highest-pp play still in the library; with no pp yet, the latest play
+    const top1 = topPlays.map(t => BeatmapManager.mapByHash(t.score.mapHash)).find(Boolean);
+    const last = ScoreManager.recent(1)[0], lastMap = top1 || (last && BeatmapManager.mapByHash(last.mapHash));
     if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,

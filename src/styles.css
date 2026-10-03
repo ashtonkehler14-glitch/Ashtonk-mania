@@ -722,7 +722,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .results { padding-top: var(--toolbar-h); }
 .res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, calc(3 * var(--vw)), 48px) 26px; }
 .res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
-@media (max-width: 1000px) and (hover: none) { .res-grid { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid { grid-template-columns: minmax(0, 440px); } }
 /* osu!lazer's expanded score panel */
 .rs { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: rsIn 500ms var(--ease-out) both; }
 @keyframes rsIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
@@ -2422,7 +2422,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-grid.stats-open { grid-template-columns: 400px minmax(0, 700px); }
 .res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
 @keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
 
 /* skins: one compact key-count stepper instead of eighteen chips */
 .sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -2935,7 +2935,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
    #555→#333 middle layer (both with corners of 20), the 80px picture straddling the top edge */
 .res-grid, .res-grid.stats-open { grid-template-columns: 360px; }
 .res-grid.stats-open { grid-template-columns: 360px minmax(0, 700px); }
-@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
 .rs { position: relative; width: 360px; max-width: 100%; min-height: 586px; margin-top: 50px; overflow: visible; background: none; box-shadow: none; border-radius: 20px; display: flex; flex-direction: column; }
 .rs-toplayer { position: absolute; left: 0; right: 0; top: 0; height: 120px; border-radius: 20px; background: linear-gradient(#444, #333); box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
 .rs-top { position: absolute; left: 50%; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0; background: none; transform: translate(-50%, -50px); }
@@ -3241,3 +3241,6 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
   #toasts { left: 12px; right: 12px; align-items: stretch; }
   .toast { min-width: 0; max-width: none; }
 }
+/* results never scroll: the panels keep their own size and are scaled down as one to fit (ResultsScreen.fitToScreen) */
+.res-body { overflow: hidden; display: grid; place-items: center; place-content: center; }
+.res-grid { width: max-content; max-width: none; margin: 0; transform-origin: center; }

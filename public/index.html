@@ -739,7 +739,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .results { padding-top: var(--toolbar-h); }
 .res-body { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px, calc(3 * var(--vw)), 48px) 26px; }
 .res-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 400px minmax(0, 700px); justify-content: center; align-items: start; gap: 24px; }
-@media (max-width: 1000px) and (hover: none) { .res-grid { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid { grid-template-columns: minmax(0, 440px); } }
 /* osu!lazer's expanded score panel */
 .rs { border-radius: 20px; overflow: hidden; background: #1d1c22; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); animation: rsIn 500ms var(--ease-out) both; }
 @keyframes rsIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
@@ -2439,7 +2439,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-grid.stats-open { grid-template-columns: 400px minmax(0, 700px); }
 .res-grid.stats-open > .res-right { display: flex; animation: resStatsIn 400ms var(--ease-out) both; }
 @keyframes resStatsIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid.stats-open { grid-template-columns: minmax(0, 440px); } }
 
 /* skins: one compact key-count stepper instead of eighteen chips */
 .sk-keys { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -2952,7 +2952,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
    #555→#333 middle layer (both with corners of 20), the 80px picture straddling the top edge */
 .res-grid, .res-grid.stats-open { grid-template-columns: 360px; }
 .res-grid.stats-open { grid-template-columns: 360px minmax(0, 700px); }
-@media (max-width: 1000px) and (hover: none) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .res-grid.stats-open { grid-template-columns: minmax(0, 360px); } }
 .rs { position: relative; width: 360px; max-width: 100%; min-height: 586px; margin-top: 50px; overflow: visible; background: none; box-shadow: none; border-radius: 20px; display: flex; flex-direction: column; }
 .rs-toplayer { position: absolute; left: 0; right: 0; top: 0; height: 120px; border-radius: 20px; background: linear-gradient(#444, #333); box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
 .rs-top { position: absolute; left: 50%; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0; background: none; transform: translate(-50%, -50px); }
@@ -3258,6 +3258,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
   #toasts { left: 12px; right: 12px; align-items: stretch; }
   .toast { min-width: 0; max-width: none; }
 }
+/* results never scroll: the panels keep their own size and are scaled down as one to fit (ResultsScreen.fitToScreen) */
+.res-body { overflow: hidden; display: grid; place-items: center; place-content: center; }
+.res-grid { width: max-content; max-width: none; margin: 0; transform-origin: center; }
 
 </style>
 </head>
@@ -13173,8 +13176,27 @@ const ResultsScreen = {
     body.append(grid);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
+    this.fitToScreen(body, grid);
     if (p.fresh && s.passed) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
     return el;
+  },
+  /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
+   *  or a small window / phone), the way lazer's results always sit whole on screen. */
+  fitToScreen(body, grid) {
+    let raf = 0, shown = false;
+    // (one observer per screen: the next results screen enters before this one leaves)
+    const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(fit); });
+    const fit = () => {
+      raf = 0;
+      if (!grid.isConnected) { if (shown) ro.disconnect(); return; } // (left: done)
+      shown = true;
+      const cs = getComputedStyle(body);
+      const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const k = Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight);
+      grid.style.scale = k < 0.995 ? k.toFixed(4) : '';
+    };
+    ro.observe(body); ro.observe(grid);
   },
   leave() { cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
@@ -13843,11 +13865,13 @@ const ProfileScreen = {
     avatar.classList.add('pf-avatar');
     avatar.title = 'Change avatar';
     avatar.addEventListener('click', () => AvatarPicker.open());
-    // osu!lazer's UserProfileOverlay: the cover (here the background of your latest play) with the avatar and name,
+    // osu!lazer's UserProfileOverlay: the cover (here the background of your top pp play) with the avatar and name,
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const cover = h('div.pf-cover');
-    const last = ScoreManager.recent(1)[0], lastMap = last && BeatmapManager.mapByHash(last.mapHash);
+    // your highest-pp play still in the library; with no pp yet, the latest play
+    const top1 = topPlays.map(t => BeatmapManager.mapByHash(t.score.mapHash)).find(Boolean);
+    const last = ScoreManager.recent(1)[0], lastMap = top1 || (last && BeatmapManager.mapByHash(last.mapHash));
     if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
