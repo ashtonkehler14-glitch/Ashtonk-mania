@@ -428,13 +428,18 @@ const ExplorerScreen = {
     const sc = grid.closest('.screen-body');
     const cs = getComputedStyle(grid);
     const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
-    const gap = parseFloat(cs.rowGap) || 0;
-    const first = grid.firstElementChild;
-    if (first && first.offsetHeight) this._rowH = first.offsetHeight + gap;
+    // the real distance from one row to the next, measured on the page (an estimate drifts further off the further
+    // down the list you go, until the window is drawn off screen)
+    const kids = grid.children;
+    if (kids.length > cols && kids[cols].offsetTop > kids[0].offsetTop) this._rowH = kids[cols].offsetTop - kids[0].offsetTop;
+    else if (kids[0] && kids[0].offsetHeight) this._rowH = this._rowH || kids[0].offsetHeight + (parseFloat(cs.rowGap) || 0);
     const rowH = this._rowH || 110, rows = Math.ceil(all.length / cols);
     let from = 0, to = rows;
     if (sc && all.length > cols * 12) {
-      const gridTop = grid.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop; // (where the grid's box starts)
+      // where the grid starts in the list, from layout offsets (the header's scroll effects move things on screen,
+      // which threw on-screen positions further off the further down you were)
+      let gridTop = 0;
+      for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
       const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
       // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
       // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)

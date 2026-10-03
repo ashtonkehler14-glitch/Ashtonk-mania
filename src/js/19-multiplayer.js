@@ -682,10 +682,8 @@ const MultiplayerScreen = {
     if (map && !local) {
       const f = Multiplayer.fetch;
       if (!(map.onlineSetId > 0)) status.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
-      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Download failed: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
-      else { this.fetchEl = h('span'); status.append(h('span.spinner'), this.fetchEl); this.updateFetch(); }
-    } else if (local && Multiplayer.isTemp(map)) {
-      status.append(h('span.mp-temp', 'Installed for this room — removed when you leave'), h('button.btn.sm', { onclick: () => Multiplayer.keepTemp() }, 'Keep'));
+      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Couldn't get the beatmap: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
+      // (otherwise it's downloading in the background: nothing to see)
     }
     // each player chooses their own difficulty from the room's beatmap set
     let diffPick = null;
@@ -727,7 +725,7 @@ const MultiplayerScreen = {
     const slot = p => {
       if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', r.players.length < 2 ? 'Waiting for an opponent…' : `${st.size - r.players.length} open slot${st.size - r.players.length > 1 ? 's' : ''}`), r.players.length < 2 ? h('span.spinner') : null);
       const isMe = p.id === Multiplayer.me;
-      const state = !r.map ? '' : !p.hasMap ? 'Missing beatmap' : p.ready ? 'Ready' : 'Not ready';
+      const state = !r.map ? '' : p.ready ? 'Ready' : 'Not ready'; // (a beatmap still downloading isn't shown: it installs in the background)
       return h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         isMe ? ProfileManager.avatarEl(44) : Presence.avatarEl(p, 44),
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
@@ -740,7 +738,7 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
+        state ? h(`span.mp-state${p.ready ? '.on' : ''}`, state) : null);
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
@@ -757,12 +755,12 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    const allReady = r.players.length >= 2 && r.players.every(p => p.ready && p.hasMap);
+    const allReady = r.players.length >= 2 && r.players.every(p => p.ready);
     const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
-      disabled: !r.map || !me || !me.hasMap,
+      disabled: !r.map || !me,
       onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
     }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
+    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote || !!r.starting, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, r.starting ? 'Starting…' : 'Start match') : null;
     clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
   },
 

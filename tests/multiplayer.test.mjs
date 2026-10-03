@@ -88,12 +88,18 @@ test('map selection is host-only, strips Auto and resets ready', () => {
   assert.equal(r.get('a').hasMap, true);
 });
 
-test('cannot ready without the beatmap; start needs two ready players', () => {
+test('ready while the beatmap still downloads; Start waits for the download; only two ready players start', () => {
   const r = room();
   r.message('a', { t: 'map', map: MAP });
-  r.message('b', { t: 'ready', ready: true });
-  assert.equal(r.get('b').ready, false);
-  assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1);
+  assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1, 'not everyone is ready');
+  // Bob readies before his copy of the beatmap is in (it installs in the background)
+  r.message('b', { t: 'ready', ready: true }); r.message('a', { t: 'ready', ready: true });
+  assert.equal(r.get('b').ready, true);
+  const wait = r.message('a', { t: 'start' });
+  assert.equal(msgs(wait, 'start').length, 0); assert.equal(r.state, 'lobby'); assert.equal(r.snapshot().starting, true);
+  const go = r.message('b', { t: 'hasMap', has: true });
+  assert.equal(msgs(go, 'start').length, 1, 'starts the moment his download is in'); assert.equal(r.state, 'playing');
+  r.message('a', { t: 'finish', result: { score: 1 } }); r.message('b', { t: 'finish', result: { score: 2 } });
   ready(r);
   assert.equal(r.message('b', { t: 'start' }).length, 0, 'only the host starts');
   const out = r.message('a', { t: 'start' });

@@ -268,7 +268,7 @@ const SongSelect = {
     this.renderVisible(true);
     // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
-    if (sel && (!Music.meta || Music.meta.setId !== sel.setId)) this.schedulePreview(sel);
+    if (sel && (!Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) this.showBackground(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
@@ -429,7 +429,8 @@ const SongSelect = {
     // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices)
     if (scroll) this.scrollToSelected(true); else this.renderVisible();
     this.updateInfo();
-    if (setChanged || !Music.meta || Music.meta.setId !== m.setId) this.schedulePreview(m);
+    // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
+    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m);
     else this.showBackground(m); // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
@@ -537,6 +538,8 @@ const SongSelect = {
     const url = await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
     if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);
   },
+  /** The same key the player gives a track (set / audio file), to tell whether this difficulty's song is playing. */
+  trackKey(m) { return `${m.setId}/${m.audioFile || ''}`.toLowerCase(); },
   async preview(m) {
     this.showBackground(m);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;

@@ -221,8 +221,7 @@ check('"Search beatmaps" opens Browse; the host picks there (downloaded on pick)
 // the other player installs it automatically — no click — and only for the room
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p => p.hasMap), null, { timeout: 15000 });
 check('the other player installs the room beatmap automatically', await bob.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => s.onlineId === 424242)));
-await bob.waitForSelector('.mp-temp', { timeout: 5000 });
-check('it is marked as installed only for this room', await bob.evaluate(() => AshtonkMania.Multiplayer.isTemp()));
+check('…silently: no "missing beatmap" or download notice, and it\'s still only kept for this room', await bob.evaluate(() => AshtonkMania.Multiplayer.isTemp() && !/Missing beatmap|Downloading the beatmap|Installed for this room/.test(document.querySelector('.mp').innerText)));
 await shot(bob, 'mp-temp');
 // the other player browses and suggests; the host picks the suggestion from chat
 const guest = await pickFromBrowse(bob, 'Online Easy');

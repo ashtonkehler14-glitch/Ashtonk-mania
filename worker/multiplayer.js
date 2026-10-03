@@ -107,7 +107,7 @@ export class RoomLogic {
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
+      starting: !!this.pendingStart, players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
@@ -294,6 +294,7 @@ export class RoomLogic {
         if (!map) return [{ to: id, msg: { t: 'error', msg: 'Invalid beatmap' } }];
         this.map = map;
         for (const x of this.players) { x.ready = false; x.diff = null; if (x.id !== id) x.hasMap = false; }
+        this.pendingStart = false;
         p.hasMap = true;
         const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
         if (Array.isArray(m.mods)) {
@@ -327,19 +328,25 @@ export class RoomLogic {
         return [this.roomMsg()];
       }
       case 'hasMap':
-        p.hasMap = !!m.has; if (!p.hasMap) p.ready = false;
+        p.hasMap = !!m.has;
         if (this.qp && this.qp.phase === 'load' && this.state === 'lobby') return [...this.qpMaybeStart(), this.roomMsg()];
         if (this.rp) return [...this.rp.mapState(), this.roomMsg()];
+        // the host already pressed Start: it begins as soon as the last download is in
+        if (this.pendingStart && this.canBegin()) { this.pendingStart = false; return this.beginMatch(this.players); }
         return [this.roomMsg()];
       case 'ready':
+        // (ready before the beatmap has finished downloading: it installs in the background, nobody sees it)
         if (this.state !== 'lobby') return [];
-        p.ready = !!m.ready && !!this.map && p.hasMap;
+        p.ready = !!m.ready && !!this.map;
+        if (!p.ready) this.pendingStart = false;
         return [this.roomMsg()];
       case 'start': {
         if (!host || this.state !== 'lobby') return [];
         if (this.players.length < 2) return [{ to: id, msg: { t: 'error', msg: 'Wait for an opponent to join.' } }];
-        if (!this.map || !this.players.every(x => x.ready && x.hasMap)) return [{ to: id, msg: { t: 'error', msg: 'Everyone needs to be ready.' } }];
+        if (!this.map || !this.players.every(x => x.ready)) return [{ to: id, msg: { t: 'error', msg: 'Everyone needs to be ready.' } }];
         if (this.vote) return [{ to: id, msg: { t: 'error', msg: 'Everyone has to accept (or decline) the speed mod first.' } }];
+        // someone's beatmap is still downloading in the background: start the moment it's in
+        if (!this.players.every(x => x.hasMap)) { this.pendingStart = true; return [this.roomMsg()]; }
         return this.beginMatch(this.players);
       }
       case 'skip': {
@@ -370,8 +377,10 @@ export class RoomLogic {
     return [];
   }
 
+  canBegin() { return this.state === 'lobby' && !!this.map && !this.vote && this.players.length >= 2 && this.players.every(x => x.ready && x.hasMap); }
   /** Start a match for `list` (everyone in a custom room; whoever loaded the beatmap in Quick Play). */
   beginMatch(list) {
+    this.pendingStart = false;
     this.state = 'playing'; this.skipped = false;
     this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }

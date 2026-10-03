@@ -34,6 +34,7 @@ const Spectate = {
   // ── watching
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
+    if (p.status !== 'playing') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
@@ -212,7 +213,7 @@ const OnlinePanel = {
         h('small', online ? this.statusText(p) : 'Offline'), online && p.watchers ? h('small.ol-watch', `${p.watchers} watching`) : null),
       h('div.ol-acts',
         !me && p.pid ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}`, { title: friend ? 'Remove friend' : 'Add friend', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon('heart', friend ? 'fill' : '')) : null,
-        online && !me ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: p.status === 'playing' ? 'Watch them play' : 'Watch their next song', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
+        online && !me && (p.status === 'playing' || watching) ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: 'Watch them play', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
         canInvite ? h('button.btn.sm', { onclick: () => { UISounds.click(); Presence.invite(p.id); Toast.ok('Invited', p.name); } }, 'Invite') : null));
   },
   render() {

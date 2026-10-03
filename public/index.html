@@ -10569,7 +10569,7 @@ const SongSelect = {
     this.renderVisible(true);
     // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
-    if (sel && (!Music.meta || Music.meta.setId !== sel.setId)) this.schedulePreview(sel);
+    if (sel && (!Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) this.showBackground(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
@@ -10730,7 +10730,8 @@ const SongSelect = {
     // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices)
     if (scroll) this.scrollToSelected(true); else this.renderVisible();
     this.updateInfo();
-    if (setChanged || !Music.meta || Music.meta.setId !== m.setId) this.schedulePreview(m);
+    // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
+    if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m);
     else this.showBackground(m); // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
@@ -10838,6 +10839,8 @@ const SongSelect = {
     const url = await BeatmapManager.bgURL(m).catch(() => null) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId));
     if (tok === this._bgTok && this.selectedId === m.id && url !== Background.current) Background.set(url);
   },
+  /** The same key the player gives a track (set / audio file), to tell whether this difficulty's song is playing. */
+  trackKey(m) { return `${m.setId}/${m.audioFile || ''}`.toLowerCase(); },
   async preview(m) {
     this.showBackground(m);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
@@ -14049,13 +14052,18 @@ const ExplorerScreen = {
     const sc = grid.closest('.screen-body');
     const cs = getComputedStyle(grid);
     const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
-    const gap = parseFloat(cs.rowGap) || 0;
-    const first = grid.firstElementChild;
-    if (first && first.offsetHeight) this._rowH = first.offsetHeight + gap;
+    // the real distance from one row to the next, measured on the page (an estimate drifts further off the further
+    // down the list you go, until the window is drawn off screen)
+    const kids = grid.children;
+    if (kids.length > cols && kids[cols].offsetTop > kids[0].offsetTop) this._rowH = kids[cols].offsetTop - kids[0].offsetTop;
+    else if (kids[0] && kids[0].offsetHeight) this._rowH = this._rowH || kids[0].offsetHeight + (parseFloat(cs.rowGap) || 0);
     const rowH = this._rowH || 110, rows = Math.ceil(all.length / cols);
     let from = 0, to = rows;
     if (sc && all.length > cols * 12) {
-      const gridTop = grid.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop; // (where the grid's box starts)
+      // where the grid starts in the list, from layout offsets (the header's scroll effects move things on screen,
+      // which threw on-screen positions further off the further down you were)
+      let gridTop = 0;
+      for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
       const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
       // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
       // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
@@ -16091,10 +16099,8 @@ const MultiplayerScreen = {
     if (map && !local) {
       const f = Multiplayer.fetch;
       if (!(map.onlineSetId > 0)) status.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
-      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Download failed: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
-      else { this.fetchEl = h('span'); status.append(h('span.spinner'), this.fetchEl); this.updateFetch(); }
-    } else if (local && Multiplayer.isTemp(map)) {
-      status.append(h('span.mp-temp', 'Installed for this room — removed when you leave'), h('button.btn.sm', { onclick: () => Multiplayer.keepTemp() }, 'Keep'));
+      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Couldn't get the beatmap: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
+      // (otherwise it's downloading in the background: nothing to see)
     }
     // each player chooses their own difficulty from the room's beatmap set
     let diffPick = null;
@@ -16136,7 +16142,7 @@ const MultiplayerScreen = {
     const slot = p => {
       if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', r.players.length < 2 ? 'Waiting for an opponent…' : `${st.size - r.players.length} open slot${st.size - r.players.length > 1 ? 's' : ''}`), r.players.length < 2 ? h('span.spinner') : null);
       const isMe = p.id === Multiplayer.me;
-      const state = !r.map ? '' : !p.hasMap ? 'Missing beatmap' : p.ready ? 'Ready' : 'Not ready';
+      const state = !r.map ? '' : p.ready ? 'Ready' : 'Not ready'; // (a beatmap still downloading isn't shown: it installs in the background)
       return h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         isMe ? ProfileManager.avatarEl(44) : Presence.avatarEl(p, 44),
         h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
@@ -16149,7 +16155,7 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-state${p.ready ? '.on' : !p.hasMap ? '.warn' : ''}`, state) : null);
+        state ? h(`span.mp-state${p.ready ? '.on' : ''}`, state) : null);
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
@@ -16166,12 +16172,12 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    const allReady = r.players.length >= 2 && r.players.every(p => p.ready && p.hasMap);
+    const allReady = r.players.length >= 2 && r.players.every(p => p.ready);
     const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
-      disabled: !r.map || !me || !me.hasMap,
+      disabled: !r.map || !me,
       onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
     }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, 'Start match') : null;
+    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote || !!r.starting, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, r.starting ? 'Starting…' : 'Start match') : null;
     clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
   },
 
@@ -17313,6 +17319,7 @@ const Spectate = {
   // ── watching
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
+    if (p.status !== 'playing') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
@@ -17491,7 +17498,7 @@ const OnlinePanel = {
         h('small', online ? this.statusText(p) : 'Offline'), online && p.watchers ? h('small.ol-watch', `${p.watchers} watching`) : null),
       h('div.ol-acts',
         !me && p.pid ? h(`button.icon-btn.ol-friend${friend ? '.on' : ''}`, { title: friend ? 'Remove friend' : 'Add friend', 'aria-label': friend ? 'Remove friend' : 'Add friend', onclick: () => { UISounds.click(); Friends.toggle(p); } }, icon('heart', friend ? 'fill' : '')) : null,
-        online && !me ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: p.status === 'playing' ? 'Watch them play' : 'Watch their next song', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
+        online && !me && (p.status === 'playing' || watching) ? h(`button.btn.sm${watching ? '.primary' : ''}.ol-spec`, { title: 'Watch them play', onclick: () => { UISounds.click(); if (watching) Spectate.stop(); else { Spectate.watch(p); this.close(); } } }, icon('film'), watching ? 'Watching' : 'Spectate') : null,
         canInvite ? h('button.btn.sm', { onclick: () => { UISounds.click(); Presence.invite(p.id); Toast.ok('Invited', p.name); } }, 'Invite') : null));
   },
   render() {
