@@ -3245,7 +3245,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-body { overflow: hidden; display: grid; place-items: center; place-content: center; }
 .res-grid { width: max-content; max-width: none; margin: 0; transform-origin: center; }
 
-/* phones: turn sideways (osu!lazer on Android is landscape) and get the app */
+/* phones: turn sideways (osu!lazer on Android is landscape) */
 .mob-rotate { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 24px; text-align: center; background: rgba(16, 15, 20, .94); color: #fff; animation: mobFade 300ms ease both; }
 .mob-rotate { font-size: 15px; }
 .mob-rotate h2 { margin: 6px 0 0; font-size: 22px; }
@@ -3257,18 +3257,25 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mob-rot-ic i::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 4px; margin-left: -5px; border-radius: 2px; background: #fff; }
 @keyframes mobTurn { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @keyframes mobFade { from { opacity: 0; } }
-.mob-install { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 8999; display: flex; align-items: center; gap: 12px; max-width: 440px; font-size: 14px; padding: 12px 14px; margin: 0 auto; padding: 12px 14px; border-radius: 14px; background: #2a2833; box-shadow: 0 10px 36px rgba(0, 0, 0, .6); color: #fff; animation: mobUp 400ms var(--ease-out) both; transition: opacity 250ms, transform 250ms; }
-.mob-install.out { opacity: 0; transform: translateY(20px); }
-.mob-install img { width: 48px; height: 48px; flex: none; border-radius: 12px; }
-.mob-in-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.35; }
-.mob-in-txt b { font-size: 16px; }
-.mob-in-txt span { color: var(--text-2); }
-.mob-in-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
-.mob-in-btns .btn { justify-content: center; min-height: 38px; padding: 0 14px; font-size: 15px; }
-@media (orientation: landscape) { .mob-install { left: auto; right: 16px; bottom: 66px; width: 440px; } }
-@keyframes mobUp { from { opacity: 0; transform: translateY(30px); } }
 /* feel like an app, not a web page: no blue tap flash, focus boxes, callouts, double-tap zoom or pull-to-refresh */
 html { -webkit-tap-highlight-color: transparent; }
 html.touch, html.touch body { overscroll-behavior: none; touch-action: manipulation; -webkit-touch-callout: none; }
 html.touch :focus:not(input):not(textarea):not(select) { outline: none !important; }
 html.touch img { -webkit-user-drag: none; }
+/* phones: the install-the-app recommendation, shown as the game opens in a browser */
+.mob-inst { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 16px; background: rgba(8, 8, 12, .82); font-size: 14px; animation: mobFade 250ms ease both; overflow: auto; }
+.mob-inst.out { opacity: 0; transition: opacity 250ms; }
+.mob-inst-box { width: min(420px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 20px 16px; border-radius: 18px; background: #24222c; color: #fff; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.mob-inst-box img { width: 64px; height: 64px; border-radius: 16px; }
+.mob-inst-box h2 { margin: 2px 0 0; font-size: 20px; }
+.mob-inst-box p { margin: 0; color: var(--text-2); line-height: 1.45; }
+.mob-inst-box .mob-inst-warn { color: #ffcc22; font-weight: 700; }
+.mob-inst-how { align-self: stretch; margin: 2px 0 0; padding: 10px 14px 10px 32px; border-radius: 10px; background: rgba(255, 255, 255, .06); text-align: left; line-height: 1.6; }
+.mob-inst-btns { align-self: stretch; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.mob-inst-btns .btn { justify-content: center; height: 46px; font-size: 15px; }
+.mob-inst-skip { border: 0; background: none; padding: 10px; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
+@media (orientation: landscape) and (max-height: 500px) { .mob-inst-box { width: min(560px, 100%); gap: 6px; padding: 14px 18px 10px; } .mob-inst-box img { width: 44px; height: 44px; } .mob-inst-box h2 { font-size: 18px; } }
+/* touch gameplay: FNF's mobile hitboxes, one full-height strip per column in its arrow colour, lit while held */
+.fnf-hitbox { position: absolute; inset: 0; display: flex; pointer-events: none; z-index: 1; }
+.fnf-hitbox i { flex: 1; opacity: .32; box-shadow: inset 0 0 0 2px var(--c), inset 0 0 48px -4px var(--c); transition: opacity 120ms ease-out; will-change: opacity; }
+.fnf-hitbox i.on { opacity: .75; transition: none; }

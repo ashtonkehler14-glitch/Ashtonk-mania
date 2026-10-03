@@ -998,6 +998,9 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
   await mp.goto(url);
   await mp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  await mp.waitForSelector('.mob-inst', { timeout: 30000 });
+  check('phone: opening in the browser recommends the app straight away, saying the browser isn\'t recommended', /not recommended/.test(await mp.textContent('.mob-inst')));
+  await mp.click('.mob-inst-skip'); await mp.waitForTimeout(400);
   await mp.waitForSelector('.ob-name', { timeout: 30000 }); await mp.fill('.ob-name', 'Phone'); await mp.keyboard.press('Enter'); await mp.waitForTimeout(300);
   await mp.evaluate(() => AshtonkMania.Onboarding.finish()); await mp.waitForFunction(() => !document.querySelector('.setup'));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
@@ -1005,11 +1008,12 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   const fit = await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.stageX >= 0 && r.stageX + r.stageW <= r.W + 1; });
   check('phone: the playfield fits across a portrait screen', fit);
+  check('phone: plays like FNF (arrows, FNF colours and judgements, a full-height hitbox per column)', await mp.evaluate(() => { const S = AshtonkMania.Settings; return S.get('wom.style') === 'arrows' && S.get('wom.judgements') === 'fnf' && S.get('wom.colorMode') === 'custom' && AshtonkMania.SkinManager.current.id === 'default' && document.querySelectorAll('.fnf-hitbox i').length === 4; }));
   check('phone: columns are wide finger targets (each at least an eighth of the screen)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.W * 0.12); }));
   check('phone: no blue tap highlight (feels like an app)', await mp.evaluate(() => document.documentElement.classList.contains('touch') && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(document.documentElement).webkitTapHighlightColor)));
   const cdp = await mctx.newCDPSession(mp), held = [];
   for (let i = 0; i < 4; i++) {
-    const x = await mp.evaluate(i => { const r = AshtonkMania.GameplayScreen.renderer; let a = -1, b = -1; for (let x = 0; x < innerWidth; x++) if (r.columnAt(x) === i) { if (a < 0) a = x; b = x; } return (a + b) / 2; }, i);
+    const x = (i + 0.5) / 4 * 390; // (FNF hitboxes: the screen in four strips)
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: 600, id: i }] });
     await mp.waitForTimeout(40);
     held.push(await mp.evaluate(() => AshtonkMania.GameplayScreen.s.held.map(Number).join('')));

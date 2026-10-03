@@ -56,6 +56,7 @@ const App = {
     else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
+    Mobile.early(); // (on a phone: recommend the app before anything else)
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); DB.kvSet('changelog.seen', WhatsNew.latest()).catch(() => {}); }

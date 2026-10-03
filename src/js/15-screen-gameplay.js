@@ -494,6 +494,14 @@ const GameplayScreen = {
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
     );
+    // touch screens play as FNF does on phones: the screen split into one full-height hitbox per column, in the
+    // column's arrow colour, lighting up while it's held
+    this.hitbox = null;
+    if (s.mode === 'play' && typeof Mobile !== 'undefined' && Mobile.touch) {
+      const K = s.down.length;
+      this.hitbox = h('div.fnf-hitbox', ...Array.from({ length: K }, (_, i) => h('i', { style: { '--c': Mobile.fnfColor(K, i) } })));
+      this.hud.append(this.hitbox);
+    }
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
@@ -1014,12 +1022,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         if (was != null) { this._touches.delete(id); if (s.running) this.keyUp(was, id, t); else { s.down[was].delete(id); s.held[was] = s.down[was].size > 0; } }
         continue;
       }
-      const col = this.renderer.columnAt(tc.clientX, was ?? -1);
+      const K = s.down.length;
+      const col = this.hitbox ? Math.max(0, Math.min(K - 1, Math.floor(tc.clientX / innerWidth * K))) : this.renderer.columnAt(tc.clientX, was ?? -1);
       if (col < 0 || col === was) continue;
       if (was != null) this.keyUp(was, id, t);
       this._touches.set(id, col);
       if (s.running) this.keyDown(col, id, t);
     }
+    if (this.hitbox) { const kids = this.hitbox.children; for (let i = 0; i < kids.length; i++) { const on = s.down[i].size > 0; if (kids[i]._on !== on) { kids[i]._on = on; kids[i].classList.toggle('on', on); } } }
   },
   isRetryKey(e) { return e.code === 'Backquote' || (e.code === 'KeyR' && !(this.s && this.s.keyMap.has('KeyR'))); },
   onKeyUp(e) {
