@@ -80,7 +80,7 @@ check('mouse wheel on the main menu changes the volume (lazer volume overlay)', 
   const up = s.get('audio.master'); s.set('audio.master', before);
   return Math.abs(up - Math.min(1, before + 0.05)) < 1e-6 && document.querySelector('.volume-overlay.show') !== null;
 }));
-check('KPS counter, judgement counter and hit error bar removed', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.judgementCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && !document.querySelector('.hud-kps')));
+check('KPS counter and hit error bar removed (the judgement counter is back, off by default)', await page.evaluate(() => ['gameplay.kpsCounter', 'gameplay.hitErrorBar', 'gameplay.errorBarScale'].every(k => !AshtonkMania.Settings.schema.has(k)) && AshtonkMania.Settings.schema.get('gameplay.judgementCounter').d === false && !document.querySelector('.hud-kps')));
 check('touch controls, hitsounds and the old Neru easter-egg settings removed', await page.evaluate(() => !AshtonkMania.Settings.schema.has('input.touch') && !AshtonkMania.Settings.schema.has('audio.hitsounds') && !AshtonkMania.Settings.schema.has('gameplay.neruSparkle') && typeof window.LOADING_NERU === 'undefined'));
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
 check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn.exp').length === 4 && document.querySelector('#app:not(.hide-toolbar)') && !document.querySelector('.continue, .lz-footer')));
@@ -391,7 +391,15 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.G
 await page.waitForTimeout(3200);
 await shot('09-gameplay-kori-skin');
 check('gameplay renders with the imported skin', await page.evaluate(() => AshtonkMania.GameplayScreen.s.layout.skin.name === 'Kori 3.0 (test stand-in)'));
+check('the judgement counter is off by default', await page.evaluate(() => !document.querySelector('.hud-jc')));
 await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
+// turned on: lazer's six counters (Perfect … Miss), counting up as notes are hit
+await page.evaluate(() => { AshtonkMania.Settings.set('gameplay.judgementCounter', true); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.SongSelect.play('play'); });
+await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
+await page.waitForTimeout(4000);
+const jc = await page.evaluate(() => ({ names: [...document.querySelectorAll('.hud-jc .jc-name')].map(e => e.textContent).join(','), perfect: +document.querySelector('.hud-jc .jc-n').textContent, judged: AshtonkMania.GameplayScreen.s.engine.score.counts[0] }));
+check('the judgement counter (when turned on) shows lazer\'s six judgements and counts them', jc.names === 'Perfect,Great,Good,Ok,Meh,Miss' && jc.perfect > 0 && Math.abs(jc.perfect - jc.judged) <= 3, JSON.stringify(jc));
+await page.evaluate(() => { AshtonkMania.Settings.set('gameplay.judgementCounter', false); AshtonkMania.GameplayScreen.quit(); });
 await page.evaluate(() => AshtonkMania.Settings.set('songselect.mods', []));
 
 // practice mode

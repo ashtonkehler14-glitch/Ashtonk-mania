@@ -3171,6 +3171,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .ol-friend.ask { color: #66ccff; }
 .spec-pause-sub { margin: -10px 0 18px; text-align: center; color: rgba(255, 255, 255, .75); font-size: 1rem; }
 
+/* osu!lazer's judgement counter (JudgementCounterDisplay): counters 10px apart, each a 16px fixed-width count over its
+   8px name, in the judgement's colour — on a Kori panel (dark purple, Kori-purple edge) */
+.hud-jc { position: absolute; right: 14px; top: 50%; translate: 0 -50%; z-index: 5; display: flex; gap: 10px; padding: 9px 12px 9px 13px; border-radius: 10px; background: linear-gradient(135deg, hsl(262 30% 12% / .78), hsl(262 25% 8% / .7)); box-shadow: inset 3px 0 0 hsl(262 70% 68%), 0 4px 18px rgba(0, 0, 0, .35); pointer-events: none; font-family: Torus, Outfit, system-ui, sans-serif; animation: jcIn 250ms cubic-bezier(.22, 1, .36, 1); }
+.hud-jc.v { flex-direction: column; }
+.hud-jc.h { flex-direction: row; top: auto; bottom: 64px; right: 50%; translate: 50% 0; }
+@keyframes jcIn { from { opacity: 0; } }
+.hud-jc .jc-item { display: flex; flex-direction: column; align-items: flex-start; color: var(--jc); min-width: 34px; }
+.hud-jc .jc-n { font-size: 16px; font-weight: 600; line-height: 17px; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px color-mix(in srgb, var(--jc) 35%, transparent); }
+.hud-jc .jc-name { font-size: 8px; font-weight: 700; line-height: 9px; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
+
 </style>
 </head>
 <body>
@@ -5564,6 +5574,8 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Show judgement counter', t: 'bool', d: false, hint: 'osu!lazer\'s judgement counter: how many of each judgement so far.' },
+  { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounterFlow', l: 'Judgement counter layout', t: 'select', d: 'vertical', o: [['vertical', 'Vertical'], ['horizontal', 'Horizontal']], when: () => Settings.get('gameplay.judgementCounter') },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
@@ -11557,6 +11569,13 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
+    // osu!lazer's judgement counter (off unless turned on): each judgement's count, rolling up, over its name
+    this.jc = null;
+    if (Settings.get('gameplay.judgementCounter')) {
+      const items = JUDGEMENT_COUNTER.map(([j, name, colour]) => { const n = h('span.jc-n', '0'); return { j, n, shown: 0, el: h('div.jc-item', { style: { '--jc': colour } }, n, h('span.jc-name', name)) }; });
+      this.jc = { items, el: h(`div.hud-jc.${Settings.get('gameplay.judgementCounterFlow') === 'horizontal' ? 'h' : 'v'}`, ...items.map(i => i.el)) };
+      this.hud.append(this.jc.el);
+    }
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -11726,6 +11745,17 @@ const GameplayScreen = {
 
   updateHud(now) {
     const s = this.s, e = s.engine;
+    if (this.jc) {
+      // lazer's RollingCounter: each number runs up to its count instead of jumping
+      const c = e.score.counts;
+      for (const it of this.jc.items) {
+        const target = c[it.j] || 0;
+        if (it.shown === target) continue;
+        it.shown = target - it.shown > 1 ? it.shown + Math.max(1, Math.ceil((target - it.shown) * 0.25)) : target;
+        if (it.shown > target) it.shown = target;
+        setText(it.n, String(it.shown));
+      }
+    }
     // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
     // and your score still counts for the match
     if (s.mp && !s.mpFailed && e.health.value <= 0) {
@@ -12626,6 +12656,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.updatePracticeLabels();
   },
 };
+
+/** The judgement counter's rows: osu!lazer's names and HitResult colours (OsuColour.ForHitResult) for mania. */
+const JUDGEMENT_COUNTER = [[J.MARV, 'Perfect', '#99eeff'], [J.PERF, 'Great', '#66ccff'], [J.GREAT, 'Good', '#b3d944'], [J.GOOD, 'Ok', '#88b300'], [J.BAD, 'Meh', '#ffcc22'], [J.MISS, 'Miss', '#ed1121']];
 
 /** osu!lazer's FPSCounter (osu.Game/Graphics/UserInterface/FPSCounter.cs), bottom right: the frame time on top
  *  (here: how long each frame keeps the browser busy, measured once the frame has been drawn — the browser has no

@@ -71,6 +71,8 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Show judgement counter', t: 'bool', d: false, hint: 'osu!lazer\'s judgement counter: how many of each judgement so far.' },
+  { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounterFlow', l: 'Judgement counter layout', t: 'select', d: 'vertical', o: [['vertical', 'Vertical'], ['horizontal', 'Horizontal']], when: () => Settings.get('gameplay.judgementCounter') },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },

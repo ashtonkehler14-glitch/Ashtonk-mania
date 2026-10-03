@@ -489,6 +489,13 @@ const GameplayScreen = {
     if (s.mode === 'replay' || s.mode === 'auto') {
       this.hud.append(h('div.hud-replay', { class: Settings.get('gameplay.scrollDirection') === 'up' ? 'low' : '' }, h('span.dot'), s.mode === 'auto' ? 'AUTO' : `REPLAY · ${s.replay.player || 'Player'}`));
     }
+    // osu!lazer's judgement counter (off unless turned on): each judgement's count, rolling up, over its name
+    this.jc = null;
+    if (Settings.get('gameplay.judgementCounter')) {
+      const items = JUDGEMENT_COUNTER.map(([j, name, colour]) => { const n = h('span.jc-n', '0'); return { j, n, shown: 0, el: h('div.jc-item', { style: { '--jc': colour } }, n, h('span.jc-name', name)) }; });
+      this.jc = { items, el: h(`div.hud-jc.${Settings.get('gameplay.judgementCounterFlow') === 'horizontal' ? 'h' : 'v'}`, ...items.map(i => i.el)) };
+      this.hud.append(this.jc.el);
+    }
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -658,6 +665,17 @@ const GameplayScreen = {
 
   updateHud(now) {
     const s = this.s, e = s.engine;
+    if (this.jc) {
+      // lazer's RollingCounter: each number runs up to its count instead of jumping
+      const c = e.score.counts;
+      for (const it of this.jc.items) {
+        const target = c[it.j] || 0;
+        if (it.shown === target) continue;
+        it.shown = target - it.shown > 1 ? it.shown + Math.max(1, Math.ceil((target - it.shown) * 0.25)) : target;
+        if (it.shown > target) it.shown = target;
+        setText(it.n, String(it.shown));
+      }
+    }
     // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
     // and your score still counts for the match
     if (s.mp && !s.mpFailed && e.health.value <= 0) {
@@ -1558,6 +1576,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.updatePracticeLabels();
   },
 };
+
+/** The judgement counter's rows: osu!lazer's names and HitResult colours (OsuColour.ForHitResult) for mania. */
+const JUDGEMENT_COUNTER = [[J.MARV, 'Perfect', '#99eeff'], [J.PERF, 'Great', '#66ccff'], [J.GREAT, 'Good', '#b3d944'], [J.GOOD, 'Ok', '#88b300'], [J.BAD, 'Meh', '#ffcc22'], [J.MISS, 'Miss', '#ed1121']];
 
 /** osu!lazer's FPSCounter (osu.Game/Graphics/UserInterface/FPSCounter.cs), bottom right: the frame time on top
  *  (here: how long each frame keeps the browser busy, measured once the frame has been drawn — the browser has no

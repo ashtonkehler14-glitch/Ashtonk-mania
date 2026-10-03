@@ -3153,3 +3153,13 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .ol-asked { font-size: .72rem; color: hsl(255 20% 75%); white-space: nowrap; }
 .ol-friend.ask { color: #66ccff; }
 .spec-pause-sub { margin: -10px 0 18px; text-align: center; color: rgba(255, 255, 255, .75); font-size: 1rem; }
+
+/* osu!lazer's judgement counter (JudgementCounterDisplay): counters 10px apart, each a 16px fixed-width count over its
+   8px name, in the judgement's colour — on a Kori panel (dark purple, Kori-purple edge) */
+.hud-jc { position: absolute; right: 14px; top: 50%; translate: 0 -50%; z-index: 5; display: flex; gap: 10px; padding: 9px 12px 9px 13px; border-radius: 10px; background: linear-gradient(135deg, hsl(262 30% 12% / .78), hsl(262 25% 8% / .7)); box-shadow: inset 3px 0 0 hsl(262 70% 68%), 0 4px 18px rgba(0, 0, 0, .35); pointer-events: none; font-family: Torus, Outfit, system-ui, sans-serif; animation: jcIn 250ms cubic-bezier(.22, 1, .36, 1); }
+.hud-jc.v { flex-direction: column; }
+.hud-jc.h { flex-direction: row; top: auto; bottom: 64px; right: 50%; translate: 50% 0; }
+@keyframes jcIn { from { opacity: 0; } }
+.hud-jc .jc-item { display: flex; flex-direction: column; align-items: flex-start; color: var(--jc); min-width: 34px; }
+.hud-jc .jc-n { font-size: 16px; font-weight: 600; line-height: 17px; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px color-mix(in srgb, var(--jc) 35%, transparent); }
+.hud-jc .jc-name { font-size: 8px; font-weight: 700; line-height: 9px; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
