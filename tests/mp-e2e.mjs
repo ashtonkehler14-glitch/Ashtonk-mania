@@ -205,11 +205,14 @@ const pickFromBrowse = async (p, version) => {
   await p.evaluate(() => [...document.querySelectorAll('.mp-map-actions .btn')].find(b => /Search beatmaps/.test(b.textContent)).click());
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'explore' && document.querySelector('.ex-mp'), null, { timeout: 5000 });
   await p.waitForSelector('.ex-card[data-id="424242"]', { timeout: 10000 });
+  const noSolo = await p.evaluate(() => !document.querySelector('.ex-card[data-id="424242"] .ex-side-btn.play'));
   await p.click('.ex-card[data-id="424242"] .ex-t');
   await p.waitForSelector('.bso .bso-diff', { timeout: 3000 });
   await p.evaluate(v => [...document.querySelectorAll('.bso-diff')].find(b => b.getAttribute('aria-label').startsWith(v)).click(), version);
+  const label = await p.textContent('.bso .bso-dl');
   await p.click('.bso .bso-dl');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 15000 });
+  return { noSolo, label };
 };
 // the host searches Browse and picks a difficulty; it downloads for the host first
 await pickFromBrowse(alice, 'Online Hard');
@@ -222,7 +225,8 @@ await bob.waitForSelector('.mp-temp', { timeout: 5000 });
 check('it is marked as installed only for this room', await bob.evaluate(() => AshtonkMania.Multiplayer.isTemp()));
 await shot(bob, 'mp-temp');
 // the other player browses and suggests; the host picks the suggestion from chat
-await pickFromBrowse(bob, 'Online Easy');
+const guest = await pickFromBrowse(bob, 'Online Easy');
+check('in a room, Browse never offers solo Play (even for a downloaded song); a guest\'s button says Recommend', guest.noSolo && /Recommend to the host/.test(guest.label), JSON.stringify(guest));
 await alice.waitForFunction(() => [...document.querySelectorAll('.mp-msg.suggest')].some(m => m.textContent.includes('Online Easy')), null, { timeout: 5000 });
 check('guests suggest from Browse; the suggestion reaches the host with a Pick button', true);
 await alice.evaluate(() => [...document.querySelectorAll('.mp-msg.suggest')].find(m => m.textContent.includes('Online Easy')).querySelector('button').click());

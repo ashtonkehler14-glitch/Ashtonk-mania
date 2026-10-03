@@ -280,7 +280,7 @@ const ExplorerScreen = {
     this.sentinel = h('div.ex-sentinel');
     const host = this.mpPick && Multiplayer.isHost();
     const header = h('div.ex-header',
-      this.mpPick ? h('div.ex-mp', icon('multi'), h('span', host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and suggest it to the room host.'), h('span.grow'),
+      this.mpPick ? h('div.ex-mp', icon('multi'), h('span', host ? 'Pick a beatmap for your multiplayer room — it downloads for everyone.' : 'Find a beatmap and recommend it to the room host.'), h('span.grow'),
         h('button.btn.sm', { onclick: () => Screens.go('multiplayer', {}, { replace: true }) }, icon('back'), 'Back to room')) : null,
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
@@ -445,8 +445,8 @@ const ExplorerScreen = {
     const likeBtn = h(`button.ex-side-btn.like${liked ? '.on' : ''}`, { title: liked ? 'Unlike' : 'Like', 'aria-label': 'Like', onclick: e => { e.stopPropagation(); e.currentTarget.blur(); this.toggleLike(set.id); likeBtn.classList.toggle('on', this.liked().has(set.id)); clearEl(likeBtn).append(icon('heart', this.liked().has(set.id) ? 'fill' : '')); UISounds.click(); } }, icon('heart', liked ? 'fill' : ''));
     const sideAct = dl && dl.state === 'downloading'
       ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
-      : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
-        : this.mpPick ? h('button.ex-side-btn', { title: 'Choose a difficulty', 'aria-label': 'Choose a difficulty', onclick: e => { e.stopPropagation(); this.openSet(set); } }, icon('multi'))
+      : this.mpPick ? h('button.ex-side-btn', { title: 'Choose a difficulty', 'aria-label': 'Choose a difficulty', onclick: e => { e.stopPropagation(); this.openSet(set); } }, icon('multi'))
+        : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
           : h('button.ex-side-btn.dl', { title: 'Download', 'aria-label': 'Download', onclick: e => { e.stopPropagation(); this.download(set); } }, icon('download'));
     const card = h(`div.ex-card${owned ? '.owned' : ''}`, { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
@@ -473,7 +473,7 @@ const ExplorerScreen = {
     if (dl && dl.state === 'downloading') return h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
     if (this.mpPick) {
       const host = Multiplayer.isHost();
-      return h('button.btn.sm.primary', { onclick: e => diff ? this.mpPickDiff(set, diff) : this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Suggest');
+      return h('button.btn.sm.primary', { onclick: e => diff ? this.mpPickDiff(set, diff) : this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Recommend');
     }
     if (owned) {
       const m = (diff && owned.maps.find(x => x.onlineId === diff.id)) || owned.maps.find(x => !x.problems.length) || owned.maps[0];
@@ -519,7 +519,7 @@ const ExplorerScreen = {
     const owned = this.owned(set.id), dl = this.downloads.get(set.id);
     let main;
     if (dl && dl.state === 'downloading') main = h('div.bso-dl.busy', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('i'), h('span', 'Downloading…'), h('small', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
-    else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Suggest to the room'), h('small', d.version));
+    else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Recommend to the host'), h('small', d.version));
     else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
     else main = h('button.bso-dl', { onclick: () => this.download(set) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'), h('small', set.video ? 'with video' : 'osu!mania beatmap'));
     const genre = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
@@ -613,10 +613,10 @@ const ExplorerScreen = {
       } else {
         const info = { title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id };
         Multiplayer.send({ t: 'suggest', map: m ? { ...info, hash: m.hash, length: m.length } : info });
-        Toast.show('Suggested to the host', `${set.title} [${d.version}]`);
+        Toast.show('Recommended to the host', `${set.title} [${d.version}]`);
       }
       Screens.go('multiplayer', {}, { replace: true });
-    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t suggest that beatmap', e.message); }
+    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t recommend that beatmap', e.message); }
   },
   /** Download progress, written into the card and the info page as they are: rebuilding them for every tick made
    *  the card under the pointer jitter (its hover lift and side panel restarted each time). */
@@ -647,6 +647,7 @@ const ExplorerScreen = {
   /** Play a downloaded map: its background and song start straight away (not after song select settles), and the
    *  menu song the preview had paused isn't resumed over it. */
   playLocal(m) {
+    if (typeof Multiplayer !== 'undefined' && Multiplayer.inRoom()) { Toast.show('You\'re in a multiplayer room', 'Leave the room to play on your own.'); return; }
     this._resumeMusic = false;
     this.stopPreview();
     this.closeSet();
