@@ -3267,3 +3267,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mob-in-btns .btn { justify-content: center; min-height: 38px; padding: 0 14px; font-size: 15px; }
 @media (orientation: landscape) { .mob-install { left: auto; right: 16px; bottom: 66px; width: 440px; } }
 @keyframes mobUp { from { opacity: 0; transform: translateY(30px); } }
+/* feel like an app, not a web page: no blue tap flash, focus boxes, callouts, double-tap zoom or pull-to-refresh */
+html { -webkit-tap-highlight-color: transparent; }
+html.touch, html.touch body { overscroll-behavior: none; touch-action: manipulation; -webkit-touch-callout: none; }
+html.touch :focus:not(input):not(textarea):not(select) { outline: none !important; }
+html.touch img { -webkit-user-drag: none; }

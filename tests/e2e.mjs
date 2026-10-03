@@ -1005,6 +1005,8 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   const fit = await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.stageX >= 0 && r.stageX + r.stageW <= r.W + 1; });
   check('phone: the playfield fits across a portrait screen', fit);
+  check('phone: columns are wide finger targets (each at least an eighth of the screen)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.W * 0.12); }));
+  check('phone: no blue tap highlight (feels like an app)', await mp.evaluate(() => document.documentElement.classList.contains('touch') && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(document.documentElement).webkitTapHighlightColor)));
   const cdp = await mctx.newCDPSession(mp), held = [];
   for (let i = 0; i < 4; i++) {
     const x = await mp.evaluate(i => { const r = AshtonkMania.GameplayScreen.renderer; let a = -1, b = -1; for (let x = 0; x < innerWidth; x++) if (r.columnAt(x) === i) { if (a < 0) a = x; b = x; } return (a + b) / 2; }, i);

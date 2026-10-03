@@ -159,9 +159,13 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
-    // a narrow screen (a phone held upright): the columns narrow to fit across it
-    const fit = this.W * 0.98 / x;
-    this.narrow = fit < 1;
+    // touch screens (as osu!lazer's mobile mania): the columns widen so each one is a comfortable target for a finger
+    // (about an eighth of the screen each, 4K taking half of it, up to nearly the whole width); a narrow screen (a phone
+    // held upright) has them narrow to fit across it instead
+    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const want = touch ? this.W * Math.min(0.96, L.keys * 0.13) : 0;
+    const fit = want > x ? want / x : this.W * 0.98 / x;
+    this.narrow = fit < 1 || want > x;
     if (this.narrow) { this.colW = this.colW.map(w => w * fit); this.colX = this.colX.map(v => v * fit); this.stageW = x * fit; }
     // fill styles, built once per layout / settings change instead of every frame
     const op = Settings.get('gameplay.stageOpacity');

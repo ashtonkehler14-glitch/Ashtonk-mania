@@ -3284,6 +3284,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .mob-in-btns .btn { justify-content: center; min-height: 38px; padding: 0 14px; font-size: 15px; }
 @media (orientation: landscape) { .mob-install { left: auto; right: 16px; bottom: 66px; width: 440px; } }
 @keyframes mobUp { from { opacity: 0; transform: translateY(30px); } }
+/* feel like an app, not a web page: no blue tap flash, focus boxes, callouts, double-tap zoom or pull-to-refresh */
+html { -webkit-tap-highlight-color: transparent; }
+html.touch, html.touch body { overscroll-behavior: none; touch-action: manipulation; -webkit-touch-callout: none; }
+html.touch :focus:not(input):not(textarea):not(select) { outline: none !important; }
+html.touch img { -webkit-user-drag: none; }
 
 </style>
 </head>
@@ -7261,9 +7266,13 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
-    // a narrow screen (a phone held upright): the columns narrow to fit across it
-    const fit = this.W * 0.98 / x;
-    this.narrow = fit < 1;
+    // touch screens (as osu!lazer's mobile mania): the columns widen so each one is a comfortable target for a finger
+    // (about an eighth of the screen each, 4K taking half of it, up to nearly the whole width); a narrow screen (a phone
+    // held upright) has them narrow to fit across it instead
+    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const want = touch ? this.W * Math.min(0.96, L.keys * 0.13) : 0;
+    const fit = want > x ? want / x : this.W * 0.98 / x;
+    this.narrow = fit < 1 || want > x;
     if (this.narrow) { this.colW = this.colW.map(w => w * fit); this.colX = this.colX.map(v => v * fit); this.stageW = x * fit; }
     // fill styles, built once per layout / settings change instead of every frame
     const op = Settings.get('gameplay.stageOpacity');
@@ -18317,7 +18326,6 @@ const Mobile = {
   get ios() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); },
   init() {
     if (!this.touch) return;
-    document.documentElement.classList.add('touch');
     window.addEventListener('resize', () => this.sync());
     Bus.on('screen:changed', () => this.sync());
     Bus.on('install:available', () => this.offerInstall());
@@ -18368,6 +18376,13 @@ const Mobile = {
     (document.getElementById('app') || document.body).append(this.card); // (inside the app, so it scales with the rest)
   },
 };
+
+// from the very first screen (setup included): app-like touch behaviour; a long press is a hold in the game, never the
+// browser's menu (text boxes keep theirs, for paste)
+if (Mobile.touch) {
+  document.documentElement.classList.add('touch');
+  document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
+}
 
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */

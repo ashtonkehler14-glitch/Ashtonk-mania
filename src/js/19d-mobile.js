@@ -8,7 +8,6 @@ const Mobile = {
   get ios() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); },
   init() {
     if (!this.touch) return;
-    document.documentElement.classList.add('touch');
     window.addEventListener('resize', () => this.sync());
     Bus.on('screen:changed', () => this.sync());
     Bus.on('install:available', () => this.offerInstall());
@@ -59,3 +58,10 @@ const Mobile = {
     (document.getElementById('app') || document.body).append(this.card); // (inside the app, so it scales with the rest)
   },
 };
+
+// from the very first screen (setup included): app-like touch behaviour; a long press is a hold in the game, never the
+// browser's menu (text boxes keep theirs, for paste)
+if (Mobile.touch) {
+  document.documentElement.classList.add('touch');
+  document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
+}
