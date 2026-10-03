@@ -494,12 +494,12 @@ const GameplayScreen = {
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
     );
-    // touch screens play as FNF does on phones: the screen split into one full-height hitbox per column, in the
-    // column's arrow colour, lighting up while it's held
+    // touch screens play as FNF does on phones: the screen split into one full-height hitbox per column, lighting up
+    // while it's held
     this.hitbox = null;
     if (s.mode === 'play' && typeof Mobile !== 'undefined' && Mobile.touch) {
       const K = s.down.length;
-      this.hitbox = h('div.fnf-hitbox', ...Array.from({ length: K }, (_, i) => h('i', { style: { '--c': Mobile.fnfColor(K, i) } })));
+      this.hitbox = h('div.fnf-hitbox', ...Array.from({ length: K }, () => h('i')));
       this.hud.append(this.hitbox);
     }
     if (s.mode === 'replay' || s.mode === 'auto') {

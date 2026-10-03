@@ -173,14 +173,21 @@ class ManiaRenderer {
       x += this.colW[i] + (i < L.keys - 1 ? ((L.columnSpacing[i] || 0) + Settings.get('gameplay.laneSpacing')) * s * lw : 0);
     }
     this.stageW = x;
-    // touch screens (as osu!lazer's mobile mania): the columns widen so each one is a comfortable target for a finger
-    // (about an eighth of the screen each, 4K taking half of it, up to nearly the whole width); a narrow screen (a phone
-    // held upright) has them narrow to fit across it instead
+    // touch screens play laid out as Friday Night Funkin' does on a phone (its 1280×720 screen scaled to fit): each
+    // column as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), side by side with no gaps,
+    // in the middle, with the receptors as near the edge as FNF's (below); a narrow screen (a phone held upright)
+    // has them narrow to fit across it
     const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const want = touch ? this.W * Math.min(0.96, L.keys * 0.13) : 0;
-    const fit = want > x ? want / x : this.W * 0.98 / x;
-    this.narrow = fit < 1 || want > x;
-    if (this.narrow) { this.colW = this.colW.map(w => w * fit); this.colX = this.colX.map(v => v * fit); this.stageW = x * fit; }
+    this.fnf = touch;
+    if (touch) {
+      const size = Math.min(this.H * 112 / 720 * lw, this.W * 0.96 / L.keys);
+      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
+      this.narrow = true;
+    } else {
+      const fit = this.W * 0.98 / x;
+      this.narrow = fit < 1;
+      if (this.narrow) { this.colW = this.colW.map(w => w * fit); this.colX = this.colX.map(v => v * fit); this.stageW = x * fit; }
+    }
     // fill styles, built once per layout / settings change instead of every frame
     const op = Settings.get('gameplay.stageOpacity');
     this._colFill = L.colours.column.slice(0, L.keys).map(c => rgba(c, op));
@@ -195,6 +202,8 @@ class ManiaRenderer {
       : pos === 'left' ? this.W * 0.12 : pos === 'right' ? this.W * 0.88 - this.stageW : (this.W - this.stageW) / 2;
     this.stageX += Settings.get('gameplay.stageOffset') / 100 * this.W;
     this.hitY = clamp((clamp(L.hitPosition, 240, 480) + Settings.get('gameplay.hitPositionOffset')) * s, 40 * s, this.H - 4);
+    // (FNF's receptors: centred 94 of 720 from the edge, the notes judged as they cross their middle)
+    if (this.fnf) this.hitY = Math.min(this.H - 4, this.H * (1 - 94 / 720) + this.colW[0] * 0.45);
     this.up = Settings.get('gameplay.scrollDirection') === 'up' || L.upsideDown;
     // what gets drawn upside down in upscroll (osu!: keys and notes unless the skin says otherwise; lights always)
     const F = L.flip || {}, f = (a, i) => this.up && (!a || a[i] !== false);

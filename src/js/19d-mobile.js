@@ -1,16 +1,13 @@
 /* Phones and tablets. Menus as osu!lazer on Android plays them: the full interface in landscape (Zoom scales it) and a
- * prompt to turn an upright phone sideways. Gameplay as Friday Night Funkin' plays on phones: FNF's arrows, colours
- * and judgements, and the screen split into one full-height hitbox per column. And, straight away, a recommendation
+ * prompt to turn an upright phone sideways. Gameplay laid out and played as Friday Night Funkin' is on phones (the
+ * renderer's touch layout, and the screen split into one full-height hitbox per column), in whatever skin is chosen.
+ * And, straight away, a recommendation
  * to install the app (full screen, landscape, offline: manifest.webmanifest), since a browser tab plays worse. */
 
 const Mobile = {
   get touch() { return typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches; },
   get portrait() { return innerHeight > innerWidth; },
   get ios() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); },
-  /** FNF's note colours, by the way an arrow points (WOM.ARROWS angles): left purple, down cyan, up green, right red,
-   *  and the diagonals of the extra-key modes. */
-  FNF: { 270: '#c24b99', 180: '#00ffff', 0: '#12fa05', 90: '#f9393f', 315: '#ffd700', 45: '#ff7f00', 225: '#8b5cff', 135: '#2f7dff' },
-  fnfColor(keys, i) { const a = (WOM.ARROWS[keys - 1] || [])[i]; return Mobile.FNF[a] || '#ffffff'; },
 
   /** Right after loading (before the first-run setup): recommend the app. */
   early() {
@@ -21,24 +18,20 @@ const Mobile = {
   /** After the first-run setup. */
   init() {
     if (!this.touch) return;
-    this.applyFnfDefaults();
+    this.undoFnfSkin();
     window.addEventListener('resize', () => this.sync());
     Bus.on('screen:changed', () => this.sync());
     this.sync();
   },
-  /** Once per device: the custom skin set up as FNF (arrows, FNF colours for every key count, FNF judgements).
-   *  Everything stays changeable in Settings → Skin. */
-  applyFnfDefaults() {
-    let done = false; try { done = localStorage.getItem('am.fnfMobile') === '1'; } catch {}
-    if (done) return;
-    try { localStorage.setItem('am.fnfMobile', '1'); } catch {}
-    const dark = c => { const n = parseInt(c.slice(1), 16); const f = v => Math.round(v * 0.55).toString(16).padStart(2, '0'); return '#' + f(n >> 16 & 255) + f(n >> 8 & 255) + f(n & 255); };
-    const custom = Array.from({ length: 18 }, (_, k) => Array.from({ length: k + 1 }, (_, i) => { const c = this.fnfColor(k + 1, i); return { tap: c, holdHead: c, hold: dark(c) }; }));
-    SkinManager.select('default', { silent: true }).catch(() => Settings.set('skin.current', 'default'));
-    Settings.set('wom.style', 'arrows');
-    Settings.set('wom.judgements', 'fnf');
-    Settings.set('wom.customColors', custom);
-    Settings.set('wom.colorMode', 'custom');
+  /** An earlier version set the custom skin up as FNF's on phones (arrows, FNF colours and judgements): put back the
+   *  skin's own defaults, once. The FNF part is how gameplay is laid out and played (ManiaRenderer, hitboxes), not a skin. */
+  undoFnfSkin() {
+    let was = false; try { was = localStorage.getItem('am.fnfMobile') === '1'; localStorage.removeItem('am.fnfMobile'); } catch {}
+    if (!was) return;
+    if (Settings.get('wom.style') === 'arrows') Settings.set('wom.style', 'bars');
+    if (Settings.get('wom.judgements') === 'fnf') Settings.set('wom.judgements', 'azureSnowfall');
+    if (Settings.get('wom.colorMode') === 'custom') Settings.set('wom.colorMode', 'simple');
+    Settings.set('wom.customColors', null);
   },
   /** Full screen, then landscape (browsers only lock the orientation of a full-screen page). */
   async goLandscape() {
