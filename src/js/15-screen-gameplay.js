@@ -1634,12 +1634,12 @@ const FPS = {
       this.shownFps = drawSpike ? 1000 / dt : damp(this.shownFps || this.fps, this.fps, 100, dt);
       if (now - this.lastText > 10) {
         this.lastText = now;
-        setText(this.msEl, this.shownMs < 5 ? `${this.shownMs.toFixed(1)} ms` : `${Math.round(this.shownMs)} ms`);
+        setText(this.msEl, `${Math.max(1, Math.round(this.shownMs))} ms`); // (whole numbers only)
         setText(this.fpsEl, `${Math.round(this.shownFps).toLocaleString('en-US')} fps`);
         const cf = this.colour(this.shownFps / this.aim), cm = this.colour((1000 / this.shownMs) / this.aim);
         if (cf !== this._cf) { this._cf = cf; this.fpsEl.style.color = cf; }
         if (cm !== this._cm) { this._cm = cm; this.msEl.style.color = cm; }
-        if (this.hovered) setText(this.tipEl, `Draw ${Math.round(this.fps)} fps · Frame ${this.shownMs.toFixed(1)} ms · Target ${this.aim} Hz`);
+        if (this.hovered) setText(this.tipEl, `Draw ${Math.round(this.fps)} fps · Frame ${Math.round(this.shownMs)} ms · Target ${this.aim} Hz`);
       }
       const significant = aimChanged || drawSpike || updateSpike || this.shownFps < this.aim * 0.8 || 1000 / this.shownMs < this.aim * 0.8;
       if (significant) this.request();

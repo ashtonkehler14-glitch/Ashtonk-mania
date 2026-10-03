@@ -167,6 +167,8 @@ const App = {
     window.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); });
     // hiding the tab pauses a solo play (a match keeps going, like losing focus)
     document.addEventListener('visibilitychange', () => { if (document.hidden && Screens.current === GameplayScreen && GameplayScreen._blur) GameplayScreen._blur(); });
+    // the music fades out as you leave the site (another tab, minimised) and back in when you return
+    document.addEventListener('visibilitychange', () => AudioManager.setAway(document.hidden));
     // hover sounds for all buttons
     document.addEventListener('pointerover', e => { const b = e.target.closest && e.target.closest('.btn, .chip, .tb-btn, .side-item, .lb-row, .list-row button, .foot-btn, .ss-cookie, .menu button, .pd-btn, .pm-btn, .mp-cr-card, .sp-nav button'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
     // drag & drop

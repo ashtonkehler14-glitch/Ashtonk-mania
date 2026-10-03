@@ -37,10 +37,21 @@ const AudioManager = {
     this.duckGain.gain.setTargetAtTime(d ? 0.75 : 1, t, 0.06);
   },
   resume() { this.init(); if (this.ctx.state !== 'running') return this.ctx.resume().catch(() => {}); return Promise.resolve(); },
+  /** Leaving the site (another tab, minimised) fades everything out; coming back fades it in again. */
+  away: false,
+  setAway(away) {
+    if (this.away === away) return;
+    this.away = away;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.setTargetAtTime(away ? 0 : Settings.get('audio.master'), t, away ? 0.12 : 0.25);
+  },
   applyVolumes() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(Settings.get('audio.master'), t, 0.02);
+    this.master.gain.setTargetAtTime(this.away ? 0 : Settings.get('audio.master'), t, 0.02);
     this.musicBus.gain.setTargetAtTime(Settings.get('audio.music'), t, 0.02);
     this.fxBus.gain.setTargetAtTime(Settings.get('audio.effects'), t, 0.02);
     this.uiBus.gain.setTargetAtTime(Settings.get('audio.ui'), t, 0.02);

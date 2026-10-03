@@ -5185,10 +5185,21 @@ const AudioManager = {
     this.duckGain.gain.setTargetAtTime(d ? 0.75 : 1, t, 0.06);
   },
   resume() { this.init(); if (this.ctx.state !== 'running') return this.ctx.resume().catch(() => {}); return Promise.resolve(); },
+  /** Leaving the site (another tab, minimised) fades everything out; coming back fades it in again. */
+  away: false,
+  setAway(away) {
+    if (this.away === away) return;
+    this.away = away;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.setTargetAtTime(away ? 0 : Settings.get('audio.master'), t, away ? 0.12 : 0.25);
+  },
   applyVolumes() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(Settings.get('audio.master'), t, 0.02);
+    this.master.gain.setTargetAtTime(this.away ? 0 : Settings.get('audio.master'), t, 0.02);
     this.musicBus.gain.setTargetAtTime(Settings.get('audio.music'), t, 0.02);
     this.fxBus.gain.setTargetAtTime(Settings.get('audio.effects'), t, 0.02);
     this.uiBus.gain.setTargetAtTime(Settings.get('audio.ui'), t, 0.02);
@@ -12774,12 +12785,12 @@ const FPS = {
       this.shownFps = drawSpike ? 1000 / dt : damp(this.shownFps || this.fps, this.fps, 100, dt);
       if (now - this.lastText > 10) {
         this.lastText = now;
-        setText(this.msEl, this.shownMs < 5 ? `${this.shownMs.toFixed(1)} ms` : `${Math.round(this.shownMs)} ms`);
+        setText(this.msEl, `${Math.max(1, Math.round(this.shownMs))} ms`); // (whole numbers only)
         setText(this.fpsEl, `${Math.round(this.shownFps).toLocaleString('en-US')} fps`);
         const cf = this.colour(this.shownFps / this.aim), cm = this.colour((1000 / this.shownMs) / this.aim);
         if (cf !== this._cf) { this._cf = cf; this.fpsEl.style.color = cf; }
         if (cm !== this._cm) { this._cm = cm; this.msEl.style.color = cm; }
-        if (this.hovered) setText(this.tipEl, `Draw ${Math.round(this.fps)} fps · Frame ${this.shownMs.toFixed(1)} ms · Target ${this.aim} Hz`);
+        if (this.hovered) setText(this.tipEl, `Draw ${Math.round(this.fps)} fps · Frame ${Math.round(this.shownMs)} ms · Target ${this.aim} Hz`);
       }
       const significant = aimChanged || drawSpike || updateSpike || this.shownFps < this.aim * 0.8 || 1000 / this.shownMs < this.aim * 0.8;
       if (significant) this.request();
@@ -18065,6 +18076,8 @@ const App = {
     window.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); });
     // hiding the tab pauses a solo play (a match keeps going, like losing focus)
     document.addEventListener('visibilitychange', () => { if (document.hidden && Screens.current === GameplayScreen && GameplayScreen._blur) GameplayScreen._blur(); });
+    // the music fades out as you leave the site (another tab, minimised) and back in when you return
+    document.addEventListener('visibilitychange', () => AudioManager.setAway(document.hidden));
     // hover sounds for all buttons
     document.addEventListener('pointerover', e => { const b = e.target.closest && e.target.closest('.btn, .chip, .tb-btn, .side-item, .lb-row, .list-row button, .foot-btn, .ss-cookie, .menu button, .pd-btn, .pm-btn, .mp-cr-card, .sp-nav button'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
     // drag & drop
