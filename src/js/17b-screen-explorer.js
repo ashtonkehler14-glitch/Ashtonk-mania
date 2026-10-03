@@ -201,7 +201,8 @@ const OnlineBeatmaps = {
     const next = i => {
       if (i >= urls.length) return;
       const img = new Image();
-      img.onload = () => { this._covers.set(urls.join('|'), img.src); el.style.backgroundImage = `url("${img.src}")`; done && done(img); };
+      // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
+      img.onload = () => { const show = () => { this._covers.set(urls.join('|'), img.src); el.style.backgroundImage = `url("${img.src}")`; done && done(img); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -285,7 +286,7 @@ const ExplorerScreen = {
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
     const scroller = h('div.screen-body.ex-body', overlayHeader('Beatmap listing', { icon: 'download', sub: 'osu!mania beatmaps, downloaded straight into your library' }),
-      h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel)));
+      h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel, this.shield = h('div.ex-shield'))));
     // "back to top" appears once you've scrolled a good way down
     // (a ring around it fills as you near the bottom of what's loaded, as lazer's does)
     const R = 24, C = 2 * Math.PI * R;
@@ -299,21 +300,25 @@ const ExplorerScreen = {
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
+      if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); });
       this.topBtn.classList.toggle('show', scroller.scrollTop > 600);
       paintRing();
-      el.classList.add('scrolling'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => el.classList.remove('scrolling'), 160);
+      this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => this.shield.classList.remove('on'), 160);
     }, { passive: true });
     el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { rootMargin: '600px' });
+    this.coverIO = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { this.coverIO.unobserve(e.target); const f = e.target._loadCovers; e.target._loadCovers = null; f && f(); } }, { root: scroller, rootMargin: '500px 0px' });
     this.io.observe(this.sentinel);
     // back online after an offline error: search again by itself
     const online = () => { if (this.error) this.newSearch(); };
     window.addEventListener('online', online);
-    this._unsub = [Bus.on('library:changed', () => this.renderResults()), () => window.removeEventListener('online', online)];
+    const resized = () => this.renderWindow(); // (a different width can mean a different number of columns)
+    window.addEventListener('resize', resized);
+    this._unsub = [Bus.on('library:changed', () => this.renderResults()), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
-  leave() { this.io && this.io.disconnect(); this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  leave() { this.io && this.io.disconnect(); this.coverIO && this.coverIO.disconnect(); this.coverIO = null; this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
   /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
@@ -403,14 +408,55 @@ const ExplorerScreen = {
     const cards = list.map(set => {
       const sig = this.cardSig(set), c = old.get(set.id);
       const card = c && c.sig === sig && c.set === set ? c.el : this.card(set);
+      // a card new to the list fades in once (and drops the animation after)
+      if (!c) { card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
+      if (card._loadCovers && this.coverIO) this.coverIO.observe(card); // (a kept card whose cover hadn't loaded yet)
       next.set(set.id, { el: card, sig, set });
       return card;
     });
     this._cards = next;
-    const kids = this.grid.children;
-    if (kids.length !== cards.length || cards.some((c, i) => kids[i] !== c)) this.grid.replaceChildren(...cards);
+    this._all = cards;
+    this.renderWindow();
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
+  },
+  /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
+   *  space. However long the list grows, scrolling it costs the same as the first page. */
+  renderWindow() {
+    const grid = this.grid, all = this._all || [];
+    if (!grid) return;
+    const sc = grid.closest('.screen-body');
+    const cs = getComputedStyle(grid);
+    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
+    const gap = parseFloat(cs.rowGap) || 0;
+    const first = grid.firstElementChild;
+    if (first && first.offsetHeight) this._rowH = first.offsetHeight + gap;
+    const rowH = this._rowH || 110, rows = Math.ceil(all.length / cols);
+    let from = 0, to = rows;
+    if (sc && all.length > cols * 12) {
+      const gridTop = grid.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop; // (where the grid's box starts)
+      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
+      // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
+      // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
+      const [needA, needB] = range(sc.clientHeight * 0.5);
+      const w = this._win;
+      if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
+      else [from, to] = range(sc.clientHeight * 1.5);
+    }
+    this._win = { from, to, cols, n: all.length };
+    const shown = all.slice(from * cols, to * cols);
+    const pt = from ? `${from * rowH}px` : '', pb = to < rows ? `${(rows - to) * rowH}px` : '';
+    if (grid.style.paddingTop !== pt) grid.style.paddingTop = pt;
+    if (grid.style.paddingBottom !== pb) grid.style.paddingBottom = pb;
+    // change only what differs: drop the cards that left, add the ones that came in (re-inserting all of them
+    // restyled every card each time)
+    const want = new Set(shown);
+    for (const k of [...grid.children]) if (!want.has(k)) k.remove();
+    let at = grid.firstElementChild;
+    for (const c of shown) {
+      if (c === at) { at = at.nextElementSibling; continue; }
+      grid.insertBefore(c, at);
+    }
   },
   /** What a card shows that can change without a new search. */
   cardSig(set) { const dl = this.downloads.get(set.id); return [!!this.owned(set.id), dl ? dl.state : '', this.liked().has(set.id), !!this.mpPick, Settings.get('ui.unicodeMetadata')].join(); },
@@ -430,8 +476,11 @@ const ExplorerScreen = {
   card(set) {
     const owned = this.owned(set.id), dl = this.downloads.get(set.id);
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], () => thumb.classList.add('loaded'));
-    OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], () => bg.classList.add('loaded'));
+    // covers load as the card nears the screen (not 100 images per page at once, most of them far below)
+    const loadCovers = () => {
+      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], () => thumb.classList.add('loaded'));
+      OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], () => bg.classList.add('loaded'));
+    };
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
     const len = Math.max(...set.diffs.map(d => d.length));
     const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
@@ -465,6 +514,8 @@ const ExplorerScreen = {
           h('span.ex-length', icon('clock'), fmtTime(len * 1000)))),
       h('div.ex-side', likeBtn, sideAct));
     card.addEventListener('pointerenter', () => UISounds.hover());
+    card._loadCovers = loadCovers;
+    if (this.coverIO) this.coverIO.observe(card); else loadCovers();
     return card;
   },
   /** The card's / overlay's main action: Play, Download (with progress), or Pick / Suggest for a room. */

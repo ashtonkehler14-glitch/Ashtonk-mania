@@ -2123,7 +2123,8 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* ── beatmap listing, lazer style: BeatmapCardNormal (thumbnail + details over the faded cover), two columns */
 .ex-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 900px) and (hover: none) { .ex-grid { grid-template-columns: 1fr; } }
-.ex-card { position: relative; isolation: isolate; overflow: hidden; display: flex; height: 100px; padding: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; transition: transform 200ms var(--ease-out), box-shadow 200ms; animation: rowIn 300ms var(--ease-out) both; }
+.ex-card { position: relative; isolation: isolate; overflow: hidden; display: flex; height: 100px; padding: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; transition: transform 200ms var(--ease-out), box-shadow 200ms; }
+.ex-card.ex-new { animation: rowIn 300ms var(--ease-out) both; } /* (only while it comes in: a finished animation left on hundreds of cards slowed every restyle) */
 .ex-card:hover, .ex-card:focus-visible { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); outline: none; }
 .ex-cardbg { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat; opacity: 0; transition: opacity 400ms; }
 .ex-cardbg.loaded { opacity: 1; }
@@ -2376,8 +2377,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .dialog:has(.mp-cr) { width: min(700px, calc(94 * var(--vw))) !important; max-width: none !important; }
 .mp-cr { min-width: 0; }
 
-/* beatmap listing: nothing reacts to the pointer while the list is scrolling */
-.explorer.scrolling .ex-grid { pointer-events: none; }
+/* beatmap listing: nothing reacts to the pointer while the list is scrolling — one invisible shield over the list
+   (switching pointer-events on the whole list restyled every card at the start and end of each scroll) */
+.explorer .ex-body .page { position: relative; }
+.ex-shield { position: absolute; inset: 0; z-index: 4; display: none; }
+.ex-shield.on { display: block; }
 /* setup: bring over a Web-Osu-Mania backup (lazer's "import from osu!stable" page) */
 .setup-wom { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(560px, 100%); margin-top: 18px; padding: 18px 22px; border-radius: 14px; background: rgba(0, 0, 0, .22); font-size: .92rem; color: var(--text-2); }
 .setup-wom-steps { align-self: stretch; margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
