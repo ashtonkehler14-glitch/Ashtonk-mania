@@ -818,18 +818,22 @@ const GameplayScreen = {
     this._lbJudged = -1; this._lbMe = null;
     if (s.mode === 'auto' || s.practice) return;
     const skip = s.replay && s.replay.scoreId;
-    const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
+    // (as lazer's: the board follows song select's scope — Global / Friends from the server when it has them)
+    const scope = Settings.get('songselect.lbScope'), on = typeof SongSelect !== 'undefined' && SongSelect._online;
+    const online = (scope === 'global' || scope === 'friends') && on && on.key === s.rec.hash && on.scope === scope && s.mode !== 'replay';
+    const rows = online
+      ? on.scores.slice(0, 6).map(x => ({ name: x.pid === Presence.pid() ? ProfileManager.profile.name : x.name, avatar: x.avatar, own: x.pid === Presence.pid(), acc: x.acc, combo: x.combo, score: x.score }))
+      : ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6).map(x => ({ name: x.player || ProfileManager.profile.name, own: !x.player || x.player === ProfileManager.profile.name, acc: x.accuracy, combo: x.maxCombo, score: ScoreManager.value(x) }));
     // nothing to climb past on a first play: no board (a lone "#1 you" row is just clutter, and lazer shows none)
     if (!rows.length) { this.lbEl.classList.add('lb-empty'); return; }
-    const mine = name => !name || name === ProfileManager.profile.name;
-    const mk = (name, acc, combo, sc, me) => {
-      const r = this.lbPanel(name, mine(name) ? ProfileManager.avatarEl(38) : Presence.avatarEl({ name }, 38), me);
-      r.sub.textContent = acc; r.combo.textContent = combo; r.sc.textContent = sc;
+    const mk = (x, me) => {
+      const r = this.lbPanel(x.name, x.own ? ProfileManager.avatarEl(38) : Presence.avatarEl({ name: x.name, avatar: x.avatar }, 38), me);
+      r.sub.textContent = fmtAcc(x.acc); r.combo.textContent = `${fmtInt(x.combo)}x`; r.sc.textContent = fmtScore(x.score);
       this.lbEl.append(r.el); return r;
     };
-    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, fmtAcc(x.accuracy), `${fmtInt(x.maxCombo)}x`, fmtScore(ScoreManager.value(x)), false), { score: ScoreManager.value(x) }));
+    this._lbRows = rows.map(x => Object.assign(mk(x, false), { score: x.score }));
     const myName = s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name;
-    this._lbMe = mk(myName, fmtAcc(1), '0x', '0', true);
+    this._lbMe = mk({ name: myName, own: s.mode !== 'replay', acc: 1, combo: 0, score: 0 }, true);
     this.updateLeaderboard(true);
   },
   updateLeaderboard(force) {
