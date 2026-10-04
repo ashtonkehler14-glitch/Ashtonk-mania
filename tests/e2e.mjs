@@ -1029,9 +1029,9 @@ const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.cl
 check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 
 {
-  // a phone (held sideways for gameplay — there's no upright gameplay): the stage fits, each column takes touches, and a
-  // pause button stands in for Escape
-  const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  // a phone, as lazer's app: the game is used sideways and gameplay is upright. The stage fits, each column takes
+  // touches, and a pause button stands in for Escape
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const mp = await mctx.newPage();
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
   await mp.goto(url);
@@ -1044,20 +1044,24 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
-  check('phone upright: no upright gameplay — asked to turn sideways, the song waits', await mp.evaluate(() => getComputedStyle(document.querySelector('.gp-rotate')).display !== 'none' && !(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running)));
-  await mp.setViewportSize({ width: 844, height: 390 });
+  check('phone sideways: gameplay is upright — asked to turn the phone, the song waits', await mp.evaluate(() => !document.querySelector('.rot-prompt').hidden && /upright/.test(document.querySelector('.rot-prompt').textContent) && !(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running)));
+  await mp.setViewportSize({ width: 390, height: 844 });
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
-  await mp.waitForFunction(() => { const r = AshtonkMania.GameplayScreen.renderer; return r && r.W > r.H; }, null, { timeout: 5000 }); // (laid out sideways)
+  await mp.waitForFunction(() => { const r = AshtonkMania.GameplayScreen.renderer; return r && r.H > r.W; }, null, { timeout: 5000 }); // (laid out upright)
+  check('phone upright in gameplay: no prompt', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden));
   const fit = await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.stageX >= 0 && r.stageX + r.stageW <= r.W + 1; });
-  check('phone sideways: the playfield fits the screen', fit);
+  check('phone upright: the playfield fits across the screen', fit);
   check('phone: laid out as FNF plays on phones (arrow-sized columns side by side, a full-height hitbox per column) in your own skin', await mp.evaluate(() => { const S = AshtonkMania.Settings, r = AshtonkMania.GameplayScreen.renderer, size = Math.min(r.H * 0.2 * S.get('gameplay.laneWidth'), r.W * 0.96 / 4);
     return S.get('wom.style') !== 'arrows' && S.get('wom.judgements') !== 'fnf' && r.colW.every(w => Math.abs(w - size) < 0.5) && Math.abs(r.colX[1] - size) < 0.5 && document.querySelectorAll('.fnf-hitbox i').length === 4; }));
-  check('phone: columns are wide finger targets (each a fifth of the screen\'s height)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.H * 0.19); }));
+  check('phone: notes fall at a speed set by the screen\'s height alone (the same every play, whatever the lane width)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer, a = r.scrollLength;
+    AshtonkMania.Settings.set('gameplay.laneWidth', 0.55); r.resize(true); const b = r.scrollLength; AshtonkMania.Settings.set('gameplay.laneWidth', 1); r.resize(true);
+    return Math.abs(a - b) < 0.01 && Math.abs(a - 402 * r.H / 480) < 0.01; }));
+  check('phone: columns are wide finger targets (the stage spans the screen\'s width)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.W * 0.22); }));
   check('phone: no blue tap highlight (feels like an app)', await mp.evaluate(() => document.documentElement.classList.contains('touch') && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(document.documentElement).webkitTapHighlightColor)));
   const cdp = await mctx.newCDPSession(mp), held = [];
   for (let i = 0; i < 4; i++) {
-    const x = (i + 0.5) / 4 * 844; // (FNF hitboxes: the screen in four strips)
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: 300, id: i }] });
+    const x = (i + 0.5) / 4 * 390; // (FNF hitboxes: the screen in four strips)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: 600, id: i }] });
     await mp.waitForTimeout(40);
     held.push(await mp.evaluate(() => AshtonkMania.GameplayScreen.s.held.map(Number).join('')));
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -1069,10 +1073,10 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
   check('phone: the whole app fits the visible screen (its bottom isn\'t cut off)', await mp.evaluate(() => { const r = document.querySelector('#app').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && Math.abs(r.right - innerWidth) < 2; }));
-  check('phone upright: no rotate prompt — the main menu stacks its buttons under the logo and they fit the screen', await mp.evaluate(() => {
-    const bs = [...document.querySelectorAll('.lz-btn.exp')]; return !document.querySelector('.mob-rotate') && bs.length > 0 && bs.every(b => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; }); }));
+  await mp.waitForTimeout(700);
+  check('phone upright in the menus: asked to turn sideways (the game is used sideways, as lazer\'s app)', await mp.evaluate(() => !document.querySelector('.rot-prompt').hidden && /sideways/.test(document.querySelector('.rot-prompt').textContent)));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
-  const land = await mp.evaluate(() => ({ rot: !!document.querySelector('.mob-rotate'), z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
+  const land = await mp.evaluate(() => ({ rot: !document.querySelector('.rot-prompt').hidden, z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
   check('phone sideways: the full desktop interface (1366×768), scaled to the screen as on lazer for Android (no rotate prompt)', !land.rot && land.z > 1.3 && land.w >= 1366, JSON.stringify(land));
   await mctx.close();
 }

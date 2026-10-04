@@ -2,7 +2,7 @@
 <html lang="en" data-theme="lazer">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#18171c">
 <title>Ashtonk!mania</title>
@@ -86,7 +86,8 @@ svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentCo
 svg.i.fill { fill: currentColor; stroke: none; }
 
 /* (inside the phone's safe area: not under a notch, a rounded corner or the gesture bar) */
-#app { position: fixed; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); overflow: hidden; }
+/* edge to edge, as lazer draws on phones: no black bars kept clear for a camera cutout */
+#app { position: fixed; inset: 0; overflow: hidden; }
 
 /* ── background layer */
 #bg-layer { position: absolute; inset: -40px; z-index: 0; transition: transform var(--t-slow) var(--ease-out); }
@@ -1246,8 +1247,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* (sized from the window's real inner size, --vw / --vh: 100vh on a phone is the height with the address bar hidden,
    which cut off the bottom of the screen while the bar shows) */
 #app.zoomfix { right: auto; bottom: auto; transform: scale(var(--zoom-inv)); transform-origin: 0 0;
-  width: calc(var(--vw) * 100 - (env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)) * var(--zoom));
-  height: calc(var(--vh) * 100 - (env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) * var(--zoom)); }
+  width: calc(var(--vw) * 100); height: calc(var(--vh) * 100); }
 
 /* ── multiplayer (lobby, room, in-game board) */
 .mp { padding-top: var(--toolbar-h); }
@@ -3660,15 +3660,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .pd-btn .pd-fill { --p: 0; position: absolute; top: 0; bottom: 0; left: 10%; width: calc(var(--p) * 80%); z-index: -1; transform: skewX(-11.31deg); background: rgba(255, 255, 255, .3); mix-blend-mode: plus-lighter; pointer-events: none; transition: left calc(400ms * var(--anim)) var(--ease-out); }
 .pd-btn.danger:hover .pd-fill, .pd-btn.danger:focus-visible .pd-fill { left: 5%; width: calc(var(--p) * 90%); }
 
-/* no upright gameplay: a phone or tablet held upright is asked to turn sideways (the song waits, paused) */
-.gp-rotate { display: none; }
-@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-  .gp-rotate { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: rgba(10, 8, 14, .94); color: #fff; text-align: center; }
-  .gp-rotate b { font-size: 1.3rem; font-weight: 700; }
-  .gp-rotate span { color: var(--muted); font-size: .95rem; }
-  .gp-rotate-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: gpRotate 2s var(--ease-out) infinite; }
-}
-@keyframes gpRotate { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+/* phones, as lazer's app: the game sideways, gameplay upright; held the other way, a prompt covers the screen */
+.rot-prompt { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: #0d0b12; color: #fff; text-align: center; font-family: Torus, Outfit, system-ui, sans-serif; }
+.rot-prompt[hidden] { display: none; }
+.rot-prompt b { font-size: 1.3rem; font-weight: 700; }
+.rot-prompt span { color: rgba(255, 255, 255, .6); font-size: .95rem; }
+.rot-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: rotSide 2s cubic-bezier(.22, 1, .36, 1) infinite; }
+.rot-prompt.to-up .rot-ph { animation-name: rotUp; }
+@keyframes rotSide { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@keyframes rotUp { 0%, 20% { transform: rotate(-90deg); } 50%, 80% { transform: rotate(0); } 100% { transform: rotate(-90deg); } }
 
 /* lazer's PlayerLoaderDisclaimer: top left of the loader, 270 + padding wide; a 7px Orange1 bar, a 17px bold title
    and 16px text, on Background4 at 10% */
@@ -3826,6 +3826,10 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .tier-radiant { background-image: linear-gradient(#97dcff, #ed82ff); } .tier-lustrous { background-image: linear-gradient(#ffe600, #ed82ff); }
 .lb-loading { justify-content: center; padding-top: 30px; }
 .lb-sep { text-align: center; color: var(--muted); line-height: 1; padding: 2px 0 4px; }
+
+/* phones: the keyboard opens over the game; the screen slides up just enough to keep the box you're typing in above it */
+html.touch body { transform: translateY(calc(-1 * var(--kb-pan, 0px))); transition: transform 220ms cubic-bezier(.22, 1, .36, 1); }
+html.touch:not(.kb-open) body { transform: none; }
 
 </style>
 </head>
@@ -7789,7 +7793,9 @@ class ManiaRenderer {
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
   // (scaled with the columns when a phone resizes them: notes cross the same number of note widths per second as in
   // the skin's own layout, so a tall upright screen doesn't make them feel faster)
-  get scrollLength() { return 402 * (this.s || this.H / 480 || 1) * (this.colScale || 1); }
+  // On phones (the touch layout) it's the screen's height alone: the columns' width there changes with the screen's
+  // shape, the lane width setting and the keyboard, and a note has to take the same time to fall every play.
+  get scrollLength() { return 402 * (this.s || this.H / 480 || 1) * (this.fnf ? 1 : this.colScale || 1); }
   resize(force = false) {
     this._hostRect = null;
     const c = this.canvas;
@@ -10514,7 +10520,12 @@ const Zoom = {
    *  does), times the "UI scaling" setting — so it looks the same at any resolution and any browser zoom, and UI
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
-    const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
+    // (a phone's keyboard opening doesn't shrink the game: browsers that still resize the page for it keep the height
+    // from before, and Keyboard pans the screen up instead — see 19d-mobile)
+    const typing = document.documentElement.classList.contains('touch') && document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    const ih = typing && innerWidth === this._iw && innerHeight < (this._ih || 0) ? this._ih : innerHeight;
+    if (!typing || innerWidth !== this._iw) { this._iw = innerWidth; this._ih = innerHeight; }
+    const bz = this.detect(), W = innerWidth * bz, H = ih * bz;
     // a small window on a computer (or a browser zoom we couldn't read, such as a page opened at 300%) keeps scaling
     // down with the window, as lazer's does, instead of laying the full-size interface into a tiny space; phones and
     // tablets (no mouse) keep their own responsive layout
@@ -10529,7 +10540,7 @@ const Zoom = {
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
     // (vw / vh inside the app mean the app's layout size, not the window's)
-    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (innerHeight * z / 100).toFixed(3) + 'px');
+    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (ih * z / 100).toFixed(3) + 'px');
     if (z === this.z) return;
     this.z = z;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);
@@ -12625,6 +12636,8 @@ const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
     PlayScreen.enter();
+    // (a search box still focused would keep the phone's keyboard up over the song)
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
   },
@@ -12640,10 +12653,10 @@ const Game = {
   },
 };
 
-/** Gameplay fills the screen: fullscreen while playing (the setting, on by default), and on phones and tablets
- *  turned sideways and held there — there's no upright gameplay. Leave fullscreen mid-song (the browser's bar swiped
- *  back, Esc) and a tap or click on the game puts it back. Phones that can't lock the screen's turn (iPhones) are
- *  asked to rotate, and the song waits paused until they do. */
+/** Gameplay fills the screen: fullscreen while playing (the setting, on by default). On phones and tablets, as in
+ *  lazer's mobile app, the game is used sideways and only gameplay is upright: the screen turns upright for the song
+ *  and back sideways after (where the browser lets it lock the turn; otherwise Orientation asks — see 19d-mobile).
+ *  Leave fullscreen mid-song (the browser's bar swiped back, Esc) and a tap or click on the game puts it back. */
 const PlayScreen = {
   want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
   enter() {
@@ -12651,25 +12664,11 @@ const PlayScreen = {
     if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => this.lock(), () => {});
     else this.lock();
   },
-  lock() {
-    if (typeof Mobile === 'undefined' || !Mobile.touch) return;
-    // (as the app does: the screen turns sideways for the song and back upright after, if that's how it was held)
-    if (this.wasUpright == null) this.wasUpright = Mobile.portrait;
-    try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
-  },
+  lock() { clearTimeout(this._unT); if (typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
   unlock() {
     // (a retry comes straight back to gameplay: don't turn the screen in between)
     clearTimeout(this._unT);
-    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay') this.release(); }, 500);
-  },
-  release() {
-    const up = this.wasUpright; this.wasUpright = null;
-    try {
-      const o = screen.orientation;
-      if (!o) return;
-      if (up && o.lock) o.lock('portrait').catch(() => { o.unlock && o.unlock(); });
-      else o.unlock && o.unlock();
-    } catch {}
+    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock('landscape'); }, 500);
   },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {
@@ -12822,12 +12821,10 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    // (phones held upright: turn sideways to play — the song waits paused meanwhile)
-    this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
-    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
+    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
@@ -12988,7 +12985,7 @@ const GameplayScreen = {
     await this.loaderFinish(tok);
     if (this._tok !== tok || this.s !== s) return;
     if (mpWait) { await mpWait; if (this.s !== s) return; }
-    else { await this.waitLandscape(); if (this._tok !== tok || this.s !== s) return; }
+    else { await this.waitUpright(); if (this._tok !== tok || this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
@@ -13924,15 +13921,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
-  waitLandscape() {
-    const upright = () => typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait;
-    if (!upright()) return Promise.resolve();
-    return new Promise(res => { const f = () => { if (!upright() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
+  /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
+  waitUpright() {
+    const sideways = () => typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait;
+    if (!sideways()) return Promise.resolve();
+    return new Promise(res => { const f = () => { if (!sideways() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
   },
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && !s.mp) return; // (turn sideways first)
+    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && !s.mp) return; // (turn upright first)
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
@@ -19880,6 +19878,7 @@ const Mobile = {
   /** Right after loading (before the first-run setup): recommend the app. */
   early() {
     if (!this.touch) return;
+    Orientation.init();
     if (!App.installed) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
@@ -19933,6 +19932,63 @@ if (Mobile.touch) {
   document.documentElement.classList.add('touch');
   document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
 }
+
+/** The phone's keyboard, as an app handles it: it opens over the game (nothing is squeezed or re-laid out — the
+ *  viewport's interactive-widget=overlays-content), and the whole screen slides up just enough to keep the box you're
+ *  typing in visible above it, sliding back down when it closes. */
+const Keyboard = {
+  pan: 0,
+  init() {
+    const vv = window.visualViewport;
+    if (!vv || !Mobile.touch) return;
+    const upd = () => {
+      const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !/^(checkbox|radio|range|button|file|color)$/.test(a.type);
+      const covered = innerHeight - (vv.height + vv.offsetTop); // (how much of the page the keyboard is over)
+      let pan = 0;
+      if (typing && covered > 80) {
+        const r = a.getBoundingClientRect(), limit = vv.offsetTop + vv.height - 10;
+        pan = Math.max(0, Math.min(covered, this.pan + r.bottom - limit));
+      }
+      if (Math.abs(pan - this.pan) < 1) return;
+      this.pan = pan;
+      document.documentElement.style.setProperty('--kb-pan', `${Math.round(pan)}px`);
+      document.documentElement.classList.toggle('kb-open', pan > 0);
+    };
+    vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd);
+    document.addEventListener('focusin', () => setTimeout(upd, 60));
+    document.addEventListener('focusout', () => setTimeout(upd, 60));
+    // (the browser mustn't scroll the page itself to the box: it's panned here instead)
+    window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
+  },
+};
+if (Mobile.touch) Keyboard.init();
+
+/** Which way the phone is held, as lazer's mobile app: the game is used sideways, and gameplay alone is upright.
+ *  The screen is locked that way where the browser allows it (the installed app, or fullscreen); otherwise a prompt
+ *  covers the screen until the phone is turned (gameplay waits paused meanwhile). */
+const Orientation = {
+  el: null,
+  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'portrait' : 'landscape'; },
+  lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
+  init() {
+    if (this.el || !Mobile.touch) return;
+    this.el = h('div.rot-prompt', { hidden: true, role: 'alert' }, h('div.rot-ph'), h('b'), h('span'));
+    document.body.append(this.el);
+    window.addEventListener('resize', () => this.update());
+    document.addEventListener('fullscreenchange', () => this.lock(this.wanted()));
+    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.update()); };
+    hook();
+    this.lock('landscape');
+  },
+  update() {
+    if (!this.el) return;
+    const want = this.wanted(), wrong = want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
+    this.el.hidden = !wrong;
+    this.el.classList.toggle('to-up', want === 'portrait');
+    this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
+    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The game is used sideways — only gameplay is upright.';
+  },
+};
 
 /* ===== 19e-mp-results.js ===== */
 /* After a multiplayer song: osu!lazer's MultiplayerResultsScreen — every player's score as lazer's contracted score

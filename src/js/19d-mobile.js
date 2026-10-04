@@ -12,6 +12,7 @@ const Mobile = {
   /** Right after loading (before the first-run setup): recommend the app. */
   early() {
     if (!this.touch) return;
+    Orientation.init();
     if (!App.installed) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
@@ -65,3 +66,60 @@ if (Mobile.touch) {
   document.documentElement.classList.add('touch');
   document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
 }
+
+/** The phone's keyboard, as an app handles it: it opens over the game (nothing is squeezed or re-laid out — the
+ *  viewport's interactive-widget=overlays-content), and the whole screen slides up just enough to keep the box you're
+ *  typing in visible above it, sliding back down when it closes. */
+const Keyboard = {
+  pan: 0,
+  init() {
+    const vv = window.visualViewport;
+    if (!vv || !Mobile.touch) return;
+    const upd = () => {
+      const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !/^(checkbox|radio|range|button|file|color)$/.test(a.type);
+      const covered = innerHeight - (vv.height + vv.offsetTop); // (how much of the page the keyboard is over)
+      let pan = 0;
+      if (typing && covered > 80) {
+        const r = a.getBoundingClientRect(), limit = vv.offsetTop + vv.height - 10;
+        pan = Math.max(0, Math.min(covered, this.pan + r.bottom - limit));
+      }
+      if (Math.abs(pan - this.pan) < 1) return;
+      this.pan = pan;
+      document.documentElement.style.setProperty('--kb-pan', `${Math.round(pan)}px`);
+      document.documentElement.classList.toggle('kb-open', pan > 0);
+    };
+    vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd);
+    document.addEventListener('focusin', () => setTimeout(upd, 60));
+    document.addEventListener('focusout', () => setTimeout(upd, 60));
+    // (the browser mustn't scroll the page itself to the box: it's panned here instead)
+    window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
+  },
+};
+if (Mobile.touch) Keyboard.init();
+
+/** Which way the phone is held, as lazer's mobile app: the game is used sideways, and gameplay alone is upright.
+ *  The screen is locked that way where the browser allows it (the installed app, or fullscreen); otherwise a prompt
+ *  covers the screen until the phone is turned (gameplay waits paused meanwhile). */
+const Orientation = {
+  el: null,
+  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'portrait' : 'landscape'; },
+  lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
+  init() {
+    if (this.el || !Mobile.touch) return;
+    this.el = h('div.rot-prompt', { hidden: true, role: 'alert' }, h('div.rot-ph'), h('b'), h('span'));
+    document.body.append(this.el);
+    window.addEventListener('resize', () => this.update());
+    document.addEventListener('fullscreenchange', () => this.lock(this.wanted()));
+    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.update()); };
+    hook();
+    this.lock('landscape');
+  },
+  update() {
+    if (!this.el) return;
+    const want = this.wanted(), wrong = want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
+    this.el.hidden = !wrong;
+    this.el.classList.toggle('to-up', want === 'portrait');
+    this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
+    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The game is used sideways — only gameplay is upright.';
+  },
+};

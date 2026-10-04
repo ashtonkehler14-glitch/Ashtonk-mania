@@ -8,6 +8,8 @@ const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
     PlayScreen.enter();
+    // (a search box still focused would keep the phone's keyboard up over the song)
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
   },
@@ -23,10 +25,10 @@ const Game = {
   },
 };
 
-/** Gameplay fills the screen: fullscreen while playing (the setting, on by default), and on phones and tablets
- *  turned sideways and held there — there's no upright gameplay. Leave fullscreen mid-song (the browser's bar swiped
- *  back, Esc) and a tap or click on the game puts it back. Phones that can't lock the screen's turn (iPhones) are
- *  asked to rotate, and the song waits paused until they do. */
+/** Gameplay fills the screen: fullscreen while playing (the setting, on by default). On phones and tablets, as in
+ *  lazer's mobile app, the game is used sideways and only gameplay is upright: the screen turns upright for the song
+ *  and back sideways after (where the browser lets it lock the turn; otherwise Orientation asks — see 19d-mobile).
+ *  Leave fullscreen mid-song (the browser's bar swiped back, Esc) and a tap or click on the game puts it back. */
 const PlayScreen = {
   want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
   enter() {
@@ -34,25 +36,11 @@ const PlayScreen = {
     if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => this.lock(), () => {});
     else this.lock();
   },
-  lock() {
-    if (typeof Mobile === 'undefined' || !Mobile.touch) return;
-    // (as the app does: the screen turns sideways for the song and back upright after, if that's how it was held)
-    if (this.wasUpright == null) this.wasUpright = Mobile.portrait;
-    try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
-  },
+  lock() { clearTimeout(this._unT); if (typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
   unlock() {
     // (a retry comes straight back to gameplay: don't turn the screen in between)
     clearTimeout(this._unT);
-    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay') this.release(); }, 500);
-  },
-  release() {
-    const up = this.wasUpright; this.wasUpright = null;
-    try {
-      const o = screen.orientation;
-      if (!o) return;
-      if (up && o.lock) o.lock('portrait').catch(() => { o.unlock && o.unlock(); });
-      else o.unlock && o.unlock();
-    } catch {}
+    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock('landscape'); }, 500);
   },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {
@@ -205,12 +193,10 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    // (phones held upright: turn sideways to play — the song waits paused meanwhile)
-    this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
-    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
+    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
@@ -371,7 +357,7 @@ const GameplayScreen = {
     await this.loaderFinish(tok);
     if (this._tok !== tok || this.s !== s) return;
     if (mpWait) { await mpWait; if (this.s !== s) return; }
-    else { await this.waitLandscape(); if (this._tok !== tok || this.s !== s) return; }
+    else { await this.waitUpright(); if (this._tok !== tok || this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
@@ -1307,15 +1293,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
-  waitLandscape() {
-    const upright = () => typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait;
-    if (!upright()) return Promise.resolve();
-    return new Promise(res => { const f = () => { if (!upright() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
+  /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
+  waitUpright() {
+    const sideways = () => typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait;
+    if (!sideways()) return Promise.resolve();
+    return new Promise(res => { const f = () => { if (!sideways() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
   },
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && !s.mp) return; // (turn sideways first)
+    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && !s.mp) return; // (turn upright first)
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());

@@ -1090,7 +1090,12 @@ const Zoom = {
    *  does), times the "UI scaling" setting — so it looks the same at any resolution and any browser zoom, and UI
    *  scaling is the one way to make it bigger or smaller. Narrow screens (phones) keep their own responsive layout. */
   update() {
-    const bz = this.detect(), W = innerWidth * bz, H = innerHeight * bz;
+    // (a phone's keyboard opening doesn't shrink the game: browsers that still resize the page for it keep the height
+    // from before, and Keyboard pans the screen up instead — see 19d-mobile)
+    const typing = document.documentElement.classList.contains('touch') && document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    const ih = typing && innerWidth === this._iw && innerHeight < (this._ih || 0) ? this._ih : innerHeight;
+    if (!typing || innerWidth !== this._iw) { this._iw = innerWidth; this._ih = innerHeight; }
+    const bz = this.detect(), W = innerWidth * bz, H = ih * bz;
     // a small window on a computer (or a browser zoom we couldn't read, such as a page opened at 300%) keeps scaling
     // down with the window, as lazer's does, instead of laying the full-size interface into a tiny space; phones and
     // tablets (no mouse) keep their own responsive layout
@@ -1105,7 +1110,7 @@ const Zoom = {
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
     // (vw / vh inside the app mean the app's layout size, not the window's)
-    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (innerHeight * z / 100).toFixed(3) + 'px');
+    r.setProperty('--vw', (innerWidth * z / 100).toFixed(3) + 'px'); r.setProperty('--vh', (ih * z / 100).toFixed(3) + 'px');
     if (z === this.z) return;
     this.z = z;
     r.setProperty('--zoom', z); r.setProperty('--zoom-inv', 1 / z);

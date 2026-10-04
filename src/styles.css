@@ -69,7 +69,8 @@ svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentCo
 svg.i.fill { fill: currentColor; stroke: none; }
 
 /* (inside the phone's safe area: not under a notch, a rounded corner or the gesture bar) */
-#app { position: fixed; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); overflow: hidden; }
+/* edge to edge, as lazer draws on phones: no black bars kept clear for a camera cutout */
+#app { position: fixed; inset: 0; overflow: hidden; }
 
 /* ── background layer */
 #bg-layer { position: absolute; inset: -40px; z-index: 0; transition: transform var(--t-slow) var(--ease-out); }
@@ -1229,8 +1230,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* (sized from the window's real inner size, --vw / --vh: 100vh on a phone is the height with the address bar hidden,
    which cut off the bottom of the screen while the bar shows) */
 #app.zoomfix { right: auto; bottom: auto; transform: scale(var(--zoom-inv)); transform-origin: 0 0;
-  width: calc(var(--vw) * 100 - (env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)) * var(--zoom));
-  height: calc(var(--vh) * 100 - (env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) * var(--zoom)); }
+  width: calc(var(--vw) * 100); height: calc(var(--vh) * 100); }
 
 /* ── multiplayer (lobby, room, in-game board) */
 .mp { padding-top: var(--toolbar-h); }
@@ -3643,15 +3643,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .pd-btn .pd-fill { --p: 0; position: absolute; top: 0; bottom: 0; left: 10%; width: calc(var(--p) * 80%); z-index: -1; transform: skewX(-11.31deg); background: rgba(255, 255, 255, .3); mix-blend-mode: plus-lighter; pointer-events: none; transition: left calc(400ms * var(--anim)) var(--ease-out); }
 .pd-btn.danger:hover .pd-fill, .pd-btn.danger:focus-visible .pd-fill { left: 5%; width: calc(var(--p) * 90%); }
 
-/* no upright gameplay: a phone or tablet held upright is asked to turn sideways (the song waits, paused) */
-.gp-rotate { display: none; }
-@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-  .gp-rotate { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: rgba(10, 8, 14, .94); color: #fff; text-align: center; }
-  .gp-rotate b { font-size: 1.3rem; font-weight: 700; }
-  .gp-rotate span { color: var(--muted); font-size: .95rem; }
-  .gp-rotate-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: gpRotate 2s var(--ease-out) infinite; }
-}
-@keyframes gpRotate { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+/* phones, as lazer's app: the game sideways, gameplay upright; held the other way, a prompt covers the screen */
+.rot-prompt { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: #0d0b12; color: #fff; text-align: center; font-family: Torus, Outfit, system-ui, sans-serif; }
+.rot-prompt[hidden] { display: none; }
+.rot-prompt b { font-size: 1.3rem; font-weight: 700; }
+.rot-prompt span { color: rgba(255, 255, 255, .6); font-size: .95rem; }
+.rot-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: rotSide 2s cubic-bezier(.22, 1, .36, 1) infinite; }
+.rot-prompt.to-up .rot-ph { animation-name: rotUp; }
+@keyframes rotSide { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@keyframes rotUp { 0%, 20% { transform: rotate(-90deg); } 50%, 80% { transform: rotate(0); } 100% { transform: rotate(-90deg); } }
 
 /* lazer's PlayerLoaderDisclaimer: top left of the loader, 270 + padding wide; a 7px Orange1 bar, a 17px bold title
    and 16px text, on Background4 at 10% */
@@ -3809,3 +3809,7 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .tier-radiant { background-image: linear-gradient(#97dcff, #ed82ff); } .tier-lustrous { background-image: linear-gradient(#ffe600, #ed82ff); }
 .lb-loading { justify-content: center; padding-top: 30px; }
 .lb-sep { text-align: center; color: var(--muted); line-height: 1; padding: 2px 0 4px; }
+
+/* phones: the keyboard opens over the game; the screen slides up just enough to keep the box you're typing in above it */
+html.touch body { transform: translateY(calc(-1 * var(--kb-pan, 0px))); transition: transform 220ms cubic-bezier(.22, 1, .36, 1); }
+html.touch:not(.kb-open) body { transform: none; }
