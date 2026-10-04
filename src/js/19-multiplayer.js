@@ -756,22 +756,24 @@ const MultiplayerScreen = {
 
     // players
     const slot = p => {
-      if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', r.players.length < 2 ? 'Waiting for an opponent…' : `${st.size - r.players.length} open slot${st.size - r.players.length > 1 ? 's' : ''}`), r.players.length < 2 ? h('span.spinner') : null);
+      // lazer's ParticipantPanel: the host's crown beside a 40px panel — the avatar, the name (bold), the difficulty
+      // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
+      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
-      const state = !r.map ? '' : p.ready ? 'Ready' : 'Not ready'; // (a beatmap still downloading isn't shown: it installs in the background)
-      return h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
-        isMe ? ProfileManager.avatarEl(44) : Presence.avatarEl(p, 44),
-        h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
-          r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
-            ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
+      const state = p.playing ? 'playing' : r.map && p.ready ? 'ready' : ''; // (a beatmap still downloading isn't shown: it installs in the background)
+      return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
+        h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
+        h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
+        r.map ? h('span.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null,
         h('span.grow'),
+        (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
         !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid && Friends.has(p.pid) ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
           UISounds.click();
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-state${p.ready ? '.on' : ''}`, state) : null);
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'ready' ? 'check' : 'play')), state) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {

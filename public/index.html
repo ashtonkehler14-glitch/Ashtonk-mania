@@ -1284,13 +1284,22 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-warn { color: #ffcc22; font-size: .85rem; }
 .mp-players, .mp-chat { border-radius: 10px; background: var(--panel-solid); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .mp-players h3, .mp-chat h3 { margin: 0 0 2px; font-size: .9rem; font-weight: 600; color: var(--text-2); }
-.mp-player { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
-.mp-player.ready { box-shadow: inset 3px 0 0 #88b300; }
-.mp-player.empty { color: var(--muted); }
-.mp-player .avatar { border-radius: 50%; box-shadow: none; }
-.mp-avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .06); }
-.mp-pname { font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.mp-host { font-size: .65rem; padding: 2px 6px; border-radius: 4px; background: var(--gold); color: #000; font-weight: 700; letter-spacing: .05em; }
+.mp-slot { display: flex; align-items: center; }
+.mp-crown { flex: none; width: 18px; display: grid; place-items: center; color: #f7e65d; }
+.mp-crown .i { width: 14px; height: 14px; fill: currentColor; }
+.mp-player { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 40px; padding-right: 10px; border-radius: 5px; overflow: hidden; background: linear-gradient(90deg, transparent 25%, rgba(255, 255, 255, .07)), #33413c; }
+.mp-player.empty { justify-content: center; padding: 0 10px; color: rgba(255, 255, 255, .6); font-size: 14px; }
+.mp-pav { flex: none; width: 40px; height: 40px; }
+.mp-pav > * { width: 40px !important; height: 40px !important; border-radius: 0 !important; box-shadow: none !important; }
+.mp-pname { flex: none; max-width: 40%; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-you { font-size: 14px; font-weight: 400; color: rgba(255, 255, 255, .6); }
+.mp-pdiff { min-width: 0; font-size: 13px; color: rgba(255, 255, 255, .65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-pmods { display: flex; } .mp-pmods .mb-t { display: none; } .mp-pmods .mod-badge + .mod-badge { margin-left: -8px; }
+.mp-pstate { flex: none; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ddffff; }
+.mp-pstate i { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #33413c; }
+.mp-pstate i .i { width: 11px; height: 11px; stroke-width: 3.4; }
+.mp-pstate.ready i { background: #aadd00; }
+.mp-pstate.playing i { background: #8fd4ff; }
 .mp-state { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: var(--text-2); }
 .mp-state.on { background: #88b300; color: #fff; }
 .mp-state.warn { background: rgba(255, 204, 34, .15); color: #ffcc22; }
@@ -2056,8 +2065,8 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-rules { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: 18px; }
 .mp-rule { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .76rem; font-weight: 600; color: var(--text-2); }
 .mp-rule .i { width: 13px; height: 13px; }
-.mp-player.red { box-shadow: inset 3px 0 0 var(--team-red-l); }
-.mp-player.blue { box-shadow: inset 3px 0 0 var(--team-blue-l); }
+.mp-player.red { box-shadow: inset -3px 0 0 var(--team-red-l); }
+.mp-player.blue { box-shadow: inset -3px 0 0 var(--team-blue-l); }
 .mp-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mp-team { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; }
 .mp-team.red { background: linear-gradient(180deg, rgba(170, 20, 20, .22), rgba(170, 20, 20, .06)); }
@@ -17640,22 +17649,24 @@ const MultiplayerScreen = {
 
     // players
     const slot = p => {
-      if (!p) return h('div.mp-player.empty', h('div.mp-avatar', icon('user')), h('div.mp-pname', r.players.length < 2 ? 'Waiting for an opponent…' : `${st.size - r.players.length} open slot${st.size - r.players.length > 1 ? 's' : ''}`), r.players.length < 2 ? h('span.spinner') : null);
+      // lazer's ParticipantPanel: the host's crown beside a 40px panel — the avatar, the name (bold), the difficulty
+      // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
+      if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
-      const state = !r.map ? '' : p.ready ? 'Ready' : 'Not ready'; // (a beatmap still downloading isn't shown: it installs in the background)
-      return h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
-        isMe ? ProfileManager.avatarEl(44) : Presence.avatarEl(p, 44),
-        h('div', h('div.mp-pname', p.name, isMe ? h('span.muted', ' (you)') : null, p.id === r.host ? h('span.mp-host', 'HOST') : null),
-          r.map ? h('div.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`,
-            ...(p.mods || []).map(m => ModSystem.badge(m, true))) : null),
+      const state = p.playing ? 'playing' : r.map && p.ready ? 'ready' : ''; // (a beatmap still downloading isn't shown: it installs in the background)
+      return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
+        h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
+        h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
+        r.map ? h('span.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null,
         h('span.grow'),
+        (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
         !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid && Friends.has(p.pid) ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
           UISounds.click();
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-state${p.ready ? '.on' : ''}`, state) : null);
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'ready' ? 'check' : 'play')), state) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
