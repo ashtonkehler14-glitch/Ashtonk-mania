@@ -71,7 +71,7 @@ const OnlineBeatmaps = {
       status: /^-?\d+$/.test(String(st)) ? (names[st] || 'pending') : String(st || 'pending'),
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
-      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
+      rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, submittedDate: raw.submitted_date ?? raw.SubmittedDate ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
       genreId: raw.genre_id ?? raw.genre?.id ?? null, languageId: raw.language_id ?? raw.language?.id ?? null,
     };
   },
@@ -182,7 +182,12 @@ const OnlineBeatmaps = {
     this._importQ = run.catch(() => {});
     const report = await run;
     if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
-    for (const s of report.sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = set.id; await DB.put('sets', { ...s, maps: undefined }); }
+    // (the online id and status, for the status pill lazer shows on a set: RANKED, LOVED, …)
+    for (const s of report.sets) {
+      if (!s.onlineId || s.onlineId < 0) s.onlineId = set.id;
+      Object.assign(s, { status: set.status || s.status, genreId: set.genreId ?? s.genreId, languageId: set.languageId ?? s.languageId, rankedDate: set.rankedDate || s.rankedDate, submittedDate: set.submittedDate || s.submittedDate });
+      await DB.put('sets', { ...s, maps: undefined });
+    }
     if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
     Bus.emit('library:changed');
     return report;

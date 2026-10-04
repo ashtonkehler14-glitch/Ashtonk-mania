@@ -6,6 +6,16 @@ const SORTS = [
   ['bpm', 'BPM'], ['length', 'Length'], ['added', 'Date added'], ['lastPlayed', 'Last played'], ['playCount', 'Play count'],
   ['score', 'Best score'], ['accuracy', 'Best accuracy'],
 ];
+/** osu!lazer's BeatmapSetOnlineStatusPill: the set's online status in its colour (OsuColour.ForBeatmapSetOnlineStatus),
+ *  bold black capitals (grey-green on the graveyard's black); a set with no known status is "UNKNOWN" (rosy brown). */
+const ONLINE_STATUS = {
+  ranked: ['RANKED', '#b3ff66'], approved: ['APPROVED', '#b3ff66'], qualified: ['QUALIFIED', '#66ccff'], loved: ['LOVED', '#ff66ab'],
+  pending: ['PENDING', '#ffd966'], wip: ['WIP', '#ff9966'], graveyard: ['GRAVEYARD', '#000000'], modified: ['MODIFIED', '#ff4500'], none: ['UNKNOWN', '#bc8f8f'],
+};
+function statusPill(status, cls = '') {
+  const [label, bg] = ONLINE_STATUS[String(status || 'none').toLowerCase()] || ONLINE_STATUS.none;
+  return h(`span.status-pill${cls}`, { style: { background: bg, color: status === 'graveyard' ? '#4d7365' : '#000' } }, label);
+}
 const STATUS_FILTERS = [
   ['all', 'All'], ['favorites', 'Favourites'], ['recent', 'Recent'], ['played', 'Played'], ['unplayed', 'Unplayed'],
   ['passed', 'Passed'], ['failed', 'Failed'], ['pb', 'Has PB'], ['mods', 'Passed with current mods'],
@@ -387,7 +397,7 @@ const SongSelect = {
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
-        h('div.sp-dots', ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
+        h('div.sp-dots', statusPill(set.status, '.sm'), ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
           maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
@@ -613,7 +623,7 @@ const SongSelect = {
     const sameSet = this._infoSet === m.setId, sameMap = this._infoMap === m.id;
     this._infoSet = m.setId; this._infoMap = m.id;
     const wedge = h(`div.wedge${sameSet ? '.still' : ''}`, h('div.w-body',
-      h('div.w-top', h('span.keys-tag', `${m.keys}K`), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
+      h('div.w-top', statusPill((BeatmapManager.setById.get(m.setId) || {}).status), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
       h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('play', 'fill'), fmtInt(plays)), favBtn, collBtn,
         st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm))));
@@ -626,29 +636,68 @@ const SongSelect = {
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
-    const lb = h('div.lb', h('div.lb-head', h('span.lb-tab.on', 'Ranking'), h('span.lb-scope', 'Local'), h('span.grow'), h('span.muted', plural(plays, 'play'))));
-    const scores = ScoreManager.forMap(m.hash).slice(0, 25);
-    // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
-    const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
-    this._lbKey = lbKey;
-    const list = h(`div.lb-list${same ? '.still' : ''}`);
-    const best = ScoreManager.best(m.hash);
-    if (!scores.length) list.append(h('div.lb-empty', 'No scores yet'));
-    const who = ProfileManager.profile.name;
-    scores.forEach((s, i) => {
-      const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
-        h('span.rank', '#' + (i + 1)), rankPill(s.grade),
-        // (lazer's leaderboard scores carry the player's avatar; another player's local score gets their initial)
-        !s.player || s.player === who ? ProfileManager.avatarEl(32) : h('div.avatar.avatar-mono', { style: { width: '32px', height: '32px', fontSize: '14px' } }, s.player.slice(0, 1).toUpperCase()),
-        h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
-        h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
-        h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
-      list.append(row);
-    });
-    lb.append(list);
+    // lazer's BeatmapDetailsArea: a "Details | Ranking" WedgeSelector (text tabs, a 2px strip under the current one);
+    // Ranking has the "Selected Mods" toggle and the Sort and Scope dropdowns on the right (scores here are all local)
+    const tab = Settings.get('songselect.detailTab') === 'details' ? 'details' : 'ranking';
+    const tabBtn = (id, label) => h(`button.lb-tab${tab === id ? '.on' : ''}`, { onclick: () => { if (tab === id) return; UISounds.click(); Settings.set('songselect.detailTab', id); this._lbKey = null; this.updateInfo(); } }, label);
+    const lbSel = (label, opts, cur, fn) => {
+      const el = h('select.select', { 'aria-label': label, title: label }, ...opts.map(([v, l, dis]) => h('option', { value: v, selected: cur === v, disabled: !!dis }, l)));
+      el.addEventListener('change', () => { UISounds.click(); fn(el.value); });
+      return h('label.ss-sel', h('span', label), el);
+    };
+    const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
+    const head = h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
+      tab === 'ranking' ? h('div.lb-ctl',
+        h(`button.lb-modsel${modsOn ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('songselect.lbMods', !modsOn); this._lbKey = null; this.updateInfo(); } }, 'Selected Mods'),
+        lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, v => { Settings.set('songselect.lbSort', v); this._lbKey = null; this.updateInfo(); }),
+        lbSel('Scope', [['local', 'Local'], ['global', 'Global', 1], ['country', 'Country', 1], ['friends', 'Friends', 1], ['team', 'Team', 1]], 'local', () => {})) : null);
+    const lb = h(`div.lb.lb-${tab}`, head);
+    if (tab === 'details') lb.append(this.metadataWedge(m, set));
+    else {
+      const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
+      const misses = s => (s.counts || [])[5] || 0;
+      const order = { score: (a, b) => ScoreManager.value(b) - ScoreManager.value(a), accuracy: (a, b) => b.accuracy - a.accuracy || ScoreManager.value(b) - ScoreManager.value(a),
+        maxCombo: (a, b) => b.maxCombo - a.maxCombo || ScoreManager.value(b) - ScoreManager.value(a), misses: (a, b) => misses(a) - misses(b) || ScoreManager.value(b) - ScoreManager.value(a), date: (a, b) => b.date - a.date }[sortBy] || ((a, b) => ScoreManager.value(b) - ScoreManager.value(a));
+      const scores = ScoreManager.forMap(m.hash).filter(x => !modsOn || [...(x.mods || [])].sort().join() === sel).sort(order).slice(0, 25);
+      // the rows slide in for a new beatmap or new scores, not when something else redraws the panel (a favourite click)
+      const lbKey = m.id + '|' + scores.map(x => x.id).join(), same = this._lbKey === lbKey;
+      this._lbKey = lbKey;
+      const list = h(`div.lb-list${same ? '.still' : ''}`);
+      const best = ScoreManager.best(m.hash);
+      if (!scores.length) list.append(h('div.lb-empty', 'No scores yet'));
+      const who = ProfileManager.profile.name;
+      scores.forEach((s, i) => {
+        const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
+          h('span.rank', '#' + (i + 1)), rankPill(s.grade),
+          // (lazer's leaderboard scores carry the player's avatar; another player's local score gets their initial)
+          !s.player || s.player === who ? ProfileManager.avatarEl(32) : h('div.avatar.avatar-mono', { style: { width: '32px', height: '32px', fontSize: '14px' } }, s.player.slice(0, 1).toUpperCase()),
+          h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
+          h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
+          h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
+        list.append(row);
+      });
+      lb.append(list);
+    }
     this.info.append(...[wedge, diff, problems, lb].filter(Boolean));
   },
 
+  /** lazer's BeatmapMetadataWedge (the Details tab): Creator / Genre, Source / Language, Submitted / Ranked in three
+   *  columns, then the user and mapper tags (clicking a tag searches for it); "-" where it isn't known. The online
+   *  ratings and fail/retry graphs only appear in lazer with online data, which local beatmaps don't have. */
+  metadataWedge(m, set) {
+    const md = (label, value) => h('div.md', h('div.md-k', label), h('div.md-v', value || '-'));
+    const name = (list, id) => { const e = (typeof list !== 'undefined' ? list : []).find(x => x[0] === id); return e && id ? e[1] : ''; };
+    const date = t => t ? new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+    const tags = String(m.tags || '').split(/\s+/).filter(Boolean).slice(0, 40);
+    const tagEl = tags.length ? h('div.md-tags', ...tags.map(t => h('button.md-tag', { onclick: () => { UISounds.click(); this.searchInput.value = t; this.searchInput.dispatchEvent(new Event('input')); } }, t))) : '-';
+    return h('div.md-wedge',
+      h('div.md-grid',
+        h('div.md-col', md('Creator', m.creator), md('Genre', name(typeof EXPLORE_GENRES !== 'undefined' ? EXPLORE_GENRES : [], set.genreId))),
+        h('div.md-col', md('Source', m.source), md('Language', name(typeof EXPLORE_LANGUAGES !== 'undefined' ? EXPLORE_LANGUAGES : [], set.languageId))),
+        h('div.md-col', md('Submitted', date(set.submittedDate)), md('Ranked', date(set.rankedDate)))),
+      md('User tags', ''),
+      h('div.md', h('div.md-k', 'Mapper tags'), h('div.md-v', tagEl)));
+  },
   collectionMenu(e, m) {
     const r = (e.currentTarget || e.target).getBoundingClientRect();
     // opened from a footer button the menu stands on it instead of covering the play button

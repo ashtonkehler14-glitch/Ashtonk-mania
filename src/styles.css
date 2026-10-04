@@ -3321,3 +3321,35 @@ html.touch img { -webkit-user-drag: none; }
 html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* the loader's spinner: white on the dimmed cover, as lazer's */
 .pl-thumb .pl-load .spinner { border-color: rgba(255, 255, 255, .25); border-top-color: #fff; border-width: 2.5px; }
+/* osu!lazer's BeatmapSetOnlineStatusPill (title wedge: Caption1, padding 6×1; carousel set panels: Caption2, 4×0) */
+.status-pill { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 99px; font-size: 14px; line-height: 1.15; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.status-pill.sm { padding: 0 4px 1px; font-size: 12px; margin-right: 5px; }
+/* ── song select: lazer's BeatmapDetailsArea header — a WedgeSelector ("Details | Ranking": 16px text tabs 20px apart,
+   Content2 → Content1 + SemiBold when current, a 2px Highlight1 strip under it) and, for Ranking, the Selected Mods
+   toggle and the Sort / Scope dropdowns on the right */
+.lb-head { height: 34px; padding: 2px 6px 6px 29px; gap: 8px; }
+.lb-tabs { display: flex; gap: 20px; align-items: center; flex: none; }
+.lb-head .lb-tab { position: relative; margin: 0; padding: 0 0 4px; height: auto; border: 0; background: none; font: inherit; font-size: 16px; font-weight: 400; color: var(--c2); cursor: pointer; transition: color 300ms var(--oq, ease-out); }
+.lb-head .lb-tab::before { content: none; }
+.lb-head .lb-tab:hover { color: #fff; }
+.lb-head .lb-tab.on { color: #fff; font-weight: 600; }
+.lb-head .lb-tab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: hsl(var(--ss-h) 100% 70%); }
+.lb-ctl { margin-left: auto; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.lb-ctl .ss-sel { flex: 0 1 auto; }
+.lb-modsel { position: relative; isolation: isolate; height: 30px; padding: 0 12px; border: 0; background: none; color: #fff; font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.lb-modsel::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); border-radius: 6px; background: hsl(var(--ss-h) 10% 20% / .85); transition: background 200ms; }
+.lb-modsel:hover::before { background: hsl(var(--ss-h) 10% 25% / .9); }
+.lb-modsel.on { color: hsl(var(--ss-h) 10% 10%); }
+.lb-modsel.on::before { background: hsl(var(--ss-h) 100% 70%); }
+/* the Details tab: lazer's BeatmapMetadataWedge (90% wide; Creator / Genre, Source / Language, Submitted / Ranked;
+   user and mapper tags; Caption1 labels in Content1, values in Content2, tags as Light2 links) */
+.md-wedge { position: relative; isolation: isolate; width: calc(90% + 40px); margin: 4px 0 0 -40px; padding: 16px 35px 16px 72px; display: flex; flex-direction: column; gap: 10px; animation: wedgeSwap calc(200ms * var(--anim)) ease-out both; }
+.md-wedge::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); transform-origin: top left; border-radius: 0 10px 10px 0; background: linear-gradient(90deg, hsl(var(--ss-h) 10% 15% / .9) 70%, hsl(var(--ss-h) 10% 15% / .6)); }
+.md-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
+.md-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.md { min-width: 0; padding-right: 10px; }
+.md-k { font-size: 14px; font-weight: 600; color: #fff; }
+.md-v { font-size: 14px; color: var(--c2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-tags { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 3px; white-space: normal; }
+.md-tag { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: hsl(var(--ss-h) 40% 75%); cursor: pointer; }
+.md-tag:hover { color: #fff; }
