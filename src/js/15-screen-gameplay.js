@@ -8,7 +8,18 @@ const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
     if (Settings.get('input.fullscreenOnPlay') && !document.fullscreenElement) toggleFullscreen(true);
+    if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
+  },
+  /** Song select opens each song on the difficulty last played from it. */
+  rememberDiff(mapId) {
+    const m = mapId && BeatmapManager.maps.get(mapId);
+    if (!m) return;
+    const memo = { ...(Settings.get('songselect.lastDiff') || {}) };
+    delete memo[m.setId]; memo[m.setId] = m.id; // (newest last, so the oldest go first once there are a lot)
+    const keys = Object.keys(memo);
+    for (let i = 0; i < keys.length - 5000; i++) delete memo[keys[i]];
+    Settings.set('songselect.lastDiff', memo);
   },
 };
 

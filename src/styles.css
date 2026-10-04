@@ -533,7 +533,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .lb-tab::before { transform-origin: top left; border-radius: 0 6px 6px 0; background: var(--l2); }
 .lb-scope::before { border-radius: 6px; background: hsl(var(--ss-h) 10% 15% / .85); }
 .lb-list { overflow: auto; display: flex; flex-direction: column; gap: 3px; padding: 0 24px 4px 0; }
-.lb-empty { padding: 30px 10px; text-align: center; color: var(--muted); font-size: .9rem; }
+.lb-empty { display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; color: #fff; font-size: 22px; }
+.lb-empty-i { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; margin-right: 10px; border-radius: 50%; background: #fff; color: #000; font-size: 15px; font-weight: 800; line-height: 1; }
 .lb-row { display: flex; align-items: center; gap: 12px; flex: none; height: 50px; margin-left: -40px; padding: 0 22px 0 70px; border: 0; background: none; text-align: left; color: #fff; cursor: pointer; animation: rowIn 300ms var(--ease-out) both; }
 .lb-row::before { transform-origin: top left; border-radius: 0 10px 10px 0; background: hsl(var(--ss-h) 10% 15% / .8); transition: background var(--t-fast); }
 .lb-row:hover::before { background: hsl(var(--ss-h) 10% 22% / .9); }

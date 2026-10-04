@@ -199,6 +199,16 @@ for (const v of ['4K Normal', '7K Hard', '8K Insane', '9K Expert']) {
   if (v === '4K Normal') await shot('04-results-auto');
 }
 await page.evaluate(() => AshtonkMania.Settings.set('songselect.mods', []));
+// the song opens on the difficulty last played from it (9K Expert was played last; 7K Hard then remembered instead)
+const lastDiff = await page.evaluate(() => {
+  const M = AshtonkMania, set = M.BeatmapManager.sets[0], v = id => M.BeatmapManager.maps.get(id).version;
+  const a = v(M.SongSelect.pickDiff(set.maps).id);
+  M.Game.rememberDiff(set.maps.find(m => m.version === '7K Hard').id);
+  const b = v(M.SongSelect.pickDiff(set.maps).id);
+  M.Game.rememberDiff(set.maps.find(m => m.version === '9K Expert').id);
+  return { a, b };
+});
+check('song select opens a song on the difficulty you last played', lastDiff.a === '9K Expert' && lastDiff.b === '7K Hard', JSON.stringify(lastDiff));
 
 // live keyboard play: press every note of 4K using the real keybinds at the right audio time
 let loaderChecked = false;

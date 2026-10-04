@@ -325,7 +325,7 @@ const SongSelect = {
     if (!this.selectedId || !allVisible.has(this.selectedId)) {
       const first = shown[0];
       // nothing matches: keep the current beatmap (as lazer does) so the wedge stays and clearing the search returns to it
-      if (first) this.selectedId = (first.maps.find(m => !m.problems.length) || first.maps[0]).id;
+      if (first) this.selectedId = this.pickDiff(first.maps).id;
       else if (this.selectedId && !BeatmapManager.maps.has(this.selectedId)) this.selectedId = null;
     }
     this.expandedSet = this.selectedId ? BeatmapManager.maps.get(this.selectedId)?.setId : null;
@@ -343,6 +343,16 @@ const SongSelect = {
     else if (sel) this.showBackground(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
+  },
+  /** The difficulty a song opens on: the one you last played from it (remembered when a play starts; for plays from
+   *  before that, the one with the latest score), else `fallback`, else its first playable one. */
+  pickDiff(maps, fallback = null) {
+    const ok = maps.filter(m => !m.problems.length), list = ok.length ? ok : maps;
+    if (!list.length) return fallback;
+    const memo = (Settings.get('songselect.lastDiff') || {})[list[0].setId];
+    let pick = memo ? list.find(m => m.id === memo) : null;
+    if (!pick) { let t = 0; for (const m of list) { const lp = ScoreManager.lastPlayed(m.hash); if (lp > t) { t = lp; pick = m; } } }
+    return pick || (fallback && list.includes(fallback) ? fallback : list[0]);
   },
   /** lazer's grouping (BeatmapCarouselFilterGrouping): the sets, in their sorted order, under group headers. A set
    *  whose difficulties fall in different groups (difficulty, collections…) is listed in each, with the difficulties
@@ -582,7 +592,7 @@ const SongSelect = {
         onclick: () => {
           if (row.open) return;
           UISounds.select('expand');
-          const pick = maps.find(m => !m.problems.length) || maps[0];
+          const pick = this.pickDiff(maps);
           this.select(pick.id);
         },
         oncontextmenu: e => { e.preventDefault(); this.options(e, maps[0]); },
@@ -670,7 +680,8 @@ const SongSelect = {
     const r = list[clamp(i + d, 0, list.length - 1)];
     if (!r || r.set.id === this.expandedSet) return;
     const cur = BeatmapManager.maps.get(this.selectedId);
-    const target = cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : r.maps[0];
+    // (the difficulty last played from that song; one never played opens on the one nearest the current star rating)
+    const target = this.pickDiff(r.maps, cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : null);
     UISounds.select('expand'); this.select(target.id);
   },
   /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
@@ -690,7 +701,7 @@ const SongSelect = {
     // (one set at random, then one of its difficulties, so big sets aren't picked more often)
     const sets = [...new Set(pool.map(m => m.setId))], setId = sets[Math.floor(Math.random() * sets.length)];
     const inSet = pool.filter(m => m.setId === setId);
-    this.select(inSet[Math.floor(Math.random() * inSet.length)].id);
+    this.select(this.pickDiff(inSet, inSet[Math.floor(Math.random() * inSet.length)]).id);
   },
   randomRewind() {
     const hist = this._randHist || [];
@@ -868,7 +879,8 @@ const SongSelect = {
       this._lbKey = lbKey;
       const list = h(`div.lb-list${same ? '.still' : ''}`);
       const best = ScoreManager.best(m.hash);
-      if (!scores.length) list.append(h('div.lb-empty', 'No scores yet'));
+      // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
+      if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
       const who = ProfileManager.profile.name;
       scores.forEach((s, i) => {
         const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
