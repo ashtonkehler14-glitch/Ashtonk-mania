@@ -1181,6 +1181,19 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .pf-ppblock.failed { color: #ff6b77; font-size: .8rem; }
 .pf-ppblock.failed::after { content: ""; }
 .pf-empty { color: var(--muted); padding: 16px 4px; }
+/* replays: the profile's score rows, with the replay's buttons in the slanted block */
+.rp-list { display: flex; flex-direction: column; gap: 4px; }
+.rp-row .s .p { color: var(--oc2); }
+.rp-row .s .x { color: #ff6b77; }
+.rp-row.missing { opacity: .6; cursor: default; }
+.rp-combo { min-width: 54px; text-align: right; color: var(--oc2); font-size: .85rem; }
+.rp-acts { min-width: 0; padding: 0 10px 0 22px; }
+.rp-btns { display: flex; gap: 2px; }
+.rp-act { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--oc1, #fff); cursor: pointer; transition: background var(--t-fast), color var(--t-fast); }
+.rp-act:hover:not(:disabled) { background: rgba(255, 255, 255, .1); color: var(--ohl); }
+.rp-act.del:hover { color: #ff6b77; }
+.rp-act:disabled { opacity: .35; cursor: default; }
+.rp-act svg { width: 17px; height: 17px; }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .pf-header { margin: -16px -16px 0; } .pf-tabs { margin: 0 -16px 8px; } .pf-header, .pf-tabs { --pf-pad: 16px; } .pf-top { height: 190px; } .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; } .pf-weight, .pf-mods { display: none; } .pf-lvl-bar { width: 90px; } }
 .lib-summary { color: var(--muted); font-size: .85rem; }
 

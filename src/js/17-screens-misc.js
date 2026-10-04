@@ -339,20 +339,29 @@ const ReplaysScreen = {
   render() {
     clearEl(this.list);
     if (!ReplayManager.list.length) { this.list.append(h('div.empty', h('div.big', 'No replays saved'), 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.')); return; }
+    // (lazer's DrawableProfileScore, as on the profile: rank pill, title by artist, difficulty · player · date, mods,
+    // accuracy — and the replay's buttons in the slanted block where the pp would be)
+    const rows = h('div.pf-scores.rp-list');
     for (const r of ReplayManager.list) {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
-      // (the same row as Collections: the set's picture, your grade as a pill by the title)
-      const thumb = h('div.mini-thumb', { style: { width: '68px', height: '42px' } });
-      if (map) BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId)).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
-      this.list.append(h('div.list-row', thumb,
-        h('div.main', h('div.t', `${r.title} [${r.version}]`, h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(sm.grade || 'D'))), h('div.s', `${r.artist} · by ${r.player} · ${fmtScore(ScoreManager.value(sm) || 0)} · ${fmtAcc(sm.accuracy || 0)} · ${fmtInt(sm.maxCombo || 0)}x · ${fmtDateTime(r.date)}${map ? '' : ' · beatmap missing'}`)),
-        h('span.row', { style: { gap: '3px' } }, ...(r.mods || []).map(m => ModSystem.badge(m, true))),
-        h('button.btn.sm', { disabled: !map, title: map ? '' : 'This beatmap isn\'t in your library', onclick: () => Game.launch({ mapId: map.id, mode: 'replay', replay: r }) }, icon('play'), 'Watch'),
-        h('button.btn.sm', { disabled: !map, title: 'Export as .osr — opens in osu!lazer', onclick: () => Osr.exportReplay(r) }, icon('download'), '.osr'),
-        h('button.icon-btn', { title: 'Export .amr (this game\'s own format)', onclick: () => ReplayManager.export(r) }, icon('download')),
-        h('button.icon-btn', { title: 'Delete', onclick: async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); } }, icon('trash'))));
+      const watch = () => { if (map) { UISounds.click(); Game.launch({ mapId: map.id, mode: 'replay', replay: r }); } };
+      const act = (ic, title, f, cls = '') => h(`button.rp-act${cls}`, { title, 'aria-label': title, disabled: !map && cls !== '.del' && ic !== 'download', onclick: e => { e.stopPropagation(); f(e); } }, icon(ic));
+      rows.append(h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
+        rankPill(sm.grade || 'D'),
+        h('div.main', h('div.t', r.title, h('span.a', ` by ${r.artist || ''}`)),
+          h('div.s', h('span.v', r.version), h('span.p', r.player || 'Player'), h('span.d', fmtDateTime(r.date)), map ? null : h('span.x', 'beatmap missing'))),
+        h('span.pf-mods', ...(r.mods || []).map(m => ModSystem.badge(m, true))),
+        h('div.rp-combo', `${fmtInt(sm.maxCombo || 0)}x`),
+        h('div.pf-acc', fmtAcc(sm.accuracy || 0)),
+        h('div.pf-ppblock.rp-acts',
+          h('span.rp-btns',
+            act('play', 'Watch', watch),
+            act('download', 'Export .osr (opens in osu!lazer)', () => Osr.exportReplay(r)),
+            act('save', 'Export .amr (this game\'s own format)', () => ReplayManager.export(r)),
+            act('trash', 'Delete', async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); }, '.del')))));
     }
+    this.list.append(rows);
   },
 };
 
