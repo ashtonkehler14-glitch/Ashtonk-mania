@@ -752,7 +752,8 @@ export class PresenceLogic {
       if (this.persistBoard) this.persistBoard(key, next);
     }
     // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
-    const rec = old && old.bests ? old : { pid, name, avatar, plays: 0, bests: {} };
+    const rec = old || { pid, name, avatar, plays: 0, bests: {} };
+    if (!rec.bests) rec.bests = {}; // (a record from before the server judged plays: its pp stays as reported)
     rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
     const b = rec.bests[key];
     if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score };
@@ -760,9 +761,9 @@ export class PresenceLogic {
     rec.bests = Object.fromEntries(list);
     let pp = 0, accW = 0, wSum = 0;
     list.forEach(([, x], i) => { const w = 0.95 ** i; pp += x.pp * w; accW += x.acc * w; wSum += w; });
-    rec.pp = Math.round(pp * 100) / 100; rec.acc = wSum ? accW / wSum : 0;
     const g = list.map(([, x]) => x.grade);
-    rec.ss = g.filter(x => x === 'SS' || x === 'XH').length; rec.s = g.filter(x => x === 'S' || x === 'SH').length; rec.a = g.filter(x => x === 'A').length;
+    rec.v = { pp: Math.round(pp * 100) / 100, acc: wSum ? accW / wSum : 0, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+    PresenceLogic.settleRank(rec);
     this.ranks.set(pid, rec);
     if (this.persistRank) this.persistRank(pid, rec);
     // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
@@ -785,7 +786,7 @@ export class PresenceLogic {
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid);
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     return { t: 'profile', pid, data, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r && r.bests ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   static LB_KEEP = 100;
   static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
@@ -835,13 +836,29 @@ export class PresenceLogic {
   static CHAT_BURST = 5; // messages per CHAT_WINDOW
   static CHAT_WINDOW = 5000;
   // (only records the server worked out itself: ones that came from players' own reports, before scores were verified, are dropped)
-  loadRanks(ranks) { for (const [pid, r] of Object.entries(ranks || {})) if (r && typeof r === 'object' && r.bests && typeof r.bests === 'object') this.ranks.set(pid, r); }
+  // (records from before plays were judged here — pp as each game reported it — count too, as reported)
+  loadRanks(ranks) {
+    for (const [pid, r] of Object.entries(ranks || {})) {
+      if (!r || typeof r !== 'object') continue;
+      if (!r.rep && !r.v && Number.isFinite(r.pp)) { r.rep = { pp: r.pp, acc: r.acc || 0, ss: r.ss || 0, s: r.s || 0, a: r.a || 0 }; if (r.bests) r.v = { pp: r.pp, acc: r.acc || 0, ss: r.ss || 0, s: r.s || 0, a: r.a || 0 }; }
+      PresenceLogic.settleRank(r);
+      this.ranks.set(pid, r);
+    }
+  }
+  /** A player's standing: the pp of the plays judged here or, while that's lower (a small server can't always judge a
+   *  long song in time), what their game reports from their own scores — whichever is higher. */
+  static settleRank(r) {
+    const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+    const use = rep.pp > v.pp ? rep : v;
+    r.pp = use.pp; r.acc = use.acc; r.ss = use.ss; r.s = use.s; r.a = use.a;
+    return r;
+  }
   /** The top 50 by pp, and where you stand. */
   rankings(pid) {
     const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
-    const pub = ({ bests, ...r }) => r; // (not each player's whole list of plays)
+    const pub = ({ bests, v, rep, ...r }) => r; // (not each player's whole list of plays)
     return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
@@ -925,9 +942,19 @@ export class PresenceLogic {
           if (this.persistProfile) this.persistProfile(u.pid, data);
         }
       }
-      // (their name and picture on the rankings follow what they use now)
-      const rec = this.ranks.get(u.pid);
-      if (rec && (rec.name !== u.name || rec.avatar !== u.avatar)) { rec.name = u.name; rec.avatar = u.avatar; if (this.persistRank) this.persistRank(u.pid, rec); }
+      // their standing as their game reports it (see settleRank), and their name and picture as they are now
+      const p = msg.profile && typeof msg.profile === 'object' ? msg.profile : null, num = (x, max) => (Number.isFinite(+x) ? Math.min(max, Math.max(0, +x)) : 0);
+      const gr = p && p.grades && typeof p.grades === 'object' ? p.grades : {};
+      const rep = p ? { pp: Math.round(num(p.pp, 100000) * 100) / 100, acc: num(p.avgAcc, 1), ss: num(gr.SS, 1e6) + num(gr.XH, 1e6), s: num(gr.S, 1e6) + num(gr.SH, 1e6), a: num(gr.A, 1e6) } : null;
+      let rec = this.ranks.get(u.pid);
+      if (!rec && rep && rep.pp > 0) { rec = { pid: u.pid, name: u.name, avatar: u.avatar, plays: 0, bests: {} }; this.ranks.set(u.pid, rec); }
+      if (rec) {
+        const before = JSON.stringify([rec.name, rec.avatar, rec.rep]);
+        rec.name = u.name; rec.avatar = u.avatar;
+        if (rep) { rec.rep = rep; if (Number.isFinite(+p.plays)) rec.plays = Math.max(rec.plays || 0, num(p.plays, 1e9)); }
+        PresenceLogic.settleRank(rec);
+        if (JSON.stringify([rec.name, rec.avatar, rec.rep]) !== before && this.persistRank) this.persistRank(u.pid, rec);
+      }
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];

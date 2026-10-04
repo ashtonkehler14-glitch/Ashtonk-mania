@@ -1002,11 +1002,11 @@ test('player ids belong to their key: the first key used with an id claims it; a
   assert.equal(p.users.get('a2').pid, 'alicepid1', 'the right key, another tab');
 });
 
-test('rankings come from plays the server judged: best pp per beatmap, weighted; what a player reports is ignored', () => {
+test('rankings: judged plays (best pp per beatmap, weighted), or what a player\'s game reports while that\'s higher; old records kept', () => {
   const p = new PresenceLogic(() => 1000), saved = [];
   p.persistRank = pid => saved.push(pid);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
-  // a player saying they have 99,999pp changes nothing
+  // a stats message without a profile, or a leaderboard claim, changes nothing
   p.message('b', { t: 'stats', pp: 99999, acc: 1, plays: 9999, grades: { ss: 999 } });
   p.message('b', { t: 'lbSubmit', key: K1, score: 1e7 });
   assert.equal(p.message('a', { t: 'rankings' })[0].msg.total, 0);
@@ -1021,10 +1021,13 @@ test('rankings come from plays the server judged: best pp per beatmap, weighted;
   assert.deepEqual([r.list[0].s, r.list[0].a, r.list[1].ss], [1, 1, 1]);
   assert.equal(r.list[0].bests, undefined, 'not each player\'s whole list');
   assert.equal(r.you.rank, 1);
-  // kept across a restart (and records from before verification — players' own reports — are dropped)
-  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), old: { pid: 'old', name: 'Old', pp: 5000 } });
+  // Bob's game reports 400pp from his own scores: higher than his judged 150, so it stands until judged plays pass it
+  p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 } } });
+  assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Bob', 400], ['Alice', 295]]);
+  // kept across a restart, records from before plays were judged here included
+  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), old: { pid: 'old', name: 'Old', pp: 5000, acc: 0.9 } });
   q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
-  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => x.name), ['Alice']);
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Old', 5000], ['Alice', 295]]);
 });
 
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {
@@ -1074,16 +1077,17 @@ test('daily challenge: the first proposal sets the day\'s beatmap; only judged p
   assert.equal(p.message('a', { t: 'daily' })[0].msg.stats.current, 0);
 });
 
-test('profiles: shared by a player\'s game for others to open, with the server\'s own rank and verified totals', () => {
+test('profiles: shared by a player\'s game for others to open, with the server\'s rank and standing', () => {
   const p = new PresenceLogic(() => 1000), saved = [];
   p.persistProfile = pid => saved.push(pid);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
-  const prof = { plays: 12, pp: 99999, top: [{ title: 'Song', version: 'Hard', grade: 'S', accuracy: 0.97, pp: 120 }] };
+  const prof = { plays: 12, pp: 80, top: [{ title: 'Song', version: 'Hard', grade: 'S', accuracy: 0.97, pp: 120 }] };
   p.message('a', { t: 'stats', profile: prof }); p.message('a', { t: 'stats', profile: prof });
   assert.deepEqual(saved, ['alicepid1']);
   p.recordVerified('alicepid1', K1, judged({ pp: 120 }));
   const m = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
-  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, 120, 1, true, 'a']);
+  // (the judged 120pp is higher than the 80 her game reports, so it's her standing; plays: the larger count)
+  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, 120, 13, true, 'a']);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
   p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(60000) } });
   assert.equal(p.profiles.has('bobpid22'), false);
