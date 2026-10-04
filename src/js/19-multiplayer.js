@@ -562,13 +562,13 @@ const MultiplayerScreen = {
     const offline = !Multiplayer.available();
     this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
+      // lazer's LoungeSubScreen: the search box along the top, then "Create room" (and joining by code) above the rooms
+      h('input.input.mp-search.mp-search-top', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
+        oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() }),
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
-      h('div.mp-sec-t', 'Open rooms', h('span', 'click one to join'),
-        h('input.input.mp-search', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
-          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() })),
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
     this._roomsSig = null; this._roomRows = null; // (a fresh list for this lounge)
     if (offline) $$('button', this.body).forEach(b => b.disabled = true);

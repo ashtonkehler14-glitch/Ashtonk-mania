@@ -3561,3 +3561,4 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .res-body.mp .rs { position: relative; }
 .rke-btn.rematch { background: #b2ff66; color: #1b2b0b; }
 .rke-btn.rematch.on { background: #4a5a3a; color: #dfe; cursor: default; }
+.mp-search.mp-search-top { display: block; width: 60%; height: 40px; margin: 0 0 18px; font-size: 1rem; }
