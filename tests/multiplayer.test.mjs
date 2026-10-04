@@ -1089,6 +1089,10 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   // (the judged 120pp is higher than the 80 her game reports, so it's her standing; plays: the larger count)
   assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, 120, 13, true, 'a']);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
+  // the songs of their judged plays come with it, best first (for a profile their game hasn't sent)
+  p.recordVerified('alicepid1', K2, judged({ pp: 300, title: 'Big Song', artist: 'Band', version: 'Insane' }));
+  const tp = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg.top;
+  assert.deepEqual(tp.map(x => [x.title, x.version, x.pp]), [['Big Song', 'Insane', 300]]);
   p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(60000) } });
   assert.equal(p.profiles.has('bobpid22'), false);
 });

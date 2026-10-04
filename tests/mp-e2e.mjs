@@ -71,10 +71,9 @@ async function createRoom(page, ranked, isPublic) {
 }
 
 // lazer's dangerous dialog buttons confirm only when held
+// (red dialog buttons confirm on a single press)
 async function holdBtn(page, sel) {
-  const r = await (await page.waitForSelector(sel)).boundingBox();
-  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
-  await page.waitForTimeout(750); await page.mouse.up();
+  await (await page.waitForSelector(sel)).click();
 }
 
 const alice = await player('Alice');

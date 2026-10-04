@@ -756,7 +756,9 @@ export class PresenceLogic {
     if (!rec.bests) rec.bests = {}; // (a record from before the server judged plays: its pp stays as reported)
     rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
     const b = rec.bests[key];
-    if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score };
+    // (with the song, so a profile can list it — read from the judged beatmap file itself)
+    if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score, combo: entry.combo, mods: entry.mods, date: t,
+      title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120) };
     const list = Object.entries(rec.bests).sort((a, b2) => b2[1].pp - a[1].pp).slice(0, PresenceLogic.KEEP_BESTS);
     rec.bests = Object.fromEntries(list);
     let pp = 0, accW = 0, wSum = 0;
@@ -783,9 +785,12 @@ export class PresenceLogic {
    *  challenge record and whether they're online. */
   profileMsg(pid) {
     const data = this.profiles.get(pid) || null, r = this.ranks.get(pid);
+    // their best plays the server judged (the ones with a known song), best first — for a profile their game hasn't sent
+    const top = r && r.bests ? Object.values(r.bests).filter(b => b && b.title).sort((a, b) => b.pp - a.pp).slice(0, 20)
+      .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid);
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
-    return { t: 'profile', pid, data, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
+    return { t: 'profile', pid, data, top, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
       rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   static LB_KEEP = 100;
