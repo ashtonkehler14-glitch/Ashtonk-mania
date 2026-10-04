@@ -3506,3 +3506,8 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .md-tags { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 3px; white-space: normal; }
 .md-tag { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: hsl(var(--ss-h) 40% 75%); cursor: pointer; }
 .md-tag:hover { color: #fff; }
+/* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
+.spec-rk { position: absolute; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
+.spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
+.spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
+.spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }

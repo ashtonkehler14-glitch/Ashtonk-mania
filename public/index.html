@@ -3523,6 +3523,11 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .md-tags { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 3px; white-space: normal; }
 .md-tag { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: hsl(var(--ss-h) 40% 75%); cursor: pointer; }
 .md-tag:hover { color: #fff; }
+/* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
+.spec-rk { position: absolute; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
+.spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
+.spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
+.spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
 
 </style>
 </head>
@@ -17142,7 +17147,7 @@ const Presence = {
   },
   status() {
     if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
-    return Multiplayer.inRoom() ? 'room' : 'menu';
+    return Multiplayer.inRoom() ? (Multiplayer.isRP() ? 'ranked' : 'room') : 'menu';
   },
   /** What's being played (shown on the online list). */
   song() {
@@ -17990,7 +17995,7 @@ const RankedMatch = {
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
     ];
-    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); };
+    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
   },
   unmount() {
@@ -17999,6 +18004,7 @@ const RankedMatch = {
     (this._subs || []).forEach(f => f()); this._subs = [];
     this.stopPreview();
     this.root.remove(); this.root = null;
+    Spectate.hostRk(null, true); // (spectators: the match screen is gone)
     if (this.scr && this.scr.el) this.scr.el.classList.remove('rkm-on');
     $('#app').classList.remove('hide-toolbar');
     clearTimeout(this._handT);
@@ -18740,7 +18746,7 @@ const Spectate = {
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (!Friends.has(p.pid)) { Toast.show('Friends only', `Add ${p.name} as a friend to spectate them.`); return; }
-    if (p.status !== 'playing') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap.'); return; }
+    if (p.status !== 'playing' && p.status !== 'ranked') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap or a Ranked Play match.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
@@ -18754,6 +18760,7 @@ const Spectate = {
     Presence.send({ t: 'unwatch', to: this.target.id });
     const name = this.target.name;
     this.target = null; this.cur = null;
+    this.showRk(null);
     this.paintPill();
     if (this.watchingNow()) Screens.go('home');
     if (!quiet) Toast.show('Stopped spectating', name);
@@ -18764,6 +18771,7 @@ const Spectate = {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     if (!this.target || m.id !== this.target.id) return;
     if (m.t === 'specWait') { this.paintPill(`waiting for ${m.name} to play…`); return; }
+    if (m.t === 'specRk') { this.showRk(m.html); return; }
     if (m.t === 'specStart') { this.start(m); return; }
     if (m.t === 'specFrames') {
       const c = this.cur;
@@ -18782,7 +18790,7 @@ const Spectate = {
       return;
     }
     if (m.t === 'specEnd') {
-      if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
       if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; }
       if (m.quit && this.watchingNow()) { Toast.show(`${this.target.name} quit the song`, 'Waiting for their next one…'); Screens.go('home'); }
       this.paintPill(`waiting for ${this.target.name}'s next song…`);
@@ -18803,6 +18811,7 @@ const Spectate = {
     if (!map) { Toast.err(`Can't spectate ${m.name}'s song`, 'That beatmap isn\'t in your library and couldn\'t be downloaded.'); return; }
     if (this.cur !== c) return;
     const replay = { ...m.head, events: c.feed, player: m.name, mapId: map.id, summary: null };
+    this._launching = true;
     Game.launch({ mapId: map.id, mode: 'replay', replay, spectate: c });
   },
 
@@ -18868,11 +18877,59 @@ const Spectate = {
     else { if (c.msg) { c.msg.remove(); c.msg = null; } s.running = true; Music.play(Music.pausedPos); }
   },
 
+  /** You stop watching when you go and do something of your own: your own play, or any screen other than the one
+   *  you're shown while watching (home between songs, the watched play and its results). */
+  onScreen(name) {
+    if (!this.target) return;
+    if (name === 'gameplay') { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } if (this._launching) { this._launching = false; return; } this.stop({ quiet: true }); return; }
+    if (name !== 'home' && name !== 'results') { this.stop({ quiet: true }); return; }
+    if (this._rk) this.showRk(this._rk); // (back from their song: their Ranked Play screen again)
+  },
+
+  /** A friend's Ranked Play screen (their picks, cards, timer and results between songs), shown read-only over the
+   *  game while you watch them; their songs play as usual spectating. Their page is copied as HTML, so it's cleaned
+   *  first: no scripts, event handlers, frames or links, and only https/data images. */
+  showRk(html) {
+    this._rk = html || null;
+    if (!html || !this.target || this.watchingNow()) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
+    if (!this.rkEl) {
+      this.rkView = h('div.spec-rk-view');
+      this.rkEl = h('div.spec-rk', this.rkView, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
+      ($('#app') || document.body).appendChild(this.rkEl);
+    }
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    const ok = u => /^(https:|data:image\/)/i.test(u.trim());
+    for (const el of t.content.querySelectorAll('*')) {
+      if (/^(SCRIPT|IFRAME|OBJECT|EMBED|LINK|META|FORM|BASE|STYLE|TEMPLATE)$/.test(el.tagName)) { el.remove(); continue; }
+      for (const a of [...el.attributes]) {
+        const n = a.name.toLowerCase();
+        if (n.startsWith('on') || n === 'href' || n === 'srcdoc' || n === 'formaction' || n === 'action' || n === 'xlink:href') el.removeAttribute(a.name);
+        else if ((n === 'src' || n === 'srcset') && !ok(a.value)) el.removeAttribute(a.name);
+        else if (n === 'style' && /url\(\s*['"]?\s*(?!https:|data:image\/)/i.test(a.value)) el.setAttribute('style', a.value.replace(/url\([^)]*\)/gi, 'none'));
+        else if (n === 'style' && /expression|javascript:/i.test(a.value)) el.removeAttribute('style');
+      }
+    }
+    this.rkView.replaceChildren(t.content);
+  },
+  /** Your Ranked Play screen, sent to your spectators as it changes (at most 4 times a second). */
+  hostRk(root, force = false) {
+    if (!Presence.ws) return;
+    const html = root && root.isConnected && this.host.watchers ? root.outerHTML : null;
+    const t = performance.now();
+    if (!force && html && t - (this._rkAt || 0) < 250) return;
+    if (html === this._rkSent && !force) return;
+    if (!html && this._rkSent == null && !force) return;
+    this._rkAt = t; this._rkSent = html;
+    Presence.send({ t: 'rkview', html });
+  },
+
   // ── being watched: stream this play's inputs while anyone watches
   onSpectators(m) {
     const H = this.host;
     H.watchers = m.n || 0;
     this.paintWatchers(m.names || []);
+    if (typeof RankedMatch !== 'undefined' && RankedMatch.root) this.hostRk(RankedMatch.root, true);
     if (m.full && H.s && GameplayScreen.s === H.s && !H.s.finished) this.upload(H.s);
   },
   /** Everything so far, in chunks (the first resets what the server kept, the last says it's complete). */
@@ -18955,12 +19012,12 @@ const UserPanels = {
   /** lazer's status colours: offline black, online green, and the activity's colour while doing something. */
   statusColour(u) {
     if (!u.online) return '#000';
-    return { playing: '#44aadd', watching: '#8866ee', room: '#eeaa00' }[u.status] || '#88b300';
+    return { playing: '#44aadd', watching: '#8866ee', room: '#eeaa00', ranked: '#ff66ab' }[u.status] || '#88b300';
   },
   statusText(u) {
     if (!u.online) return 'Offline';
     if (u.status === 'playing') return u.song ? `Playing ${u.song.artist} - ${u.song.title} [${u.song.version}]` : 'Playing';
-    return { room: 'In a multiplayer room', watching: 'Spectating' }[u.status] || 'Online';
+    return { room: 'In a multiplayer room', ranked: 'In a Ranked Play match', watching: 'Spectating' }[u.status] || 'Online';
   },
   lastSeen(u) {
     if (u.online) return null;
@@ -18977,7 +19034,7 @@ const UserPanels = {
     const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
     return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
   },
-  canSpectate(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && u.status === 'playing'; },
+  canSpectate(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && (u.status === 'playing' || u.status === 'ranked'); },
   canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
   /** UserPanel.ContextMenuItems: View profile first, then what you can do with them. */
   menuItems(u) {
@@ -19122,6 +19179,9 @@ const OnlinePanel = {
   toggle() { if (this.isOpen()) Screens.back(); else Screens.go('dashboard'); },
   close() {},
 };
+
+// (spectating ends when you go and do something of your own)
+Bus.on('screen:changed', name => Spectate.onScreen(name));
 
 /* ===== 19d-mobile.js ===== */
 /* Phones and tablets. Menus: held sideways, the full interface as osu!lazer on Android shows it (Zoom scales it);

@@ -788,13 +788,19 @@ export class PresenceLogic {
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, ...(tu.rkview ? [{ to: id, msg: { t: 'specRk', id: to, html: tu.rkview } }] : []), { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
       out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, paused: tu.paused ?? null } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
       return out;
     }
     if (msg.t === 'unwatch') return this.unwatch(id, String(msg.to || u.watching || ''));
+    // a Ranked Play match's screen as the player sees it (between songs), for their spectators
+    if (msg.t === 'rkview') {
+      const html = typeof msg.html === 'string' && msg.html.length <= 400000 ? msg.html : null;
+      u.rkview = html;
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, html } }));
+    }
     if (msg.t === 'play') {
       if (!msg.head || typeof msg.head !== 'object') return [];
       const head = cleanHead(msg.head);
@@ -840,7 +846,7 @@ const cleanHead = h => {
     noFail: !!h.noFail, rules: Math.round(num(h.rules, 0, 100, 1)), player: str(h.player, 24),
   };
 };
-const cleanStatus = s => ['menu', 'room', 'playing', 'watching'].includes(s) ? s : 'menu';
+const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */

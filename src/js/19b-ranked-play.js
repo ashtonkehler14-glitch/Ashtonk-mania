@@ -205,7 +205,7 @@ const RankedMatch = {
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
     ];
-    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); };
+    const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
   },
   unmount() {
@@ -214,6 +214,7 @@ const RankedMatch = {
     (this._subs || []).forEach(f => f()); this._subs = [];
     this.stopPreview();
     this.root.remove(); this.root = null;
+    Spectate.hostRk(null, true); // (spectators: the match screen is gone)
     if (this.scr && this.scr.el) this.scr.el.classList.remove('rkm-on');
     $('#app').classList.remove('hide-toolbar');
     clearTimeout(this._handT);

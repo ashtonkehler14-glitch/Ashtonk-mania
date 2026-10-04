@@ -868,6 +868,18 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
 });
 
+test('presence: a Ranked Play screen reaches spectators, and someone who starts watching gets the latest', () => {
+  const p = new PresenceLogic(() => 0);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  p.message('a', { t: 'status', status: 'ranked' });
+  assert.equal(p.list().find(x => x.id === 'a').status, 'ranked');
+  assert.deepEqual(p.message('a', { t: 'rkview', html: '<div class="rkm">pick</div>' }), [], 'nobody watching yet');
+  const w = p.message('b', { t: 'watch', to: 'a' });
+  assert.deepEqual(w.find(o => o.msg.t === 'specRk'), { to: 'b', msg: { t: 'specRk', id: 'a', html: '<div class="rkm">pick</div>' } });
+  assert.deepEqual(p.message('a', { t: 'rkview', html: null }), [{ to: 'b', msg: { t: 'specRk', id: 'a', html: null } }]);
+});
+
 test('presence: friend requests — sent, answered, mutual, kept, and removable; watchers are named', () => {
   const p = new PresenceLogic(() => 0);
   const kept = {};
