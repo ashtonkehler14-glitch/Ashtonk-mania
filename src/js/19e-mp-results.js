@@ -20,6 +20,21 @@ const MpResults = {
     this.paint();
   },
   unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); },
+  /** A solo play's results (lazer's SoloResultsScreen): your other local scores on this beatmap as contracted panels
+   *  either side of yours, in leaderboard order (clicking one opens it). */
+  mountLocal(grid, card, s) {
+    const others = ScoreManager.forMap(s.mapHash).filter(x => x.id !== s.id && x.passed);
+    if (!others.length) return;
+    const all = [...others, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
+    const row = (x, i) => ({ id: x.id, local: true, name: x.player || ProfileManager.profile.name, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo, counts: x.counts, grade: x.grade, mods: x.mods, place: i + 1, src: x });
+    // (the two either side of yours, so your own panel keeps its size)
+    const mine = all.indexOf(s), from = Math.max(0, mine - 2);
+    const rows = all.map(row).slice(from, mine + 3), at = mine - from;
+    const el = (r, i) => { const e = this.panel(r, i, true, null); e.classList.add('cp-click'); e.title = new Date(r.src.date).toLocaleString(); e.onclick = () => { UISounds.click(); Screens.go('results', { score: r.src, fromList: true }, { replace: true }); }; return e; };
+    const before = h('div.res-mp-side.before', ...rows.slice(0, at).map((r, k) => el(r, k))), after = h('div.res-mp-side.after', ...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
+    grid.prepend(before); card.after(after);
+    grid.closest('.res-body').classList.add('mp', 'solo-list');
+  },
   /** The match's results once everyone's done; until then the live scores of those still playing. */
   rows() {
     const res = Multiplayer.lastResults;
@@ -74,7 +89,7 @@ const MpResults = {
     return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${i * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
       h('div.cp-place', `#${r.place || i + 1}`),
       h('div.cp-mid',
-        h('div.cp-av', me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name }, 110)),
+        h('div.cp-av', r.local ? (!r.name || r.name === ProfileManager.profile.name ? ProfileManager.avatarEl(110) : Presence.avatarEl({ name: r.name }, 110)) : me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name }, 110)),
         h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
         r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
         h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),

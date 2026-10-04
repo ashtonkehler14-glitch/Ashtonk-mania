@@ -23,6 +23,7 @@ const ResultsScreen = {
     grid.append(card, this.rightCol(s));
     body.append(grid);
     if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
+    else if (!p.watched && s.mapHash) MpResults.mountLocal(grid, card, s);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     this.fitToScreen(body, grid);

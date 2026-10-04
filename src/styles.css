@@ -3601,3 +3601,10 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .hfm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); }
 .hfm-dot { position: absolute; inset: 3px; border-radius: 50%; background: #333; }
 .hfm-btn .i { position: relative; width: 15px; height: 15px; stroke-width: 3.4; transform: scale(calc(1 + var(--p) * .2)); }
+.cp.cp-click { cursor: pointer; }
+.cp.cp-click:hover .cp-mid { box-shadow: 0 0 0 2px rgba(255, 255, 255, .25), 0 2px 1px rgba(0, 0, 0, .25); }
+.cp { height: auto; min-height: 385px; }
+.cp-mid { flex: 1 0 auto; gap: 7px; }
+.cp-name { flex: none; line-height: 1.3; }
+.cp-stats { gap: 2px; }
+.cp-stat { font-size: 11.5px; line-height: 1.35; }
