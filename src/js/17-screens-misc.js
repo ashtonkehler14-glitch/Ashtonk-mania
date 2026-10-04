@@ -563,6 +563,8 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
+    { icon: 'mods', title: 'New mods', items: ['Flashlight: only the part of the stage near the receptors can be seen, and it shrinks as your combo grows', 'Cover: cover part of the stage from the top or the bottom', 'Muted (in the new Fun column): the music fades as your combo builds, with a metronome'] },
+    { icon: 'mania', title: 'Gameplay', items: ['Bar lines across the stage at every bar, like lazer (Settings → Gameplay)', 'Change the offset or background dim from the pause screen'] },
     { icon: 'sparkle', title: 'Nicer', items: ['lazer\'s Manage collections window in song select (rename right in the list, type to make a new one)', 'Replays look like lazer\'s score rows', 'First-run setup asks Performance or Graphics', 'The game no longer goes fullscreen by itself on a computer'] },
     { icon: 'keyboard', title: 'Phones', items: ['A big typing bar above the keyboard, so you always see what you type', 'Tap to resume after turning the phone or switching apps', 'One Esc pauses, and the game keeps your keys while you play'] },
   ] },
