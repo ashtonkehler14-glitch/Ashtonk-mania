@@ -1140,7 +1140,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
     if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
     btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
-    if (failed && this.failedScore) btns.push(btn('View results', '#66ccff', () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true })));
     btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
@@ -1154,6 +1153,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
+    if (failed && this.failedScore) el.append(this.failFooter());
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -1163,6 +1163,32 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
+  },
+  /** lazer's FailOverlay footer: a #333 bar along the bottom with SaveFailedScoreButton — grey "save score"
+   *  (download), yellow while saving, then green "watch replay" with a tick — and, our own, the failed play's results. */
+  failFooter() {
+    const score = this.failedScore, replay = this.failedReplay;
+    const save = h('button.res-ab.wide.pm-save', { 'aria-label': 'Save score' }, h('span.pm-save-i', icon('download')), h('span.pm-save-ok', icon('check')));
+    const paint = st => {
+      save.dataset.state = st;
+      save.title = st === 'saved' ? 'watch replay' : st === 'saving' ? 'importing score' : replay ? 'save score' : 'replay unavailable';
+      save.disabled = st === 'saving' || (!replay && st !== 'saved');
+      save.firstChild.replaceChildren(icon(st === 'saved' ? 'play' : 'download'));
+    };
+    paint(score.replayId ? 'saved' : 'idle');
+    save.onclick = async () => {
+      UISounds.click();
+      if (save.dataset.state === 'saved') {
+        const r = replay || await ReplayManager.get(score.replayId);
+        if (r) Game.launch({ mapId: this.params.mapId, mode: 'replay', replay: r, returnTo: { score, replay: r } });
+        return;
+      }
+      if (!replay) return;
+      paint('saving');
+      try { await ReplayManager.save(replay); score.replayId = replay.id; paint('saved'); } catch (e) { console.error(e); paint('idle'); }
+    };
+    const results = h('button.res-ab', { onclick: () => { UISounds.click(); Screens.go('results', { score, replay }, { replace: true }); }, title: 'view results', 'aria-label': 'View results' }, icon('chart'));
+    return h('div.pm-foot', save, results);
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   resume() {

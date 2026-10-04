@@ -3072,6 +3072,19 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
 .pm-info b { font-weight: 700; }
+/* FailOverlay's footer: #333, 50px, the save-score button (DownloadButton: grey, yellow while saving, green with a
+   tick once saved) centred */
+.pm-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 50px; display: flex; align-items: center; justify-content: center; gap: 5px; background: #333; animation: fadeIn 200ms ease; }
+.pause-menu:has(.pm-foot) .pause-box { bottom: 50px; }
+.pm-save { transition: background-color 500ms cubic-bezier(.87, 0, .13, 1), transform 1000ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); }
+.pm-save > span { grid-area: 1 / 1; display: grid; transition: translate 500ms cubic-bezier(.87, 0, .13, 1), scale 500ms cubic-bezier(.87, 0, .13, 1); }
+.pm-save .pm-save-ok { translate: 8px 0; scale: 0; }
+.pm-save[data-state="saving"] { background: #fc2; }
+.pm-save[data-state="saved"] { background: #88b300; }
+.pm-save[data-state="saved"] .pm-save-i { translate: -8px 0; }
+.pm-save[data-state="saved"] .pm-save-ok { scale: 1; }
+.pm-save:disabled { filter: none; }
+.pm-save[data-state="idle"]:disabled { opacity: .5; }
 /* mod select: lazer's 320px columns, 10px apart, with 42px headers */
 .modsel-cols { gap: 10px; }
 .modcol { flex: 0 0 320px; }
@@ -3317,6 +3330,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
   .ss-footer .ss-cookie { width: 120px; height: 120px; right: 40px; bottom: 30px; }
   .ss-footer .foot-btn { width: 78px; font-size: .8rem; }
   .ss-filter { padding: 8px 20px 8px 16px; }
+  .ss-coll > span { display: none; } /* (upright, the collection picker says which collection on its own) */
   #toasts { left: 12px; right: 12px; align-items: stretch; }
   .toast { min-width: 0; max-width: none; }
 }
@@ -13134,7 +13148,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const btn = (label, colour, fn, cls = '') => h(`button.pm-btn${cls}`, { style: { '--c': colour }, onclick: fn }, h('span.pm-band'), h('span.pm-label', label));
     if (!failed) btns.push(btn('Continue', '#88b300', () => { SkinManager.skinOnly('pause-continue-click'); this.resume(); }, '.primary'));
     btns.push(btn('Retry', '#eeaa00', () => { SkinManager.skinOnly('pause-retry-click'); this.retry(); }));
-    if (failed && this.failedScore) btns.push(btn('View results', '#66ccff', () => Screens.go('results', { score: this.failedScore, replay: this.failedReplay }, { replace: true })));
     btns.push(btn('Quit', '#aa1b27', () => { SkinManager.skinOnly('pause-back-click'); this.quit(); }, '.danger'));
     for (const b of btns) b.addEventListener('pointerenter', () => SkinManager.skinOnly('pause-hover', 0.7));
     // lazer's layout: the yellow 48px title centred in the space above the buttons, the buttons (80px tall, 80% of the
@@ -13148,6 +13161,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
+    if (failed && this.failedScore) el.append(this.failFooter());
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -13157,6 +13171,32 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });
+  },
+  /** lazer's FailOverlay footer: a #333 bar along the bottom with SaveFailedScoreButton — grey "save score"
+   *  (download), yellow while saving, then green "watch replay" with a tick — and, our own, the failed play's results. */
+  failFooter() {
+    const score = this.failedScore, replay = this.failedReplay;
+    const save = h('button.res-ab.wide.pm-save', { 'aria-label': 'Save score' }, h('span.pm-save-i', icon('download')), h('span.pm-save-ok', icon('check')));
+    const paint = st => {
+      save.dataset.state = st;
+      save.title = st === 'saved' ? 'watch replay' : st === 'saving' ? 'importing score' : replay ? 'save score' : 'replay unavailable';
+      save.disabled = st === 'saving' || (!replay && st !== 'saved');
+      save.firstChild.replaceChildren(icon(st === 'saved' ? 'play' : 'download'));
+    };
+    paint(score.replayId ? 'saved' : 'idle');
+    save.onclick = async () => {
+      UISounds.click();
+      if (save.dataset.state === 'saved') {
+        const r = replay || await ReplayManager.get(score.replayId);
+        if (r) Game.launch({ mapId: this.params.mapId, mode: 'replay', replay: r, returnTo: { score, replay: r } });
+        return;
+      }
+      if (!replay) return;
+      paint('saving');
+      try { await ReplayManager.save(replay); score.replayId = replay.id; paint('saved'); } catch (e) { console.error(e); paint('idle'); }
+    };
+    const results = h('button.res-ab', { onclick: () => { UISounds.click(); Screens.go('results', { score, replay }, { replace: true }); }, title: 'view results', 'aria-label': 'View results' }, icon('chart'));
+    return h('div.pm-foot', save, results);
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   resume() {
@@ -13954,6 +13994,20 @@ const ResultsScreen = {
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
     bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
+    if (map) {
+      // (green while the beatmap is in a collection / the set is a favourite)
+      const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('folder'));
+      const paintColl = () => coll.classList.toggle('green', Collections.list.some(c => c.hashes.includes(map.hash)));
+      paintColl();
+      const off = Bus.on('collections:changed', () => { if (coll.isConnected) paintColl(); else off(); });
+      bar.append(coll);
+      const fav = h('button.res-ab', { 'aria-label': 'Favourite' });
+      const paint = () => { const on = Favorites.has(map.setId); fav.classList.toggle('green', on); fav.title = on ? 'Unfavourite this beatmapset' : 'Favourite this beatmapset'; fav.replaceChildren(icon('heart', on ? 'fill' : '')); };
+      fav.onclick = async () => { UISounds.click(); await Favorites.toggle(map.setId); paint(); };
+      paint();
+      bar.append(fav);
+    }
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
     bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));

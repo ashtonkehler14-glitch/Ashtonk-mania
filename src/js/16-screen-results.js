@@ -226,6 +226,20 @@ const ResultsScreen = {
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
     bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
+    if (map) {
+      // (green while the beatmap is in a collection / the set is a favourite)
+      const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('folder'));
+      const paintColl = () => coll.classList.toggle('green', Collections.list.some(c => c.hashes.includes(map.hash)));
+      paintColl();
+      const off = Bus.on('collections:changed', () => { if (coll.isConnected) paintColl(); else off(); });
+      bar.append(coll);
+      const fav = h('button.res-ab', { 'aria-label': 'Favourite' });
+      const paint = () => { const on = Favorites.has(map.setId); fav.classList.toggle('green', on); fav.title = on ? 'Unfavourite this beatmapset' : 'Favourite this beatmapset'; fav.replaceChildren(icon('heart', on ? 'fill' : '')); };
+      fav.onclick = async () => { UISounds.click(); await Favorites.toggle(map.setId); paint(); };
+      paint();
+      bar.append(fav);
+    }
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
     bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));
