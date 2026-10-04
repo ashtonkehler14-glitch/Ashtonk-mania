@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#18171c">
 <title>Ashtonk!mania</title>
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
+<script>/* the browser's install prompt can come before the game has booted: kept for the Install button */
+window.__bip = null; addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; });</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3844,6 +3846,7 @@ html.touch .mp-footer { padding-left: calc(24px + var(--corner)); padding-right:
 html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
 .mob-inst-quiet { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; color: rgba(255, 255, 255, .6); font-size: 13px; cursor: pointer; }
 .mob-inst-quiet input { width: 16px; height: 16px; accent-color: #ff66aa; }
+.mob-inst-how[hidden] { display: none; }
 
 </style>
 </head>
@@ -20009,17 +20012,23 @@ const Mobile = {
     clearEl(el);
     const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } };
     const canPrompt = !!App.installPrompt;
-    const how = canPrompt ? null
-      : this.ios ? h('ol.mob-inst-how', h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen'))
-      : h('ol.mob-inst-how', h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" or "Add to Home screen"'), h('li', 'Open Ashtonk!mania from your home screen'));
+    // (always an Install button: the browser's own install where it offers one; otherwise how to do it from its menu,
+    // which is all iPhones allow)
+    const how = h('ol.mob-inst-how', { hidden: true }, ...(this.ios
+      ? [h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen')]
+      : [h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" (or "Add to Home screen")'), h('li', 'Open Ashtonk!mania from your home screen')]));
+    const install = async () => {
+      if (App.installPrompt) { if (await App.install()) close(); return; }
+      how.hidden = false; // (no one-tap install here: the steps)
+    };
     el.append(h('div.mob-inst-box',
       h('img', { src: 'icons/icon-192.png', alt: '' }),
       h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
-      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, turns either way, runs smoother and plays offline.'),
+      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),
       how,
       h('div.mob-inst-btns',
-        canPrompt ? h('button.btn.primary', { onclick: async () => { if (await App.install()) close(); } }, icon('download'), 'Download the app') : null,
+        h('button.btn.primary', { onclick: install }, icon('download'), canPrompt || !this.ios ? 'Install the app' : 'How to install'),
         h('button.mob-inst-skip', { onclick: close }, 'Continue on the website (not recommended)')),
       h('label.mob-inst-quiet', h('input', { type: 'checkbox', onchange: e => { try { e.target.checked ? localStorage.setItem('am.noInstallPrompt', '1') : localStorage.removeItem('am.noInstallPrompt'); } catch { /* private mode */ } } }), 'Don\'t remind me again')));
   },
@@ -20899,6 +20908,7 @@ const App = {
   initPWA() {
     if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
       navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+    if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
     window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
     if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {

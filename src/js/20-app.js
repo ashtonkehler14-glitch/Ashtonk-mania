@@ -279,6 +279,7 @@ const App = {
   initPWA() {
     if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
       navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+    if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
     window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
     if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {

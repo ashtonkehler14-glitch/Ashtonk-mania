@@ -46,17 +46,23 @@ const Mobile = {
     clearEl(el);
     const close = () => { const e = this.inst; this.inst = null; if (e) { e.classList.add('out'); setTimeout(() => e.remove(), 250); } };
     const canPrompt = !!App.installPrompt;
-    const how = canPrompt ? null
-      : this.ios ? h('ol.mob-inst-how', h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen'))
-      : h('ol.mob-inst-how', h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" or "Add to Home screen"'), h('li', 'Open Ashtonk!mania from your home screen'));
+    // (always an Install button: the browser's own install where it offers one; otherwise how to do it from its menu,
+    // which is all iPhones allow)
+    const how = h('ol.mob-inst-how', { hidden: true }, ...(this.ios
+      ? [h('li', 'Tap the Share button in Safari'), h('li', 'Choose "Add to Home Screen"'), h('li', 'Open Ashtonk!mania from your home screen')]
+      : [h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" (or "Add to Home screen")'), h('li', 'Open Ashtonk!mania from your home screen')]));
+    const install = async () => {
+      if (App.installPrompt) { if (await App.install()) close(); return; }
+      how.hidden = false; // (no one-tap install here: the steps)
+    };
     el.append(h('div.mob-inst-box',
       h('img', { src: 'icons/icon-192.png', alt: '' }),
       h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
-      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, turns either way, runs smoother and plays offline.'),
+      h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),
       how,
       h('div.mob-inst-btns',
-        canPrompt ? h('button.btn.primary', { onclick: async () => { if (await App.install()) close(); } }, icon('download'), 'Download the app') : null,
+        h('button.btn.primary', { onclick: install }, icon('download'), canPrompt || !this.ios ? 'Install the app' : 'How to install'),
         h('button.mob-inst-skip', { onclick: close }, 'Continue on the website (not recommended)')),
       h('label.mob-inst-quiet', h('input', { type: 'checkbox', onchange: e => { try { e.target.checked ? localStorage.setItem('am.noInstallPrompt', '1') : localStorage.removeItem('am.noInstallPrompt'); } catch { /* private mode */ } } }), 'Don\'t remind me again')));
   },
