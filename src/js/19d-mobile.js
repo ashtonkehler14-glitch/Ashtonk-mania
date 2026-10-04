@@ -13,7 +13,8 @@ const Mobile = {
   early() {
     if (!this.touch) return;
     Orientation.init();
-    if (!App.installed) this.showInstall();
+    let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
+    if (!App.installed && !quiet) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
   /** After the first-run setup. */
@@ -50,13 +51,14 @@ const Mobile = {
       : h('ol.mob-inst-how', h('li', 'Open your browser\'s ⋮ menu'), h('li', 'Choose "Install app" or "Add to Home screen"'), h('li', 'Open Ashtonk!mania from your home screen'));
     el.append(h('div.mob-inst-box',
       h('img', { src: 'icons/icon-192.png', alt: '' }),
-      h('h2', 'Install the app to play'),
+      h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
       h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, turns either way, runs smoother and plays offline.'),
       how,
       h('div.mob-inst-btns',
-        canPrompt ? h('button.btn.primary', { onclick: async () => { if (await App.install()) close(); } }, 'Install the app') : null,
-        h('button.mob-inst-skip', { onclick: close }, 'Continue in the browser (not recommended)'))));
+        canPrompt ? h('button.btn.primary', { onclick: async () => { if (await App.install()) close(); } }, icon('download'), 'Download the app') : null,
+        h('button.mob-inst-skip', { onclick: close }, 'Continue on the website (not recommended)')),
+      h('label.mob-inst-quiet', h('input', { type: 'checkbox', onchange: e => { try { e.target.checked ? localStorage.setItem('am.noInstallPrompt', '1') : localStorage.removeItem('am.noInstallPrompt'); } catch { /* private mode */ } } }), 'Don\'t remind me again')));
   },
 };
 
@@ -123,3 +125,27 @@ const Orientation = {
     this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The game is used sideways — only gameplay is upright.';
   },
 };
+
+// ── phones on the website (not the installed app) ─────────────────────────────
+if (Mobile.touch) {
+  /** The keyboard opens only when you tap a text box yourself: a box the game focuses on its own (song select's
+   *  search, the settings' search, the chat…) stays unfocused on a phone unless your tap was on or around it. */
+  let lastDown = null, lastAt = 0;
+  document.addEventListener('pointerdown', e => { lastDown = e.target; lastAt = performance.now(); }, true);
+  const typable = el => (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color)$/.test(el.type)));
+  for (const P of [HTMLInputElement.prototype, HTMLTextAreaElement.prototype]) {
+    const focus = P.focus;
+    P.focus = function (...a) {
+      if (typable(this) && !(lastDown && performance.now() - lastAt < 800 && (lastDown === this || (lastDown.contains && lastDown.contains(this)) || (this.closest && lastDown.closest && this.parentElement && this.parentElement.contains(lastDown))))) return;
+      return focus.apply(this, a);
+    };
+  }
+  /** The website goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
+   *  way the game wants it (sideways; upright in gameplay). The installed app is fullscreen already. */
+  const full = () => {
+    if (App.installed || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    if (document.querySelector('.mob-inst')) return; // (not while the install prompt is up)
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => Orientation.lock(Orientation.wanted()), () => {});
+  };
+  document.addEventListener('pointerup', full, true);
+}

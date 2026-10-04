@@ -397,7 +397,13 @@ const UserPanels = {
   brick(u) { return this.wire(h(`div.up.up-brick${u.online ? '' : '.off'}`, h('span.up-bar', { style: { background: this.statusColour(u) === '#000' ? '#555' : this.statusColour(u) } }), h('span', u.name)), u); },
   panel(u, style) { return style === 'list' ? this.row(u) : style === 'brick' ? this.brick(u) : this.card(u); },
   /** A player's profile (lazer opens UserProfileOverlay): their card, what they're doing, and what you can do. */
+  /** lazer's user profile: the full profile page (theirs from the server); the small card below is for players
+   *  without a public id. */
   profile(u) {
+    if (u.pid) { const mine = u.pid === Presence.pid(); Screens.go('profile', mine ? { force: true } : { pid: u.pid, name: u.name, avatar: u.avatar, force: true }); return; }
+    this.profileCard(u);
+  },
+  profileCard(u) {
     const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
     const acts = [];
     if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });

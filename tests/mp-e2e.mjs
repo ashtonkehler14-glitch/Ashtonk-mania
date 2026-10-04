@@ -94,11 +94,17 @@ await shot(alice, 'mp-chat');
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => !document.querySelector('.chat'), null, { timeout: 3000 });
 // lazer's rankings: each player's totals, by pp
-await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'stats', pp: 432.1, acc: 0.9632, plays: 12, grades: { ss: 1, s: 4, a: 5 } }));
+await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'stats', pp: 432.1, acc: 0.9632, plays: 12, grades: { ss: 1, s: 4, a: 5 }, profile: { ...AshtonkMania.ProfileScreen.summary(), plays: 12, pp: 432.1 } }));
 await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
 await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
 check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(() => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /432pp/.test(r.textContent) && /96\.32%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
 await shot(alice, 'mp-rankings');
+// clicking a player opens their full profile (lazer's user profile), from what their game shared
+await alice.click('.rk-table .rk-row:not(.rk-head)');
+await alice.waitForFunction(() => document.querySelector('.pf-name') && /Bob/.test(document.querySelector('.pf-name').textContent), null, { timeout: 5000 });
+check('rankings: clicking a player opens their full profile (rank, pp, play count, sections)', await alice.evaluate(() => /#1/.test(document.querySelector('.pf-global').textContent) && /432pp/.test(document.querySelector('.pf-header').textContent) && document.querySelectorAll('.pf-sec').length >= 4 && !document.querySelector('.pf-avatar[title]')), await alice.evaluate(() => document.querySelector('.pf-header').textContent.slice(0, 200)));
+await shot(alice, 'mp-profile-other');
+await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'rankings', null, { timeout: 5000 });
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 // lazer's daily challenge: one beatmap a day for everyone, and a leaderboard of each player's best score
 await alice.evaluate(() => { AshtonkMania.Daily._proposing = true; AshtonkMania.Presence.send({ t: 'dailyPropose', map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } }); AshtonkMania.Screens.go('daily'); });
@@ -221,7 +227,7 @@ await alice.waitForTimeout(1200); await shot(alice, 'mp-results-screen'); await 
 check('after the song, the results screen with your panel and the other player\'s, winner first', mpr[0].verdict === 'You win!' && mpr[1].verdict === 'You lose' && mpr[0].place === '#1' && mpr[1].place === '#2' && mpr[0].after.join() === 'Bob' && !mpr[0].before.length && mpr[1].before.join() === 'Alice' && !mpr[1].after.length, JSON.stringify(mpr));
 await Promise.all([alice, bob].map(p => p.evaluate(() => AshtonkMania.Screens.go('multiplayer', {}, { replace: true }))));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 10000 })));
-check('the play finishes and is saved as a failed score (F, no pp, score untouched)', await bob.evaluate(() => { const sc = AshtonkMania.ScoreManager.scores[0]; return sc && sc.passed === false && sc.grade === 'F' && sc.pp === 0; }));
+check('the play finishes, shown to the room as failed (F), and isn\'t recorded (only a play you finish is)', await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.lastResults.rows.find(x => x.id === AshtonkMania.Multiplayer.me); return !AshtonkMania.ScoreManager.scores.length && r && r.grade === 'F'; }), await bob.evaluate(() => JSON.stringify([AshtonkMania.ScoreManager.scores.length, AshtonkMania.Multiplayer.lastResults.rows])));
 const ra = await alice.evaluate(() => ({ verdict: document.querySelector('.mp-verdict')?.textContent, res: AshtonkMania.Multiplayer.lastResults }));
 const rb = await bob.evaluate(() => document.querySelector('.mp-verdict')?.textContent);
 await shot(alice, 'mp-results');

@@ -9,7 +9,7 @@ const Rankings = {
     if (!Presence.ws) return;
     const st = StatisticsManager.compute(), g = st.grades || {};
     Presence.send({ t: 'stats', pp: ScoreManager.totalPp().total, acc: st.avgAcc || 0, plays: st.plays || 0,
-      grades: { ss: (g.SS || 0) + (g.XH || 0), s: (g.S || 0) + (g.SH || 0), a: g.A || 0 } });
+      grades: { ss: (g.SS || 0) + (g.XH || 0), s: (g.S || 0) + (g.SH || 0), a: g.A || 0 }, profile: ProfileScreen.summary() });
   },
 };
 
@@ -41,7 +41,10 @@ const RankingsScreen = {
         h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
         h('span', fmtAcc(r.acc)), h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
-      if (r.pid !== me) { el.classList.add('click'); el.onclick = e => UserPanels.openMenu(u, e.clientX, e.clientY); }
+      // (lazer: a player opens their profile; right-click for the rest)
+      el.classList.add('click');
+      el.onclick = () => { UISounds.click(); UserPanels.profile(u); };
+      if (r.pid !== me) el.oncontextmenu = e => { e.preventDefault(); UserPanels.openMenu(u, e.clientX, e.clientY); };
       return el;
     };
     const mine = d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : [];

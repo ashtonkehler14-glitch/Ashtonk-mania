@@ -1286,7 +1286,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       }
       if (!replay) return;
       paint('saving');
-      try { await ReplayManager.save(replay); score.replayId = replay.id; paint('saved'); } catch (e) { console.error(e); paint('idle'); }
+      try { if (!ScoreManager.scores.includes(score)) await ScoreManager.add(score); await ReplayManager.save(replay); score.replayId = replay.id; paint('saved'); } catch (e) { console.error(e); paint('idle'); }
     };
     const results = h('button.res-ab', { onclick: () => { UISounds.click(); Screens.go('results', { score, replay }, { replace: true }); }, title: 'view results', 'aria-label': 'View results' }, icon('chart'));
     return h('div.pm-foot', save, results);
@@ -1351,7 +1351,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     }
     SkinManager.sample('failsound').then(b => b && AudioManager.play(b));
     if (s.mode === 'play') {
-      const { score } = await this.saveScore(false, now);
+      const { score } = await this.saveScore(false, { store: false }); // (not kept: only a play you finish is recorded)
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
@@ -1373,7 +1373,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const summary = s.engine.summary();
     if (s.mode === 'play') {
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
-      const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
+      // (a multiplayer play that ran out of health is a failed score: shown to the room, not recorded)
+      const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play') Presence.send({ t: 'lbSubmit', key: s.rec.hash, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods, counts: score.counts, pp: ScoreManager.ppOf(score) });
@@ -1403,7 +1404,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       healthTimeline: s.engine.health.timeline, srVersion: SR_VERSION,
     };
   },
-  async saveScore(passed) {
+  /** Build the play's score and replay; `store` keeps the score (a failed play isn't kept unless you save it from the
+   *  fail screen, as lazer's SaveFailedScoreButton). */
+  async saveScore(passed, { store = true } = {}) {
     const s = this.s;
     const summary = s.engine.summary();
     const score = this.buildScore(passed, summary);
@@ -1411,6 +1414,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
       events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
+    if (!store) { this._unsavedReplay = replay; return { score, replay }; }
     await ScoreManager.add(score);
     const mode = Settings.get('replays.autosave');
     if ((mode === 'all' && passed) || (mode === 'pb' && score.isPB)) {

@@ -418,6 +418,7 @@ const Presence = {
       else if (m.t === 'rankings') Bus.emit('rankings', m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
+      else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };

@@ -677,6 +677,18 @@ export class PresenceLogic {
     this.dailyStats = new Map(); this.persistDailyStats = null;
     // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
     this.boards = new Map(); this.persistBoard = null;
+    // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
+    this.profiles = new Map(); this.profileJson = new Map(); this.persistProfile = null;
+  }
+  static PROFILE_MAX = 48000; // characters of JSON
+  /** A player's profile for someone looking at it: what their game shared, their place in the rankings, their daily
+   *  challenge record and whether they're online. */
+  profileMsg(pid) {
+    const data = this.profiles.get(pid) || null, r = this.ranks.get(pid);
+    const online = [...this.users.entries()].find(([, x]) => x.pid === pid);
+    const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
+    return { t: 'profile', pid, data, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
+      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   static LB_KEEP = 100;
   static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
@@ -800,6 +812,15 @@ export class PresenceLogic {
       const g = msg.grades && typeof msg.grades === 'object' ? msg.grades : {};
       const r = { pid: u.pid, name: u.name, avatar: u.avatar, pp: Math.round(num(msg.pp, 100000) * 100) / 100, acc: num(msg.acc, 1), plays: Math.round(num(msg.plays, 1e7)),
         ss: Math.round(num(g.ss, 1e6)), s: Math.round(num(g.s, 1e6)), a: Math.round(num(g.a, 1e6)), at: this.now() };
+      // (their profile, for other players to open)
+      if (msg.profile && typeof msg.profile === 'object') {
+        const json = JSON.stringify(msg.profile);
+        if (json.length <= PresenceLogic.PROFILE_MAX && json !== this.profileJson.get(u.pid)) {
+          const data = { ...JSON.parse(json), name: u.name };
+          this.profiles.set(u.pid, data); this.profileJson.set(u.pid, json);
+          if (this.persistProfile) this.persistProfile(u.pid, data);
+        }
+      }
       const old = this.ranks.get(u.pid);
       if (old && ['name', 'avatar', 'pp', 'acc', 'plays', 'ss', 's', 'a'].every(k => old[k] === r[k])) return [];
       this.ranks.set(u.pid, r);
@@ -807,6 +828,7 @@ export class PresenceLogic {
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
+    if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     if (msg.t === 'lb') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.boardMsg(key, u.pid, msg.scope) }] : []; }
     if (msg.t === 'lbSubmit') {
@@ -1009,6 +1031,15 @@ export class Matchmaker {
       }
       if (!this.presence.users.has(id)) { try { server.close(4001, 'stale'); } catch { /* closed */ } return; } // pruned: the client reconnects
       // (a beatmap's leaderboard comes out of storage the first time it's asked for)
+      // (and a player's profile the first time it's opened)
+      if (msg.t === 'profile' && /^[a-z0-9]{6,24}$/.test(String(msg.pid || '')) && !this.presence.profiles.has(msg.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(msg.pid)) {
+        this._pfLoaded.add(msg.pid);
+        this.state.storage.get(`pf:${msg.pid}`).catch(() => null).then(v => {
+          if (v && typeof v === 'object' && !this.presence.profiles.has(msg.pid)) this.presence.profiles.set(msg.pid, v);
+          if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
+        });
+        return;
+      }
       const key = (msg.t === 'lb' || msg.t === 'lbSubmit') && PresenceLogic.lbKey(msg.key);
       if (key && !this.presence.boards.has(key)) {
         this.state.storage.get(`lb:${key}`).catch(() => null).then(v => {
@@ -1043,6 +1074,7 @@ export class Matchmaker {
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
       this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
+      this.presence.persistProfile = (pid, data) => { st.put(`pf:${pid}`, data).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
     })());
   }

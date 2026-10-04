@@ -77,8 +77,8 @@ const Medals = {
     Notifications.add(`Medal unlocked: ${m.name}`, m.desc, 'ok');
   },
   /** The profile's Medals section: every medal, the ones not yet earned dimmed. */
-  section() {
-    const got = this.unlocked(), groups = [...new Set(MEDALS.map(m => m.group))];
+  section(got = this.unlocked()) {
+    const groups = [...new Set(MEDALS.map(m => m.group))];
     return groups.map(g => h('div.md-group', h('h4', g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
       h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },
         h('div.md-mini', icon(m.icon)), h('span', m.name))))));

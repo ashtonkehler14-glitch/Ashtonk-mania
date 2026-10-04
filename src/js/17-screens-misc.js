@@ -143,20 +143,27 @@ const CollectionsScreen = {
 
 // ─────────────────────────────── Profile (osu!lazer user profile layout; includes statistics) ───────────────────────────────
 const ProfileScreen = {
-  enter() {
-    const { el, page } = pageShell('Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
+  /** Your profile, or (params.pid) another player's — lazer's UserProfileOverlay either way; theirs comes from the
+   *  server (what their game last shared). */
+  enter(params = {}) {
+    const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
+    this.remote = other ? { pid: params.pid, name: params.name, avatar: params.avatar, data: null } : null;
+    const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('profile:changed', () => this.render()), Bus.on('scores:changed', () => this.render()),
-      Bus.on('rankings', d => { this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
+    this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
+      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) { Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
+      Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
+      Bus.on('rankings', d => { if (this.remote) return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
-    if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); }
+    if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
+    else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); }
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
    *  tooltip has the streaks. Hidden until you've played one. */
   paintDaily() {
-    const el = this.dailyEl, v = Daily.data && Daily.data.stats;
+    const el = this.dailyEl, v = this.remote ? this.remote.daily : Daily.data && Daily.data.stats;
     if (!el || !el.isConnected) return;
     el.hidden = !(v && v.plays);
     if (el.hidden) return;
@@ -169,34 +176,66 @@ const ProfileScreen = {
         h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
   },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
+  /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
+  localData() {
+    const p = ProfileManager.profile, xp = ProfileManager.xpInfo(), st = StatisticsManager.compute();
+    const bestPerMap = new Map();
+    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
+    const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s });
+    const day = 86400000, g = st.grades || {};
+    return {
+      name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
+      rankedScore: [...bestPerMap.values()].reduce((a, s) => a + s.score, 0), pp: ScoreManager.totalPp().total,
+      grades: { XH: g.XH || 0, SS: g.SS || 0, SH: g.SH || 0, S: g.S || 0, A: g.A || 0 },
+      level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
+      top: ScoreManager.bestPpPerMap().slice(0, 20).map(tp => lite(tp.score, tp.pp)),
+      recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
+      medals: Medals.unlocked(),
+      ppHist: ScoreManager.ppHistory().slice(-60).map(x => ({ y: Math.round(x.pp), tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })),
+      perDay: st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })),
+    };
+  },
+  /** The same, for sending: without the local score objects. */
+  summary() {
+    const d = this.localData(), strip = a => a.map(({ _s, ...x }) => x);
+    return { ...d, top: strip(d.top), recent: strip(d.recent) };
+  },
   render() {
     const page = this.page;
     clearEl(page);
-    const p = ProfileManager.profile;
-    const xp = ProfileManager.xpInfo();
-    const st = StatisticsManager.compute();
-    const bestPerMap = new Map();
-    for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
-    const rankedScore = [...bestPerMap.values()].reduce((a, s) => a + s.score, 0);
-    const pp = ScoreManager.totalPp();
-    const topPlays = ScoreManager.bestPpPerMap();
-    const avatar = ProfileManager.avatarEl(120);
+    if (this.remote) {
+      const d = this.remote.data;
+      if (!d) { page.append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, this.remote.missing ? `${this.remote.name || 'This player'} hasn't shared a profile yet.` : Presence.ws ? 'Loading profile…' : 'Profiles need the online server — trying to connect…')); return; }
+      this.renderData(page, d, false);
+      return;
+    }
+    this.renderData(page, this.localData(), true);
+  },
+  renderData(page, d, own) {
+    const p = own ? ProfileManager.profile : { name: d.name || (this.remote && this.remote.name) || 'Player', created: d.created };
+    const xp = { level: d.level || 1, into: d.xpInto || 0, need: d.xpNeed || 1, progress: clamp(d.xpProgress || 0, 0, 1) };
+    const st = { plays: d.plays || 0, playtime: d.playtime || 0, passed: d.passed || 0, avgAcc: d.avgAcc || 0, notes: d.notes || 0, highestCombo: d.highestCombo || 0, grades: d.grades || {} };
+    const rankedScore = d.rankedScore || 0, pp = { total: d.pp || 0 };
+    const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
-    avatar.title = 'Change avatar';
-    avatar.addEventListener('click', () => AvatarPicker.open());
-    // osu!lazer's UserProfileOverlay: the cover (here the background of your top pp play) with the avatar and name,
+    if (own) { avatar.title = 'Change avatar'; avatar.addEventListener('click', () => AvatarPicker.open()); }
+    // osu!lazer's UserProfileOverlay: the cover (here the background of the top pp play) with the avatar and name,
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const cover = h('div.pf-cover');
-    // your highest-pp play still in the library; with no pp yet, the latest play
-    const top1 = topPlays.map(t => BeatmapManager.mapByHash(t.score.mapHash)).find(Boolean);
-    const last = ScoreManager.recent(1)[0], lastMap = top1 || (last && BeatmapManager.mapByHash(last.mapHash));
-    if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
+    if (own) {
+      const top1 = (d.top || []).map(t => BeatmapManager.mapByHash(t._s.mapHash)).find(Boolean);
+      const last = ScoreManager.recent(1)[0], lastMap = top1 || (last && BeatmapManager.mapByHash(last.mapHash));
+      if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
+    }
+    const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
       h('div.pf-id',
-        h('div.pf-name', p.name, h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit'))),
-        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`)))));
+        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')) : null),
+        h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+          u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
+      u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
     const centre = h('div.pf-centre',
       h('span.pf-chip', { title: 'Play count' }, icon('play', 'fill'), fmtInt(st.plays)),
       h('span.pf-chip', { title: 'Play time' }, icon('clock'), fmtDuration(st.playtime)),
@@ -208,35 +247,37 @@ const ProfileScreen = {
     const grades = st.grades || {};
     const rank = g => h('div.pf-rank', rankPill(g), h('span', fmtInt(grades[g] || 0)));
     const dl = (k, v) => h('div.pf-dl', h('span', k), h('b', v));
+    const globalRank = own ? this.globalRank : this.remote.rank;
     const detail = h('div.pf-detail',
       h('div.pf-detail-l',
         h('div.pf-bigs',
-          // (hit accuracy is in the box on the right, as in lazer: it isn't repeated here)
-          // lazer's Global Ranking: your place in the rankings (from the server; — until it answers or offline)
-          this.globalEl = h('div.pf-big.pf-global', { title: 'Your place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', this.globalRank ? `#${fmtInt(this.globalRank)}` : '—')),
-          h('div.pf-big', { title: 'Your best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
+          // lazer's Global Ranking: the place in the rankings (from the server; — until it answers or offline)
+          this.globalEl = h('div.pf-big.pf-global', { title: 'Place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', globalRank ? `#${fmtInt(globalRank)}` : '—')),
+          h('div.pf-big', { title: 'The best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
         h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
       h('div.pf-detail-r',
-        dl('Ranked score', fmtInt(rankedScore)), dl('Hit accuracy', st.passed ? fmtAcc(st.avgAcc) : '—'), dl('Play count', fmtInt(st.plays)),
+        dl('Ranked score', fmtInt(rankedScore)), dl('Play count', fmtInt(st.plays)),
         dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
     // sections, with lazer's sticky tab bar
     const secs = [];
     const section = (id, title, ...kids) => { const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
     const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count != null ? h('span.pf-count', fmtInt(count)) : null), ...kids);
-    const ppHist = ScoreManager.ppHistory();
-    const day = 86400000;
+    const ppHist = d.ppHist || [], perDay = d.perDay || [];
     const hist = section('historical', 'Historical',
-      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist.slice(-120).map(x => ({ y: x.pp, tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })), { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays ? sub('Play history', null, h('div.pf-chart', Charts.bars(st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` }))))) : h('div.pf-empty', 'Nothing here yet. Play something!'));
+      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist, { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
+      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : h('div.pf-empty', 'Nothing here yet.'));
+    const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
+    const topPlays = d.top || [];
     const ranks = section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
-        ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))
-        : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
-    const medals = section('medals', 'Medals', sub('Medals', Medals.count(), ...Medals.section()));
-    const recent = ScoreManager.recent(10);
+        ? h('div.pf-scores', ...topPlays.map((x, i) => row(x, i, true)))
+        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')));
+    const got = d.medals || {};
+    const medals = section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
+    const recent = d.recent || [];
     const rec = section('recent', 'Recent',
       sub('Recent plays', recent.length, recent.length
-        ? h('div.pf-scores', ...recent.map(s => this.scoreRow(s, s.passed ? fmtInt(ScoreManager.ppOf(s)) : null)))
+        ? h('div.pf-scores', ...recent.map((x, i) => row(x, i, false)))
         : h('div.pf-empty', 'No recent plays.')));
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
@@ -266,7 +307,7 @@ const ProfileScreen = {
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
   scoreRow(s, pp, weight = null, weighted = null) {
-    return h('button.pf-score', { onclick: () => Screens.go('results', { score: s, fromList: true }) },
+    return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => { if (!s.remote) Screens.go('results', { score: s, fromList: true }); } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),

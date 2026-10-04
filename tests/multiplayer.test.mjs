@@ -1052,3 +1052,20 @@ test('presence beatmap leaderboards: each player\'s best per beatmap, global or 
   assert.equal(saved.length, 3);
   assert.equal(p.message('a', { t: 'lb', key: 'b'.repeat(32) })[0].msg.total, 0);
 });
+
+test('presence profiles: a player\'s game shares their profile; others open it with their rank, daily record and status', () => {
+  const p = new PresenceLogic(() => 1000), saved = [];
+  p.persistProfile = pid => saved.push(pid);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  const prof = { plays: 12, pp: 345, top: [{ title: 'Song', version: 'Hard', grade: 'S', accuracy: 0.97, pp: 120 }], medals: { first: 1 } };
+  p.message('a', { t: 'stats', pp: 345, acc: 0.97, plays: 12, profile: prof });
+  p.message('a', { t: 'stats', pp: 345, acc: 0.97, plays: 12, profile: prof }); // (unchanged: not saved again)
+  assert.deepEqual(saved, ['alicepid1']);
+  const m = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
+  assert.deepEqual([m.data.plays, m.data.top[0].title, m.data.name, m.rank, m.online, m.id, m.name], [12, 'Song', 'Alice', 1, true, 'a', 'Alice']);
+  assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
+  assert.deepEqual(p.message('b', { t: 'profile', pid: 'x!' }), []);
+  // too big: not kept
+  p.message('b', { t: 'stats', pp: 1, profile: { junk: 'x'.repeat(60000) } });
+  assert.equal(p.profiles.has('bobpid22'), false);
+});

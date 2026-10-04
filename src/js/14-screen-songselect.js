@@ -18,13 +18,16 @@ const STATUS_GROUP = { ranked: 0, approved: 0, qualified: 1, wip: 2, pending: 3,
 /** A date as milliseconds (timestamps, ISO strings), 0 if there isn't one. */
 const dateMs = v => !v ? 0 : typeof v === 'number' ? v : (Date.parse(v) || 0);
 /** osu!lazer's BeatmapSetOnlineStatusPill: the set's online status in its colour (OsuColour.ForBeatmapSetOnlineStatus),
- *  bold black capitals (grey-green on the graveyard's black); a set with no known status is "UNKNOWN" (rosy brown). */
+ *  bold black capitals (grey-green on the graveyard's black). A set with no known status shows no pill at all, as in
+ *  lazer (its status is looked up online when the set has an online id — BeatmapStatus). */
 const ONLINE_STATUS = {
   ranked: ['RANKED', '#b3ff66'], approved: ['APPROVED', '#b3ff66'], qualified: ['QUALIFIED', '#66ccff'], loved: ['LOVED', '#ff66ab'],
   pending: ['PENDING', '#ffd966'], wip: ['WIP', '#ff9966'], graveyard: ['GRAVEYARD', '#000000'], modified: ['MODIFIED', '#ff4500'], none: ['UNKNOWN', '#bc8f8f'],
 };
 function statusPill(status, cls = '') {
-  const [label, bg] = ONLINE_STATUS[String(status || 'none').toLowerCase()] || ONLINE_STATUS.none;
+  const known = ONLINE_STATUS[String(status || 'none').toLowerCase()];
+  if (!known || known === ONLINE_STATUS.none) return null;
+  const [label, bg] = known;
   return h(`span.status-pill${cls}`, { style: { background: bg, color: status === 'graveyard' ? '#4d7365' : '#000' } }, label);
 }
 

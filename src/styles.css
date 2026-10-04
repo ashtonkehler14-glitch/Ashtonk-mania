@@ -3813,3 +3813,17 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* phones: the keyboard opens over the game; the screen slides up just enough to keep the box you're typing in above it */
 html.touch body { transform: translateY(calc(-1 * var(--kb-pan, 0px))); transition: transform 220ms cubic-bezier(.22, 1, .36, 1); }
 html.touch:not(.kb-open) body { transform: none; }
+/* another player's profile: their status and lazer's header buttons (add friend, message, spectate, invite) */
+.pf-online { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); font-size: .85rem; }
+.pf-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: flex-end; }
+.pf-score.remote { cursor: default; }
+
+/* phones: the screen's rounded corners — the toolbar's ends and the bottom bars keep clear of them */
+html.touch { --corner: 34px; }
+html.touch #toolbar { padding-left: var(--corner); padding-right: var(--corner); }
+html.touch .page-back, html.touch .ss-footer .lz-back { margin-left: calc(var(--corner) - 30px); }
+html.touch .page-back { left: var(--corner); }
+html.touch .mp-footer { padding-left: calc(24px + var(--corner)); padding-right: calc(24px + var(--corner)); }
+html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
+.mob-inst-quiet { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; color: rgba(255, 255, 255, .6); font-size: 13px; cursor: pointer; }
+.mob-inst-quiet input { width: 16px; height: 16px; accent-color: #ff66aa; }

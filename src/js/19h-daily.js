@@ -67,7 +67,7 @@ const DailyScreen = {
     const key = JSON.stringify([m, !!local, f && [Math.round((f.progress || 0) * 100), f.error], mods]);
     if (key !== this._cardKey || !this.cardEl) { this._cardKey = key; this.cardEl = this.buildCard(m, local, f, mods); }
     const me = Presence.pid();
-    const row = s => h(`div.rk-row.dc-row${s.pid === me ? '.me' : ''}`,
+    const row = s => h(`div.rk-row.dc-row.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
       h('span.rk-rank', `#${s.rank}`),
       h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),
       h('span.hl', fmtInt(s.score)), h('span', fmtAcc(s.acc)), h('span', `${fmtInt(s.combo)}x`),

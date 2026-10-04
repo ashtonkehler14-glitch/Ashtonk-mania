@@ -731,3 +731,27 @@ const ExplorerScreen = {
     this._resumeMusic = false;
   },
 };
+
+/** The online status (RANKED, LOVED, …) of beatmaps imported from files: looked up in the background for every set
+ *  that has an online id and no status yet, one at a time, and kept with the set. */
+const BeatmapStatus = {
+  busy: false,
+  async sync() {
+    if (this.busy || !navigator.onLine) return;
+    this.busy = true;
+    let changed = 0;
+    try {
+      const todo = BeatmapManager.sets.filter(s => s.onlineId > 0 && !s.status && !s.statusChecked).slice(0, 200);
+      for (const set of todo) {
+        if (Screens.currentName === 'gameplay') { await sleep(5000); continue; } // (never during a song)
+        let st = null;
+        try { const d = await OnlineBeatmaps.getSet(set.onlineId); st = d && d.status; } catch (e) { if (e && e.status === 429) break; }
+        set.statusChecked = Date.now();
+        if (st) { set.status = st; changed++; }
+        await DB.put('sets', { ...set, maps: undefined }).catch(() => {});
+        await sleep(700);
+      }
+    } finally { this.busy = false; }
+    if (changed) Bus.emit('library:changed');
+  },
+};

@@ -86,9 +86,13 @@ class ManiaRenderer {
    *  hit position, so on screen the speed is the same whatever the HitPosition — 402 of 480 units, the default. */
   // (scaled with the columns when a phone resizes them: notes cross the same number of note widths per second as in
   // the skin's own layout, so a tall upright screen doesn't make them feel faster)
-  // On phones (the touch layout) it's the screen's height alone: the columns' width there changes with the screen's
-  // shape, the lane width setting and the keyboard, and a note has to take the same time to fall every play.
-  get scrollLength() { return 402 * (this.s || this.H / 480 || 1) * (this.fnf ? 1 : this.colScale || 1); }
+  // On phones (the touch layout) notes fall at the same speed as on a computer at the same scroll speed: as many
+  // column widths a second (the columns there are sized to the upright screen, so it's the same every play).
+  get scrollLength() {
+    const L = this.layout, cw = L && L.columnWidth && L.columnWidth[0];
+    if (this.fnf && cw > 0 && this.colW && this.colW[0] > 0) return 402 * this.colW[0] / cw;
+    return 402 * (this.s || this.H / 480 || 1) * (this.colScale || 1);
+  }
   resize(force = false) {
     this._hostRect = null;
     const c = this.canvas;
