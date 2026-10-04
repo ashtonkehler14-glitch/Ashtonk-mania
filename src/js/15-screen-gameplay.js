@@ -7,7 +7,7 @@
 const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
-    if (Settings.get('input.fullscreenOnPlay') && !document.fullscreenElement) toggleFullscreen(true);
+    PlayScreen.enter();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
   },
@@ -20,6 +20,29 @@ const Game = {
     const keys = Object.keys(memo);
     for (let i = 0; i < keys.length - 5000; i++) delete memo[keys[i]];
     Settings.set('songselect.lastDiff', memo);
+  },
+};
+
+/** Gameplay fills the screen: fullscreen while playing (the setting, on by default), and on phones and tablets
+ *  turned sideways and held there — there's no upright gameplay. Leave fullscreen mid-song (the browser's bar swiped
+ *  back, Esc) and a tap or click on the game puts it back. Phones that can't lock the screen's turn (iPhones) are
+ *  asked to rotate, and the song waits paused until they do. */
+const PlayScreen = {
+  want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
+  enter() {
+    const el = document.documentElement;
+    if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => this.lock(), () => {});
+    else this.lock();
+  },
+  lock() {
+    if (typeof Mobile === 'undefined' || !Mobile.touch) return;
+    try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
+  },
+  unlock() { try { const o = screen.orientation; o && o.unlock && o.unlock(); } catch {} },
+  /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
+  attach(el) {
+    const back = () => { if (this.want() && !document.fullscreenElement && Screens.currentName === 'gameplay') this.enter(); };
+    for (const t of ['pointerup', 'touchend']) el.addEventListener(t, back, { passive: true });
   },
 };
 
@@ -165,7 +188,12 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
+    // (phones held upright: turn sideways to play — the song waits paused meanwhile)
+    this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
+    PlayScreen.attach(el);
+    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
+    window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
     this._tok = {};
@@ -225,6 +253,8 @@ const GameplayScreen = {
     window.removeEventListener('blur', this._blur);
     if (this.el && this._touch) for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) this.el.removeEventListener(t, this._touch);
     document.removeEventListener('visibilitychange', this._vis);
+    window.removeEventListener('resize', this._orient);
+    PlayScreen.unlock();
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
     this._settingsSub && this._settingsSub();
@@ -322,6 +352,7 @@ const GameplayScreen = {
     await this.loaderFinish(tok);
     if (this._tok !== tok || this.s !== s) return;
     if (mpWait) { await mpWait; if (this.s !== s) return; }
+    else { await this.waitLandscape(); if (this._tok !== tok || this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
@@ -1234,9 +1265,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return h('div.pm-foot', save, results);
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
+  /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
+  waitLandscape() {
+    const upright = () => typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait;
+    if (!upright()) return Promise.resolve();
+    return new Promise(res => { const f = () => { if (!upright() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
+  },
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
+    if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && !s.mp) return; // (turn sideways first)
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());

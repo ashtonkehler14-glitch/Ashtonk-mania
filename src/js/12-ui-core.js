@@ -263,7 +263,11 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
 const Dialog = {
   popup(title, body, buttons, { icon: ic = 'question', onKey = null, onClose = null } = {}) {
     let o;
-    const btn = b => h(`button.pd-btn.${b.cls || 'ok'}`, { style: { '--c': b.colour }, onclick: () => { UISounds[b.cancel ? 'back' : 'click'](); b.onClick && b.onClick(); o.close(); } }, h('span', b.label));
+    const btn = b => {
+      const go = () => { UISounds[b.cancel ? 'back' : 'click'](); b.onClick && b.onClick(); o.close(); };
+      if (!/danger/.test(b.cls || '')) return h(`button.pd-btn.${b.cls || 'ok'}`, { style: { '--c': b.colour }, onclick: go }, h('span', b.label));
+      return this.dangerButton(b, go);
+    };
     const btns = buttons.map(btn);
     const dlg = h('div.dialog.popup', { role: 'dialog', 'aria-modal': 'true' },
       h('div.pd-ring', icon(ic)), h('h2', title), body != null ? h('div.body', body) : null, h('div.pd-buttons', ...btns));
@@ -273,13 +277,40 @@ const Dialog = {
     o = makeOverlay(dlg, { onClose: () => { if (duck) AudioManager.duck(false); onClose && onClose(); }, onKey });
     return { o, btns };
   },
+  /** lazer's PopupDialogDangerousButton: nothing happens on a click — hold it (mouse, touch, or Enter / Space while
+   *  it's focused) and an additive bar fills it over 500 ms (Easing.Out), ticking higher and louder as it goes; let go
+   *  early and the bar drains back over 200 ms. */
+  dangerButton(b, go) {
+    const HOLD = 500, DRAIN = 200;
+    const fill = h('i.pd-fill');
+    const el = h(`button.pd-btn.${b.cls}`, { style: { '--c': b.colour } }, fill, h('span', b.label));
+    let p = 0, dir = 0, from = 0, t0 = 0, raf = 0, lastTick = 0, done = false;
+    const sound = (name, opts) => { if (!Settings.get('audio.uiSounds')) return; const buf = AudioManager.synth(name); buf && AudioManager.play(buf, { bus: 'ui', ...opts }); };
+    const frame = now => {
+      const k = Math.min(1, (now - t0) / (dir > 0 ? HOLD * (1 - from) : DRAIN));
+      // filling: Easing.Out; draining: Easing.InSine
+      p = dir > 0 ? from + (1 - from) * (1 - (1 - k) ** 2) : from * Math.cos(k * Math.PI / 2);
+      fill.style.setProperty('--p', p.toFixed(4));
+      if (dir > 0 && now - lastTick >= 40) { lastTick = now; sound('dialog-dangerous-tick', { rate: 1 + p, volume: 0.1 + p / 2 }); }
+      if (k < 1) { raf = requestAnimationFrame(frame); return; }
+      raf = 0;
+      if (dir > 0) { done = true; sound('dialog-dangerous-select'); go(); }
+    };
+    const run = d => { if (done || (d < 0 && dir <= 0)) return; cancelAnimationFrame(raf); from = p; dir = d; t0 = performance.now(); raf = requestAnimationFrame(frame); };
+    el.addEventListener('pointerdown', e => { if (e.button) return; el.setPointerCapture && el.setPointerCapture(e.pointerId); run(1); });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => run(-1));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) run(1); } });
+    el.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') run(-1); });
+    el.addEventListener('click', e => e.preventDefault()); // (a click alone never confirms)
+    return el;
+  },
   confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false, icon: ic = null } = {}) {
     return new Promise(resolve => {
       let result = false;
       const { btns } = this.popup(title, body, [
         { label: ok, colour: danger ? '#cc3333' : '#ff66aa', cls: danger ? 'ok.danger' : 'ok', onClick: () => { result = true; } },
         { label: cancel, colour: '#66ccff', cls: 'cancel', cancel: true },
-      ], { icon: ic || (danger ? 'trash' : 'question'), onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter') { btns[0].click(); return true; } } });
+      ], { icon: ic || (danger ? 'trash' : 'question'), onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter' && !danger) { btns[0].click(); return true; } } });
       setTimeout(() => btns[0].focus(), 30);
     });
   },

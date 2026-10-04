@@ -3636,3 +3636,18 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .mp-lounge-bar .mp-create { height: 54px; }
 .mp-lounge-bar .mp-joinbox { margin-left: auto; }
 @media (max-width: 640px) { .mp-search.mp-search-top { width: 100%; } .mp-lounge-bar { flex-wrap: wrap; } .mp-lounge-bar .mp-joinbox { margin-left: 0; } }
+
+/* lazer's PopupDialogDangerousButton: Red3, and an additive white bar that fills the button while it's held */
+.pd-btn.danger { --c: #b2242a !important; }
+.pd-btn .pd-fill { --p: 0; position: absolute; top: 0; bottom: 0; left: 10%; width: calc(var(--p) * 80%); z-index: -1; transform: skewX(-11.31deg); background: rgba(255, 255, 255, .3); mix-blend-mode: plus-lighter; pointer-events: none; transition: left calc(400ms * var(--anim)) var(--ease-out); }
+.pd-btn.danger:hover .pd-fill, .pd-btn.danger:focus-visible .pd-fill { left: 5%; width: calc(var(--p) * 90%); }
+
+/* no upright gameplay: a phone or tablet held upright is asked to turn sideways (the song waits, paused) */
+.gp-rotate { display: none; }
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .gp-rotate { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: rgba(10, 8, 14, .94); color: #fff; text-align: center; }
+  .gp-rotate b { font-size: 1.3rem; font-weight: 700; }
+  .gp-rotate span { color: var(--muted); font-size: .95rem; }
+  .gp-rotate-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: gpRotate 2s var(--ease-out) infinite; }
+}
+@keyframes gpRotate { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }

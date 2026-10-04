@@ -69,6 +69,13 @@ async function createRoom(page, ranked, isPublic) {
   await page.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 }
 
+// lazer's dangerous dialog buttons confirm only when held
+async function holdBtn(page, sel) {
+  const r = await (await page.waitForSelector(sel)).boundingBox();
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
+  await page.waitForTimeout(750); await page.mouse.up();
+}
+
 const alice = await player('Alice');
 const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
@@ -197,14 +204,14 @@ const modsB = await bob.evaluate(() => AshtonkMania.GameplayScreen.s.mods.join()
 check('in the match: DT for everyone plus each player\'s own mods', /DT/.test(modsA) && /HD/.test(modsA) && !/MR/.test(modsA) && /DT/.test(modsB) && /MR/.test(modsB) && !/HD/.test(modsB), `${modsA} / ${modsB}`);
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog');
-await bob.click('.dialog .pd-btn.danger');
+await holdBtn(bob, '.dialog .pd-btn.danger');
 // (nobody can die in multiplayer, so Alice plays on to the end of the song before the results come in)
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.rows.some(r => r.forfeit), null, { timeout: 40000 });
 check('quitting forfeits the match', await alice.evaluate(() => AshtonkMania.Multiplayer.lastResults.winner === AshtonkMania.Multiplayer.me));
 if (await alice.evaluate(() => AshtonkMania.Screens.currentName === 'gameplay')) {
   await alice.keyboard.press('Escape');
   await alice.waitForSelector('.dialog', { timeout: 2000 }).catch(() => {});
-  if (await alice.$('.dialog .pd-btn.danger')) await alice.click('.dialog .pd-btn.danger');
+  if (await alice.$('.dialog .pd-btn.danger')) await holdBtn(alice, '.dialog .pd-btn.danger');
 }
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
@@ -294,7 +301,7 @@ for (const p of [bob, alice]) {
   await p.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 15000 });
   await p.keyboard.press('Escape');
   await p.waitForSelector('.dialog', { timeout: 5000 }).catch(() => {});
-  if (await p.$('.dialog .pd-btn.danger')) await p.click('.dialog .pd-btn.danger');
+  if (await p.$('.dialog .pd-btn.danger')) await holdBtn(p, '.dialog .pd-btn.danger');
   await p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 8000 });
 }
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.lastResults && AshtonkMania.Multiplayer.lastResults.map.version === 'Online Easy', null, { timeout: 10000 });
@@ -440,7 +447,7 @@ const lifeBefore = await alice.evaluate(() => { const r = AshtonkMania.Multiplay
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.dialog', { timeout: 5000 });
 check('leaving the song in Ranked Play warns that it scores 0 for the round', await bob.evaluate(() => /score 0/.test(document.querySelector('.dialog').textContent)));
-await bob.keyboard.press('Enter');
+await bob.waitForTimeout(100); await bob.keyboard.down('Enter'); await bob.waitForTimeout(750); await bob.keyboard.up('Enter'); // (a dangerous button: held)
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'playing', null, { timeout: 10000 });
 check('…you wait in the match while your opponent plays on', await bob.evaluate(() => /Gameplay is in progress/.test(document.querySelector('.rkm-stage').textContent)));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 45000 })));

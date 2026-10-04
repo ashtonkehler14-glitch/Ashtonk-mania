@@ -145,6 +145,9 @@ const AudioManager = {
     else if (name === 'score-tick') buf = make(0.03, t => Math.sin(2 * Math.PI * 2400 * t) * env(t, 0.0005, 0.006) * 0.12);
     else if (name === 'rank-impact-pass') buf = make(0.9, (t, n) => (Math.sin(2 * Math.PI * 70 * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.05) * 0.25 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.35) * 0.12) * 0.5);
     else if (name === 'rank-impact-fail') buf = make(0.6, (t, n) => (Math.sin(2 * Math.PI * (90 - 40 * t) * t) * env(t, 0.002, 0.15) * 0.6 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);
+    // lazer's UI/dialog-dangerous-tick (pitched up as the hold fills) and dialog-dangerous-select
+    else if (name === 'dialog-dangerous-tick') buf = make(0.04, t => Math.sin(2 * Math.PI * 1100 * t) * env(t, 0.0005, 0.008) * 0.25);
+    else if (name === 'dialog-dangerous-select') buf = make(0.5, (t, n) => (Math.sin(2 * Math.PI * (160 - 80 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.003, 0.08) * 0.1) * 0.5);
     else if (name === 'check-on') buf = make(0.08, t => Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'check-off') buf = make(0.08, t => Math.sin(2 * Math.PI * 1000 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);

@@ -3654,6 +3654,21 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .mp-lounge-bar .mp-joinbox { margin-left: auto; }
 @media (max-width: 640px) { .mp-search.mp-search-top { width: 100%; } .mp-lounge-bar { flex-wrap: wrap; } .mp-lounge-bar .mp-joinbox { margin-left: 0; } }
 
+/* lazer's PopupDialogDangerousButton: Red3, and an additive white bar that fills the button while it's held */
+.pd-btn.danger { --c: #b2242a !important; }
+.pd-btn .pd-fill { --p: 0; position: absolute; top: 0; bottom: 0; left: 10%; width: calc(var(--p) * 80%); z-index: -1; transform: skewX(-11.31deg); background: rgba(255, 255, 255, .3); mix-blend-mode: plus-lighter; pointer-events: none; transition: left calc(400ms * var(--anim)) var(--ease-out); }
+.pd-btn.danger:hover .pd-fill, .pd-btn.danger:focus-visible .pd-fill { left: 5%; width: calc(var(--p) * 90%); }
+
+/* no upright gameplay: a phone or tablet held upright is asked to turn sideways (the song waits, paused) */
+.gp-rotate { display: none; }
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .gp-rotate { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: rgba(10, 8, 14, .94); color: #fff; text-align: center; }
+  .gp-rotate b { font-size: 1.3rem; font-weight: 700; }
+  .gp-rotate span { color: var(--muted); font-size: .95rem; }
+  .gp-rotate-ph { width: 46px; height: 78px; margin-bottom: 14px; border: 3px solid #fff; border-radius: 9px; animation: gpRotate 2s var(--ease-out) infinite; }
+}
+@keyframes gpRotate { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+
 </style>
 </head>
 <body>
@@ -5719,6 +5734,9 @@ const AudioManager = {
     else if (name === 'score-tick') buf = make(0.03, t => Math.sin(2 * Math.PI * 2400 * t) * env(t, 0.0005, 0.006) * 0.12);
     else if (name === 'rank-impact-pass') buf = make(0.9, (t, n) => (Math.sin(2 * Math.PI * 70 * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.05) * 0.25 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.35) * 0.12) * 0.5);
     else if (name === 'rank-impact-fail') buf = make(0.6, (t, n) => (Math.sin(2 * Math.PI * (90 - 40 * t) * t) * env(t, 0.002, 0.15) * 0.6 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);
+    // lazer's UI/dialog-dangerous-tick (pitched up as the hold fills) and dialog-dangerous-select
+    else if (name === 'dialog-dangerous-tick') buf = make(0.04, t => Math.sin(2 * Math.PI * 1100 * t) * env(t, 0.0005, 0.008) * 0.25);
+    else if (name === 'dialog-dangerous-select') buf = make(0.5, (t, n) => (Math.sin(2 * Math.PI * (160 - 80 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.003, 0.08) * 0.1) * 0.5);
     else if (name === 'check-on') buf = make(0.08, t => Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'check-off') buf = make(0.08, t => Math.sin(2 * Math.PI * 1000 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);
@@ -6114,7 +6132,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Always show key overlay', t: 'bool', d: false },
   { x: 1, s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
-  { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Enter fullscreen when playing', t: 'bool', d: false },
+  { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Fullscreen while playing (tap the game to go back)', t: 'bool', d: true },
   // ── Interface
   { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
@@ -7539,6 +7557,10 @@ function visibleBox(img) {
   return b;
 }
 
+/** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
+ *  a little larger here, easier to read and to hit). */
+const TOUCH_COL = 0.2;
+
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
@@ -7674,7 +7696,7 @@ class ManiaRenderer {
     const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
     this.fnf = touch;
     if (touch) {
-      const size = Math.min(this.H * 112 / 720 * lw, this.W * 0.96 / L.keys);
+      const size = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
       this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {
@@ -7935,7 +7957,10 @@ class ManiaRenderer {
         // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
         // (a 4K skin played at more keys shrinks its keys about the hit position, as its columns shrank)
         // (resized columns on a phone: the key keeps its proportions, its receptor on the hit line as the skin drew it)
-        const ks = L.keyScale || 1, cs = this.colScale || 1, h = t.h * this.u * ks * cs, hs = this._hitYSkin ?? this.hitY;
+        // (scaled by how far the column itself was resized from the skin's width — lane width setting included — as
+        // the notes are, so the receptor keeps the shape the skin drew instead of stretching tall in narrow lanes)
+        const ks = L.keyScale || 1, own = (L.columnWidth[i] || L.columnWidth[0] || 1) * this.s, cs = own > 0 ? this.colW[i] / own : 1;
+        const h = t.h * this.u * ks * cs, hs = this._hitYSkin ?? this.hitY;
         this._cropImg(t.img, this.colX[i], this.hitY + (H - hs) * ks * cs - h, this.colW[i], h, flip);
       } else {
         // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
@@ -9469,7 +9494,11 @@ function makeOverlay(contentEl, { backdrop = true, onClose, onKey, animOutClass 
 const Dialog = {
   popup(title, body, buttons, { icon: ic = 'question', onKey = null, onClose = null } = {}) {
     let o;
-    const btn = b => h(`button.pd-btn.${b.cls || 'ok'}`, { style: { '--c': b.colour }, onclick: () => { UISounds[b.cancel ? 'back' : 'click'](); b.onClick && b.onClick(); o.close(); } }, h('span', b.label));
+    const btn = b => {
+      const go = () => { UISounds[b.cancel ? 'back' : 'click'](); b.onClick && b.onClick(); o.close(); };
+      if (!/danger/.test(b.cls || '')) return h(`button.pd-btn.${b.cls || 'ok'}`, { style: { '--c': b.colour }, onclick: go }, h('span', b.label));
+      return this.dangerButton(b, go);
+    };
     const btns = buttons.map(btn);
     const dlg = h('div.dialog.popup', { role: 'dialog', 'aria-modal': 'true' },
       h('div.pd-ring', icon(ic)), h('h2', title), body != null ? h('div.body', body) : null, h('div.pd-buttons', ...btns));
@@ -9479,13 +9508,40 @@ const Dialog = {
     o = makeOverlay(dlg, { onClose: () => { if (duck) AudioManager.duck(false); onClose && onClose(); }, onKey });
     return { o, btns };
   },
+  /** lazer's PopupDialogDangerousButton: nothing happens on a click — hold it (mouse, touch, or Enter / Space while
+   *  it's focused) and an additive bar fills it over 500 ms (Easing.Out), ticking higher and louder as it goes; let go
+   *  early and the bar drains back over 200 ms. */
+  dangerButton(b, go) {
+    const HOLD = 500, DRAIN = 200;
+    const fill = h('i.pd-fill');
+    const el = h(`button.pd-btn.${b.cls}`, { style: { '--c': b.colour } }, fill, h('span', b.label));
+    let p = 0, dir = 0, from = 0, t0 = 0, raf = 0, lastTick = 0, done = false;
+    const sound = (name, opts) => { if (!Settings.get('audio.uiSounds')) return; const buf = AudioManager.synth(name); buf && AudioManager.play(buf, { bus: 'ui', ...opts }); };
+    const frame = now => {
+      const k = Math.min(1, (now - t0) / (dir > 0 ? HOLD * (1 - from) : DRAIN));
+      // filling: Easing.Out; draining: Easing.InSine
+      p = dir > 0 ? from + (1 - from) * (1 - (1 - k) ** 2) : from * Math.cos(k * Math.PI / 2);
+      fill.style.setProperty('--p', p.toFixed(4));
+      if (dir > 0 && now - lastTick >= 40) { lastTick = now; sound('dialog-dangerous-tick', { rate: 1 + p, volume: 0.1 + p / 2 }); }
+      if (k < 1) { raf = requestAnimationFrame(frame); return; }
+      raf = 0;
+      if (dir > 0) { done = true; sound('dialog-dangerous-select'); go(); }
+    };
+    const run = d => { if (done || (d < 0 && dir <= 0)) return; cancelAnimationFrame(raf); from = p; dir = d; t0 = performance.now(); raf = requestAnimationFrame(frame); };
+    el.addEventListener('pointerdown', e => { if (e.button) return; el.setPointerCapture && el.setPointerCapture(e.pointerId); run(1); });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => run(-1));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) run(1); } });
+    el.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') run(-1); });
+    el.addEventListener('click', e => e.preventDefault()); // (a click alone never confirms)
+    return el;
+  },
   confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false, icon: ic = null } = {}) {
     return new Promise(resolve => {
       let result = false;
       const { btns } = this.popup(title, body, [
         { label: ok, colour: danger ? '#cc3333' : '#ff66aa', cls: danger ? 'ok.danger' : 'ok', onClick: () => { result = true; } },
         { label: cancel, colour: '#66ccff', cls: 'cancel', cancel: true },
-      ], { icon: ic || (danger ? 'trash' : 'question'), onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter') { btns[0].click(); return true; } } });
+      ], { icon: ic || (danger ? 'trash' : 'question'), onClose: () => resolve(result), onKey: e => { if (e.key === 'Enter' && !danger) { btns[0].click(); return true; } } });
       setTimeout(() => btns[0].focus(), 30);
     });
   },
@@ -12322,7 +12378,7 @@ const SongSelect = {
 const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
-    if (Settings.get('input.fullscreenOnPlay') && !document.fullscreenElement) toggleFullscreen(true);
+    PlayScreen.enter();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
     Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
   },
@@ -12335,6 +12391,29 @@ const Game = {
     const keys = Object.keys(memo);
     for (let i = 0; i < keys.length - 5000; i++) delete memo[keys[i]];
     Settings.set('songselect.lastDiff', memo);
+  },
+};
+
+/** Gameplay fills the screen: fullscreen while playing (the setting, on by default), and on phones and tablets
+ *  turned sideways and held there — there's no upright gameplay. Leave fullscreen mid-song (the browser's bar swiped
+ *  back, Esc) and a tap or click on the game puts it back. Phones that can't lock the screen's turn (iPhones) are
+ *  asked to rotate, and the song waits paused until they do. */
+const PlayScreen = {
+  want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
+  enter() {
+    const el = document.documentElement;
+    if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => this.lock(), () => {});
+    else this.lock();
+  },
+  lock() {
+    if (typeof Mobile === 'undefined' || !Mobile.touch) return;
+    try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
+  },
+  unlock() { try { const o = screen.orientation; o && o.unlock && o.unlock(); } catch {} },
+  /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
+  attach(el) {
+    const back = () => { if (this.want() && !document.fullscreenElement && Screens.currentName === 'gameplay') this.enter(); };
+    for (const t of ['pointerup', 'touchend']) el.addEventListener(t, back, { passive: true });
   },
 };
 
@@ -12480,7 +12559,12 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
+    // (phones held upright: turn sideways to play — the song waits paused meanwhile)
+    this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
+    PlayScreen.attach(el);
+    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
+    window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
     this._tok = {};
@@ -12540,6 +12624,8 @@ const GameplayScreen = {
     window.removeEventListener('blur', this._blur);
     if (this.el && this._touch) for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) this.el.removeEventListener(t, this._touch);
     document.removeEventListener('visibilitychange', this._vis);
+    window.removeEventListener('resize', this._orient);
+    PlayScreen.unlock();
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
     this._settingsSub && this._settingsSub();
@@ -12637,6 +12723,7 @@ const GameplayScreen = {
     await this.loaderFinish(tok);
     if (this._tok !== tok || this.s !== s) return;
     if (mpWait) { await mpWait; if (this.s !== s) return; }
+    else { await this.waitLandscape(); if (this._tok !== tok || this.s !== s) return; }
     Music.play(startPos, { fadeIn: startPos >= 0 ? 150 : 0 });
     s.running = true;
     this.lastRender = 0;
@@ -13549,9 +13636,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return h('div.pm-foot', save, results);
   },
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
+  /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
+  waitLandscape() {
+    const upright = () => typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait;
+    if (!upright()) return Promise.resolve();
+    return new Promise(res => { const f = () => { if (!upright() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
+  },
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
+    if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && !s.mp) return; // (turn sideways first)
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
@@ -19669,7 +19763,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

@@ -47,6 +47,10 @@ function visibleBox(img) {
   return b;
 }
 
+/** Phones and tablets: a column's width as a fraction of the screen's height (FNF's arrow is 112 of 720, ~0.156;
+ *  a little larger here, easier to read and to hit). */
+const TOUCH_COL = 0.2;
+
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
    *  screen, so each frame clears, fills and composites far fewer pixels. The canvas's parent is the screen. */
@@ -182,7 +186,7 @@ class ManiaRenderer {
     const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
     this.fnf = touch;
     if (touch) {
-      const size = Math.min(this.H * 112 / 720 * lw, this.W * 0.96 / L.keys);
+      const size = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
       this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {
@@ -443,7 +447,10 @@ class ManiaRenderer {
         // legacy keys: stretched to the column width, authored height kept (anchored to the bottom)
         // (a 4K skin played at more keys shrinks its keys about the hit position, as its columns shrank)
         // (resized columns on a phone: the key keeps its proportions, its receptor on the hit line as the skin drew it)
-        const ks = L.keyScale || 1, cs = this.colScale || 1, h = t.h * this.u * ks * cs, hs = this._hitYSkin ?? this.hitY;
+        // (scaled by how far the column itself was resized from the skin's width — lane width setting included — as
+        // the notes are, so the receptor keeps the shape the skin drew instead of stretching tall in narrow lanes)
+        const ks = L.keyScale || 1, own = (L.columnWidth[i] || L.columnWidth[0] || 1) * this.s, cs = own > 0 ? this.colW[i] / own : 1;
+        const h = t.h * this.u * ks * cs, hs = this._hitYSkin ?? this.hitY;
         this._cropImg(t.img, this.colX[i], this.hitY + (H - hs) * ks * cs - h, this.colW[i], h, flip);
       } else {
         // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor

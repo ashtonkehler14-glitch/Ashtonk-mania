@@ -1027,7 +1027,8 @@ const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.cl
 check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 
 {
-  // a phone held upright: the stage fits the screen, each column takes touches, and a pause button stands in for Escape
+  // a phone (held sideways for gameplay — there's no upright gameplay): the stage fits, each column takes touches, and a
+  // pause button stands in for Escape
   const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const mp = await mctx.newPage();
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
@@ -1040,17 +1041,20 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.evaluate(() => AshtonkMania.Onboarding.finish()); await mp.waitForFunction(() => !document.querySelector('.setup'));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
+  await mp.waitForTimeout(4000);
+  check('phone upright: no upright gameplay — asked to turn sideways, the song waits', await mp.evaluate(() => getComputedStyle(document.querySelector('.gp-rotate')).display !== 'none' && !(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running)));
+  await mp.setViewportSize({ width: 844, height: 390 });
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   const fit = await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.stageX >= 0 && r.stageX + r.stageW <= r.W + 1; });
-  check('phone: the playfield fits across a portrait screen', fit);
-  check('phone: laid out as FNF plays on phones (arrow-sized columns side by side, a full-height hitbox per column) in your own skin', await mp.evaluate(() => { const S = AshtonkMania.Settings, r = AshtonkMania.GameplayScreen.renderer, size = Math.min(r.H * 112 / 720, r.W * 0.96 / 4);
+  check('phone sideways: the playfield fits the screen', fit);
+  check('phone: laid out as FNF plays on phones (arrow-sized columns side by side, a full-height hitbox per column) in your own skin', await mp.evaluate(() => { const S = AshtonkMania.Settings, r = AshtonkMania.GameplayScreen.renderer, size = Math.min(r.H * 0.2 * S.get('gameplay.laneWidth'), r.W * 0.96 / 4);
     return S.get('wom.style') !== 'arrows' && S.get('wom.judgements') !== 'fnf' && r.colW.every(w => Math.abs(w - size) < 0.5) && Math.abs(r.colX[1] - size) < 0.5 && document.querySelectorAll('.fnf-hitbox i').length === 4; }));
-  check('phone: columns are wide finger targets (each at least an eighth of the screen)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.W * 0.12); }));
+  check('phone: columns are wide finger targets (each a fifth of the screen\'s height)', await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.colW.every(w => w >= r.H * 0.19); }));
   check('phone: no blue tap highlight (feels like an app)', await mp.evaluate(() => document.documentElement.classList.contains('touch') && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(document.documentElement).webkitTapHighlightColor)));
   const cdp = await mctx.newCDPSession(mp), held = [];
   for (let i = 0; i < 4; i++) {
-    const x = (i + 0.5) / 4 * 390; // (FNF hitboxes: the screen in four strips)
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: 600, id: i }] });
+    const x = (i + 0.5) / 4 * 844; // (FNF hitboxes: the screen in four strips)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: 300, id: i }] });
     await mp.waitForTimeout(40);
     held.push(await mp.evaluate(() => AshtonkMania.GameplayScreen.s.held.map(Number).join('')));
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -1059,7 +1063,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone: touching a column holds that column, letting go releases it', held.join() === '1000,0100,0010,0001' && await mp.evaluate(() => !AshtonkMania.GameplayScreen.s.held.some(Boolean)), held.join());
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
-  await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.waitForTimeout(500);
+  await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
   check('phone: the whole app fits the visible screen (its bottom isn\'t cut off)', await mp.evaluate(() => { const r = document.querySelector('#app').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && Math.abs(r.right - innerWidth) < 2; }));
   check('phone upright: no rotate prompt — the main menu stacks its buttons under the logo and they fit the screen', await mp.evaluate(() => {
@@ -1088,6 +1092,20 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const pc = await page.evaluate(async () => { const SM = AshtonkMania.ScoreManager, BM = AshtonkMania.BeatmapManager, top = SM.bestPpPerMap().map(t => BM.mapByHash(t.score.mapHash)).find(Boolean);
     const want = top && await BM.bgURL(top), got = (document.querySelector('.pf-cover').style.backgroundImage.match(/url\("(.*)"\)/) || [])[1]; return { ok: !top || !want || got === want, want, got }; });
   check('profile: the cover is your top pp play\'s background', pc.ok, JSON.stringify(pc));
+}
+
+// lazer's dangerous dialog buttons: a click does nothing, holding for 500 ms confirms
+{
+  await page.evaluate(() => { window.__dc = AshtonkMania.Dialog.confirm('Delete thing?', 'x', { ok: 'Delete', danger: true }).then(v => { window.__dcv = v; }); });
+  await page.waitForSelector('.dialog .pd-btn.danger'); await page.waitForTimeout(400);
+  const b = await (await page.$('.dialog .pd-btn.danger')).boundingBox();
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(400);
+  const afterClick = await page.evaluate(() => ({ open: !!document.querySelector('.dialog .pd-btn.danger'), v: window.__dcv }));
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(900);
+  const fillP = await page.evaluate(() => { const f = document.querySelector('.pd-fill'); return f ? f.style.getPropertyValue('--p') : 'gone'; });
+  await page.mouse.up(); await page.waitForTimeout(100);
+  const afterHold = await page.evaluate(() => window.__dcv);
+  check('dangerous dialog button: a click doesn\'t confirm, holding does', afterClick.open && afterClick.v === undefined && afterHold === true, JSON.stringify({ afterClick, afterHold, fillP, top: await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.className; }, [b.x + b.width / 2, b.y + b.height / 2]) }));
 }
 
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
