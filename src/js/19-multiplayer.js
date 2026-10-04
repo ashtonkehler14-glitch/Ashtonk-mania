@@ -790,13 +790,18 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    const allReady = r.players.length >= 2 && r.players.every(p => p.ready);
-    const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
-      disabled: !r.map || !me,
-      onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
-    }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote || !!r.starting, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, r.starting ? 'Starting…' : 'Start match') : null;
-    clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
+    // lazer's MultiplayerReadyButton: one button. Ready → (host, everyone ready) Start match / (otherwise) waiting,
+    // with how many are ready; clicking while waiting un-readies you.
+    const nReady = r.players.filter(p => p.ready).length, count = ` (${nReady} / ${r.players.length} ready)`;
+    const allReady = r.players.length >= 2 && nReady === r.players.length;
+    const ready = !!(me && me.ready), canStart = host && ready && allReady;
+    const label = r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players...${count}` : `Waiting for host...${count}`;
+    const readyBtn = h(`button.mp-ready${canStart ? '.mp-start' : ready ? '.on' : ''}`, {
+      disabled: !r.map || !me || !!r.starting || (canStart && !!r.vote),
+      title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
+      onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
+    }, label);
+    clearEl(this.footEl).append(h('div.grow'), readyBtn);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
@@ -919,7 +924,7 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (res && q.phase === 'standings') this.resEl.append(this.resultsPanel(res));
     const again = h('button.mp-start.qp-again', { onclick: () => { UISounds.click(); Multiplayer.leave(true); this.render(); } }, 'Back to the lobby');
-    const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
+    const leave = h('button.mp-ready.qp-leave', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
     clearEl(this.footEl).append(...(q.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', q.phase === 'gather' ? 'The first round starts once enough players are in.' : 'Leaving forfeits the rest of the match.'), h('div.grow')]));
     this.qpTick();
   },

@@ -137,11 +137,11 @@ await alice.click('.ss-cookie');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.map, null, { timeout: 5000 });
 await bob.waitForFunction(() => { const r = AshtonkMania.Multiplayer.room; return r.map && r.players.every(p => p.hasMap); }, null, { timeout: 5000 });
 check('host picked the beatmap; both players have it', await bob.evaluate(() => AshtonkMania.Multiplayer.room.map.version === '4K Normal'));
-check('start is disabled until both are ready', await alice.evaluate(() => document.querySelector('.mp-start').disabled));
+check('no start until both are ready', await alice.evaluate(() => !document.querySelector('.mp-start') && /^Ready$/.test(document.querySelector('.mp-ready').textContent)));
 
-await alice.click('.mp-ready'); await bob.click('.mp-ready');
-await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
-check('both ready enables Start', true);
+await alice.click('.mp-ready'); await alice.waitForFunction(() => AshtonkMania.Multiplayer.self().ready, null, { timeout: 5000 }); await bob.click('.mp-ready');
+await alice.waitForFunction(() => (e => e && !e.disabled)(document.querySelector('.mp-start')), null, { timeout: 5000 });
+check('both ready turns the button into Start match (2 / 2 ready)', await alice.evaluate(() => document.querySelector('.mp-start').textContent === 'Start match (2 / 2 ready)'));
 await shot(alice, 'mp-room');
 check('the room shows no stray "null" / "undefined" / "NaN" text', await alice.evaluate(() => !/\b(null|undefined|NaN)\b/.test(document.querySelector('.mp-room').innerText)));
 await alice.click('.mp-start');
@@ -188,8 +188,8 @@ const afterVote = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.
 check('after both accept, DT applies to the room; each player keeps their own mods', afterVote.host === 'HD' && afterVote.me === 'MR' && !afterVote.banner, JSON.stringify(afterVote));
 
 // rematch: forfeit by quitting
-await alice.click('.mp-ready'); await bob.click('.mp-ready');
-await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
+await alice.click('.mp-ready'); await alice.waitForFunction(() => AshtonkMania.Multiplayer.self().ready, null, { timeout: 5000 }); await bob.click('.mp-ready');
+await alice.waitForFunction(() => (e => e && !e.disabled)(document.querySelector('.mp-start')), null, { timeout: 5000 });
 await alice.click('.mp-start');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.Music.playing, null, { timeout: 15000 })));
 const modsA = await alice.evaluate(() => AshtonkMania.GameplayScreen.s.mods.join());
@@ -284,8 +284,8 @@ await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.every(p 
 await bob.selectOption('.mp-diff select', { label: await bob.evaluate(() => [...document.querySelectorAll('.mp-diff option')].find(o => o.textContent.startsWith('Online Hard')).textContent) });
 await alice.waitForFunction(() => { const b = AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me); return b.diff && b.diff.version === 'Online Hard'; }, null, { timeout: 5000 });
 check('players choose their own difficulty (shown to the room)', await alice.evaluate(() => [...document.querySelectorAll('.mp-pdiff')].some(e => e.textContent.includes('Online Hard'))));
-await alice.click('.mp-ready'); await bob.click('.mp-ready');
-await alice.waitForFunction(() => !document.querySelector('.mp-start').disabled, null, { timeout: 5000 });
+await alice.click('.mp-ready'); await alice.waitForFunction(() => AshtonkMania.Multiplayer.self().ready, null, { timeout: 5000 }); await bob.click('.mp-ready');
+await alice.waitForFunction(() => (e => e && !e.disabled)(document.querySelector('.mp-start')), null, { timeout: 5000 });
 await alice.click('.mp-start');
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s, null, { timeout: 15000 })));
 const played = [await alice.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version), await bob.evaluate(() => AshtonkMania.GameplayScreen.s.rec.version)];

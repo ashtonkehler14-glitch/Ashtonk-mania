@@ -1971,8 +1971,11 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 .mp.ov .mp-footer { background: hsl(var(--o-h) 10% 10%); }
 .mp-ready, .mp-start { position: relative; isolation: isolate; background: none; border-radius: 0; min-width: 200px; height: 46px; }
 .mp-ready::before, .mp-start::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 7px; background: #88b300; transform: skewX(-11.31deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: filter 150ms; }
-.mp-ready.on::before { background: hsl(var(--o-h, 320) 10% 30%); }
-.mp-start::before { background: linear-gradient(90deg, hsl(var(--o-h, 320) 55% 45%), hsl(var(--o-h, 320) 70% 62%)); }
+.mp-ready.on::before { background: #eeaa00; }
+.mp-ready.on { color: #222; }
+.qp-leave::before { background: hsl(var(--o-h, 320) 10% 30%); }
+.mp-start::before { background: #88b300; }
+.qp-again::before { background: linear-gradient(90deg, hsl(var(--o-h, 320) 55% 45%), hsl(var(--o-h, 320) 70% 62%)); }
 .mp-ready:hover, .mp-start:hover { filter: none; }
 .mp-ready:hover::before, .mp-start:hover::before { filter: brightness(1.15); }
 .mp-results { background: var(--ob4, var(--panel-solid)); }
@@ -17789,13 +17792,18 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
 
-    const allReady = r.players.length >= 2 && r.players.every(p => p.ready);
-    const readyBtn = h(`button.mp-ready${me && me.ready ? '.on' : ''}`, {
-      disabled: !r.map || !me,
-      onclick: () => { UISounds.click(); Multiplayer.send({ t: 'ready', ready: !(me && me.ready) }); },
-    }, me && me.ready ? 'Not ready' : 'Ready');
-    const startBtn = host ? h('button.mp-start', { disabled: !allReady || !!r.vote || !!r.starting, title: r.vote ? 'Everyone has to accept or decline the speed mod first' : allReady ? '' : 'Everyone must be ready', onclick: () => { UISounds.click(); Multiplayer.send({ t: 'start' }); } }, r.starting ? 'Starting…' : 'Start match') : null;
-    clearEl(this.footEl).append(...[h('div.grow'), readyBtn, startBtn].filter(Boolean));
+    // lazer's MultiplayerReadyButton: one button. Ready → (host, everyone ready) Start match / (otherwise) waiting,
+    // with how many are ready; clicking while waiting un-readies you.
+    const nReady = r.players.filter(p => p.ready).length, count = ` (${nReady} / ${r.players.length} ready)`;
+    const allReady = r.players.length >= 2 && nReady === r.players.length;
+    const ready = !!(me && me.ready), canStart = host && ready && allReady;
+    const label = r.starting ? 'Starting…' : !ready ? 'Ready' : canStart ? `Start match${count}` : host ? `Waiting for players...${count}` : `Waiting for host...${count}`;
+    const readyBtn = h(`button.mp-ready${canStart ? '.mp-start' : ready ? '.on' : ''}`, {
+      disabled: !r.map || !me || !!r.starting || (canStart && !!r.vote),
+      title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
+      onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
+    }, label);
+    clearEl(this.footEl).append(h('div.grow'), readyBtn);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
@@ -17918,7 +17926,7 @@ const MultiplayerScreen = {
     clearEl(this.resEl);
     if (res && q.phase === 'standings') this.resEl.append(this.resultsPanel(res));
     const again = h('button.mp-start.qp-again', { onclick: () => { UISounds.click(); Multiplayer.leave(true); this.render(); } }, 'Back to the lobby');
-    const leave = h('button.mp-ready.on', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
+    const leave = h('button.mp-ready.qp-leave', { onclick: () => { UISounds.click(); Multiplayer.leave(); } }, 'Leave');
     clearEl(this.footEl).append(...(q.phase === 'final' ? [h('div.grow'), leave, again] : [h('div.qp-foot-note', q.phase === 'gather' ? 'The first round starts once enough players are in.' : 'Leaving forfeits the rest of the match.'), h('div.grow')]));
     this.qpTick();
   },
