@@ -668,10 +668,20 @@ export class PresenceLogic {
     // lazer's chat: #lobby for everyone online (the last CHAT_KEEP lines kept for whoever comes online), and private
     // messages between friends; `said` rate-limits each connection
     this.chat = []; this.said = new Map();
+    // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
+    this.ranks = new Map(); this.persistRank = null;
   }
   static CHAT_KEEP = 100;
   static CHAT_BURST = 5; // messages per CHAT_WINDOW
   static CHAT_WINDOW = 5000;
+  loadRanks(ranks) { for (const [pid, r] of Object.entries(ranks || {})) if (r && typeof r === 'object') this.ranks.set(pid, r); }
+  /** The top 50 by pp, and where you stand. */
+  rankings(pid) {
+    const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
+    const online = new Set([...this.users.values()].map(u => u.pid));
+    const at = all.findIndex(r => r.pid === pid);
+    return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...all[at], rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...r, rank: i + 1, online: online.has(r.pid) })) };
+  }
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
     for (const [pid, l] of Object.entries(requests || {})) this.requests.set(pid, new Map(l));
@@ -739,6 +749,19 @@ export class PresenceLogic {
     if (!u || !msg || typeof msg !== 'object') return [];
     u.seen = this.now();
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
+    if (msg.t === 'stats') {
+      if (!u.pid) return [];
+      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
+      const g = msg.grades && typeof msg.grades === 'object' ? msg.grades : {};
+      const r = { pid: u.pid, name: u.name, avatar: u.avatar, pp: Math.round(num(msg.pp, 100000) * 100) / 100, acc: num(msg.acc, 1), plays: Math.round(num(msg.plays, 1e7)),
+        ss: Math.round(num(g.ss, 1e6)), s: Math.round(num(g.s, 1e6)), a: Math.round(num(g.a, 1e6)), at: this.now() };
+      const old = this.ranks.get(u.pid);
+      if (old && ['name', 'avatar', 'pp', 'acc', 'plays', 'ss', 's', 'a'].every(k => old[k] === r[k])) return [];
+      this.ranks.set(u.pid, r);
+      if (this.persistRank) this.persistRank(u.pid, r);
+      return [];
+    }
+    if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
     if (msg.t === 'status') {
       const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
@@ -915,8 +938,11 @@ export class Matchmaker {
       try {
         for (const [k, v] of await st.list({ prefix: 'fr:' })) fr[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'fq:' })) fq[k.slice(3)] = v;
+        const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
+        this.presence.loadRanks(rk);
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
+      this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
     })());
   }

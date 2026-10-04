@@ -87,10 +87,18 @@ check('F8 opens the chat overlay on #lobby', await alice.evaluate(() => /talking
 await alice.fill('.ch-input', 'hello from alice'); await alice.press('.ch-input', 'Enter');
 await bob.waitForFunction(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => l.text === 'hello from alice'), null, { timeout: 5000 });
 check('a #lobby message reaches the other player, counted as unread on their chat button', await bob.evaluate(() => AshtonkMania.Chat.unread === 1 && /1/.test(document.querySelector('#toolbar [data-ov="chat"] .tb-badge').textContent)));
+await alice.waitForFunction(() => [...document.querySelectorAll('.ch-line')].some(l => /hello from alice/.test(l.textContent)), null, { timeout: 5000 });
 check('…and shows in the sender\'s chat with the time and their name', await alice.evaluate(() => { const l = [...document.querySelectorAll('.ch-line')].pop(); return l && /hello from alice/.test(l.textContent) && l.querySelector('.ch-name').textContent === 'Alice' && /\d/.test(l.querySelector('.ch-time').textContent); }));
 await shot(alice, 'mp-chat');
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => !document.querySelector('.chat'), null, { timeout: 3000 });
+// lazer's rankings: each player's totals, by pp
+await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'stats', pp: 432.1, acc: 0.9632, plays: 12, grades: { ss: 1, s: 4, a: 5 } }));
+await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
+await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
+check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(() => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /432pp/.test(r.textContent) && /96\.32%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
+await shot(alice, 'mp-rankings');
+await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 

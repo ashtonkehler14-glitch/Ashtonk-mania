@@ -971,3 +971,24 @@ test('presence chat: #lobby reaches everyone and is kept for late arrivals; priv
   for (let i = 0; i < 120; i++) { clock.t += 2000; p.message('a', { t: 'say', text: 'line' + i }); }
   assert.equal(p.chat.length, 100); assert.equal(p.chat[99].text, 'line119');
 });
+
+test('presence rankings: players report their totals; the top 50 by pp, with your own rank; bad numbers are clamped', () => {
+  const p = new PresenceLogic(() => 1000), saved = [];
+  p.persistRank = (pid, r) => saved.push(pid);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' }); p.join('x', { name: 'NoPid' });
+  assert.deepEqual(p.message('a', { t: 'stats', pp: 812.345, acc: 0.9712, plays: 120, grades: { ss: 3, s: 20, a: 40 } }), []);
+  p.message('b', { t: 'stats', pp: 1e12, acc: 7, plays: -5 });
+  p.message('x', { t: 'stats', pp: 50 }); // (no public id: not ranked)
+  p.message('a', { t: 'stats', pp: 812.345, acc: 0.9712, plays: 120, grades: { ss: 3, s: 20, a: 40 } }); // unchanged: not saved again
+  assert.deepEqual(saved, ['alicepid1', 'bobpid22']);
+  const r = p.message('a', { t: 'rankings' })[0].msg;
+  assert.equal(r.total, 2);
+  assert.deepEqual(r.list.map(x => [x.rank, x.name, x.pp, x.acc, x.plays]), [[1, 'Bob', 100000, 1, 0], [2, 'Alice', 812.35, 0.9712, 120]]);
+  assert.deepEqual([r.you.rank, r.you.ss, r.you.s, r.you.a], [2, 3, 20, 40]);
+  assert.equal(r.list[0].online, true);
+  // kept across a restart
+  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1') });
+  q.join('c', { name: 'Cat', pid: 'catpid333' });
+  assert.equal(q.message('c', { t: 'rankings' })[0].msg.list[0].name, 'Alice');
+  assert.equal(q.message('c', { t: 'rankings' })[0].msg.you, null);
+});

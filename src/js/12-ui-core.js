@@ -490,7 +490,7 @@ const Toolbar = {
     this.chatCount = h('span.tb-badge', h('span'));
     // like lazer's toolbar toggles: a page's button closes that page when it's already open
     const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
-    this.pages = { explore: page('explore'), profile: page('profile') };
+    this.pages = { explore: page('explore'), profile: page('profile'), rankings: page('rankings') };
     this.clock = h('button.tb-clock', { 'aria-label': 'clock', onclick: () => { UISounds.click(); this.cycleClock(); } });
     // lazer's ToolbarRulesetSelector, here with the one ruleset: its icon in #00ffaa over a darker triangle-patterned
     // background, with the little white line under the selected one
@@ -504,6 +504,7 @@ const Toolbar = {
       ruleset,
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
+        btn('trophy', 'rankings', 'find out who\'s the best right now', this.pages.rankings, { right: true, dataset: { tab: 'rankings' } }),
         btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),

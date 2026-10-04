@@ -361,6 +361,7 @@ const Presence = {
     fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
+    Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
   },
   status() {
     if (Screens.currentName === 'gameplay') return GameplayScreen.s && (GameplayScreen.s.spectate || GameplayScreen.s.replay) ? 'watching' : 'playing';
@@ -391,6 +392,7 @@ const Presence = {
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
       ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid() }));
       this._song = null; this.pushStatus();
+      Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
       clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
@@ -413,6 +415,7 @@ const Presence = {
       else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite and spectate each other.'); }
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
+      else if (m.t === 'rankings') Bus.emit('rankings', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };

@@ -3702,3 +3702,24 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .ch-input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 0; border-radius: 5px; outline: none; background: hsl(var(--h) 10% 10%); color: #fff; font: inherit; font-size: 14px; }
 .ch-input:focus { box-shadow: 0 0 0 2px hsl(var(--h) 100% 70% / .5); }
 @media (max-width: 640px) { .ch-list { width: 120px; } .ch-talk { display: none; } .ch-line { grid-template-columns: 40px 90px minmax(0, 1fr); column-gap: 8px; padding-left: 8px; } }
+
+/* lazer's RankingsOverlay, PerformanceTable (Green scheme): 32px rows 3px apart, 4px corners, Background4 →
+   Background3 on hover; 12px text, the stats in Foreground1, Performance in white; headers above in 12px */
+.rk-table { display: flex; flex-direction: column; gap: 3px; max-width: 1100px; margin: 0 auto; padding-top: 10px; }
+.rk-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 90px 90px 110px 60px 60px 60px; align-items: center; height: 32px; padding: 0 10px; border-radius: 4px; background: hsl(var(--o-h) 10% 20%); font-size: 12px; color: hsl(var(--o-h) 10% 60%); transition: background 100ms; }
+.rk-row > span { text-align: center; white-space: nowrap; }
+.rk-row.click { cursor: pointer; }
+.rk-row:not(.rk-head):hover { background: hsl(var(--o-h) 10% 25%); }
+.rk-row .hl { color: #fff; font-weight: 600; }
+.rk-head { height: auto; padding-bottom: 2px; background: none; font-weight: 600; color: hsl(var(--o-h) 10% 60%); }
+.rk-head .g { color: hsl(var(--o-h) 40% 75%); }
+.rk-row .rk-rank { text-align: left; color: #fff; font-weight: 600; font-size: 13px; }
+.rk-user { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left !important; color: #fff; font-size: 13px; font-weight: 600; }
+.rk-user .avatar { flex: none; border-radius: 5px; font-size: 11px !important; }
+.rk-name { overflow: hidden; text-overflow: ellipsis; }
+.rk-on { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #b3d944; }
+.rk-row.me { box-shadow: inset 3px 0 0 hsl(var(--o-h) 100% 70%); background: hsl(var(--o-h) 20% 22%); }
+.rk-sep { text-align: center; color: hsl(var(--o-h) 10% 40%); }
+.rk-foot { max-width: 1100px; margin: 14px auto 0; color: hsl(var(--o-h) 10% 40%); font-size: 12px; text-align: right; }
+.rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }
+@media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(4), .rk-row > span:nth-child(n+6) { display: none; } }
