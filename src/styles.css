@@ -3560,3 +3560,5 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .res-mp-head { flex: none; text-align: center; margin-bottom: 30px; }
 .res-mp-myplace { display: none; } /* (your place is in the verdict above) */
 .res-body.mp .rs { position: relative; }
+.rke-btn.rematch { background: #b2ff66; color: #1b2b0b; }
+.rke-btn.rematch.on { background: #4a5a3a; color: #dfe; cursor: default; }

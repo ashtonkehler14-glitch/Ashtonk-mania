@@ -518,12 +518,12 @@ test('Ranked Play: deal, intro, discard phase, the lower rating plays first, and
   assert.deepEqual(msgs(start, 'start')[0].msg.playerMods, {}, 'nobody brings their own mods');
 });
 
-test('Ranked Play damage: ⌈difference × (round + winner multipliers)⌉ + 50,000, multipliers grow, a card each later turn', () => {
+test('Ranked Play damage: the score difference + 50,000 every round (no multipliers), a card each later turn', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
   tickTo(r, clock); tickTo(r, clock);
-  // round 1 (Bob's card): Alice wins by 200,000 → 200,000 × (0.5 + 0.5) + 50,000
+  // round 1 (Bob's card): Alice wins by 200,000 → 200,000 + 50,000
   r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
   playRound(r, clock, 900000, 700000);
   assert.equal(r.rp.stage, 'results');
@@ -531,19 +531,18 @@ test('Ranked Play damage: ⌈difference × (round + winner multipliers)⌉ + 50,
   assert.deepEqual(r.rp.results.dmg.b, { damage: 250000, rawDamage: 250000, oldLife: RP.LIFE, newLife: 750000, directDamage: 200000, multiplier: 1, bonusDamage: 50000 });
   assert.equal(r.rp.results.winner, 'a'); assert.equal(r.rp.user('a').won, 1);
   assert.equal(r.rp.user('b').hand.length, RP.HAND - 1, 'the played card is spent');
-  // round 2 (Alice's turn, no draw yet): round ×1, Alice's own ×1 after her win → Bob wins this time, his own is still ×0.5
+  // round 2 (Alice's turn, no draw yet): Bob wins this time — the same damage rule, nothing grows
   tickTo(r, clock);
   assert.equal(r.rp.round, 2); assert.equal(r.rp.stage, 'pick'); assert.equal(r.rp.active, 'a');
-  assert.equal(r.rp.mult, 1); assert.equal(r.rp.user('a').mult, 1); assert.equal(r.rp.user('b').mult, 0.5);
+  assert.equal(r.rp.mult, 1);
   assert.equal(r.rp.user('a').hand.length, RP.HAND);
   r.message('a', { t: 'play', card: r.rp.user('a').hand[2] });
   playRound(r, clock, 600000, 800001);
-  assert.equal(r.rp.user('a').life, RP.LIFE - (Math.ceil(200001 * 1.5) + 50000));
-  // round 3 (Bob's turn): he draws a card first; round ×1.5
+  assert.equal(r.rp.user('a').life, RP.LIFE - (200001 + 50000));
+  // round 3 (Bob's turn): he draws a card first
   tickTo(r, clock);
-  assert.equal(r.rp.round, 3); assert.equal(r.rp.active, 'b'); assert.equal(r.rp.mult, 1.5);
+  assert.equal(r.rp.round, 3); assert.equal(r.rp.active, 'b'); assert.equal(r.rp.mult, 1);
   assert.equal(r.rp.user('b').hand.length, RP.HAND, 'a card on each turn from round 3');
-  assert.equal(r.rp.user('b').mult, 1);
   // a tie does no damage
   r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
   const lifeA = r.rp.user('a').life, lifeB = r.rp.user('b').life;
@@ -572,7 +571,7 @@ test('Ranked Play: last stand at full life, the match ends at 0 life, and rated 
   assert.equal(r.rp.stage, 'ended');
 });
 
-test('Ranked Play: not ready in time costs 100,000 × the round multiplier and skips the round', () => {
+test('Ranked Play: not ready in time costs 100,000 and skips the round', () => {
   const clock = { t: 0 };
   const { r } = rpMatch(clock);
   tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
@@ -581,7 +580,7 @@ test('Ranked Play: not ready in time costs 100,000 × the round multiplier and s
   r.message('b', { t: 'play', card });
   r.message('a', { t: 'hasMap', has: true }); // Bob never gets the beatmap
   tickTo(r, clock);
-  assert.equal(r.rp.user('b').life, RP.LIFE - 50000, '100,000 × 0.5');
+  assert.equal(r.rp.user('b').life, RP.LIFE - 100000);
   assert.equal(r.rp.user('a').life, RP.LIFE);
   assert.ok(!r.rp.user('b').hand.includes(card), 'the card is spent');
   assert.equal(r.rp.round, 2); assert.equal(r.rp.stage, 'pick');
@@ -589,8 +588,32 @@ test('Ranked Play: not ready in time costs 100,000 × the round multiplier and s
   r.message('a', { t: 'play', card: r.rp.user('a').hand[0] });
   r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
   tickTo(r, clock);
-  assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [RP.LIFE, RP.LIFE - 50000]);
+  assert.deepEqual([r.rp.user('a').life, r.rp.user('b').life], [RP.LIFE, RP.LIFE - 100000]);
   assert.equal(r.rp.round, 3);
+});
+
+test('Ranked Play: leaving the match mid-song ends it there (the other player is taken off the song); rematch once over', () => {
+  const clock = { t: 0 };
+  const { r } = rpMatch(clock);
+  tickTo(r, clock); r.message('a', { t: 'discard', cards: [] }); r.message('b', { t: 'discard', cards: [] });
+  tickTo(r, clock); tickTo(r, clock);
+  r.message('b', { t: 'play', card: r.rp.user('b').hand[0] });
+  r.message('a', { t: 'hasMap', has: true }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'rpready', ready: true }); r.message('b', { t: 'rpready', ready: true });
+  tickTo(r, clock);
+  assert.equal(r.rp.stage, 'playing');
+  const out = r.leave('b');
+  assert.equal(r.rp.stage, 'ended'); assert.equal(r.rp.winner, 'a');
+  assert.ok(out.some(o => o.msg && o.msg.t === 'rpAbort'), 'Alice is told to leave the song');
+  // a finished match between two players still in the room: both ask, and a new unrated match begins
+  const { r: q } = rpMatch(clock);
+  q.rp.end('test'); assert.equal(q.rp.stage, 'ended');
+  const first = q.rp;
+  q.message('a', { t: 'rematch' });
+  assert.equal(q.rp, first); assert.deepEqual(q.snapshot('b').rp.rematch, ['a']);
+  q.message('b', { t: 'rematch' });
+  assert.notEqual(q.rp, first); assert.equal(q.rp.stage, 'stars'); assert.equal(q.rp.rated, false);
+  assert.deepEqual(Object.keys(q.rp.users).sort(), ['a', 'b']);
 });
 
 test('Ranked Play: leaving the song scores 0 for the round; the other player plays on', () => {

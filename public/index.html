@@ -3577,6 +3577,8 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .res-mp-head { flex: none; text-align: center; margin-bottom: 30px; }
 .res-mp-myplace { display: none; } /* (your place is in the verdict above) */
 .res-body.mp .rs { position: relative; }
+.rke-btn.rematch { background: #b2ff66; color: #1b2b0b; }
+.rke-btn.rematch.on { background: #4a5a3a; color: #dfe; cursor: default; }
 
 </style>
 </head>
@@ -15323,7 +15325,10 @@ const ExplorerScreen = {
     const fg = ring.querySelector('.fg');
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, ring, icon('up'));
     const paintRing = () => { const max = scroller.scrollHeight - scroller.clientHeight; const p = max > 0 ? clamp(scroller.scrollTop / max, 0, 1) : 0; fg.setAttribute('stroke-dashoffset', (C * (1 - p)).toFixed(2)); };
-    this._ringRO = new ResizeObserver(paintRing); this._ringRO.observe(this.grid); // (more results loading in moves the bottom further away)
+    // (and when the page's size settles — the screen sliding in, the header taking its height — the cards in view
+    // are worked out again: before, the first results could sit unloaded until you scrolled)
+    this._ringRO = new ResizeObserver(() => { paintRing(); if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); }); });
+    this._ringRO.observe(this.grid); this._ringRO.observe(scroller); // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
@@ -15444,6 +15449,8 @@ const ExplorerScreen = {
     this.renderWindow();
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
+    // once more after layout (the first row's height, and where the grid sits, are only known then)
+    requestAnimationFrame(() => requestAnimationFrame(() => this.renderWindow()));
   },
   /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
    *  space. However long the list grows, scrolling it costs the same as the first page. */
@@ -15465,15 +15472,16 @@ const ExplorerScreen = {
       // which threw on-screen positions further off the further down you were)
       let gridTop = 0;
       for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
-      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
+      const vh = sc.clientHeight || innerHeight; // (not laid out yet, mid-transition: assume a full window)
+      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + vh + extra) / rowH), 0, rows)];
       // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
       // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
-      const [needA, needB] = range(sc.clientHeight);
+      const [needA, needB] = range(vh);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(sc.clientHeight * 2);
+      else [from, to] = range(vh * 2);
       // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
-      const [pa, pb] = range(sc.clientHeight * 3);
+      const [pa, pb] = range(vh * 3);
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) { const f = all[i]._loadCovers; if (f) { all[i]._loadCovers = null; f(); } }
       // and the next page is asked for long before the end of the list comes into view
       if (this.hasMore && !this.loading && !this.error && pb >= rows - 2) this.loadMore();
@@ -17048,12 +17056,21 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          if (this.isRP()) Toast.show('Your opponent left the match', 'The round is yours. Finish the map or press Esc to see the results.');
-          else Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
         }
         Bus.emit('mp:changed');
         break;
       case 'error': Toast.err(m.msg); break;
+      // Ranked Play: the opponent left mid-song — the match is over, so you're taken off the song to the match screen
+      case 'rpAbort':
+        if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
+          const s = GameplayScreen.s;
+          s.finished = true; s.running = false;
+          Music.stop(150);
+          Toast.show('Your opponent left the match', 'You win — the match is over.');
+          Screens.go('multiplayer', {}, { replace: true });
+        }
+        break;
     }
   },
 
@@ -18117,7 +18134,7 @@ const RankedMatch = {
     if (g.left > 0) { this.endAt = performance.now() + g.left - Multiplayer.rtt / 2; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
     this.root.dataset.stage = g.stage;
     const opp = this.oppId();
-    const key = `${r.code}|${g.stage}|${g.round}|${g.active}|${opp || ''}`;
+    const key = `${r.code}|${g.id || 0}|${g.stage}|${g.round}|${g.active}|${opp || ''}|${g.stage === 'ended' ? (g.rematch || []).join() + '|' + r.players.length : ''}`;
     const fresh = key !== this._key;
     if (fresh) {
       const prev = this._lastStage;
@@ -18138,7 +18155,7 @@ const RankedMatch = {
     const me = g.users[Multiplayer.me], oppId = this.oppId(), o = oppId ? g.users[oppId] : null;
     if (!me) return;
     const result = g.winner === Multiplayer.me ? 'win' : g.winner ? 'loss' : 'draw';
-    RankedRating.record({ id: `${Multiplayer.room.code}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
+    RankedRating.record({ id: `${Multiplayer.room.code}-${g.id || 0}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
       me: { life: me.life, won: me.won, before: me.rating, after: me.ratingAfter }, muAfter: me.muAfter, sigmaAfter: me.sigmaAfter,
       opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
   },
@@ -18173,7 +18190,7 @@ const RankedMatch = {
     this.top.classList.toggle('none', !head);
     const cap = this.caption(g);
     if (this.capEl.textContent !== cap) this.capEl.textContent = cap;
-    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round} · ×${+g.mult.toFixed(1)} round damage` : '';
+    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round}` : '';
     if (this.multEl.textContent !== round) this.multEl.textContent = round;
   },
   caption(g) {
@@ -18217,7 +18234,7 @@ const RankedMatch = {
     // the bar eases to the new life; the number follows it (a hit can also arrive mid-results, animated there)
     const life = u.life;
     if (el._life == null || (this.g.stage !== 'results' || !this._resultsHeld)) this.setLife(el, life, el._life != null && el._life !== life);
-    el.multTxt.textContent = `${+(g.mult + u.mult).toFixed(1)}x damage`;
+    el.multTxt.textContent = ''; // (no damage multipliers)
     el.won.textContent = u.won ? `${u.won} round${u.won === 1 ? '' : 's'} won` : '';
     el.classList.toggle('dead', life <= 0);
     el.classList.toggle('low', life > 0 && life < RP_LIFE * 0.3);
@@ -18581,7 +18598,7 @@ const RankedMatch = {
         h('div.rkw-wedge.title', h('div.rkw-t', map ? map.title : ''), h('div.rkw-a', map ? map.artist : ''),
           h('div.rkw-stats', stat('clock', map && map.length > 0 ? fmtTime(map.length) : '', 'Length'), stat('target', local && local.bpm ? String(Math.round(local.bpm)) + ' BPM' : '', 'BPM'))),
         h('div.rkw-wedge.diff', { style: { '--sc': starColour(map ? map.stars : 0) } }, starBadge(map ? map.stars : 0), h('div.rkw-v', map ? map.version : ''), h('div.rkw-by', 'mapped by ', h('b', map ? map.creator : '')), h('span.keys-tag', `${map ? map.keys : g.keys}K`)),
-        h('div.rkw-wedge.meta', h('div', h('span', 'Played by'), h('b', mine ? 'You' : this.name(g.active))), h('div', h('span', 'Round'), h('b', String(g.round))), h('div', h('span', 'Round damage'), h('b', `×${+g.mult.toFixed(1)}`))))),
+        h('div.rkw-wedge.meta', h('div', h('span', 'Played by'), h('b', mine ? 'You' : this.name(g.active))), h('div', h('span', 'Round'), h('b', String(g.round)))))),
       this.countEl);
     this._warmReady = false;
     this.refreshWarmup(g);
@@ -18696,9 +18713,15 @@ const RankedMatch = {
       g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', `${g.keys}K duel · ${g.round} round${g.round === 1 ? '' : 's'} played`),
       g.round ? h('div.rke-rows', lifeRow(me, u), lifeRow(opp, o)) : null,
       h('div.rke-btns',
+        // a rematch: both players still here, a new (unrated) match in this room once you've both asked
+        opp && Multiplayer.room.players.some(p => p.id === opp) && g.round > 0 ? (() => {
+          const asked = (g.rematch || []).includes(me), they = (g.rematch || []).includes(opp);
+          return h(`button.rke-btn.rematch${asked ? '.on' : ''}`, { disabled: asked, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'rematch' }); } },
+            asked ? 'Waiting for opponent…' : they ? `Rematch! (${this.name(opp)} wants one)` : g.rated ? 'Rematch (unrated)' : 'Rematch');
+        })() : null,
         h('button.rke-btn.quit', { onclick: () => { UISounds.back(); Multiplayer.leave(); } }, 'Quit'),
         h('button.rke-btn.again', { onclick: () => { UISounds.click(); const keys = g.keys, rated = g.rated; Multiplayer.leave(); if (rated) RankQueue.start(keys); else MultiplayerScreen.openCreate({ ranked: true, keys }); } }, g.rated ? 'Play Again' : 'New duel'))));
-    if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat');
+    if (this._endSounded !== `${Multiplayer.room.code}-${g.id}`) { this._endSounded = `${Multiplayer.room.code}-${g.id}`; if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat'); }
   },
 
   // ── song previews while handling cards (lazer plays the hovered card's song)

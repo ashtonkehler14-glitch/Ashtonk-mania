@@ -238,7 +238,7 @@ const RankedMatch = {
     if (g.left > 0) { this.endAt = performance.now() + g.left - Multiplayer.rtt / 2; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
     this.root.dataset.stage = g.stage;
     const opp = this.oppId();
-    const key = `${r.code}|${g.stage}|${g.round}|${g.active}|${opp || ''}`;
+    const key = `${r.code}|${g.id || 0}|${g.stage}|${g.round}|${g.active}|${opp || ''}|${g.stage === 'ended' ? (g.rematch || []).join() + '|' + r.players.length : ''}`;
     const fresh = key !== this._key;
     if (fresh) {
       const prev = this._lastStage;
@@ -259,7 +259,7 @@ const RankedMatch = {
     const me = g.users[Multiplayer.me], oppId = this.oppId(), o = oppId ? g.users[oppId] : null;
     if (!me) return;
     const result = g.winner === Multiplayer.me ? 'win' : g.winner ? 'loss' : 'draw';
-    RankedRating.record({ id: `${Multiplayer.room.code}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
+    RankedRating.record({ id: `${Multiplayer.room.code}-${g.id || 0}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
       me: { life: me.life, won: me.won, before: me.rating, after: me.ratingAfter }, muAfter: me.muAfter, sigmaAfter: me.sigmaAfter,
       opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
   },
@@ -294,7 +294,7 @@ const RankedMatch = {
     this.top.classList.toggle('none', !head);
     const cap = this.caption(g);
     if (this.capEl.textContent !== cap) this.capEl.textContent = cap;
-    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round} · ×${+g.mult.toFixed(1)} round damage` : '';
+    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round}` : '';
     if (this.multEl.textContent !== round) this.multEl.textContent = round;
   },
   caption(g) {
@@ -338,7 +338,7 @@ const RankedMatch = {
     // the bar eases to the new life; the number follows it (a hit can also arrive mid-results, animated there)
     const life = u.life;
     if (el._life == null || (this.g.stage !== 'results' || !this._resultsHeld)) this.setLife(el, life, el._life != null && el._life !== life);
-    el.multTxt.textContent = `${+(g.mult + u.mult).toFixed(1)}x damage`;
+    el.multTxt.textContent = ''; // (no damage multipliers)
     el.won.textContent = u.won ? `${u.won} round${u.won === 1 ? '' : 's'} won` : '';
     el.classList.toggle('dead', life <= 0);
     el.classList.toggle('low', life > 0 && life < RP_LIFE * 0.3);
@@ -702,7 +702,7 @@ const RankedMatch = {
         h('div.rkw-wedge.title', h('div.rkw-t', map ? map.title : ''), h('div.rkw-a', map ? map.artist : ''),
           h('div.rkw-stats', stat('clock', map && map.length > 0 ? fmtTime(map.length) : '', 'Length'), stat('target', local && local.bpm ? String(Math.round(local.bpm)) + ' BPM' : '', 'BPM'))),
         h('div.rkw-wedge.diff', { style: { '--sc': starColour(map ? map.stars : 0) } }, starBadge(map ? map.stars : 0), h('div.rkw-v', map ? map.version : ''), h('div.rkw-by', 'mapped by ', h('b', map ? map.creator : '')), h('span.keys-tag', `${map ? map.keys : g.keys}K`)),
-        h('div.rkw-wedge.meta', h('div', h('span', 'Played by'), h('b', mine ? 'You' : this.name(g.active))), h('div', h('span', 'Round'), h('b', String(g.round))), h('div', h('span', 'Round damage'), h('b', `×${+g.mult.toFixed(1)}`))))),
+        h('div.rkw-wedge.meta', h('div', h('span', 'Played by'), h('b', mine ? 'You' : this.name(g.active))), h('div', h('span', 'Round'), h('b', String(g.round)))))),
       this.countEl);
     this._warmReady = false;
     this.refreshWarmup(g);
@@ -817,9 +817,15 @@ const RankedMatch = {
       g.round === 0 ? h('div.rke-sub', 'The match ended before it began — nothing is counted.') : g.rated ? h('div.rke-ratings', rating('Your Rating: ', u), rating('Opponent Rating: ', o)) : h('div.rke-sub', `${g.keys}K duel · ${g.round} round${g.round === 1 ? '' : 's'} played`),
       g.round ? h('div.rke-rows', lifeRow(me, u), lifeRow(opp, o)) : null,
       h('div.rke-btns',
+        // a rematch: both players still here, a new (unrated) match in this room once you've both asked
+        opp && Multiplayer.room.players.some(p => p.id === opp) && g.round > 0 ? (() => {
+          const asked = (g.rematch || []).includes(me), they = (g.rematch || []).includes(opp);
+          return h(`button.rke-btn.rematch${asked ? '.on' : ''}`, { disabled: asked, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'rematch' }); } },
+            asked ? 'Waiting for opponent…' : they ? `Rematch! (${this.name(opp)} wants one)` : g.rated ? 'Rematch (unrated)' : 'Rematch');
+        })() : null,
         h('button.rke-btn.quit', { onclick: () => { UISounds.back(); Multiplayer.leave(); } }, 'Quit'),
         h('button.rke-btn.again', { onclick: () => { UISounds.click(); const keys = g.keys, rated = g.rated; Multiplayer.leave(); if (rated) RankQueue.start(keys); else MultiplayerScreen.openCreate({ ranked: true, keys }); } }, g.rated ? 'Play Again' : 'New duel'))));
-    if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat');
+    if (this._endSounded !== `${Multiplayer.room.code}-${g.id}`) { this._endSounded = `${Multiplayer.room.code}-${g.id}`; if (res === 'win') UISounds.play('rp-victory'); else if (res === 'loss') UISounds.play('rp-defeat'); }
   },
 
   // ── song previews while handling cards (lazer plays the hovered card's song)

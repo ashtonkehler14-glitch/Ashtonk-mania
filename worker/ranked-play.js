@@ -9,10 +9,11 @@
 //  - Players take turns to play a card (45 s; when time runs out, the card last selected — or the first — is played).
 //    The lower-rated player goes first. From round 3, the player whose turn it is draws a card first.
 //  - Both download the beatmap (up to 2 min), look at it and press Ready (up to 2 min, then a 10 s countdown), and play.
-//    Whoever isn't ready in time takes 100,000 × the round multiplier and the round is skipped.
-//  - The lower total score takes damage: ⌈score difference × (round multiplier + the winner's own multiplier)⌉ plus
-//    50,000. The round multiplier starts at 0.5 and grows by 0.5 a round; a player's own starts at 0.5 and grows by 0.5
-//    every round they win. A hit taken at full life always leaves 1 (last stand).
+//    Whoever isn't ready in time takes 100,000 and the round is skipped.
+//  - The lower total score takes damage: the score difference plus 50,000 (no multipliers: every round counts the
+//    same). A hit taken at full life always leaves 1 (last stand).
+//  - Leaving mid-song ends the match there (the other player goes back to the match screen and wins).
+//  - Once it's over, both players can ask for a rematch: a new (unrated) match in the same room.
 //  - The match ends when a player has no life left or the cards run out; the most life wins. Leaving loses (life 0); a dropped connection gets a minute to come back.
 //  - Matches from the queue are rated (OpenSkill Plackett–Luce on the final life, μ 1500 σ 150 τ 15, as lazer);
 //    a duel between friends is not.
@@ -89,7 +90,9 @@ export class RankedPlay {
     this.rated = !!opts.rated;
     this.stage = 'waitjoin'; this.round = 0;
     this.deadline = opts.rated ? room.now() + RP.WAIT_JOIN : 0; this.stageAt = room.now(); this.stageLen = opts.rated ? RP.WAIT_JOIN : 0;
-    this.mult = 0.5;               // the round multiplier (State.DamageMultiplier)
+    this.mult = 1;                 // (no round multiplier: damage is the score difference + the bonus, every round)
+    this.id = room.now();          // (this match, as opposed to an earlier one in the same room — a rematch)
+    this.rematch = {};             // who's asked for a rematch once it's over
     this.users = {};               // id → { rating, sigma, ratingAfter, life, hand, won, mult, dmg, cid }
     this.order = [];               // turn order: lowest rating first
     this.active = null;            // whose turn it is
@@ -108,7 +111,7 @@ export class RankedPlay {
   addUser(p, opts) {
     const own = opts.ratings && typeof opts.ratings === 'object' && opts.ratings[this.keys] && typeof opts.ratings[this.keys] === 'object' ? opts.ratings[this.keys] : opts;
     const rating = num(own.mu ?? own.rating, 0, 5000, RATING.MU), sigma = num(own.sigma, 1, 500, RATING.SIGMA);
-    this.users[p.id] = { rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), pref: null, life: RP.LIFE, hand: [], won: 0, mult: 0.5, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
+    this.users[p.id] = { rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), pref: null, life: RP.LIFE, hand: [], won: 0, mult: 0, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
   }
   alive() { return Object.values(this.users).filter(u => u.life > 0).length; }
   cardsLeft() { return this.deck.length + Object.values(this.users).reduce((a, u) => a + u.hand.length, 0); }
@@ -130,7 +133,7 @@ export class RankedPlay {
     }
     return { keys: this.keys, rated: this.rated, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,
       mult: this.mult, users, order: [...this.order], active: this.active, deck: this.deck.length, cards, played: this.played, countdown: this.countdown,
-      results: this.results, history: this.history, winner: this.winner, stars: this.stars };
+      results: this.results, history: this.history, winner: this.winner, stars: this.stars, id: this.id, rematch: Object.keys(this.rematch) };
   }
 
   // ── stages
@@ -176,7 +179,6 @@ export class RankedPlay {
       case 'warmup': {
         for (const p of this.players) { p.ready = false; }
         this.round++;
-        if (this.round > 1) this.mult += 0.5; // more tension every round
         if (this.round >= 2) this.active = this.order[(this.order.indexOf(this.active) + 1) % this.order.length];
         if (this.round >= 3) this.draw(this.active, 1); // a card on each later turn
         this.go('warmup', this.round === 1 ? RP.INTRO : 0);
@@ -290,7 +292,7 @@ export class RankedPlay {
   /** Someone wasn't ready in time: if anyone was, the others take 100,000 × the round multiplier; the card is spent. */
   notReady(isReady) {
     const ids = this.players.map(p => p.id), readyIds = ids.filter(isReady);
-    if (readyIds.length) for (const id of ids) if (!isReady(id)) this.damage(id, RP.NOT_READY_DAMAGE, this.mult, 0);
+    if (readyIds.length) for (const id of ids) if (!isReady(id)) this.damage(id, RP.NOT_READY_DAMAGE, 1, 0);
     this.spend();
     const late = this.players.filter(p => !isReady(p.id)).map(p => p.name);
     const out = [this.room.system(`${late.join(' and ') || 'Nobody'} wasn't ready in time — the round is skipped`)];
@@ -304,6 +306,7 @@ export class RankedPlay {
   }
   /** Gameplay is over (everyone finished, quit or left): work out the round. */
   gameplayDone(rows) {
+    if (this.stage === 'ended') return []; // (someone left mid-song: the match already ended)
     this.spend();
     const score = id => { const x = rows.find(r => r.id === id); return x && !x.left ? x.score : 0; };
     const ids = Object.keys(this.users), scores = Object.fromEntries(ids.map(id => [id, score(id)]));
@@ -312,8 +315,7 @@ export class RankedPlay {
     const winner = top.length === 1 ? top[0] : null;
     if (winner) {
       const loser = ids.find(id => id !== winner);
-      const m = this.mult + this.users[winner].mult;
-      this.users[loser].dmg = this.damage(loser, best - scores[loser], m, RP.BASE_DAMAGE);
+      this.users[loser].dmg = this.damage(loser, best - scores[loser], 1, RP.BASE_DAMAGE);
       this.users[winner].won++;
     }
     const pick = k => Object.fromEntries(ids.map(id => { const x = rows.find(r => r.id === id) || {}; return [id, x[k] ?? null]; }));
@@ -326,7 +328,6 @@ export class RankedPlay {
     return [this.room.roomMsg()];
   }
   finishResults() {
-    if (this._winner) this.users[this._winner].mult += 0.5; // the round's winner hits harder from now on
     this._winner = null;
     for (const u of Object.values(this.users)) u.dmg = null;
     this.room.map = null;
@@ -357,11 +358,27 @@ export class RankedPlay {
       case 'waitjoin': delete this.users[id]; return [];
       case 'stars':
       case 'deal': delete this.users[id]; this.order = this.order.filter(x => x !== id); return this.end(`${name} left before the match started`);
-      case 'playing': this.kill(id); return [];
+      // mid-song: the match ends there, and the other player is taken off the song back to the match screen
+      case 'playing': this.kill(id); return [...this.end(`${name} left the match`), { to: 'all', msg: { t: 'rpAbort' } }];
       case 'results': if (this.roundsRemaining()) this.kill(id); return [];
     }
     this.kill(id);
     return this.end(`${name} left the match`);
+  }
+  /** After the match: a player asks for a rematch; once both still here have, a new (unrated) match starts in the room. */
+  askRematch(id) {
+    if (this.stage !== 'ended' || !this.users[id] || this.room.players.length !== 2) return [];
+    this.rematch[id] = true;
+    if (!this.room.players.every(p => this.rematch[p.id])) return [this.room.system(`${(this.room.get(id) || {}).name || 'Your opponent'} wants a rematch`), this.room.roomMsg()];
+    const next = new RankedPlay(this.room, { keys: this.keys, rated: false });
+    for (const p of this.room.players) {
+      const u = this.users[p.id];
+      next.addUser(p, { mu: u.muAfter ?? u.mu, sigma: u.sigmaAfter ?? u.sigma, cid: u.cid });
+      Object.assign(p, { ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null });
+    }
+    this.room.rp = next;
+    this.room.map = null;
+    return [this.room.system('Rematch!'), ...next.begin()];
   }
   end(why) {
     if (this.stage === 'ended') return [];

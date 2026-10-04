@@ -176,12 +176,21 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          if (this.isRP()) Toast.show('Your opponent left the match', 'The round is yours. Finish the map or press Esc to see the results.');
-          else Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
         }
         Bus.emit('mp:changed');
         break;
       case 'error': Toast.err(m.msg); break;
+      // Ranked Play: the opponent left mid-song — the match is over, so you're taken off the song to the match screen
+      case 'rpAbort':
+        if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
+          const s = GameplayScreen.s;
+          s.finished = true; s.running = false;
+          Music.stop(150);
+          Toast.show('Your opponent left the match', 'You win — the match is over.');
+          Screens.go('multiplayer', {}, { replace: true });
+        }
+        break;
     }
   },
 

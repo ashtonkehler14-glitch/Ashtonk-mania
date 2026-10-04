@@ -277,6 +277,7 @@ export class RoomLogic {
       }
       case 'rpready': return this.rp && m.ready !== false ? this.rp.setReady(id) : [];
       case 'rpStars': return this.rp ? this.rp.setStars(id, m.stars) : [];
+      case 'rematch': return this.rp ? this.rp.askRematch(id) : [];
       case 'bye': p.leaving = true; return []; // (leaving on purpose: the closed connection isn't a drop to wait out)
       case 'ping': return [{ to: id, msg: { t: 'pong', c: m.c, s: this.now() } }];
       case 'chat': {

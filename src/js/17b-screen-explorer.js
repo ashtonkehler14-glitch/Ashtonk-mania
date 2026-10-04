@@ -301,7 +301,10 @@ const ExplorerScreen = {
     const fg = ring.querySelector('.fg');
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, ring, icon('up'));
     const paintRing = () => { const max = scroller.scrollHeight - scroller.clientHeight; const p = max > 0 ? clamp(scroller.scrollTop / max, 0, 1) : 0; fg.setAttribute('stroke-dashoffset', (C * (1 - p)).toFixed(2)); };
-    this._ringRO = new ResizeObserver(paintRing); this._ringRO.observe(this.grid); // (more results loading in moves the bottom further away)
+    // (and when the page's size settles — the screen sliding in, the header taking its height — the cards in view
+    // are worked out again: before, the first results could sit unloaded until you scrolled)
+    this._ringRO = new ResizeObserver(() => { paintRing(); if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); }); });
+    this._ringRO.observe(this.grid); this._ringRO.observe(scroller); // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
@@ -422,6 +425,8 @@ const ExplorerScreen = {
     this.renderWindow();
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
+    // once more after layout (the first row's height, and where the grid sits, are only known then)
+    requestAnimationFrame(() => requestAnimationFrame(() => this.renderWindow()));
   },
   /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
    *  space. However long the list grows, scrolling it costs the same as the first page. */
@@ -443,15 +448,16 @@ const ExplorerScreen = {
       // which threw on-screen positions further off the further down you were)
       let gridTop = 0;
       for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
-      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + sc.clientHeight + extra) / rowH), 0, rows)];
+      const vh = sc.clientHeight || innerHeight; // (not laid out yet, mid-transition: assume a full window)
+      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + vh + extra) / rowH), 0, rows)];
       // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
       // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
-      const [needA, needB] = range(sc.clientHeight);
+      const [needA, needB] = range(vh);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(sc.clientHeight * 2);
+      else [from, to] = range(vh * 2);
       // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
-      const [pa, pb] = range(sc.clientHeight * 3);
+      const [pa, pb] = range(vh * 3);
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) { const f = all[i]._loadCovers; if (f) { all[i]._loadCovers = null; f(); } }
       // and the next page is asked for long before the end of the list comes into view
       if (this.hasMore && !this.loading && !this.error && pb >= rows - 2) this.loadMore();
