@@ -6366,7 +6366,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Input', g: 'Keys', k: 'input.shortcuts', l: 'Keyboard shortcuts', t: 'shortcuts', hint: 'Or press ? anywhere outside a text field.' },
   { s: 'Input', g: 'Display', k: 'input.keyOverlay', l: 'Always show key overlay', t: 'bool', d: false },
   { x: 1, s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
-  { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Fullscreen while playing (tap the game to go back)', t: 'bool', d: true },
+  { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Fullscreen while playing (tap the game to go back)', t: 'bool', d: TOUCH_DEVICE },
   // ── Interface
   { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: TOUCH_DEVICE ? 1.25 : 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
@@ -6458,6 +6458,8 @@ const Settings = {
     if (!v['migr.hpStage']) { if (v['gameplay.healthStyle'] === 'skin') v['gameplay.healthStyle'] = 'skinstage'; v['migr.hpStage'] = true; }
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
     // (phones: 125% by default — a phone that kept the old 90% default moves up to it)
+    // (on a computer the game no longer goes fullscreen by itself: it's back to off, the new default there)
+    if (!v['migr.fsPc']) { if (!TOUCH_DEVICE) delete v['input.fullscreenOnPlay']; v['migr.fsPc'] = true; }
     if (!v['migr.uiScaleTouch']) { if (TOUCH_DEVICE && v['ui.scale'] === 0.9) delete v['ui.scale']; v['migr.uiScaleTouch'] = true; }
     // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
     // backups imported with per-column colours
@@ -9002,11 +9004,11 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false, rules = RULES }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, own, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
-      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
+      keys, mods, rate, seed, windows, accuracyMode, hp, player, own: !!own, duration, modConfig, noFail,
       rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
@@ -9099,7 +9101,20 @@ const ProfileManager = {
     await this.loadAvatar();
   },
   async save() { await DB.kvSet('profile', this.profile); Bus.emit('profile:changed'); },
-  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Player'; await this.save(); },
+  async setName(n) {
+    const old = this.profile.name;
+    this.profile.name = n.trim().slice(0, 24) || 'Player';
+    await this.save();
+    if (old !== this.profile.name) await this.renamePlays(old);
+  },
+  /** Your own scores and replays carry your current name (and so your current avatar). */
+  async renamePlays(old) {
+    const name = this.profile.name, mine = x => x && (x.own || (!x.own && x.player === old));
+    let n = 0;
+    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; await DB.put('scores', sc); n++; }
+    for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
+    if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
+  },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
@@ -12596,7 +12611,7 @@ const SongSelect = {
     const row = h(`button.lbs${own ? '.own' : ''}`, {
       style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
-      onclick: () => { if (s.online) return; UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); },
+      onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, watched: 'online' } : { score: s, fromList: true }, { transition: 'right' }); },
       oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
     },
       h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),
@@ -13829,7 +13844,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const audioDone = !Music.playing && Music.pausedPos >= Music.duration - 5 && now > 0;
     if (s.practice) return;
     if (done || (audioDone && now > s.endTime)) {
-      e.advance(Infinity);
       this.complete();
     }
   },
@@ -14176,6 +14190,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   async complete() {
     const s = this.s;
+    if (!s || s.finished) return;
+    // every note left is judged first (unhit ones are misses): however this is reached, a play can't end early with a clean score
+    s.engine.advance(Infinity);
     s.finished = true; s.running = false;
     this.settleAutoScale();
     this.releaseAll();
@@ -14205,7 +14222,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       keys: s.keys, stars, pp,
       mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
-      duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name,
+      duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name, own: !s.replay,
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
       hitErrors: summary.hitErrors, totalJudgements: summary.totalJudgements, accuracyMode: s.accuracyMode,
       windows: s.windows, od: s.bm.od, replayId: null, modConfig: s.modConfig,
@@ -14220,7 +14237,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
-      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp, rules: s.rules,
+      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, own: score.own, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     if (!store) { this._unsavedReplay = replay; return { score, replay }; }
     await ScoreManager.add(score);
@@ -14781,10 +14798,10 @@ const ResultsScreen = {
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    const av = (mine || s.own) && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
     // lazer's ExpandedPanelTopContent: an 80px picture (corners of 20) straddling the top of the panel, the name under it
     const top = h('div.rs-top', h('div.rs-av', av), h('div.rs-name', s.player || 'Player'),
-      p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+      p.watched && p.watched !== 'online' ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
     // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
@@ -15451,7 +15468,9 @@ const ProfileScreen = {
     const p = ProfileManager.profile, xp = ProfileManager.xpInfo(), st = StatisticsManager.compute();
     const bestPerMap = new Map();
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
-    const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s });
+    const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, creator: s.creator, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s,
+      // (enough for other players to open it on the results screen)
+      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed });
     const day = 86400000, g = st.grades || {};
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
@@ -15577,7 +15596,12 @@ const ProfileScreen = {
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
   scoreRow(s, pp, weight = null, weighted = null) {
-    return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => { if (!s.remote) Screens.go('results', { score: s, fromList: true }); } },
+    return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => {
+      UISounds.click();
+      if (!s.remote) { Screens.go('results', { score: s, fromList: true }); return; }
+      const r = this.remote || {};
+      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, watched: 'online' }, { transition: 'right' });
+    } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
@@ -18089,7 +18113,7 @@ const Presence = {
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -18110,6 +18134,8 @@ const Presence = {
       else if (m.t === 'lb') Bus.emit('lb', m);
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
+      // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
+      else if (m.t === 'repid') { if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
@@ -20532,11 +20558,14 @@ const Chat = {
 const Rankings = {
   /** Tell the server this player's totals (on connecting, and after every play). */
   // (only the profile: pp, rankings and leaderboards are the server's own, from plays it judged — Verified)
+  // (everyone's profile is public: it goes up on connecting, and again after a play or a change to it)
   report() {
     if (!Presence.ws) return;
     Presence.send({ t: 'stats', profile: ProfileScreen.summary() });
   },
+  reportSoon() { clearTimeout(this._rt); this._rt = setTimeout(() => this.report(), 2000); },
 };
+for (const ev of ['scores:changed', 'profile:changed']) Bus.on(ev, () => Rankings.reportSoon());
 
 /** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
  *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging
@@ -20879,7 +20908,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

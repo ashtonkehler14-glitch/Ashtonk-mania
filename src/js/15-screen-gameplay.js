@@ -1073,7 +1073,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const audioDone = !Music.playing && Music.pausedPos >= Music.duration - 5 && now > 0;
     if (s.practice) return;
     if (done || (audioDone && now > s.endTime)) {
-      e.advance(Infinity);
       this.complete();
     }
   },
@@ -1420,6 +1419,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   async complete() {
     const s = this.s;
+    if (!s || s.finished) return;
+    // every note left is judged first (unhit ones are misses): however this is reached, a play can't end early with a clean score
+    s.engine.advance(Infinity);
     s.finished = true; s.running = false;
     this.settleAutoScale();
     this.releaseAll();
@@ -1449,7 +1451,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       keys: s.keys, stars, pp,
       mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
-      duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name,
+      duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name, own: !s.replay,
       meanError: summary.meanError, unstableRate: summary.unstableRate, early: summary.early, late: summary.late,
       hitErrors: summary.hitErrors, totalJudgements: summary.totalJudgements, accuracyMode: s.accuracyMode,
       windows: s.windows, od: s.bm.od, replayId: null, modConfig: s.modConfig,
@@ -1464,7 +1466,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const score = this.buildScore(passed, summary);
     const replay = ReplayManager.build({
       map: s.rec, mods: s.mods, rate: s.rate, seed: s.seed, windows: s.windows, accuracyMode: s.accuracyMode, hp: s.bm.hp, keys: s.keys, modConfig: s.modConfig,
-      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, duration: score.duration, noFail: !!s.mp, rules: s.rules,
+      events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, own: score.own, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     if (!store) { this._unsavedReplay = replay; return { score, replay }; }
     await ScoreManager.add(score);

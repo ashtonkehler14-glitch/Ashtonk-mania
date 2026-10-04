@@ -988,14 +988,14 @@ test('presence chat: #lobby reaches everyone and is kept for late arrivals; priv
 const judged = (o = {}) => ({ score: 900000, accuracy: 0.97, maxCombo: 400, counts: [300, 50, 5, 0, 0, 1], grade: 'S', stars: 3.2, pp: 100, mods: [], keys: 4, rate: 1, beatmapId: 111, ...o });
 const K1 = 'a'.repeat(64), K2 = 'b'.repeat(64);
 
-test('player ids belong to their key: the first key used with an id claims it; anyone else using it is a guest', () => {
+test('player ids belong to their key: the first key used with an id claims it; anyone else using it is told to take a new id', () => {
   const p = new PresenceLogic(), saved = [];
   p.persistAuth = (pid, h) => saved.push([pid, h.length]);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'alice-secret-key-123456' });
   assert.equal(p.users.get('a').pid, 'alicepid1');
   assert.deepEqual(saved, [['alicepid1', 64]], 'only the hash is kept');
   const out = p.join('x', { name: 'Mallory', pid: 'alicepid1', key: 'mallory-guess-000000000' });
-  assert.equal(p.users.get('x').pid, '', 'not Alice'); assert.ok(out.some(o => o.to === 'x' && o.msg.t === 'error'));
+  assert.equal(p.users.get('x').pid, '', 'not Alice'); assert.ok(out.some(o => o.to === 'x' && o.msg.t === 'repid'));
   p.join('y', { name: 'NoKey', pid: 'nokeypid1' });
   assert.equal(p.users.get('y').pid, '', 'no key: no id');
   p.join('a2', { name: 'Alice', pid: 'alicepid1', key: 'alice-secret-key-123456', cid: 'tab2' });

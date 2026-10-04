@@ -407,7 +407,7 @@ const Presence = {
     };
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -428,6 +428,8 @@ const Presence = {
       else if (m.t === 'lb') Bus.emit('lb', m);
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
+      // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
+      else if (m.t === 'repid') { if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {

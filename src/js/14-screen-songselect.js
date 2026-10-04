@@ -947,7 +947,7 @@ const SongSelect = {
     const row = h(`button.lbs${own ? '.own' : ''}`, {
       style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
-      onclick: () => { if (s.online) return; UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); },
+      onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, watched: 'online' } : { score: s, fromList: true }, { transition: 'right' }); },
       oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
     },
       h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),

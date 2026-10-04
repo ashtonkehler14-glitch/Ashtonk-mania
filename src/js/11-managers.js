@@ -74,11 +74,11 @@ const ScoreManager = {
 const ReplayManager = {
   list: [],
   async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
-  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, duration, modConfig = {}, noFail = false, rules = RULES }) {
+  build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, own, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
       mapHash: map.hash, mapId: map.id, title: map.title, artist: map.artist, version: map.version, creator: map.creator,
-      keys, mods, rate, seed, windows, accuracyMode, hp, player, duration, modConfig, noFail,
+      keys, mods, rate, seed, windows, accuracyMode, hp, player, own: !!own, duration, modConfig, noFail,
       rules, // judging rules (see 09-gameplay.js); replays without it were recorded under rules 1
       events, // flat [t, col, down, t, col, down, ...] in song ms
       summary: { score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo, counts: summary.counts, grade: summary.grade },
@@ -171,7 +171,20 @@ const ProfileManager = {
     await this.loadAvatar();
   },
   async save() { await DB.kvSet('profile', this.profile); Bus.emit('profile:changed'); },
-  async setName(n) { this.profile.name = n.trim().slice(0, 24) || 'Player'; await this.save(); },
+  async setName(n) {
+    const old = this.profile.name;
+    this.profile.name = n.trim().slice(0, 24) || 'Player';
+    await this.save();
+    if (old !== this.profile.name) await this.renamePlays(old);
+  },
+  /** Your own scores and replays carry your current name (and so your current avatar). */
+  async renamePlays(old) {
+    const name = this.profile.name, mine = x => x && (x.own || (!x.own && x.player === old));
+    let n = 0;
+    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; await DB.put('scores', sc); n++; }
+    for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
+    if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
+  },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }

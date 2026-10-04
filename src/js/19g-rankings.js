@@ -6,11 +6,14 @@
 const Rankings = {
   /** Tell the server this player's totals (on connecting, and after every play). */
   // (only the profile: pp, rankings and leaderboards are the server's own, from plays it judged — Verified)
+  // (everyone's profile is public: it goes up on connecting, and again after a play or a change to it)
   report() {
     if (!Presence.ws) return;
     Presence.send({ t: 'stats', profile: ProfileScreen.summary() });
   },
+  reportSoon() { clearTimeout(this._rt); this._rt = setTimeout(() => this.report(), 2000); },
 };
+for (const ev of ['scores:changed', 'profile:changed']) Bus.on(ev, () => Rankings.reportSoon());
 
 /** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
  *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging

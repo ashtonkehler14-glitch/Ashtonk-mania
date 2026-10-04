@@ -871,7 +871,7 @@ export class PresenceLogic {
     if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { out.push(...this.forget(oid)); gone.push(oid); }
     // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
-    if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'error', msg: 'Your player id is in use with another key, so you\'re playing as a guest.' } }); }
+    if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
     this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, seen: this.now(),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });

@@ -181,7 +181,9 @@ const ProfileScreen = {
     const p = ProfileManager.profile, xp = ProfileManager.xpInfo(), st = StatisticsManager.compute();
     const bestPerMap = new Map();
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
-    const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s });
+    const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, creator: s.creator, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s,
+      // (enough for other players to open it on the results screen)
+      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed });
     const day = 86400000, g = st.grades || {};
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
@@ -307,7 +309,12 @@ const ProfileScreen = {
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
   scoreRow(s, pp, weight = null, weighted = null) {
-    return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => { if (!s.remote) Screens.go('results', { score: s, fromList: true }); } },
+    return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => {
+      UISounds.click();
+      if (!s.remote) { Screens.go('results', { score: s, fromList: true }); return; }
+      const r = this.remote || {};
+      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, watched: 'online' }, { transition: 'right' });
+    } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),

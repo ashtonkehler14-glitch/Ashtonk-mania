@@ -89,10 +89,10 @@ const ResultsScreen = {
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
-    const av = mine && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
+    const av = (mine || s.own) && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
     // lazer's ExpandedPanelTopContent: an 80px picture (corners of 20) straddling the top of the panel, the name under it
     const top = h('div.rs-top', h('div.rs-av', av), h('div.rs-name', s.player || 'Player'),
-      p.watched ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+      p.watched && p.watched !== 'online' ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
     // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.

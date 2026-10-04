@@ -1109,6 +1109,20 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('results: everything fits on screen without scrolling, even with all statistics open in a small window', rf.inside && !rf.scroll, JSON.stringify(rf));
   await page.setViewportSize({ width: 1600, height: 900 });
 }
+// another player's profile is open to anyone, and each of their scores opens on the results screen
+{
+  await page.evaluate(() => AshtonkMania.Screens.go('profile', { pid: 'someoneelse1', name: 'Zed', force: true })); await page.waitForTimeout(500);
+  await page.evaluate(() => AshtonkMania.Bus.emit('profile:remote', { t: 'profile', pid: 'someoneelse1', name: 'Zed', data: { ...AshtonkMania.ProfileScreen.summary(), name: 'Zed' }, verified: { pp: 123 }, online: false, status: 'offline' }));
+  await page.waitForTimeout(400);
+  const n = await page.evaluate(() => document.querySelectorAll('.pf-score.remote').length);
+  await page.evaluate(() => document.querySelector('.pf-score.remote').click());
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 4000 }).catch(() => {}); await page.waitForTimeout(600);
+  const rr = await page.evaluate(() => ({ scr: AshtonkMania.Screens.currentName, name: [...document.querySelectorAll('.rs-name')].pop()?.textContent, tag: !!document.querySelector('.rs-tag') }));
+  check('someone else\'s profile scores open on the results screen, under their name', n > 0 && rr.scr === 'results' && rr.name === 'Zed' && !rr.tag, JSON.stringify({ n, ...rr }));
+  // renaming yourself renames your own scores and replays
+  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name; await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length; await PM.setName(old); return { sc, bad, rp }; });
+  check('changing your name changes it on your scores and replays', ren.sc > 0 && ren.bad === 0 && ren.rp === 0, JSON.stringify(ren));
+}
 // the profile's cover is the background of your highest-pp play
 {
   await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(800);
