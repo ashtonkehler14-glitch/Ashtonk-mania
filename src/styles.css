@@ -3548,3 +3548,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .cp-wait { color: hsl(200 40% 90%); }
 .mpr-foot { flex: none; position: relative; display: flex; align-items: center; gap: 5px; height: 50px; background: #333; }
 .mpr-foot .lz-back { position: absolute; left: 0; bottom: 0; }
+/* the results screen after a multiplayer song (lazer's MultiplayerResultsScreen): who won above, then the panels in
+   one row in placing order — yours the full panel, the others lazer's contracted ones; statistics hide the others */
+.res-body.mp { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.res-body.mp .res-grid { display: flex; align-items: center; gap: 14px; }
+.res-body.mp .res-grid > .rs { flex: none; width: 360px; }
+.res-mp-side { display: flex; align-items: center; gap: 14px; }
+.res-mp-side:empty { display: none; }
+.res-body.mp .res-grid.stats-open > .res-mp-side { display: none; }
+.res-body.mp .res-grid.stats-open > .res-right { flex: 0 1 700px; }
+.res-mp-head { flex: none; text-align: center; margin-bottom: 30px; }
+.res-mp-myplace { display: none; } /* (your place is in the verdict above) */
+.res-body.mp .rs { position: relative; }

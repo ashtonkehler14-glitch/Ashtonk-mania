@@ -22,6 +22,7 @@ const ResultsScreen = {
     });
     grid.append(card, this.rightCol(s));
     body.append(grid);
+    if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     this.fitToScreen(body, grid);
@@ -46,7 +47,7 @@ const ResultsScreen = {
     };
     ro.observe(body); ro.observe(grid);
   },
-  leave() { cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  leave() { MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
@@ -66,11 +67,12 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
+    if (this.p.mp) return false; // (a room's match isn't yours to retry)
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -225,7 +227,9 @@ const ResultsScreen = {
     // small ones (75 × 30)
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
-    bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
+    if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
+    else bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)

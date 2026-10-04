@@ -37,7 +37,6 @@ const App = {
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
     Screens.register('multiplayer', MultiplayerScreen);
-    Screens.register('mpresults', MpResultsScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
     Screens.register('stats', ProfileScreen);

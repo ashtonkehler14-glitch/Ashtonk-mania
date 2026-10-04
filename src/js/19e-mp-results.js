@@ -3,27 +3,23 @@
  * from the winner to the last place, yours picked out. It waits for the others to finish first (their live scores
  * meanwhile), then shows who won. */
 
-const MpResultsScreen = {
-  tab: 'multiplayer',
-  enter(params = {}) {
-    this.my = params.score || null;
-    this.el = h('div.mpr');
-    this.head = h('div.mpr-head');
-    this.list = h('div.mpr-list');
-    const foot = h('div.mpr-foot',
-      backButton(() => Screens.go('multiplayer', {}, { replace: true })),
-      h('div.grow'),
-      this.my ? h('button.res-ab.wide', { title: 'your results', 'aria-label': 'Your results', onclick: () => { UISounds.click(); Screens.go('results', { score: this.my, replay: params.replay || null, fromList: true }); } }, icon('chart')) : null,
-      h('button.res-ab.wide.green', { title: 'back to the room', 'aria-label': 'Back to the room', onclick: () => { UISounds.click(); Screens.go('multiplayer', {}, { replace: true }); } }, icon('multi')),
-      h('div.grow'));
-    this.el.append(this.head, this.list, foot);
+const MpResults = {
+  /** On the results screen after a multiplayer song (lazer's MultiplayerResultsScreen): the other players' panels
+   *  either side of yours, in placing order, and who won above them. Repaints as they finish. */
+  mount(body, grid, card, score) {
+    this.my = score; this._key = null; this._final = false;
+    this.head = h('div.res-mp-head');
+    this.before = h('div.res-mp-side.before'); this.after = h('div.res-mp-side.after');
+    // (your panel keeps its place in the row: the others sit before and after it)
+    grid.prepend(this.before);
+    card.after(this.after);
+    body.prepend(this.head);
+    this.place = h('div.res-mp-myplace'); card.prepend(this.place);
     this._unsub = [Bus.on('mp:changed', () => this.paint()), Bus.on('mp:opp', () => this.paint())];
     this._t = setInterval(() => this.paint(), 500);
     this.paint();
-    return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._t); },
-  onKey(e) { if (e.key === 'Escape') { Screens.go('multiplayer', {}, { replace: true }); return true; } return false; },
+  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); },
   /** The match's results once everyone's done; until then the live scores of those still playing. */
   rows() {
     const res = Multiplayer.lastResults;
@@ -59,7 +55,13 @@ const MpResultsScreen = {
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
-    clearEl(this.list).append(...rows.map((r, i) => this.panel(r, i, first, res)));
+    const at = rows.findIndex(r => r.id === me);
+    const panel = (r, i) => this.panel(r, i, first, res);
+    clearEl(this.before).append(...rows.slice(0, Math.max(0, at)).map(panel));
+    clearEl(this.after).append(...(at < 0 ? rows : rows.slice(at + 1)).map((r, k) => panel(r, (at < 0 ? 0 : at + 1) + k)));
+    // (your own panel: its place and the winner's crown)
+    const mine2 = rows.find(r => r.id === me);
+    if (this.place) this.place.textContent = mine2 ? `#${mine2.place}` : '';
   },
   /** lazer's contracted ScorePanel (130 × 385). */
   panel(r, i, animate, res) {

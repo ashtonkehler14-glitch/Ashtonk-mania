@@ -1264,7 +1264,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
    *  (Quick Play and Ranked Play show their standings there). */
   mpAfter(score, replay) {
     const r = Multiplayer.room;
-    if (r && !r.rp && !r.qp) Screens.go('mpresults', { score, replay }, { replace: true, transition: 'zoom' });
+    if (r && !r.rp && !r.qp) Screens.go('results', { score, replay, fresh: true, mp: true }, { replace: true, transition: 'zoom' });
     else Screens.go('multiplayer', {}, { replace: true });
   },
   async complete() {

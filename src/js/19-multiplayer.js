@@ -165,7 +165,7 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'mpresults') Bus.emit('mp:opp'); break;
+      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'results') Bus.emit('mp:opp'); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;

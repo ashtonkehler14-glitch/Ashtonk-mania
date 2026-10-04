@@ -3565,6 +3565,18 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .cp-wait { color: hsl(200 40% 90%); }
 .mpr-foot { flex: none; position: relative; display: flex; align-items: center; gap: 5px; height: 50px; background: #333; }
 .mpr-foot .lz-back { position: absolute; left: 0; bottom: 0; }
+/* the results screen after a multiplayer song (lazer's MultiplayerResultsScreen): who won above, then the panels in
+   one row in placing order — yours the full panel, the others lazer's contracted ones; statistics hide the others */
+.res-body.mp { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.res-body.mp .res-grid { display: flex; align-items: center; gap: 14px; }
+.res-body.mp .res-grid > .rs { flex: none; width: 360px; }
+.res-mp-side { display: flex; align-items: center; gap: 14px; }
+.res-mp-side:empty { display: none; }
+.res-body.mp .res-grid.stats-open > .res-mp-side { display: none; }
+.res-body.mp .res-grid.stats-open > .res-right { flex: 0 1 700px; }
+.res-mp-head { flex: none; text-align: center; margin-bottom: 30px; }
+.res-mp-myplace { display: none; } /* (your place is in the verdict above) */
+.res-body.mp .rs { position: relative; }
 
 </style>
 </head>
@@ -13463,7 +13475,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
    *  (Quick Play and Ranked Play show their standings there). */
   mpAfter(score, replay) {
     const r = Multiplayer.room;
-    if (r && !r.rp && !r.qp) Screens.go('mpresults', { score, replay }, { replace: true, transition: 'zoom' });
+    if (r && !r.rp && !r.qp) Screens.go('results', { score, replay, fresh: true, mp: true }, { replace: true, transition: 'zoom' });
     else Screens.go('multiplayer', {}, { replace: true });
   },
   async complete() {
@@ -13999,6 +14011,7 @@ const ResultsScreen = {
     });
     grid.append(card, this.rightCol(s));
     body.append(grid);
+    if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     this.fitToScreen(body, grid);
@@ -14023,7 +14036,7 @@ const ResultsScreen = {
     };
     ro.observe(body); ro.observe(grid);
   },
-  leave() { cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  leave() { MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
@@ -14043,11 +14056,12 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
+    if (this.p.mp) return false; // (a room's match isn't yours to retry)
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -14202,7 +14216,9 @@ const ResultsScreen = {
     // small ones (75 × 30)
     bar.append(backButton(() => this.onBack()));
     if (replay || s.replayId) bar.append(watch);
-    bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
+    if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
+    else bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)
@@ -17021,7 +17037,7 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'mpresults') Bus.emit('mp:opp'); break;
+      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'results') Bus.emit('mp:opp'); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
@@ -19331,27 +19347,23 @@ if (Mobile.touch) {
  * from the winner to the last place, yours picked out. It waits for the others to finish first (their live scores
  * meanwhile), then shows who won. */
 
-const MpResultsScreen = {
-  tab: 'multiplayer',
-  enter(params = {}) {
-    this.my = params.score || null;
-    this.el = h('div.mpr');
-    this.head = h('div.mpr-head');
-    this.list = h('div.mpr-list');
-    const foot = h('div.mpr-foot',
-      backButton(() => Screens.go('multiplayer', {}, { replace: true })),
-      h('div.grow'),
-      this.my ? h('button.res-ab.wide', { title: 'your results', 'aria-label': 'Your results', onclick: () => { UISounds.click(); Screens.go('results', { score: this.my, replay: params.replay || null, fromList: true }); } }, icon('chart')) : null,
-      h('button.res-ab.wide.green', { title: 'back to the room', 'aria-label': 'Back to the room', onclick: () => { UISounds.click(); Screens.go('multiplayer', {}, { replace: true }); } }, icon('multi')),
-      h('div.grow'));
-    this.el.append(this.head, this.list, foot);
+const MpResults = {
+  /** On the results screen after a multiplayer song (lazer's MultiplayerResultsScreen): the other players' panels
+   *  either side of yours, in placing order, and who won above them. Repaints as they finish. */
+  mount(body, grid, card, score) {
+    this.my = score; this._key = null; this._final = false;
+    this.head = h('div.res-mp-head');
+    this.before = h('div.res-mp-side.before'); this.after = h('div.res-mp-side.after');
+    // (your panel keeps its place in the row: the others sit before and after it)
+    grid.prepend(this.before);
+    card.after(this.after);
+    body.prepend(this.head);
+    this.place = h('div.res-mp-myplace'); card.prepend(this.place);
     this._unsub = [Bus.on('mp:changed', () => this.paint()), Bus.on('mp:opp', () => this.paint())];
     this._t = setInterval(() => this.paint(), 500);
     this.paint();
-    return this.el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._t); },
-  onKey(e) { if (e.key === 'Escape') { Screens.go('multiplayer', {}, { replace: true }); return true; } return false; },
+  unmount() { (this._unsub || []).forEach(f => f()); this._unsub = []; clearInterval(this._t); },
   /** The match's results once everyone's done; until then the live scores of those still playing. */
   rows() {
     const res = Multiplayer.lastResults;
@@ -19387,7 +19399,13 @@ const MpResultsScreen = {
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
-    clearEl(this.list).append(...rows.map((r, i) => this.panel(r, i, first, res)));
+    const at = rows.findIndex(r => r.id === me);
+    const panel = (r, i) => this.panel(r, i, first, res);
+    clearEl(this.before).append(...rows.slice(0, Math.max(0, at)).map(panel));
+    clearEl(this.after).append(...(at < 0 ? rows : rows.slice(at + 1)).map((r, k) => panel(r, (at < 0 ? 0 : at + 1) + k)));
+    // (your own panel: its place and the winner's crown)
+    const mine2 = rows.find(r => r.id === me);
+    if (this.place) this.place.textContent = mine2 ? `#${mine2.place}` : '';
   },
   /** lazer's contracted ScorePanel (130 × 385). */
   panel(r, i, animate, res) {
@@ -19450,7 +19468,6 @@ const App = {
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
     Screens.register('multiplayer', MultiplayerScreen);
-    Screens.register('mpresults', MpResultsScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
     Screens.register('stats', ProfileScreen);
