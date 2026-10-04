@@ -992,3 +992,30 @@ test('presence rankings: players report their totals; the top 50 by pp, with you
   assert.equal(q.message('c', { t: 'rankings' })[0].msg.list[0].name, 'Alice');
   assert.equal(q.message('c', { t: 'rankings' })[0].msg.you, null);
 });
+
+test('presence daily challenge: the first proposal sets the day\'s beatmap; best score per player; a new day starts fresh', () => {
+  const clock = { t: Date.parse('2026-10-04T10:00:00Z') };
+  const p = new PresenceLogic(() => clock.t), saved = [];
+  p.persistDaily = d => saved.push(d.day);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  const first = p.message('a', { t: 'daily' })[0].msg;
+  assert.deepEqual([first.day, first.map, first.endsAt], ['2026-10-04', null, Date.parse('2026-10-05T00:00:00Z')]);
+  assert.deepEqual(p.message('a', { t: 'dailyPropose', map: { onlineSetId: 0, onlineId: 5, keys: 4 } }), [], 'invalid');
+  const set = p.message('a', { t: 'dailyPropose', map: { onlineSetId: 10, onlineId: 11, keys: 4, title: 'Song', artist: 'Art', version: 'Hard', stars: 4.567 } });
+  assert.equal(set.length, 2); assert.equal(set[1].msg.map.onlineId, 11); assert.equal(set[1].msg.map.stars, 4.57);
+  p.message('b', { t: 'dailyPropose', map: { onlineSetId: 20, onlineId: 21, keys: 4 } });
+  assert.equal(p.daily.map.onlineId, 11, 'first proposal wins');
+  // scores: only on today's map, the best one per player kept
+  assert.deepEqual(p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 99, score: 1 }), []);
+  p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 800000, acc: 0.95, combo: 300, grade: 'S', mods: ['HD'] });
+  p.message('b', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 900000, acc: 0.97, combo: 400, grade: 'S' });
+  p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 700000, acc: 0.9, combo: 100, grade: 'A' });
+  const board = p.message('a', { t: 'daily' })[0].msg;
+  assert.deepEqual(board.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000]]);
+  assert.equal(board.you.rank, 2); assert.deepEqual(board.you.mods, ['HD']);
+  // the next day: a new beatmap to propose, no scores
+  clock.t = Date.parse('2026-10-05T00:00:01Z');
+  const next = p.message('b', { t: 'daily' })[0].msg;
+  assert.deepEqual([next.day, next.map, next.total], ['2026-10-05', null, 0]);
+  assert.ok(saved.includes('2026-10-05'));
+});

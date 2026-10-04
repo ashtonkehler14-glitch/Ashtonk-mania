@@ -1368,6 +1368,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
+      if (this.params.daily && score.passed && !s.mods.includes('AT')) Daily.submit(score, this.params.daily); // (lazer's daily challenge)
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);

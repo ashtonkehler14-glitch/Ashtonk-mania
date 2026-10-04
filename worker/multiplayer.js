@@ -670,6 +670,22 @@ export class PresenceLogic {
     this.chat = []; this.said = new Map();
     // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
     this.ranks = new Map(); this.persistRank = null;
+    // lazer's daily challenge: one beatmap a day (UTC), proposed by the first player to ask, and each player's best
+    // score on it; `persistDaily` keeps it
+    this.daily = { day: '', map: null, scores: [] }; this.persistDaily = null;
+  }
+  static dayOf(t) { return new Date(t).toISOString().slice(0, 10); }
+  dailyNow() {
+    const day = PresenceLogic.dayOf(this.now());
+    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
+    return this.daily;
+  }
+  saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
+  dailyMsg(pid) {
+    const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
+    const at = sorted.findIndex(s => s.pid === pid), end = Date.parse(d.day + 'T00:00:00Z') + 86400000;
+    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...sorted[at], rank: at + 1 },
+      scores: sorted.slice(0, 50).map((s, i) => ({ ...s, rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;
   static CHAT_BURST = 5; // messages per CHAT_WINDOW
@@ -762,6 +778,29 @@ export class PresenceLogic {
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
+    if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
+    if (msg.t === 'dailyPropose') {
+      // the first proposal of the day wins (everyone then gets it)
+      const d = this.dailyNow(), m = msg.map || {};
+      if (d.map) return [{ to: id, msg: this.dailyMsg(u.pid) }];
+      const onlineSetId = Math.floor(Number(m.onlineSetId)), onlineId = Math.floor(Number(m.onlineId)), keys = Number(m.keys);
+      if (!(onlineSetId > 0 && onlineId > 0 && (keys === 4 || keys === 7))) return [];
+      d.map = { onlineSetId, onlineId, keys, title: str(m.title, 120), artist: str(m.artist, 120), version: str(m.version, 120), creator: str(m.creator, 40),
+        stars: Math.round(Math.min(20, Math.max(0, Number(m.stars) || 0)) * 100) / 100, length: Math.min(36e5, Math.max(0, Number(m.length) || 0)) };
+      this.saveDaily();
+      return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
+    }
+    if (msg.t === 'dailyScore') {
+      const d = this.dailyNow();
+      if (!u.pid || !d.map || msg.day !== d.day || Number(msg.onlineId) !== d.map.onlineId) return [];
+      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
+      const s = { pid: u.pid, name: u.name, avatar: u.avatar, score: Math.round(num(msg.score, 1e7)), acc: num(msg.acc, 1), combo: Math.round(num(msg.combo, 1e5)),
+        grade: /^(XH|SS|SH|S|A|B|C|D)$/.test(String(msg.grade)) ? String(msg.grade) : 'D', mods: (Array.isArray(msg.mods) ? msg.mods : []).slice(0, 12).map(x => str(x, 4)), at: this.now() };
+      const old = d.scores.find(x => x.pid === u.pid);
+      if (old && old.score >= s.score) return [{ to: id, msg: this.dailyMsg(u.pid) }];
+      d.scores = d.scores.filter(x => x.pid !== u.pid); d.scores.push(s); this.saveDaily();
+      return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
+    }
     if (msg.t === 'status') {
       const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
@@ -940,9 +979,11 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'fq:' })) fq[k.slice(3)] = v;
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
         this.presence.loadRanks(rk);
+        const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
+      this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
     })());
   }

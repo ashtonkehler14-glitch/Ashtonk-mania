@@ -1045,6 +1045,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone upright: no upright gameplay — asked to turn sideways, the song waits', await mp.evaluate(() => getComputedStyle(document.querySelector('.gp-rotate')).display !== 'none' && !(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running)));
   await mp.setViewportSize({ width: 844, height: 390 });
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
+  await mp.waitForFunction(() => { const r = AshtonkMania.GameplayScreen.renderer; return r && r.W > r.H; }, null, { timeout: 5000 }); // (laid out sideways)
   const fit = await mp.evaluate(() => { const r = AshtonkMania.GameplayScreen.renderer; return r.stageX >= 0 && r.stageX + r.stageW <= r.W + 1; });
   check('phone sideways: the playfield fits the screen', fit);
   check('phone: laid out as FNF plays on phones (arrow-sized columns side by side, a full-height hitbox per column) in your own skin', await mp.evaluate(() => { const S = AshtonkMania.Settings, r = AshtonkMania.GameplayScreen.renderer, size = Math.min(r.H * 0.2 * S.get('gameplay.laneWidth'), r.W * 0.96 / 4);

@@ -99,6 +99,19 @@ await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:n
 check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(() => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /432pp/.test(r.textContent) && /96\.32%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
 await shot(alice, 'mp-rankings');
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
+// lazer's daily challenge: one beatmap a day for everyone, and a leaderboard of each player's best score
+await alice.evaluate(() => { AshtonkMania.Daily._proposing = true; AshtonkMania.Presence.send({ t: 'dailyPropose', map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } }); AshtonkMania.Screens.go('daily'); });
+await alice.waitForFunction(() => document.querySelector('.dc-title'), null, { timeout: 8000 });
+const dmap = await alice.evaluate(() => AshtonkMania.Daily.data.map);
+check('daily challenge: the day\'s beatmap with the time remaining and Play', await alice.evaluate(() => document.querySelector('.dc-title').textContent.length > 0 && /^\d+:\d\d:\d\d$/.test(document.querySelector('.dc-time b').textContent) && !!document.querySelector('.dc-play')), JSON.stringify(dmap));
+await bob.evaluate(m => { const D = AshtonkMania.Daily; D.ask(); }, dmap);
+await bob.waitForFunction(() => AshtonkMania.Daily.data && AshtonkMania.Daily.data.map, null, { timeout: 5000 });
+check('…the same beatmap for everyone', await bob.evaluate(id => AshtonkMania.Daily.data.map.onlineId === id, dmap.onlineId));
+await bob.evaluate(() => { const d = AshtonkMania.Daily.data; AshtonkMania.Daily.submit({ score: 912345, scoreStd: 912345, accuracy: 0.9711, maxCombo: 456, grade: 'S', mods: ['HD'] }, { day: d.day, onlineId: d.map.onlineId }); });
+await alice.waitForFunction(() => document.querySelectorAll('.dc-table .dc-row:not(.rk-head)').length === 1, null, { timeout: 5000 });
+check('…a passed play goes on everyone\'s leaderboard', await alice.evaluate(() => { const r = document.querySelector('.dc-table .dc-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /912,345/.test(r.textContent) && /97\.11%/.test(r.textContent) && /HD/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.dc-table') && document.querySelector('.dc-table').textContent));
+await shot(alice, 'mp-daily');
+await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 

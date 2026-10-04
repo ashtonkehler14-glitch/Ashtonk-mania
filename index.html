@@ -3742,6 +3742,35 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 @media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(4), .rk-row > span:nth-child(n+6) { display: none; } }
 .pf-global { cursor: pointer; }
 
+/* lazer's daily challenge (Plum scheme): the day's beatmap on its cover, the time left with a draining bar, Mods and
+   Play; the leaderboard below in the rankings' table rows */
+.dc-card { position: relative; overflow: hidden; display: flex; min-height: 230px; max-width: 1100px; margin: 10px auto 0; border-radius: 10px; background: hsl(var(--o-h) 10% 15%); box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
+.dc-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: .55; transition: opacity 400ms; }
+.dc-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, hsl(var(--o-h) 10% 10% / .95) 0%, hsl(var(--o-h) 10% 10% / .7) 50%, hsl(var(--o-h) 10% 10% / .2) 100%); }
+.dc-info { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 24px 28px; min-width: 0; flex: 1; }
+.dc-kicker { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: hsl(var(--o-h) 100% 75%); }
+.dc-title { font-size: 28px; font-weight: 700; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-artist { font-size: 17px; color: rgba(255, 255, 255, .85); }
+.dc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px; font-size: 13px; color: rgba(255, 255, 255, .8); }
+.dc-meta .i { width: 13px; height: 13px; margin-right: 3px; vertical-align: -2px; }
+.dc-ver { font-weight: 700; color: #fff; }
+.dc-keys { padding: 1px 7px; border-radius: 5px; background: rgba(0, 0, 0, .45); font-weight: 700; color: #fff; font-size: 11px; }
+.dc-time { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: baseline; column-gap: 10px; margin-top: 12px; font-size: 13px; color: rgba(255, 255, 255, .7); }
+.dc-time b { font-size: 20px; font-variant-numeric: tabular-nums; color: #fff; }
+.dc-tbar { grid-column: 1 / -1; width: 260px; height: 4px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+.dc-tbar i { display: block; height: 100%; background: hsl(var(--o-h) 100% 70%); transform-origin: left; }
+.dc-actions { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 16px; }
+.dc-play { position: relative; isolation: isolate; min-width: 200px; height: 46px; padding: 0 24px; border: 0; background: none; color: #fff; font: inherit; font-size: 1rem; font-weight: 700; cursor: pointer; }
+.dc-play::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 7px; background: #88b300; transform: skewX(-11.31deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: filter 150ms; }
+.dc-play:hover::before { filter: brightness(1.15); }
+.dc-play:disabled { cursor: default; } .dc-play:disabled::before { filter: saturate(.4) brightness(.8); }
+.dc-h { max-width: 1100px; margin: 26px auto 4px; font-size: 16px; font-weight: 600; }
+.dc-h span { color: hsl(var(--o-h) 40% 70%); font-weight: 600; }
+.dc-table .dc-row { grid-template-columns: 70px minmax(0, 1fr) 110px 90px 90px 60px 110px; }
+.dc-row .rank-pill, .dc-row .rp { transform: scale(.85); }
+.dc-mods-col { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .dc-title { font-size: 22px; } .dc-table .dc-row { grid-template-columns: 46px minmax(0, 1fr) 90px 70px; } .dc-table .dc-row > span:nth-child(n+5) { display: none; } }
+
 </style>
 </head>
 <body>
@@ -9356,6 +9385,7 @@ const ICONS = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 14.5h3v3h-3z" fill="currentColor"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
   bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
   mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
@@ -10555,6 +10585,8 @@ const HomeScreen = {
         ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
+        // lazer's DailyChallengeButton: (94, 63, 186), D
+        ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed
         ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('skins'))],
         ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
@@ -13819,6 +13851,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
+      if (this.params.daily && score.passed && !s.mods.includes('AT')) Daily.submit(score, this.params.daily); // (lazer's daily challenge)
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
@@ -17643,6 +17676,7 @@ const Presence = {
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
+      else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };
@@ -20013,6 +20047,124 @@ const RankingsScreen = {
   },
 };
 
+/* ===== 19h-daily.js ===== */
+/* osu!lazer's daily challenge: one beatmap for everyone each day (UTC), with a leaderboard of each player's best score
+ * on it, reached from the Play menu. The server keeps the day's beatmap and scores; the first player of the day to
+ * open it picks the beatmap (a ranked 4K beatmap of 3.5–5.5 stars from the online listing, at random) for everyone. */
+
+const Daily = {
+  data: null,
+  on(m) {
+    this.data = m;
+    if (!m.map && !this._proposing) this.propose();
+    Bus.emit('daily', m);
+  },
+  ask() { Presence.start(); Presence.send({ t: 'daily' }); },
+  async propose() {
+    this._proposing = true;
+    try {
+      const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [4], minStars: 3.5, maxStars: 5.5, nsfw: false }, 2, 9000);
+      const cand = [];
+      for (const set of d.sets || []) for (const x of set.diffs || []) {
+        if (x.keys === 4 && x.id > 0 && x.stars >= 3.5 && x.stars <= 5.5) cand.push({ onlineSetId: set.id, onlineId: x.id, keys: 4, title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.stars, length: (x.length || 0) * 1000 });
+      }
+      if (cand.length) Presence.send({ t: 'dailyPropose', map: cand[Math.floor(Math.random() * cand.length)] });
+    } catch (e) { console.warn('daily challenge: no beatmap to propose', e); }
+    setTimeout(() => { this._proposing = false; }, 15000);
+  },
+  /** After a passed play of the day's beatmap: your score goes on the board (the server keeps your best). */
+  submit(score, daily) {
+    Presence.send({ t: 'dailyScore', day: daily.day, onlineId: daily.onlineId, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods || [] });
+  },
+};
+
+const DailyScreen = {
+  enter() {
+    const { el, page } = pageShell('daily challenge', 'a new beatmap every day — set your best score on it', [], { icon: 'calendar', hue: 'plum', wide: true });
+    this.page = page;
+    this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) Daily.ask(); })];
+    Daily.ask();
+    this._tick = setInterval(() => this.tickTime(), 1000);
+    this._poll = setInterval(() => Daily.ask(), 30000);
+    this.render();
+    return el;
+  },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._tick); clearInterval(this._poll); },
+  tickTime() {
+    const d = Daily.data;
+    if (!d || !this.timeEl) return;
+    const left = Math.max(0, d.endsAt - Date.now());
+    const s = Math.floor(left / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = s % 60;
+    this.timeEl.textContent = `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    if (this.timeBar) this.timeBar.style.transform = `scaleX(${(left / 86400000).toFixed(4)})`;
+    if (left <= 0 && !this._rolled) { this._rolled = true; setTimeout(() => { this._rolled = false; Daily.ask(); }, 1500); }
+  },
+  render() {
+    if (!this.page) return;
+    const d = Daily.data;
+    if (!d || !d.map) {
+      this.timeEl = null; this.cardEl = null;
+      clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      return;
+    }
+    const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
+    const mods = (Settings.get('songselect.mods') || []).filter(x => x !== 'AT');
+    // (the card is rebuilt only when it changes: a new score on the board leaves it, and its fade-in, alone)
+    const key = JSON.stringify([m, !!local, f && [Math.round((f.progress || 0) * 100), f.error], mods]);
+    if (key !== this._cardKey || !this.cardEl) { this._cardKey = key; this.cardEl = this.buildCard(m, local, f, mods); }
+    const me = Presence.pid();
+    const row = s => h(`div.rk-row.dc-row${s.pid === me ? '.me' : ''}`,
+      h('span.rk-rank', `#${s.rank}`),
+      h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),
+      h('span.hl', fmtInt(s.score)), h('span', fmtAcc(s.acc)), h('span', `${fmtInt(s.combo)}x`),
+      h('span', rankPill(s.grade)), h('span.dc-mods-col', (s.mods || []).join(' ') || '—'));
+    const board = d.scores.length
+      ? h('div.rk-table.dc-table', h('div.rk-row.rk-head.dc-row', h('span'), h('span'), h('span.hl', 'Score'), h('span', 'Accuracy'), h('span', 'Max Combo'), h('span', 'Rank'), h('span', 'Mods')),
+        ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
+      : h('div.rk-empty', 'No scores yet today. Be the first!');
+    const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
+    if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(head, board); }
+    else clearEl(this.page).append(this.cardEl, head, board);
+    this.tickTime();
+  },
+  buildCard(m, local, f, mods) {
+    const cover = h('div.dc-cover');
+    OnlineBeatmaps.loadCover(cover, m.onlineSetId, ['cover@2x', 'cover', 'card@2x', 'card']);
+    const play = h('button.dc-play', { disabled: !!(f && !f.error), onclick: () => this.play() },
+      local ? 'Play' : f && !f.error ? `Downloading… ${Math.round((f.progress || 0) * 100)}%` : 'Download & play');
+    this.timeEl = h('b'); this.timeBar = h('i');
+    return h('div.dc-card', cover,
+      h('div.dc-info',
+        h('div.dc-kicker', 'Today\'s beatmap'),
+        h('div.dc-title', m.title), h('div.dc-artist', m.artist),
+        h('div.dc-meta', starBadge(m.stars || 0), h('span.dc-ver', m.version), h('span.dc-keys', `${m.keys}K`), m.length ? h('span', icon('clock'), fmtTime(m.length)) : null, m.creator ? h('span.dc-by', 'mapped by ', h('b', m.creator)) : null),
+        h('div.dc-time', h('span', 'Time remaining'), this.timeEl, h('div.dc-tbar', this.timeBar)),
+        h('div.dc-actions',
+          h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
+          play)));
+  },
+  async play() {
+    const d = Daily.data, m = d && d.map;
+    if (!m) return;
+    UISounds.click();
+    let local = Multiplayer.localMap(m);
+    if (!local) {
+      const f = this.fetch = { id: m.onlineSetId, progress: 0 };
+      this.render();
+      let last = 0;
+      try {
+        await OnlineBeatmaps.downloadAndImport({ id: m.onlineSetId, title: m.title, artist: m.artist }, p => { f.progress = p; if (performance.now() - last > 200) { last = performance.now(); this.render(); } }, { quiet: true });
+      } catch (e) { f.error = e.message; Toast.err('Couldn\'t download the beatmap', friendlyError(e)); this.render(); return; }
+      this.fetch = null;
+      local = Multiplayer.localMap(m);
+      this.render();
+      if (!local) { Toast.err('Couldn\'t find the daily beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
+      if (Screens.currentName !== 'daily') return;
+    }
+    Game.launch({ mapId: local.id, mods: (Settings.get('songselect.mods') || []).filter(x => x !== 'AT'), daily: { day: d.day, onlineId: m.onlineId } });
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -20053,6 +20205,7 @@ const App = {
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
     Screens.register('rankings', RankingsScreen);
+    Screens.register('daily', DailyScreen);
     Screens.register('multiplayer', MultiplayerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
@@ -20063,7 +20216,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

@@ -3724,3 +3724,32 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }
 @media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(4), .rk-row > span:nth-child(n+6) { display: none; } }
 .pf-global { cursor: pointer; }
+
+/* lazer's daily challenge (Plum scheme): the day's beatmap on its cover, the time left with a draining bar, Mods and
+   Play; the leaderboard below in the rankings' table rows */
+.dc-card { position: relative; overflow: hidden; display: flex; min-height: 230px; max-width: 1100px; margin: 10px auto 0; border-radius: 10px; background: hsl(var(--o-h) 10% 15%); box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
+.dc-cover { position: absolute; inset: 0; background: center / cover no-repeat; opacity: .55; transition: opacity 400ms; }
+.dc-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, hsl(var(--o-h) 10% 10% / .95) 0%, hsl(var(--o-h) 10% 10% / .7) 50%, hsl(var(--o-h) 10% 10% / .2) 100%); }
+.dc-info { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 24px 28px; min-width: 0; flex: 1; }
+.dc-kicker { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: hsl(var(--o-h) 100% 75%); }
+.dc-title { font-size: 28px; font-weight: 700; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-artist { font-size: 17px; color: rgba(255, 255, 255, .85); }
+.dc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px; font-size: 13px; color: rgba(255, 255, 255, .8); }
+.dc-meta .i { width: 13px; height: 13px; margin-right: 3px; vertical-align: -2px; }
+.dc-ver { font-weight: 700; color: #fff; }
+.dc-keys { padding: 1px 7px; border-radius: 5px; background: rgba(0, 0, 0, .45); font-weight: 700; color: #fff; font-size: 11px; }
+.dc-time { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: baseline; column-gap: 10px; margin-top: 12px; font-size: 13px; color: rgba(255, 255, 255, .7); }
+.dc-time b { font-size: 20px; font-variant-numeric: tabular-nums; color: #fff; }
+.dc-tbar { grid-column: 1 / -1; width: 260px; height: 4px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+.dc-tbar i { display: block; height: 100%; background: hsl(var(--o-h) 100% 70%); transform-origin: left; }
+.dc-actions { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 16px; }
+.dc-play { position: relative; isolation: isolate; min-width: 200px; height: 46px; padding: 0 24px; border: 0; background: none; color: #fff; font: inherit; font-size: 1rem; font-weight: 700; cursor: pointer; }
+.dc-play::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 7px; background: #88b300; transform: skewX(-11.31deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: filter 150ms; }
+.dc-play:hover::before { filter: brightness(1.15); }
+.dc-play:disabled { cursor: default; } .dc-play:disabled::before { filter: saturate(.4) brightness(.8); }
+.dc-h { max-width: 1100px; margin: 26px auto 4px; font-size: 16px; font-weight: 600; }
+.dc-h span { color: hsl(var(--o-h) 40% 70%); font-weight: 600; }
+.dc-table .dc-row { grid-template-columns: 70px minmax(0, 1fr) 110px 90px 90px 60px 110px; }
+.dc-row .rank-pill, .dc-row .rp { transform: scale(.85); }
+.dc-mods-col { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .dc-title { font-size: 22px; } .dc-table .dc-row { grid-template-columns: 46px minmax(0, 1fr) 90px 70px; } .dc-table .dc-row > span:nth-child(n+5) { display: none; } }
