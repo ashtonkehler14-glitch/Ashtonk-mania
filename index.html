@@ -3609,6 +3609,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* (lazer's statistics are cards straight on the background, with no box or title around them) */
 .res-right { background: none; box-shadow: none; padding: 0; gap: 10px; }
 .res-right > .rs-head { display: none; }
+/* HoldForMenuButton: invisible until hovered; a dark 60px circle with a cross, its ring filling while held */
+.hud-hfm { --p: 0; position: absolute; right: 10px; bottom: 10px; z-index: 5; display: flex; align-items: center; gap: 20px; opacity: 0; pointer-events: auto; transition: opacity 200ms; }
+.hud-hfm:hover, .hud-hfm:active { opacity: 1; }
+.hfm-t { font-weight: 700; opacity: 0; transform: translateX(10px); transition: opacity 500ms var(--ease-out), transform 500ms var(--ease-out); }
+.hud-hfm:hover .hfm-t { opacity: 1; transform: none; }
+.hfm-btn { position: relative; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: rgba(51, 51, 51, .5); cursor: pointer; }
+.hfm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); }
+.hfm-dot { position: absolute; inset: 3px; border-radius: 50%; background: #333; }
+.hfm-btn .i { position: relative; width: 15px; height: 15px; stroke-width: 3.4; transform: scale(calc(1 + var(--p) * .2)); }
 
 </style>
 </head>
@@ -12766,6 +12775,7 @@ const GameplayScreen = {
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
+      !Mobile.touch && !s.spectate ? this.holdForMenu() : null,
     );
     // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
     this.errMeter = null;
@@ -13072,6 +13082,23 @@ const GameplayScreen = {
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
     if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
     if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
+  },
+  /** lazer's HoldForMenuButton (mouse): a 60px circle in the bottom-right corner, unseen until the pointer is over it
+   *  ("hold for menu" slides in beside it); held down, a ring fills over 200 ms and then the menu opens. */
+  holdForMenu() {
+    const ring = h('i.hfm-ring'), btn = h('span.hfm-btn', ring, h('i.hfm-dot'), icon('x'));
+    const el = h('div.hud-hfm', h('span.hfm-t', 'hold for menu'), btn);
+    let t0 = 0, raf = 0;
+    const stop = () => { cancelAnimationFrame(raf); t0 = 0; el.style.setProperty('--p', 0); };
+    const step = () => {
+      const p = clamp((performance.now() - t0) / 200, 0, 1);
+      el.style.setProperty('--p', p.toFixed(3));
+      if (p >= 1) { stop(); this.onBack(); return; }
+      raf = requestAnimationFrame(step);
+    };
+    btn.addEventListener('pointerdown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(step); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    return el;
   },
   /** lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the seam,
    *  then the name and accuracy over the score and combo; lime for first place, orange for you (or team colours). */

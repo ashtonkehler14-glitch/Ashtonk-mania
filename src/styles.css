@@ -3592,3 +3592,12 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* (lazer's statistics are cards straight on the background, with no box or title around them) */
 .res-right { background: none; box-shadow: none; padding: 0; gap: 10px; }
 .res-right > .rs-head { display: none; }
+/* HoldForMenuButton: invisible until hovered; a dark 60px circle with a cross, its ring filling while held */
+.hud-hfm { --p: 0; position: absolute; right: 10px; bottom: 10px; z-index: 5; display: flex; align-items: center; gap: 20px; opacity: 0; pointer-events: auto; transition: opacity 200ms; }
+.hud-hfm:hover, .hud-hfm:active { opacity: 1; }
+.hfm-t { font-weight: 700; opacity: 0; transform: translateX(10px); transition: opacity 500ms var(--ease-out), transform 500ms var(--ease-out); }
+.hud-hfm:hover .hfm-t { opacity: 1; transform: none; }
+.hfm-btn { position: relative; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: rgba(51, 51, 51, .5); cursor: pointer; }
+.hfm-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#fff calc(var(--p) * 360deg), transparent 0); }
+.hfm-dot { position: absolute; inset: 3px; border-radius: 50%; background: #333; }
+.hfm-btn .i { position: relative; width: 15px; height: 15px; stroke-width: 3.4; transform: scale(calc(1 + var(--p) * .2)); }

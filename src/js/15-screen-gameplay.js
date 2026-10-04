@@ -495,6 +495,7 @@ const GameplayScreen = {
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
+      !Mobile.touch && !s.spectate ? this.holdForMenu() : null,
     );
     // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
     this.errMeter = null;
@@ -801,6 +802,23 @@ const GameplayScreen = {
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
     if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
     if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
+  },
+  /** lazer's HoldForMenuButton (mouse): a 60px circle in the bottom-right corner, unseen until the pointer is over it
+   *  ("hold for menu" slides in beside it); held down, a ring fills over 200 ms and then the menu opens. */
+  holdForMenu() {
+    const ring = h('i.hfm-ring'), btn = h('span.hfm-btn', ring, h('i.hfm-dot'), icon('x'));
+    const el = h('div.hud-hfm', h('span.hfm-t', 'hold for menu'), btn);
+    let t0 = 0, raf = 0;
+    const stop = () => { cancelAnimationFrame(raf); t0 = 0; el.style.setProperty('--p', 0); };
+    const step = () => {
+      const p = clamp((performance.now() - t0) / 200, 0, 1);
+      el.style.setProperty('--p', p.toFixed(3));
+      if (p >= 1) { stop(); this.onBack(); return; }
+      raf = requestAnimationFrame(step);
+    };
+    btn.addEventListener('pointerdown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(step); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    return el;
   },
   /** lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the seam,
    *  then the name and accuracy over the score and combo; lime for first place, orange for you (or team colours). */
