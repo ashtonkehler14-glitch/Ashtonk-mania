@@ -1128,6 +1128,13 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 4000 }).catch(() => {}); await page.waitForTimeout(600);
   const rr = await page.evaluate(() => ({ scr: AshtonkMania.Screens.currentName, name: [...document.querySelectorAll('.rs-name')].pop()?.textContent, tag: !!document.querySelector('.rs-tag') }));
   check('someone else\'s profile scores open on the results screen, under their name', n > 0 && rr.scr === 'results' && rr.name === 'Zed' && !rr.tag, JSON.stringify({ n, ...rr }));
+  // a player whose game hasn't sent a profile still has one: what the server knows of them
+  await page.evaluate(() => AshtonkMania.Screens.go('profile', { pid: 'quietplayer1', name: 'Quiet', force: true })); await page.waitForTimeout(400);
+  await page.evaluate(() => AshtonkMania.Bus.emit('profile:remote', { t: 'profile', pid: 'quietplayer1', name: 'Quiet', data: null, rank: 7, verified: { pp: 321, acc: 0.95, plays: 40, ss: 1, s: 2, a: 3 }, online: false, status: 'offline' }));
+  await page.waitForTimeout(400);
+  const qp = await page.evaluate(() => ({ name: [...document.querySelectorAll('.pf-name')].pop()?.textContent, pp: [...document.querySelectorAll('.pf-big b')].map(b => b.textContent).join(' '), empty: !!document.querySelector('.rk-empty') }));
+  check('a player who hasn\'t sent a profile still has one (name, rank, pp from the server)', qp.name === 'Quiet' && /#7/.test(qp.pp) && /321pp/.test(qp.pp) && !qp.empty, JSON.stringify(qp));
+  await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
   // renaming yourself renames your own scores and replays
   const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name; await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length; await PM.setName(old); return { sc, bad, rp }; });
   check('changing your name changes it on your scores and replays', ren.sc > 0 && ren.bad === 0 && ren.rp === 0, JSON.stringify(ren));
