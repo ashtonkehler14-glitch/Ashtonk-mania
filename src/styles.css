@@ -3573,3 +3573,22 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .std-line .dp-v { overflow: hidden; text-overflow: ellipsis; margin-right: 4px; }
 .std-panel .dp-bottom .rank-pill { transform: scale(.8); margin: 0 -2px; }
 .set-panel.std-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px color-mix(in srgb, var(--sc) 80%, transparent); }
+/* lazer's StatisticsPanel items: grey cards with 20px corners, the name in bold with a #66FFCC bar under it */
+.st-pair { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; align-items: start; }
+.st-item { position: relative; min-width: 0; padding: 48px 17px 17px; border-radius: 20px; background: linear-gradient(rgba(64, 64, 64, .8), rgba(46, 46, 46, .95)); box-shadow: inset 0 0 0 2px #2e2e2e; }
+.st-h { position: absolute; left: 14px; top: 10px; font-size: 16px; font-weight: 700; }
+.st-h::after { content: ""; display: block; height: 2px; margin-top: 4px; background: #66ffcc; }
+.st-pp { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.st-pp > div { display: flex; flex-direction: column; font-size: 13px; }
+.st-pp-l { color: #66ffcc; } .st-pp-r { align-items: flex-end; }
+.st-pp b { font-size: 26px; font-weight: 400; }
+.st-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+.st-row > span { flex: none; min-width: 80px; }
+.st-row > b { margin-left: auto; font-weight: 600; }
+.st-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.st-bar > i { display: block; height: 100%; border-radius: 3px; background: #66ffcc; }
+.st-table { margin-top: 10px; }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .st-pair { grid-template-columns: 1fr; } }
+/* (lazer's statistics are cards straight on the background, with no box or title around them) */
+.res-right { background: none; box-shadow: none; padding: 0; gap: 10px; }
+.res-right > .rs-head { display: none; }

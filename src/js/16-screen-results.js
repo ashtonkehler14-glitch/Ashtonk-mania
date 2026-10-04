@@ -176,23 +176,35 @@ const ResultsScreen = {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));
     const errs = (s.hitErrors || []).filter(e => !e[3]);
     const W = (s.windows || timingWindows({ od: s.od ?? 8 })).slice();
-    const hist = h('div.panel.glass.chart-card', h('h3', 'Hit distribution'));
+    // lazer's StatisticItemContainer: a 20px-cornered grey card with its name (16 bold, a #66FFCC bar under it)
+    const item = (name, ...kids) => h('div.st-item', h('div.st-h', name), ...kids);
+    // Performance Breakdown: the pp this play got and what a perfect play (all MAX) would, and each attribute's share
+    const total = (s.counts || []).reduce((a, b) => a + b, 0);
+    let maxPp = 0;
+    try { maxPp = total && s.stars ? OsuMath.pp(s.stars, [total, 0, 0, 0, 0, 0], (s.mods || []).filter(m => m !== 'AT')) : 0; } catch { maxPp = 0; }
+    const got = s.passed ? ScoreManager.ppOf(s) || s.pp || 0 : 0;
+    const pct = maxPp > 0 ? clamp(got / maxPp, 0, 1) : 0;
+    const perf = item('Performance Breakdown',
+      h('div.st-pp', h('div.st-pp-l', h('span', 'Achieved PP'), h('b', fmtInt(Math.round(got)))), h('div.st-pp-r', h('span', 'Maximum'), h('b', fmtInt(Math.round(maxPp))))),
+      h('div.st-row', h('span', 'Difficulty'), h('i.st-bar', h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })), h('b', `${Math.round(pct * 100)}%`)));
+    const hist = item('Timing Distribution');
     const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
     if (errs.length) {
       hist.append(Charts.histogram(errs.map(e => e[1]), W, s.meanError || 0));
       // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
       const me = s.meanError || 0;
-      hist.append(h('div.res-stats',
-        h('div.res-stat', h('span', 'Unstable rate'), h('b', (s.unstableRate || 0).toFixed(2))),
-        h('div.res-stat', h('span', 'Average hit error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
-        h('div.res-stat', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
+      // (lazer's SimpleStatisticTable: one name/value per row)
+      hist.append(h('div.st-table',
+        h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
+        h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))),
+        h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
       scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
     } else {
       hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
       scatter.style.display = 'none';
     }
-    col.append(hist);
+    col.append(h('div.st-pair', perf, hist));
     // Secondary graphs stay folded away to keep the screen simple.
     const more = h('details.res-more', h('summary', 'More statistics'));
     if (errs.length) more.append(scatter);
