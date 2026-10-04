@@ -326,15 +326,10 @@ const GameplayScreen = {
   buildLoader(p) {
     const rec = this.bgRec;
     const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
-    const rate = p.replay ? p.replay.rate : p.mode === 'practice' ? (Settings.get('practice.speed') || 1) : ModSystem.rate(mods, p.modConfig || ModSystem.config());
     const cover = h('div.pl-cover');
     if (rec) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
     this.plStatus = h('span', 'Loading…');
     this.plBar = h('i');
-    const tag = p.replay ? h('span.pl-tag', icon('play'), `Replay · ${p.replay.player || 'Player'}`)
-      : mods.includes('AT') ? h('span.pl-tag', icon('play'), 'Autoplay')
-      : p.mode === 'practice' ? h('span.pl-tag', icon('target'), 'Practice')
-      : p.mp ? h('span.pl-tag', icon('multi'), 'Multiplayer') : null;
     // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the
     // loading state, the difficulty with its star rating, a Source / Mapper grid and the mods, all centred
     const title = rec ? (Settings.get('ui.unicodeMetadata') && rec.titleUnicode ? rec.titleUnicode : rec.title) : 'Loading…';
@@ -344,13 +339,9 @@ const GameplayScreen = {
       h('div.pl-logo', h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))),
       h('div.pl-t', { title }, title), h('div.pl-a', artist),
       h('div.pl-thumb', cover, h('div.pl-load', h('span.spinner'), this.plStatus), h('div.pl-bar', this.plBar)),
-      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', this.plStars = starBadge(rec.stars || 0), h('span.keys-tag', `${rec.keys}K`))) : null,
-      rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator),
-        ...line('Length', fmtTime((rec.length || 0) / rate) + (rate !== 1 ? ` (${+rate.toFixed(2)}×)` : '')),
-        ...line('BPM', rec.bpm ? String(Math.round(rec.bpm * rate)) : ''),
-        ...line('Notes', fmtInt((rec.noteCount || 0) + (rec.lnCount || 0)))) : null,
-      mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null,
-      h('div.pl-tags', tag, this.retryCount ? h('span.pl-tag.retry', icon('retry'), `Retry #${this.retryCount}`) : null));
+      rec ? h('div.pl-d', h('div.pl-v', rec.version), h('div.pl-sr', this.plStars = starBadge(rec.stars || 0))) : null,
+      rec ? h('div.pl-meta', ...line('Source', rec.source), ...line('Mapper', rec.creator)) : null,
+      mods.length ? h('div.pl-mods', ...mods.map(m => ModSystem.badge(m))) : null);
     // the loader waits while you're using its settings — only for a pointer that moves there: one that happens to
     // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
     const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
@@ -360,7 +351,7 @@ const GameplayScreen = {
         this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
       rec && !p.replay ? this.loaderOffset(rec) : null);
     const el = h('div.gp-loader', card, settings,
-      h('div.pl-hint', p.mp ? 'Get ready!' : h('span', h('span.kbd', 'Space'), ' start now · ', h('span.kbd', 'Esc'), ' back')));
+      p.mp ? h('div.pl-hint', 'Get ready!') : null);
     this.loaderT0 = performance.now();
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
     const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;

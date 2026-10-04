@@ -74,7 +74,7 @@ class ManiaRenderer {
     this.layout = layout;
     this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = [];
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = []; this._cmb = null; this.lastCombo = 0;
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -902,59 +902,118 @@ class ManiaRenderer {
     if (batch.size > 32) batch.clear();
     this._pN = 0; for (let i = 0; i < keep; i++) if (fx[i].type === 'P') this._pN++;
   }
+  /** osu!lazer's LegacyManiaJudgementPiece: in over 20 ms, held, out over 40 ms from 180 ms (220 ms in all, at the
+   *  skin's ScorePosition). Hits pulse as stable's overlapping transforms do — 0.8→1 (40 ms), 0.85→0.7 (40 ms), held,
+   *  →0.4 (40 ms, In); a miss drops from 1.2× over 100 ms (Out) while tilting up to ±5.73°. Animated judgements run at
+   *  20 fps. Sizes are the skin texture's own, in lazer's 768-unit-tall legacy space. */
   _drawJudgement(realNow) {
     const fx = this.judgementFx;
     if (!fx) return;
     const L = this.layout, el = Math.max(0, realNow - fx.t0);
     const t = L.judgement[JUDGEMENTS[fx.j].id];
     if (!t) return;
-    const total = t.frames.length > 1 ? Math.max(t.frames.length / t.fps * 1000, 300) : 360;
-    if (el > total) { this.judgementFx = null; return; }
-    const sk = Settings.get('skin.scale');
-    const pop = t.frames.length > 1 ? 1 : (el < 60 ? 1.1 - 0.1 * (el / 60) : 1);
-    const k = (this.legacy ? this.u : this.s * 0.8) * 0.6 * sk * pop;
+    if (el > 220) { this.judgementFx = null; return; }
+    const out = p => 1 - (1 - p) * (1 - p);
+    const alpha = el < 20 ? out(el / 20) : el < 180 ? 1 : 1 - ((el - 180) / 40) ** 2;
+    let sc, rot = 0;
+    if (fx.j === J.MISS) {
+      const p = Math.min(1, el / 100);
+      sc = 1.2 - 0.2 * out(p);
+      if (fx.rot == null) fx.rot = (Math.random() * 2 - 1) * 5.73;
+      rot = fx.rot * out(p) * Math.PI / 180;
+    } else sc = el < 40 ? 0.8 + 0.2 * el / 40 : el < 80 ? 0.85 - 0.15 * (el - 40) / 40 : el < 180 ? 0.7 : 0.7 - 0.3 * ((el - 180) / 40) ** 2;
+    const k = (this.legacy ? this.u : this.s * 0.8) * Settings.get('skin.scale') * sc;
     const w = t.w * k, hh = t.h * k;
-    const y = L.scorePosition * this.s;
-    this.ctx.globalAlpha = el > total - 100 ? (total - el) / 100 : 1;
-    this._img(t.frameAt(el, false), this.stageW / 2 - w / 2, y - hh / 2, w, hh);
+    const y = L.scorePosition * this.s, yy = this.up ? this.H - y : y, cx = this.stageW / 2;
+    const img = t.frames.length > 1 ? t.frames[Math.min(t.frames.length - 1, Math.floor(el / 50))] : t.frames[0];
+    const ctx = this.ctx;
+    ctx.globalAlpha = alpha;
+    if (rot) { ctx.save(); ctx.translate(cx, yy); ctx.rotate(rot); ctx.drawImage(img, -w / 2, -hh / 2, w, hh); ctx.restore(); }
+    else ctx.drawImage(img, cx - w / 2, yy - hh / 2, w, hh);
     if (fx.el) {
-      const ctx = this.ctx, size = Math.round(6.5 * this.s);
+      const size = Math.round(6.5 * this.s);
       ctx.font = `900 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const yy = this.up ? this.H - (y + hh / 2 + size) : y + hh / 2 + size * 0.9;
-      ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, this.stageW / 2, yy);
-      ctx.fillStyle = fx.el === 'EARLY' ? '#6cc6ff' : '#ff8a6c'; ctx.fillText(fx.el, this.stageW / 2, yy);
+      const y2 = this.up ? this.H - (y + t.h * k / 2 + size) : y + t.h * k / 2 + size * 0.9;
+      ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(fx.el, cx, y2);
+      ctx.fillStyle = fx.el === 'EARLY' ? '#6cc6ff' : '#ff8a6c'; ctx.fillText(fx.el, cx, y2);
     }
-    this.ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1;
   }
+  /** osu!lazer's LegacyManiaComboCounter, at the skin's ComboPosition: each new hit shows the count stretched 1.4×
+   *  tall, settling over 300 ms (Out) as it fades in over 120 ms; a break pops the old count out in the skin's
+   *  ColourBreak (additive, 0.8 → 0 while growing 1 → 4× over 200 ms) as the shown count rolls down, 20 ms a step,
+   *  at half opacity. */
   _drawCombo(combo, realNow) {
-    if (combo !== this.lastCombo) { if (combo > this.lastCombo) this.comboBump = realNow; this.lastCombo = combo; }
-    if (combo < 2) return;
-    const L = this.layout, ctx = this.ctx, s = this.s;
-    const el = Math.max(0, realNow - this.comboBump);
-    const bump = Settings.get('gameplay.comboEffects') && el < 90 ? 1 + 0.12 * (1 - el / 90) : 1;
-    const y = L.comboPosition * s;
-    const cx = this.stageW / 2;
-    const sk = Settings.get('skin.scale');
-    const text = String(combo);
+    const C = this._cmb || (this._cmb = { shown: 0, tStretch: -1e9, tPop: -1e9, pop: 0, roll: null, alpha: 0, a0: 0, ta: -1e9, aTo: 1, aMs: 0 });
+    if (combo !== this.lastCombo) {
+      const prev = this.lastCombo; this.lastCombo = combo;
+      const fadeTo = (to, ms) => { C.a0 = this._cmbAlpha(realNow); C.aTo = to; C.ta = realNow; C.aMs = ms; };
+      if (combo === prev + 1) { C.roll = null; C.shown = combo; C.tStretch = realNow; fadeTo(1, 120); }
+      else if (combo === 0) {
+        if (C.shown > 0) { C.pop = C.shown; C.tPop = realNow; fadeTo(0.5, 300); C.roll = { from: C.shown, t0: realNow, ms: C.shown * 20 }; }
+      } else { C.roll = null; C.shown = combo; fadeTo(combo ? 1 : 0, 0); C.tStretch = -1e9; }
+    }
+    if (C.roll) {
+      const p = C.roll.ms > 0 ? Math.min(1, (realNow - C.roll.t0) / C.roll.ms) : 1;
+      C.shown = Math.round(C.roll.from * (1 - p));
+      if (p >= 1) C.roll = null;
+    }
+    const L = this.layout, ctx = this.ctx, y = L.comboPosition * this.s, cx = this.stageW / 2;
+    const yy = this.up ? this.H - y : y;
+    // the count that broke, popping out
+    const pe = realNow - C.tPop;
+    if (pe < 200 && C.pop > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      this._comboText(String(C.pop), cx, yy, 1 + 3 * pe / 200, 1 + 3 * pe / 200, 0.8 * (1 - pe / 200), rgba(L.colours.break));
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (C.shown <= 0) return;
+    const se = realNow - C.tStretch, sy = se < 300 ? 1 + 0.4 * (1 - se / 300) ** 2 : 1;
+    const milestone = Settings.get('gameplay.comboEffects') && combo > 0 && combo % 100 === 0 && C.shown === combo;
+    this._comboText(String(C.shown), cx, yy, 1, sy, this._cmbAlpha(realNow), milestone ? '#ffd54a' : null);
+  }
+  _cmbAlpha(now) { const C = this._cmb; if (!C) return 0; const p = C.aMs > 0 ? Math.min(1, (now - C.ta) / C.aMs) : 1; return C.a0 + (C.aTo - C.a0) * p; }
+  /** The combo in the skin's combo font (or the UI font), centred on (cx, cy), scaled about its centre. tint: a
+   *  colour multiplied into the glyphs (the break colour). */
+  _comboText(text, cx, cy, sx, sy, alpha, tint) {
+    if (alpha <= 0) return;
+    const L = this.layout, ctx = this.ctx, s = this.s, sk = Settings.get('skin.scale');
+    ctx.globalAlpha = alpha;
     if (L.font) {
       const glyphs = text.split('').map(ch => L.font.glyphs[ch]).filter(Boolean);
-      const hh = glyphs[0].h * (this.legacy ? this.u : s * 0.8) * sk * bump;
+      if (!glyphs.length) { ctx.globalAlpha = 1; return; }
+      const unit = (this.legacy ? this.u : s * 0.8) * sk;
+      const hh = glyphs[0].h * unit;
       const widths = glyphs.map(gl => gl.w * (hh / gl.h));
-      const ov = L.font.overlap * (this.legacy ? this.u : s * 0.8) * sk;
+      const ov = L.font.overlap * unit;
       const total = widths.reduce((a, b) => a + b, 0) - ov * (glyphs.length - 1);
-      let x = cx - total / 2;
-      glyphs.forEach((gl, k) => { this._img(gl.img, x, y - hh / 2, widths[k], hh); x += widths[k] - ov; });
-      return;
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(sx, sy);
+      let x = -total / 2;
+      glyphs.forEach((gl, k) => { ctx.drawImage(tint ? this._tint(gl.img, tint) : gl.img, x, -hh / 2, widths[k], hh); x += widths[k] - ov; });
+      ctx.restore();
+    } else {
+      const size = Math.round(26 * s * sk);
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(sx, sy);
+      ctx.font = `800 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, size / 8); ctx.strokeStyle = 'rgba(0,0,0,.7)'; if (!tint) ctx.strokeText(text, 0, 0);
+      ctx.fillStyle = tint || (L.skin.builtin ? '#efe6ff' : '#fff'); ctx.fillText(text, 0, 0);
+      ctx.restore();
     }
-    const size = Math.round(26 * s * sk * bump);
-    ctx.font = `800 ${size}px Torus, Outfit, system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const yy = this.up ? this.H - y : y;
-    ctx.lineWidth = Math.max(2, size / 8); ctx.strokeStyle = 'rgba(0,0,0,.7)';
-    ctx.strokeText(text, cx, yy);
-    const milestone = Settings.get('gameplay.comboEffects') && combo % 100 === 0;
-    ctx.fillStyle = milestone ? '#ffd54a' : (this.layout.skin.builtin ? '#efe6ff' : '#fff');
-    ctx.fillText(text, cx, yy);
+    ctx.globalAlpha = 1;
+  }
+  /** A glyph tinted (multiplied) by a colour, cached. */
+  _tint(img, colour) {
+    let m = this._tints || (this._tints = new WeakMap()), e = m.get(img);
+    if (!e) { e = new Map(); m.set(img, e); }
+    let c = e.get(colour);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      x.globalCompositeOperation = 'multiply'; x.fillStyle = colour; x.fillRect(0, 0, c.width, c.height);
+      x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
+      e.set(colour, c);
+    }
+    return c;
   }
   /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
    *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */

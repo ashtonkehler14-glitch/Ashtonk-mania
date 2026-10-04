@@ -739,7 +739,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const holding = await page.evaluate(() => document.querySelector('.hold-retry').classList.contains('on') && !!AshtonkMania.GameplayScreen.s);
   await page.waitForTimeout(450); await page.keyboard.up('Backquote');
   await page.waitForTimeout(250);
-  check('holding ` shows the retry bar, then retries (with a retry counter)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 2 && !!document.querySelector('.gp-loader .pl-tag.retry')));
+  check('holding ` shows the retry bar, then retries (counted, as lazer\'s pause menu shows)', holding && await page.evaluate(() => AshtonkMania.GameplayScreen.retryCount === 2 && !document.querySelector('.gp-loader .pl-tag')));
   await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 8000 });
   check('osu!lazer-style health bar in the top left (the stand-in skin has no scorebar of its own)', await page.evaluate(() => { const b = document.querySelector('.hud-hp'); return !!b && AshtonkMania.GameplayScreen.healthMode === 'lazer' && AshtonkMania.GameplayScreen.renderer.healthMode === null && !document.querySelector('.hud-skinhp') && b.getBoundingClientRect().top < 60 && +b.style.getPropertyValue('--hp') > 0; }));
   const hpStyles = await page.evaluate(async () => {

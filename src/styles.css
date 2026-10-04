@@ -1766,8 +1766,11 @@ div.res-calib .i { color: var(--good); }
 .pl-thumb { position: relative; width: 300px; height: 60px; margin: 10px; border-radius: 10px; overflow: hidden; background: #2a2833; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
 .pl-thumb .pl-cover { position: absolute; inset: 0; height: auto; }
 .pl-thumb .pl-load { position: absolute; inset: 0; padding: 0; justify-content: center; border: 0; background: rgba(0, 0, 0, .5); color: #fff; transition: background 400ms, opacity 400ms; }
-.gp-loader.ready .pl-thumb .pl-load { background: rgba(0, 0, 0, .25); color: #c8ff66; }
-.pl-thumb .pl-bar { height: 3px; background: rgba(0, 0, 0, .3); }
+/* (lazer's LoadingLayer: the cover dimmed to half with a 20px spinner while loading, gone once it's ready — no text) */
+.pl-thumb .pl-load > span:not(.spinner) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.pl-thumb .pl-load .spinner { width: 20px; height: 20px; }
+.gp-loader.ready .pl-thumb .pl-load { opacity: 0; }
+.pl-thumb .pl-bar { display: none; }
 .pl-card .pl-d { flex-direction: column; gap: 5px; margin: 0 0 30px; font-size: 1rem; }
 .pl-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.625rem; font-style: italic; }
 .pl-sr { display: flex; gap: 6px; justify-content: center; }
@@ -3316,3 +3319,5 @@ html.touch img { -webkit-user-drag: none; }
 }
 /* touch screens: keyboard hints mean nothing there */
 html.touch .pl-hint:has(.kbd) { visibility: hidden; }
+/* the loader's spinner: white on the dimmed cover, as lazer's */
+.pl-thumb .pl-load .spinner { border-color: rgba(255, 255, 255, .25); border-top-color: #fff; border-width: 2.5px; }
