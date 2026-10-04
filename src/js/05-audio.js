@@ -20,7 +20,10 @@ const AudioManager = {
     // music → analyser → duck (a low-pass plus a little volume) → master: lazer muffles the music behind a dialog
     this.duckFilter = this.ctx.createBiquadFilter(); this.duckFilter.type = 'lowpass'; this.duckFilter.frequency.value = 22000;
     this.duckGain = this.ctx.createGain();
-    this.musicBus.connect(this.analyser); this.analyser.connect(this.duckFilter); this.duckFilter.connect(this.duckGain); this.duckGain.connect(this.master);
+    // (one more volume between the music and everything after it, for mods that turn the music down — Muted)
+    this.modGain = this.ctx.createGain();
+    this.musicBus.connect(this.modGain); this.modGain.connect(this.analyser);
+    this.analyser.connect(this.duckFilter); this.duckFilter.connect(this.duckGain); this.duckGain.connect(this.master);
     this.fxBus = this.ctx.createGain(); this.fxBus.connect(this.master);
     this.uiBus = this.ctx.createGain(); this.uiBus.connect(this.fxBus);
     this.applyVolumes();
@@ -100,6 +103,13 @@ const AudioManager = {
     });
   },
 
+  /** The music's volume for a mod (0–1), eased over `ms` (lazer eases Muted's changes over 500ms). */
+  modVolume(v, ms = 500) {
+    if (!this.modGain) return;
+    const t = this.ctx.currentTime;
+    this.modGain.gain.cancelScheduledValues(t);
+    if (ms <= 0) this.modGain.gain.setValueAtTime(v, t); else this.modGain.gain.setTargetAtTime(v, t, ms / 4000);
+  },
   /** Play a one-shot buffer on a bus. */
   play(buffer, { volume = 1, bus = 'fx', when = 0, rate = 1, pan = 0 } = {}) {
     if (!buffer || !this.ctx || this.ctx.state !== 'running') return null;
@@ -142,6 +152,7 @@ const AudioManager = {
     else if (name === 'select-difficulty') buf = make(0.07, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.3) * env(t, 0.001, 0.014) * 0.2);
     else if (name === 'select-random') buf = make(0.24, (t, n) => (n() * 0.35 + Math.sin(2 * Math.PI * (300 + 2200 * t) * t) * 0.45) * env(t, 0.012, 0.06) * 0.22);
     // results (lazer's score-tick while the accuracy circle fills, and the rank impact)
+    else if (name === 'metronome-hi' || name === 'metronome-lo') { const f = name === 'metronome-hi' ? 1760 : 1320; buf = make(0.06, t => Math.sin(2 * Math.PI * f * t) * env(t, 0.0005, 0.015) * 0.35); }
     else if (name === 'score-tick') buf = make(0.03, t => Math.sin(2 * Math.PI * 2400 * t) * env(t, 0.0005, 0.006) * 0.12);
     else if (name === 'rank-impact-pass') buf = make(0.9, (t, n) => (Math.sin(2 * Math.PI * 70 * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.05) * 0.25 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.35) * 0.12) * 0.5);
     else if (name === 'rank-impact-fail') buf = make(0.6, (t, n) => (Math.sin(2 * Math.PI * (90 - 40 * t) * t) * env(t, 0.002, 0.15) * 0.6 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);

@@ -521,12 +521,20 @@ const ModSelect = {
       upd();
       return h('div.set-row.col', h('div.row', h('div.lbl', label), val), h('div.ctl', s));
     };
+    // (on / off settings, as lazer's mod customisation checkboxes)
+    const check = (label, k) => {
+      const t = h(`button.toggle${cfg[k] ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!cfg[k]), 'aria-label': label,
+        onclick: () => { const v = cfg[k] ? 0 : 1; cfg[k] = v; t.classList.toggle('on', !!v); t.setAttribute('aria-checked', String(!!v)); UISounds.play(v ? 'check-on' : 'check-off'); set(k, v); } });
+      return h('div.set-row', h('div.lbl', label), h('div.ctl', t));
+    };
     const rows = [];
     if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
     if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
+    if (ids.includes('MU')) rows.push(check('Muted — start muted (the music gets louder with your combo)', 'muInverse'), check('Muted — enable metronome', 'muMetronome'),
+      slider('Muted — final volume at combo', 'muCount', 0, 500, 10, v => `${v}`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
     return rows;
   },

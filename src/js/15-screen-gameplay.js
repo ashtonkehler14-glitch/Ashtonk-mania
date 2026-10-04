@@ -270,6 +270,7 @@ const GameplayScreen = {
   },
   leave() {
     document.title = APP_NAME;
+    AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
@@ -366,7 +367,10 @@ const GameplayScreen = {
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
+      muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };
+    this._muV = null; this._muBeat = null;
+    AudioManager.modVolume(s.muted && s.muted.inverse ? 0 : 1, 0);
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
     this.newEngine(practice ? null : undefined);
     if (auto || replay) {
@@ -728,6 +732,7 @@ const GameplayScreen = {
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
       g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
       this.renderer.render(g);
+      if (s.muted) this.mutedTick(now);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);
       this.updateBreak(now);
@@ -778,6 +783,25 @@ const GameplayScreen = {
     if (a.smooth >= a.windows - 1) Settings.set('perf.autoScale', Math.min(1, Math.round((a.scale + 0.05) * 100) / 100));
   },
 
+  /** lazer's Muted: the music fades out as the combo reaches its count (or, starting muted, fades in), eased over
+   *  500ms, and comes back when the combo breaks; the metronome ticks every beat from a bar before the first note,
+   *  higher on each bar's first beat. */
+  mutedTick(now) {
+    const s = this.s, m = s.muted, combo = s.engine.score.combo;
+    const f = m.count <= 0 ? 1 : Math.min(1, combo / m.count), v = m.inverse ? f : 1 - f;
+    if (this._muV == null || Math.abs(v - this._muV) > 0.005) { this._muV = v; AudioManager.modVolume(v); }
+    if (!m.metronome || !s.running) return;
+    const red = s.redTiming.red, tp = red[Math.max(0, bsearchLE(red, now, 'time'))];
+    const meter = tp.meter > 0 ? tp.meter : 4;
+    if (now < s.firstNote - tp.beatLength * meter) return;
+    const beat = Math.floor((now - tp.time) / tp.beatLength + 1e-6), key = tp.time + ':' + beat;
+    if (key === this._muBeat) return;
+    const first = this._muBeat == null;
+    this._muBeat = key;
+    if (first && now - (tp.time + beat * tp.beatLength) > 60) return; // (not a beat caught late, after a seek or resume)
+    const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+    if (buf) AudioManager.play(buf, { volume: 0.6 });
+  },
   updateHud(now) {
     const s = this.s, e = s.engine;
     if (this.jc) {

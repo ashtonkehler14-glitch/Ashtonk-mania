@@ -589,6 +589,8 @@ const MODS = [
     desc: 'Any playback rate from 0.5× to 2×.' },
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
+  { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
+    desc: 'Can you still feel the rhythm without music?' },
   { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
 ];
@@ -609,6 +611,7 @@ const MOD_GLYPHS = {
   NC: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  MU: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
   FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
@@ -632,8 +635,8 @@ function modIcon(id, size = 36) {
   el.append(svg);
   return el;
 }
-const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
-const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 };
+const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation'], ['fun', 'Fun']];
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -676,6 +679,7 @@ const ModSystem = {
     if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
     if (id === 'PC') return `${c.percy}ms`;
     if (id === 'FL') return `${c.flSize}×`;
+    if (id === 'MU') return `${c.muCount}x`;
     return '';
   },
   badge(id, small = false, cfg = null) {

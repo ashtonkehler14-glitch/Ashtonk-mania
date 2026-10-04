@@ -5892,7 +5892,10 @@ const AudioManager = {
     // music → analyser → duck (a low-pass plus a little volume) → master: lazer muffles the music behind a dialog
     this.duckFilter = this.ctx.createBiquadFilter(); this.duckFilter.type = 'lowpass'; this.duckFilter.frequency.value = 22000;
     this.duckGain = this.ctx.createGain();
-    this.musicBus.connect(this.analyser); this.analyser.connect(this.duckFilter); this.duckFilter.connect(this.duckGain); this.duckGain.connect(this.master);
+    // (one more volume between the music and everything after it, for mods that turn the music down — Muted)
+    this.modGain = this.ctx.createGain();
+    this.musicBus.connect(this.modGain); this.modGain.connect(this.analyser);
+    this.analyser.connect(this.duckFilter); this.duckFilter.connect(this.duckGain); this.duckGain.connect(this.master);
     this.fxBus = this.ctx.createGain(); this.fxBus.connect(this.master);
     this.uiBus = this.ctx.createGain(); this.uiBus.connect(this.fxBus);
     this.applyVolumes();
@@ -5972,6 +5975,13 @@ const AudioManager = {
     });
   },
 
+  /** The music's volume for a mod (0–1), eased over `ms` (lazer eases Muted's changes over 500ms). */
+  modVolume(v, ms = 500) {
+    if (!this.modGain) return;
+    const t = this.ctx.currentTime;
+    this.modGain.gain.cancelScheduledValues(t);
+    if (ms <= 0) this.modGain.gain.setValueAtTime(v, t); else this.modGain.gain.setTargetAtTime(v, t, ms / 4000);
+  },
   /** Play a one-shot buffer on a bus. */
   play(buffer, { volume = 1, bus = 'fx', when = 0, rate = 1, pan = 0 } = {}) {
     if (!buffer || !this.ctx || this.ctx.state !== 'running') return null;
@@ -6014,6 +6024,7 @@ const AudioManager = {
     else if (name === 'select-difficulty') buf = make(0.07, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.3) * env(t, 0.001, 0.014) * 0.2);
     else if (name === 'select-random') buf = make(0.24, (t, n) => (n() * 0.35 + Math.sin(2 * Math.PI * (300 + 2200 * t) * t) * 0.45) * env(t, 0.012, 0.06) * 0.22);
     // results (lazer's score-tick while the accuracy circle fills, and the rank impact)
+    else if (name === 'metronome-hi' || name === 'metronome-lo') { const f = name === 'metronome-hi' ? 1760 : 1320; buf = make(0.06, t => Math.sin(2 * Math.PI * f * t) * env(t, 0.0005, 0.015) * 0.35); }
     else if (name === 'score-tick') buf = make(0.03, t => Math.sin(2 * Math.PI * 2400 * t) * env(t, 0.0005, 0.006) * 0.12);
     else if (name === 'rank-impact-pass') buf = make(0.9, (t, n) => (Math.sin(2 * Math.PI * 70 * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.05) * 0.25 + (Math.sin(2 * Math.PI * 1320 * t) + Math.sin(2 * Math.PI * 1980 * t) * 0.6) * env(t, 0.01, 0.35) * 0.12) * 0.5);
     else if (name === 'rank-impact-fail') buf = make(0.6, (t, n) => (Math.sin(2 * Math.PI * (90 - 40 * t) * t) * env(t, 0.002, 0.15) * 0.6 + n() * env(t, 0.001, 0.04) * 0.2) * 0.5);
@@ -6520,7 +6531,7 @@ const SETTINGS_SCHEMA = [
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
-  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 } },
+  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1 } },
 ];
 
 const Settings = {
@@ -7054,6 +7065,8 @@ const MODS = [
     desc: 'Any playback rate from 0.5× to 2×.' },
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
+  { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
+    desc: 'Can you still feel the rhythm without music?' },
   { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
 ];
@@ -7074,6 +7087,7 @@ const MOD_GLYPHS = {
   NC: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  MU: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
   FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
@@ -7097,8 +7111,8 @@ function modIcon(id, size = 36) {
   el.append(svg);
   return el;
 }
-const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
-const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 };
+const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation'], ['fun', 'Fun']];
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -7141,6 +7155,7 @@ const ModSystem = {
     if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
     if (id === 'PC') return `${c.percy}ms`;
     if (id === 'FL') return `${c.flSize}×`;
+    if (id === 'MU') return `${c.muCount}x`;
     return '';
   },
   badge(id, small = false, cfg = null) {
@@ -13177,6 +13192,7 @@ const GameplayScreen = {
   },
   leave() {
     document.title = APP_NAME;
+    AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
     this._tok = null;
@@ -13273,7 +13289,10 @@ const GameplayScreen = {
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
+      muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };
+    this._muV = null; this._muBeat = null;
+    AudioManager.modVolume(s.muted && s.muted.inverse ? 0 : 1, 0);
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
     this.newEngine(practice ? null : undefined);
     if (auto || replay) {
@@ -13635,6 +13654,7 @@ const GameplayScreen = {
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
       g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
       this.renderer.render(g);
+      if (s.muted) this.mutedTick(now);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);
       this.updateBreak(now);
@@ -13685,6 +13705,25 @@ const GameplayScreen = {
     if (a.smooth >= a.windows - 1) Settings.set('perf.autoScale', Math.min(1, Math.round((a.scale + 0.05) * 100) / 100));
   },
 
+  /** lazer's Muted: the music fades out as the combo reaches its count (or, starting muted, fades in), eased over
+   *  500ms, and comes back when the combo breaks; the metronome ticks every beat from a bar before the first note,
+   *  higher on each bar's first beat. */
+  mutedTick(now) {
+    const s = this.s, m = s.muted, combo = s.engine.score.combo;
+    const f = m.count <= 0 ? 1 : Math.min(1, combo / m.count), v = m.inverse ? f : 1 - f;
+    if (this._muV == null || Math.abs(v - this._muV) > 0.005) { this._muV = v; AudioManager.modVolume(v); }
+    if (!m.metronome || !s.running) return;
+    const red = s.redTiming.red, tp = red[Math.max(0, bsearchLE(red, now, 'time'))];
+    const meter = tp.meter > 0 ? tp.meter : 4;
+    if (now < s.firstNote - tp.beatLength * meter) return;
+    const beat = Math.floor((now - tp.time) / tp.beatLength + 1e-6), key = tp.time + ':' + beat;
+    if (key === this._muBeat) return;
+    const first = this._muBeat == null;
+    this._muBeat = key;
+    if (first && now - (tp.time + beat * tp.beatLength) > 60) return; // (not a beat caught late, after a seek or resume)
+    const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+    if (buf) AudioManager.play(buf, { volume: 0.6 });
+  },
   updateHud(now) {
     const s = this.s, e = s.engine;
     if (this.jc) {
@@ -17331,12 +17370,20 @@ const ModSelect = {
       upd();
       return h('div.set-row.col', h('div.row', h('div.lbl', label), val), h('div.ctl', s));
     };
+    // (on / off settings, as lazer's mod customisation checkboxes)
+    const check = (label, k) => {
+      const t = h(`button.toggle${cfg[k] ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!cfg[k]), 'aria-label': label,
+        onclick: () => { const v = cfg[k] ? 0 : 1; cfg[k] = v; t.classList.toggle('on', !!v); t.setAttribute('aria-checked', String(!!v)); UISounds.play(v ? 'check-on' : 'check-off'); set(k, v); } });
+      return h('div.set-row', h('div.lbl', label), h('div.ctl', t));
+    };
     const rows = [];
     if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
     if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
+    if (ids.includes('MU')) rows.push(check('Muted — start muted (the music gets louder with your combo)', 'muInverse'), check('Muted — enable metronome', 'muMetronome'),
+      slider('Muted — final volume at combo', 'muCount', 0, 500, 10, v => `${v}`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
     return rows;
   },
