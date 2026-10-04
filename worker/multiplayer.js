@@ -794,7 +794,7 @@ export class PresenceLogic {
     const fr = this.friends.get(pid);
     const list = scope === 'friends' ? all.filter(s => s.pid === pid || (fr && fr.has(s.pid))) : all;
     const at = list.findIndex(s => s.pid === pid);
-    return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : { ...list[at], rank: at + 1 }, scores: list.slice(0, 50).map((s, i) => ({ ...s, rank: i + 1 })) };
+    return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : { ...this.current(list[at]), rank: at + 1 }, scores: list.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
   }
   loadDailyStats(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.dailyStats.set(pid, v); }
   /** A player's daily record as of today (a streak broken by a missed day reads 0). */
@@ -819,11 +819,17 @@ export class PresenceLogic {
     return this.daily;
   }
   saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
+  /** A score as shown: with its player's current name and picture (a rename shows on scores set before it). */
+  current(s) {
+    const online = [...this.users.values()].find(u => u.pid === s.pid), r = this.ranks.get(s.pid);
+    const name = online ? online.name : r ? r.name : s.name, avatar = online ? online.avatar : r ? r.avatar : s.avatar;
+    return name === s.name && avatar === s.avatar ? s : { ...s, name, avatar };
+  }
   dailyMsg(pid) {
     const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
     const at = sorted.findIndex(s => s.pid === pid), end = Date.parse(d.day + 'T00:00:00Z') + 86400000;
-    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...sorted[at], rank: at + 1 }, stats: this.dailyStatsOf(pid),
-      scores: sorted.slice(0, 50).map((s, i) => ({ ...s, rank: i + 1 })) };
+    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
+      scores: sorted.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;
   static CHAT_BURST = 5; // messages per CHAT_WINDOW

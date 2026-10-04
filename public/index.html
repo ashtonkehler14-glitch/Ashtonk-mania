@@ -9266,11 +9266,15 @@ const ProfileManager = {
     const old = this.profile.name;
     this.profile.name = n.trim().slice(0, 24) || 'Player';
     await this.save();
-    if (old !== this.profile.name) await this.renamePlays(old);
+    if (old !== this.profile.name) await this.syncPlays(old);
   },
-  /** Your own scores and replays carry your current name (and so your current avatar). */
-  async renamePlays(old) {
-    const name = this.profile.name, mine = x => x && (x.own || (!x.own && x.player === old));
+  /** Your own scores and replays carry your current name (and so your current picture) — after a rename, and at every
+   *  start for plays made under any earlier name. Every score here is yours (only your plays, and your Web-Osu-Mania
+   *  backup's, are kept); a replay is yours when it was recorded here (own) or belongs to one of your scores — an
+   *  imported replay of someone else keeps their name. */
+  async syncPlays(old = null) {
+    const name = this.profile.name, ids = new Set(ScoreManager.scores.map(x => x.id));
+    const mine = x => x && x.own !== false && (x.own || ScoreManager.scores.includes(x) || (x.scoreId && ids.has(x.scoreId)) || (old != null && x.player === old));
     let n = 0;
     for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; await DB.put('scores', sc); n++; }
     for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
@@ -21221,6 +21225,7 @@ const App = {
     await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
     await Promise.all([['scores', ScoreManager], ['replays', ReplayManager], ['favourites', Favorites], ['collections', Collections], ['profile', ProfileManager], ['beatmap offsets', MapOffsets]]
       .map(([label, m]) => step(label, () => m.init())));
+    await ProfileManager.syncPlays().catch(e => console.warn('plays under an earlier name', e)); // (renamed before this was done)
     say('Preparing stage…');
     AudioManager.init();
     Zoom.init();

@@ -24,6 +24,7 @@ const App = {
     await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
     await Promise.all([['scores', ScoreManager], ['replays', ReplayManager], ['favourites', Favorites], ['collections', Collections], ['profile', ProfileManager], ['beatmap offsets', MapOffsets]]
       .map(([label, m]) => step(label, () => m.init())));
+    await ProfileManager.syncPlays().catch(e => console.warn('plays under an earlier name', e)); // (renamed before this was done)
     say('Preparing stage…');
     AudioManager.init();
     Zoom.init();
