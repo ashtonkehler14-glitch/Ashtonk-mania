@@ -1083,8 +1083,10 @@ const Zoom = {
     // a phone or tablet held sideways gets the full interface too, exactly as osu!lazer on Android does: the same
     // 1366×768 layout as a computer, scaled to the screen (so a phone shows what a desktop window shows, smaller).
     // Held upright, it keeps the narrow responsive layout (and is asked to rotate).
-    const touchLand = !desktop && W > H;
-    const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4)
+    // (held upright — gameplay — the same space turned on its side, 768×1366, so the interface is the same size
+    // either way up instead of twice as big upright)
+    const touchLand = !desktop && W > H, touchUp = !desktop && !touchLand && typeof TOUCH_DEVICE !== 'undefined' && TOUCH_DEVICE;
+    const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4) : touchUp ? clamp(Math.min(W / 768, H / 1366), 0.2, 4)
       : W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
     const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || (TOUCH_DEVICE ? 1.25 : 0.9), 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;

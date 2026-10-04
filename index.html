@@ -8086,6 +8086,13 @@ class ManiaRenderer {
       r = this._hostRect = { left: b.left, width: b.width, W: this.W, sx: this.stageX, at: now };
     }
     if (!this.colX || !r.width) return -1;
+    // a phone held sideways (a narrow stage on a wide screen): the screen's whole width is split evenly between the
+    // columns, as lazer's touch input does, so each column is a thumb-sized area
+    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
+      const K = this.colX.length, f = clamp((clientX - r.left) / r.width, 0, 0.9999) * K;
+      if (current >= 0 && current < K && f >= current - 1 / 3 && f < current + 1 + 1 / 3) return current;
+      return Math.floor(f);
+    }
     const k = r.width / (this.W / (this._dpr || 1)), x = (clientX - r.left) / k * (this._dpr || 1) - this.stageX;
     // a finger holding a column keeps it until it's well inside another (a third of the way in), so a slight drift
     // across the line doesn't drop a long note
@@ -10822,8 +10829,10 @@ const Zoom = {
     // a phone or tablet held sideways gets the full interface too, exactly as osu!lazer on Android does: the same
     // 1366×768 layout as a computer, scaled to the screen (so a phone shows what a desktop window shows, smaller).
     // Held upright, it keeps the narrow responsive layout (and is asked to rotate).
-    const touchLand = !desktop && W > H;
-    const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4)
+    // (held upright — gameplay — the same space turned on its side, 768×1366, so the interface is the same size
+    // either way up instead of twice as big upright)
+    const touchLand = !desktop && W > H, touchUp = !desktop && !touchLand && typeof TOUCH_DEVICE !== 'undefined' && TOUCH_DEVICE;
+    const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4) : touchUp ? clamp(Math.min(W / 768, H / 1366), 0.2, 4)
       : W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
     const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || (TOUCH_DEVICE ? 1.25 : 0.9), 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
@@ -12976,7 +12985,8 @@ const PlayScreen = {
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },
-  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
+  // (a song plays either way up: the screen follows how the phone is held)
+  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
   unlock() {
     if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
     if (!document.fullscreenElement) this._ours = false;
@@ -13144,7 +13154,14 @@ const GameplayScreen = {
     if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
     el.tabIndex = -1; requestAnimationFrame(() => { if (el.isConnected) el.focus({ preventScroll: true }); });
     el.addEventListener('pointerdown', () => { if (document.activeElement !== el && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) el.focus({ preventScroll: true }); });
-    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume(); };
+    // turning the phone mid-song (it plays either way up) stops it for a tap, so the new layout doesn't cost notes
+    this._upright = typeof Mobile !== 'undefined' && Mobile.portrait;
+    this._orient = () => {
+      const up = typeof Mobile !== 'undefined' && Mobile.portrait;
+      if (up === this._upright) return;
+      this._upright = up;
+      if (typeof Mobile !== 'undefined' && Mobile.touch && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume();
+    };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
@@ -14316,15 +14333,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
   /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
-  waitUpright() {
-    const sideways = () => typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait;
-    if (!sideways()) return Promise.resolve();
-    return new Promise(res => { const f = () => { if (!sideways() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
-  },
+  waitUpright() { return Promise.resolve(); }, // (songs now play sideways too: nothing to wait for)
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && !s.mp) return; // (turn upright first)
     if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
@@ -20554,7 +20566,11 @@ const Keyboard = {
     const a = this.typing();
     const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
     this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
-    if (!a) { if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
+    // the keyboard put away (the phone's back button) with the box still focused: typing is over — the box lets go
+    // and the bar goes, instead of the bar jumping to the top of the screen
+    if (a && this.height > 0) this._seen = a;
+    else if (a && this._seen === a && !this.height) { this._seen = null; a.blur(); return; }
+    if (!a) { this._seen = null; if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
     if (!this.bar) this.build();
     this.bar.hidden = false;
     this.bar.classList.toggle('top', !this.height);
@@ -20586,7 +20602,8 @@ if (Mobile.touch) Keyboard.init();
  *  covers the screen until the phone is turned (gameplay waits paused meanwhile). */
 const Orientation = {
   el: null,
-  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'portrait' : 'landscape'; },
+  /** The menus are used sideways; gameplay either way up — upright (as lazer's app) or sideways, as you hold it. */
+  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'any' : 'landscape'; },
   lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
   init() {
     if (this.el || !Mobile.touch) return;
@@ -20600,11 +20617,11 @@ const Orientation = {
   },
   update() {
     if (!this.el) return;
-    const want = this.wanted(), wrong = want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
+    const want = this.wanted(), wrong = want === 'any' ? false : want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
     this.el.hidden = !wrong;
     this.el.classList.toggle('to-up', want === 'portrait');
     this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
-    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The game is used sideways — only gameplay is upright.';
+    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The menus are used sideways — songs play either way up.';
   },
 };
 

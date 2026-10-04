@@ -108,7 +108,11 @@ const Keyboard = {
     const a = this.typing();
     const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
     this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
-    if (!a) { if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
+    // the keyboard put away (the phone's back button) with the box still focused: typing is over — the box lets go
+    // and the bar goes, instead of the bar jumping to the top of the screen
+    if (a && this.height > 0) this._seen = a;
+    else if (a && this._seen === a && !this.height) { this._seen = null; a.blur(); return; }
+    if (!a) { this._seen = null; if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
     if (!this.bar) this.build();
     this.bar.hidden = false;
     this.bar.classList.toggle('top', !this.height);
@@ -140,7 +144,8 @@ if (Mobile.touch) Keyboard.init();
  *  covers the screen until the phone is turned (gameplay waits paused meanwhile). */
 const Orientation = {
   el: null,
-  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'portrait' : 'landscape'; },
+  /** The menus are used sideways; gameplay either way up — upright (as lazer's app) or sideways, as you hold it. */
+  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'any' : 'landscape'; },
   lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
   init() {
     if (this.el || !Mobile.touch) return;
@@ -154,11 +159,11 @@ const Orientation = {
   },
   update() {
     if (!this.el) return;
-    const want = this.wanted(), wrong = want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
+    const want = this.wanted(), wrong = want === 'any' ? false : want === 'portrait' ? !Mobile.portrait : Mobile.portrait;
     this.el.hidden = !wrong;
     this.el.classList.toggle('to-up', want === 'portrait');
     this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
-    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The game is used sideways — only gameplay is upright.';
+    this.el.querySelector('span').textContent = want === 'portrait' ? 'Gameplay is played upright.' : 'The menus are used sideways — songs play either way up.';
   },
 };
 

@@ -1055,8 +1055,13 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
-  check('phone sideways: gameplay is upright — asked to turn the phone, the song waits', await mp.evaluate(() => !document.querySelector('.rot-prompt').hidden && /upright/.test(document.querySelector('.rot-prompt').textContent) && !(AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running)));
+  // sideways: the song plays as it is (no prompt), the screen's width split evenly between the columns for touches
+  const side = await mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect();
+    return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)) }; });
+  check('phone sideways: gameplay plays sideways too (no prompt), each quarter of the screen a column', !side.prompt && side.running && side.cols.join() === '0,1,2,3', JSON.stringify(side));
+  // turned upright mid-song: it waits for a tap, then plays on upright
   await mp.setViewportSize({ width: 390, height: 844 });
+  await mp.waitForSelector('.gp-tap', { timeout: 5000 }); await mp.tap('.gp-tap');
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   await mp.waitForFunction(() => { const r = AshtonkMania.GameplayScreen.renderer; return r && r.H > r.W; }, null, { timeout: 5000 }); // (laid out upright)
   check('phone upright in gameplay: no prompt', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden));

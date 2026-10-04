@@ -55,7 +55,8 @@ const PlayScreen = {
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },
-  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
+  // (a song plays either way up: the screen follows how the phone is held)
+  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
   unlock() {
     if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
     if (!document.fullscreenElement) this._ours = false;
@@ -223,7 +224,14 @@ const GameplayScreen = {
     if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
     el.tabIndex = -1; requestAnimationFrame(() => { if (el.isConnected) el.focus({ preventScroll: true }); });
     el.addEventListener('pointerdown', () => { if (document.activeElement !== el && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) el.focus({ preventScroll: true }); });
-    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume(); };
+    // turning the phone mid-song (it plays either way up) stops it for a tap, so the new layout doesn't cost notes
+    this._upright = typeof Mobile !== 'undefined' && Mobile.portrait;
+    this._orient = () => {
+      const up = typeof Mobile !== 'undefined' && Mobile.portrait;
+      if (up === this._upright) return;
+      this._upright = up;
+      if (typeof Mobile !== 'undefined' && Mobile.touch && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume();
+    };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
@@ -1395,15 +1403,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   closePause() { if (this.pauseEl) { this.pauseEl.remove(); this.pauseEl = null; } this.el && this.el.classList.remove('show-cursor'); },
   /** Phones held upright wait here until turned sideways (there's no upright gameplay). */
   /** Phones held sideways wait here until turned upright (gameplay on a phone is upright, as in lazer's app). */
-  waitUpright() {
-    const sideways = () => typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait;
-    if (!sideways()) return Promise.resolve();
-    return new Promise(res => { const f = () => { if (!sideways() || Screens.currentName !== 'gameplay') { window.removeEventListener('resize', f); res(); } }; window.addEventListener('resize', f); });
-  },
+  waitUpright() { return Promise.resolve(); }, // (songs now play sideways too: nothing to wait for)
   resume() {
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && !s.mp) return; // (turn upright first)
     if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)

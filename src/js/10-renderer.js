@@ -135,6 +135,13 @@ class ManiaRenderer {
       r = this._hostRect = { left: b.left, width: b.width, W: this.W, sx: this.stageX, at: now };
     }
     if (!this.colX || !r.width) return -1;
+    // a phone held sideways (a narrow stage on a wide screen): the screen's whole width is split evenly between the
+    // columns, as lazer's touch input does, so each column is a thumb-sized area
+    if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.colX && r.width) {
+      const K = this.colX.length, f = clamp((clientX - r.left) / r.width, 0, 0.9999) * K;
+      if (current >= 0 && current < K && f >= current - 1 / 3 && f < current + 1 + 1 / 3) return current;
+      return Math.floor(f);
+    }
     const k = r.width / (this.W / (this._dpr || 1)), x = (clientX - r.left) / k * (this._dpr || 1) - this.stageX;
     // a finger holding a column keeps it until it's well inside another (a third of the way in), so a slight drift
     // across the line doesn't drop a long note
