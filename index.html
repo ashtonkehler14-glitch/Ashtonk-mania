@@ -3829,9 +3829,23 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lb-loading { justify-content: center; padding-top: 30px; }
 .lb-sep { text-align: center; color: var(--muted); line-height: 1; padding: 2px 0 4px; }
 
-/* phones: the keyboard opens over the game; the screen slides up just enough to keep the box you're typing in above it */
-html.touch body { transform: translateY(calc(-1 * var(--kb-pan, 0px))); transition: transform 220ms cubic-bezier(.22, 1, .36, 1); }
-html.touch:not(.kb-open) body { transform: none; }
+/* phones: the keyboard opens over the game, with a large bar along its top showing what you're typing (Android's own
+   sideways typing bar, in lazer's colours); along the top of the screen when the keyboard's height isn't known */
+.kb-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483000; display: flex; align-items: center; gap: 10px;
+  min-height: 52px; padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); background: #22282a; border-top: 2px solid var(--accent, #ff66ab);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .45); font: 600 18px/1.2 var(--font, Torus, sans-serif); color: #fff; animation: kbIn 160ms cubic-bezier(.22, 1, .36, 1); }
+.kb-bar[hidden] { display: none; }
+.kb-bar.top { bottom: auto; top: 0; border-top: 0; border-bottom: 2px solid var(--accent, #ff66ab); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); padding-top: max(6px, env(safe-area-inset-top)); }
+@keyframes kbIn { from { opacity: 0; } to { opacity: 1; } }
+.kb-label { flex: none; max-width: 30%; font-size: 13px; font-weight: 700; color: #ff99c8; text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-field { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 12px; border-radius: 8px; background: #151a1c; overflow: hidden; white-space: pre; }
+.kb-text { display: inline-block; position: relative; }
+.kb-ph { color: rgba(255, 255, 255, .35); font-weight: 400; }
+.kb-sel { background: rgba(255, 102, 171, .45); }
+.kb-caret { display: inline-block; width: 2px; height: 1.15em; margin: 0 1px -0.2em; background: #ff66ab; animation: kbBlink 1s steps(1) infinite; }
+@keyframes kbBlink { 50% { opacity: 0; } }
+.kb-done { flex: none; width: 44px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #ff66ab; color: #fff; }
+.kb-done svg { width: 20px; height: 20px; }
 /* another player's profile: their status and lazer's header buttons (add friend, message, spectate, invite) */
 .pf-online { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); font-size: .85rem; }
 .pf-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: flex-end; }
@@ -17127,13 +17141,14 @@ const ModSelect = {
  *  that still looks sharp on a Chromebook's high-DPI panel. */
 const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio || 1)) / 20, 0.5, 1);
 
+/** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
-  pc: { label: 'PC', sub: 'Desktop or gaming laptop', icon: 'pc',
-    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
-      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
-  chromebook: { label: 'Chromebook', sub: 'School Chromebook or older laptop', icon: 'laptop',
+  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects and backgrounds', icon: 'bolt',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
+  pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sparkle',
+    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
+      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };
 
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
@@ -17145,7 +17160,7 @@ const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
-    { id: 'device', title: 'What are you playing on?', short: 'Device' },
+    { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
     { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
     { id: 'skin', title: 'Pick a skin', short: 'Skin' },
@@ -17304,7 +17319,7 @@ const Onboarding = {
     };
     return [h('div.setup-choices.two', ...Object.entries(SETUP_DEVICES).map(([id, o]) =>
       h(`button.setup-choice${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => pick(id) },
-        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && IS_CHROMEBOOK ? 'Recommended: you\'re on a Chromebook' : o.sub), h('span.setup-check', icon('check')))))];
+        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && (IS_CHROMEBOOK || TOUCH_DEVICE) ? `Recommended on ${IS_CHROMEBOOK ? 'a Chromebook' : 'phones'}: ${o.sub.toLowerCase()}` : o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_look() {
@@ -20231,32 +20246,62 @@ if (Mobile.touch) {
   document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
 }
 
-/** The phone's keyboard, as an app handles it: it opens over the game (nothing is squeezed or re-laid out — the
- *  viewport's interactive-widget=overlays-content), and the whole screen slides up just enough to keep the box you're
- *  typing in visible above it, sliding back down when it closes. */
+/** The phone's keyboard, as Android shows it for an app held sideways: it opens over the game (nothing is squeezed or
+ *  re-laid out — the viewport's interactive-widget=overlays-content), and a large bar just above it shows what you're
+ *  typing (the box itself may be small at the menus' scale, or under the keyboard). Where the browser can't say how
+ *  tall the keyboard is, the bar sits along the top of the screen instead. */
 const Keyboard = {
-  pan: 0,
+  height: 0,
+  typing() {
+    const a = document.activeElement;
+    return a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color|hidden)$/.test(a.type))) && !a.readOnly && !a.disabled ? a : null;
+  },
   init() {
-    const vv = window.visualViewport;
-    if (!vv || !Mobile.touch) return;
-    const upd = () => {
-      const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !/^(checkbox|radio|range|button|file|color)$/.test(a.type);
-      const covered = innerHeight - (vv.height + vv.offsetTop); // (how much of the page the keyboard is over)
-      let pan = 0;
-      if (typing && covered > 80) {
-        const r = a.getBoundingClientRect(), limit = vv.offsetTop + vv.height - 10;
-        pan = Math.max(0, Math.min(covered, this.pan + r.bottom - limit));
-      }
-      if (Math.abs(pan - this.pan) < 1) return;
-      this.pan = pan;
-      document.documentElement.style.setProperty('--kb-pan', `${Math.round(pan)}px`);
-      document.documentElement.classList.toggle('kb-open', pan > 0);
-    };
-    vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd);
-    document.addEventListener('focusin', () => setTimeout(upd, 60));
-    document.addEventListener('focusout', () => setTimeout(upd, 60));
-    // (the browser mustn't scroll the page itself to the box: it's panned here instead)
+    if (!Mobile.touch) return;
+    const vk = navigator.virtualKeyboard, vv = window.visualViewport;
+    if (vk) { try { vk.overlaysContent = true; } catch { /* not allowed */ } vk.addEventListener('geometrychange', () => { this.vkH = vk.boundingRect ? vk.boundingRect.height : 0; this.upd(); }); }
+    if (vv) { vv.addEventListener('resize', () => this.upd()); vv.addEventListener('scroll', () => this.upd()); }
+    document.addEventListener('focusin', () => setTimeout(() => this.upd(), 30));
+    document.addEventListener('focusout', () => setTimeout(() => this.upd(), 30));
+    for (const ev of ['input', 'selectionchange', 'keyup']) document.addEventListener(ev, () => { if (this.bar && !this.bar.hidden) this.paint(); });
+    // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
+  },
+  build() {
+    this.label = h('span.kb-label'); this.text = h('span.kb-text');
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text),
+      h('button.kb-done', { 'aria-label': 'Done', onclick: () => { const a = this.typing(); if (a) a.blur(); } }, icon('check')));
+    // (touching the bar keeps the box focused — and the keyboard up — except on the done button)
+    this.bar.addEventListener('pointerdown', e => { if (!e.target.closest('.kb-done')) e.preventDefault(); });
+    document.body.append(this.bar);
+  },
+  upd() {
+    const a = this.typing();
+    const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
+    this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
+    if (!a) { if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
+    if (!this.bar) this.build();
+    this.bar.hidden = false;
+    this.bar.classList.toggle('top', !this.height);
+    this.bar.style.bottom = this.height ? `${Math.round(this.height)}px` : '';
+    document.documentElement.classList.add('kb-open');
+    this.paint();
+  },
+  paint() {
+    const a = this.typing();
+    if (!a || !this.bar) return;
+    const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
+    this.label.hidden = !lab;
+    let v = a.value || '';
+    if (a.type === 'password') v = '•'.repeat(v.length);
+    const at = Math.min(v.length, a.selectionStart == null ? v.length : a.selectionStart), end = Math.min(v.length, a.selectionEnd == null ? at : a.selectionEnd);
+    const caret = h('i.kb-caret');
+    if (!v) this.text.replaceChildren(caret, h('span.kb-ph', a.placeholder || ''));
+    else this.text.replaceChildren(v.slice(0, at), ...(end > at ? [h('span.kb-sel', v.slice(at, end))] : [caret]), v.slice(end));
+    // (long text: keep the caret in view)
+    const f = this.text.parentNode, c = this.text.querySelector('.kb-caret, .kb-sel');
+    if (c) { const x = c.offsetLeft; if (x < f.scrollLeft + 20 || x > f.scrollLeft + f.clientWidth - 20) f.scrollLeft = Math.max(0, x - f.clientWidth * 0.7); }
   },
 };
 if (Mobile.touch) Keyboard.init();

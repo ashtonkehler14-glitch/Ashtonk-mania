@@ -3810,9 +3810,23 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lb-loading { justify-content: center; padding-top: 30px; }
 .lb-sep { text-align: center; color: var(--muted); line-height: 1; padding: 2px 0 4px; }
 
-/* phones: the keyboard opens over the game; the screen slides up just enough to keep the box you're typing in above it */
-html.touch body { transform: translateY(calc(-1 * var(--kb-pan, 0px))); transition: transform 220ms cubic-bezier(.22, 1, .36, 1); }
-html.touch:not(.kb-open) body { transform: none; }
+/* phones: the keyboard opens over the game, with a large bar along its top showing what you're typing (Android's own
+   sideways typing bar, in lazer's colours); along the top of the screen when the keyboard's height isn't known */
+.kb-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483000; display: flex; align-items: center; gap: 10px;
+  min-height: 52px; padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); background: #22282a; border-top: 2px solid var(--accent, #ff66ab);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .45); font: 600 18px/1.2 var(--font, Torus, sans-serif); color: #fff; animation: kbIn 160ms cubic-bezier(.22, 1, .36, 1); }
+.kb-bar[hidden] { display: none; }
+.kb-bar.top { bottom: auto; top: 0; border-top: 0; border-bottom: 2px solid var(--accent, #ff66ab); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); padding-top: max(6px, env(safe-area-inset-top)); }
+@keyframes kbIn { from { opacity: 0; } to { opacity: 1; } }
+.kb-label { flex: none; max-width: 30%; font-size: 13px; font-weight: 700; color: #ff99c8; text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-field { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 12px; border-radius: 8px; background: #151a1c; overflow: hidden; white-space: pre; }
+.kb-text { display: inline-block; position: relative; }
+.kb-ph { color: rgba(255, 255, 255, .35); font-weight: 400; }
+.kb-sel { background: rgba(255, 102, 171, .45); }
+.kb-caret { display: inline-block; width: 2px; height: 1.15em; margin: 0 1px -0.2em; background: #ff66ab; animation: kbBlink 1s steps(1) infinite; }
+@keyframes kbBlink { 50% { opacity: 0; } }
+.kb-done { flex: none; width: 44px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #ff66ab; color: #fff; }
+.kb-done svg { width: 20px; height: 20px; }
 /* another player's profile: their status and lazer's header buttons (add friend, message, spectate, invite) */
 .pf-online { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); font-size: .85rem; }
 .pf-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: flex-end; }

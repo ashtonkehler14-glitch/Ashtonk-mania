@@ -75,32 +75,62 @@ if (Mobile.touch) {
   document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
 }
 
-/** The phone's keyboard, as an app handles it: it opens over the game (nothing is squeezed or re-laid out — the
- *  viewport's interactive-widget=overlays-content), and the whole screen slides up just enough to keep the box you're
- *  typing in visible above it, sliding back down when it closes. */
+/** The phone's keyboard, as Android shows it for an app held sideways: it opens over the game (nothing is squeezed or
+ *  re-laid out — the viewport's interactive-widget=overlays-content), and a large bar just above it shows what you're
+ *  typing (the box itself may be small at the menus' scale, or under the keyboard). Where the browser can't say how
+ *  tall the keyboard is, the bar sits along the top of the screen instead. */
 const Keyboard = {
-  pan: 0,
+  height: 0,
+  typing() {
+    const a = document.activeElement;
+    return a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color|hidden)$/.test(a.type))) && !a.readOnly && !a.disabled ? a : null;
+  },
   init() {
-    const vv = window.visualViewport;
-    if (!vv || !Mobile.touch) return;
-    const upd = () => {
-      const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !/^(checkbox|radio|range|button|file|color)$/.test(a.type);
-      const covered = innerHeight - (vv.height + vv.offsetTop); // (how much of the page the keyboard is over)
-      let pan = 0;
-      if (typing && covered > 80) {
-        const r = a.getBoundingClientRect(), limit = vv.offsetTop + vv.height - 10;
-        pan = Math.max(0, Math.min(covered, this.pan + r.bottom - limit));
-      }
-      if (Math.abs(pan - this.pan) < 1) return;
-      this.pan = pan;
-      document.documentElement.style.setProperty('--kb-pan', `${Math.round(pan)}px`);
-      document.documentElement.classList.toggle('kb-open', pan > 0);
-    };
-    vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd);
-    document.addEventListener('focusin', () => setTimeout(upd, 60));
-    document.addEventListener('focusout', () => setTimeout(upd, 60));
-    // (the browser mustn't scroll the page itself to the box: it's panned here instead)
+    if (!Mobile.touch) return;
+    const vk = navigator.virtualKeyboard, vv = window.visualViewport;
+    if (vk) { try { vk.overlaysContent = true; } catch { /* not allowed */ } vk.addEventListener('geometrychange', () => { this.vkH = vk.boundingRect ? vk.boundingRect.height : 0; this.upd(); }); }
+    if (vv) { vv.addEventListener('resize', () => this.upd()); vv.addEventListener('scroll', () => this.upd()); }
+    document.addEventListener('focusin', () => setTimeout(() => this.upd(), 30));
+    document.addEventListener('focusout', () => setTimeout(() => this.upd(), 30));
+    for (const ev of ['input', 'selectionchange', 'keyup']) document.addEventListener(ev, () => { if (this.bar && !this.bar.hidden) this.paint(); });
+    // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
+  },
+  build() {
+    this.label = h('span.kb-label'); this.text = h('span.kb-text');
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text),
+      h('button.kb-done', { 'aria-label': 'Done', onclick: () => { const a = this.typing(); if (a) a.blur(); } }, icon('check')));
+    // (touching the bar keeps the box focused — and the keyboard up — except on the done button)
+    this.bar.addEventListener('pointerdown', e => { if (!e.target.closest('.kb-done')) e.preventDefault(); });
+    document.body.append(this.bar);
+  },
+  upd() {
+    const a = this.typing();
+    const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
+    this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
+    if (!a) { if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
+    if (!this.bar) this.build();
+    this.bar.hidden = false;
+    this.bar.classList.toggle('top', !this.height);
+    this.bar.style.bottom = this.height ? `${Math.round(this.height)}px` : '';
+    document.documentElement.classList.add('kb-open');
+    this.paint();
+  },
+  paint() {
+    const a = this.typing();
+    if (!a || !this.bar) return;
+    const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
+    this.label.hidden = !lab;
+    let v = a.value || '';
+    if (a.type === 'password') v = '•'.repeat(v.length);
+    const at = Math.min(v.length, a.selectionStart == null ? v.length : a.selectionStart), end = Math.min(v.length, a.selectionEnd == null ? at : a.selectionEnd);
+    const caret = h('i.kb-caret');
+    if (!v) this.text.replaceChildren(caret, h('span.kb-ph', a.placeholder || ''));
+    else this.text.replaceChildren(v.slice(0, at), ...(end > at ? [h('span.kb-sel', v.slice(at, end))] : [caret]), v.slice(end));
+    // (long text: keep the caret in view)
+    const f = this.text.parentNode, c = this.text.querySelector('.kb-caret, .kb-sel');
+    if (c) { const x = c.offsetLeft; if (x < f.scrollLeft + 20 || x > f.scrollLeft + f.clientWidth - 20) f.scrollLeft = Math.max(0, x - f.clientWidth * 0.7); }
   },
 };
 if (Mobile.touch) Keyboard.init();

@@ -7,13 +7,14 @@
  *  that still looks sharp on a Chromebook's high-DPI panel. */
 const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio || 1)) / 20, 0.5, 1);
 
+/** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
-  pc: { label: 'PC', sub: 'Desktop or gaming laptop', icon: 'pc',
-    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
-      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
-  chromebook: { label: 'Chromebook', sub: 'School Chromebook or older laptop', icon: 'laptop',
+  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects and backgrounds', icon: 'bolt',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
+  pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sparkle',
+    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
+      'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };
 
 /** ChromeOS: Chromebooks get the lighter settings without having to know to ask for them. */
@@ -25,7 +26,7 @@ const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
-    { id: 'device', title: 'What are you playing on?', short: 'Device' },
+    { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
     { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
     { id: 'skin', title: 'Pick a skin', short: 'Skin' },
@@ -184,7 +185,7 @@ const Onboarding = {
     };
     return [h('div.setup-choices.two', ...Object.entries(SETUP_DEVICES).map(([id, o]) =>
       h(`button.setup-choice${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => pick(id) },
-        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && IS_CHROMEBOOK ? 'Recommended: you\'re on a Chromebook' : o.sub), h('span.setup-check', icon('check')))))];
+        h('span.setup-choice-ic', icon(o.icon)), h('span.setup-choice-t', o.label), h('span.setup-choice-s', id === 'chromebook' && (IS_CHROMEBOOK || TOUCH_DEVICE) ? `Recommended on ${IS_CHROMEBOOK ? 'a Chromebook' : 'phones'}: ${o.sub.toLowerCase()}` : o.sub), h('span.setup-check', icon('check')))))];
   },
 
   step_look() {
