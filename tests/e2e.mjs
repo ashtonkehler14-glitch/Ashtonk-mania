@@ -1158,18 +1158,14 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length >= 6 && document.querySelectorAll('.md-badge:not(.on)').length > 0));
 }
 
-// lazer's dangerous dialog buttons: a click does nothing, holding for 500 ms confirms
+// dangerous dialog buttons (red): a single press confirms, no holding
 {
   await page.evaluate(() => { window.__dc = AshtonkMania.Dialog.confirm('Delete thing?', 'x', { ok: 'Delete', danger: true }).then(v => { window.__dcv = v; }); });
   await page.waitForSelector('.dialog .pd-btn.danger'); await page.waitForTimeout(400);
   const b = await (await page.$('.dialog .pd-btn.danger')).boundingBox();
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(400);
-  const afterClick = await page.evaluate(() => ({ open: !!document.querySelector('.dialog .pd-btn.danger'), v: window.__dcv }));
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(900);
-  const fillP = await page.evaluate(() => { const f = document.querySelector('.pd-fill'); return f ? f.style.getPropertyValue('--p') : 'gone'; });
-  await page.mouse.up(); await page.waitForTimeout(100);
-  const afterHold = await page.evaluate(() => window.__dcv);
-  check('dangerous dialog button: a click doesn\'t confirm, holding does', afterClick.open && afterClick.v === undefined && afterHold === true, JSON.stringify({ afterClick, afterHold, fillP, top: await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.className; }, [b.x + b.width / 2, b.y + b.height / 2]) }));
+  const after = await page.evaluate(() => ({ open: !!document.querySelector('.dialog:not(.out) .pd-btn.danger'), v: window.__dcv }));
+  check('dangerous dialog button: one press confirms (no holding)', !after.open && after.v === true, JSON.stringify(after));
 }
 
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));

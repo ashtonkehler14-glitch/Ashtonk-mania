@@ -279,32 +279,12 @@ const Dialog = {
     o = makeOverlay(dlg, { onClose: () => { if (duck) AudioManager.duck(false); onClose && onClose(); }, onKey });
     return { o, btns };
   },
-  /** lazer's PopupDialogDangerousButton: nothing happens on a click — hold it (mouse, touch, or Enter / Space while
-   *  it's focused) and an additive bar fills it over 500 ms (Easing.Out), ticking higher and louder as it goes; let go
-   *  early and the bar drains back over 200 ms. */
+  /** lazer's PopupDialogDangerousButton, in red — confirmed with a single press (no holding). */
   dangerButton(b, go) {
-    const HOLD = 500, DRAIN = 200;
-    const fill = h('i.pd-fill');
-    const el = h(`button.pd-btn.${b.cls}`, { style: { '--c': b.colour } }, fill, h('span', b.label));
-    let p = 0, dir = 0, from = 0, t0 = 0, raf = 0, lastTick = 0, done = false;
-    const sound = (name, opts) => { if (!Settings.get('audio.uiSounds')) return; const buf = AudioManager.synth(name); buf && AudioManager.play(buf, { bus: 'ui', ...opts }); };
-    const frame = now => {
-      const k = Math.min(1, (now - t0) / (dir > 0 ? HOLD * (1 - from) : DRAIN));
-      // filling: Easing.Out; draining: Easing.InSine
-      p = dir > 0 ? from + (1 - from) * (1 - (1 - k) ** 2) : from * Math.cos(k * Math.PI / 2);
-      fill.style.setProperty('--p', p.toFixed(4));
-      if (dir > 0 && now - lastTick >= 40) { lastTick = now; sound('dialog-dangerous-tick', { rate: 1 + p, volume: 0.1 + p / 2 }); }
-      if (k < 1) { raf = requestAnimationFrame(frame); return; }
-      raf = 0;
-      if (dir > 0) { done = true; sound('dialog-dangerous-select'); go(); }
-    };
-    const run = d => { if (done || (d < 0 && dir <= 0)) return; cancelAnimationFrame(raf); from = p; dir = d; t0 = performance.now(); raf = requestAnimationFrame(frame); };
-    el.addEventListener('pointerdown', e => { if (e.button) return; el.setPointerCapture && el.setPointerCapture(e.pointerId); run(1); });
-    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => run(-1));
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) run(1); } });
-    el.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') run(-1); });
-    el.addEventListener('click', e => e.preventDefault()); // (a click alone never confirms)
-    return el;
+    return h(`button.pd-btn.${b.cls}`, { style: { '--c': b.colour }, onclick: () => {
+      if (Settings.get('audio.uiSounds')) { const buf = AudioManager.synth('dialog-dangerous-select'); buf && AudioManager.play(buf, { bus: 'ui' }); }
+      go();
+    } }, h('span', b.label));
   },
   confirm(title, body, { ok = 'Confirm', cancel = 'Cancel', danger = false, icon: ic = null } = {}) {
     return new Promise(resolve => {

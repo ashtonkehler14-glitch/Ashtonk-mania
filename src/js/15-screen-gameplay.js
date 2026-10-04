@@ -943,20 +943,11 @@ const GameplayScreen = {
     if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
   },
   /** lazer's HoldForMenuButton (mouse): a 60px circle in the bottom-right corner, unseen until the pointer is over it
-   *  ("hold for menu" slides in beside it); held down, a ring fills over 200 ms and then the menu opens. */
+   *  ("menu" slides in beside it) — here a single press opens the menu, no holding. */
   holdForMenu() {
     const ring = h('i.hfm-ring'), btn = h('span.hfm-btn', ring, h('i.hfm-dot'), icon('x'));
-    const el = h('div.hud-hfm', h('span.hfm-t', 'hold for menu'), btn);
-    let t0 = 0, raf = 0;
-    const stop = () => { cancelAnimationFrame(raf); t0 = 0; el.style.setProperty('--p', 0); };
-    const step = () => {
-      const p = clamp((performance.now() - t0) / 200, 0, 1);
-      el.style.setProperty('--p', p.toFixed(3));
-      if (p >= 1) { stop(); this.onBack(); return; }
-      raf = requestAnimationFrame(step);
-    };
-    btn.addEventListener('pointerdown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(step); });
-    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+    const el = h('div.hud-hfm', h('span.hfm-t', 'menu'), btn);
+    btn.addEventListener('pointerdown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); el.style.setProperty('--p', 1); setTimeout(() => el.style.setProperty('--p', 0), 150); this.onBack(); });
     return el;
   },
   /** lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the seam,
