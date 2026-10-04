@@ -1015,6 +1015,7 @@ const SongSelect = {
       { header: 'Add to collection' },
       ...Collections.list.map(c => ({ label: c.name, icon: 'folder', checked: c.hashes.includes(m.hash), onClick: async () => { const on = await Collections.toggle(c.id, m.hash); Toast.show(on ? `Added to ${c.name}` : `Removed from ${c.name}`); } })),
       { sep: true },
+      { label: 'Manage collections…', icon: 'edit', onClick: () => ManageCollections.open() },
       { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
     ], { above: up });
   },
@@ -1034,7 +1035,7 @@ const SongSelect = {
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.optionsBtn && this.optionsBtn.isConnected ? this.optionsBtn : this.playBtn }, m) },
+      { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
@@ -1049,7 +1050,7 @@ const SongSelect = {
     const btn = (label, ic, fn, danger) => { const b = h(`button.op-btn${danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); setTimeout(() => this.closeOptions(), 50); fn(); } }, icon(ic), h('span', label)); items.push(b); return b; };
     const el = h('div.op-pop', { role: 'menu' },
       head('General'),
-      btn('Manage collections', 'folder', () => this.collectionMenu({ target: this.optionsBtn }, m)),
+      btn('Manage collections', 'folder', () => ManageCollections.open()),
       head('For all difficulties', `${set.artist} - ${set.title}`),
       btn('Export .osz', 'download', () => BeatmapManager.exportOsz(set.id)),
       btn('Delete...', 'trash', () => this.deleteSet(set), true),

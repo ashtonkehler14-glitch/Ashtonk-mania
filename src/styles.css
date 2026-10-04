@@ -3872,3 +3872,36 @@ html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
 }
 /* phones: lazer's health bar beside the pause button, not under it */
 html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300px); }
+
+/* lazer's ManageCollectionsDialog: GreySeaFoam panel (corners of 10), 30px title, a search box, pill-shaped name boxes
+   (35px) with the count inside and a red delete circle beside each; pops in at 0.9 → 1 scale */
+.mc-dialog { position: absolute; left: 50%; top: 50%; width: min(50vw, 720px); min-width: min(520px, calc(100vw - 32px)); height: min(80vh, 760px); transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: #2b3532; color: #fff; box-shadow: 0 0 30px rgba(0, 0, 0, .5); animation: mcIn 300ms cubic-bezier(.22, 1, .36, 1); }
+.mc-dialog.out { animation: mcOut 200ms ease-in forwards; }
+@keyframes mcIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+@keyframes mcOut { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+.mc-head { position: relative; display: grid; place-items: center; padding: 18px 50px 10px; background: #33413c; }
+.mc-head h2 { margin: 0; font-size: 30px; font-weight: 400; }
+.mc-close { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; }
+.mc-close:hover { background: rgba(255, 255, 255, .1); }
+.mc-close svg { width: 18px; height: 18px; }
+.mc-searchrow { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 20px 12px; background: #33413c; color: rgba(255, 255, 255, .6); }
+.mc-searchrow svg { width: 16px; height: 16px; flex: none; }
+.mc-search { flex: 1; height: 36px; padding: 0 12px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, .35); color: #fff; font: inherit; font-size: 16px; outline: none; }
+.mc-search:focus { box-shadow: 0 0 0 2px rgba(255, 255, 255, .25); }
+.mc-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px 20px 20px; }
+.mc-item { display: flex; align-items: center; gap: 10px; animation: mcRow 250ms ease-out; }
+@keyframes mcRow { from { opacity: 0; transform: translateY(-4px); } }
+.mc-pill { flex: 1; min-width: 0; height: 35px; display: flex; align-items: center; border-radius: 17.5px; background: #1c2321; overflow: hidden; transition: box-shadow var(--t-fast); }
+.mc-pill:focus-within { box-shadow: 0 0 0 2px #88b300; }
+.mc-name { flex: 1; min-width: 0; height: 100%; padding: 0 16px; border: 0; background: transparent; color: #fff; font: inherit; font-size: 16px; outline: none; }
+.mc-name::placeholder { color: rgba(255, 255, 255, .4); font-style: italic; }
+.mc-count { flex: none; padding: 0 10px; font-size: 13px; color: rgba(255, 255, 255, .55); }
+.mc-go { flex: none; width: 35px; height: 35px; display: grid; place-items: center; border: 0; background: transparent; color: rgba(255, 255, 255, .7); cursor: pointer; }
+.mc-go:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, .08); }
+.mc-go:disabled { opacity: .3; cursor: default; }
+.mc-go svg { width: 14px; height: 14px; }
+.mc-del, .mc-del-gap { flex: none; width: 28px; height: 28px; }
+.mc-del { display: grid; place-items: center; border: 0; border-radius: 50%; background: #e04a4a; color: #fff; cursor: pointer; transition: transform var(--t-fast), background var(--t-fast); }
+.mc-del:hover { background: #ff5c5c; transform: scale(1.1); }
+.mc-del svg { width: 14px; height: 14px; }

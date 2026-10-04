@@ -141,6 +141,65 @@ const CollectionsScreen = {
   },
 };
 
+/** lazer's ManageCollectionsDialog (song select → Manage collections): a rounded panel at half the screen's width and
+ *  80% of its height, popping in; "Manage collections" over a search box, then each collection as a pill-shaped text box
+ *  you rename in place, its beatmap count, and a red delete button (asking first when it isn't empty) — and a last
+ *  "Create a new collection" box that makes one as you type. */
+const ManageCollections = {
+  open() {
+    if (this.o) return;
+    UISounds.play('select-expand');
+    const search = h('input.mc-search', { placeholder: 'Search collections...', 'aria-label': 'Search collections', spellcheck: 'false' });
+    const list = h('div.mc-list');
+    const close = h('button.mc-close', { 'aria-label': 'Close', onclick: () => { UISounds.back(); this.o.close(); } }, icon('x'));
+    const panel = h('div.mc-dialog', { role: 'dialog', 'aria-modal': 'true' },
+      h('div.mc-head', h('h2', 'Manage collections'), close),
+      h('div.mc-searchrow', icon('search'), search),
+      list);
+    const row = c => {
+      const name = h('input.mc-name', { value: c.name, maxlength: 60, 'aria-label': 'Collection name', spellcheck: 'false' });
+      // (renamed as you type, as lazer's text box does)
+      let t = 0;
+      name.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { if (name.value.trim() && name.value !== c.name) Collections.rename(c.id, name.value); }, 250); });
+      name.addEventListener('change', () => { clearTimeout(t); if (name.value.trim() && name.value !== c.name) Collections.rename(c.id, name.value); else if (!name.value.trim()) name.value = c.name; });
+      name.addEventListener('keydown', e => { if (e.key === 'Enter') name.blur(); });
+      const n = c.hashes.length;
+      const del = h('button.mc-del', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => {
+        // (lazer asks only when there's something in it)
+        if (n && !await Dialog.confirm('Confirm deletion of', `${c.name} (${n} beatmap${n === 1 ? '' : 's'})`, { ok: 'Yes. Go for it.', cancel: 'No! Abort mission!', danger: true })) return;
+        UISounds.play('check-off'); Collections.remove(c.id);
+      } }, icon('x'));
+      return h('div.mc-item', { dataset: { id: c.id } },
+        h('div.mc-pill', name, h('span.mc-count', `${fmtInt(n)} beatmap${n === 1 ? '' : 's'}`),
+          h('button.mc-go', { title: 'Show in song select', 'aria-label': 'Show in song select', disabled: !n, onclick: () => { Settings.set('songselect.collection', c.id); this.o.close(); if (Screens.currentName === 'songselect') SongSelect.rebuild(true); else Screens.go('songselect'); } }, icon('play'))),
+        del);
+    };
+    const render = () => {
+      const q = search.value.trim().toLowerCase();
+      const keep = document.activeElement && list.contains(document.activeElement) ? document.activeElement.closest('.mc-item')?.dataset.id : null;
+      clearEl(list);
+      for (const c of Collections.list) if (!q || c.name.toLowerCase().includes(q)) list.append(row(c));
+      // the last row: typing in it creates the collection, and the cursor carries on in its new box
+      const fresh = h('input.mc-name', { placeholder: 'Create a new collection', maxlength: 60, 'aria-label': 'Create a new collection', spellcheck: 'false' });
+      fresh.addEventListener('input', async () => {
+        if (!fresh.value.trim() || fresh._busy) return;
+        fresh._busy = true;
+        const c = await Collections.create(fresh.value);
+        // (whatever was typed while it was being made carries over)
+        const box = list.querySelector(`.mc-item[data-id="${c.id}"] .mc-name`);
+        if (box) { box.value = fresh.value; box.focus(); box.setSelectionRange(box.value.length, box.value.length); if (fresh.value !== c.name) box.dispatchEvent(new Event('input')); }
+      });
+      list.append(h('div.mc-item.new', h('div.mc-pill', fresh), h('span.mc-del-gap')));
+      if (keep) { const b = list.querySelector(`.mc-item[data-id="${keep}"] .mc-name`); if (b) b.focus(); }
+    };
+    search.addEventListener('input', render);
+    const off = Bus.on('collections:changed', () => { if (!list.contains(document.activeElement) || !document.activeElement.matches('.mc-name') || document.activeElement.closest('.new')) render(); });
+    this.o = makeOverlay(panel, { onClose: () => { off(); this.o = null; UISounds.play('click-close'); }, onKey: e => { if (e.key === 'Escape') { UISounds.back(); this.o.close(); return true; } } });
+    render();
+    setTimeout(() => search.focus({ preventScroll: true }), 50);
+  },
+};
+
 // ─────────────────────────────── Profile (osu!lazer user profile layout; includes statistics) ───────────────────────────────
 const ProfileScreen = {
   /** Your profile, or (params.pid) another player's — lazer's UserProfileOverlay either way; theirs comes from the

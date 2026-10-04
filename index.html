@@ -3892,6 +3892,39 @@ html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
 /* phones: lazer's health bar beside the pause button, not under it */
 html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300px); }
 
+/* lazer's ManageCollectionsDialog: GreySeaFoam panel (corners of 10), 30px title, a search box, pill-shaped name boxes
+   (35px) with the count inside and a red delete circle beside each; pops in at 0.9 → 1 scale */
+.mc-dialog { position: absolute; left: 50%; top: 50%; width: min(50vw, 720px); min-width: min(520px, calc(100vw - 32px)); height: min(80vh, 760px); transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: #2b3532; color: #fff; box-shadow: 0 0 30px rgba(0, 0, 0, .5); animation: mcIn 300ms cubic-bezier(.22, 1, .36, 1); }
+.mc-dialog.out { animation: mcOut 200ms ease-in forwards; }
+@keyframes mcIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+@keyframes mcOut { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+.mc-head { position: relative; display: grid; place-items: center; padding: 18px 50px 10px; background: #33413c; }
+.mc-head h2 { margin: 0; font-size: 30px; font-weight: 400; }
+.mc-close { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; }
+.mc-close:hover { background: rgba(255, 255, 255, .1); }
+.mc-close svg { width: 18px; height: 18px; }
+.mc-searchrow { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 20px 12px; background: #33413c; color: rgba(255, 255, 255, .6); }
+.mc-searchrow svg { width: 16px; height: 16px; flex: none; }
+.mc-search { flex: 1; height: 36px; padding: 0 12px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, .35); color: #fff; font: inherit; font-size: 16px; outline: none; }
+.mc-search:focus { box-shadow: 0 0 0 2px rgba(255, 255, 255, .25); }
+.mc-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px 20px 20px; }
+.mc-item { display: flex; align-items: center; gap: 10px; animation: mcRow 250ms ease-out; }
+@keyframes mcRow { from { opacity: 0; transform: translateY(-4px); } }
+.mc-pill { flex: 1; min-width: 0; height: 35px; display: flex; align-items: center; border-radius: 17.5px; background: #1c2321; overflow: hidden; transition: box-shadow var(--t-fast); }
+.mc-pill:focus-within { box-shadow: 0 0 0 2px #88b300; }
+.mc-name { flex: 1; min-width: 0; height: 100%; padding: 0 16px; border: 0; background: transparent; color: #fff; font: inherit; font-size: 16px; outline: none; }
+.mc-name::placeholder { color: rgba(255, 255, 255, .4); font-style: italic; }
+.mc-count { flex: none; padding: 0 10px; font-size: 13px; color: rgba(255, 255, 255, .55); }
+.mc-go { flex: none; width: 35px; height: 35px; display: grid; place-items: center; border: 0; background: transparent; color: rgba(255, 255, 255, .7); cursor: pointer; }
+.mc-go:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, .08); }
+.mc-go:disabled { opacity: .3; cursor: default; }
+.mc-go svg { width: 14px; height: 14px; }
+.mc-del, .mc-del-gap { flex: none; width: 28px; height: 28px; }
+.mc-del { display: grid; place-items: center; border: 0; border-radius: 50%; background: #e04a4a; color: #fff; cursor: pointer; transition: transform var(--t-fast), background var(--t-fast); }
+.mc-del:hover { background: #ff5c5c; transform: scale(1.1); }
+.mc-del svg { width: 14px; height: 14px; }
+
 </style>
 </head>
 <body>
@@ -12706,6 +12739,7 @@ const SongSelect = {
       { header: 'Add to collection' },
       ...Collections.list.map(c => ({ label: c.name, icon: 'folder', checked: c.hashes.includes(m.hash), onClick: async () => { const on = await Collections.toggle(c.id, m.hash); Toast.show(on ? `Added to ${c.name}` : `Removed from ${c.name}`); } })),
       { sep: true },
+      { label: 'Manage collections…', icon: 'edit', onClick: () => ManageCollections.open() },
       { label: 'New collection…', icon: 'plus', onClick: async () => { const n = await Dialog.prompt('New collection', '', { ok: 'Create', placeholder: 'e.g. LN practice' }); if (n) { const c = await Collections.create(n); await Collections.toggle(c.id, m.hash); Toast.ok(`Added to ${c.name}`); } } },
     ], { above: up });
   },
@@ -12725,7 +12759,7 @@ const SongSelect = {
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'folder', onClick: () => this.collectionMenu({ target: this.optionsBtn && this.optionsBtn.isConnected ? this.optionsBtn : this.playBtn }, m) },
+      { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
       { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
@@ -12740,7 +12774,7 @@ const SongSelect = {
     const btn = (label, ic, fn, danger) => { const b = h(`button.op-btn${danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); setTimeout(() => this.closeOptions(), 50); fn(); } }, icon(ic), h('span', label)); items.push(b); return b; };
     const el = h('div.op-pop', { role: 'menu' },
       head('General'),
-      btn('Manage collections', 'folder', () => this.collectionMenu({ target: this.optionsBtn }, m)),
+      btn('Manage collections', 'folder', () => ManageCollections.open()),
       head('For all difficulties', `${set.artist} - ${set.title}`),
       btn('Export .osz', 'download', () => BeatmapManager.exportOsz(set.id)),
       btn('Delete...', 'trash', () => this.deleteSet(set), true),
@@ -15452,6 +15486,65 @@ const CollectionsScreen = {
         h('button.icon-btn', { title: 'Remove from collection', onclick: () => Collections.toggle(c.id, hash) }, icon('x'))));
     }
     this.main.append(list);
+  },
+};
+
+/** lazer's ManageCollectionsDialog (song select → Manage collections): a rounded panel at half the screen's width and
+ *  80% of its height, popping in; "Manage collections" over a search box, then each collection as a pill-shaped text box
+ *  you rename in place, its beatmap count, and a red delete button (asking first when it isn't empty) — and a last
+ *  "Create a new collection" box that makes one as you type. */
+const ManageCollections = {
+  open() {
+    if (this.o) return;
+    UISounds.play('select-expand');
+    const search = h('input.mc-search', { placeholder: 'Search collections...', 'aria-label': 'Search collections', spellcheck: 'false' });
+    const list = h('div.mc-list');
+    const close = h('button.mc-close', { 'aria-label': 'Close', onclick: () => { UISounds.back(); this.o.close(); } }, icon('x'));
+    const panel = h('div.mc-dialog', { role: 'dialog', 'aria-modal': 'true' },
+      h('div.mc-head', h('h2', 'Manage collections'), close),
+      h('div.mc-searchrow', icon('search'), search),
+      list);
+    const row = c => {
+      const name = h('input.mc-name', { value: c.name, maxlength: 60, 'aria-label': 'Collection name', spellcheck: 'false' });
+      // (renamed as you type, as lazer's text box does)
+      let t = 0;
+      name.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { if (name.value.trim() && name.value !== c.name) Collections.rename(c.id, name.value); }, 250); });
+      name.addEventListener('change', () => { clearTimeout(t); if (name.value.trim() && name.value !== c.name) Collections.rename(c.id, name.value); else if (!name.value.trim()) name.value = c.name; });
+      name.addEventListener('keydown', e => { if (e.key === 'Enter') name.blur(); });
+      const n = c.hashes.length;
+      const del = h('button.mc-del', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => {
+        // (lazer asks only when there's something in it)
+        if (n && !await Dialog.confirm('Confirm deletion of', `${c.name} (${n} beatmap${n === 1 ? '' : 's'})`, { ok: 'Yes. Go for it.', cancel: 'No! Abort mission!', danger: true })) return;
+        UISounds.play('check-off'); Collections.remove(c.id);
+      } }, icon('x'));
+      return h('div.mc-item', { dataset: { id: c.id } },
+        h('div.mc-pill', name, h('span.mc-count', `${fmtInt(n)} beatmap${n === 1 ? '' : 's'}`),
+          h('button.mc-go', { title: 'Show in song select', 'aria-label': 'Show in song select', disabled: !n, onclick: () => { Settings.set('songselect.collection', c.id); this.o.close(); if (Screens.currentName === 'songselect') SongSelect.rebuild(true); else Screens.go('songselect'); } }, icon('play'))),
+        del);
+    };
+    const render = () => {
+      const q = search.value.trim().toLowerCase();
+      const keep = document.activeElement && list.contains(document.activeElement) ? document.activeElement.closest('.mc-item')?.dataset.id : null;
+      clearEl(list);
+      for (const c of Collections.list) if (!q || c.name.toLowerCase().includes(q)) list.append(row(c));
+      // the last row: typing in it creates the collection, and the cursor carries on in its new box
+      const fresh = h('input.mc-name', { placeholder: 'Create a new collection', maxlength: 60, 'aria-label': 'Create a new collection', spellcheck: 'false' });
+      fresh.addEventListener('input', async () => {
+        if (!fresh.value.trim() || fresh._busy) return;
+        fresh._busy = true;
+        const c = await Collections.create(fresh.value);
+        // (whatever was typed while it was being made carries over)
+        const box = list.querySelector(`.mc-item[data-id="${c.id}"] .mc-name`);
+        if (box) { box.value = fresh.value; box.focus(); box.setSelectionRange(box.value.length, box.value.length); if (fresh.value !== c.name) box.dispatchEvent(new Event('input')); }
+      });
+      list.append(h('div.mc-item.new', h('div.mc-pill', fresh), h('span.mc-del-gap')));
+      if (keep) { const b = list.querySelector(`.mc-item[data-id="${keep}"] .mc-name`); if (b) b.focus(); }
+    };
+    search.addEventListener('input', render);
+    const off = Bus.on('collections:changed', () => { if (!list.contains(document.activeElement) || !document.activeElement.matches('.mc-name') || document.activeElement.closest('.new')) render(); });
+    this.o = makeOverlay(panel, { onClose: () => { off(); this.o = null; UISounds.play('click-close'); }, onKey: e => { if (e.key === 'Escape') { UISounds.back(); this.o.close(); return true; } } });
+    render();
+    setTimeout(() => search.focus({ preventScroll: true }), 50);
   },
 };
 
@@ -20975,7 +21068,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

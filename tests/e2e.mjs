@@ -1097,6 +1097,15 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mctx.close();
 }
 
+// lazer's Manage collections dialog: typing in the last box makes a collection, the name boxes rename in place
+{
+  await page.evaluate(() => AshtonkMania.ManageCollections.open()); await page.waitForTimeout(400);
+  await page.click('.mc-item.new .mc-name'); await page.keyboard.type('Dialog made'); await page.waitForTimeout(700);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  const mc = await page.evaluate(() => ({ made: AshtonkMania.Collections.list.some(c => c.name === 'Dialog made'), open: !!document.querySelector('.mc-dialog:not(.out)') }));
+  check('Manage collections (lazer\'s dialog): typing in "Create a new collection" makes one, Esc closes it', mc.made && !mc.open, JSON.stringify(mc));
+  await page.evaluate(async () => { const c = AshtonkMania.Collections.list.find(c => c.name === 'Dialog made'); if (c) await AshtonkMania.Collections.remove(c.id); });
+}
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {
   await page.setViewportSize({ width: 1024, height: 600 });
