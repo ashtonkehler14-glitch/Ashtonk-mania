@@ -3562,3 +3562,14 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .rke-btn.rematch { background: #b2ff66; color: #1b2b0b; }
 .rke-btn.rematch.on { background: #4a5a3a; color: #dfe; cursor: default; }
 .mp-search.mp-search-top { display: block; width: 60%; height: 40px; margin: 0 0 18px; font-size: 1rem; }
+/* PanelBeatmapStandalone: the difficulty's colour as a strip down the left, the set's art behind the rest */
+.set-panel.std-panel { background: var(--sc); }
+.std-panel .sp-bg { left: 13px; border-radius: 10px; }
+.std-panel .sp-body { margin-left: 13px; padding-top: 0; padding-bottom: 2px; }
+.std-panel .sp-t { font-size: 18px; font-weight: 700; line-height: 1.15; }
+.std-panel .sp-a { font-size: 13px; line-height: 1.2; }
+.std-line { display: flex; align-items: baseline; min-width: 0; margin: 2px 0 1px; white-space: nowrap; }
+.std-line .status-pill { align-self: center; }
+.std-line .dp-v { overflow: hidden; text-overflow: ellipsis; margin-right: 4px; }
+.std-panel .dp-bottom .rank-pill { transform: scale(.8); margin: 0 -2px; }
+.set-panel.std-panel.expanded { --x: calc(55px * var(--k)); box-shadow: 0 0 3px 1px color-mix(in srgb, var(--sc) 80%, transparent); }

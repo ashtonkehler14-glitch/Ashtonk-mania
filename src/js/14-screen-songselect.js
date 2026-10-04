@@ -326,6 +326,15 @@ const SongSelect = {
       accuracy: (a, b) => agg(b, m => ScoreManager.best(m.hash)?.accuracy || 0) - agg(a, m => ScoreManager.best(m.hash)?.accuracy || 0),
     }[sort] || ((a, b) => a.set.title.localeCompare(b.set.title));
     results.sort((a, b) => (pq.words.length && sort === 'title' ? b.score - a.score : 0) || cmp(a, b) || a.set.title.localeCompare(b.set.title));
+    // lazer (BeatmapCarouselFilterGrouping.ShouldGroupBeatmapsTogether): sorted or grouped by difficulty, or grouped
+    // by rank achieved, every difficulty is its own panel (PanelBeatmapStandalone) — by difficulty, easiest first
+    const group = Settings.get('songselect.group');
+    this.standalone = sort === 'stars' || group === 'stars' || group === 'rank';
+    if (this.standalone) {
+      const flat = results.flatMap(r => r.maps.map(m => ({ set: r.set, maps: [m], score: r.score, std: true })));
+      if (sort === 'stars') flat.sort((a, b) => a.maps[0].stars - b.maps[0].stars || a.set.title.localeCompare(b.set.title));
+      results.length = 0; results.push(...flat);
+    }
     this.results = results;
     this.makeGroups();
     const shown = this.groups ? this.groups.flatMap(g => g.items) : results;
@@ -468,6 +477,7 @@ const SongSelect = {
     const S = this.ROW_GAP;
     if ((a.type === 'group') !== (b.type === 'group')) return 2 * S;
     if (b.type === 'set' && b.open) return 2 * S;
+    if ((a.type === 'std' && a.open) || (b.type === 'std' && b.open)) return 2 * S; // (room around the selected one)
     if (a.type === 'diff' && b.type === 'set') return 2 * S;
     if (a.type === 'diff' || b.type === 'diff') return S;
     return -S;
@@ -476,6 +486,7 @@ const SongSelect = {
     const rows = [];
     const sets = list => {
       for (const r of list) {
+        if (r.std) { rows.push({ type: 'std', r, m: r.maps[0], open: r.maps[0].id === this.selectedId, h: this.ROW_SET }); continue; }
         const open = r.set.id === this.expandedSet && (!this.groups || r.maps.some(m => m.id === this.selectedId));
         rows.push({ type: 'set', r, open, h: this.ROW_SET });
         if (open) for (const m of r.maps) rows.push({ type: 'diff', r, m, h: this.ROW_DIFF });
@@ -535,7 +546,7 @@ const SongSelect = {
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
-      const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : 'd:' + row.m.id;
+      const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : row.type === 'std' ? 'b:' + row.m.id : 'd:' + row.m.id;
       needed.add(key);
       let el = this.pool.get(key);
       if (!el || force) {
@@ -576,7 +587,7 @@ const SongSelect = {
     if (el.style.height !== hh) el.style.height = hh;
     const b = el.firstChild;
     if (!b) return;
-    if (row.type === 'set' || row.type === 'group') b.classList.toggle('expanded', row.open);
+    if (row.type === 'set' || row.type === 'group' || row.type === 'std') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
   renderRow(row) {
@@ -591,6 +602,23 @@ const SongSelect = {
         h('span.gp-chev', icon('chevron')),
         h('div.gp-body', g.stars != null ? h('span.gp-star', { style: { '--sc': starColour(g.stars) } }, icon('star', 'fill')) : null, lead || h('span.gp-t', g.title)),
         h('span.gp-count', fmtInt(g.items.length)));
+      btn.addEventListener('pointerenter', () => UISounds.hover());
+      wrap.appendChild(btn);
+    } else if (row.type === 'std') {
+      // lazer's PanelBeatmapStandalone: one difficulty with its set's background — title, artist, then the status,
+      // [keys] difficulty "mapped by …", and the star rating; a strip in the difficulty's colour on the left
+      const m = row.m, set = row.r.set, stars = this.modStars(m) ?? m.stars, best = ScoreManager.best(m.hash);
+      const bg = h('div.sp-bg');
+      BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
+      const btn = h(`button.set-panel.std-panel${row.open ? '.expanded' : ''}`, {
+        style: { '--sc': starColour(stars) },
+        onclick: () => { if (this.selectedId === m.id) this.play(); else { UISounds.select('difficulty'); this.select(m.id); } },
+        oncontextmenu: e => { e.preventDefault(); this.select(m.id); this.options(e, m); },
+      }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
+        h('div.sp-t', set.title),
+        h('div.sp-a', set.artist),
+        h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+        h('div.dp-bottom', best ? rankPill(best.grade) : null, starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
     } else if (row.type === 'set') {
@@ -658,7 +686,7 @@ const SongSelect = {
     else this.showBackground(m); // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
-    const row = this.rows.find(r => r.type === 'diff' && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
+    const row = this.rows.find(r => (r.type === 'diff' || r.type === 'std') && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
     if (!row) { if (force) this.renderVisible(true); return; }
     this.scrollToRow(row, smooth, force);
   },
