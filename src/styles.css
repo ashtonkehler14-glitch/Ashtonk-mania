@@ -3753,3 +3753,10 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .dc-row .rank-pill, .dc-row .rp { transform: scale(.85); }
 .dc-mods-col { overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 760px) { .dc-title { font-size: 22px; } .dc-table .dc-row { grid-template-columns: 46px minmax(0, 1fr) 90px 70px; } .dc-table .dc-row > span:nth-child(n+5) { display: none; } }
+/* lazer's DailyChallengeButton: the day's cover (height-filling, centred) under a gradient and the accent at 70%;
+   the countdown in 12px, 22px above the bottom */
+.lz-cover { position: absolute; inset: 0; transform: skewX(11.31deg) scale(1.25); background: center / cover no-repeat; }
+.lz-daily .lz-bg { background: var(--c); }
+.lz-cover::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 20%, transparent), var(--c)); mix-blend-mode: plus-lighter; }
+.lz-cover::after { content: ""; position: absolute; inset: 0; background: var(--c); opacity: .7; }
+.lz-countdown { position: absolute; left: 50%; bottom: 22px; transform: translateX(calc(-50% - 3px)); font-size: 12px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); white-space: nowrap; font-variant-numeric: tabular-nums; }

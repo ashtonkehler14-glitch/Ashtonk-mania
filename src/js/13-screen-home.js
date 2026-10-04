@@ -44,6 +44,9 @@ const HomeScreen = {
     this._poke = () => { this._idleAt = performance.now(); };
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
     this._offMusic = Bus.on('music:changed', m => this.showTicker(m));
+    this._offDaily = Bus.on('daily', () => this.paintDaily());
+    if (Presence.ws) Daily.ask();
+    this.paintDaily(); this._dailyT = setInterval(() => this.paintDaily(), 1000);
     this.loop();
     return el;
   },
@@ -51,6 +54,7 @@ const HomeScreen = {
     cancelAnimationFrame(this._raf); NeruMascot.stop(); MenuTriangles.stop();
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
+    if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
     clearTimeout(this._tbT); $('#app').classList.remove('hide-toolbar');
   },
 
@@ -82,13 +86,26 @@ const HomeScreen = {
       ],
     };
   },
+  /** The daily challenge button: the day's beatmap cover and the time left (hh:mm:ss), as lazer's. */
+  paintDaily() {
+    const b = this.btns && this.btns.find(x => x.dataset.id === 'daily'), d = Daily.data;
+    if (!b) return;
+    const cv = b.querySelector('.lz-cover'), cd = b.querySelector('.lz-countdown');
+    if (d && d.map && cv && cv._set !== d.map.onlineSetId) { cv._set = d.map.onlineSetId; OnlineBeatmaps.loadCover(cv, d.map.onlineSetId, ['card@2x', 'card', 'cover']); }
+    if (cd) {
+      const left = d && d.map ? Math.max(0, d.endsAt - Date.now()) : 0, s = Math.floor(left / 1000);
+      cd.textContent = left ? `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : '';
+    }
+  },
   buildButtons() {
     this.btns = [];
     const d = this.buttonDefs();
     const mk = ([id, label, ic, color, keys, min, max, pad, fn]) => {
       const ico = h('span.lz-ico', h('span.lz-ico-b', icon(ic)));
-      const b = h(`button.lz-btn.gone${pad ? '.p' + pad : ''}`, { style: { '--c': color, '--w': pad ? '160px' : '140px' }, dataset: { id }, 'aria-label': label, tabindex: -1 },
-        h('span.lz-bg'), h('span.lz-inner', ico, h('span.lz-label', label)));
+      // (lazer's DailyChallengeButton is 1.3× as wide, with the day's beatmap cover behind it and a countdown)
+      const daily = id === 'daily';
+      const b = h(`button.lz-btn.gone${pad ? '.p' + pad : ''}${daily ? '.lz-daily' : ''}`, { style: { '--c': color, '--w': daily ? '182px' : pad ? '160px' : '140px' }, dataset: { id }, 'aria-label': label, tabindex: -1 },
+        h('span.lz-bg', daily ? h('span.lz-cover') : null), h('span.lz-inner', ico, h('span.lz-label', label), daily ? h('span.lz-countdown') : null));
       Object.assign(b, { _keys: keys, _min: this.ORDER[min], _max: this.ORDER[max], _fn: fn, _ico: ico });
       b.addEventListener('click', () => this.trigger(b));
       b.addEventListener('pointerenter', () => this.hoverIn(b));

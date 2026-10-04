@@ -5,6 +5,10 @@
 const Daily = {
   data: null,
   on(m) {
+    // lazer's NewDailyChallengeNotification, once a day
+    if (m.map) { let seen = null; try { seen = localStorage.getItem('am.dailySeen'); } catch {}
+      if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
+        if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', 'Click here to play.', { timeout: 8000, onClick: () => Screens.go('daily') }); } }
     this.data = m;
     if (!m.map && !this._proposing) this.propose();
     Bus.emit('daily', m);
