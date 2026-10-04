@@ -52,6 +52,9 @@ const PlayScreen = {
     // only when the game itself made the song fullscreen)
     const keys = () => { try { navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(['Escape']).catch(() => {}); this._keys = true; } catch { /* not supported */ } };
     if (document.fullscreenElement) { if (this._ours) keys(); this.lock(); return; }
+    // (a phone isn't put into fullscreen for a song: the browser's exit-fullscreen notice would cover it each time —
+    // the menus' first tap already made it fullscreen once)
+    if (this.phone()) { this.lock(); return; }
     if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },

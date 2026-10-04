@@ -183,9 +183,13 @@ if (Mobile.touch) {
   }
   /** The website goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
    *  way the game wants it (sideways; upright in gameplay). The installed app is fullscreen already. */
+  // (once per visit: each time a page goes fullscreen the browser shows its own "to exit full screen…" notice, which
+  // no page can hide — asking again after every app switch or song put it up over and over)
+  let asked = false;
   const full = () => {
-    if (App.installed || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    if (asked || App.installed || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
     if (document.querySelector('.mob-inst')) return; // (not while the install prompt is up)
+    asked = true;
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => Orientation.lock(Orientation.wanted()), () => {});
   };
   document.addEventListener('pointerup', full, true);
