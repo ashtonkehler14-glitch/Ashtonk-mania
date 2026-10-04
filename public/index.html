@@ -3644,6 +3644,16 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 @media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .mp-grid.cols3 { grid-template-columns: 1fr; } }
 .mp-col.mp-left { gap: 0; }
 
+/* multiplayer lounge — lazer's LoungeSubScreen spans the screen (WaveOverlayContainer.WIDTH_PADDING 80px either
+   side): the search box right-aligned at 60% width, "Create room" (180×54) at the left of the bar below with the
+   join box where lazer has its filters, on the right; the room listing full width */
+.mp.ov .mp-lobby, .mp-lobby { max-width: none; padding: 16px clamp(16px, 5.7vw, 80px) 90px; }
+.mp-search.mp-search-top { margin: 0 0 14px auto; width: 60%; }
+.mp-lounge-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.mp-lounge-bar .mp-create { height: 54px; }
+.mp-lounge-bar .mp-joinbox { margin-left: auto; }
+@media (max-width: 640px) { .mp-search.mp-search-top { width: 100%; } .mp-lounge-bar { flex-wrap: wrap; } .mp-lounge-bar .mp-joinbox { margin-left: 0; } }
+
 </style>
 </head>
 <body>
