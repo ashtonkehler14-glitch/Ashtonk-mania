@@ -531,6 +531,7 @@ const ModSelect = {
     if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
     if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
+    if (ids.includes('CO')) rows.push(slider('Cover — coverage', 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`), check('Cover — against the scroll (cover the receptors\' end)', 'coDir'));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
     if (ids.includes('MU')) rows.push(check('Muted — start muted (the music gets louder with your combo)', 'muInverse'), check('Muted — enable metronome', 'muMetronome'),

@@ -343,7 +343,7 @@ const GameplayScreen = {
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
-    this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
+    this.renderer.coverage = (mods.includes('HD') || mods.includes('FI') || mods.includes('CO')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const redTiming = BeatmapParser.timing(bm);
@@ -365,7 +365,9 @@ const GameplayScreen = {
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
-      hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
+      // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
+      hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : mods.includes('CO') ? (modConfig.coDir ? 'HD' : 'FI') : null, percy: mods.includes('PC') ? modConfig.percy : 0,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
       muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };

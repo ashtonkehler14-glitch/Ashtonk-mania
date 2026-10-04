@@ -6531,7 +6531,7 @@ const SETTINGS_SCHEMA = [
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
-  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1 } },
+  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
 
 const Settings = {
@@ -7043,11 +7043,13 @@ const MODS = [
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
   { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
-  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI', 'FL'], config: 'cover',
+  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI', 'FL', 'CO'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
-  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FL'], config: 'cover',
+  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FL', 'CO'], config: 'cover',
     desc: 'Notes appear out of nowhere near the receptors.' },
-  { id: 'FL', name: 'Flashlight', group: 'increase', key: 'KeyU', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FI'], config: 'flSize',
+  { id: 'CO', name: 'Cover', group: 'increase', key: 'KeyY', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FI', 'FL'], config: 'cover',
+    desc: 'Decrease the playfield\'s viewing area.' },
+  { id: 'FL', name: 'Flashlight', group: 'increase', key: 'KeyU', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FI', 'CO'], config: 'flSize',
     desc: 'Restricted view area.' },
   { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#8c66ff', incompatible: ['RD'],
     desc: 'Columns are mirrored left ↔ right.' },
@@ -7088,6 +7090,7 @@ const MOD_GLYPHS = {
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
   MU: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+  CO: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 11h16" /><path d="M6 6.5h12M6 9h12" />',
   FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
@@ -7112,7 +7115,7 @@ function modIcon(id, size = 36) {
   return el;
 }
 const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation'], ['fun', 'Fun']];
-const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1 };
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -7153,6 +7156,7 @@ const ModSystem = {
     if (id === 'RT') return `${this.rate(['RT'], cfg)}×`;
     if (id === 'DA') return `OD${c.od} HP${c.hp}`;
     if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
+    if (id === 'CO') return `${Math.round(c.cover * 100)}% ${c.coDir ? '↑' : '↓'}`;
     if (id === 'PC') return `${c.percy}ms`;
     if (id === 'FL') return `${c.flSize}×`;
     if (id === 'MU') return `${c.muCount}x`;
@@ -7245,7 +7249,7 @@ class ScoreSystem {
   }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
-    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
+    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI') || mods.includes('FL')); // (lazer's silver ranks: Hidden, Fade In, Flashlight)
   }
 }
 
@@ -13265,7 +13269,7 @@ const GameplayScreen = {
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
-    this.renderer.coverage = (mods.includes('HD') || mods.includes('FI')) ? modConfig.cover : 0.5;
+    this.renderer.coverage = (mods.includes('HD') || mods.includes('FI') || mods.includes('CO')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const redTiming = BeatmapParser.timing(bm);
@@ -13287,7 +13291,9 @@ const GameplayScreen = {
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
-      hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
+      // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
+      hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : mods.includes('CO') ? (modConfig.coDir ? 'HD' : 'FI') : null, percy: mods.includes('PC') ? modConfig.percy : 0,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
       muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };
@@ -17380,6 +17386,7 @@ const ModSelect = {
     if (ids.includes('AC')) rows.push(slider('Accuracy Challenge — minimum accuracy', 'acc', 0.6, 0.99, 0.01, v => `${Math.round(v * 100)}%`));
     if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
+    if (ids.includes('CO')) rows.push(slider('Cover — coverage', 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`), check('Cover — against the scroll (cover the receptors\' end)', 'coDir'));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
     if (ids.includes('MU')) rows.push(check('Muted — start muted (the music gets louder with your combo)', 'muInverse'), check('Muted — enable metronome', 'muMetronome'),

@@ -76,7 +76,7 @@ class ScoreSystem {
   }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
-    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI'));
+    return OsuMath.grade(acc, counts, failed, mods.includes('HD') || mods.includes('FI') || mods.includes('FL')); // (lazer's silver ranks: Hidden, Fade In, Flashlight)
   }
 }
 
