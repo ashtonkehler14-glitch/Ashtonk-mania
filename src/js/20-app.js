@@ -172,7 +172,7 @@ const App = {
     // the music fades out as you leave the site (another tab, minimised) and back in when you return
     document.addEventListener('visibilitychange', () => AudioManager.setAway(document.hidden));
     // hover sounds for all buttons
-    document.addEventListener('pointerover', e => { const b = e.target.closest && e.target.closest('.btn, .chip, .tb-btn, .side-item, .lb-row, .list-row button, .foot-btn, .ss-cookie, .menu button, .pd-btn, .pm-btn, .mp-cr-card, .sp-nav button'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
+    document.addEventListener('pointerover', e => { const b = e.target.closest && e.target.closest('.btn, .chip, .tb-btn, .side-item, .lb-row, .lbs, .list-row button, .foot-btn, .ss-cookie, .menu button, .pd-btn, .pm-btn, .mp-cr-card, .sp-nav button'); if (b && !b.contains(e.relatedTarget)) UISounds.hover(); });
     // drag & drop
     let depth = 0;
     const ov = $('#drop-overlay');

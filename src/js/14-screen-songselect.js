@@ -882,21 +882,47 @@ const SongSelect = {
       // lazer's MessagePlaceholder: an exclamation in a circle, then "No records yet!" (22px)
       if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'No records yet!'));
       const who = ProfileManager.profile.name;
-      scores.forEach((s, i) => {
-        const row = h(`button.lb-row${best && s.id === best.id ? '.pb' : ''}`, { style: { animationDelay: `${i * 25}ms` }, onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); } },
-          h('span.rank', '#' + (i + 1)), rankPill(s.grade),
-          // (lazer's leaderboard scores carry the player's avatar; another player's local score gets their initial)
-          !s.player || s.player === who ? ProfileManager.avatarEl(32) : h('div.avatar.avatar-mono', { style: { width: '32px', height: '32px', fontSize: '14px' } }, s.player.slice(0, 1).toUpperCase()),
-          h('div.main', h('div.who', s.player || who), h('div.meta', fmtDate(s.date))),
-          h('span.row', { style: { gap: '3px' } }, ...(s.mods || []).map(x => ModSystem.badge(x, true))),
-          h('div.nums', h('div.sc', fmtScore(ScoreManager.value(s))), h('div.meta', `${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${s.passed ? ` · ${fmtInt(ScoreManager.ppOf(s))}pp` : ''}`)));
-        list.append(row);
-      });
+      scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
       lb.append(list);
     }
     this.info.append(...[wedge, diff, problems, lb].filter(Boolean));
   },
 
+  /** lazer's BeatmapLeaderboardScore (50px, sheared): the "#1" rank (on a green gradient for your own scores), then
+   *  the avatar, the time since ("3hrs") over the name, COMBO and ACCURACY (lime when perfect), and on the right the
+   *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower
+   *  leaderboards drop the rank, then stack the statistics, then hide them (as lazer's display modes do). */
+  lbScore(s, i, who, m) {
+    const own = !s.player || s.player === who;
+    const g = s.grade || 'D', letter = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
+    const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
+    const c = s.counts || [];
+    const pp = s.passed ? ScoreManager.ppOf(s) : 0;
+    const row = h(`button.lbs${own ? '.own' : ''}`, {
+      style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
+      title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
+      onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); },
+      oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
+    },
+      h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),
+      h('span.lbs-mid',
+        h('span.lbs-av', own ? ProfileManager.avatarEl(50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
+        h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), h('span.lbs-name', s.player || who)),
+        h('span.lbs-stats', stat('COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
+      h('span.lbs-right',
+        h('span.lbs-sc', h('span.lbs-score', fmtScore(ScoreManager.value(s))), (s.mods || []).length ? h('span.lbs-mods', ...s.mods.map(x => ModSystem.badge(x, true))) : null),
+        h('span.lbs-grade', h('b', letter))));
+    return row;
+  },
+  /** lazer's leaderboard score menu: use these mods, watch the replay, delete. */
+  lbMenu(e, s, m) {
+    const items = [];
+    const mods = (s.mods || []).filter(x => x !== 'AT');
+    if (mods.length) items.push({ label: 'Use these mods', icon: 'mods', onClick: () => { Settings.set('songselect.mods', mods); Bus.emit('mods:changed'); } });
+    if (s.replayId) items.push({ label: 'Watch replay', icon: 'play', onClick: async () => { const r = await ReplayManager.get(s.replayId); if (r) Game.launch({ mapId: m.id, mode: 'replay', replay: r, returnTo: { score: s, replay: r } }); else Toast.err('No replay available'); } });
+    items.push({ label: 'Delete', icon: 'trash', danger: true, onClick: async () => { if (await Dialog.confirm('Delete this score?', 'It goes from your scores, profile and pp for good.', { ok: 'Delete', danger: true })) { await ScoreManager.remove(s.id); } } });
+    showMenu(e.clientX, e.clientY, items);
+  },
   /** lazer's BeatmapMetadataWedge (the Details tab): Creator / Genre, Source / Language, Submitted / Ranked in three
    *  columns, then the user and mapper tags (clicking a tag searches for it); "-" where it isn't known. The online
    *  ratings and fail/retry graphs only appear in lazer with online data, which local beatmaps don't have. */

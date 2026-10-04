@@ -80,6 +80,20 @@ function fmtDate(ts) {
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
   return d.toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
+/** lazer's ToShortRelativeTime (leaderboards): "now", "5 mins", "3 hrs", "2dys", "4mos", "1yr". */
+function shortAgo(ts) {
+  const diff = (Date.now() - ts) / 1000, q = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (diff < 30) return 'now';
+  if (diff < 60) return q(Math.floor(diff), 'sec');
+  if (diff < 3600) return q(Math.floor(diff / 60), 'min');
+  if (diff < 86400) return q(Math.floor(diff / 3600), 'hr');
+  const then = new Date(ts), now = new Date(), back = (mo, yr = 0) => { const d = new Date(now); d.setFullYear(d.getFullYear() - yr, d.getMonth() - mo); return d; };
+  if (then > back(1)) { const d = Math.floor(diff / 86400); return d < 2 ? '1dy' : `${d}dys`; }
+  for (let mo = 1; mo <= 11; mo++) if (then > back(mo + 1)) return mo === 1 ? '1mo' : `${mo}mos`;
+  let yr = 1;
+  while (then <= back(0, yr + 1)) yr++;
+  return yr === 1 ? '1yr' : `${yr}yrs`;
+}
 /** "1 Oct 2026, 14:03" — short absolute date + time (results, replays). */
 const fmtDateTime = ts => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 function fmtBytes(b) {
