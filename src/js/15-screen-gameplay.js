@@ -205,7 +205,9 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
+    // lazer's FailingLayer: red glows at the screen's sides as health falls under 20%
+    this.lowEl = h('div.gp-lowhp', h('i'), h('i')); this._lowA = 0;
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.lowEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
     WakeLock.hold();
@@ -816,6 +818,14 @@ const GameplayScreen = {
         if (it.shown > target) it.shown = target;
         setText(it.n, String(it.shown));
       }
+    }
+    // lazer's FailingLayer: up to 40% at no health, from 20% down, easing towards it (only where you can fail)
+    if (this.lowEl) {
+      const canFail = !s.mods.includes('NF') && !s.practice && s.mode === 'play' && Settings.get('gameplay.lowHealthRed');
+      const target = canFail ? clamp(0.4 * (1 - e.health.value / 0.2), 0, 0.4) : 0;
+      const wn = performance.now(), dt = this._lowT ? Math.min(100, wn - this._lowT) : 0; this._lowT = wn;
+      const a = this._lowA + (target - this._lowA) * clamp(dt * 0.01, 0, 1);
+      if (Math.abs(a - this._lowA) > 0.002 || (a === 0) !== (this._lowA === 0)) { this._lowA = a < 0.003 ? 0 : a; this.lowEl.style.opacity = this._lowA.toFixed(3); }
     }
     // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
     // and your score still counts for the match

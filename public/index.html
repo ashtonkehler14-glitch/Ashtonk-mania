@@ -3936,6 +3936,12 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 @keyframes pmSet { from { opacity: 0; transform: translateX(30px); } }
 @media (max-width: 900px) { .pm-settings { display: none; } }
 
+/* lazer's FailingLayer: additive red gradients over the outer 20% of each side */
+.gp-lowhp { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 2; }
+.gp-lowhp i { position: absolute; top: 0; bottom: 0; width: 20%; }
+.gp-lowhp i:first-child { left: 0; background: linear-gradient(90deg, #ed1121, rgba(237, 17, 33, 0)); }
+.gp-lowhp i:last-child { right: 0; background: linear-gradient(270deg, #ed1121, rgba(237, 17, 33, 0)); }
+
 </style>
 </head>
 <body>
@@ -6419,6 +6425,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.barLines', l: 'Bar lines', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.lowHealthRed', l: 'Fade playfield to red when health is low', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
@@ -13131,7 +13138,9 @@ const GameplayScreen = {
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
+    // lazer's FailingLayer: red glows at the screen's sides as health falls under 20%
+    this.lowEl = h('div.gp-lowhp', h('i'), h('i')); this._lowA = 0;
+    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.lowEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
     WakeLock.hold();
@@ -13742,6 +13751,14 @@ const GameplayScreen = {
         if (it.shown > target) it.shown = target;
         setText(it.n, String(it.shown));
       }
+    }
+    // lazer's FailingLayer: up to 40% at no health, from 20% down, easing towards it (only where you can fail)
+    if (this.lowEl) {
+      const canFail = !s.mods.includes('NF') && !s.practice && s.mode === 'play' && Settings.get('gameplay.lowHealthRed');
+      const target = canFail ? clamp(0.4 * (1 - e.health.value / 0.2), 0, 0.4) : 0;
+      const wn = performance.now(), dt = this._lowT ? Math.min(100, wn - this._lowT) : 0; this._lowT = wn;
+      const a = this._lowA + (target - this._lowA) * clamp(dt * 0.01, 0, 1);
+      if (Math.abs(a - this._lowA) > 0.002 || (a === 0) !== (this._lowA === 0)) { this._lowA = a < 0.003 ? 0 : a; this.lowEl.style.opacity = this._lowA.toFixed(3); }
     }
     // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
     // and your score still counts for the match

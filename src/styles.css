@@ -3916,3 +3916,9 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .pl-group.collapsed .pl-gt .i { transform: rotate(-90deg); }
 @keyframes pmSet { from { opacity: 0; transform: translateX(30px); } }
 @media (max-width: 900px) { .pm-settings { display: none; } }
+
+/* lazer's FailingLayer: additive red gradients over the outer 20% of each side */
+.gp-lowhp { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 2; }
+.gp-lowhp i { position: absolute; top: 0; bottom: 0; width: 20%; }
+.gp-lowhp i:first-child { left: 0; background: linear-gradient(90deg, #ed1121, rgba(237, 17, 33, 0)); }
+.gp-lowhp i:last-child { right: 0; background: linear-gradient(270deg, #ed1121, rgba(237, 17, 33, 0)); }
