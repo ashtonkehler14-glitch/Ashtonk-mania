@@ -154,7 +154,7 @@ await alice.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; s.feed = g
 await alice.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 10000 });
 await bob.waitForTimeout(2500);
 await shot(alice, 'mp-ingame');
-const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.textContent));
+const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.querySelector('.nm').textContent + ' ' + r.querySelector('.sc').textContent));
 check('in-game board shows both players with their live score', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\d$/.test(t) && !/pp$/.test(t)), JSON.stringify(board));
 await bob.waitForSelector('.hud-mpfailed', { timeout: 20000 });
 check('as in lazer multiplayer: running out of health marks the play failed, and it carries on', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s.mpFailed && !s.failed && s.running && s.engine.health.value <= 0; }));

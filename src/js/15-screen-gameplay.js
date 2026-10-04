@@ -768,13 +768,15 @@ const GameplayScreen = {
     const rows = ScoreManager.forMap(s.rec.hash).filter(x => x.id !== skip && x.passed).slice(0, 6);
     // nothing to climb past on a first play: no board (a lone "#1 you" row is just clutter, and lazer shows none)
     if (!rows.length) { this.lbEl.classList.add('lb-empty'); return; }
-    const mk = (name, sub, sc, me) => {
-      const r = { pos: h('span.pos'), sub: h('span', sub), sc: h('span.sc', sc) };
-      r.el = h(`div.hud-mp-row${me ? '.me' : ''}`, r.pos, h('div.nm', h('b', name), r.sub), r.sc);
+    const mine = name => !name || name === ProfileManager.profile.name;
+    const mk = (name, acc, combo, sc, me) => {
+      const r = this.lbPanel(name, mine(name) ? ProfileManager.avatarEl(38) : Presence.avatarEl({ name }, 38), me);
+      r.sub.textContent = acc; r.combo.textContent = combo; r.sc.textContent = sc;
       this.lbEl.append(r.el); return r;
     };
-    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, `${fmtAcc(x.accuracy)} · ${fmtInt(x.maxCombo)}x${x.mods && x.mods.length ? ' · ' + x.mods.join('') : ''}`, fmtScore(ScoreManager.value(x))), { score: ScoreManager.value(x) }));
-    this._lbMe = mk(s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name, '', '0', true);
+    this._lbRows = rows.map(x => Object.assign(mk(x.player || ProfileManager.profile.name, fmtAcc(x.accuracy), `${fmtInt(x.maxCombo)}x`, fmtScore(ScoreManager.value(x)), false), { score: ScoreManager.value(x) }));
+    const myName = s.mode === 'replay' ? (s.replay.player || 'Player') : ProfileManager.profile.name;
+    this._lbMe = mk(myName, fmtAcc(1), '0x', '0', true);
     this.updateLeaderboard(true);
   },
   updateLeaderboard(force) {
@@ -792,12 +794,22 @@ const GameplayScreen = {
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
-      me._pos = above + 1; setText(me.pos, String(above + 1)); me.el.style.order = above * 2 + 1;
-      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, String(p)); r.el.style.order = i * 2 + (i >= above ? 2 : 0); });
+      me._pos = above + 1; setText(me.pos, `#${above + 1}`); me.el.style.order = above * 2 + 1; me.el.classList.toggle('first', above === 0);
+      this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, `#${p}`); r.el.style.order = i * 2 + (i >= above ? 2 : 0); r.el.classList.toggle('first', p === 1); });
     }
-    const sub = `${fmtAcc(e.score.accuracy)} · ${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
+    const sub = fmtAcc(e.score.judged ? e.score.accuracy : 1), cmb = `${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
+    if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
     if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
+  },
+  /** lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the seam,
+   *  then the name and accuracy over the score and combo; lime for first place, orange for you (or team colours). */
+  lbPanel(name, avatar, me, team = '') {
+    const r = { pos: h('b.pos'), sub: h('span.acc'), sc: h('span.sc'), combo: h('span.cmb') };
+    r.el = h(`div.hud-mp-row${me ? '.me' : ''}${team ? '.' + team : ''}`,
+      h('span.mpl-left', r.pos), h('span.mpl-av', avatar),
+      h('div.mpl-right', h('div.mpl-l1', h('b.nm', name), r.sub), h('div.mpl-l2', r.sc, r.combo)));
+    return r;
   },
   /** The board Tab toggles: the multiplayer standings, or the local leaderboard. */
   board() { return this.mpBoard && this.s.mp ? this.mpBoard : this.lbEl; },
@@ -826,8 +838,9 @@ const GameplayScreen = {
       this._mpRows = ids.map(id => {
         const me = id === Multiplayer.me, p = room && room.players.find(x => x.id === id);
         const team = teams && p ? p.team : null;
-        const r = { id, me, team, pos: h('span.pos'), sub: h('span'), sc: h('span.sc'), shown: null };
-        r.el = h(`div.hud-mp-row${me ? '.me' : ''}${team === 0 ? '.red' : team === 1 ? '.blue' : ''}`, r.pos, h('div.nm', h('b', me ? ProfileManager.profile.name : p ? p.name : 'Player'), r.sub), r.sc);
+        // lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the
+        // seam, then the name and accuracy over the score and combo; lime for first place, orange for you
+        const r = { id, me, team, ...this.lbPanel(me ? ProfileManager.profile.name : p ? p.name : 'Player', me ? ProfileManager.avatarEl(38) : Presence.avatarEl(p || { name: 'Player' }, 38), me, team === 0 ? 'red' : team === 1 ? 'blue' : ''), shown: null };
         return r;
       });
       this.mpBoard.append(...this._mpRows.map(r => r.el));
@@ -840,7 +853,7 @@ const GameplayScreen = {
     const k = Math.min(1, (t - (this._mpT || t)) / 180);
     this._mpT = t;
     for (const r of this._mpRows) {
-      const v = r.me ? { pp: this._myPp || 0, score: sc, acc: e.score.accuracy, maxCombo: e.score.maxCombo } : Multiplayer.opps.get(r.id) || { pp: 0, score: 0, acc: 1, maxCombo: 0 };
+      const v = r.me ? { pp: this._myPp || 0, score: sc, acc: e.score.accuracy, maxCombo: e.score.maxCombo, combo: e.score.combo } : Multiplayer.opps.get(r.id) || { pp: 0, score: 0, acc: 1, maxCombo: 0 };
       const target = pick(v) || 0;
       r.shown = r.shown == null || r.me ? target : r.shown + (target - r.shown) * k;
       r.v = v;
@@ -852,10 +865,11 @@ const GameplayScreen = {
       // (a player whose connection dropped keeps their place while they reconnect)
       const away = !r.me && !!(room && (room.players.find(p => p.id === r.id) || {}).away);
       if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
-      const pos = i + 1, sub = away ? 'reconnecting…' : win === 'score' ? `${fmtAcc(r.v.acc ?? 1)} · ${fmtInt(r.v.maxCombo || 0)}x` : `${fmtScore(r.v.score || 0)} · ${fmtAcc(r.v.acc ?? 1)}`, st = fmt(r.shown);
-      if (r._pos !== pos) { r._pos = pos; setText(r.pos, String(pos)); r.el.style.order = pos; }
+      const pos = i + 1, sub = away ? 'reconnecting…' : fmtAcc(r.v.acc ?? 1), st = fmt(r.shown), cmb = `${fmtInt(r.v.combo ?? r.v.maxCombo ?? 0)}x`;
+      if (r._pos !== pos) { r._pos = pos; setText(r.pos, `#${pos}`); r.el.style.order = pos; r.el.classList.toggle('first', pos === 1); }
       if (r._sub !== sub) { r._sub = sub; setText(r.sub, String(sub)); }
       if (r._st !== st) { r._st = st; setText(r.sc, String(st)); }
+      if (r._cmb !== cmb) { r._cmb = cmb; setText(r.combo, cmb); }
     });
     if (this.mpTeams) {
       const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
