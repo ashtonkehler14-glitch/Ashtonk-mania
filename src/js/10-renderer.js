@@ -413,6 +413,7 @@ class ManiaRenderer {
     // bar lines (under the notes), then the notes
     if (g.bars) this._drawBars(g);
     if (g.engine) this._drawNotes(g, realNow);
+    if (g.flashlight && g.engine) this._drawFlashlight(g, realNow);
 
     if (L.judgementLine) {
       ctx.fillStyle = rgba(L.colours.judgementLine, 0.9);
@@ -466,6 +467,24 @@ class ManiaRenderer {
       this._rect(0, y - hh / 2, this.stageW, hh);
     }
     ctx.globalAlpha = 1;
+  }
+  /** lazer's mania Flashlight: only a band above the judgement line can be seen, fading out at its top edge; it
+   *  shrinks to 90% at 100 combo and 80% at 200 (eased over 0.8s), and back when the combo breaks. */
+  _drawFlashlight(g, realNow) {
+    const combo = g.engine.score.combo, target = g.flashlight * (combo >= 200 ? 0.8 : combo >= 100 ? 0.9 : 1);
+    const dt = this._flT ? Math.min(100, realNow - this._flT) : 0;
+    this._flT = realNow;
+    this._flCur = this._flCur == null ? target : this._flCur + (target - this._flCur) * (1 - Math.exp(-dt / 250));
+    const ctx = this.ctx, band = this.hitY * 0.36 * this._flCur, fade = band * 0.35;
+    const edge = Math.max(0, this.hitY - band); // where full visibility starts
+    const solid = Math.max(0, edge - fade);
+    ctx.fillStyle = '#000';
+    this._rect(0, 0, this.stageW, solid);
+    const y0 = this.up ? this.H - edge : solid, y1 = this.up ? this.H - solid : edge;
+    const gr = ctx.createLinearGradient(0, this.up ? y1 : y0, 0, this.up ? y0 : y1);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, y0, this.stageW, y1 - y0);
   }
   _drawKeys(g) {
     const L = this.layout, K = L.keys, H = this.H;

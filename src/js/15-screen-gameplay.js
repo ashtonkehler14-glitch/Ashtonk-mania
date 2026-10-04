@@ -365,6 +365,7 @@ const GameplayScreen = {
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
     };
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
     this.newEngine(practice ? null : undefined);
@@ -675,7 +676,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0 };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -725,7 +726,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
       this.renderer.render(g);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);

@@ -567,10 +567,12 @@ const MODS = [
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
   { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
-  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI'], config: 'cover',
+  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI', 'FL'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
-  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD'], config: 'cover',
+  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FL'], config: 'cover',
     desc: 'Notes appear out of nowhere near the receptors.' },
+  { id: 'FL', name: 'Flashlight', group: 'increase', key: 'KeyU', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FI'], config: 'flSize',
+    desc: 'Restricted view area.' },
   { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#8c66ff', incompatible: ['RD'],
     desc: 'Columns are mirrored left ↔ right.' },
   { id: 'RD', name: 'Random', group: 'conversion', key: 'KeyX', mult: 1.0, color: '#8c66ff', incompatible: ['MR'],
@@ -607,6 +609,7 @@ const MOD_GLYPHS = {
   NC: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
   CS: '<path d="M3 12h18"/><path d="M7 8v8M12 8v8M17 8v8"/>',
@@ -630,7 +633,7 @@ function modIcon(id, size = 36) {
   return el;
 }
 const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
-const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 };
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -672,6 +675,7 @@ const ModSystem = {
     if (id === 'DA') return `OD${c.od} HP${c.hp}`;
     if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
     if (id === 'PC') return `${c.percy}ms`;
+    if (id === 'FL') return `${c.flSize}×`;
     return '';
   },
   badge(id, small = false, cfg = null) {

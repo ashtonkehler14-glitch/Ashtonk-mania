@@ -6520,7 +6520,7 @@ const SETTINGS_SCHEMA = [
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
-  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 } },
+  { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 } },
 ];
 
 const Settings = {
@@ -7032,10 +7032,12 @@ const MODS = [
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
   { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
-  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI'], config: 'cover',
+  { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI', 'FL'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
-  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD'], config: 'cover',
+  { id: 'FI', name: 'Fade In', group: 'increase', key: 'KeyJ', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FL'], config: 'cover',
     desc: 'Notes appear out of nowhere near the receptors.' },
+  { id: 'FL', name: 'Flashlight', group: 'increase', key: 'KeyU', mult: 1.0, color: '#ff6666', incompatible: ['HD', 'FI'], config: 'flSize',
+    desc: 'Restricted view area.' },
   { id: 'MR', name: 'Mirror', group: 'conversion', key: 'KeyZ', mult: 1.0, color: '#8c66ff', incompatible: ['RD'],
     desc: 'Columns are mirrored left ↔ right.' },
   { id: 'RD', name: 'Random', group: 'conversion', key: 'KeyX', mult: 1.0, color: '#8c66ff', incompatible: ['MR'],
@@ -7072,6 +7074,7 @@ const MOD_GLYPHS = {
   NC: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   RD: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" class="fillme"/><circle cx="15.5" cy="15.5" r="1.2" class="fillme"/><circle cx="12" cy="12" r="1.2" class="fillme"/>',
   CS: '<path d="M3 12h18"/><path d="M7 8v8M12 8v8M17 8v8"/>',
@@ -7095,7 +7098,7 @@ function modIcon(id, size = 36) {
   return el;
 }
 const MOD_GROUPS = [['reduction', 'Difficulty Reduction'], ['increase', 'Difficulty Increase'], ['conversion', 'Conversion'], ['automation', 'Automation']];
-const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 };
+const MOD_CONFIG_DEFAULTS = { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1 };
 
 const ModSystem = {
   normalize(list) { return MODS.filter(m => list.includes(m.id)).map(m => m.id); },
@@ -7137,6 +7140,7 @@ const ModSystem = {
     if (id === 'DA') return `OD${c.od} HP${c.hp}`;
     if (id === 'HD' || id === 'FI') return `${Math.round(c.cover * 100)}%`;
     if (id === 'PC') return `${c.percy}ms`;
+    if (id === 'FL') return `${c.flSize}×`;
     return '';
   },
   badge(id, small = false, cfg = null) {
@@ -8330,6 +8334,7 @@ class ManiaRenderer {
     // bar lines (under the notes), then the notes
     if (g.bars) this._drawBars(g);
     if (g.engine) this._drawNotes(g, realNow);
+    if (g.flashlight && g.engine) this._drawFlashlight(g, realNow);
 
     if (L.judgementLine) {
       ctx.fillStyle = rgba(L.colours.judgementLine, 0.9);
@@ -8383,6 +8388,24 @@ class ManiaRenderer {
       this._rect(0, y - hh / 2, this.stageW, hh);
     }
     ctx.globalAlpha = 1;
+  }
+  /** lazer's mania Flashlight: only a band above the judgement line can be seen, fading out at its top edge; it
+   *  shrinks to 90% at 100 combo and 80% at 200 (eased over 0.8s), and back when the combo breaks. */
+  _drawFlashlight(g, realNow) {
+    const combo = g.engine.score.combo, target = g.flashlight * (combo >= 200 ? 0.8 : combo >= 100 ? 0.9 : 1);
+    const dt = this._flT ? Math.min(100, realNow - this._flT) : 0;
+    this._flT = realNow;
+    this._flCur = this._flCur == null ? target : this._flCur + (target - this._flCur) * (1 - Math.exp(-dt / 250));
+    const ctx = this.ctx, band = this.hitY * 0.36 * this._flCur, fade = band * 0.35;
+    const edge = Math.max(0, this.hitY - band); // where full visibility starts
+    const solid = Math.max(0, edge - fade);
+    ctx.fillStyle = '#000';
+    this._rect(0, 0, this.stageW, solid);
+    const y0 = this.up ? this.H - edge : solid, y1 = this.up ? this.H - solid : edge;
+    const gr = ctx.createLinearGradient(0, this.up ? y1 : y0, 0, this.up ? y0 : y1);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, y0, this.stageW, y1 - y0);
   }
   _drawKeys(g) {
     const L = this.layout, K = L.keys, H = this.H;
@@ -9541,7 +9564,7 @@ const LZMA = {
 };
 
 /** osu!'s legacy mod bits ⇄ our mods (lazer-only mods have no bit and are left out of an .osr). */
-const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['PF', 16384 | 32], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
+const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
 
 const Osr = {
   /** Read an .osr: { mode, version, beatmapMD5, player, counts, score, maxCombo, mods (bits), date, frames, seed }. */
@@ -13249,6 +13272,7 @@ const GameplayScreen = {
       loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
     };
     Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
     this.newEngine(practice ? null : undefined);
@@ -13559,7 +13583,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0 };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -13609,7 +13633,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
       this.renderer.render(g);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);
@@ -17312,6 +17336,7 @@ const ModSelect = {
     if (ids.includes('DA')) rows.push(slider('Difficulty Adjust — overall difficulty (OD)', 'od', 0, 10, 0.1, v => v.toFixed(1)), slider('Difficulty Adjust — HP drain', 'hp', 0, 10, 0.1, v => v.toFixed(1)));
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
+    if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
     return rows;
   },
