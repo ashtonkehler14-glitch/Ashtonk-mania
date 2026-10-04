@@ -3905,3 +3905,14 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mc-del { display: grid; place-items: center; border: 0; border-radius: 50%; background: #e04a4a; color: #fff; cursor: pointer; transition: transform var(--t-fast), background var(--t-fast); }
 .mc-del:hover { background: #ff5c5c; transform: scale(1.1); }
 .mc-del svg { width: 14px; height: 14px; }
+
+/* the pause screen carries lazer's player settings in the top right */
+.pm-settings { position: absolute; top: 70px; right: 16px; width: 270px; margin: 0; z-index: 2; animation: pmSet 400ms var(--ease-out) both; }
+.pm-settings .pl-group { background: rgba(30, 27, 38, .92); }
+.pm-settings .pl-gt { cursor: pointer; }
+.pm-settings .pl-gt .i { transition: transform var(--t-fast); }
+.pl-group.collapsed { padding-bottom: 5px; }
+.pl-group.collapsed > :not(.pl-gt) { display: none; }
+.pl-group.collapsed .pl-gt .i { transform: rotate(-90deg); }
+@keyframes pmSet { from { opacity: 0; transform: translateX(30px); } }
+@media (max-width: 900px) { .pm-settings { display: none; } }

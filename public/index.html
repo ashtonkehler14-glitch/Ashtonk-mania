@@ -3925,6 +3925,17 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mc-del:hover { background: #ff5c5c; transform: scale(1.1); }
 .mc-del svg { width: 14px; height: 14px; }
 
+/* the pause screen carries lazer's player settings in the top right */
+.pm-settings { position: absolute; top: 70px; right: 16px; width: 270px; margin: 0; z-index: 2; animation: pmSet 400ms var(--ease-out) both; }
+.pm-settings .pl-group { background: rgba(30, 27, 38, .92); }
+.pm-settings .pl-gt { cursor: pointer; }
+.pm-settings .pl-gt .i { transition: transform var(--t-fast); }
+.pl-group.collapsed { padding-bottom: 5px; }
+.pl-group.collapsed > :not(.pl-gt) { display: none; }
+.pl-group.collapsed .pl-gt .i { transform: rotate(-90deg); }
+@keyframes pmSet { from { opacity: 0; transform: translateX(30px); } }
+@media (max-width: 900px) { .pm-settings { display: none; } }
+
 </style>
 </head>
 <body>
@@ -13255,11 +13266,7 @@ const GameplayScreen = {
     // the loader waits while you're using its settings — only for a pointer that moves there: one that happens to
     // sit where the panel appears (Watch on the Replays page is right under it) kept the loader up forever
     const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
-      h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
-        this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
-        this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
-        this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
-      rec && !p.replay ? this.loaderOffset(rec) : null);
+      ...this.playerSettings(rec, !p.replay));
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null);
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
@@ -13269,12 +13276,21 @@ const GameplayScreen = {
     if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
     return el;
   },
+  /** lazer's PlayerSettingsOverlay groups — Visual Settings and (playing, not watching) Audio Settings with the
+   *  beatmap's offset: on the loader, and on the pause screen to fix things mid-song. */
+  playerSettings(rec, offset) {
+    return [h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
+      this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+      this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+      this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
+      rec && offset ? this.loaderOffset(rec) : null].filter(Boolean);
+  },
   loaderSlider(k, label, min, max, step, fmt, after) {
     const inp = h('input.slider', { type: 'range', min, max, step, value: Settings.get(k), 'aria-label': label });
     const v = h('b');
     const upd = () => { const x = parseFloat(inp.value); v.textContent = fmt(x); inp.style.setProperty('--p', ((x - min) / (max - min) * 100) + '%'); };
     inp.addEventListener('input', () => { Settings.set(k, parseFloat(inp.value)); upd(); after && after(); });
-    inp.addEventListener('keydown', e => e.stopPropagation());
+    inp.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
     upd();
     return h('label.pl-slider', h('span', label, v), inp);
   },
@@ -13288,7 +13304,7 @@ const GameplayScreen = {
       const upd = () => inp.style.setProperty('--p', ((parseFloat(inp.value) + 100) / 2) + '%');
       inp.addEventListener('input', () => { const x = parseInt(inp.value, 10); v.textContent = `${x > 0 ? '+' : ''}${x}ms`; upd(); });
       inp.addEventListener('change', () => { MapOffsets.set(rec.hash, parseInt(inp.value, 10)); if (this.s) this.s.mapOffset = MapOffsets.get(rec.hash); });
-      inp.addEventListener('keydown', e => e.stopPropagation());
+      inp.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
       upd();
       clearEl(box).append(...[h('div.pl-gt', 'Audio Settings', icon('list')),
         h('label.pl-slider', h('span', 'Beatmap offset', v), inp),
@@ -14138,6 +14154,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
+    // (lazer's player settings, top right: change the offset or the background without leaving the song)
+    else if (!failed && !s.mp && s.rec) {
+      // (the groups fold up on their headers as lazer's do; Visual starts folded so the panel clears the buttons)
+      const groups = this.playerSettings(s.rec, s.mode === 'play');
+      for (const g of groups) { const t = g.querySelector('.pl-gt'); t.setAttribute('role', 'button'); t.onclick = () => { UISounds.click(); g.classList.toggle('collapsed'); }; }
+      if (groups.length > 1) groups[0].classList.add('collapsed');
+      const panel = h('div.pl-settings.pm-settings', ...groups);
+      panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); document.activeElement && document.activeElement.blur(); this.resume(); } });
+      el.append(panel);
+    }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
