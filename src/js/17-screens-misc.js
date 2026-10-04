@@ -146,11 +146,14 @@ const ProfileScreen = {
   enter() {
     const { el, page } = pageShell('Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('profile:changed', () => this.render()), Bus.on('scores:changed', () => this.render())];
+    this._unsub = [Bus.on('profile:changed', () => this.render()), Bus.on('scores:changed', () => this.render()),
+      Bus.on('rankings', d => { this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); })];
     this.render();
+    if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); }
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
+  paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   render() {
     const page = this.page;
     clearEl(page);
@@ -193,6 +196,8 @@ const ProfileScreen = {
       h('div.pf-detail-l',
         h('div.pf-bigs',
           // (hit accuracy is in the box on the right, as in lazer: it isn't repeated here)
+          // lazer's Global Ranking: your place in the rankings (from the server; — until it answers or offline)
+          this.globalEl = h('div.pf-big.pf-global', { title: 'Your place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', this.globalRank ? `#${fmtInt(this.globalRank)}` : '—')),
           h('div.pf-big', { title: 'Your best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
         h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
       h('div.pf-detail-r',
