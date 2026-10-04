@@ -3002,19 +3002,23 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-left, .lz-right { position: absolute; top: 0; bottom: 0; display: flex; align-items: stretch; pointer-events: auto; }
 /* (the whole row sits --lz-x further right than lazer's, so it clears Neru in the bottom-left) */
 .lz-menu { --lz-x: 110px; }
-.lz-left { right: calc(50% + 228px - var(--lz-x) + 74.72px); justify-content: flex-end; }
-.lz-right { left: calc(50% - 228px + var(--lz-x) + 74.72px); }
+.lz-left { right: calc(50% + 228px - var(--lz-x) + 74.72px + 20px); justify-content: flex-end; }
+.lz-right { left: calc(50% - 228px + var(--lz-x) + 74.72px + 20px); }
 .lz-btn { position: relative; flex: none; width: 0; height: 100px; padding: 0; border: 0; background: none; color: #fff; opacity: 0; outline: none; cursor: pointer;
-  transition: width 500ms var(--oexpo), opacity 500ms linear; }
+  transition: width 500ms var(--oexpo), margin 500ms var(--oexpo), opacity 500ms linear; }
 .lz-btn.gone { display: none; }
-.lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: -20px; }
-.lz-btn.exp { width: var(--w); opacity: 1; transition: width 500ms var(--oexpo), opacity 83ms linear; }
-.lz-btn.exp:hover, .lz-btn.exp:focus-visible { width: calc(var(--w) * 1.5); transition: width 500ms var(--el), opacity 83ms linear; }
+/* neighbours overlap by the 20px wedge — each button carries its share of the overlap and gives it up as it shrinks,
+   so a button that has contracted to nothing pulls nobody out of place, and nothing jumps when it's removed (the
+   groups sit 20px further out to make up for the outermost overlap) */
+.lz-right .lz-btn.exp, .lz-right .lz-btn.xpl { margin-left: -20px; }
+.lz-left .lz-btn.exp, .lz-left .lz-btn.xpl { margin-right: -20px; }
+.lz-btn.exp { width: var(--w); opacity: 1; transition: width 500ms var(--oexpo), margin 500ms var(--oexpo), opacity 83ms linear; }
+.lz-btn.exp:hover, .lz-btn.exp:focus-visible { width: calc(var(--w) * 1.5); transition: width 500ms var(--el), margin 500ms var(--oexpo), opacity 83ms linear; }
 /* lazer's ButtonState.Contracted: the box shrinks to nothing over 500ms (OutExpo) as the button fades out over 500ms —
    it used to vanish on the spot, so a new row of buttons appeared with a jump */
-.lz-btn.con { width: 0; opacity: 0; transition: width 500ms var(--oexpo), opacity 500ms linear; }
-.lz-btn.con1 { transition: width 400ms var(--insine), opacity 800ms linear; }
-.lz-btn.xpl { width: calc(var(--w) * 2); transition: width 200ms var(--oexpo), opacity 150ms linear; }
+.lz-btn.con { width: 0; opacity: 0; transition: width 500ms var(--oexpo), margin 500ms var(--oexpo), opacity 500ms linear; }
+.lz-btn.con1 { transition: width 400ms var(--insine), margin 400ms var(--insine), opacity 800ms linear; }
+.lz-btn.xpl { width: calc(var(--w) * 2); transition: width 200ms var(--oexpo), margin 200ms var(--oexpo), opacity 150ms linear; }
 /* the sheared box (wedge 20px over the 100px height) with lazer's soft shadow; the white layer under the press */
 .lz-bg { position: absolute; inset: 0; transform: skewX(-11.31deg); background: var(--c); box-shadow: 0 0 8px rgba(0, 0, 0, .2); overflow: hidden; }
 .lz-bg::after { content: ""; position: absolute; inset: 0; background: #fff; mix-blend-mode: plus-lighter; opacity: 0; transition: opacity 1000ms var(--oq); }
@@ -3457,7 +3461,7 @@ html.touch img { -webkit-user-drag: none; }
   .lz-right { order: 1; }
   .lz-left { order: 2; }
   .lz-btn { height: 62px; width: min(78vw, 300px); max-height: 0; transition: max-height 400ms var(--oexpo), opacity 300ms linear; }
-  .lz-btn:not(.gone) ~ .lz-btn:not(.gone) { margin-left: 0; }
+  .lz-btn:not(.gone) ~ .lz-btn:not(.gone), .lz-right .lz-btn.exp, .lz-right .lz-btn.xpl, .lz-left .lz-btn.exp, .lz-left .lz-btn.xpl { margin: 0; }
   .lz-btn.exp, .lz-btn.exp:hover, .lz-btn.exp:focus-visible, .lz-btn.xpl { width: min(78vw, 300px); max-height: 62px; transition: max-height 400ms var(--oexpo), opacity 120ms linear; }
   .lz-btn.con { width: min(78vw, 300px); max-height: 0; }
   .lz-btn.pl .lz-inner, .lz-btn.pr .lz-inner { left: 0; right: 0; }
