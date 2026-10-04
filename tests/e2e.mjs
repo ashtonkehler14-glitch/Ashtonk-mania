@@ -142,6 +142,21 @@ const only = await page.evaluate(() => { const s = AshtonkMania.SongSelect, n = 
 check('search keeps only the songs it names (lazer: every word must appear; no loose letter matching)', only.all >= 1 && only.word === 1 && only.loose === 0 && only.none === 0, JSON.stringify(only));
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
 check('sorting by star rating works', await page.evaluate(() => AshtonkMania.SongSelect.results.length === 1));
+// lazer's FilterControl: the star range keeps only difficulties inside it; Group puts the sets under group headers,
+// with the selected difficulty's group open
+const grouped = await page.evaluate(() => {
+  const s = AshtonkMania.SongSelect, S = AshtonkMania.Settings, n = () => s.results.reduce((a, r) => a + r.maps.length, 0);
+  S.set('songselect.starsMin', 1.69); s.rebuild(true);
+  const ranged = { n: n(), count: s.countEl.textContent };
+  S.set('songselect.starsMin', 0); s.rebuild(true);
+  S.set('songselect.group', 'keys'); s.expandedGroup = undefined; s.rebuild();
+  const heads = [...document.querySelectorAll('.group-panel')].map(e => e.textContent);
+  const sel = AshtonkMania.BeatmapManager.maps.get(s.selectedId);
+  const open = s.expandedGroup, diffs = s.rows.filter(r => r.type === 'diff').length;
+  S.set('songselect.group', 'none'); s.rebuild();
+  return { ranged, heads, open, want: sel && `${sel.keys}K`, diffs };
+});
+check('song select: the star range filters difficulties and Group lists them under lazer\'s group headers', grouped.ranged.n === 3 && grouped.ranged.count === '3 matches' && grouped.heads.length === 4 && grouped.open === grouped.want && grouped.diffs === 1, JSON.stringify(grouped));
 
 // favorite
 await page.evaluate(async () => { await AshtonkMania.Favorites.toggle(AshtonkMania.BeatmapManager.sets[0].id); });

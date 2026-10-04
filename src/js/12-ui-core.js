@@ -14,6 +14,7 @@ const ICONS = {
   unfullscreen: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>',
   star: '<path d="M12 2l3 6.9 7.5.6-5.7 5 1.8 7.4L12 18l-6.6 3.9 1.8-7.4-5.7-5 7.5-.6z" class="fillme"/>',
+  ghost: '<path d="M12 2.5c-4.4 0-7.5 3.3-7.5 7.8v10.4c0 .6.7.9 1.1.5l1.6-1.5 1.7 1.6c.3.3.7.3 1 0l1.6-1.6 1.6 1.6c.3.3.7.3 1 0l1.6-1.6 1.7 1.6c.3.3.7.3 1 0l1.6-1.5c.4.4 1.1.1 1.1-.5V10.3c0-4.5-3.1-7.8-7.5-7.8z" class="fillme"/><circle cx="9.3" cy="10.5" r="1.5" fill="#000" stroke="none" opacity=".55"/><circle cx="14.7" cy="10.5" r="1.5" fill="#000" stroke="none" opacity=".55"/>',
   heart: '<path d="M12 21s-7.5-4.6-9.5-9.2C1 8.1 3.4 4 7.2 4c2.1 0 3.6 1.1 4.8 2.7C13.2 5.1 14.7 4 16.8 4 20.6 4 23 8.1 21.5 11.8 19.5 16.4 12 21 12 21z"/>',
   shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
   mods: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',

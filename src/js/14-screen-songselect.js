@@ -1,11 +1,22 @@
 /* Song select — virtualized beatmap carousel, instant fuzzy search with filter syntax,
  * sorting & filters, live audio preview, beatmap info wedge and local leaderboard. */
 
+// lazer's SortMode (in its order), then a few of our own
 const SORTS = [
-  ['title', 'Title'], ['artist', 'Artist'], ['creator', 'Mapper'], ['stars', 'Star rating'], ['od', 'Difficulty (OD)'],
-  ['bpm', 'BPM'], ['length', 'Length'], ['added', 'Date added'], ['lastPlayed', 'Last played'], ['playCount', 'Play count'],
-  ['score', 'Best score'], ['accuracy', 'Best accuracy'],
+  ['artist', 'Artist'], ['creator', 'Author'], ['bpm', 'BPM'], ['added', 'Date Added'], ['ranked', 'Date Ranked'], ['submitted', 'Date Submitted'],
+  ['stars', 'Difficulty'], ['lastPlayed', 'Last Played'], ['length', 'Length'], ['source', 'Source'], ['title', 'Title'],
+  ['playCount', 'Play Count'], ['score', 'Best Score'], ['accuracy', 'Best Accuracy'],
 ];
+// lazer's GroupMode (mania's "Variant" is its key count)
+const GROUPS = [
+  ['none', 'None'], ['artist', 'Artist'], ['creator', 'Author'], ['bpm', 'BPM'], ['collections', 'Collections'], ['added', 'Date Added'],
+  ['ranked', 'Date Ranked'], ['stars', 'Difficulty'], ['favourites', 'Favourites'], ['lastPlayed', 'Last Played'], ['length', 'Length'],
+  ['mine', 'My Maps'], ['rank', 'Rank Achieved'], ['status', 'Ranked Status'], ['source', 'Source'], ['title', 'Title'], ['keys', 'Key Count'],
+];
+const RANK_ORDER = ['XH', 'SS', 'SH', 'S', 'A', 'B', 'C', 'D', 'F'];
+const STATUS_GROUP = { ranked: 0, approved: 0, qualified: 1, wip: 2, pending: 3, graveyard: 4, modified: 5, none: 6, loved: 7 };
+/** A date as milliseconds (timestamps, ISO strings), 0 if there isn't one. */
+const dateMs = v => !v ? 0 : typeof v === 'number' ? v : (Date.parse(v) || 0);
 /** osu!lazer's BeatmapSetOnlineStatusPill: the set's online status in its colour (OsuColour.ForBeatmapSetOnlineStatus),
  *  bold black capitals (grey-green on the graveyard's black); a set with no known status is "UNKNOWN" (rosy brown). */
 const ONLINE_STATUS = {
@@ -16,16 +27,12 @@ function statusPill(status, cls = '') {
   const [label, bg] = ONLINE_STATUS[String(status || 'none').toLowerCase()] || ONLINE_STATUS.none;
   return h(`span.status-pill${cls}`, { style: { background: bg, color: status === 'graveyard' ? '#4d7365' : '#000' } }, label);
 }
-const STATUS_FILTERS = [
-  ['all', 'All'], ['favorites', 'Favourites'], ['recent', 'Recent'], ['played', 'Played'], ['unplayed', 'Unplayed'],
-  ['passed', 'Passed'], ['failed', 'Failed'], ['pb', 'Has PB'], ['mods', 'Passed with current mods'],
-];
 
 const SongSelect = {
   tab: 'songselect',
   query: '',
   selectedId: null, expandedSet: null,
-  rows: [], ROW_SET: 80, ROW_DIFF: 50, ROW_GAP: 3,
+  rows: [], ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
@@ -53,15 +60,18 @@ const SongSelect = {
     this.collSel = h('select.select', { 'aria-label': 'Collection' });
     this.fillCollections();
     this.collSel.addEventListener('change', () => { Settings.set('songselect.collection', this.collSel.value); UISounds.click(); this.rebuild(true); });
+    // lazer's FilterControl: the search box (with "N matches" under what's typed), the star range and (where lazer
+    // has "Show converts", which mania-only maps don't need) the key count, then Sort, Group and Collection
     const filters = h('div.ss-filter',
-      h('div.ss-search', icon('search'), this.searchInput),
-      h('div.ss-filter-row',
-        sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
-        sel('Show', STATUS_FILTERS, Settings.get('songselect.filter'), v => { Settings.set('songselect.filter', v); this.rebuild(true); }),
+      h('div.ss-search', icon('search'), this.searchInput, this.countEl),
+      h('div.ss-filter-row.ss-row2',
+        this.starRange(),
         // every key count in your library (and the one picked, if it's no longer there), each on its own
-        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => m.keys), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
-        h('label.ss-sel', h('span', 'Collection'), this.collSel),
-        h('span.grow'), this.countEl));
+        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => m.keys), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); })),
+      h('div.ss-filter-row.ss-row3',
+        sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
+        sel('Group', GROUPS, Settings.get('songselect.group'), v => { Settings.set('songselect.group', v); this.expandedGroup = undefined; this.rebuild(); }),
+        h('label.ss-sel.ss-coll', h('span', 'Collection'), this.collSel)));
 
     // left info
     this.info = h('div.ss-info');
@@ -155,6 +165,61 @@ const SongSelect = {
     this._ro && this._ro.disconnect();
     clearTimeout(this._previewT);
   },
+  /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
+   *  the range and a nub at each end in the colour of its star rating (grey from 8 stars; the top end is "∞" until
+   *  it's moved). Drag either nub (the one nearer the pointer), or use the arrow keys on it. */
+  starRange() {
+    const LO_MAX = 10, HI_MAX = 10.1, MIN_RANGE = 0.1, NUB = 34.8;
+    let lo = clamp(+Settings.get('songselect.starsMin') || 0, 0, LO_MAX), hi = clamp(+Settings.get('songselect.starsMax') || HI_MAX, 0, HI_MAX);
+    const dimL = h('i.sr-dim.l'), dimR = h('i.sr-dim.r'), frame = h('i.sr-frame');
+    const nub = upper => h('span.sr-nub', { tabindex: '0', role: 'slider', 'aria-label': upper ? 'Maximum star rating' : 'Minimum star rating' }, h('b'));
+    const nLo = nub(false), nHi = nub(true);
+    const track = h('div.sr-track', h('i.sr-spec'), dimL, dimR, frame, nHi, nLo);
+    const el = h('div.ss-stars', h('span.sr-label', 'Star Rating'), track);
+    const grey = v => { const c = starColour(v); if (v < 7.5) return c; const t = clamp((v - 7.5) / 0.5, 0, 1), p = x => [1, 3, 5].map(k => parseInt(x.slice(k, k + 2), 16)), a = p(c); return `rgb(${a.map(x => Math.round(lerp(x, 0x44, t))).join(',')})`; };
+    const paint = () => {
+      const W = track.clientWidth || 300, use = W - NUB;
+      const xl = NUB / 2 + use * lo / LO_MAX, xh = NUB / 2 + use * hi / HI_MAX;
+      nLo.style.left = `${xl - NUB / 2}px`; nHi.style.left = `${xh - NUB / 2}px`;
+      dimL.style.width = `${xl}px`; dimR.style.left = `${xh}px`;
+      frame.style.left = `${xl - NUB / 2}px`; frame.style.width = `${xh - xl + NUB}px`;
+      for (const [n, v, top] of [[nLo, lo, false], [nHi, hi, true]]) {
+        const inf = top && v >= HI_MAX;
+        n.style.setProperty('--nc', inf ? '#444' : grey(v));
+        n.style.color = inf || v >= 8 ? '#fff' : v < 6.5 ? 'rgba(0,0,0,.75)' : '#ffd966';
+        n.firstChild.textContent = inf ? '∞' : v.toFixed(1);
+        n.setAttribute('aria-valuenow', inf ? 'Infinity' : v.toFixed(1));
+      }
+    };
+    let t;
+    const commit = () => { Settings.set('songselect.starsMin', lo); Settings.set('songselect.starsMax', hi); clearTimeout(t); t = setTimeout(() => this.rebuild(true), 50); };
+    const setLo = v => { lo = clamp(Math.round(v * 10) / 10, 0, LO_MAX); hi = Math.max(hi, Math.round((lo + MIN_RANGE) * 10) / 10); paint(); commit(); };
+    const setHi = v => { hi = clamp(Math.round(v * 10) / 10, 0, HI_MAX); lo = Math.min(lo, Math.max(0, Math.round((hi - MIN_RANGE) * 10) / 10)); paint(); commit(); };
+    const valueAt = (x, upper) => { const r = track.getBoundingClientRect(), W = track.clientWidth || r.width, k = r.width / W || 1; return ((x - r.left) / k - NUB / 2) / (W - NUB) * (upper ? HI_MAX : LO_MAX); };
+    track.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      e.preventDefault();
+      // (the nub nearer the pointer: lazer splits the slider halfway between them)
+      const r = nHi.getBoundingClientRect(), l = nLo.getBoundingClientRect();
+      const upper = e.clientX > (l.left + r.left) / 2 + l.width / 2;
+      const move = ev => upper ? setHi(valueAt(ev.clientX, true)) : setLo(valueAt(ev.clientX, false));
+      const up = () => { track.removeEventListener('pointermove', move); track.removeEventListener('pointerup', up); track.removeEventListener('pointercancel', up); el.classList.remove('drag'); };
+      track.setPointerCapture(e.pointerId); el.classList.add('drag');
+      track.addEventListener('pointermove', move); track.addEventListener('pointerup', up); track.addEventListener('pointercancel', up);
+      move(e); UISounds.click();
+    });
+    for (const [n, upper] of [[nLo, false], [nHi, true]]) n.addEventListener('keydown', e => {
+      const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 0.1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -0.1 : 0;
+      if (!d) return;
+      e.preventDefault(); e.stopPropagation();
+      if (upper) setHi(hi + d); else setLo(lo + d);
+    });
+    // double-click a nub to put it back
+    nLo.addEventListener('dblclick', () => setLo(0)); nHi.addEventListener('dblclick', () => setHi(HI_MAX));
+    new ResizeObserver(paint).observe(track);
+    requestAnimationFrame(paint);
+    return el;
+  },
   fillCollections() {
     clearEl(this.collSel);
     const cur = Settings.get('songselect.collection');
@@ -205,14 +270,11 @@ const SongSelect = {
     if (!this.el) return;
     const pq = this.parseQuery(this.query.trim());
     const keys = Settings.get('songselect.keys') || [];
-    const status = Settings.get('songselect.filter');
+    const sMin = +Settings.get('songselect.starsMin') || 0, sMax = +Settings.get('songselect.starsMax') || 10.1;
     const collId = Settings.get('songselect.collection');
     const coll = collId ? Collections.get(collId) : null;
-    const mods = Settings.get('songselect.mods') || [];
-    const weekAgo = Date.now() - 7 * 86400000;
     const results = [];
     for (const set of BeatmapManager.sets) {
-      if (status === 'favorites' && !Favorites.has(set.id)) continue;
       const hay = `${set.artist} ${set.artistUnicode} ${set.title} ${set.titleUnicode} ${set.creator} ${set.source} ${set.tags}`;
       let setScore = 0;
       if (pq.words.length) {
@@ -231,16 +293,9 @@ const SongSelect = {
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
-        if (status !== 'all' && status !== 'favorites') {
-          const pc = ScoreManager.playCount(m.hash), best = ScoreManager.best(m.hash);
-          if (status === 'played' && !pc) return false;
-          if (status === 'unplayed' && pc) return false;
-          if (status === 'passed' && !best) return false;
-          if (status === 'failed' && (!pc || best)) return false;
-          if (status === 'pb' && !best) return false;
-          if (status === 'recent' && ScoreManager.lastPlayed(m.hash) < weekAgo) return false;
-          if (status === 'mods' && !ScoreManager.forMap(m.hash).some(s => s.passed && ModSystem.label(s.mods) === ModSystem.label(mods))) return false;
-        }
+        // the star range (lazer's UserStarDifficulty: either end only once it's been moved)
+        if (sMin > 0 && m.stars < sMin) return false;
+        if (sMax < 10.1 && m.stars > sMax) return false;
         return true;
       });
       if (!maps.length) continue;
@@ -253,6 +308,8 @@ const SongSelect = {
       creator: (a, b) => a.set.creator.localeCompare(b.set.creator), stars: (a, b) => agg(a, m => m.stars) - agg(b, m => m.stars),
       od: (a, b) => agg(a, m => m.od) - agg(b, m => m.od), bpm: (a, b) => agg(a, m => m.bpm) - agg(b, m => m.bpm),
       length: (a, b) => agg(a, m => m.length) - agg(b, m => m.length), added: (a, b) => b.set.added - a.set.added,
+      ranked: (a, b) => dateMs(b.set.rankedDate) - dateMs(a.set.rankedDate), submitted: (a, b) => dateMs(b.set.submittedDate) - dateMs(a.set.submittedDate),
+      source: (a, b) => (a.set.source || '').localeCompare(b.set.source || ''),
       lastPlayed: (a, b) => agg(b, m => ScoreManager.lastPlayed(m.hash)) - agg(a, m => ScoreManager.lastPlayed(m.hash)),
       playCount: (a, b) => b.maps.reduce((x, m) => x + ScoreManager.playCount(m.hash), 0) - a.maps.reduce((x, m) => x + ScoreManager.playCount(m.hash), 0),
       score: (a, b) => agg(b, m => ScoreManager.best(m.hash)?.score || 0) - agg(a, m => ScoreManager.best(m.hash)?.score || 0),
@@ -260,19 +317,23 @@ const SongSelect = {
     }[sort] || ((a, b) => a.set.title.localeCompare(b.set.title));
     results.sort((a, b) => (pq.words.length && sort === 'title' ? b.score - a.score : 0) || cmp(a, b) || a.set.title.localeCompare(b.set.title));
     this.results = results;
+    this.makeGroups();
+    const shown = this.groups ? this.groups.flatMap(g => g.items) : results;
     // ensure selection is visible
     const allVisible = new Map();
-    for (const r of results) for (const m of r.maps) allVisible.set(m.id, r);
+    for (const r of shown) for (const m of r.maps) allVisible.set(m.id, r);
     if (!this.selectedId || !allVisible.has(this.selectedId)) {
-      const first = results[0];
+      const first = shown[0];
       // nothing matches: keep the current beatmap (as lazer does) so the wedge stays and clearing the search returns to it
       if (first) this.selectedId = (first.maps.find(m => !m.problems.length) || first.maps[0]).id;
       else if (this.selectedId && !BeatmapManager.maps.has(this.selectedId)) this.selectedId = null;
     }
     this.expandedSet = this.selectedId ? BeatmapManager.maps.get(this.selectedId)?.setId : null;
+    if (this.groups) this.expandGroupOf(this.selectedId, true);
     this.layoutRows();
-    const nDiffs = results.reduce((a, r) => a + r.maps.length, 0);
-    this.countEl.textContent = `${fmtInt(nDiffs)} matching beatmap${nDiffs === 1 ? '' : 's'}`;
+    // (lazer's MatchesCount: every difficulty listed, a difficulty in two groups counting twice)
+    const nDiffs = shown.reduce((a, r) => a + r.maps.length, 0);
+    this.countEl.textContent = `${fmtInt(nDiffs)} ${nDiffs === 1 ? 'match' : 'matches'}`;
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);
@@ -283,21 +344,131 @@ const SongSelect = {
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
-  /** lazer's carousel spacing: collapsed beatmap sets overlap by 3px, difficulties sit 3px apart and the expanded
-   *  set gets 6px of room above and below. */
-  layoutRows() {
-    const rows = [], G = this.ROW_GAP;
-    let y = 12;
+  /** lazer's grouping (BeatmapCarouselFilterGrouping): the sets, in their sorted order, under group headers. A set
+   *  whose difficulties fall in different groups (difficulty, collections…) is listed in each, with the difficulties
+   *  that belong there. */
+  makeGroups() {
+    const mode = Settings.get('songselect.group');
+    this.groups = null;
+    if (!mode || mode === 'none') return;
+    const cx = { me: ((ProfileManager.profile || {}).name || '').toLowerCase(), coll: new Map() };
+    if (mode === 'collections') Collections.list.forEach((c, i) => { for (const hh of c.hashes) { let l = cx.coll.get(hh); if (!l) cx.coll.set(hh, l = []); l.push({ key: 'c:' + c.id, order: i, title: c.name }); } });
+    const byKey = new Map();
     for (const r of this.results) {
-      const open = r.set.id === this.expandedSet;
-      if (open && rows.length) y += 3 * G;
-      rows.push({ type: 'set', r, y, h: this.ROW_SET });
-      y += this.ROW_SET;
-      if (open) {
-        for (const m of r.maps) { y += G; rows.push({ type: 'diff', r, m, y, h: this.ROW_DIFF }); y += this.ROW_DIFF; }
-        y += 2 * G;
-      } else y -= G;
+      const per = new Map();
+      for (const m of r.maps) for (const d of this.groupDefs(mode, r.set, m, cx)) {
+        let e = per.get(d.key);
+        if (!e) per.set(d.key, e = { d, maps: [] });
+        e.maps.push(m);
+      }
+      for (const [k, { d, maps }] of per) {
+        let g = byKey.get(k);
+        if (!g) byKey.set(k, g = { ...d, items: [] });
+        g.items.push({ set: r.set, maps, score: r.score });
+      }
     }
+    this.groups = [...byKey.values()].sort((a, b) => a.order - b.order || String(a.title).localeCompare(String(b.title)));
+  },
+  /** The group(s) one difficulty goes in, for the given GroupMode (lazer's titles and ordering). */
+  groupDefs(mode, set, m, cx) {
+    const g = (order, title, extra) => [{ key: title, order, title, ...extra }];
+    const alpha = name => {
+      const c = String(name || '').trim().charAt(0).toUpperCase();
+      return /[0-9]/.test(c) ? g(-Infinity, '0-9') : /[A-Z]/.test(c) ? g(c.charCodeAt(0) - 65, c) : g(Infinity, 'Other');
+    };
+    const byDate = t => {
+      const d = (Date.now() - t) / 86400000;
+      if (d < 1) return g(0, 'Today');
+      if (d < 2) return g(1, 'Yesterday');
+      if (d < 7) return g(2, 'Last week');
+      if (d < 30) return g(3, 'Last month');
+      for (let i = 60; i <= 150; i += 30) if (d < i) return g(i, `${i / 30 - 1} month${i === 60 ? '' : 's'} ago`);
+      return g(151, 'Over 5 months ago');
+    };
+    switch (mode) {
+      case 'artist': return alpha(set.artist);
+      case 'creator': return alpha(set.creator);
+      case 'title': return alpha(set.title);
+      case 'added': return byDate(set.added || 0);
+      case 'ranked': { const t = dateMs(set.rankedDate); if (!t) return g(0, 'Unranked'); const y = new Date(t).getFullYear(); return g(-y, String(y)); }
+      case 'lastPlayed': { const t = ScoreManager.lastPlayed(m.hash); return t ? byDate(t) : g(Infinity, 'Never'); }
+      case 'status': {
+        let st = String(set.status || 'none').toLowerCase();
+        if (st === 'approved') st = 'ranked';
+        if (!(st in STATUS_GROUP)) st = 'none';
+        return g(STATUS_GROUP[st], (ONLINE_STATUS[st] || ONLINE_STATUS.none)[0], { status: st });
+      }
+      case 'bpm': {
+        const b = Math.round(m.bpm || 0);
+        if (b < 60) return g(60, 'Under 60 BPM');
+        for (let i = 70; i <= 300; i += 10) if (b < i) return g(i, `${i - 10} - ${i} BPM`);
+        return g(301, 'Over 300 BPM');
+      }
+      case 'stars': {
+        const s = Math.floor(m.stars || 0);
+        return s === 0 ? g(0, 'Below 1 star', { stars: 0 }) : s < 15 ? g(s, `${s} star${s === 1 ? '' : 's'}`, { stars: s }) : g(15, 'Over 15 stars', { stars: 15 });
+      }
+      case 'length': {
+        for (let i = 1; i < 6; i++) if (m.length <= i * 60000) return g(i, `${i} minute${i === 1 ? '' : 's'} or less`);
+        return m.length <= 600000 ? g(10, '10 minutes or less') : g(11, 'Over 10 minutes');
+      }
+      case 'source': return set.source ? g(0, set.source) : g(1, 'Unsourced');
+      case 'collections': return cx.coll.get(m.hash) || g(Infinity, 'Not in collection');
+      case 'mine': return cx.me && String(set.creator || '').toLowerCase() === cx.me ? g(0, 'My maps') : [];
+      case 'rank': { const b = ScoreManager.best(m.hash); return b ? g(RANK_ORDER.indexOf(b.grade), b.grade, { rank: b.grade }) : g(Infinity, 'Unplayed'); }
+      case 'favourites': return Favorites.has(set.id) ? g(0, 'Favourites') : [];
+      case 'keys': return g(m.keys, `${m.keys}K`);
+    }
+    return [];
+  },
+  /** Open the group that has this difficulty (unless the open one already does; `keepClosed`: and none is open
+   *  because the player closed it). Says whether the open group changed. */
+  expandGroupOf(id, keepClosed = false) {
+    if (!this.groups) return false;
+    const has = g => g && g.items.some(r => r.maps.some(m => m.id === id));
+    const cur = this.groups.find(g => g.key === this.expandedGroup);
+    if (has(cur) || (keepClosed && this.expandedGroup === null)) return false;
+    const g = this.groups.find(has);
+    const key = g ? g.key : null;
+    if (key === this.expandedGroup) return false;
+    this.expandedGroup = key;
+    return true;
+  },
+  toggleGroup(key) {
+    this.expandedGroup = this.expandedGroup === key ? null : key;
+    UISounds.select(this.expandedGroup ? 'expand' : 'difficulty');
+    this.layoutRows();
+    this.renderVisible(true);
+    const row = this.rows.find(r => r.type === 'group' && r.g.key === key);
+    if (row) this.scrollToRow(row, true);
+  },
+  /** lazer's carousel spacing (BeatmapCarousel.GetSpacingBetweenPanels): collapsed beatmap sets overlap by 3px, as
+   *  do group headers; difficulties sit 3px apart; the expanded set, and a group's first and last panel, get 6px. */
+  gap(a, b) {
+    const S = this.ROW_GAP;
+    if ((a.type === 'group') !== (b.type === 'group')) return 2 * S;
+    if (b.type === 'set' && b.open) return 2 * S;
+    if (a.type === 'diff' && b.type === 'set') return 2 * S;
+    if (a.type === 'diff' || b.type === 'diff') return S;
+    return -S;
+  },
+  layoutRows() {
+    const rows = [];
+    const sets = list => {
+      for (const r of list) {
+        const open = r.set.id === this.expandedSet && (!this.groups || r.maps.some(m => m.id === this.selectedId));
+        rows.push({ type: 'set', r, open, h: this.ROW_SET });
+        if (open) for (const m of r.maps) rows.push({ type: 'diff', r, m, h: this.ROW_DIFF });
+      }
+    };
+    if (this.groups) for (const g of this.groups) {
+      const open = g.key === this.expandedGroup;
+      rows.push({ type: 'group', g, open, h: this.ROW_GROUP });
+      if (open) sets(g.items);
+    }
+    else sets(this.results);
+    let y = 12;
+    rows.forEach((row, i) => { if (i) y += this.gap(rows[i - 1], row); row.y = y; y += row.h; });
     this.rows = rows;
     this.totalH = y + 200;
     this.inner.style.height = this.totalH + 'px';
@@ -305,8 +476,9 @@ const SongSelect = {
   },
   renderEmpty() {
     clearEl(this.emptyEl);
-    this.emptyEl.style.display = this.results.length ? 'none' : '';
-    if (this.results.length) return;
+    const any = this.groups ? this.groups.length : this.results.length;
+    this.emptyEl.style.display = any ? 'none' : '';
+    if (any) return;
     if (!BeatmapManager.sets.length) {
       this.emptyEl.append(h('div.box', h('h2', 'Your library is empty'),
         h('p', 'Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.'),
@@ -315,13 +487,22 @@ const SongSelect = {
           h('button.btn', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json') }, icon('upload'), 'Import files'),
           h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'))));
     } else {
-      this.emptyEl.append(h('div.box', h('h2', 'No matches'), h('p', 'Nothing matches your search and filters.'),
-        h('button.btn', { onclick: () => this.clearFilters() }, 'Clear filters')));
+      // lazer's NoResultsPlaceholder: a bobbing ghost, "No matching beatmaps" and what to try
+      const q = this.query.trim(), lo = +Settings.get('songselect.starsMin') || 0, hi = +Settings.get('songselect.starsMax') || 10.1;
+      const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
+      const tips = [];
+      if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); }), ' your current search criteria.']);
+      if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
+      if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
+      this.emptyEl.append(h('div.nr',
+        h('span.nr-ghost', icon('ghost')),
+        h('div.nr-t', 'No matching beatmaps'),
+        h('div.nr-text', h('p', 'No beatmaps match your filter criteria!'), ...tips.map(t => h('p.nr-tip', h('i.nr-dot'), ...t)))));
     }
   },
   clearFilters() {
     this.query = ''; this.searchInput.value = '';
-    Settings.set('songselect.keys', []); Settings.set('songselect.filter', 'all'); Settings.set('songselect.collection', '');
+    Settings.set('songselect.keys', []); Settings.set('songselect.collection', ''); Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1);
     Screens.go('songselect', { force: true }, { replace: true });
   },
   renderVisible(force = false) {
@@ -334,7 +515,7 @@ const SongSelect = {
     const needed = new Set();
     for (const row of this.rows) {
       if (row.y + row.h < from || row.y > to) continue;
-      const key = row.type === 'set' ? 's:' + row.r.set.id : 'd:' + row.m.id;
+      const key = row.type === 'group' ? 'g:' + row.g.key : row.type === 'set' ? 's:' + row.r.set.id : 'd:' + row.m.id;
       needed.add(key);
       let el = this.pool.get(key);
       if (!el || force) {
@@ -375,20 +556,31 @@ const SongSelect = {
     if (el.style.height !== hh) el.style.height = hh;
     const b = el.firstChild;
     if (!b) return;
-    if (row.type === 'set') b.classList.toggle('expanded', row.r.set.id === this.expandedSet);
+    if (row.type === 'set' || row.type === 'group') b.classList.toggle('expanded', row.open);
     else b.classList.toggle('selected', row.m.id === this.selectedId);
   },
   renderRow(row) {
-    const wrap = h(`div.c-item${row.type === 'set' ? '.set' : ''}`, { style: { height: row.h + 'px' } });
+    const wrap = h(`div.c-item${row.type === 'set' ? '.set' : row.type === 'group' ? '.grp' : ''}`, { style: { height: row.h + 'px' } });
     if (row.type === 'diff') wrap._setId = row.m.setId;
-    if (row.type === 'set') {
+    if (row.type === 'group') {
+      // lazer's PanelGroup: a dark panel with triangles, the title (a star rating, rank or status shown as such), the
+      // number of sets in a pill on the right; open, a chevron slides out on the left and a Highlight1 glow lights it
+      const g = row.g;
+      const lead = g.rank ? rankPill(g.rank) : g.status ? statusPill(g.status) : null;
+      const btn = h(`button.group-panel${row.open ? '.expanded' : ''}`, { onclick: () => this.toggleGroup(g.key), 'aria-expanded': String(!!row.open) },
+        h('span.gp-chev', icon('chevron')),
+        h('div.gp-body', g.stars != null ? h('span.gp-star', { style: { '--sc': starColour(g.stars) } }, icon('star', 'fill')) : null, lead || h('span.gp-t', g.title)),
+        h('span.gp-count', fmtInt(g.items.length)));
+      btn.addEventListener('pointerenter', () => UISounds.hover());
+      wrap.appendChild(btn);
+    } else if (row.type === 'set') {
       const { set, maps } = row.r;
       const broken = maps.every(m => m.problems.length);
       const bg = h('div.sp-bg');
       BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
-      const btn = h(`button.set-panel${set.id === this.expandedSet ? '.expanded' : ''}${broken ? '.broken' : ''}`, {
+      const btn = h(`button.set-panel${row.open ? '.expanded' : ''}${broken ? '.broken' : ''}`, {
         onclick: () => {
-          if (this.expandedSet === set.id) return;
+          if (row.open) return;
           UISounds.select('expand');
           const pick = maps.find(m => !m.problems.length) || maps[0];
           this.select(pick.id);
@@ -434,10 +626,12 @@ const SongSelect = {
     this.selectedId = id;
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
+    const regroup = this.expandGroupOf(id);
     this.layoutRows();
     // rows already on screen are updated in place (only their selection changes); new ones are built once, after
-    // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices)
-    if (scroll) this.scrollToSelected(true); else this.renderVisible();
+    // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices). Another
+    // group opening rebuilds them: the same set can list other difficulties there.
+    if (scroll) this.scrollToSelected(true, regroup); else this.renderVisible(regroup);
     this.updateInfo();
     // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
     if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m);
@@ -446,13 +640,22 @@ const SongSelect = {
   scrollToSelected(smooth, force = false) {
     const row = this.rows.find(r => r.type === 'diff' && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
     if (!row) { if (force) this.renderVisible(true); return; }
+    this.scrollToRow(row, smooth, force);
+  },
+  scrollToRow(row, smooth, force = false) {
     const vh = this._vh || this.scroller.clientHeight || 600;
     const top = Math.max(0, row.y - vh / 2 + row.h / 2);
     this.scroller.scrollTo({ top, behavior: smooth && Settings.get('ui.animSpeed') > 0 ? 'smooth' : 'auto' });
     this.renderVisible(force);
   },
   // keyboard navigation
-  flatMaps() { return this.results ? this.results.flatMap(r => r.maps) : []; },
+  /** The sets the arrow keys go through: those listed (with groups, the open group's). */
+  navList() {
+    if (!this.groups) return this.results || [];
+    const g = this.groups.find(x => x.key === this.expandedGroup);
+    return g ? g.items : [];
+  },
+  flatMaps() { return this.navList().flatMap(r => r.maps); },
   moveDiff(d) {
     const flat = this.flatMaps();
     if (!flat.length) return;
@@ -461,9 +664,10 @@ const SongSelect = {
     if (n && n.id !== this.selectedId) { UISounds.select(n.setId === this.expandedSet ? 'difficulty' : 'expand'); this.select(n.id); }
   },
   moveSet(d) {
-    if (!this.results || !this.results.length) return;
-    const i = this.results.findIndex(r => r.set.id === this.expandedSet);
-    const r = this.results[clamp(i + d, 0, this.results.length - 1)];
+    const list = this.navList();
+    if (!list.length) return;
+    const i = list.findIndex(r => r.set.id === this.expandedSet);
+    const r = list[clamp(i + d, 0, list.length - 1)];
     if (!r || r.set.id === this.expandedSet) return;
     const cur = BeatmapManager.maps.get(this.selectedId);
     const target = cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : r.maps[0];
@@ -472,7 +676,7 @@ const SongSelect = {
   /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
    *  picks are remembered so Shift+F2 / right-click can rewind them. */
   random() {
-    const flat = this.flatMaps().filter(m => !m.problems.length);
+    const flat = (this.groups ? this.groups.flatMap(g => g.items) : this.results || []).flatMap(r => r.maps).filter(m => !m.problems.length);
     if (!flat.length) return;
     const cur = BeatmapManager.maps.get(this.selectedId);
     const seen = this._randSeen || (this._randSeen = new Set());
