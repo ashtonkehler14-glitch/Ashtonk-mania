@@ -677,8 +677,8 @@ const MultiplayerScreen = {
     const input = h('input.input', { placeholder: 'Type a message…', maxlength: 300, 'aria-label': 'Chat message' });
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
-    const side = h('div.mp-side', h('div.mp-tabs', h('span.mp-tab.on', 'Chat')), chat);
-    this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid', h('div.mp-left', this.mapEl, this.playersEl), side));
+    const side = h('div.mp-side', chat);
+    this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
     this.body.append(this.roomEl, this.footEl);
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
   },
@@ -784,8 +784,8 @@ const MultiplayerScreen = {
         return h(`div.mp-team.${t ? 'blue' : 'red'}`, h('div.mp-team-h', h('span', t ? 'Blue team' : 'Red team'), h('span.muted', `${list.length}`), h('span.grow'),
           mine || !me ? null : h('button.btn.sm.mp-team-join', { onclick: () => { UISounds.click(); Multiplayer.setTeam(t); } }, 'Join')), ...list.map(slot));
       };
-      clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), h('div.mp-teams', team(0), team(1)), open));
-    } else clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), ...r.players.map(slot), open));
+      clearEl(this.playersEl).append(h('h3.mp-sect', 'Participants', h('span', ` ${r.players.length} / ${st.size}`)), h('div.mp-players', h('div.mp-teams', team(0), team(1)), open));
+    } else clearEl(this.playersEl).append(h('h3.mp-sect', 'Participants', h('span', ` ${r.players.length} / ${st.size}`)), h('div.mp-players', ...r.players.map(slot), open));
 
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
@@ -918,7 +918,7 @@ const MultiplayerScreen = {
     const res = Multiplayer.lastResults && Multiplayer.lastResults.qp && Multiplayer.lastResults.qp.round === q.round ? Multiplayer.lastResults : null;
     const gained = res && (q.phase === 'standings' || q.phase === 'final') ? Object.fromEntries(res.rows.map(x => [x.id, x.points])) : {};
     const list = r.players.map(p => ({ ...p, points: q.points[p.id] || 0 })).sort((a, b) => b.points - a.points);
-    clearEl(this.playersEl).append(h('div.mp-players.qp-standings', h('h3', 'Standings'), ...list.map((p, i) => h(`div.qp-st-row${p.id === Multiplayer.me ? '.me' : ''}`,
+    clearEl(this.playersEl).append(h('h3.mp-sect', 'Standings'), h('div.mp-players.qp-standings', ...list.map((p, i) => h(`div.qp-st-row${p.id === Multiplayer.me ? '.me' : ''}`,
       h('span.qp-st-pos', `#${i + 1}`), h('span.qp-av.pic', Presence.avatarEl(p, 22)), h('span.qp-st-name', p.name, p.id === Multiplayer.me ? h('span.muted', ' (you)') : null),
       gained[p.id] != null ? h('span.qp-st-gain', `+${gained[p.id]}`) : null, h('span.qp-st-pts', `${p.points}`, h('small', ' pts'))))));
     clearEl(this.resEl);

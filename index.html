@@ -3629,6 +3629,21 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .cp-stats { gap: 2px; }
 .cp-stat { font-size: 11.5px; line-height: 1.35; }
 
+/* multiplayer room — lazer's MultiplayerMatchSubScreen: three equal columns (Participants | Beatmap | Chat), each
+   under a SectionHeader (16px semibold, a 28×2 Highlight1 pill below) */
+.mp-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 20px; }
+.mp-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.mp-col > div:not(.mp-side) { min-height: 0; }
+.mp-col .mp-side { flex: 1; }
+.mp-col:first-child > div { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.mp-sect { position: relative; margin: 0 5px 12px; padding-bottom: 6px; font-size: 16px; font-weight: 600; color: #fff; flex: none; }
+.mp-sect span { color: hsl(var(--o-h, 320) 40% 70%); font-weight: 600; }
+.mp-sect::after { content: ""; position: absolute; left: 0; bottom: 0; width: 28px; height: 2px; border-radius: 1px; background: hsl(var(--o-h, 320) 100% 70%); }
+.mp-col .mp-players { background: none; padding: 0; overflow-y: auto; }
+@media (max-width: 1000px) { .mp-grid.cols3 { grid-template-columns: 1fr 1fr; } .mp-grid.cols3 > .mp-col:last-child { grid-column: 1 / -1; min-height: 280px; } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .mp-grid.cols3 { grid-template-columns: 1fr; } }
+.mp-col.mp-left { gap: 0; }
+
 </style>
 </head>
 <body>
@@ -17679,8 +17694,8 @@ const MultiplayerScreen = {
     const input = h('input.input', { placeholder: 'Type a message…', maxlength: 300, 'aria-label': 'Chat message' });
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
-    const side = h('div.mp-side', h('div.mp-tabs', h('span.mp-tab.on', 'Chat')), chat);
-    this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid', h('div.mp-left', this.mapEl, this.playersEl), side));
+    const side = h('div.mp-side', chat);
+    this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
     this.body.append(this.roomEl, this.footEl);
     requestAnimationFrame(() => { if (this.chatList) this.chatList.scrollTop = this.chatList.scrollHeight; });
   },
@@ -17786,8 +17801,8 @@ const MultiplayerScreen = {
         return h(`div.mp-team.${t ? 'blue' : 'red'}`, h('div.mp-team-h', h('span', t ? 'Blue team' : 'Red team'), h('span.muted', `${list.length}`), h('span.grow'),
           mine || !me ? null : h('button.btn.sm.mp-team-join', { onclick: () => { UISounds.click(); Multiplayer.setTeam(t); } }, 'Join')), ...list.map(slot));
       };
-      clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), h('div.mp-teams', team(0), team(1)), open));
-    } else clearEl(this.playersEl).append(h('div.mp-players', h('h3', 'Players'), ...r.players.map(slot), open));
+      clearEl(this.playersEl).append(h('h3.mp-sect', 'Participants', h('span', ` ${r.players.length} / ${st.size}`)), h('div.mp-players', h('div.mp-teams', team(0), team(1)), open));
+    } else clearEl(this.playersEl).append(h('h3.mp-sect', 'Participants', h('span', ` ${r.players.length} / ${st.size}`)), h('div.mp-players', ...r.players.map(slot), open));
 
     clearEl(this.resEl);
     if (Multiplayer.lastResults) this.resEl.append(this.resultsPanel(Multiplayer.lastResults));
@@ -17920,7 +17935,7 @@ const MultiplayerScreen = {
     const res = Multiplayer.lastResults && Multiplayer.lastResults.qp && Multiplayer.lastResults.qp.round === q.round ? Multiplayer.lastResults : null;
     const gained = res && (q.phase === 'standings' || q.phase === 'final') ? Object.fromEntries(res.rows.map(x => [x.id, x.points])) : {};
     const list = r.players.map(p => ({ ...p, points: q.points[p.id] || 0 })).sort((a, b) => b.points - a.points);
-    clearEl(this.playersEl).append(h('div.mp-players.qp-standings', h('h3', 'Standings'), ...list.map((p, i) => h(`div.qp-st-row${p.id === Multiplayer.me ? '.me' : ''}`,
+    clearEl(this.playersEl).append(h('h3.mp-sect', 'Standings'), h('div.mp-players.qp-standings', ...list.map((p, i) => h(`div.qp-st-row${p.id === Multiplayer.me ? '.me' : ''}`,
       h('span.qp-st-pos', `#${i + 1}`), h('span.qp-av.pic', Presence.avatarEl(p, 22)), h('span.qp-st-name', p.name, p.id === Multiplayer.me ? h('span.muted', ' (you)') : null),
       gained[p.id] != null ? h('span.qp-st-gain', `+${gained[p.id]}`) : null, h('span.qp-st-pts', `${p.points}`, h('small', ' pts'))))));
     clearEl(this.resEl);
