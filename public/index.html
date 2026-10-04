@@ -1112,6 +1112,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── lazer-style results ring & mod panels */
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes mdFade { to { opacity: 1; } }
 
 /* ── main menu (osu!lazer): centred logo; clicking it slides the button bar out to the right */
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
@@ -3778,6 +3779,37 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lz-cover::after { content: ""; position: absolute; inset: 0; background: var(--c); opacity: .7; }
 .lz-countdown { position: absolute; left: 50%; bottom: 22px; transform: translateX(calc(-50% - 3px)); font-size: 12px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* lazer's MedalAnimation: black at 60%, light strips sweeping out from a 400px disc (5px white rim, Blue glow, #05262f
+   with triangles) that pops in (scale .8 → 1, OutElastic); "MEDAL UNLOCKED" (24 light), the name (20 bold) and
+   description (16) below */
+.medal-ov { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadeIn 300ms ease both; --ds: min(400px, 52vh); }
+.medal-ov.out { animation: fadeOut 300ms ease both; }
+.md-strip { position: absolute; top: 50%; width: 0; height: 5px; margin-top: -2.5px; box-shadow: 0 0 50px rgba(102, 204, 255, .5); animation: mdStrip 900ms cubic-bezier(.23, 1, .32, 1) 600ms forwards; }
+.md-strip.l { right: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, transparent, #fff); }
+.md-strip.r { left: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, #fff, transparent); }
+@keyframes mdStrip { to { width: calc(50% - var(--ds) / 2); } }
+.md-disc { position: relative; width: var(--ds); height: var(--ds); border: 5px solid #fff; border-radius: 50%; overflow: hidden; background: #05262f; box-shadow: 0 0 50px rgba(102, 204, 255, .5); opacity: 0; transform: scale(.8); animation: mdDisc 800ms linear(0, .25 6%, 1.05 14%, 1.16 18%, 1.08 25%, .97 32%, .99 40%, 1.01 50%, 1) 200ms forwards; }
+@keyframes mdDisc { 0% { opacity: 0; transform: scale(.8); } 15% { opacity: 1; } 100% { opacity: 1; transform: scale(1); } }
+.md-tri { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg, #04222b 0 8deg, #052933 8deg 16deg); opacity: .8; animation: spin 40s linear infinite; }
+.md-icon { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: scale(.5); animation: mdIcon 600ms cubic-bezier(.23, 1, .32, 1) 1100ms forwards; }
+.md-icon .i { width: 42%; height: 42%; color: #fff; filter: drop-shadow(0 0 18px rgba(102, 204, 255, .9)); }
+@keyframes mdIcon { to { opacity: 1; transform: scale(1); } }
+.md-text { position: absolute; top: calc(50% + var(--ds) / 2 + 18px); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; color: #fff; }
+.md-unlocked { font-size: 24px; font-weight: 300; letter-spacing: .04em; opacity: 0; animation: mdFade 500ms ease 1500ms forwards; }
+.md-name { font-size: 20px; font-weight: 700; opacity: 0; animation: mdFade 600ms ease 2300ms forwards; }
+.md-desc { max-width: 420px; padding: 0 16px; font-size: 16px; opacity: 0; animation: mdFade 1000ms ease 2400ms forwards; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* the profile's Medals section */
+.md-group { margin-bottom: 14px; }
+.md-group h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: hsl(var(--o-h) 40% 75%); }
+.md-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.md-badge { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 12px; color: hsl(var(--o-h) 10% 50%); }
+.md-mini { display: grid; place-items: center; width: 56px; height: 56px; border: 3px solid hsl(var(--o-h) 10% 30%); border-radius: 50%; background: hsl(var(--o-h) 10% 15%); }
+.md-mini .i { width: 24px; height: 24px; opacity: .35; }
+.md-badge.on { color: #fff; }
+.md-badge.on .md-mini { border-color: #fff; background: #05262f; box-shadow: 0 0 14px rgba(102, 204, 255, .45); }
+.md-badge.on .md-mini .i { opacity: 1; color: #fff; }
+
 </style>
 </head>
 <body>
@@ -5847,6 +5879,8 @@ const AudioManager = {
     // lazer's UI/dialog-dangerous-tick (pitched up as the hold fills) and dialog-dangerous-select
     else if (name === 'dialog-dangerous-tick') buf = make(0.04, t => Math.sin(2 * Math.PI * 1100 * t) * env(t, 0.0005, 0.008) * 0.25);
     else if (name === 'dialog-dangerous-select') buf = make(0.5, (t, n) => (Math.sin(2 * Math.PI * (160 - 80 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.003, 0.08) * 0.1) * 0.5);
+    // lazer's MedalSplash/medal-get: a bright rising chord over a soft swell
+    else if (name === 'medal-get') buf = make(1.8, (t, n) => ([523, 784, 1047, 1568].reduce((a, f, k) => a + (t > k * 0.09 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.09, 0.01, 0.7) : 0), 0) * 0.09 + n() * env(t, 0.3, 0.4) * 0.03));
     else if (name === 'check-on') buf = make(0.08, t => Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'check-off') buf = make(0.08, t => Math.sin(2 * Math.PI * 1000 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);
@@ -6307,7 +6341,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150 } },
 ];
@@ -13874,6 +13908,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
+      try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       if (this.params.daily && score.passed && !s.mods.includes('AT')) Daily.submit(score, this.params.daily); // (lazer's daily challenge)
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
@@ -15171,6 +15206,7 @@ const ProfileScreen = {
       sub('Best performance', topPlays.length, topPlays.length
         ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))
         : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
+    const medals = section('medals', 'Medals', sub('Medals', Medals.count(), ...Medals.section()));
     const recent = ScoreManager.recent(10);
     const rec = section('recent', 'Recent',
       sub('Recent plays', recent.length, recent.length
@@ -15178,7 +15214,7 @@ const ProfileScreen = {
         : h('div.pf-empty', 'No recent plays.')));
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, rec);
+    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, medals, rec);
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
       let sc = tabs.parentElement;
@@ -20193,6 +20229,95 @@ const DailyScreen = {
   },
 };
 
+/* ===== 19i-medals.js ===== */
+/* Medals, as osu!'s: earned by playing, each unlocked once with lazer's MedalAnimation — the screen dims, a 400px disc
+ * (a 5px white rim, Blue glow, dark teal with triangles) pops in with an elastic bounce, light strips sweep out to
+ * the sides, then "MEDAL UNLOCKED", the medal's name and what it was for. The profile lists them all. */
+
+// stars → [name, …] for the pass and full combo medals
+const MEDAL_PASS = ['Opening Act', 'Finding the Beat', 'In the Groove', 'Keyboard Warrior', 'Five-Star Fury', 'Beyond Reason', 'Seventh Heaven', 'Into the Abyss'];
+const MEDAL_FC = ['Unbroken', 'Steady Hands', 'Flawless Flow', 'Iron Focus', 'Untouchable', 'Perfect Storm'];
+// (lazer's skill medals don't count plays made easier)
+const medalEasy = s => (s.mods || []).some(m => ['AT', 'NF', 'EZ', 'HT', 'DC'].includes(m)) || (s.rate || 1) < 1;
+const MEDALS = [
+  { id: 'first', group: 'Skill', icon: 'star', name: 'First Steps', desc: 'Pass your first beatmap.', test: s => s.passed && !(s.mods || []).includes('AT') },
+  ...MEDAL_PASS.map((name, i) => ({ id: `pass${i + 1}`, group: 'Skill', icon: 'star', stars: i + 1, name, desc: `Pass a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 })),
+  ...MEDAL_FC.map((name, i) => ({ id: `fc${i + 1}`, group: 'Skill', icon: 'target', stars: i + 1, name, desc: `Full combo a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 && s.counts && s.counts[5] === 0 })),
+  { id: 'ss', group: 'Skill', icon: 'sparkle', name: 'Perfectionist', desc: 'Get an SS: nothing below a 300.', test: s => s.passed && !medalEasy(s) && (s.grade === 'SS' || s.grade === 'XH') },
+  { id: 'combo500', group: 'Skill', icon: 'bolt', name: 'Combo Chain', desc: 'Reach a 500x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 500 },
+  { id: 'combo1000', group: 'Skill', icon: 'bolt', name: 'Thousand Strong', desc: 'Reach a 1,000x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 1000 },
+  { id: 'hidden', group: 'Mod Introduction', icon: 'ghost', name: 'In the Dark', desc: 'Pass a 3★ beatmap with Hidden or Fade In.', test: s => s.passed && !medalEasy(s) && s.stars >= 3 && (s.mods || []).some(m => m === 'HD' || m === 'FI') },
+  { id: 'speed', group: 'Mod Introduction', icon: 'shuffle', name: 'Need for Speed', desc: 'Pass a 3★ beatmap with Double Time or Nightcore.', test: s => s.passed && !medalEasy(s) && s.stars >= 3 && (s.mods || []).some(m => m === 'DT' || m === 'NC') },
+  { id: 'keys7', group: 'Mod Introduction', icon: 'keyboard', name: 'Seven Keys', desc: 'Pass a 7K beatmap.', test: s => s.passed && !(s.mods || []).includes('AT') && s.keys === 7 },
+  { id: 'plays10', group: 'Dedication', icon: 'play', name: 'Warming Up', desc: 'Play 10 times.', count: 10 },
+  { id: 'plays100', group: 'Dedication', icon: 'play', name: 'Regular', desc: 'Play 100 times.', count: 100 },
+  { id: 'plays1000', group: 'Dedication', icon: 'play', name: 'Devoted', desc: 'Play 1,000 times.', count: 1000 },
+  { id: 'multi', group: 'Hush-Hush', icon: 'multi', name: 'Better Together', desc: 'Finish a multiplayer match.', ctx: 'mp' },
+  { id: 'daily', group: 'Hush-Hush', icon: 'calendar', name: 'Daily Dose', desc: 'Set a score in the daily challenge.', ctx: 'daily' },
+];
+
+const Medals = {
+  all: MEDALS, queue: [], showing: false,
+  unlocked() { return Settings.get('medals.unlocked') || {}; },
+  has(id) { return !!this.unlocked()[id]; },
+  /** After a play: unlock what it earned (shown once the results are up). */
+  check(score, ctx = {}) {
+    if (!score) return;
+    const got = { ...this.unlocked() }, fresh = [], plays = ScoreManager.scores.length;
+    for (const m of MEDALS) {
+      if (got[m.id]) continue;
+      const ok = m.count ? plays >= m.count : m.ctx ? !!ctx[m.ctx] && !(score.mods || []).includes('AT') : m.test(score);
+      if (ok) { got[m.id] = Date.now(); fresh.push(m); }
+    }
+    if (!fresh.length) return;
+    Settings.set('medals.unlocked', got);
+    this.queue.push(...fresh);
+    this.later();
+  },
+  /** Medals earned before there were medals: unlocked quietly, once. */
+  backfill() {
+    if (Settings.get('medals.backfilled')) return;
+    const got = { ...this.unlocked() }, plays = ScoreManager.scores.length;
+    for (const m of MEDALS) {
+      if (got[m.id] || m.ctx) continue;
+      const s = m.count ? (plays >= m.count ? ScoreManager.scores[m.count - 1] : null) : ScoreManager.scores.find(x => m.test(x));
+      if (s) got[m.id] = s.date || Date.now();
+    }
+    Settings.set('medals.unlocked', got);
+    Settings.set('medals.backfilled', true);
+  },
+  /** Show the queue one at a time, never over gameplay (lazer holds them for the results screen). */
+  later() {
+    clearTimeout(this._t);
+    this._t = setTimeout(() => {
+      if (this.showing || !this.queue.length) return;
+      if (Screens.currentName === 'gameplay' || Overlays.top()) { this.later(); return; }
+      this.show(this.queue.shift());
+    }, 1400);
+  },
+  show(m) {
+    this.showing = true;
+    if (Settings.get('audio.uiSounds')) { const b = AudioManager.synth('medal-get'); b && AudioManager.play(b, { bus: 'ui' }); }
+    const el = h('div.medal-ov', { role: 'dialog', 'aria-label': `Medal unlocked: ${m.name}` },
+      h('div.md-strip.l'), h('div.md-strip.r'),
+      h('div.md-disc', h('div.md-tri'), h('div.md-icon', icon(m.icon))),
+      h('div.md-text', h('div.md-unlocked', 'MEDAL UNLOCKED'), h('div.md-name', m.name), h('div.md-desc', m.desc)));
+    let done = false;
+    const close = () => { if (done) return; done = true; o.close(); };
+    const o = makeOverlay(el, { onClose: () => { this.showing = false; this.later(); }, onKey: e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { close(); return true; } return false; } });
+    el.addEventListener('click', close);
+    Notifications.add(`Medal unlocked: ${m.name}`, m.desc, 'ok');
+  },
+  /** The profile's Medals section: every medal, the ones not yet earned dimmed. */
+  section() {
+    const got = this.unlocked(), groups = [...new Set(MEDALS.map(m => m.group))];
+    return groups.map(g => h('div.md-group', h('h4', g), h('div.md-grid', ...MEDALS.filter(m => m.group === g).map(m =>
+      h(`div.md-badge${got[m.id] ? '.on' : ''}`, { title: `${m.name} — ${m.desc}${got[m.id] ? `\nUnlocked ${new Date(got[m.id]).toLocaleDateString()}` : ''}` },
+        h('div.md-mini', icon(m.icon)), h('span', m.name))))));
+  },
+  count() { const got = this.unlocked(); return MEDALS.filter(m => got[m.id]).length; },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -20244,7 +20369,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -20260,6 +20385,7 @@ const App = {
     if (!returning) { await Onboarding.run(); DB.kvSet('changelog.seen', WhatsNew.latest()).catch(() => {}); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
     Mobile.init();
+    try { Medals.backfill(); } catch (e) { console.warn('medals', e); }
     Multiplayer.joinFromLink();
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);

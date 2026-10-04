@@ -216,6 +216,7 @@ const ProfileScreen = {
       sub('Best performance', topPlays.length, topPlays.length
         ? h('div.pf-scores', ...topPlays.slice(0, 20).map((tp, i) => this.scoreRow(tp.score, fmtInt(tp.pp), `weighted ${Math.round(Math.pow(0.95, i) * 100)}%`, fmtInt(tp.pp * Math.pow(0.95, i)))))
         : h('div.pf-empty', 'No performance records. Pass a map to earn pp.')));
+    const medals = section('medals', 'Medals', sub('Medals', Medals.count(), ...Medals.section()));
     const recent = ScoreManager.recent(10);
     const rec = section('recent', 'Recent',
       sub('Recent plays', recent.length, recent.length
@@ -223,7 +224,7 @@ const ProfileScreen = {
         : h('div.pf-empty', 'No recent plays.')));
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, rec);
+    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, medals, rec);
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
       let sc = tabs.parentElement;

@@ -50,6 +50,7 @@ async function player(name) {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
   if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter'); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
+  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1])))); // (no medal pop-ups over the tests)
   await page.evaluate(async () => {
     const b = await (await fetch('/tests/fixtures/test-set.osz')).blob();
     await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]);

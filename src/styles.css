@@ -1095,6 +1095,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* ── lazer-style results ring & mod panels */
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes mdFade { to { opacity: 1; } }
 
 /* ── main menu (osu!lazer): centred logo; clicking it slides the button bar out to the right */
 .lz-cookie-disc { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
@@ -3760,3 +3761,34 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lz-cover::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 20%, transparent), var(--c)); mix-blend-mode: plus-lighter; }
 .lz-cover::after { content: ""; position: absolute; inset: 0; background: var(--c); opacity: .7; }
 .lz-countdown { position: absolute; left: 50%; bottom: 22px; transform: translateX(calc(-50% - 3px)); font-size: 12px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* lazer's MedalAnimation: black at 60%, light strips sweeping out from a 400px disc (5px white rim, Blue glow, #05262f
+   with triangles) that pops in (scale .8 → 1, OutElastic); "MEDAL UNLOCKED" (24 light), the name (20 bold) and
+   description (16) below */
+.medal-ov { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadeIn 300ms ease both; --ds: min(400px, 52vh); }
+.medal-ov.out { animation: fadeOut 300ms ease both; }
+.md-strip { position: absolute; top: 50%; width: 0; height: 5px; margin-top: -2.5px; box-shadow: 0 0 50px rgba(102, 204, 255, .5); animation: mdStrip 900ms cubic-bezier(.23, 1, .32, 1) 600ms forwards; }
+.md-strip.l { right: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, transparent, #fff); }
+.md-strip.r { left: calc(50% + var(--ds) / 2); background: linear-gradient(90deg, #fff, transparent); }
+@keyframes mdStrip { to { width: calc(50% - var(--ds) / 2); } }
+.md-disc { position: relative; width: var(--ds); height: var(--ds); border: 5px solid #fff; border-radius: 50%; overflow: hidden; background: #05262f; box-shadow: 0 0 50px rgba(102, 204, 255, .5); opacity: 0; transform: scale(.8); animation: mdDisc 800ms linear(0, .25 6%, 1.05 14%, 1.16 18%, 1.08 25%, .97 32%, .99 40%, 1.01 50%, 1) 200ms forwards; }
+@keyframes mdDisc { 0% { opacity: 0; transform: scale(.8); } 15% { opacity: 1; } 100% { opacity: 1; transform: scale(1); } }
+.md-tri { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg, #04222b 0 8deg, #052933 8deg 16deg); opacity: .8; animation: spin 40s linear infinite; }
+.md-icon { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: scale(.5); animation: mdIcon 600ms cubic-bezier(.23, 1, .32, 1) 1100ms forwards; }
+.md-icon .i { width: 42%; height: 42%; color: #fff; filter: drop-shadow(0 0 18px rgba(102, 204, 255, .9)); }
+@keyframes mdIcon { to { opacity: 1; transform: scale(1); } }
+.md-text { position: absolute; top: calc(50% + var(--ds) / 2 + 18px); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; color: #fff; }
+.md-unlocked { font-size: 24px; font-weight: 300; letter-spacing: .04em; opacity: 0; animation: mdFade 500ms ease 1500ms forwards; }
+.md-name { font-size: 20px; font-weight: 700; opacity: 0; animation: mdFade 600ms ease 2300ms forwards; }
+.md-desc { max-width: 420px; padding: 0 16px; font-size: 16px; opacity: 0; animation: mdFade 1000ms ease 2400ms forwards; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* the profile's Medals section */
+.md-group { margin-bottom: 14px; }
+.md-group h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: hsl(var(--o-h) 40% 75%); }
+.md-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.md-badge { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 12px; color: hsl(var(--o-h) 10% 50%); }
+.md-mini { display: grid; place-items: center; width: 56px; height: 56px; border: 3px solid hsl(var(--o-h) 10% 30%); border-radius: 50%; background: hsl(var(--o-h) 10% 15%); }
+.md-mini .i { width: 24px; height: 24px; opacity: .35; }
+.md-badge.on { color: #fff; }
+.md-badge.on .md-mini { border-color: #fff; background: #05262f; box-shadow: 0 0 14px rgba(102, 204, 255, .45); }
+.md-badge.on .md-mini .i { opacity: 1; color: #fff; }

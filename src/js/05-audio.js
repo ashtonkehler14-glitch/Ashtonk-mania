@@ -148,6 +148,8 @@ const AudioManager = {
     // lazer's UI/dialog-dangerous-tick (pitched up as the hold fills) and dialog-dangerous-select
     else if (name === 'dialog-dangerous-tick') buf = make(0.04, t => Math.sin(2 * Math.PI * 1100 * t) * env(t, 0.0005, 0.008) * 0.25);
     else if (name === 'dialog-dangerous-select') buf = make(0.5, (t, n) => (Math.sin(2 * Math.PI * (160 - 80 * t) * t) * env(t, 0.002, 0.12) * 0.6 + n() * env(t, 0.001, 0.03) * 0.25 + Math.sin(2 * Math.PI * 1760 * t) * env(t, 0.003, 0.08) * 0.1) * 0.5);
+    // lazer's MedalSplash/medal-get: a bright rising chord over a soft swell
+    else if (name === 'medal-get') buf = make(1.8, (t, n) => ([523, 784, 1047, 1568].reduce((a, f, k) => a + (t > k * 0.09 ? Math.sin(2 * Math.PI * f * t) * env(t - k * 0.09, 0.01, 0.7) : 0), 0) * 0.09 + n() * env(t, 0.3, 0.4) * 0.03));
     else if (name === 'check-on') buf = make(0.08, t => Math.sin(2 * Math.PI * 1500 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'check-off') buf = make(0.08, t => Math.sin(2 * Math.PI * 1000 * t) * env(t, 0.001, 0.02) * 0.2);
     else if (name === 'failsound') buf = make(1.4, t => Math.sin(2 * Math.PI * (330 - 160 * t) * t) * env(t, 0.01, 0.5) * 0.3);

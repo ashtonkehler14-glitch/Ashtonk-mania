@@ -46,6 +46,8 @@ const waitBoot = async () => {
     await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
     await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
   }
+  // (every medal already earned: their pop-ups would cover what the tests click; the medal test resets them)
+  await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
 };
 
 await page.goto(url);
@@ -1093,6 +1095,17 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const pc = await page.evaluate(async () => { const SM = AshtonkMania.ScoreManager, BM = AshtonkMania.BeatmapManager, top = SM.bestPpPerMap().map(t => BM.mapByHash(t.score.mapHash)).find(Boolean);
     const want = top && await BM.bgURL(top), got = (document.querySelector('.pf-cover').style.backgroundImage.match(/url\("(.*)"\)/) || [])[1]; return { ok: !top || !want || got === want, want, got }; });
   check('profile: the cover is your top pp play\'s background', pc.ok, JSON.stringify(pc));
+}
+
+// medals: a play unlocks what it earned, shown with lazer's medal animation once off gameplay; the profile lists them
+{
+  await page.evaluate(() => { AshtonkMania.Screens.go('home'); AshtonkMania.Settings.set('medals.unlocked', {}); AshtonkMania.Medals.check({ passed: true, mods: [], rate: 1, stars: 2.4, keys: 4, counts: [80, 0, 0, 0, 0, 0], grade: 'SS', maxCombo: 80 }); });
+  await page.waitForSelector('.medal-ov', { timeout: 5000 });
+  const got = await page.evaluate(() => Object.keys(AshtonkMania.Medals.unlocked()).sort().join());
+  check('medals: a play unlocks the ones it earned (pass, full combo, SS by stars) with the medal animation', /first/.test(got) && /pass2/.test(got) && !/pass3/.test(got) && /fc2/.test(got) && /\bss\b/.test(got) && await page.evaluate(() => /MEDAL UNLOCKED/.test(document.querySelector('.medal-ov').textContent)), got);
+  for (let i = 0; i < 8 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
+  await page.evaluate(() => AshtonkMania.Screens.go('profile')); await page.waitForTimeout(700);
+  check('medals: the profile shows earned medals lit and the rest dimmed', await page.evaluate(() => document.querySelectorAll('.md-badge.on').length >= 6 && document.querySelectorAll('.md-badge:not(.on)').length > 0));
 }
 
 // lazer's dangerous dialog buttons: a click does nothing, holding for 500 ms confirms
