@@ -66,6 +66,11 @@ const SettingsPanel = {
       if (!g.has(it.g)) g.set(it.g, []);
       g.get(it.g).push(it);
     }
+    // (in lazer's order: skin, input, user interface, gameplay, audio, graphics, maintenance)
+    const ORDER = ['Skin', 'Input', 'User Interface', 'Gameplay', 'Audio', 'Graphics', 'Maintenance'];
+    const rank = sec => { const i = ORDER.indexOf(sec); return i < 0 ? ORDER.length : i; };
+    const sorted = new Map([...bySec].sort((a, b) => rank(a[0]) - rank(b[0])));
+    bySec.clear(); for (const [k, v] of sorted) bySec.set(k, v);
     for (const [sec, groups] of bySec) {
       const secEl = h('div.sp-section', { dataset: { section: sec } }, h('h3', sec));
       for (const [g, items] of groups) {

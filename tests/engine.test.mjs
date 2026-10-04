@@ -120,10 +120,12 @@ test('long note: early release breaks combo and tail misses', () => {
   assert.equal(e.score.judged, 3);
 });
 
-test('long note: re-grab after early release caps tail at Bad', () => {
+test('long note: let go mid-hold, it can\'t be held again (the tail is missed)', () => {
   const e = engineFor(osu([ln(0, 1000, 2000)]));
   e.input(0, true, 1000); e.input(0, false, 1400); e.input(0, true, 1500); e.input(0, false, 2000);
-  assert.equal(e.score.counts[J.BAD], 1);
+  e.advance(2400);
+  assert.equal(e.score.counts[J.BAD], 0);
+  assert.equal(e.score.counts[J.MISS], 1);
 });
 
 test('long note: missed head then note right after LN end is still hittable', () => {
@@ -386,29 +388,25 @@ test('lazer hold: let go and never held again, the tail is missed after its wind
   e.advance(2192); assert.equal(e.score.counts[J.MISS], 1);
 });
 
-test('lazer hold: can be held again until the 50 window after its end, and combo breaks only once', () => {
+test('lazer hold: once let go mid-hold it can\'t be held again; combo breaks once and the tail is missed', () => {
   const e = engineRules(osu([note(1, 900), ln(0, 1000, 3000), note(1, 1500), note(1, 2500)]));
   e.input(1, true, 900); e.input(1, false, 920);
   e.input(0, true, 1000);
   e.input(0, false, 1200);                 // early release: combo breaks
   assert.equal(e.score.combo, 0);
   e.input(1, true, 1500); e.input(1, false, 1520);
-  e.input(0, true, 1600); e.input(0, false, 1700); // held again, let go again: no second combo break
+  e.input(0, true, 1600); e.input(0, false, 1700); // pressing again does nothing: no second combo break
   assert.equal(e.score.combo, 1);
-  e.input(0, true, 3100); e.input(0, false, 3110); // +100 after the end, inside the 50 window: hold again
-  assert.equal(e.score.counts[J.BAD], 1, 'the tail of a broken hold is at most a 50');
-  // after end + 50-window it can't be held again (and then it's missed at end + 1.5 × 50)
-  const f = engineRules(osu([ln(0, 1000, 3000)]));
-  f.input(0, true, 1000); f.input(0, false, 1200);
-  f.input(0, true, 3130); f.input(0, false, 3140);
-  assert.equal(f.score.counts[J.BAD], 0);
-  f.advance(3200); assert.equal(f.score.counts[J.MISS], 1);
+  e.input(0, true, 3100); e.input(0, false, 3110);
+  assert.equal(e.score.counts[J.BAD], 0, 'no tail judgement from pressing again');
+  e.advance(3200); assert.equal(e.score.counts[J.MISS], 2, 'the hold\'s tail, and the note at 2500 nobody pressed');
 });
 
 test('lazer hold: a tail released inside the miss part of its window stays a miss when capped', () => {
   const e = engineRules(osu([ln(0, 1000, 3000)]));
   e.input(0, true, 1000); e.input(0, false, 1200); e.input(0, true, 1300);
   e.input(0, false, 3000 - 220); // −220: past 1.5 × 50 (191.25), inside 1.5 × miss (246.75)
+  e.advance(3300);
   assert.equal(e.score.counts[J.MISS], 1);
   assert.equal(e.score.counts[J.BAD], 0);
 });
@@ -489,10 +487,10 @@ test('No Release (osu!lazer): a hold still held at its end is a MAX with no rele
   const f = engineRules(osu([ln(0, 1000, 2000)]));
   f.input(0, true, 1000); f.advance(2600);
   assert.equal(f.score.counts[J.MISS], 1);
-  // let go early and grab again: capped at 50
+  // let go early: pressing again doesn't take it back, the tail is missed
   const g = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['NR'] });
-  g.input(0, true, 1000); g.input(0, false, 1400); g.input(0, true, 1500); g.advance(2001);
-  assert.equal(g.score.counts[J.BAD], 1);
+  g.input(0, true, 1000); g.input(0, false, 1400); g.input(0, true, 1500); g.advance(2400);
+  assert.equal(g.score.counts[J.BAD], 0); assert.equal(g.score.counts[J.MISS], 1);
   // releasing inside the tail window before the end is judged as usual
   const h = engineRules(osu([ln(0, 1000, 2000)]), { mods: ['NR'] });
   h.input(0, true, 1000); h.input(0, false, 1950);

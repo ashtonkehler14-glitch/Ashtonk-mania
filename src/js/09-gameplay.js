@@ -295,8 +295,8 @@ class GameplayEngine {
           this._judge(n, j, t, err, false);
           this.ptr[col]++;
         }
-      } else if (n.state === NS.DROPPED && t >= n.time - this.W[J.BAD] && t <= n.end) {
-        // re-grab a dropped long note: tail result is capped at Bad
+      } else if (n.state === NS.DROPPED && !n.released && t >= n.time - this.W[J.BAD] && t <= n.end) {
+        // grab a long note whose head was missed: tail result is capped at Bad (one let go mid-hold can't be held again)
         n.state = NS.HOLDING; n.capped = true; this.holding[col] = n;
         this._emit({ type: 'regrab', col, t, note: n });
       }
@@ -309,9 +309,9 @@ class GameplayEngine {
       this.holding[col] = null;
       const err = t - n.end;
       if (err < -this.TW[J.MISS]) {
-        // released too early: no tail result yet. The hold's body breaks combo (osu!lazer: only the first time),
-        // the note can be held again, and its tail is then worth at most a 50.
-        n.state = NS.DROPPED; n.capped = true;
+        // released too early: the hold's body breaks combo, and it can't be held again — its tail is missed once
+        // its window passes (pressing the column again does nothing to it)
+        n.state = NS.DROPPED; n.capped = true; n.released = true;
         const broke = !this.lazer || !n.bodyBroken;
         n.bodyBroken = true;
         if (broke) { this.score.breakCombo(); this.health.earlyRelease(t); }
@@ -351,7 +351,7 @@ class GameplayEngine {
       }
       if (n.state === NS.DROPPED) {
         // hold it again: from the head's miss window until 50-window after the end (never in the tail's extra lenience)
-        if (hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
+        if (!n.released && hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
           n.state = NS.HOLDING; n.capped = true; this.holding[col] = n;
           this._emit({ type: 'regrab', col, t, note: n });
           return;
