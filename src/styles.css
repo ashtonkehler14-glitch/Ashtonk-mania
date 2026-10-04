@@ -548,11 +548,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-filter { flex: none; margin-right: -20px; padding: 8px 44px 8px 34px; display: flex; flex-direction: column; gap: 5px; }
 .ss-filter::before { transform-origin: bottom left; border-radius: 0 0 0 10px; background: hsl(var(--ss-h) 10% 15% / .9); }
 .ss-search { height: 54px; } /* (lazer's ShearedFilterTextBox: 42px and a 12px line under the text for "N matches") */
-.ss-search .input { position: relative; width: 100%; height: 40px; padding-left: 50px; font-size: 1rem; font-weight: 600; background: none; border-color: transparent; box-shadow: none; }
+.ss-search .input { position: relative; width: 100%; height: 40px; padding-left: 15px; padding-right: 50px; font-size: 1rem; font-weight: 600; background: none; border-color: transparent; box-shadow: none; }
 .ss-search::before { border-radius: 8px; background: var(--b4); transition: background var(--t-fast); }
 .ss-search:focus-within::before { background: var(--b3); box-shadow: 0 0 0 1px rgba(255, 255, 255, .2); }
-.ss-search .i { position: absolute; left: 17px; top: 12px; width: 16px; height: 16px; color: var(--c2); z-index: 1; }
-.ss-count { position: absolute; left: 51px; top: 36px; z-index: 1; color: #fc2; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; pointer-events: none; }
+.ss-search .i { position: absolute; right: 17px; top: 13px; width: 16px; height: 16px; color: #fff; z-index: 1; pointer-events: none; }
+.ss-count { position: absolute; left: 16px; top: 36px; z-index: 1; color: #fc2; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; pointer-events: none; }
 .ss-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ss-filter .ss-row2, .ss-filter .ss-row3 { flex-wrap: nowrap; gap: 5px; }
 .ss-row3 > .ss-sel { flex: 1 1 0; min-width: 0; max-width: 180px; }
@@ -1750,7 +1750,29 @@ div.res-calib .i { color: var(--good); }
 .modsel-stat { position: relative; isolation: isolate; background: none; border-radius: 0; padding: 6px 18px; }
 .modsel-stat::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 8px; background: hsl(var(--o-h) 10% 20%); transform: skewX(-11.31deg); }
 .modsel-stat span { color: hsl(var(--o-h) 40% 90%); }
-.modsel-cols { gap: 14px; padding: 18px 50px 18px 80px; }
+.modsel-cols { gap: 14px; padding: 14px 50px 18px 80px; }
+/* above the columns (lazer: 100px in from each side): the 300px sheared search box, its icon on the right, and the
+   400px Customise panel, whose body opens down over the columns */
+.ms-tools { position: relative; z-index: 3; flex: none; display: flex; justify-content: space-between; align-items: flex-start; height: 42px; margin: 14px 100px 0; }
+.ms-search { position: relative; display: flex; align-items: center; width: 300px; height: 42px; border-radius: 10px; background: hsl(var(--o-h) 10% 25%); transform: skewX(-11.31deg); }
+.ms-search .i { position: absolute; right: 17px; width: 16px; height: 16px; transform: skewX(11.31deg); pointer-events: none; }
+.ms-search-in { flex: 1; min-width: 0; height: 100%; padding: 0 50px 0 16px; border: 0; outline: none; background: none; color: #fff; font: inherit; font-size: 1.05rem; font-weight: 600; transform: skewX(11.31deg); }
+.ms-search-in::placeholder { color: hsl(var(--o-h) 40% 90% / .5); font-style: italic; }
+.ms-search-in::-webkit-search-cancel-button { display: none; }
+.ms-cust { position: relative; width: 400px; transition: filter 300ms var(--ease-out); }
+.ms-cust.off { filter: brightness(.6); }
+.ms-cust-h { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; width: 100%; height: 42px; padding: 0 20px; border: 0; border-radius: 10px; background: hsl(var(--o-h) 20% 25%); color: #fff; font-size: 20px; font-weight: 600; cursor: pointer; transition: background 500ms var(--ease-out); }
+.ms-cust.off .ms-cust-h { cursor: default; }
+.ms-cust-h:hover::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(50, 50, 50, 1); mix-blend-mode: plus-lighter; pointer-events: none; }
+.ms-cust.off .ms-cust-h:hover::after { content: none; }
+.ms-cust-h .i { width: 16px; height: 16px; stroke-width: 3; transform: rotate(90deg); transition: transform 300ms var(--ease-out); }
+.ms-cust.flash .ms-cust-h { animation: msFlash 500ms ease-out; }
+@keyframes msFlash { 0% { box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0); } 30% { box-shadow: inset 0 0 0 100px rgba(255, 255, 255, .4); } }
+.ms-cust-b { position: absolute; top: 0; left: 0; right: 0; max-height: 42px; overflow: hidden; padding: 62px 20px 0; border: 2px solid hsl(var(--o-h) 20% 25%); border-radius: 10px; background: hsl(var(--o-h) 20% 20%); box-shadow: 0 2px 10px rgba(0, 0, 0, .25); opacity: 0; visibility: hidden; transition: max-height 400ms var(--ease-out), opacity 200ms, visibility 0s 400ms; }
+.ms-cust[data-state="hover"] .ms-cust-b, .ms-cust[data-state="open"] .ms-cust-b { max-height: calc(60 * var(--vh)); overflow-y: auto; padding-bottom: 20px; opacity: 1; visibility: visible; transition: max-height 400ms var(--ease-out), opacity 150ms; }
+.ms-cust[data-state="hover"] .ms-cust-h, .ms-cust[data-state="open"] .ms-cust-h { background: hsl(var(--o-h) 40% 50%); }
+.ms-cust[data-state="hover"] .ms-cust-h .i, .ms-cust[data-state="open"] .ms-cust-h .i { transform: rotate(-90deg); }
+.ms-cust-b .set-row { margin-bottom: 10px; }
 .modcol { flex-basis: 300px; border-radius: 10px; background: hsl(var(--o-h) 10% 20%); transform: skewX(-11.31deg); overflow: hidden; }
 .modcol-h { padding: 10px 16px; font-weight: 700; }
 .modcol-h > *, .mod-p > *, .mod-config .modcol-list > * { transform: skewX(11.31deg); }
@@ -1764,7 +1786,14 @@ div.res-calib .i { color: var(--good); }
 .mod-p.on .mod-ac { background: rgba(0, 0, 0, .25); color: #fff; }
 .modsel-foot { background: hsl(var(--o-h) 10% 7%); padding-right: 50px; }
 .modsel-foot .btn:not(.primary) { background: hsl(var(--o-h) 10% 20%); }
-@media (max-width: 900px) and (hover: none) and (orientation: portrait) { .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 900px) and (hover: none) and (orientation: portrait) {
+  .modsel-head, .modsel-cols { padding-left: 16px; padding-right: 16px; }
+  .ms-tools { margin: 10px 16px 0; gap: 10px; }
+  .ms-search { flex: 1; width: auto; }
+  .ms-cust { width: 46%; }
+  .ms-cust-h { font-size: 16px; padding: 0 14px; }
+  .ms-cust-b { width: calc(100 * var(--vw) - 32px); left: auto; }
+}
 
 /* ── song select footer — osu!lazer's ScreenFooter: a 50px Background5 bar (Blue scheme) with ScreenFooterButtons
    standing up out of it: sheared 116×75, 10px corners (the bottom ones hidden below the screen edge), Background3,

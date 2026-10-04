@@ -372,10 +372,12 @@ const ModSelect = {
     if (this.disabled.size) Settings.set('songselect.mods', (Settings.get('songselect.mods') || []).filter(x => !this.disabled.has(x)));
     const sheet = h('div.modsel', { role: 'dialog', 'aria-label': 'Mod select' });
     this.sheet = sheet;
+    this.build();
     this.render();
     this.o = makeOverlay(sheet, {
-      onClose: () => { this.o = null; this.disabled = new Set(); this.disabledWhy = ''; Bus.emit('mods:changed'); if (onClose) onClose(); },
+      onClose: () => { this.o = null; this.colsEl = this.footEl = null; this.disabled = new Set(); this.disabledWhy = ''; Bus.emit('mods:changed'); if (onClose) onClose(); },
       onKey: e => {
+        if (e.key === 'Tab') { this.searchEl.focus(); return true; } // (lazer: Tab to search)
         if (e.key === 'F1' || e.key === 'Enter') { this.close(); return true; }
         if (e.key === 'Backspace') { Settings.set('songselect.mods', []); this.render(); return true; }
         const m = MODS.find(x => x.key === e.code);
@@ -396,22 +398,58 @@ const ModSelect = {
   },
   /** osu!lazer mod type colours. */
   GROUP_COLOURS: { reduction: '#b2ff66', increase: '#ff6666', conversion: '#8c66ff', automation: '#66ccff', fun: '#ff66ab' },
+  /** The parts that stay while mods are toggled: the header, and above the columns lazer's search box (300px, "tab
+   *  to search...") on the left and the Customise panel (400px) on the right. */
+  build() {
+    const sheet = this.sheet;
+    this.query = '';
+    this.colsEl = this.footEl = null;
+    const si = this.searchEl = h('input.ms-search-in', { type: 'search', placeholder: 'tab to search...', 'aria-label': 'Search mods', spellcheck: 'false', autocomplete: 'off' });
+    si.addEventListener('focus', () => { si.placeholder = 'type in to search'; });
+    si.addEventListener('blur', () => { si.placeholder = 'tab to search...'; });
+    si.addEventListener('input', () => { this.query = si.value; this.render(); });
+    si.addEventListener('keydown', e => {
+      e.stopPropagation(); // (typing here doesn't press the mods' hotkeys)
+      // Enter takes the first mod found (lazer's preselected one); Escape clears, then leaves the box; Tab leaves it
+      if (e.key === 'Enter') { e.preventDefault(); const m = this.query.trim() && this.found()[0]; if (m) this.toggle(m.id); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (si.value) { si.value = ''; this.query = ''; this.render(); } else si.blur(); }
+      else if (e.key === 'Tab') { e.preventDefault(); si.blur(); }
+    });
+    // ModCustomisationPanel: a 42px "Customise" header (Dark3; Light4 while open) that opens on hover, or stays open
+    // when clicked, over the columns; greyed out while no selected mod has settings
+    this.custState = 'closed';
+    this.custBody = h('div.ms-cust-b');
+    this.cust = h('div.ms-cust',
+      h('button.ms-cust-h', { onclick: () => { if (!this.custEnabled) return; UISounds.click(); this.setCust(this.custState === 'open' ? 'closed' : 'open'); } }, h('span', 'Customise'), icon('chevron')),
+      this.custBody);
+    this.cust.addEventListener('pointerenter', () => { if (this.custEnabled && this.custState === 'closed') this.setCust('hover'); });
+    this.cust.addEventListener('pointerleave', () => { if (this.custState === 'hover') this.setCust('closed'); });
+    sheet.append(
+      h('div.modsel-head', h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')), h('span.grow')),
+      h('div.ms-tools', h('label.ms-search', icon('search'), si), this.cust));
+  },
+  setCust(state) {
+    this.custState = state;
+    this.cust.dataset.state = state;
+  },
+  /** The mods the search finds (lazer: every word in the name, the name without spaces, or the acronym). */
+  found() {
+    const words = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return MODS.filter(m => { const terms = [m.name, m.name.replace(/ /g, ''), m.id].map(t => t.toLowerCase()); return words.every(w => terms.some(t => t.includes(w))); });
+  },
   render() {
     const sheet = this.sheet;
     const scrollX = this.colsEl ? this.colsEl.scrollLeft : 0;
-    // each toggle redraws the sheet: keep every column where it was scrolled (it used to jump back to the top)
+    // each toggle redraws the columns: keep every column where it was scrolled (it used to jump back to the top)
     const tops = this.colsEl ? [...this.colsEl.querySelectorAll('.modcol-list')].map(l => l.scrollTop) : [];
-    const hadCfg = !!(this.colsEl && this.colsEl.querySelector('.mod-config'));
-    clearEl(sheet);
     const cur = Settings.get('songselect.mods') || [];
     const mult = ModSystem.multiplier(cur), rate = ModSystem.rate(cur);
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
-    sheet.append(h('div.modsel-head',
-      h('div', h('h2', 'Mod Select'), h('div.modsel-sub', 'Mods provide different ways to enjoy gameplay. Some have an effect on the score you can achieve during ranked play. Others are just for fun.')),
-      h('span.grow')));
+    const shown = new Set(this.found().map(m => m.id));
     const cols = h('div.modsel-cols');
     for (const [gid, gname] of MOD_GROUPS) {
-      const mods = MODS.filter(x => x.group === gid);
+      const mods = MODS.filter(x => x.group === gid && shown.has(x.id));
+      if (!mods.length) continue; // (a column the search leaves empty goes, as in lazer)
       const n = mods.filter(m => cur.includes(m.id)).length;
       const col = h('div.modcol', { style: { '--c': this.GROUP_COLOURS[gid] || '#aaa' } },
         h('div.modcol-h', h('span', gname), n ? h('span.modcol-n', String(n)) : null));
@@ -435,21 +473,28 @@ const ModSelect = {
       requestAnimationFrame(edge);
     }
     const cfgMods = cur.filter(id => MOD_BY_ID.get(id)?.config);
-    if (cfgMods.length) cols.append(this.configPanel(cfgMods));
+    const was = this.custEnabled;
+    this.custEnabled = cfgMods.length > 0;
+    this.cust.classList.toggle('off', !this.custEnabled);
+    this.cust.title = this.custEnabled ? '' : 'No mod selected which can be customised.';
+    if (!this.custEnabled) this.setCust('closed');
+    else if (!was && this.custEnabled) { this.cust.classList.remove('flash'); void this.cust.offsetWidth; this.cust.classList.add('flash'); }
+    this.custBody.replaceChildren(...(cfgMods.length ? this.configRows(cfgMods) : []));
+    if (this.colsEl) this.colsEl.replaceWith(cols); else sheet.append(cols);
     this.colsEl = cols;
     // lazer's footer: the back button, a 200px sheared "Deselect all" (Backspace), and at the right the speed and score
     // multiplier in a sheared two-part box (ModFooterInformationDisplay)
     const info = (label, value, cls = '') => h(`div.ms-info${cls}`, h('span.ms-info-l', h('i', label)), h('span.ms-info-r', h('i', value)));
-    sheet.append(cols, h('div.modsel-foot',
+    const foot = h('div.modsel-foot',
       backButton(() => this.close()),
       h('button.sh-btn.ms-deselect', { disabled: !cur.length, title: 'Backspace', onclick: () => { UISounds.click(); setMods([]); } }, h('span', 'Deselect all')),
       h('span.grow'),
       rate !== 1 ? info('Speed', `${rate}x`) : null,
-      info('Score multiplier', `${mult.toFixed(2)}x`, mult > 1 ? '.up' : mult < 1 ? '.down' : '')));
+      info('Score multiplier', `${mult.toFixed(2)}x`, mult > 1 ? '.up' : mult < 1 ? '.down' : ''));
+    if (this.footEl) this.footEl.replaceWith(foot); else sheet.append(foot);
+    this.footEl = foot;
     cols.scrollLeft = scrollX;
     [...cols.querySelectorAll('.modcol-list')].forEach((l, i) => { if (tops[i]) l.scrollTop = tops[i]; });
-    // the Customise column is added past the right edge on smaller screens: bring it into view when it appears
-    if (cfgMods.length && !hadCfg) requestAnimationFrame(() => { if (cols.scrollWidth > cols.clientWidth) cols.scrollTo({ left: cols.scrollWidth, behavior: Settings.get('ui.animSpeed') > 0 ? 'smooth' : 'auto' }); });
     // lazer's columns scroll sideways with the wheel when they don't all fit (a column with more mods still scrolls itself)
     cols.addEventListener('wheel', e => {
       if (cols.scrollWidth <= cols.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
@@ -459,7 +504,7 @@ const ModSelect = {
     }, { passive: false });
   },
   /** Sliders for mods with settings (Accuracy Challenge, Difficulty Adjust, Song Speed, Hidden/Fade In, Percy). */
-  configPanel(ids) {
+  configRows(ids) {
     const cfg = ModSystem.config();
     const set = (k, v) => { Settings.set('mods.config', { ...ModSystem.config(), [k]: v }); Bus.emit('mods:changed'); };
     const slider = (label, k, min, max, step, fmt) => {
@@ -477,7 +522,7 @@ const ModSelect = {
     if (ids.includes('RT')) rows.push(slider('Song Speed — playback rate', 'rate', 0.5, 2, 0.05, v => `${v.toFixed(2)}×`));
     if (ids.includes('HD') || ids.includes('FI')) rows.push(slider(`${ids.includes('HD') ? 'Hidden' : 'Fade In'} — lane coverage`, 'cover', 0.1, 0.9, 0.05, v => `${Math.round(v * 100)}%`));
     if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
-    return h('div.modcol.mod-config', { style: { '--c': '#ffcc22' } }, h('div.modcol-h', h('span', 'Customise')), h('div.modcol-list', ...rows));
+    return rows;
   },
 };
 

@@ -490,7 +490,16 @@ await page.keyboard.press('F1');
 await page.waitForSelector('.modsel .mod-p');
 await page.evaluate(() => [...document.querySelectorAll('.mod-p')].find(b => b.textContent.includes('Hidden')).click());
 await page.waitForTimeout(200);
-check('mod select: lazer columns, toggling a mod and its customise panel', await page.evaluate(() => document.querySelectorAll('.modcol-h').length >= 5 && document.querySelector('.mod-p.on').textContent.includes('Hidden') && !!document.querySelector('.mod-config .slider') && AshtonkMania.Settings.get('songselect.mods').includes('HD')));
+const modsel = await page.evaluate(() => ({ cols: document.querySelectorAll('.modcol-h').length, on: (document.querySelector('.mod-p.on') || {}).textContent || '', slider: !!document.querySelector('.ms-cust .slider'), custOn: !document.querySelector('.ms-cust').classList.contains('off'), mods: AshtonkMania.Settings.get('songselect.mods') }));
+check('mod select: lazer columns, toggling a mod and its customise panel', modsel.cols >= 4 && modsel.on.includes('Hidden') && modsel.slider && modsel.custOn && modsel.mods.includes('HD'), JSON.stringify(modsel));
+// lazer's mod search: Tab to search, the columns keep only the mods found, Enter takes the first
+await page.keyboard.press('Tab'); await page.keyboard.type('mirror'); await page.waitForTimeout(100);
+const msearch = await page.evaluate(() => ({ shown: [...document.querySelectorAll('.mod-p')].map(b => b.querySelector('b').firstChild.textContent), focused: document.activeElement === AshtonkMania.ModSelect.searchEl }));
+await page.keyboard.press('Enter'); await page.waitForTimeout(100);
+const mtook = await page.evaluate(() => AshtonkMania.Settings.get('songselect.mods').includes('MR'));
+await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+check('mod select: Tab to search finds mods by name, Enter selects the first', msearch.focused && msearch.shown.length === 1 && msearch.shown[0] === 'Mirror' && mtook, JSON.stringify({ msearch, mtook }));
+await page.evaluate(() => { AshtonkMania.Settings.set('songselect.mods', ['HD']); AshtonkMania.ModSelect.render(); });
 await page.keyboard.press('Backspace');
 await page.evaluate(() => [...document.querySelectorAll('.mod-p')].find(b => b.textContent.includes('Invert')).click());
 await page.waitForTimeout(150);
