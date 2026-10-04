@@ -71,6 +71,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorMeter', l: 'Hit error meter', t: 'bool', d: true, hint: 'osu!lazer\'s bar at the bottom of the screen: how early or late each hit was, against the timing windows.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Show judgement counter', t: 'bool', d: false, hint: 'osu!lazer\'s judgement counter: how many of each judgement so far.' },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounterFlow', l: 'Judgement counter layout', t: 'select', d: 'vertical', o: [['vertical', 'Vertical'], ['horizontal', 'Horizontal']], when: () => Settings.get('gameplay.judgementCounter') },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.healthStyle', l: 'Health bar style', t: 'select', d: 'skinstage', o: [['skinstage', 'From the skin, beside the stage'], ['skin', 'From the skin, top left'], ['lazer', 'osu!lazer'], ['stage', 'Slim, beside stage']], hint: 'The skin\'s own health bar (its scorebar images) in the top-left corner like osu!lazer, or standing beside the stage like osu!stable mania. Skins without one use the osu!lazer bar.' },

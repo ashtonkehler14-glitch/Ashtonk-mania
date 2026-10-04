@@ -643,6 +643,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .hud-score .sc { font-size: clamp(1.8rem, calc(3.2 * var(--vw)), 2.8rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
 .hud-score .acc { font-size: clamp(1.1rem, calc(1.8 * var(--vw)), 1.5rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .hud-progress { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: rgba(255, 255, 255, .06); }
+/* osu!lazer's hit error meter (LegacyBarHitErrorMeter): anchored to the bottom centre of the screen */
+.hud-err { position: absolute; left: 50%; bottom: 0; translate: -50% 0; display: block; }
 .hud-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); width: 100%; transform: scaleX(0); transform-origin: 0 0; }
 .hud-time { position: absolute; top: 12px; left: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
 .hud-mods { position: absolute; top: 118px; right: 24px; display: flex; gap: 4px; }

@@ -494,6 +494,9 @@ const GameplayScreen = {
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
     );
+    // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
+    this.errMeter = null;
+    if (Settings.get('gameplay.hitErrorMeter') && s.engine) { this.errMeter = new HitErrorMeter(s.engine.W); this.hud.append(this.errMeter.canvas); }
     // touch screens play as FNF does on phones: the screen split into one full-height hitbox per column, lighting up
     // while it's held
     this.hitbox = null;
@@ -631,6 +634,7 @@ const GameplayScreen = {
       g.hidden = s.hidden; g.percy = s.percy;
       this.renderer.render(g);
       this.updateHud(now);
+      if (this.errMeter) this.errMeter.draw(realNow);
       this.updateBreak(now);
       this.syncVideo(now);
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
@@ -1081,6 +1085,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const realNow = performance.now();
     if (e.type === 'judgement') {
       this.renderer.onJudgement(e, realNow);
+      if (this.errMeter) this.errMeter.add(e.err, e.j, realNow);
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
@@ -1446,6 +1451,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       s.feedIdx = i;
       this._lastCombo = eng.score.combo;
     } finally { this._resim = false; }
+    if (this.errMeter) this.errMeter.clear();
     this._ppJudged = this._lastSc = this._lastAcc = undefined;
     const pos = t + this.offsetMs() * s.rate;
     if (s.running) Music.play(pos); else Music.pausedPos = pos;
@@ -1614,6 +1620,53 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.updatePracticeLabels();
   },
 };
+
+/** osu!lazer's hit error meter for mania (LegacyBarHitErrorMeter, bottom centre of the screen): each judgement's
+ *  window as a colour bar 1.6 units per ms wide (the widest underneath), a white centre line, every hit's error as a
+ *  3-unit additive line in its result's colour fading from 40% over ten seconds, and a white arrow easing (800ms)
+ *  towards the floating average of the last hits. Drawn on a small canvas of its own. */
+class HitErrorMeter {
+  constructor(windows) {
+    this.W = windows.slice(0, 5); // map-time windows: MAX, 300, 200, 100, 50
+    this.max = Math.max(1, this.W[4]);
+    this.w = this.max * 1.6; this.h = 3 * 4 * 1.6;
+    this.lines = []; this.floating = 0; this.arrow = { from: 0, to: 0, t0: 0 };
+    this.canvas = h('canvas.hud-err', { 'aria-hidden': 'true' });
+    this.ctx = this.canvas.getContext('2d');
+    this.dirty = true; this._dpr = 0;
+  }
+  add(err, j, now) {
+    if (j === J.MISS || err == null) return;
+    const rel = clamp(err / this.max / 2, -0.5, 0.5);
+    this.lines.push({ x: rel, c: JUDGEMENT_COUNTER[j][2], t: now });
+    if (this.lines.length > 400) this.lines.splice(0, this.lines.length - 400);
+    this.floating = this.floating * 0.8 + rel * 0.2;
+    this.arrow = { from: this.arrowAt(now), to: this.floating, t0: now };
+    this.dirty = true;
+  }
+  clear() { this.lines.length = 0; this.dirty = true; }
+  arrowAt(now) { const a = this.arrow, p = clamp((now - a.t0) / 800, 0, 1); return a.from + (a.to - a.from) * (1 - (1 - p) * (1 - p)); }
+  draw(now) {
+    const dpr = (window.devicePixelRatio || 1) / (Zoom.z || 1);
+    if (dpr !== this._dpr) { this._dpr = dpr; this.canvas.width = Math.ceil(this.w * dpr); this.canvas.height = Math.ceil(this.h * dpr); this.canvas.style.width = this.w + 'px'; this.canvas.style.height = this.h + 'px'; this.dirty = true; }
+    // (lines fade for ten seconds and the arrow eases for 0.8: redrawn only while something is changing)
+    while (this.lines.length && now - this.lines[0].t > 10000) this.lines.shift();
+    if (!this.dirty && !this.lines.length && now - this.arrow.t0 > 800) return;
+    this.dirty = false;
+    const c = this.ctx, W = this.w, H = this.h, cx = W / 2;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, W, H);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 0.6; c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.globalAlpha = 1;
+    const bh = 3 * 1.6, by = (H - bh) / 2;
+    for (let j = 4; j >= 0; j--) { const bw = this.W[j] * 1.6; c.fillStyle = JUDGEMENT_COUNTER[j][2]; c.fillRect(cx - bw / 2, by, bw, bh); }
+    c.fillStyle = '#fff'; c.fillRect(cx - 0.75, 0, 1.5, H);
+    c.globalCompositeOperation = 'lighter';
+    for (const l of this.lines) { const a = 0.4 * (1 - (now - l.t) / 10000); if (a <= 0) continue; c.globalAlpha = a; c.fillStyle = l.c; c.fillRect(cx + l.x * W - 1.5, 0, 3, H); }
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    const ax = cx + this.arrowAt(now) * W, aw = 17 * 0.6, ah = 8 * 0.6;
+    c.fillStyle = '#fff'; c.beginPath(); c.moveTo(ax - aw / 2, 0); c.lineTo(ax + aw / 2, 0); c.lineTo(ax, ah); c.closePath(); c.fill();
+  }
+}
 
 /** The judgement counter's rows: osu!lazer's names and HitResult colours (OsuColour.ForHitResult) for mania. */
 const JUDGEMENT_COUNTER = [[J.MARV, 'Perfect', '#99eeff'], [J.PERF, 'Great', '#66ccff'], [J.GREAT, 'Good', '#b3d944'], [J.GOOD, 'Ok', '#88b300'], [J.BAD, 'Meh', '#ffcc22'], [J.MISS, 'Miss', '#ed1121']];
