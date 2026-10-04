@@ -4727,6 +4727,21 @@ const BeatmapParser = {
   },
 
   /** Build timing helpers: uninherited (BPM) and effective scroll velocity per time. */
+  /** lazer's BarLineGenerator: a line at the start of every bar (beat length × the time signature) from each red
+   *  timing point to the next (or the last note), each fourth-in-the-signature one major; "omit first bar line"
+   *  timing points start a bar later. */
+  barLines(red, endTime) {
+    const out = [];
+    let beat = 0;
+    for (let i = 0; i < red.length; i++) {
+      const tp = red[i], meter = tp.meter > 0 ? tp.meter : 4, bar = tp.beatLength * meter;
+      if (!(bar > 1)) continue;
+      const until = i + 1 < red.length ? red[i + 1].time : endTime;
+      let t = tp.time + ((tp.effects || 0) & 8 ? bar : 0);
+      for (; until - t > 1 && out.length < 20000; t += bar, beat++) out.push({ time: t, major: beat % meter === 0 });
+    }
+    return out;
+  },
   timing(bm) {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);
@@ -6392,6 +6407,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'Background', k: 'gameplay.videoImport', l: 'Store videos when importing (.mp4 / .webm)', t: 'bool', d: true, hint: 'Videos can be large; turn off to save storage.' },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.barLines', l: 'Bar lines', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
@@ -8311,7 +8327,8 @@ class ManiaRenderer {
     }
     if (L.keysUnderNotes) this._drawKeys(g);
 
-    // notes
+    // bar lines (under the notes), then the notes
+    if (g.bars) this._drawBars(g);
     if (g.engine) this._drawNotes(g, realNow);
 
     if (L.judgementLine) {
@@ -8342,6 +8359,30 @@ class ManiaRenderer {
       else if (this.healthMode === 'skinstage') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
+  }
+  /** lazer's mania bar lines: a thin line across the stage at the start of each bar, scrolling with the notes (and
+   *  their speed changes) and gone at the judgement line; major ones (each bar of four) brighter. */
+  _drawBars(g) {
+    const bars = g.bars, sc = g.scroll, y0 = this._y0, ppm = g.pxPerMs, top = -this.H * 0.1, ctx = this.ctx;
+    if (bars !== this._barsRef) { this._barsRef = bars; this._barI = 0; }
+    const yOf = b => { if (b._sc !== sc) { b._sc = sc; b._hp = sc.posAt(b.time); } return y0 - b._hp * ppm; };
+    let i = this._barI || 0;
+    if (i > 0 && yOf(bars[i - 1]) <= this.hitY) i = 0; // (seeking back in practice or a replay)
+    while (i < bars.length && yOf(bars[i]) > this.hitY) i++;
+    this._barI = i;
+    // a skin.ini skin draws them as osu! does — its BarlineHeight and ColourBarline, every bar alike; the built-in
+    // skin as lazer's, majors brighter
+    const L = this.layout, legacy = this.legacy && L.fromSkinIni;
+    const hh = legacy ? (L.barlineHeight || 0) * this.u : Math.max(1, this.s * 0.6);
+    if (hh <= 0) return;
+    ctx.fillStyle = legacy ? rgba(L.colours.barline) : '#ffffff';
+    for (let j = i; j < bars.length; j++) {
+      const y = yOf(bars[j]);
+      if (y < top) break;
+      ctx.globalAlpha = legacy ? 1 : bars[j].major ? 0.45 : 0.18;
+      this._rect(0, y - hh / 2, this.stageW, hh);
+    }
+    ctx.globalAlpha = 1;
   }
   _drawKeys(g) {
     const L = this.layout, K = L.keys, H = this.H;
@@ -13200,7 +13241,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
-      endTime, redTiming,
+      endTime, redTiming, bars: Settings.get('gameplay.barLines') ? BeatmapParser.barLines(BeatmapParser.timing(bm).red, endTime) : null,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
@@ -13518,7 +13559,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0 };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -13568,7 +13609,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars;
       this.renderer.render(g);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);

@@ -357,7 +357,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
-      endTime, redTiming,
+      endTime, redTiming, bars: Settings.get('gameplay.barLines') ? BeatmapParser.barLines(BeatmapParser.timing(bm).red, endTime) : null,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
@@ -675,7 +675,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0 };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -725,7 +725,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars;
       this.renderer.render(g);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);

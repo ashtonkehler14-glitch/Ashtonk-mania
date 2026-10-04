@@ -410,7 +410,8 @@ class ManiaRenderer {
     }
     if (L.keysUnderNotes) this._drawKeys(g);
 
-    // notes
+    // bar lines (under the notes), then the notes
+    if (g.bars) this._drawBars(g);
     if (g.engine) this._drawNotes(g, realNow);
 
     if (L.judgementLine) {
@@ -441,6 +442,30 @@ class ManiaRenderer {
       else if (this.healthMode === 'skinstage') this._drawSkinHealth(g.engine.health.value);
       if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
     }
+  }
+  /** lazer's mania bar lines: a thin line across the stage at the start of each bar, scrolling with the notes (and
+   *  their speed changes) and gone at the judgement line; major ones (each bar of four) brighter. */
+  _drawBars(g) {
+    const bars = g.bars, sc = g.scroll, y0 = this._y0, ppm = g.pxPerMs, top = -this.H * 0.1, ctx = this.ctx;
+    if (bars !== this._barsRef) { this._barsRef = bars; this._barI = 0; }
+    const yOf = b => { if (b._sc !== sc) { b._sc = sc; b._hp = sc.posAt(b.time); } return y0 - b._hp * ppm; };
+    let i = this._barI || 0;
+    if (i > 0 && yOf(bars[i - 1]) <= this.hitY) i = 0; // (seeking back in practice or a replay)
+    while (i < bars.length && yOf(bars[i]) > this.hitY) i++;
+    this._barI = i;
+    // a skin.ini skin draws them as osu! does — its BarlineHeight and ColourBarline, every bar alike; the built-in
+    // skin as lazer's, majors brighter
+    const L = this.layout, legacy = this.legacy && L.fromSkinIni;
+    const hh = legacy ? (L.barlineHeight || 0) * this.u : Math.max(1, this.s * 0.6);
+    if (hh <= 0) return;
+    ctx.fillStyle = legacy ? rgba(L.colours.barline) : '#ffffff';
+    for (let j = i; j < bars.length; j++) {
+      const y = yOf(bars[j]);
+      if (y < top) break;
+      ctx.globalAlpha = legacy ? 1 : bars[j].major ? 0.45 : 0.18;
+      this._rect(0, y - hh / 2, this.stageW, hh);
+    }
+    ctx.globalAlpha = 1;
   }
   _drawKeys(g) {
     const L = this.layout, K = L.keys, H = this.H;

@@ -421,6 +421,21 @@ const BeatmapParser = {
   },
 
   /** Build timing helpers: uninherited (BPM) and effective scroll velocity per time. */
+  /** lazer's BarLineGenerator: a line at the start of every bar (beat length × the time signature) from each red
+   *  timing point to the next (or the last note), each fourth-in-the-signature one major; "omit first bar line"
+   *  timing points start a bar later. */
+  barLines(red, endTime) {
+    const out = [];
+    let beat = 0;
+    for (let i = 0; i < red.length; i++) {
+      const tp = red[i], meter = tp.meter > 0 ? tp.meter : 4, bar = tp.beatLength * meter;
+      if (!(bar > 1)) continue;
+      const until = i + 1 < red.length ? red[i + 1].time : endTime;
+      let t = tp.time + ((tp.effects || 0) & 8 ? bar : 0);
+      for (; until - t > 1 && out.length < 20000; t += bar, beat++) out.push({ time: t, major: beat % meter === 0 });
+    }
+    return out;
+  },
   timing(bm) {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);

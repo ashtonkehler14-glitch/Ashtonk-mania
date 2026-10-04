@@ -539,3 +539,12 @@ test('score verification: the server judges a play from its key presses — not 
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
 });
+
+test('bar lines: one per bar from each timing point, every fourth major, "omit first bar line" honoured', () => {
+  const red = [{ time: 0, beatLength: 500, meter: 4 }, { time: 8000, beatLength: 250, meter: 3, effects: 8 }];
+  const bars = BeatmapParser.barLines(red, 10000);
+  // 2000ms bars up to the second point (0…6000), then 750ms bars starting one bar late (8750, 9500)
+  assert.deepEqual([...bars.map(b => b.time)], [0, 2000, 4000, 6000, 8750, 9500]);
+  assert.deepEqual([...bars.map(b => b.major)], [true, false, false, false, false, false]);
+  assert.equal(BeatmapParser.barLines([{ time: 0, beatLength: 0, meter: 4 }], 5000).length, 0);
+});
