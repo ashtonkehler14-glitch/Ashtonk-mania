@@ -3807,3 +3807,5 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .tier-iron { background-color: #bab3ab; } .tier-bronze { background-image: linear-gradient(#b88f7a, #855c47); } .tier-silver { background-image: linear-gradient(#e0e0eb, #a3a3c2); }
 .tier-gold { background-image: linear-gradient(#f0e4a8, #e0c952); } .tier-platinum { background-image: linear-gradient(#a8f0ef, #52e0df); } .tier-rhodium { background-image: linear-gradient(#d9f8d3, #a0cf96); }
 .tier-radiant { background-image: linear-gradient(#97dcff, #ed82ff); } .tier-lustrous { background-image: linear-gradient(#ffe600, #ed82ff); }
+.lb-loading { justify-content: center; padding-top: 30px; }
+.lb-sep { text-align: center; color: var(--muted); line-height: 1; padding: 2px 0 4px; }

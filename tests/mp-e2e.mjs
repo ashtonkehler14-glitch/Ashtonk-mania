@@ -116,6 +116,15 @@ await bob.evaluate(() => AshtonkMania.Screens.go('profile'));
 await bob.waitForFunction(() => { const e = document.querySelector('.pf-daily'); return e && !e.hidden; }, null, { timeout: 5000 });
 check('profile: lazer\'s daily challenge box — days played and streaks', await bob.evaluate(() => /Daily Challenge\s*1d/.test(document.querySelector('.pf-daily').textContent) && /Current daily streak1d/.test(document.querySelector('.pf-daily-tip').textContent)), await bob.evaluate(() => document.querySelector('.pf-daily').textContent));
 await bob.evaluate(() => AshtonkMania.Screens.back());
+// lazer's global leaderboards at song select: Bob's best on a beatmap shows in Alice's Global scope
+const lbHash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);
+await bob.evaluate(h => AshtonkMania.Presence.send({ t: 'lbSubmit', key: h, score: 876543, acc: 0.9876, combo: 321, grade: 'S', mods: ['HD'], counts: [200, 30, 2, 0, 0, 1], pp: 55 }), lbHash);
+await alice.evaluate(() => { const S = AshtonkMania.Settings; S.set('songselect.lbScope', 'global'); S.set('songselect.detailTab', 'ranking'); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('songselect', { mapId: m.id }); });
+await alice.waitForFunction(() => [...document.querySelectorAll('.lbs')].some(r => /Bob/.test(r.textContent)), null, { timeout: 8000 });
+check('song select: the Global scope shows other players\' best scores from the server', await alice.evaluate(() => { const r = [...document.querySelectorAll('.lbs')].find(x => /Bob/.test(x.textContent)); return /876,543/.test(r.textContent) && /98\.76%/.test(r.textContent) && /#1/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.lb') && document.querySelector('.lb').textContent.slice(0, 300)));
+await shot(alice, 'mp-global-lb');
+await alice.evaluate(() => { AshtonkMania.Settings.set('songselect.lbScope', 'local'); AshtonkMania.Screens.back(); });
+await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'daily', null, { timeout: 5000 });
 
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 

@@ -675,6 +675,17 @@ export class PresenceLogic {
     this.daily = { day: '', map: null, scores: [] }; this.persistDaily = null;
     // each player's daily challenge record (lazer's profile box): days played, the current and best daily streak
     this.dailyStats = new Map(); this.persistDailyStats = null;
+    // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
+    this.boards = new Map(); this.persistBoard = null;
+  }
+  static LB_KEEP = 100;
+  static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
+  boardMsg(key, pid, scope) {
+    const all = this.boards.get(key) || [];
+    const fr = this.friends.get(pid);
+    const list = scope === 'friends' ? all.filter(s => s.pid === pid || (fr && fr.has(s.pid))) : all;
+    const at = list.findIndex(s => s.pid === pid);
+    return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : { ...list[at], rank: at + 1 }, scores: list.slice(0, 50).map((s, i) => ({ ...s, rank: i + 1 })) };
   }
   loadDailyStats(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.dailyStats.set(pid, v); }
   /** A player's daily record as of today (a streak broken by a missed day reads 0). */
@@ -797,6 +808,22 @@ export class PresenceLogic {
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
+    if (msg.t === 'lb') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.boardMsg(key, u.pid, msg.scope) }] : []; }
+    if (msg.t === 'lbSubmit') {
+      const key = PresenceLogic.lbKey(msg.key);
+      if (!key || !u.pid) return [];
+      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
+      const s = { pid: u.pid, name: u.name, avatar: u.avatar, score: Math.round(num(msg.score, 1e7)), acc: num(msg.acc, 1), combo: Math.round(num(msg.combo, 1e5)),
+        grade: /^(XH|SS|SH|S|A|B|C|D)$/.test(String(msg.grade)) ? String(msg.grade) : 'D', mods: (Array.isArray(msg.mods) ? msg.mods : []).slice(0, 12).map(x => str(x, 4)),
+        counts: (Array.isArray(msg.counts) ? msg.counts : []).slice(0, 6).map(c => Math.round(num(c, 1e6))), pp: Math.round(num(msg.pp, 1e5) * 100) / 100, date: this.now() };
+      const board = this.boards.get(key) || [];
+      const old = board.find(x => x.pid === u.pid);
+      if (old && old.score >= s.score) return [];
+      const next = [...board.filter(x => x.pid !== u.pid), s].sort((a, b) => b.score - a.score || a.date - b.date).slice(0, PresenceLogic.LB_KEEP);
+      this.boards.set(key, next);
+      if (this.persistBoard) this.persistBoard(key, next);
+      return [];
+    }
     if (msg.t === 'dailyPropose') {
       // the first proposal of the day wins (everyone then gets it)
       const d = this.dailyNow(), m = msg.map || {};
@@ -981,6 +1008,15 @@ export class Matchmaker {
         return;
       }
       if (!this.presence.users.has(id)) { try { server.close(4001, 'stale'); } catch { /* closed */ } return; } // pruned: the client reconnects
+      // (a beatmap's leaderboard comes out of storage the first time it's asked for)
+      const key = (msg.t === 'lb' || msg.t === 'lbSubmit') && PresenceLogic.lbKey(msg.key);
+      if (key && !this.presence.boards.has(key)) {
+        this.state.storage.get(`lb:${key}`).catch(() => null).then(v => {
+          if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []);
+          if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
+        });
+        return;
+      }
       this.send(this.presence.message(id, msg));
     });
     const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
@@ -1006,6 +1042,7 @@ export class Matchmaker {
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
+      this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
     })());
   }

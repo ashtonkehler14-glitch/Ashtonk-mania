@@ -1032,3 +1032,23 @@ test('presence daily challenge stats: days played, the current streak (broken by
   play();
   assert.deepEqual(p.message('a', { t: 'daily' })[0].msg.stats, { plays: 4, current: 1, best: 3, last: '2026-10-05' });
 });
+
+test('presence beatmap leaderboards: each player\'s best per beatmap, global or friends only', () => {
+  const p = new PresenceLogic(() => 5000), saved = [];
+  p.persistBoard = (k, l) => saved.push([k, l.length]);
+  const key = 'a'.repeat(32);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' }); p.join('c', { name: 'Cat', pid: 'catpid333' });
+  assert.deepEqual(p.message('a', { t: 'lbSubmit', key: 'nothex', score: 5 }), []);
+  p.message('a', { t: 'lbSubmit', key, score: 800000, acc: 0.95, combo: 300, grade: 'S', mods: ['HD'], counts: [100, 50, 3, 1, 0, 2], pp: 123.456 });
+  p.message('b', { t: 'lbSubmit', key, score: 900000, acc: 0.97, combo: 400, grade: 'S' });
+  p.message('c', { t: 'lbSubmit', key, score: 700000, acc: 0.9, combo: 100, grade: 'A' });
+  p.message('a', { t: 'lbSubmit', key, score: 600000 }); // (worse: kept the best)
+  const g = p.message('a', { t: 'lb', key })[0].msg;
+  assert.deepEqual(g.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000], [3, 'Cat', 700000]]);
+  assert.deepEqual([g.you.rank, g.you.pp, g.you.counts.join()], [2, 123.46, '100,50,3,1,0,2']);
+  // friends: you and your friends only
+  p.message('a', { t: 'friendReq', to: 'c' }); p.message('c', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  assert.deepEqual(p.message('a', { t: 'lb', key, scope: 'friends' })[0].msg.scores.map(s => s.name), ['Alice', 'Cat']);
+  assert.equal(saved.length, 3);
+  assert.equal(p.message('a', { t: 'lb', key: 'b'.repeat(32) })[0].msg.total, 0);
+});

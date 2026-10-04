@@ -136,6 +136,8 @@ const SongSelect = {
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
+      // an online leaderboard arriving for the beatmap on show
+      Bus.on('lb', d => { this._online = d; const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
@@ -899,13 +901,15 @@ const SongSelect = {
       return h('label.ss-sel', h('span', label), el);
     };
     const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
+    const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
     const head = h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
       tab === 'ranking' ? h('div.lb-ctl',
         h(`button.lb-modsel${modsOn ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('songselect.lbMods', !modsOn); this._lbKey = null; this.updateInfo(); } }, 'Selected Mods'),
         lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, v => { Settings.set('songselect.lbSort', v); this._lbKey = null; this.updateInfo(); }),
-        lbSel('Scope', [['local', 'Local'], ['global', 'Global', 1], ['country', 'Country', 1], ['friends', 'Friends', 1], ['team', 'Team', 1]], 'local', () => {})) : null);
+        lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, v => { Settings.set('songselect.lbScope', v); this._lbKey = null; this.updateInfo(); })) : null);
     const lb = h(`div.lb.lb-${tab}`, head);
     if (tab === 'details') lb.append(this.metadataWedge(m, set));
+    else if (scope !== 'local') lb.append(this.onlineBoard(m, scope, modsOn));
     else {
       const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
       const misses = s => (s.counts || [])[5] || 0;
@@ -931,7 +935,7 @@ const SongSelect = {
    *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower
    *  leaderboards drop the rank, then stack the statistics, then hide them (as lazer's display modes do). */
   lbScore(s, i, who, m) {
-    const own = !s.player || s.player === who;
+    const own = s.online ? s.own : !s.player || s.player === who;
     const g = s.grade || 'D', letter = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
@@ -939,12 +943,12 @@ const SongSelect = {
     const row = h(`button.lbs${own ? '.own' : ''}`, {
       style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
-      onclick: () => { UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); },
+      onclick: () => { if (s.online) return; UISounds.click(); Screens.go('results', { score: s, fromList: true }, { transition: 'right' }); },
       oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
     },
       h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),
       h('span.lbs-mid',
-        h('span.lbs-av', own ? ProfileManager.avatarEl(50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
+        h('span.lbs-av', own ? ProfileManager.avatarEl(50) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 50) : h('div.avatar.avatar-mono', { style: { width: '50px', height: '50px', fontSize: '20px' } }, String(s.player || '?').slice(0, 1).toUpperCase())),
         h('span.lbs-user', h('span.lbs-date', shortAgo(s.date)), h('span.lbs-name', s.player || who)),
         h('span.lbs-stats', stat('COMBO', `${fmtInt(s.maxCombo)}x`, c.length && !c[5]), stat('ACCURACY', fmtAcc(s.accuracy), s.accuracy >= 1))),
       h('span.lbs-right',
@@ -952,14 +956,35 @@ const SongSelect = {
         h('span.lbs-grade', h('b', letter))));
     return row;
   },
+  /** lazer's Global and Friends scopes: everyone's best on this beatmap from the server (yours lit as your own). */
+  onlineBoard(m, scope, modsOn) {
+    const d = this._online;
+    const fresh = d && d.key === m.hash && d.scope === scope;
+    if (!fresh || performance.now() - (this._onlineAsked || 0) > 30000 || this._onlineFor !== m.hash + scope) {
+      if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
+    }
+    const list = h('div.lb-list');
+    if (!Presence.ws) { list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'Can\'t reach the server for online leaderboards.')); return list; }
+    if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
+    const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
+    const me = Presence.pid(), who = ProfileManager.profile.name;
+    const asScore = e => ({ id: 'o-' + e.pid, online: true, own: e.pid === me, player: e.pid === me ? who : e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
+      grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : null, pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, rank: e.rank });
+    const scores = d.scores.map(asScore).filter(x => !modsOn || [...x.mods].sort().join() === sel);
+    if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), scope === 'friends' ? 'None of your friends have set a score on this map yet.' : 'No records yet!'));
+    scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
+    // (lazer pins your personal best below the list when it isn't in it)
+    if (d.you && d.you.rank > 50 && !modsOn) list.append(h('div.lb-sep', '…'), this.lbScore(asScore(d.you), d.you.rank - 1, who, m));
+    return list;
+  },
   /** lazer's leaderboard score menu: use these mods, watch the replay, delete. */
   lbMenu(e, s, m) {
     const items = [];
     const mods = (s.mods || []).filter(x => x !== 'AT');
     if (mods.length) items.push({ label: 'Use these mods', icon: 'mods', onClick: () => { Settings.set('songselect.mods', mods); Bus.emit('mods:changed'); } });
     if (s.replayId) items.push({ label: 'Watch replay', icon: 'play', onClick: async () => { const r = await ReplayManager.get(s.replayId); if (r) Game.launch({ mapId: m.id, mode: 'replay', replay: r, returnTo: { score: s, replay: r } }); else Toast.err('No replay available'); } });
-    items.push({ label: 'Delete', icon: 'trash', danger: true, onClick: async () => { if (await Dialog.confirm('Delete this score?', 'It goes from your scores, profile and pp for good.', { ok: 'Delete', danger: true })) { await ScoreManager.remove(s.id); } } });
-    showMenu(e.clientX, e.clientY, items);
+    if (!s.online) items.push({ label: 'Delete', icon: 'trash', danger: true, onClick: async () => { if (await Dialog.confirm('Delete this score?', 'It goes from your scores, profile and pp for good.', { ok: 'Delete', danger: true })) { await ScoreManager.remove(s.id); } } });
+    if (items.length) showMenu(e.clientX, e.clientY, items);
   },
   /** lazer's BeatmapMetadataWedge (the Details tab): Creator / Genre, Source / Language, Submitted / Ranked in three
    *  columns, then the user and mapper tags (clicking a tag searches for it); "-" where it isn't known. The online
