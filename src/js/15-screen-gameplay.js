@@ -1255,10 +1255,17 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, now);
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
+  },
+  /** After a multiplayer song: lazer's results for everyone in the match (a regular room), or back to the room
+   *  (Quick Play and Ranked Play show their standings there). */
+  mpAfter(score, replay) {
+    const r = Multiplayer.room;
+    if (r && !r.rp && !r.qp) Screens.go('mpresults', { score, replay }, { replace: true, transition: 'zoom' });
+    else Screens.go('multiplayer', {}, { replace: true });
   },
   async complete() {
     const s = this.s;
@@ -1269,7 +1276,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 900); return; }
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);

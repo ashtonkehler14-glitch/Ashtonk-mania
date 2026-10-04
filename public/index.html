@@ -3528,6 +3528,43 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
 .spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
 .spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
+/* MultiplayerResultsScreen: every player's contracted ScorePanel (130 × 385: #444 with 20px corners, the avatar,
+   name, judgements, combo and accuracy, mods; the score and grade below), winner first, yours lifted and outlined */
+.mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
+.mpr-head { flex: none; padding: 24px 20px 6px; text-align: center; }
+.mpr-verdict { font-size: 40px; font-weight: 600; line-height: 1.1; }
+.mpr-verdict.won { color: #b2ff66; } .mpr-verdict.lost { color: #ff6666; } .mpr-verdict.draw { color: #ffcc22; } .mpr-verdict.wait { font-size: 24px; font-weight: 400; color: hsl(200 40% 90%); }
+.mpr-map { margin-top: 4px; font-size: 16px; color: hsl(200 40% 90%); }
+.mpr-map span { color: #fff; font-weight: 600; }
+.mpr-list { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: safe center; gap: 14px; padding: 10px 40px 20px; overflow-x: auto; overflow-y: hidden; }
+.cp { flex: none; display: flex; flex-direction: column; width: 130px; height: 385px; transition: transform 400ms var(--ease-out); }
+.cp[data-anim] { animation: cpIn 500ms var(--ease-out) both; }
+@keyframes cpIn { from { opacity: 0; transform: translateY(30px) scale(.95); } }
+.cp.me { transform: translateY(-10px); }
+.cp-place { flex: none; height: 26px; text-align: center; font-size: 18px; font-weight: 700; }
+.cp.win .cp-place { color: #ffcc22; }
+.cp-mid { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 20px; overflow: hidden; background: linear-gradient(rgba(255, 255, 255, .08), transparent 40%), #444; box-shadow: 0 2px 1px rgba(0, 0, 0, .25); }
+.cp.me .cp-mid { box-shadow: 0 0 0 2px hsl(200 100% 70%), 0 2px 8px rgba(0, 0, 0, .35); }
+.cp.red .cp-mid { background: linear-gradient(rgba(255, 102, 102, .25), transparent 40%), #444; }
+.cp.blue .cp-mid { background: linear-gradient(rgba(102, 204, 255, .25), transparent 40%), #444; }
+.cp-av { flex: none; width: 110px; height: 110px; border-radius: 20px; overflow: hidden; box-shadow: 0 1px 8px rgba(0, 0, 0, .15); }
+.cp-av > * { width: 100% !important; height: 100% !important; border-radius: 0 !important; }
+.cp-name { font-size: 15px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-name small { font-weight: 400; color: hsl(200 40% 90%); }
+.cp-stats { display: flex; flex-direction: column; gap: 4px; }
+.cp-stats.cp-sum { margin-top: auto; }
+.cp-live { font-size: 12px; color: hsl(200 40% 90%); text-align: center; }
+.cp-stat { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; }
+.cp-stat span { color: hsl(200 40% 90%); }
+.cp-stat b { font-weight: 600; }
+.cp-mods { display: flex; flex-wrap: wrap; gap: 3px; }
+.cp-mods .mb-t { display: none; }
+.cp-note { font-size: 11px; color: #ff9aa6; text-align: center; }
+.cp-bottom { flex: none; height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.cp-score { font-size: 20px; font-weight: 500; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.cp-wait { color: hsl(200 40% 90%); }
+.mpr-foot { flex: none; position: relative; display: flex; align-items: center; gap: 5px; height: 50px; background: #333; }
+.mpr-foot .lz-back { position: absolute; left: 0; bottom: 0; }
 
 </style>
 </head>
@@ -13417,10 +13454,17 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, now);
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
+  },
+  /** After a multiplayer song: lazer's results for everyone in the match (a regular room), or back to the room
+   *  (Quick Play and Ranked Play show their standings there). */
+  mpAfter(score, replay) {
+    const r = Multiplayer.room;
+    if (r && !r.rp && !r.qp) Screens.go('mpresults', { score, replay }, { replace: true, transition: 'zoom' });
+    else Screens.go('multiplayer', {}, { replace: true });
   },
   async complete() {
     const s = this.s;
@@ -13431,7 +13475,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       const { score, replay } = await this.saveScore(!s.mpFailed); // (a multiplayer play that ran out of health is a failed score)
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) Screens.go('multiplayer', {}, { replace: true }); }, 900); return; }
+      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
@@ -16864,8 +16908,11 @@ const Multiplayer = {
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), ...opts })); this.ping(); };
+      // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
+      // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
+        if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
@@ -16895,6 +16942,8 @@ const Multiplayer = {
         if (this.reconnecting !== rc) return;
         this.reconnecting = null;
         this.syncHasMap();
+        // mid-song: your live score goes out on the very next frame, so the others see it move again straight away
+        if (typeof GameplayScreen !== 'undefined') GameplayScreen._mpSent = 0;
         if (rc.mods.length) this.send({ t: 'mods', mods: rc.mods });
         if (rc.diff) this.chooseDiff(rc.diff);
         Toast.ok('Reconnected to the room', rc.code);
@@ -16905,10 +16954,11 @@ const Multiplayer = {
         if (/already started|full/i.test(e.message) && (rc.opts.mode === 'qp' || rc.opts.mode === 'rp' || this.isRPCode === rc.code)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'qp' ? 'Quick Play' : 'Ranked Play'} match`, 'The connection dropped for too long and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
-        rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
+        rc.timer = setTimeout(attempt, Math.min(5000, 500 * 2 ** Math.min(rc.tries, 4)));
       }
     };
-    rc.timer = setTimeout(attempt, 600);
+    rc.now = () => { clearTimeout(rc.timer); attempt(); }; // (the network or the tab is back: don't wait for the timer)
+    rc.timer = setTimeout(attempt, 150);
   },
   leave(silent = false) {
     if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
@@ -16931,14 +16981,28 @@ const Multiplayer = {
   },
   flushOutbox() { const m = this._outbox; this._outbox = null; if (m) this.send(m); },
   ping() { this._pingAt = performance.now(); this.send({ t: 'ping', c: this._pingAt }); },
+  /** Every 5 s a ping (it also keeps phone networks and proxies from dropping a quiet connection). A ping that gets
+   *  no answer at all in 12 s means the connection died without closing (common on Wi-Fi/mobile handovers): drop it
+   *  and reconnect at once, instead of sitting frozen until the server gives up on us. */
   startKeepAlive() {
     this.stopKeepAlive();
+    this._lastMsg = performance.now();
     this._keep = setInterval(() => {
+      const ws = this.ws, t = performance.now();
+      if (ws && this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt > 12000 && !document.hidden) { this.dropDead(ws); return; }
+      if (this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt < 12000) return; // (still waiting on the last one)
       this.ping();
       if (this.quick && this.room && this.room.players.length < 2) this.api('api/mp/quick/keep', { code: this.code }).catch(() => {});
-    }, 15000);
+    }, 5000);
   },
   stopKeepAlive() { clearInterval(this._keep); this._keep = 0; },
+  dropDead(ws) {
+    if (this.ws !== ws) return;
+    this.ws = null; this.stopKeepAlive();
+    ws.onclose = ws.onmessage = ws.onerror = null;
+    try { ws.close(4004, 'dead'); } catch { /* already gone */ }
+    if (this.room) { this.startReconnect(); Bus.emit('mp:changed'); }
+  },
 
   onMessage(m) {
     switch (m.t) {
@@ -16957,11 +17021,11 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); break;
+      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'mpresults') Bus.emit('mp:opp'); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
-      case 'start': this.launch(m); break;
+      case 'start': this.lastResults = null; this.launch(m); break; // (a new match: the last one's results go)
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
       case 'results':
@@ -17786,6 +17850,15 @@ const MultiplayerScreen = {
   },
 };
 
+
+// the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
+// check a connection that may have died while the tab was in the background)
+addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now();
+  else if (Multiplayer.ws) Multiplayer.ping();
+});
 
 /* ===== 19b-ranked-play.js ===== */
 /* Ranked Play — osu!lazer's 1v1 card mode on the client: your rating, the queue, and the match screen (lazer's
@@ -19252,6 +19325,91 @@ if (Mobile.touch) {
   document.addEventListener('contextmenu', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); });
 }
 
+/* ===== 19e-mp-results.js ===== */
+/* After a multiplayer song: osu!lazer's MultiplayerResultsScreen — every player's score as lazer's contracted score
+ * panel (#place, avatar, name, judgements, combo, accuracy, mods; the score and grade along the bottom), lined up
+ * from the winner to the last place, yours picked out. It waits for the others to finish first (their live scores
+ * meanwhile), then shows who won. */
+
+const MpResultsScreen = {
+  tab: 'multiplayer',
+  enter(params = {}) {
+    this.my = params.score || null;
+    this.el = h('div.mpr');
+    this.head = h('div.mpr-head');
+    this.list = h('div.mpr-list');
+    const foot = h('div.mpr-foot',
+      backButton(() => Screens.go('multiplayer', {}, { replace: true })),
+      h('div.grow'),
+      this.my ? h('button.res-ab.wide', { title: 'your results', 'aria-label': 'Your results', onclick: () => { UISounds.click(); Screens.go('results', { score: this.my, replay: params.replay || null, fromList: true }); } }, icon('chart')) : null,
+      h('button.res-ab.wide.green', { title: 'back to the room', 'aria-label': 'Back to the room', onclick: () => { UISounds.click(); Screens.go('multiplayer', {}, { replace: true }); } }, icon('multi')),
+      h('div.grow'));
+    this.el.append(this.head, this.list, foot);
+    this._unsub = [Bus.on('mp:changed', () => this.paint()), Bus.on('mp:opp', () => this.paint())];
+    this._t = setInterval(() => this.paint(), 500);
+    this.paint();
+    return this.el;
+  },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._t); },
+  onKey(e) { if (e.key === 'Escape') { Screens.go('multiplayer', {}, { replace: true }); return true; } return false; },
+  /** The match's results once everyone's done; until then the live scores of those still playing. */
+  rows() {
+    const res = Multiplayer.lastResults;
+    if (res) return { res, rows: res.rows };
+    const room = Multiplayer.room, rows = [];
+    if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, mods: this.my.mods, done: true });
+    for (const [id, o] of Multiplayer.opps || []) {
+      const p = room && room.players.find(x => x.id === id);
+      if (!p || id === Multiplayer.me) continue;
+      rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, counts: null, grade: null, mods: [], pending: true });
+    }
+    rows.sort((a, b) => b.score - a.score);
+    rows.forEach((r, i) => { r.place = i + 1; });
+    return { res: null, rows };
+  },
+  paint() {
+    const { res, rows } = this.rows();
+    const key = JSON.stringify([!!res, rows.map(r => [r.id, r.place, r.score, r.pending])]);
+    if (key === this._key) return;
+    const first = !this._key || (!!res && !this._final);
+    this._key = key; this._final = !!res;
+    const me = Multiplayer.me, mine = rows.find(r => r.id === me);
+    let verdict = 'Waiting for the others to finish…', cls = 'wait';
+    if (res) {
+      if (res.teams) {
+        const my = mine ? mine.team : null;
+        verdict = res.winnerTeam === null ? 'Draw' : `${res.winnerTeam ? 'Blue' : 'Red'} team wins!`;
+        cls = res.winnerTeam === null ? 'draw' : res.winnerTeam === my ? 'won' : 'lost';
+      } else {
+        verdict = res.winner === null ? 'Draw' : res.winner === me ? 'You win!' : rows.length > 2 && mine ? `You placed #${mine.place}` : 'You lose';
+        cls = res.winner === null ? 'draw' : res.winner === me ? 'won' : 'lost';
+      }
+    }
+    const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
+    clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
+    clearEl(this.list).append(...rows.map((r, i) => this.panel(r, i, first, res)));
+  },
+  /** lazer's contracted ScorePanel (130 × 385). */
+  panel(r, i, animate, res) {
+    const me = r.id === Multiplayer.me;
+    const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
+    const g = r.forfeit ? 'F' : r.grade || null;
+    const NAMES = ['Perfect', 'Great', 'Good', 'Ok', 'Meh', 'Miss'];
+    const stat = (k, v) => h('div.cp-stat', h('span', k), h('b', v));
+    const win = res && (res.teams ? r.team === res.winnerTeam : r.id === res.winner);
+    return h(`div.cp${me ? '.me' : ''}${win ? '.win' : ''}${r.team === 0 ? '.red' : r.team === 1 ? '.blue' : ''}`, { style: { '--rc': RANK_COLOURS[g] || '#444', animationDelay: animate ? `${i * 80}ms` : '0ms' }, 'data-anim': animate ? '1' : null },
+      h('div.cp-place', `#${r.place || i + 1}`),
+      h('div.cp-mid',
+        h('div.cp-av', me ? ProfileManager.avatarEl(110) : Presence.avatarEl(p || { name: r.name }, 110)),
+        h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
+        r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
+        h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),
+        (r.mods || []).length ? h('div.cp-mods', ...r.mods.map(m => ModSystem.badge(m, true))) : null,
+        r.forfeit ? h('div.cp-note', r.left ? 'left the match' : 'forfeited') : null),
+      h('div.cp-bottom', h('div.cp-score', fmtScore(r.score || 0)), g ? rankPill(g) : h('span.cp-wait', '…')));
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -19292,6 +19450,7 @@ const App = {
     Screens.register('explore', ExplorerScreen);
     Screens.register('dashboard', DashboardScreen);
     Screens.register('multiplayer', MultiplayerScreen);
+    Screens.register('mpresults', MpResultsScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
     Screens.register('stats', ProfileScreen);

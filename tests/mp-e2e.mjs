@@ -158,7 +158,13 @@ const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-ro
 check('in-game board shows both players with their live score', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\d$/.test(t) && !/pp$/.test(t)), JSON.stringify(board));
 await bob.waitForSelector('.hud-mpfailed', { timeout: 20000 });
 check('as in lazer multiplayer: running out of health marks the play failed, and it carries on', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s.mpFailed && !s.failed && s.running && s.engine.health.value <= 0; }));
-await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 40000 })));
+// after the song: lazer's multiplayer results — everyone's score panel, winner first — then back to the room
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'mpresults' && AshtonkMania.Multiplayer.lastResults && document.querySelectorAll('.cp').length === 2 && !document.querySelector('.mpr-verdict.wait'), null, { timeout: 40000 })));
+const mpr = await Promise.all([alice, bob].map(p => p.evaluate(() => ({ verdict: document.querySelector('.mpr-verdict').textContent, order: [...document.querySelectorAll('.cp-name')].map(e => e.firstChild.textContent), me: document.querySelector('.cp.me .cp-name').firstChild.textContent }))));
+await alice.waitForTimeout(1200); await shot(alice, 'mp-results-screen');
+check('after the song, a results screen with both players\' panels, winner first', mpr[0].verdict === 'You win!' && mpr[1].verdict === 'You lose' && mpr.every(r => r.order.join() === 'Alice,Bob') && mpr[0].me === 'Alice' && mpr[1].me === 'Bob', JSON.stringify(mpr));
+await Promise.all([alice, bob].map(p => p.evaluate(() => AshtonkMania.Screens.go('multiplayer', {}, { replace: true }))));
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 10000 })));
 check('the play finishes and is saved as a failed score (F, no pp, score untouched)', await bob.evaluate(() => { const sc = AshtonkMania.ScoreManager.scores[0]; return sc && sc.passed === false && sc.grade === 'F' && sc.pp === 0; }));
 const ra = await alice.evaluate(() => ({ verdict: document.querySelector('.mp-verdict')?.textContent, res: AshtonkMania.Multiplayer.lastResults }));
 const rb = await bob.evaluate(() => document.querySelector('.mp-verdict')?.textContent);

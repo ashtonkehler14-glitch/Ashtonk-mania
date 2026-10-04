@@ -52,8 +52,11 @@ const Multiplayer = {
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
       const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
-      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), ...opts })); this.ping(); };
+      // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
+      // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
+        if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
@@ -83,6 +86,8 @@ const Multiplayer = {
         if (this.reconnecting !== rc) return;
         this.reconnecting = null;
         this.syncHasMap();
+        // mid-song: your live score goes out on the very next frame, so the others see it move again straight away
+        if (typeof GameplayScreen !== 'undefined') GameplayScreen._mpSent = 0;
         if (rc.mods.length) this.send({ t: 'mods', mods: rc.mods });
         if (rc.diff) this.chooseDiff(rc.diff);
         Toast.ok('Reconnected to the room', rc.code);
@@ -93,10 +98,11 @@ const Multiplayer = {
         if (/already started|full/i.test(e.message) && (rc.opts.mode === 'qp' || rc.opts.mode === 'rp' || this.isRPCode === rc.code)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'qp' ? 'Quick Play' : 'Ranked Play'} match`, 'The connection dropped for too long and the match went on without you.'); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
-        rc.timer = setTimeout(attempt, Math.min(10000, 1000 * 2 ** Math.min(rc.tries, 4)));
+        rc.timer = setTimeout(attempt, Math.min(5000, 500 * 2 ** Math.min(rc.tries, 4)));
       }
     };
-    rc.timer = setTimeout(attempt, 600);
+    rc.now = () => { clearTimeout(rc.timer); attempt(); }; // (the network or the tab is back: don't wait for the timer)
+    rc.timer = setTimeout(attempt, 150);
   },
   leave(silent = false) {
     if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
@@ -119,14 +125,28 @@ const Multiplayer = {
   },
   flushOutbox() { const m = this._outbox; this._outbox = null; if (m) this.send(m); },
   ping() { this._pingAt = performance.now(); this.send({ t: 'ping', c: this._pingAt }); },
+  /** Every 5 s a ping (it also keeps phone networks and proxies from dropping a quiet connection). A ping that gets
+   *  no answer at all in 12 s means the connection died without closing (common on Wi-Fi/mobile handovers): drop it
+   *  and reconnect at once, instead of sitting frozen until the server gives up on us. */
   startKeepAlive() {
     this.stopKeepAlive();
+    this._lastMsg = performance.now();
     this._keep = setInterval(() => {
+      const ws = this.ws, t = performance.now();
+      if (ws && this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt > 12000 && !document.hidden) { this.dropDead(ws); return; }
+      if (this._pingAt && this._lastMsg < this._pingAt && t - this._pingAt < 12000) return; // (still waiting on the last one)
       this.ping();
       if (this.quick && this.room && this.room.players.length < 2) this.api('api/mp/quick/keep', { code: this.code }).catch(() => {});
-    }, 15000);
+    }, 5000);
   },
   stopKeepAlive() { clearInterval(this._keep); this._keep = 0; },
+  dropDead(ws) {
+    if (this.ws !== ws) return;
+    this.ws = null; this.stopKeepAlive();
+    ws.onclose = ws.onmessage = ws.onerror = null;
+    try { ws.close(4004, 'dead'); } catch { /* already gone */ }
+    if (this.room) { this.startReconnect(); Bus.emit('mp:changed'); }
+  },
 
   onMessage(m) {
     switch (m.t) {
@@ -145,11 +165,11 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); break;
+      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'mpresults') Bus.emit('mp:opp'); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
-      case 'start': this.launch(m); break;
+      case 'start': this.lastResults = null; this.launch(m); break; // (a new match: the last one's results go)
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
       case 'results':
@@ -974,3 +994,12 @@ const MultiplayerScreen = {
   },
 };
 
+
+// the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
+// check a connection that may have died while the tab was in the background)
+addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now();
+  else if (Multiplayer.ws) Multiplayer.ping();
+});
