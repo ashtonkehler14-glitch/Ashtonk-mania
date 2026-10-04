@@ -695,7 +695,8 @@ const MenuMusic = {
       const blob = await BeatmapManager.getFile(map.setId, map.audioFile);
       if (tok !== this._tok) return; // another track was requested meanwhile
       if (!blob) throw new Error('missing audio');
-      Music.stream(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      if (tok !== this._tok) return;
       Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
       Music.onEnded = () => this.next();
       this.paused = false;

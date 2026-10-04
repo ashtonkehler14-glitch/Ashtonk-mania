@@ -255,6 +255,15 @@ const Music = {
     this.buffer = buffer; this.key = key; this.meta = meta || null;
     this.stretched = null;
   },
+  /** Open a track for menus / song select: streamed through an <audio> element on computers; on phones decoded and
+   *  played through Web Audio instead — an <audio> element there puts a "Media output" player in the notifications. */
+  async open(blob, key, meta) {
+    if (!(typeof Mobile !== 'undefined' && Mobile.touch)) { this.stream(blob, key, meta); return; }
+    AudioManager.init();
+    const [setId, ...rest] = key.split('/');
+    const buf = await TrackCache.get(setId, rest.join('/')).catch(() => null) || await AudioManager.decode(await blob.arrayBuffer());
+    await this.load(buf, key, meta);
+  },
   /** Stream a track (Blob) for menus / previews: playback starts as soon as the first bytes are read. */
   stream(blob, key, meta) {
     AudioManager.init();
@@ -397,6 +406,29 @@ const TrackCache = {
     return p;
   },
 };
+
+/** A beatmap's online song preview. On computers an <audio> element; on phones fetched (directly, else through the
+ *  game server) and played through Web Audio, so Android doesn't show a "Media output" player in the notifications.
+ *  Used like an Audio: volume, play(), pause(), onended. */
+function previewPlayer(url) {
+  if (!(typeof Mobile !== 'undefined' && Mobile.touch)) return new Audio(url);
+  const p = { volume: 1, onended: null, _stopped: false, _src: null,
+    async play() {
+      AudioManager.init();
+      const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(`preview ${r.status}`); return r.arrayBuffer(); };
+      const data = await get(url).catch(() => get('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url)));
+      const buf = await AudioManager.decode(data);
+      if (p._stopped) return;
+      const ctx = AudioManager.ctx, src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf; g.gain.value = p.volume; src.connect(g); g.connect(ctx.destination);
+      src.onended = () => { if (!p._stopped && p.onended) p.onended(); };
+      src.start(); p._src = src;
+    },
+    pause() { p._stopped = true; try { p._src && p._src.stop(); } catch { /* not started */ } },
+    removeAttribute() {},
+  };
+  return p;
+}
 
 /** UI sound effects (hover/click/back…) taken from the active skin when present. */
 const UISounds = {

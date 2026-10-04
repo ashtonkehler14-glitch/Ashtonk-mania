@@ -344,6 +344,8 @@ window.addEventListener('DOMContentLoaded', () => App.boot());
 const MediaKeys = {
   init() {
     if (!('mediaSession' in navigator)) return;
+    // (phones: no system media player for the game — it showed as a "Media output" notification)
+    if (typeof Mobile !== 'undefined' && Mobile.touch) return;
     const ms = navigator.mediaSession;
     const set = (action, fn) => { try { ms.setActionHandler(action, () => { if (Screens.current !== GameplayScreen) fn(); }); } catch { /* not supported */ } };
     // (lazer's MusicKeyBindingHandler shows each one on the on-screen display)

@@ -36,9 +36,24 @@ const PlayScreen = {
   },
   lock() {
     if (typeof Mobile === 'undefined' || !Mobile.touch) return;
+    // (as the app does: the screen turns sideways for the song and back upright after, if that's how it was held)
+    if (this.wasUpright == null) this.wasUpright = Mobile.portrait;
     try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
   },
-  unlock() { try { const o = screen.orientation; o && o.unlock && o.unlock(); } catch {} },
+  unlock() {
+    // (a retry comes straight back to gameplay: don't turn the screen in between)
+    clearTimeout(this._unT);
+    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay') this.release(); }, 500);
+  },
+  release() {
+    const up = this.wasUpright; this.wasUpright = null;
+    try {
+      const o = screen.orientation;
+      if (!o) return;
+      if (up && o.lock) o.lock('portrait').catch(() => { o.unlock && o.unlock(); });
+      else o.unlock && o.unlock();
+    } catch {}
+  },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {
     const back = () => { if (this.want() && !document.fullscreenElement && Screens.currentName === 'gameplay') this.enter(); };
@@ -194,6 +209,7 @@ const GameplayScreen = {
     this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
     PlayScreen.attach(el);
+    PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
     this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#18171c">
 <title>Ashtonk!mania</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23ff66ab' stroke='%23fff' stroke-width='6'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -6003,6 +6003,15 @@ const Music = {
     this.buffer = buffer; this.key = key; this.meta = meta || null;
     this.stretched = null;
   },
+  /** Open a track for menus / song select: streamed through an <audio> element on computers; on phones decoded and
+   *  played through Web Audio instead — an <audio> element there puts a "Media output" player in the notifications. */
+  async open(blob, key, meta) {
+    if (!(typeof Mobile !== 'undefined' && Mobile.touch)) { this.stream(blob, key, meta); return; }
+    AudioManager.init();
+    const [setId, ...rest] = key.split('/');
+    const buf = await TrackCache.get(setId, rest.join('/')).catch(() => null) || await AudioManager.decode(await blob.arrayBuffer());
+    await this.load(buf, key, meta);
+  },
   /** Stream a track (Blob) for menus / previews: playback starts as soon as the first bytes are read. */
   stream(blob, key, meta) {
     AudioManager.init();
@@ -6145,6 +6154,29 @@ const TrackCache = {
     return p;
   },
 };
+
+/** A beatmap's online song preview. On computers an <audio> element; on phones fetched (directly, else through the
+ *  game server) and played through Web Audio, so Android doesn't show a "Media output" player in the notifications.
+ *  Used like an Audio: volume, play(), pause(), onended. */
+function previewPlayer(url) {
+  if (!(typeof Mobile !== 'undefined' && Mobile.touch)) return new Audio(url);
+  const p = { volume: 1, onended: null, _stopped: false, _src: null,
+    async play() {
+      AudioManager.init();
+      const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(`preview ${r.status}`); return r.arrayBuffer(); };
+      const data = await get(url).catch(() => get('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url)));
+      const buf = await AudioManager.decode(data);
+      if (p._stopped) return;
+      const ctx = AudioManager.ctx, src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf; g.gain.value = p.volume; src.connect(g); g.connect(ctx.destination);
+      src.onended = () => { if (!p._stopped && p.onended) p.onended(); };
+      src.start(); p._src = src;
+    },
+    pause() { p._stopped = true; try { p._src && p._src.stop(); } catch { /* not started */ } },
+    removeAttribute() {},
+  };
+  return p;
+}
 
 /** UI sound effects (hover/click/back…) taken from the active skin when present. */
 const UISounds = {
@@ -11270,7 +11302,8 @@ const MenuMusic = {
       const blob = await BeatmapManager.getFile(map.setId, map.audioFile);
       if (tok !== this._tok) return; // another track was requested meanwhile
       if (!blob) throw new Error('missing audio');
-      Music.stream(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
+      if (tok !== this._tok) return;
       Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
       Music.onEnded = () => this.next();
       this.paused = false;
@@ -12296,7 +12329,8 @@ const SongSelect = {
       const blob = await BeatmapManager.getFile(m.setId, m.audioFile);
       if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
       if (!blob) return;
-      Music.stream(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      if (tok !== this._previewTok) return;
       const start = previewStart(m);
       Music.play(start, { fadeIn: 400 });
       Music.onEnded = () => { if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(start, { fadeIn: 600 }); };
@@ -12619,9 +12653,24 @@ const PlayScreen = {
   },
   lock() {
     if (typeof Mobile === 'undefined' || !Mobile.touch) return;
+    // (as the app does: the screen turns sideways for the song and back upright after, if that's how it was held)
+    if (this.wasUpright == null) this.wasUpright = Mobile.portrait;
     try { const o = screen.orientation; o && o.lock && o.lock('landscape').catch(() => {}); } catch {}
   },
-  unlock() { try { const o = screen.orientation; o && o.unlock && o.unlock(); } catch {} },
+  unlock() {
+    // (a retry comes straight back to gameplay: don't turn the screen in between)
+    clearTimeout(this._unT);
+    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay') this.release(); }, 500);
+  },
+  release() {
+    const up = this.wasUpright; this.wasUpright = null;
+    try {
+      const o = screen.orientation;
+      if (!o) return;
+      if (up && o.lock) o.lock('portrait').catch(() => { o.unlock && o.unlock(); });
+      else o.unlock && o.unlock();
+    } catch {}
+  },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {
     const back = () => { if (this.want() && !document.fullscreenElement && Screens.currentName === 'gameplay') this.enter(); };
@@ -12777,6 +12826,7 @@ const GameplayScreen = {
     this.rotateEl = h('div.gp-rotate', h('div.gp-rotate-ph'), h('b', 'Turn your device sideways'), h('span', 'Gameplay is landscape only.'));
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud, this.rotateEl);
     PlayScreen.attach(el);
+    PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
     this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
@@ -16235,7 +16285,7 @@ const ExplorerScreen = {
     this.stopPreview();
     AudioManager.resume();
     if (Music.playing) { Music.pause(); this._resumeMusic = true; }
-    const a = new Audio(OnlineBeatmaps.previewURL(id));
+    const a = previewPlayer(OnlineBeatmaps.previewURL(id));
     a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
     a.play().catch(() => Toast.err('Preview unavailable'));
     a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
@@ -19136,7 +19186,8 @@ const RankedMatch = {
     try {
       const blob = await BeatmapManager.getFile(local.setId, local.audioFile);
       if (!blob || !this.g || this.g.stage !== 'ready') return;
-      Music.stream(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
+      await Music.open(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
+      if (!this.g || this.g.stage !== 'ready') return;
       Music.play(previewStart(local), { fadeIn: 600 });
     } catch (e) { /* no preview: the warmup goes on in silence */ }
   },
@@ -19249,7 +19300,7 @@ const RankedMatch = {
     if (this._pvId === m.onlineSetId && this._pv) return;
     this._pvT = setTimeout(() => {
       this.stopPreview(true);
-      const a = new Audio(OnlineBeatmaps.previewURL(m.onlineSetId));
+      const a = previewPlayer(OnlineBeatmaps.previewURL(m.onlineSetId));
       a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1) * 0.8;
       a.play().catch(() => {});
       this._pv = a; this._pvId = m.onlineSetId;
@@ -20731,6 +20782,8 @@ window.addEventListener('DOMContentLoaded', () => App.boot());
 const MediaKeys = {
   init() {
     if (!('mediaSession' in navigator)) return;
+    // (phones: no system media player for the game — it showed as a "Media output" notification)
+    if (typeof Mobile !== 'undefined' && Mobile.touch) return;
     const ms = navigator.mediaSession;
     const set = (action, fn) => { try { ms.setActionHandler(action, () => { if (Screens.current !== GameplayScreen) fn(); }); } catch { /* not supported */ } };
     // (lazer's MusicKeyBindingHandler shows each one on the on-screen display)

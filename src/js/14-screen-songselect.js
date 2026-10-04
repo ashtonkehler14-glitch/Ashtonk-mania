@@ -816,7 +816,8 @@ const SongSelect = {
       const blob = await BeatmapManager.getFile(m.setId, m.audioFile);
       if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
       if (!blob) return;
-      Music.stream(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
+      if (tok !== this._previewTok) return;
       const start = previewStart(m);
       Music.play(start, { fadeIn: 400 });
       Music.onEnded = () => { if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(start, { fadeIn: 600 }); };

@@ -706,7 +706,7 @@ const ExplorerScreen = {
     this.stopPreview();
     AudioManager.resume();
     if (Music.playing) { Music.pause(); this._resumeMusic = true; }
-    const a = new Audio(OnlineBeatmaps.previewURL(id));
+    const a = previewPlayer(OnlineBeatmaps.previewURL(id));
     a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
     a.play().catch(() => Toast.err('Preview unavailable'));
     a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };

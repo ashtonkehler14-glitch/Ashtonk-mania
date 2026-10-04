@@ -277,7 +277,8 @@ export async function handleDownload(id, fetchImpl = fetch, provider = '') {
 
 /** Web-Osu-Mania's /api/downloadBeatmap (src/routes/api/downloadBeatmap.ts): fetch destinationUrl and pass the body
  *  through. Only Web-Osu-Mania's beatmap providers are allowed, so it can't be used as an open proxy. */
-const DOWNLOAD_HOSTS = new Set(['catboy.best', 'api.nerinyan.moe', 'dl.sayobot.cn', 'osu.direct', 'mirror.nekoha.moe']);
+// (and the song preview hosts: phones play previews through Web Audio, which needs them fetched)
+const DOWNLOAD_HOSTS = new Set(['catboy.best', 'api.nerinyan.moe', 'dl.sayobot.cn', 'osu.direct', 'mirror.nekoha.moe', 'b.ppy.sh', 'beatconnect.io', 'cdnx.sayobot.cn']);
 export async function handleProxyDownload(url, fetchImpl = fetch) {
   const dest = url.searchParams.get('destinationUrl');
   if (!dest) return json({ error: 'Missing "destinationUrl" query parameter.' }, 400);

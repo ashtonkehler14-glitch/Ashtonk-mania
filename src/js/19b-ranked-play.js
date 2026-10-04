@@ -722,7 +722,8 @@ const RankedMatch = {
     try {
       const blob = await BeatmapManager.getFile(local.setId, local.audioFile);
       if (!blob || !this.g || this.g.stage !== 'ready') return;
-      Music.stream(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
+      await Music.open(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
+      if (!this.g || this.g.stage !== 'ready') return;
       Music.play(previewStart(local), { fadeIn: 600 });
     } catch (e) { /* no preview: the warmup goes on in silence */ }
   },
@@ -835,7 +836,7 @@ const RankedMatch = {
     if (this._pvId === m.onlineSetId && this._pv) return;
     this._pvT = setTimeout(() => {
       this.stopPreview(true);
-      const a = new Audio(OnlineBeatmaps.previewURL(m.onlineSetId));
+      const a = previewPlayer(OnlineBeatmaps.previewURL(m.onlineSetId));
       a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1) * 0.8;
       a.play().catch(() => {});
       this._pv = a; this._pvId = m.onlineSetId;
