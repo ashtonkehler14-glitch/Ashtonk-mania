@@ -665,7 +665,13 @@ export class PresenceLogic {
     // friends, by public id: pid → Map(pid → name), and friend requests waiting for an answer: pid → Map(from pid → name).
     // `persist(key, value)` keeps them (the Durable Object's storage); `load` fills them back in on start.
     this.friends = new Map(); this.requests = new Map(); this.persist = null;
+    // lazer's chat: #lobby for everyone online (the last CHAT_KEEP lines kept for whoever comes online), and private
+    // messages between friends; `said` rate-limits each connection
+    this.chat = []; this.said = new Map();
   }
+  static CHAT_KEEP = 100;
+  static CHAT_BURST = 5; // messages per CHAT_WINDOW
+  static CHAT_WINDOW = 5000;
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
     for (const [pid, l] of Object.entries(requests || {})) this.requests.set(pid, new Map(l));
@@ -699,7 +705,7 @@ export class PresenceLogic {
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
     const me = this.users.get(id);
-    return [...out, { to: id, msg: { t: 'welcome', you: id } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []), this.broadcast()];
+    return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -714,7 +720,7 @@ export class PresenceLogic {
     const out = [];
     for (const w of u.watchers) { const wu = this.users.get(w); if (wu && wu.watching === id) wu.watching = null; out.push({ to: w, msg: { t: 'specEnd', id, gone: true } }); }
     if (u.watching) out.push(...this.unwatch(id, u.watching));
-    this.users.delete(id); this.lastInvite.delete(id);
+    this.users.delete(id); this.lastInvite.delete(id); this.said.delete(id);
     return out;
   }
   leave(id) { if (!this.users.has(id)) return []; const out = this.forget(id); return [...out, this.broadcast()]; }
@@ -739,6 +745,27 @@ export class PresenceLogic {
       if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return [];
       u.status = st; u.name = name; u.avatar = av; u.song = song;
       return [this.broadcast()];
+    }
+    // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)
+    if (msg.t === 'say' || msg.t === 'pm') {
+      const text = str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      if (!text) return [];
+      const t = this.now(), recent = (this.said.get(id) || []).filter(x => t - x < PresenceLogic.CHAT_WINDOW);
+      if (recent.length >= PresenceLogic.CHAT_BURST) return [{ to: id, msg: { t: 'error', msg: 'You\'re sending messages too fast.' } }];
+      recent.push(t); this.said.set(id, recent);
+      const from = { pid: u.pid, name: u.name, avatar: u.avatar };
+      if (msg.t === 'say') {
+        const line = { ch: '#lobby', from, text, at: t };
+        this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
+        return [{ to: 'all', msg: { t: 'say', ...line } }];
+      }
+      const to = String(msg.to || '');
+      if (!u.pid || !this.areFriends(u.pid, to)) return [{ to: id, msg: { t: 'error', msg: 'You can only message your friends.' } }];
+      const targets = this.byPid(to);
+      if (!targets.length) return [{ to: id, msg: { t: 'error', msg: 'That player is offline.' } }];
+      const toName = this.users.get(targets[0]).name;
+      return [...targets.map(x => ({ to: x, msg: { t: 'pm', with: { pid: u.pid, name: u.name, avatar: u.avatar }, from, text, at: t } })),
+        ...this.byPid(u.pid).map(x => ({ to: x, msg: { t: 'pm', with: { pid: to, name: toName }, from, text, at: t, mine: true } }))];
     }
     if (msg.t === 'invite') {
       const code = str(msg.code, 8).toUpperCase();

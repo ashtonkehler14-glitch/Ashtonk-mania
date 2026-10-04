@@ -942,3 +942,32 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   assert.ok(un.some(o => o.to === 'b' && o.msg.t === 'specEnd'));
   assert.equal(p.users.get('a').watchers.size, 0);
 });
+
+test('presence chat: #lobby reaches everyone and is kept for late arrivals; private messages only between friends; rate limited', () => {
+  const clock = { t: 0 };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  const say = p.message('a', { t: 'say', text: '  hello\u0007 all  ' });
+  assert.equal(say.length, 1); assert.equal(say[0].to, 'all');
+  assert.deepEqual({ ...say[0].msg, from: say[0].msg.from.name }, { t: 'say', ch: '#lobby', from: 'Alice', text: 'hello  all', at: 0 });
+  assert.deepEqual(p.message('a', { t: 'say', text: '   ' }), [], 'nothing to say');
+  assert.equal(p.message('a', { t: 'say', text: 'x'.repeat(500) })[0].msg.text.length, 300);
+  // someone coming online gets the recent lines
+  const hist = p.join('c', { name: 'Cat', pid: 'catpid333' }).find(o => o.msg.t === 'chatHist');
+  assert.equal(hist.to, 'c'); assert.equal(hist.msg.list.length, 2);
+  // private messages: friends only, to every tab of both
+  assert.equal(p.message('a', { t: 'pm', to: 'bobpid22', text: 'hi' })[0].msg.msg, 'You can only message your friends.');
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  p.join('b2', { name: 'Bob', pid: 'bobpid22', cid: 'tab2' });
+  const pm = p.message('a', { t: 'pm', to: 'bobpid22', text: 'hi' });
+  assert.deepEqual(pm.map(o => [o.to, o.msg.with.pid, !!o.msg.mine]), [['b', 'alicepid1', false], ['b2', 'alicepid1', false], ['a', 'bobpid22', true]]);
+  // 5 messages in 5 s, then a pause
+  clock.t = 10000;
+  for (let i = 0; i < 5; i++) assert.equal(p.message('c', { t: 'say', text: 'spam' + i })[0].msg.t, 'say');
+  assert.equal(p.message('c', { t: 'say', text: 'more' })[0].msg.msg, 'You\'re sending messages too fast.');
+  clock.t = 15001;
+  assert.equal(p.message('c', { t: 'say', text: 'ok' })[0].msg.t, 'say');
+  // only the last 100 lines are kept
+  for (let i = 0; i < 120; i++) { clock.t += 2000; p.message('a', { t: 'say', text: 'line' + i }); }
+  assert.equal(p.chat.length, 100); assert.equal(p.chat[99].text, 'line119');
+});

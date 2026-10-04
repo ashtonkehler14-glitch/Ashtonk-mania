@@ -51,6 +51,7 @@ const ICONS = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
   bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
   mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
@@ -486,6 +487,7 @@ const Toolbar = {
     this.bellCount = h('span.tb-badge', h('span'));
     this.bell = btn('bell', 'notifications', 'waiting for \'ya', () => Notifications.toggle(), { key: 'Ctrl+N', right: true, dataset: { ov: 'notifications' } });
     this.bell.append(this.bellCount);
+    this.chatCount = h('span.tb-badge', h('span'));
     // like lazer's toolbar toggles: a page's button closes that page when it's already open
     const page = name => () => { if (Screens.currentName === name) Screens.back(); else Screens.go(name); };
     this.pages = { explore: page('explore'), profile: page('profile') };
@@ -503,6 +505,7 @@ const Toolbar = {
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
         btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
+        this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
@@ -511,6 +514,7 @@ const Toolbar = {
         this.clock,
         this.bell),
     );
+    this.chatBtn.append(this.chatCount);
     this.updateProfile();
     this.buildClock();
     this.tick();
@@ -531,6 +535,7 @@ const Toolbar = {
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.altKey && !ctrl && e.code === 'Home') { this.home(); return true; }
     if (!ctrl && !e.altKey && !e.shiftKey && e.code === 'F6') { NowPlaying.toggle(); return true; }
+    if (!ctrl && !e.altKey && !e.shiftKey && e.code === 'F8') { Chat.toggle(); return true; }
     if (ctrl && !e.altKey && !e.shiftKey && e.code === 'KeyB') { this.pages.explore(); return true; }
     if (ctrl && !e.altKey && !e.shiftKey && e.code === 'KeyN') { Notifications.toggle(); return true; }
     return false;
@@ -553,7 +558,7 @@ const Toolbar = {
   sync() {
     cancelAnimationFrame(this._syncRaf);
     this._syncRaf = requestAnimationFrame(() => {
-      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen() };
+      const on = { settings: !!SettingsPanel.o, np: !!NowPlaying.open, notifications: Notifications.isOpen(), chat: !!(typeof Chat !== 'undefined' && Chat.o) };
       // lazer pushes the screen 5% of a side panel's width away from it, for a sense of depth
       $('#app').classList.toggle('side-l', on.settings);
       $('#app').classList.toggle('side-r', on.notifications && !on.settings);

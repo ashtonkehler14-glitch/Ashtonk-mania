@@ -79,6 +79,19 @@ async function holdBtn(page, sel) {
 const alice = await player('Alice');
 const bob = await player('Bob');
 await shot(alice, 'mp-lobby');
+// lazer's chat overlay: #lobby reaches everyone online
+await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Chat && document.querySelector('#toolbar [data-ov="chat"]') && window.AshtonkMania.Presence && AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1, null, { timeout: 10000 })));
+await alice.keyboard.press('F8');
+await alice.waitForSelector('.chat .ch-input'); await alice.waitForTimeout(100);
+check('F8 opens the chat overlay on #lobby', await alice.evaluate(() => /talking in #lobby/.test(document.querySelector('.ch-talk').textContent) && document.querySelector('#toolbar [data-ov="chat"]').classList.contains('on')));
+await alice.fill('.ch-input', 'hello from alice'); await alice.press('.ch-input', 'Enter');
+await bob.waitForFunction(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => l.text === 'hello from alice'), null, { timeout: 5000 });
+check('a #lobby message reaches the other player, counted as unread on their chat button', await bob.evaluate(() => AshtonkMania.Chat.unread === 1 && /1/.test(document.querySelector('#toolbar [data-ov="chat"] .tb-badge').textContent)));
+check('…and shows in the sender\'s chat with the time and their name', await alice.evaluate(() => { const l = [...document.querySelectorAll('.ch-line')].pop(); return l && /hello from alice/.test(l.textContent) && l.querySelector('.ch-name').textContent === 'Alice' && /\d/.test(l.querySelector('.ch-time').textContent); }));
+await shot(alice, 'mp-chat');
+await alice.keyboard.press('Escape');
+await alice.waitForFunction(() => !document.querySelector('.chat'), null, { timeout: 3000 });
+
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
 
 // friends: invites and spectating are only between friends. Alice opens the dashboard (lazer's), finds Bob under

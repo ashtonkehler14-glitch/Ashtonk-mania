@@ -356,6 +356,7 @@ const UserPanels = {
     const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
+    if (u.online && u.pid && Friends.has(u.pid)) items.push({ label: 'Send message', icon: 'chat', onClick: () => Chat.message(u) });
     if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });
     else if (Friends.incoming(u.pid)) items.push({ sep: true }, { label: 'Accept friend request', icon: 'heart', onClick: () => Friends.answer(u.pid, true) });

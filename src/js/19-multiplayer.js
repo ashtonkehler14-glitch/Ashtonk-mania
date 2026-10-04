@@ -412,6 +412,7 @@ const Presence = {
       else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
       else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite and spectate each other.'); }
       else if (m.t === 'invite') this.onInvite(m);
+      else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       else if (m.t === 'error') Toast.err(m.msg);
     };

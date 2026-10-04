@@ -3660,3 +3660,45 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .pl-disc > div { display: flex; flex-direction: column; gap: 2px; }
 .pl-disc b { font-size: 17px; font-weight: 700; line-height: 1.25; }
 .pl-disc span { font-size: 16px; line-height: 1.3; color: rgba(255, 255, 255, .85); }
+
+/* lazer's ChatOverlay (Pink scheme, hue 333): rises from the bottom (500ms OutQuint), 7px top corners, a 40px
+   Background3 top bar (drag to resize), the 190px Background6 channel list, chat lines on Background4 and the 40px
+   Background5 text bar ("talking in #lobby" in Background1, then the box) */
+.chat-ov .backdrop { background: transparent; }
+.chat { --h: 333; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--ch-f, .4) * 100 * var(--vh, 1vh)); min-height: 180px; display: flex; flex-direction: column; overflow: hidden; border-radius: 7px 7px 0 0; background: hsl(var(--h) 10% 20%); color: #fff; box-shadow: 0 -4px 30px rgba(0, 0, 0, .35); animation: chatIn calc(500ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) both; }
+.chat.out { animation: chatOut calc(220ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) both; }
+@keyframes chatIn { from { transform: translateY(100%); } }
+@keyframes chatOut { to { transform: translateY(100%); } }
+.ch-top { flex: none; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: hsl(var(--h) 10% 25%); cursor: ns-resize; touch-action: none; user-select: none; }
+.ch-top .i { width: 20px; height: 20px; color: hsl(var(--h) 100% 70%); }
+.ch-top span { font-size: 16px; font-weight: 600; }
+.ch-body { flex: 1; min-height: 0; display: flex; }
+.ch-list { flex: none; width: 190px; overflow-y: auto; padding: 10px 0; background: hsl(var(--h) 10% 10%); }
+.ch-group { display: flex; align-items: center; gap: 5px; margin: 10px 0 5px 10px; font-size: 12px; font-weight: 600; color: hsl(var(--h) 40% 80%); }
+.ch-group:first-child { margin-top: 0; }
+.ch-group .i { width: 12px; height: 12px; }
+.ch-item { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 25px; padding: 0 10px 0 18px; border: 0; background: transparent; color: hsl(var(--h) 40% 60%); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.ch-item:hover { background: hsl(var(--h) 10% 25%); color: hsl(var(--h) 40% 80%); }
+.ch-item.on { background: hsl(var(--h) 10% 20%); color: #fff; }
+.ch-item.unread { color: #fff; }
+.ch-iname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.ch-count { flex: none; min-width: 18px; height: 16px; padding: 0 5px; border-radius: 8px; background: hsl(var(--h) 100% 70%); color: #000; font-size: 11px; line-height: 16px; text-align: center; }
+.ch-x { flex: none; display: none; width: 16px; height: 16px; color: hsl(var(--h) 40% 80%); }
+.ch-x .i { width: 12px; height: 12px; }
+.ch-item:hover .ch-x { display: grid; place-items: center; }
+.ch-hint { padding: 4px 10px 0 18px; color: hsl(var(--h) 10% 40%); font-size: 12px; }
+.ch-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-lines { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 5px 10px 0; user-select: text; }
+.ch-empty { padding: 20px; color: hsl(var(--h) 10% 40%); font-size: 14px; }
+.ch-line { display: grid; grid-template-columns: 62px 150px minmax(0, 1fr); column-gap: 15px; padding: 2px 0 2px 15px; font-size: 13px; line-height: 1.45; }
+.ch-line:hover { background: hsl(var(--h) 10% 25% / .5); }
+.ch-time { color: hsl(var(--h) 10% 40%); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12px; padding-top: 1px; }
+.ch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-weight: 700; }
+.ch-text { color: hsl(var(--h) 40% 90%); overflow-wrap: anywhere; white-space: pre-wrap; }
+.ch-line.me .ch-text { color: #fff; }
+.ch-bar { flex: none; height: 40px; display: flex; align-items: center; gap: 5px; padding: 0 5px; background: hsl(var(--h) 10% 15%); }
+.ch-talk { flex: none; width: 220px; padding: 0 5px 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--h) 10% 40%); font-size: 14px; text-align: right; }
+.ch-input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 0; border-radius: 5px; outline: none; background: hsl(var(--h) 10% 10%); color: #fff; font: inherit; font-size: 14px; }
+.ch-input:focus { box-shadow: 0 0 0 2px hsl(var(--h) 100% 70% / .5); }
+@media (max-width: 640px) { .ch-list { width: 120px; } .ch-talk { display: none; } .ch-line { grid-template-columns: 40px 90px minmax(0, 1fr); column-gap: 8px; padding-left: 8px; } }
