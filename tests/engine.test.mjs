@@ -512,3 +512,9 @@ test('Invert (osu!lazer): gaps become holds shortened by a quarter beat (at most
   eng.advance(1e9);
   assert.equal(eng.summary().score, 1000000);
 });
+
+test('parser reads the epilepsy warning flag (lazer\'s player loader disclaimer)', () => {
+  const text = osu([note(0, 1000)]);
+  assert.equal(BeatmapParser.parse(text).epilepsyWarning, false);
+  assert.equal(BeatmapParser.parse(text.replace('[General]', '[General]\nEpilepsyWarning: 1')).epilepsyWarning, true);
+});

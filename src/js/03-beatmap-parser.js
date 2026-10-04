@@ -81,6 +81,7 @@ const BeatmapParser = {
     bm.audioFile = g.AudioFilename ? normPath(g.AudioFilename) : '';
     bm.previewTime = parseInt(g.PreviewTime ?? '-1', 10);
     bm.audioLeadIn = parseInt(g.AudioLeadIn || '0', 10) || 0;
+    bm.epilepsyWarning = g.EpilepsyWarning === '1';
     bm.sampleSetName = (g.SampleSet || 'Normal').toLowerCase();
     // (osu!'s editor keeps these within 0–10; out-of-range or garbage values from broken files would give
     // negative or NaN hit windows, so they're clamped, and unreadable ones fall back to 5)

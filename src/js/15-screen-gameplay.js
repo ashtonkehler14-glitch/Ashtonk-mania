@@ -175,6 +175,8 @@ class SkinHealthBar {
   }
 }
 
+const PlayerLoaderStatics = { battery: false };
+
 const GameplayScreen = {
   inGame: true, transient: true, tab: 'songselect',
   s: null, // session
@@ -280,6 +282,7 @@ const GameplayScreen = {
     const loaded = await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
+    if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
     const keys = BeatmapParser.keyCount(bm);
     const replay = p.replay || null;
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
@@ -394,7 +397,8 @@ const GameplayScreen = {
       rec && !p.replay ? this.loaderOffset(rec) : null);
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null);
-    this.loaderT0 = performance.now();
+    this.loaderT0 = performance.now(); this.loaderExtra = 0;
+    if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
     const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
     if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
@@ -438,9 +442,26 @@ const GameplayScreen = {
     if (this.plBar && frac != null) this.plBar.style.width = (clamp(frac, 0, 1) * 100).toFixed(0) + '%';
   },
   /** Keep the loader up for a moment (shorter on retries) and while the player is in its settings. */
+  /** lazer's PlayerLoaderDisclaimer, in a stack at the loader's top left: an orange bar beside a bold title and its
+   *  text on a faint panel. Each one holds the loader half a second longer. */
+  loaderDisclaimer(title, text) {
+    let box = this.loaderEl.querySelector('.pl-disclaimers');
+    if (!box) { box = h('div.pl-disclaimers'); this.loaderEl.append(box); }
+    box.append(h('div.pl-disc', h('i'), h('div', h('b', title), h('span', text))));
+    this.loaderExtra = (this.loaderExtra || 0) + 500;
+  },
+  /** lazer: low on battery (25% or less, not charging) gets a notification, once a session. */
+  batteryCheck() {
+    if (PlayerLoaderStatics.battery || !navigator.getBattery) return;
+    navigator.getBattery().then(b => {
+      if (PlayerLoaderStatics.battery || b.charging || b.level > 0.25) return;
+      PlayerLoaderStatics.battery = true;
+      Toast.show('Your battery level is low!', 'Charge your device to prevent interruptions during gameplay.', { timeout: 6000 });
+    }).catch(() => {});
+  },
   async loaderFinish(tok) {
     const p = this.params, s = this.s;
-    const min = p.quick ? 350 : 3500; // time to read the map info and adjust the settings before it starts
+    const min = p.quick ? 350 : 3500 + (this.loaderExtra || 0); // time to read the map info and adjust the settings before it starts
     this.loaderStatus('Ready!', 1);
     this.loaderEl.classList.add('ready');
     if (s && s.mp) {

@@ -3669,6 +3669,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 }
 @keyframes gpRotate { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 
+/* lazer's PlayerLoaderDisclaimer: top left of the loader, 270 + padding wide; a 7px Orange1 bar, a 17px bold title
+   and 16px text, on Background4 at 10% */
+.pl-disclaimers { position: absolute; top: 40px; left: 28px; width: 290px; display: flex; flex-direction: column; gap: 10px; animation: plSide 600ms var(--ease-out) both; }
+.pl-disc { display: flex; gap: 12px; padding: 10px; border-radius: 5px; background: hsl(var(--o-h, 320) 10% 25% / .55); }
+.pl-disc > i { flex: none; width: 7px; margin-top: 2px; border-radius: 4px; background: #ffd966; }
+.pl-disc > div { display: flex; flex-direction: column; gap: 2px; }
+.pl-disc b { font-size: 17px; font-weight: 700; line-height: 1.25; }
+.pl-disc span { font-size: 16px; line-height: 1.3; color: rgba(255, 255, 255, .85); }
+
 </style>
 </head>
 <body>
@@ -4404,6 +4413,7 @@ const BeatmapParser = {
     bm.audioFile = g.AudioFilename ? normPath(g.AudioFilename) : '';
     bm.previewTime = parseInt(g.PreviewTime ?? '-1', 10);
     bm.audioLeadIn = parseInt(g.AudioLeadIn || '0', 10) || 0;
+    bm.epilepsyWarning = g.EpilepsyWarning === '1';
     bm.sampleSetName = (g.SampleSet || 'Normal').toLowerCase();
     // (osu!'s editor keeps these within 0–10; out-of-range or garbage values from broken files would give
     // negative or NaN hit windows, so they're clamped, and unreadable ones fall back to 5)
@@ -12546,6 +12556,8 @@ class SkinHealthBar {
   }
 }
 
+const PlayerLoaderStatics = { battery: false };
+
 const GameplayScreen = {
   inGame: true, transient: true, tab: 'songselect',
   s: null, // session
@@ -12651,6 +12663,7 @@ const GameplayScreen = {
     const loaded = await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
+    if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
     const keys = BeatmapParser.keyCount(bm);
     const replay = p.replay || null;
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
@@ -12765,7 +12778,8 @@ const GameplayScreen = {
       rec && !p.replay ? this.loaderOffset(rec) : null);
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null);
-    this.loaderT0 = performance.now();
+    this.loaderT0 = performance.now(); this.loaderExtra = 0;
+    if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
     const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
     if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
@@ -12809,9 +12823,26 @@ const GameplayScreen = {
     if (this.plBar && frac != null) this.plBar.style.width = (clamp(frac, 0, 1) * 100).toFixed(0) + '%';
   },
   /** Keep the loader up for a moment (shorter on retries) and while the player is in its settings. */
+  /** lazer's PlayerLoaderDisclaimer, in a stack at the loader's top left: an orange bar beside a bold title and its
+   *  text on a faint panel. Each one holds the loader half a second longer. */
+  loaderDisclaimer(title, text) {
+    let box = this.loaderEl.querySelector('.pl-disclaimers');
+    if (!box) { box = h('div.pl-disclaimers'); this.loaderEl.append(box); }
+    box.append(h('div.pl-disc', h('i'), h('div', h('b', title), h('span', text))));
+    this.loaderExtra = (this.loaderExtra || 0) + 500;
+  },
+  /** lazer: low on battery (25% or less, not charging) gets a notification, once a session. */
+  batteryCheck() {
+    if (PlayerLoaderStatics.battery || !navigator.getBattery) return;
+    navigator.getBattery().then(b => {
+      if (PlayerLoaderStatics.battery || b.charging || b.level > 0.25) return;
+      PlayerLoaderStatics.battery = true;
+      Toast.show('Your battery level is low!', 'Charge your device to prevent interruptions during gameplay.', { timeout: 6000 });
+    }).catch(() => {});
+  },
   async loaderFinish(tok) {
     const p = this.params, s = this.s;
-    const min = p.quick ? 350 : 3500; // time to read the map info and adjust the settings before it starts
+    const min = p.quick ? 350 : 3500 + (this.loaderExtra || 0); // time to read the map info and adjust the settings before it starts
     this.loaderStatus('Ready!', 1);
     this.loaderEl.classList.add('ready');
     if (s && s.mp) {
