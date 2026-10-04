@@ -1860,6 +1860,24 @@ div.res-calib .i { color: var(--good); }
 .ss-footer .foot-btn::before { content: none; }
 .ss-footer .foot-btn:hover { background: hsl(200 10% 32%); transform: skewX(-11.31deg) translateY(-3px); }
 .ss-footer .foot-btn:active { background: hsl(200 10% 20%); }
+/* FooterButtonMods: the mod display bar (button-wide, 30px, Background4) 5px above the button, the icons on
+   Background3 in its left 65% and the multiplier in the rest; the UNRANKED badge (Orange2, white 2px border) 5px to
+   its right, the button making room for it. Both rise 25px into place as mods are picked. */
+.ss-footer .foot-btn.fb-mods { overflow: visible; transition: background 150ms, transform 250ms var(--ease-out), margin-right 240ms var(--ease-out); }
+.ss-footer .foot-btn.fb-mods.unr { margin-right: 108px; }
+.fb-modbar { position: absolute; left: 0; bottom: calc(100% + 5px); z-index: 1; width: 100%; height: 30px; display: flex; border-radius: 10px; overflow: hidden; background: hsl(200 10% 20%); box-shadow: 0 2px 4px rgba(0, 0, 0, .25); opacity: 0; translate: 0 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
+.fb-mods.has-mods .fb-modbar { opacity: 1; translate: 0 0; pointer-events: auto; }
+.fb-modicons { flex: 0 0 65%; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: hsl(200 10% 25%); overflow: hidden; }
+.fb-modicons > * { transform: skewX(11.31deg); }
+.fb-modicons .mod-badge + .mod-badge { margin-left: -9px; }
+.fb-modicons .mb-t { display: none; }
+.fb-modcount { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.fb-mult { flex: 1; display: grid; place-items: center; font-size: 14px; font-weight: 700; transform: skewX(11.31deg); transition: color 240ms var(--ease-out); }
+.fb-mult.up { color: #ff6666; }
+.fb-mult.down { color: #b2ff66; }
+.fb-unranked { position: absolute; left: calc(100% + 5px); bottom: calc(100% + 5px); height: 30px; display: grid; place-items: center; padding: 0 15px; border: 2px solid #fff; border-radius: 10px; background: #ebc247; color: #000; white-space: nowrap; opacity: 0; translate: -20px 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
+.fb-unranked b { font-size: 14px; font-weight: 700; transform: skewX(11.31deg); }
+.fb-mods.unr .fb-unranked { opacity: 1; translate: 0 0; pointer-events: auto; }
 .ss-footer .fb-inner { position: absolute; left: 0; right: 0; top: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transform: skewX(11.31deg); }
 .ss-footer .fb-inner .i { width: 16px; height: 16px; color: var(--c); }
 .ss-footer .fb-t { font-size: 1rem; font-weight: 500; }
@@ -11199,7 +11217,11 @@ const SongSelect = {
     const right = h('div.ss-right', filters, this.carousel);
 
     // footer
-    this.modsOn = h('div.mods-on');
+    // lazer's FooterButtonMods: with mods on, a 30px bar stands on the Mods button — their icons, and the score
+    // multiplier (red above 1, lime below) — and an orange UNRANKED badge beside it when they give no pp
+    this.modIcons = h('span.fb-modicons'); this.modMult = h('b.fb-mult');
+    this.modBar = h('span.fb-modbar', { onclick: e => e.stopPropagation() }, this.modIcons, this.modMult);
+    this.unrankedEl = h('span.fb-unranked', { title: 'Performance points will not be granted due to active mods.', onclick: e => e.stopPropagation() }, h('b', 'UNRANKED'));
     this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
       // lazer's OsuLogo at 40% (205px), centred 76px from the right and 36px from the bottom, hanging off the corner
       h('span.ss-logo', this.logoBeat = h('span.ss-logo-beat', h('span.lz-cookie-disc.lz-home-disc'), h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania'))))));
@@ -11208,10 +11230,10 @@ const SongSelect = {
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1'),
+      this.modBtn = (() => { const b = fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1 · right-click to deselect all'); b.classList.add('fb-mods'); b.append(this.modBar, this.unrankedEl); b.addEventListener('contextmenu', e => { e.preventDefault(); if ((Settings.get('songselect.mods') || []).length) { UISounds.click(); Settings.set('songselect.mods', []); Bus.emit('mods:changed'); } }); return b; })(),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
-      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
+      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
@@ -11315,11 +11337,17 @@ const SongSelect = {
     this.collSel.append(h('option', { value: '' }, 'All collections'), ...Collections.list.map(c => h('option', { value: c.id, selected: c.id === cur }, `▸ ${c.name} (${c.hashes.length})`)));
   },
   renderMods() {
-    if (!this.modsOn) return;
-    const mods = Settings.get('songselect.mods') || [];
-    clearEl(this.modsOn).append(...mods.map(m => ModSystem.badge(m)));
-    if (mods.length) this.modsOn.append(h('span.muted', { style: { fontSize: '.8rem', marginLeft: '4px' } }, `${ModSystem.multiplier(mods).toFixed(2)}×`));
+    if (!this.modBtn) return;
+    const mods = Settings.get('songselect.mods') || [], mult = ModSystem.multiplier(mods);
+    this.modBtn.classList.toggle('has-mods', mods.length > 0);
+    this.modBtn.classList.toggle('unr', mods.length > 0 && !ModSystem.isRanked(mods));
+    // (too many to fit: "N mods", as lazer's ModCountText)
+    this.modIcons.replaceChildren(...(mods.length > 4 ? [h('span.fb-modcount', `${mods.length} mods`)] : mods.map(m => ModSystem.badge(m, true))));
+    this.modIcons.title = mods.map(m => (MOD_BY_ID.get(m) || {}).name || m).join(', ');
+    this.modMult.textContent = `${mult.toFixed(2)}x`;
+    this.modMult.className = `fb-mult${mult > 1 ? ' up' : mult < 1 ? ' down' : ''}`;
   },
+
 
   // ── filtering & sorting
   parseQuery(q) {

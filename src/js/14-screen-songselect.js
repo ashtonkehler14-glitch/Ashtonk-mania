@@ -110,7 +110,11 @@ const SongSelect = {
     const right = h('div.ss-right', filters, this.carousel);
 
     // footer
-    this.modsOn = h('div.mods-on');
+    // lazer's FooterButtonMods: with mods on, a 30px bar stands on the Mods button — their icons, and the score
+    // multiplier (red above 1, lime below) — and an orange UNRANKED badge beside it when they give no pp
+    this.modIcons = h('span.fb-modicons'); this.modMult = h('b.fb-mult');
+    this.modBar = h('span.fb-modbar', { onclick: e => e.stopPropagation() }, this.modIcons, this.modMult);
+    this.unrankedEl = h('span.fb-unranked', { title: 'Performance points will not be granted due to active mods.', onclick: e => e.stopPropagation() }, h('b', 'UNRANKED'));
     this.playBtn = h('button.ss-cookie', { onclick: () => this.play(), title: 'Play (Enter)', 'aria-label': 'Play' },
       // lazer's OsuLogo at 40% (205px), centred 76px from the right and 36px from the bottom, hanging off the corner
       h('span.ss-logo', this.logoBeat = h('span.ss-logo-beat', h('span.lz-cookie-disc.lz-home-disc'), h('span.lz-ring', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania'))))));
@@ -119,10 +123,10 @@ const SongSelect = {
     const fb = (label, color, ic, fn, key) => h('button.foot-btn', { style: { '--c': color }, onclick: fn, title: `${label} (${key})` }, h('span.fb-inner', icon(ic), h('span.fb-t', label)), h('i.fb-bar'));
     const footer = h('div.ss-footer',
       backButton(() => Screens.back()),
-      fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1'),
+      this.modBtn = (() => { const b = fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1 · right-click to deselect all'); b.classList.add('fb-mods'); b.append(this.modBar, this.unrankedEl); b.addEventListener('contextmenu', e => { e.preventDefault(); if ((Settings.get('songselect.mods') || []).length) { UISounds.click(); Settings.set('songselect.mods', []); Bus.emit('mods:changed'); } }); return b; })(),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
       this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
-      this.modsOn, h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
+      h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
@@ -226,11 +230,17 @@ const SongSelect = {
     this.collSel.append(h('option', { value: '' }, 'All collections'), ...Collections.list.map(c => h('option', { value: c.id, selected: c.id === cur }, `▸ ${c.name} (${c.hashes.length})`)));
   },
   renderMods() {
-    if (!this.modsOn) return;
-    const mods = Settings.get('songselect.mods') || [];
-    clearEl(this.modsOn).append(...mods.map(m => ModSystem.badge(m)));
-    if (mods.length) this.modsOn.append(h('span.muted', { style: { fontSize: '.8rem', marginLeft: '4px' } }, `${ModSystem.multiplier(mods).toFixed(2)}×`));
+    if (!this.modBtn) return;
+    const mods = Settings.get('songselect.mods') || [], mult = ModSystem.multiplier(mods);
+    this.modBtn.classList.toggle('has-mods', mods.length > 0);
+    this.modBtn.classList.toggle('unr', mods.length > 0 && !ModSystem.isRanked(mods));
+    // (too many to fit: "N mods", as lazer's ModCountText)
+    this.modIcons.replaceChildren(...(mods.length > 4 ? [h('span.fb-modcount', `${mods.length} mods`)] : mods.map(m => ModSystem.badge(m, true))));
+    this.modIcons.title = mods.map(m => (MOD_BY_ID.get(m) || {}).name || m).join(', ');
+    this.modMult.textContent = `${mult.toFixed(2)}x`;
+    this.modMult.className = `fb-mult${mult > 1 ? ' up' : mult < 1 ? ' down' : ''}`;
   },
+
 
   // ── filtering & sorting
   parseQuery(q) {
