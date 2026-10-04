@@ -673,6 +673,24 @@ export class PresenceLogic {
     // lazer's daily challenge: one beatmap a day (UTC), proposed by the first player to ask, and each player's best
     // score on it; `persistDaily` keeps it
     this.daily = { day: '', map: null, scores: [] }; this.persistDaily = null;
+    // each player's daily challenge record (lazer's profile box): days played, the current and best daily streak
+    this.dailyStats = new Map(); this.persistDailyStats = null;
+  }
+  loadDailyStats(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.dailyStats.set(pid, v); }
+  /** A player's daily record as of today (a streak broken by a missed day reads 0). */
+  dailyStatsOf(pid) {
+    const v = this.dailyStats.get(pid);
+    if (!v) return null;
+    const today = PresenceLogic.dayOf(this.now()), yesterday = PresenceLogic.dayOf(this.now() - 86400000);
+    return { ...v, current: v.last === today || v.last === yesterday ? v.current : 0 };
+  }
+  countDailyDay(pid, day) {
+    const v = this.dailyStats.get(pid) || { plays: 0, current: 0, best: 0, last: '' };
+    if (v.last === day) return;
+    const yesterday = PresenceLogic.dayOf(Date.parse(day + 'T12:00:00Z') - 86400000);
+    v.current = v.last === yesterday ? v.current + 1 : 1; v.best = Math.max(v.best, v.current); v.plays++; v.last = day;
+    this.dailyStats.set(pid, v);
+    if (this.persistDailyStats) this.persistDailyStats(pid, v);
   }
   static dayOf(t) { return new Date(t).toISOString().slice(0, 10); }
   dailyNow() {
@@ -684,7 +702,7 @@ export class PresenceLogic {
   dailyMsg(pid) {
     const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
     const at = sorted.findIndex(s => s.pid === pid), end = Date.parse(d.day + 'T00:00:00Z') + 86400000;
-    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...sorted[at], rank: at + 1 },
+    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...sorted[at], rank: at + 1 }, stats: this.dailyStatsOf(pid),
       scores: sorted.slice(0, 50).map((s, i) => ({ ...s, rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;
@@ -796,6 +814,7 @@ export class PresenceLogic {
       const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
       const s = { pid: u.pid, name: u.name, avatar: u.avatar, score: Math.round(num(msg.score, 1e7)), acc: num(msg.acc, 1), combo: Math.round(num(msg.combo, 1e5)),
         grade: /^(XH|SS|SH|S|A|B|C|D)$/.test(String(msg.grade)) ? String(msg.grade) : 'D', mods: (Array.isArray(msg.mods) ? msg.mods : []).slice(0, 12).map(x => str(x, 4)), at: this.now() };
+      this.countDailyDay(u.pid, d.day);
       const old = d.scores.find(x => x.pid === u.pid);
       if (old && old.score >= s.score) return [{ to: id, msg: this.dailyMsg(u.pid) }];
       d.scores = d.scores.filter(x => x.pid !== u.pid); d.scores.push(s); this.saveDaily();
@@ -979,11 +998,14 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'fq:' })) fq[k.slice(3)] = v;
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
         this.presence.loadRanks(rk);
+        const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
+        this.presence.loadDailyStats(ds);
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
     })());
   }

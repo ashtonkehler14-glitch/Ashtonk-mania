@@ -147,12 +147,27 @@ const ProfileScreen = {
     const { el, page } = pageShell('Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => this.render()), Bus.on('scores:changed', () => this.render()),
-      Bus.on('rankings', d => { this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); })];
+      Bus.on('rankings', d => { this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
-    if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); }
+    if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); }
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
+  /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
+   *  tooltip has the streaks. Hidden until you've played one. */
+  paintDaily() {
+    const el = this.dailyEl, v = Daily.data && Daily.data.stats;
+    if (!el || !el.isConnected) return;
+    el.hidden = !(v && v.plays);
+    if (el.hidden) return;
+    const tier = n => n >= 360 ? 'lustrous' : n >= 240 ? 'radiant' : n >= 120 ? 'rhodium' : n >= 60 ? 'platinum' : n >= 30 ? 'gold' : n >= 10 ? 'silver' : n >= 5 ? 'bronze' : 'iron';
+    const d = n => `${fmtInt(n)}d`;
+    clearEl(el).append(h('span.pf-daily-t', 'Daily Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
+      h('div.pf-daily-tip',
+        h('div', h('span', 'Total participation'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays))),
+        h('div', h('span', 'Current daily streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
+        h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
+  },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   render() {
     const page = this.page;
@@ -185,6 +200,7 @@ const ProfileScreen = {
     const centre = h('div.pf-centre',
       h('span.pf-chip', { title: 'Play count' }, icon('play', 'fill'), fmtInt(st.plays)),
       h('span.pf-chip', { title: 'Play time' }, icon('clock'), fmtDuration(st.playtime)),
+      this.dailyEl = h('div.pf-daily', { hidden: true }),
       h('div.grow'),
       h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` },
         h('div.pf-hex', h('span', String(xp.level))),
@@ -225,6 +241,7 @@ const ProfileScreen = {
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, medals, rec);
+    this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
       let sc = tabs.parentElement;

@@ -3792,3 +3792,18 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .md-badge.on { color: #fff; }
 .md-badge.on .md-mini { border-color: #fff; background: #05262f; box-shadow: 0 0 14px rgba(102, 204, 255, .45); }
 .md-badge.on .md-mini .i { opacity: 1; color: #fff; }
+
+/* lazer's DailyChallengeStatsDisplay on the profile: "Daily Challenge" and the days played in their ranking tier's
+   colours (lazer's OsuColour.ForRankingTier gradients), the streaks in a tooltip */
+.pf-daily { position: relative; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px; border-radius: 6px; background: hsl(var(--o-h) 10% 15%); font-size: 12px; cursor: default; }
+.pf-daily[hidden] { display: none; }
+.pf-daily-t { color: hsl(var(--o-h) 40% 75%); font-weight: 600; }
+.pf-daily b { font-size: 14px; font-weight: 700; }
+.pf-daily-tip { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; display: none; min-width: 230px; padding: 10px 12px; border-radius: 6px; background: hsl(var(--o-h) 10% 10%); box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.pf-daily:hover .pf-daily-tip { display: flex; flex-direction: column; gap: 6px; }
+.pf-daily-tip div { display: flex; justify-content: space-between; gap: 16px; }
+.pf-daily-tip span { color: hsl(var(--o-h) 40% 75%); }
+[class*="tier-"] { -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tier-iron { background-color: #bab3ab; } .tier-bronze { background-image: linear-gradient(#b88f7a, #855c47); } .tier-silver { background-image: linear-gradient(#e0e0eb, #a3a3c2); }
+.tier-gold { background-image: linear-gradient(#f0e4a8, #e0c952); } .tier-platinum { background-image: linear-gradient(#a8f0ef, #52e0df); } .tier-rhodium { background-image: linear-gradient(#d9f8d3, #a0cf96); }
+.tier-radiant { background-image: linear-gradient(#97dcff, #ed82ff); } .tier-lustrous { background-image: linear-gradient(#ffe600, #ed82ff); }

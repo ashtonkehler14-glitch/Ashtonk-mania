@@ -1019,3 +1019,16 @@ test('presence daily challenge: the first proposal sets the day\'s beatmap; best
   assert.deepEqual([next.day, next.map, next.total], ['2026-10-05', null, 0]);
   assert.ok(saved.includes('2026-10-05'));
 });
+
+test('presence daily challenge stats: days played, the current streak (broken by a missed day) and the best', () => {
+  const clock = { t: Date.parse('2026-10-01T10:00:00Z') };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1' });
+  const play = () => { p.message('a', { t: 'daily' }); if (!p.daily.map) p.message('a', { t: 'dailyPropose', map: { onlineSetId: 1, onlineId: 2, keys: 4 } }); p.message('a', { t: 'dailyScore', day: p.daily.day, onlineId: 2, score: 1000 }); p.message('a', { t: 'dailyScore', day: p.daily.day, onlineId: 2, score: 2000 }); };
+  play(); clock.t += 86400000; play(); clock.t += 86400000; play();
+  assert.deepEqual(p.message('a', { t: 'daily' })[0].msg.stats, { plays: 3, current: 3, best: 3, last: '2026-10-03' });
+  clock.t += 2 * 86400000; // (a day missed)
+  assert.equal(p.message('a', { t: 'daily' })[0].msg.stats.current, 0);
+  play();
+  assert.deepEqual(p.message('a', { t: 'daily' })[0].msg.stats, { plays: 4, current: 1, best: 3, last: '2026-10-05' });
+});

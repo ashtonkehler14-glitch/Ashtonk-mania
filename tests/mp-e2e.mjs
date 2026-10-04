@@ -112,6 +112,11 @@ await bob.evaluate(() => { const d = AshtonkMania.Daily.data; AshtonkMania.Daily
 await alice.waitForFunction(() => document.querySelectorAll('.dc-table .dc-row:not(.rk-head)').length === 1, null, { timeout: 5000 });
 check('…a passed play goes on everyone\'s leaderboard', await alice.evaluate(() => { const r = document.querySelector('.dc-table .dc-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /912,345/.test(r.textContent) && /97\.11%/.test(r.textContent) && /HD/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.dc-table') && document.querySelector('.dc-table').textContent));
 await shot(alice, 'mp-daily');
+await bob.evaluate(() => AshtonkMania.Screens.go('profile'));
+await bob.waitForFunction(() => { const e = document.querySelector('.pf-daily'); return e && !e.hidden; }, null, { timeout: 5000 });
+check('profile: lazer\'s daily challenge box — days played and streaks', await bob.evaluate(() => /Daily Challenge\s*1d/.test(document.querySelector('.pf-daily').textContent) && /Current daily streak1d/.test(document.querySelector('.pf-daily-tip').textContent)), await bob.evaluate(() => document.querySelector('.pf-daily').textContent));
+await bob.evaluate(() => AshtonkMania.Screens.back());
+
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 
 check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySelector('.mp-lobby') && !document.querySelector('.mp-lobby button[disabled]')));
