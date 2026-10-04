@@ -249,9 +249,20 @@ async function livePlay({ version, errorMs = 0, missEvery = 0 }) {
   await page.waitForTimeout(400);
   return page.evaluate(() => { const s = AshtonkMania.Screens.current.p.score; return { score: s.score, acc: s.accuracy, grade: s.grade, counts: s.counts, mean: s.meanError, ur: s.unstableRate, pb: s.isPB, replayId: s.replayId }; });
 }
+
+// the game server judges online scores itself from the key presses (src/js/09c-verify.js): it must reach exactly the
+// score the game did
+const judgeAgain = id => page.evaluate(async id => {
+  const r = await AshtonkMania.ReplayManager.get(id), sc = AshtonkMania.ScoreManager.scores.find(x => x.replayId === id);
+  const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.hash === sc.mapHash);
+  const text = await (await AshtonkMania.BeatmapManager.getFile(m.setId, m.osuPath)).text();
+  const v = verifyPlay(text, { mods: r.mods, modConfig: r.modConfig, seed: r.seed, events: r.events });
+  return { error: v.error, same: !v.error && v.counts.join() === sc.counts.join() && v.maxCombo === sc.maxCombo && Math.abs(v.score - AshtonkMania.ScoreManager.value(sc)) < 1 && Math.abs(v.accuracy - sc.accuracy) < 1e-9, v: v.error ? null : [v.counts.join(), v.score, v.maxCombo], local: [sc.counts.join(), AshtonkMania.ScoreManager.value(sc), sc.maxCombo] };
+}, id);
 const live = await livePlay({ version: '4K Normal' });
 check('live keyboard play is judged from the audio clock (no misses, ≥ 95% acc)', live.counts[5] === 0 && live.acc > 0.95, JSON.stringify(live));
 check('live play becomes a personal best with an auto-saved replay', live.pb && !!live.replayId);
+{ const j = await judgeAgain(live.replayId); check('the server\'s judge, playing the recorded key presses again, gets exactly the score the game did', j.same, JSON.stringify(j)); }
 await shot('05-results-live');
 await page.waitForTimeout(2800); // (the accuracy circle and badges animate in)
 const panel = await page.evaluate(() => {

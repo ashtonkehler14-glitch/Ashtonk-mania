@@ -518,3 +518,24 @@ test('parser reads the epilepsy warning flag (lazer\'s player loader disclaimer)
   assert.equal(BeatmapParser.parse(text).epilepsyWarning, false);
   assert.equal(BeatmapParser.parse(text.replace('[General]', '[General]\nEpilepsyWarning: 1')).epilepsyWarning, true);
 });
+
+test('score verification: the server judges a play from its key presses — not from what the player says it scored', () => {
+  const V = load(['00-util.js', '03-beatmap-parser.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
+  const text = osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600), note(3, 3000)]);
+  const bm = V.BeatmapParser.parse(text), keys = V.BeatmapParser.keyCount(bm);
+  const notes = V.prepareNotes(V.BeatmapParser.toManiaNotes(bm), keys, [], 1);
+  const events = V.generateAutoInputs(notes, keys).flat();
+  // a perfect play
+  const r = V.verifyPlay(text, { mods: [], seed: 1, events });
+  assert.ok(!r.error, r.error);
+  assert.deepEqual([r.counts[5], r.maxCombo, r.grade, Math.round(r.accuracy * 100)], [0, 5, 'SS', 100]);
+  assert.ok(r.score >= 999000 && r.pp > 0 && r.stars > 0);
+  // half the notes never pressed: the misses are counted, whatever a client might claim
+  const partial = V.verifyPlay(text, { mods: ['NF'], seed: 1, events: events.slice(0, 6) });
+  assert.ok(!partial.error, partial.error); assert.ok(partial.counts[5] >= 2 && partial.score < r.score);
+  // cheats: Auto, impossible input, out-of-order input
+  assert.equal(V.verifyPlay(text, { mods: ['AT'], seed: 1, events }).error, 'unranked mods');
+  assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0] }).error, 'impossible input');
+  assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
+  assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
+});

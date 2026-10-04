@@ -75,6 +75,9 @@ function cleanSuggestion(m) {
   if (map.hash === '-') map.hash = '';
   return map;
 }
+const VERIFY_WAIT = 20000; // ms a finished play has to come in to be judged
+const newToken = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, '0')).join(''); };
+
 function cleanResult(r) {
   r = r && typeof r === 'object' ? r : {};
   const counts = Array.isArray(r.counts) ? r.counts.slice(0, 6).map(c => Math.round(num(c, 0, 1e6))) : [];
@@ -140,7 +143,7 @@ export class RoomLogic {
       const catchUp = [];
       if (this.state === 'playing') for (const q of this.players) if (q !== back && q.playing && q.live) catchUp.push({ to: back.id, msg: { t: 'opp', id: q.id, ...q.live } });
       if (this.state === 'lobby' && this.lastResults && this.lastResults.rows.some(r => r.id === back.id)) catchUp.push({ to: back.id, msg: { t: 'results', results: this.lastResults } });
-      return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, room: this.snapshot(back.id) } }, ...catchUp, this.roomMsg(), this.system(`${back.name} reconnected`)] };
+      return { ok: true, as: back.id, out: [{ to: back.id, msg: { t: 'welcome', you: back.id, token: back.token, room: this.snapshot(back.id) } }, ...catchUp, this.roomMsg(), this.system(`${back.name} reconnected`)] };
     }
     if (this.players.length >= this.settings.size) return { ok: false, error: 'This room is full.' };
     if (this.qp && this.qp.round > 0) return { ok: false, error: 'This Quick Play match has already started.' };
@@ -166,11 +169,12 @@ export class RoomLogic {
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), pid: /^[a-z0-9]{6,24}$/.test(String(opts.pid || '')) ? String(opts.pid) : '', away: false, awayUntil: 0 };
+      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), pid: /^[a-z0-9]{6,24}$/.test(String(opts.pid || '')) ? String(opts.pid) : '', away: false, awayUntil: 0,
+      token: newToken() }; // (for this player's plays sent to be judged: see verify)
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
-    const out = [{ to: id, msg: { t: 'welcome', you: id, room: this.snapshot(id) } }, this.roomMsg(), this.system(`${p.name} joined the room`)];
+    const out = [{ to: id, msg: { t: 'welcome', you: id, token: p.token, room: this.snapshot(id) } }, this.roomMsg(), this.system(`${p.name} joined the room`)];
     if (this.rp) {
       this.rp.addUser(p, opts);
       out[0].msg.room = this.snapshot(id);
@@ -365,8 +369,10 @@ export class RoomLogic {
         p.live = { score: Math.round(num(m.score, 0, 1e7)), acc: num(m.acc, 0, 1), combo: Math.round(num(m.combo, 0, 1e6)), maxCombo: Math.round(num(m.maxCombo, 0, 1e6)), hp: num(m.hp, 0, 1), pp: num(m.pp, 0, 1e5) };
         return [{ to: { except: id }, msg: { t: 'opp', id, ...p.live } }];
       case 'finish':
-        if (this.state !== 'playing' || !p.playing || p.finished) return [];
-        p.finished = cleanResult(m.result);
+        // the song's over for them: what they say they scored is only shown while their play is judged (verify) —
+        // the result is the judged play, or 0 if none comes in time
+        if (this.state !== 'playing' || !p.playing || p.finished || p.claimed) return [];
+        p.claimed = cleanResult(m.result); p.verifyDue = this.now() + VERIFY_WAIT;
         return this.checkFinished();
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
@@ -497,12 +503,35 @@ export class RoomLogic {
     const out = [];
     for (const p of [...this.players]) if (p.away && this.now() >= p.awayUntil) out.push(...this.leave(p.id));
     if (this.state === 'playing') {
-      if (this.now() < this.deadline) return out;
+      // a finished play whose key presses never came in to be judged counts for nothing
+      let lapsed = false;
+      for (const p of this.players) if (p.playing && !p.finished && p.claimed && this.now() >= p.verifyDue) { p.finished = { ...cleanResult({}), grade: 'F', unverified: true }; lapsed = true; }
+      if (lapsed) out.push(...this.checkFinished());
+      if (this.state !== 'playing' || this.now() < this.deadline) return out;
       for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
       return [...out, ...this.checkFinished()];
     }
     if (this.state !== 'lobby') return out;
     return [...out, ...(this.rp ? this.rp.tick() : this.qpTick())];
+  }
+
+  /** A player's play, judged by the server (verifyPlay, in no-fail mode as multiplayer plays). It must be this
+   *  room's beatmap (or another difficulty of its set) with the room's mods and theirs; then it's their result —
+   *  what decides the match, Quick Play's points and Ranked Play's damage. Anything else counts for nothing. */
+  verify(id, token, r, { hash = '' } = {}) {
+    const p = this.get(id);
+    if (!p || !token || p.token !== token) return { error: 'Not a player in this room.' };
+    if (this.state !== 'playing' || !p.playing || p.finished) return { error: 'No play to judge.', out: [] };
+    const map = this.map || {};
+    const sameMap = !this.map || (map.hash && hash === map.hash) || (map.onlineSetId > 0 && r.beatmapSetId === map.onlineSetId) ||
+      (!!map.title && r.title === map.title && r.artist === map.artist);
+    const want = [...new Set([...this.mods, ...(p.mods || [])])].sort().join(), got = [...r.mods].sort().join();
+    if (r.error || !sameMap || want !== got) {
+      p.finished = { ...cleanResult({}), grade: 'F', unverified: true };
+      return { error: r.error || (!sameMap ? 'Not this room\'s beatmap.' : 'Not the room\'s mods.'), out: this.checkFinished() };
+    }
+    p.finished = { score: r.score, accuracy: r.accuracy, maxCombo: r.maxCombo, counts: r.counts, grade: r.failed ? 'F' : r.grade, passed: !r.failed, pp: r.pp, forfeit: false, verified: true };
+    return { ok: true, out: this.checkFinished() };
   }
 
   checkFinished(someoneLeft = false) {
@@ -532,7 +561,7 @@ export class RoomLogic {
     }
     this.lastResults = { rows, winner, teams, winnerTeam, type: this.settings.type, win, map: this.map, mods: this.mods, at: this.now() };
     this.state = 'lobby'; this.deadline = 0; this.departed = [];
-    for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; }
+    for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; p.claimed = null; }
     const out = [];
     const q = this.qp;
     if (this.rp) out.push(...this.rp.gameplayDone(rows));
@@ -587,6 +616,21 @@ export class MatchRoom {
     const code = url.searchParams.get('code') || '';
     if (!this.logic) this.logic = new RoomLogic(code);
     if (url.pathname.endsWith('/status')) return json({ code, open: this.logic.created, players: this.logic.players.length, state: this.logic.state });
+    // a player's play, sent to be judged here (their room token proves who they are): see RoomLogic.verify
+    if (url.pathname.endsWith('/verify') && request.method === 'POST') {
+      if (Number(request.headers.get('content-length') || 0) > 8e6) return json({ error: 'Too big.' }, 413);
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+      let bytes;
+      try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return json({ error: 'Bad beatmap file.' }, 400); }
+      if (!bytes.length || bytes.length > 5e6) return json({ error: 'Bad beatmap file.' }, 400);
+      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+      let r;
+      try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail: true }); } catch { r = { error: 'The play could not be judged.' }; }
+      const v = this.logic.verify(String(body.id || ''), String(body.token || ''), r, { hash });
+      this.dispatch(v.out || []); this.schedule();
+      return json(v.ok ? { ok: true } : { error: v.error }, v.ok ? 200 : 422);
+    }
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'Expected a WebSocket upgrade' }, 426);
     const { 0: client, 1: server } = new WebSocketPair();
     server.accept();
@@ -677,10 +721,66 @@ export class PresenceLogic {
     this.dailyStats = new Map(); this.persistDailyStats = null;
     // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
     this.boards = new Map(); this.persistBoard = null;
+    // players' keys, by public id (only the key's SHA-256 is kept): pid → hash
+    this.auth = new Map(); this.persistAuth = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
     this.profiles = new Map(); this.profileJson = new Map(); this.persistProfile = null;
   }
   static PROFILE_MAX = 48000; // characters of JSON
+  /** Does this key own this public id? The first key used with an id claims it. */
+  claim(pid, key) {
+    const k = String(key || '');
+    if (k.length < 16 || k.length > 100) return false;
+    const hash = sha256hex(k), have = this.auth.get(pid);
+    if (have) return have === hash;
+    this.auth.set(pid, hash);
+    if (this.persistAuth) this.persistAuth(pid, hash);
+    return true;
+  }
+  loadAuth(all) { for (const [pid, h] of Object.entries(all || {})) if (typeof h === 'string') this.auth.set(pid, h); }
+  static KEEP_BESTS = 200; // each player's best plays kept for their total (lazer's total uses the top 100)
+  /** A play the server judged itself (verifyPlay): onto the beatmap's leaderboard, into the player's best plays —
+   *  their total pp, accuracy and grades for the rankings are worked out from those — and, when it's the daily
+   *  challenge's beatmap today, onto its board. Nothing a player says about their score counts anywhere else. */
+  recordVerified(pid, key, r, { daily = null } = {}) {
+    const t = this.now(), online = [...this.users.values()].find(x => x.pid === pid), old = this.ranks.get(pid);
+    const name = online ? online.name : old ? old.name : 'Player', avatar = online ? online.avatar : old ? old.avatar : '';
+    const entry = { pid, name, avatar, score: r.score, acc: r.accuracy, combo: r.maxCombo, grade: r.grade, mods: r.mods, counts: r.counts, pp: Math.round(r.pp * 100) / 100, stars: r.stars, date: t };
+    // the beatmap's board: each player's best score
+    const board = this.boards.get(key) || [];
+    const prev = board.find(x => x.pid === pid);
+    if (!prev || prev.score < entry.score) {
+      const next = [...board.filter(x => x.pid !== pid), entry].sort((a, b) => b.score - a.score || a.date - b.date).slice(0, PresenceLogic.LB_KEEP);
+      this.boards.set(key, next);
+      if (this.persistBoard) this.persistBoard(key, next);
+    }
+    // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
+    const rec = old && old.bests ? old : { pid, name, avatar, plays: 0, bests: {} };
+    rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
+    const b = rec.bests[key];
+    if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score };
+    const list = Object.entries(rec.bests).sort((a, b2) => b2[1].pp - a[1].pp).slice(0, PresenceLogic.KEEP_BESTS);
+    rec.bests = Object.fromEntries(list);
+    let pp = 0, accW = 0, wSum = 0;
+    list.forEach(([, x], i) => { const w = 0.95 ** i; pp += x.pp * w; accW += x.acc * w; wSum += w; });
+    rec.pp = Math.round(pp * 100) / 100; rec.acc = wSum ? accW / wSum : 0;
+    const g = list.map(([, x]) => x.grade);
+    rec.ss = g.filter(x => x === 'SS' || x === 'XH').length; rec.s = g.filter(x => x === 'S' || x === 'SH').length; rec.a = g.filter(x => x === 'A').length;
+    this.ranks.set(pid, rec);
+    if (this.persistRank) this.persistRank(pid, rec);
+    // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
+    const out = [];
+    const d = this.dailyNow();
+    if (daily && d.map && daily.day === d.day && r.beatmapId === d.map.onlineId) {
+      this.countDailyDay(pid, d.day);
+      const ds = { pid, name, avatar, score: entry.score, acc: entry.acc, combo: entry.combo, grade: entry.grade, mods: entry.mods, at: t };
+      const was = d.scores.find(x => x.pid === pid);
+      if (!was || was.score < ds.score) { d.scores = d.scores.filter(x => x.pid !== pid); d.scores.push(ds); }
+      this.saveDaily();
+      out.push(...[...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) })));
+    }
+    return { out, entry, total: rec.pp };
+  }
   /** A player's profile for someone looking at it: what their game shared, their place in the rankings, their daily
    *  challenge record and whether they're online. */
   profileMsg(pid) {
@@ -688,7 +788,7 @@ export class PresenceLogic {
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid);
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     return { t: 'profile', pid, data, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r && r.bests ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   static LB_KEEP = 100;
   static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
@@ -731,13 +831,15 @@ export class PresenceLogic {
   static CHAT_KEEP = 100;
   static CHAT_BURST = 5; // messages per CHAT_WINDOW
   static CHAT_WINDOW = 5000;
-  loadRanks(ranks) { for (const [pid, r] of Object.entries(ranks || {})) if (r && typeof r === 'object') this.ranks.set(pid, r); }
+  // (only records the server worked out itself: ones that came from players' own reports, before scores were verified, are dropped)
+  loadRanks(ranks) { for (const [pid, r] of Object.entries(ranks || {})) if (r && typeof r === 'object' && r.bests && typeof r.bests === 'object') this.ranks.set(pid, r); }
   /** The top 50 by pp, and where you stand. */
   rankings(pid) {
     const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
-    return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...all[at], rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...r, rank: i + 1, online: online.has(r.pid) })) };
+    const pub = ({ bests, ...r }) => r; // (not each player's whole list of plays)
+    return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
@@ -767,8 +869,11 @@ export class PresenceLogic {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
     if (cid) for (const [oid, u] of this.users) if (u.cid === cid) { out.push(...this.forget(oid)); gone.push(oid); }
+    // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
+    let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
+    if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'error', msg: 'Your player id is in use with another key, so you\'re playing as a guest.' } }); }
     this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
-      pid: /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '', song: null, seen: this.now(),
+      pid, song: null, seen: this.now(),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
     const me = this.users.get(id);
@@ -808,11 +913,7 @@ export class PresenceLogic {
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
     if (msg.t === 'stats') {
       if (!u.pid) return [];
-      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
-      const g = msg.grades && typeof msg.grades === 'object' ? msg.grades : {};
-      const r = { pid: u.pid, name: u.name, avatar: u.avatar, pp: Math.round(num(msg.pp, 100000) * 100) / 100, acc: num(msg.acc, 1), plays: Math.round(num(msg.plays, 1e7)),
-        ss: Math.round(num(g.ss, 1e6)), s: Math.round(num(g.s, 1e6)), a: Math.round(num(g.a, 1e6)), at: this.now() };
-      // (their profile, for other players to open)
+      // (their profile, for other players to open — what it shows of pp, rank and scores is the server's own)
       if (msg.profile && typeof msg.profile === 'object') {
         const json = JSON.stringify(msg.profile);
         if (json.length <= PresenceLogic.PROFILE_MAX && json !== this.profileJson.get(u.pid)) {
@@ -821,31 +922,16 @@ export class PresenceLogic {
           if (this.persistProfile) this.persistProfile(u.pid, data);
         }
       }
-      const old = this.ranks.get(u.pid);
-      if (old && ['name', 'avatar', 'pp', 'acc', 'plays', 'ss', 's', 'a'].every(k => old[k] === r[k])) return [];
-      this.ranks.set(u.pid, r);
-      if (this.persistRank) this.persistRank(u.pid, r);
+      // (their name and picture on the rankings follow what they use now)
+      const rec = this.ranks.get(u.pid);
+      if (rec && (rec.name !== u.name || rec.avatar !== u.avatar)) { rec.name = u.name; rec.avatar = u.avatar; if (this.persistRank) this.persistRank(u.pid, rec); }
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
     if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     if (msg.t === 'lb') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.boardMsg(key, u.pid, msg.scope) }] : []; }
-    if (msg.t === 'lbSubmit') {
-      const key = PresenceLogic.lbKey(msg.key);
-      if (!key || !u.pid) return [];
-      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
-      const s = { pid: u.pid, name: u.name, avatar: u.avatar, score: Math.round(num(msg.score, 1e7)), acc: num(msg.acc, 1), combo: Math.round(num(msg.combo, 1e5)),
-        grade: /^(XH|SS|SH|S|A|B|C|D)$/.test(String(msg.grade)) ? String(msg.grade) : 'D', mods: (Array.isArray(msg.mods) ? msg.mods : []).slice(0, 12).map(x => str(x, 4)),
-        counts: (Array.isArray(msg.counts) ? msg.counts : []).slice(0, 6).map(c => Math.round(num(c, 1e6))), pp: Math.round(num(msg.pp, 1e5) * 100) / 100, date: this.now() };
-      const board = this.boards.get(key) || [];
-      const old = board.find(x => x.pid === u.pid);
-      if (old && old.score >= s.score) return [];
-      const next = [...board.filter(x => x.pid !== u.pid), s].sort((a, b) => b.score - a.score || a.date - b.date).slice(0, PresenceLogic.LB_KEEP);
-      this.boards.set(key, next);
-      if (this.persistBoard) this.persistBoard(key, next);
-      return [];
-    }
+    // (scores go up only as plays the server judges itself: POST /api/mp/score — see Matchmaker.score)
     if (msg.t === 'dailyPropose') {
       // the first proposal of the day wins (everyone then gets it)
       const d = this.dailyNow(), m = msg.map || {};
@@ -855,18 +941,6 @@ export class PresenceLogic {
       d.map = { onlineSetId, onlineId, keys, title: str(m.title, 120), artist: str(m.artist, 120), version: str(m.version, 120), creator: str(m.creator, 40),
         stars: Math.round(Math.min(20, Math.max(0, Number(m.stars) || 0)) * 100) / 100, length: Math.min(36e5, Math.max(0, Number(m.length) || 0)) };
       this.saveDaily();
-      return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
-    }
-    if (msg.t === 'dailyScore') {
-      const d = this.dailyNow();
-      if (!u.pid || !d.map || msg.day !== d.day || Number(msg.onlineId) !== d.map.onlineId) return [];
-      const num = (v, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
-      const s = { pid: u.pid, name: u.name, avatar: u.avatar, score: Math.round(num(msg.score, 1e7)), acc: num(msg.acc, 1), combo: Math.round(num(msg.combo, 1e5)),
-        grade: /^(XH|SS|SH|S|A|B|C|D)$/.test(String(msg.grade)) ? String(msg.grade) : 'D', mods: (Array.isArray(msg.mods) ? msg.mods : []).slice(0, 12).map(x => str(x, 4)), at: this.now() };
-      this.countDailyDay(u.pid, d.day);
-      const old = d.scores.find(x => x.pid === u.pid);
-      if (old && old.score >= s.score) return [{ to: id, msg: this.dailyMsg(u.pid) }];
-      d.scores = d.scores.filter(x => x.pid !== u.pid); d.scores.push(s); this.saveDaily();
       return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
     }
     if (msg.t === 'status') {
@@ -1009,6 +1083,8 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
 import { officialGet, osuApi, osuLoginState, osuStatus } from './index.js';
+import { sha256hex } from './sha256.js';
+import { verifyPlay } from './verify-bundle.js';
 
 export class Matchmaker {
   constructor(state, env) { this.state = state; this.env = env; this.waiting = null; this.qp = {}; this.rooms = new Map(); this.presence = new PresenceLogic(); this.socks = new Map(); this.rq = new RankedQueue(Date.now, Math.random, () => makeCode()); }
@@ -1055,6 +1131,33 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  /** A finished play, to be judged here: { pid, key, osu (the beatmap file, base64), play: { mods, modConfig, seed,
+   *  events }, daily? }. The file's SHA-256 is the beatmap's id; verifyPlay plays the key presses through the game's
+   *  judging and works the score out; that score — never the player's own — goes on the boards and rankings. */
+  async score(request) {
+    const len = Number(request.headers.get('content-length') || 0);
+    if (len > 8e6) return json({ error: 'Too big.' }, 413);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+    await this.loadFriends();
+    const pid = String(body.pid || '');
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.auth.has(pid) || this.presence.auth.get(pid) !== sha256hex(String(body.key || '').slice(0, 100))) return json({ error: 'Not signed in as that player.' }, 403);
+    const t = Date.now(), last = (this._lastScore || (this._lastScore = new Map())).get(pid) || 0;
+    if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
+    this._lastScore.set(pid, t);
+    let bytes;
+    try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return json({ error: 'Bad beatmap file.' }, 400); }
+    if (!bytes.length || bytes.length > 5e6) return json({ error: 'Bad beatmap file.' }, 400);
+    const key = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+    let r;
+    try { r = verifyPlay(new TextDecoder().decode(bytes), body.play); } catch (e) { return json({ error: 'The play could not be judged.' }, 422); }
+    if (r.error) return json({ error: r.error }, 422);
+    if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
+    const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
+    const { out, entry, total } = this.presence.recordVerified(pid, key, r, { daily });
+    this.send(out);
+    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total });
+  }
   /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
   async loadFriends() {
     if (this._friendsLoaded) return this._friendsLoaded;
@@ -1064,6 +1167,8 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'fr:' })) fr[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'fq:' })) fq[k.slice(3)] = v;
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
+        const au = {}; for (const [k, v] of await st.list({ prefix: 'au:' })) au[k.slice(3)] = v;
+        this.presence.loadAuth(au);
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
@@ -1071,6 +1176,7 @@ export class Matchmaker {
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
+      this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
       this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
@@ -1119,6 +1225,7 @@ export class Matchmaker {
       await this.loadFriends();
       return this.presenceSocket();
     }
+    if (url.pathname.endsWith('/score') && request.method === 'POST') return this.score(request);
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
     if (url.pathname.endsWith('/rooms/update')) {
@@ -1172,6 +1279,10 @@ export async function handleMultiplayer(request, env, url) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), request));
   }
+  if (path === '/api/mp/score' && request.method === 'POST') {
+    const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: request.body, headers: { 'content-type': 'application/json', 'content-length': request.headers.get('content-length') || '' } }));
+  }
   if (path === '/api/mp/rooms') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url)));
@@ -1181,7 +1292,7 @@ export async function handleMultiplayer(request, env, url) {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
   }
-  const m = /^\/api\/mp\/room\/([A-Za-z0-9]{4,8})(\/status)?$/.exec(path);
+  const m = /^\/api\/mp\/room\/([A-Za-z0-9]{4,8})(\/status|\/verify)?$/.exec(path);
   if (m) {
     const code = m[1].toUpperCase();
     const stub = env.ROOMS.get(env.ROOMS.idFromName(code));

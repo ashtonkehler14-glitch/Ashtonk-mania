@@ -151,7 +151,7 @@ const ProfileScreen = {
     const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
-      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) { Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
+      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) { if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : 0 }; /* (pp is the server's own, from plays it judged) */ Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
       Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
       Bus.on('rankings', d => { if (this.remote) return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();

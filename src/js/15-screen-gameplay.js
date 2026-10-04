@@ -99,8 +99,6 @@ GamepadWatch.init();
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
-/** Mods that change which notes there are (their star rating is worked out on the converted notes, as in osu!lazer). */
-const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -695,6 +693,7 @@ const GameplayScreen = {
             s.held[col] = down;
             if (!down) this.renderer.onRelease(col, realNow);
             eng.input(col, down, t);
+            if (s.mp) s.events.push(t, col, down ? 1 : 0); // (a multiplayer play is judged from these, however its keys came in)
           }
           eng.advance(now);
         } else {
@@ -1407,7 +1406,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, { store: false }); // (not kept: only a play you finish is recorded)
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
@@ -1431,9 +1430,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play') Presence.send({ t: 'lbSubmit', key: s.rec.hash, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods, counts: score.counts, pp: ScoreManager.ppOf(score) });
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      if (this.params.daily && score.passed && !s.mods.includes('AT')) Daily.submit(score, this.params.daily); // (lazer's daily challenge)
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);

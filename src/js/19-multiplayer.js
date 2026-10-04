@@ -58,7 +58,7 @@ const Multiplayer = {
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -372,6 +372,14 @@ const Presence = {
     const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
     return s && s.rec && !s.spectate && !s.replay ? { title: s.rec.title, artist: s.rec.artist, version: s.rec.version, stars: +(s.stars || s.rec.stars || 0).toFixed(2), keys: s.keys } : null;
   },
+  /** This player's secret key: kept in this browser with the public id. The server ties the id to it (only its hash),
+   *  so nobody else can use your id — or send scores as you. */
+  key() {
+    if (this._key) return this._key;
+    let k = null; try { k = localStorage.getItem('am.key'); } catch { /* private mode */ }
+    if (!k || k.length < 32) { const a = new Uint8Array(24); crypto.getRandomValues(a); k = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('am.key', k); } catch { /* private mode */ } }
+    return (this._key = k);
+  },
   /** This player's public id: kept in this browser, so friends recognise you between visits. */
   pid() {
     if (this._pid) return this._pid;
@@ -390,7 +398,7 @@ const Presence = {
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid() }));
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key() }));
       this._song = null; this.pushStatus();
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's

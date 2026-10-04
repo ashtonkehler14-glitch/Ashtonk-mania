@@ -26,10 +26,7 @@ const Daily = {
     } catch (e) { console.warn('daily challenge: no beatmap to propose', e); }
     setTimeout(() => { this._proposing = false; }, 15000);
   },
-  /** After a passed play of the day's beatmap: your score goes on the board (the server keeps your best). */
-  submit(score, daily) {
-    Presence.send({ t: 'dailyScore', day: daily.day, onlineId: daily.onlineId, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods || [] });
-  },
+  // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
 const DailyScreen = {

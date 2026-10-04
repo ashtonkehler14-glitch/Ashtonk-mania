@@ -7743,6 +7743,88 @@ const ManiaStarRating = {
   },
 };
 
+/* ===== 09c-verify.js ===== */
+/* Score verification: the game server's own judge of a play. It never takes a player's word for a score — given the
+ * beatmap file (checked against its hash by the server) and the play's recorded key presses, it plays them through
+ * the same judging engine the game uses, under the standard rules (the beatmap's own OD, the default accuracy), and
+ * works out the score, accuracy, combo, grade, star rating and pp itself. The same file runs in the game and, bundled
+ * by build.mjs, on the server (worker/verify-bundle.js). */
+
+/** Mods that change the notes themselves (No Long Notes, Invert): their star rating is the changed notes'. */
+const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
+
+const VERIFY = {
+  MAX_EVENTS: 600000,      // numbers in a replay (t, col, down per key event)
+  MIN_HOLD: 5,             // ms a key is held at the least (a press and release closer than that isn't a finger)
+  MAX_RATE: 2, MIN_RATE: 0.5,
+  BOT_UR: 15, BOT_NOTES: 100, // an unstable rate below this over at least this many hits is a script, not a person
+};
+
+/** Judge a play. `osuText`: the beatmap file; `play`: { mods, modConfig, seed, events }. Returns the result, or
+ *  { error } when the play can't count (not a pass, unranked mods, impossible input). `noFail`: a multiplayer play,
+ *  which plays on after health runs out (as the game does there) — it comes back `failed`, an F worth 0pp. */
+function verifyPlay(osuText, play, { noFail = false } = {}) {
+  const fail = error => ({ error });
+  if (typeof osuText !== 'string' || !play || typeof play !== 'object') return fail('bad play');
+  let bm;
+  try { bm = BeatmapParser.parse(osuText); } catch (e) { return fail('the beatmap could not be read'); }
+  const keys = BeatmapParser.keyCount(bm);
+  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
+  const notes = BeatmapParser.toManiaNotes(bm);
+  if (!notes.length) return fail('the beatmap has no notes');
+  // mods: only real ones, and only ranked ones (no Auto, no Autopilot-like helpers)
+  const mods = ModSystem.normalize(Array.isArray(play.mods) ? play.mods.map(String) : []);
+  if (!ModSystem.isRanked(mods)) return fail('unranked mods');
+  const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
+  const modConfig = {};
+  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
+  const rate = ModSystem.rate(mods, modConfig);
+  if (!(rate >= VERIFY.MIN_RATE && rate <= VERIFY.MAX_RATE)) return fail('speed out of range');
+  const seed = Number.isFinite(Number(play.seed)) ? Number(play.seed) | 0 : 0;
+  // input: [t, col, down] triples, in time order, each column alternating press / release
+  const ev = play.events;
+  if (!Array.isArray(ev) || ev.length % 3 || ev.length > VERIFY.MAX_EVENTS) return fail('bad input');
+  const down = new Array(keys).fill(-1);
+  let last = -Infinity;
+  for (let i = 0; i < ev.length; i += 3) {
+    const t = ev[i], col = ev[i + 1], d = ev[i + 2];
+    if (!Number.isFinite(t) || !Number.isInteger(col) || col < 0 || col >= keys || (d !== 0 && d !== 1)) return fail('bad input');
+    if (t < last - 0.001) return fail('input out of order');
+    last = t;
+    if (d === 1) { if (down[col] >= 0) return fail('impossible input'); down[col] = t; }
+    else { if (down[col] < 0) return fail('impossible input'); if ((t - down[col]) / rate < VERIFY.MIN_HOLD) return fail('impossible input'); down[col] = -1; }
+  }
+  // the play itself, judged as the game judges it — standard windows for the beatmap and mods
+  const red = BeatmapParser.timing(bm).red;
+  const playNotes = prepareNotes(notes, keys, mods, seed, { red });
+  const windows = timingWindows({ od: bm.od, mods, odOverride: modConfig.od, rules: RULES });
+  const engine = new GameplayEngine({ notes: playNotes, keys, windows, rate, mods, hp: bm.hp, accuracyMode: 'v2', noFail,
+    breaks: mods.includes('IN') ? [] : bm.events.breaks, modConfig, rules: RULES });
+  for (let i = 0; i < ev.length; i += 3) {
+    engine.advance(ev[i]);
+    engine.input(ev[i + 1], ev[i + 2] === 1, ev[i]);
+  }
+  const end = Math.max(...playNotes.map(n => n.end)) + 10000;
+  engine.advance(end);
+  // (multiplayer: health running out marks the play failed, though it played on)
+  const failed = noFail ? engine.health.min <= 0 : engine.health.failed && !mods.includes('NF');
+  if (failed && !noFail) return fail('the play failed');
+  const sum = engine.summary();
+  // a script pressing every key at exactly the right moment: no person hits a hundred notes that evenly
+  const judged = sum.counts.slice(0, 5).reduce((a, b) => a + b, 0);
+  if (judged >= VERIFY.BOT_NOTES && sum.unstableRate < VERIFY.BOT_UR) return fail('inhuman timing');
+  const starNotes = convertsNotes(mods) ? playNotes : notes;
+  const stars = DifficultyCalculator.calculate(starNotes, keys, rate);
+  const pp = failed ? 0 : OsuMath.pp(stars, sum.counts, mods);
+  const grade = ScoreSystem.gradeFor(sum.accuracy, failed, mods, sum.counts);
+  return {
+    score: Math.round(sum.scoreStd != null ? sum.scoreStd : sum.score), accuracy: sum.accuracy, maxCombo: sum.maxCombo, counts: sum.counts,
+    grade, stars, pp, mods, keys, rate, unstableRate: sum.unstableRate, failed,
+    beatmapSetId: Number(bm.metadata && bm.metadata.BeatmapSetID) || -1,
+    beatmapId: Number(bm.metadata && bm.metadata.BeatmapID) || -1, title: (bm.metadata && bm.metadata.Title) || '', artist: (bm.metadata && bm.metadata.Artist) || '', version: (bm.metadata && bm.metadata.Version) || '',
+  };
+}
+
 /* ===== 10-renderer.js ===== */
 /* Renderer — Canvas 2D mania stage renderer driven by the TimingEngine clock.
  * All skin geometry is expressed in osu! "480-space" units and scaled by (canvas height / 480),
@@ -12773,8 +12855,6 @@ GamepadWatch.init();
 const PRACTICE_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const REPLAY_SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
-/** Mods that change which notes there are (their star rating is worked out on the converted notes, as in osu!lazer). */
-const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
@@ -13369,6 +13449,7 @@ const GameplayScreen = {
             s.held[col] = down;
             if (!down) this.renderer.onRelease(col, realNow);
             eng.input(col, down, t);
+            if (s.mp) s.events.push(t, col, down ? 1 : 0); // (a multiplayer play is judged from these, however its keys came in)
           }
           eng.advance(now);
         } else {
@@ -14081,7 +14162,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.mode === 'play') {
       const { score } = await this.saveScore(false, { store: false }); // (not kept: only a play you finish is recorded)
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
@@ -14105,9 +14186,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play') Presence.send({ t: 'lbSubmit', key: s.rec.hash, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods, counts: score.counts, pp: ScoreManager.ppOf(score) });
-      if (s.mp) { Multiplayer.finish(score); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      if (this.params.daily && score.passed && !s.mods.includes('AT')) Daily.submit(score, this.params.daily); // (lazer's daily challenge)
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
@@ -15341,7 +15421,7 @@ const ProfileScreen = {
     const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
-      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) { Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
+      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) { if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : 0 }; /* (pp is the server's own, from plays it judged) */ Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
       Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
       Bus.on('rankings', d => { if (this.remote) return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
@@ -17660,7 +17740,7 @@ const Multiplayer = {
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -17974,6 +18054,14 @@ const Presence = {
     const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
     return s && s.rec && !s.spectate && !s.replay ? { title: s.rec.title, artist: s.rec.artist, version: s.rec.version, stars: +(s.stars || s.rec.stars || 0).toFixed(2), keys: s.keys } : null;
   },
+  /** This player's secret key: kept in this browser with the public id. The server ties the id to it (only its hash),
+   *  so nobody else can use your id — or send scores as you. */
+  key() {
+    if (this._key) return this._key;
+    let k = null; try { k = localStorage.getItem('am.key'); } catch { /* private mode */ }
+    if (!k || k.length < 32) { const a = new Uint8Array(24); crypto.getRandomValues(a); k = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('am.key', k); } catch { /* private mode */ } }
+    return (this._key = k);
+  },
   /** This player's public id: kept in this browser, so friends recognise you between visits. */
   pid() {
     if (this._pid) return this._pid;
@@ -17992,7 +18080,7 @@ const Presence = {
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid() }));
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key() }));
       this._song = null; this.pushStatus();
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
@@ -20443,11 +20531,52 @@ const Chat = {
 
 const Rankings = {
   /** Tell the server this player's totals (on connecting, and after every play). */
+  // (only the profile: pp, rankings and leaderboards are the server's own, from plays it judged — Verified)
   report() {
     if (!Presence.ws) return;
-    const st = StatisticsManager.compute(), g = st.grades || {};
-    Presence.send({ t: 'stats', pp: ScoreManager.totalPp().total, acc: st.avgAcc || 0, plays: st.plays || 0,
-      grades: { ss: (g.SS || 0) + (g.XH || 0), s: (g.S || 0) + (g.SH || 0), a: g.A || 0 }, profile: ProfileScreen.summary() });
+    Presence.send({ t: 'stats', profile: ProfileScreen.summary() });
+  },
+};
+
+/** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
+ *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging
+ *  (src/js/09c-verify.js) and works out the score, accuracy, grade and pp itself; that's what the rankings, the
+ *  leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
+const Verified = {
+  /** The beatmap file, base64, as the server hashes it. */
+  async file(rec) {
+    const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath).catch(() => null);
+    if (!blob) return null;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  },
+  /** A multiplayer play, to the room to be judged — the match is decided by that, not by the result sent with 'finish'. */
+  async room({ rec, mods, modConfig, seed, events }) {
+    const code = Multiplayer.room && Multiplayer.room.code, token = Multiplayer.token;
+    if (!code || !token) return;
+    const osu = await this.file(rec);
+    if (!osu) return;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
+        if (r.ok || r.status === 422) return;
+      } catch { /* network: try again */ }
+      await sleep(1500);
+    }
+  },
+  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
+    if (!Multiplayer.available()) return null;
+    const osu = await this.file(rec);
+    if (!osu) return null;
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
+    try {
+      const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      Bus.emit('verified', d);
+      return d;
+    } catch (e) { console.warn('score not sent', e); return null; }
   },
 };
 
@@ -20520,10 +20649,7 @@ const Daily = {
     } catch (e) { console.warn('daily challenge: no beatmap to propose', e); }
     setTimeout(() => { this._proposing = false; }, 15000);
   },
-  /** After a passed play of the day's beatmap: your score goes on the board (the server keeps your best). */
-  submit(score, daily) {
-    Presence.send({ t: 'dailyScore', day: daily.day, onlineId: daily.onlineId, score: ScoreManager.value(score), acc: score.accuracy, combo: score.maxCombo, grade: score.grade, mods: score.mods || [] });
-  },
+  // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
 const DailyScreen = {

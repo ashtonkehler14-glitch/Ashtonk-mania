@@ -5,11 +5,52 @@
 
 const Rankings = {
   /** Tell the server this player's totals (on connecting, and after every play). */
+  // (only the profile: pp, rankings and leaderboards are the server's own, from plays it judged — Verified)
   report() {
     if (!Presence.ws) return;
-    const st = StatisticsManager.compute(), g = st.grades || {};
-    Presence.send({ t: 'stats', pp: ScoreManager.totalPp().total, acc: st.avgAcc || 0, plays: st.plays || 0,
-      grades: { ss: (g.SS || 0) + (g.XH || 0), s: (g.S || 0) + (g.SH || 0), a: g.A || 0 }, profile: ProfileScreen.summary() });
+    Presence.send({ t: 'stats', profile: ProfileScreen.summary() });
+  },
+};
+
+/** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
+ *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging
+ *  (src/js/09c-verify.js) and works out the score, accuracy, grade and pp itself; that's what the rankings, the
+ *  leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
+const Verified = {
+  /** The beatmap file, base64, as the server hashes it. */
+  async file(rec) {
+    const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath).catch(() => null);
+    if (!blob) return null;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  },
+  /** A multiplayer play, to the room to be judged — the match is decided by that, not by the result sent with 'finish'. */
+  async room({ rec, mods, modConfig, seed, events }) {
+    const code = Multiplayer.room && Multiplayer.room.code, token = Multiplayer.token;
+    if (!code || !token) return;
+    const osu = await this.file(rec);
+    if (!osu) return;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
+        if (r.ok || r.status === 422) return;
+      } catch { /* network: try again */ }
+      await sleep(1500);
+    }
+  },
+  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
+    if (!Multiplayer.available()) return null;
+    const osu = await this.file(rec);
+    if (!osu) return null;
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
+    try {
+      const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      Bus.emit('verified', d);
+      return d;
+    } catch (e) { console.warn('score not sent', e); return null; }
   },
 };
 

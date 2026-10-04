@@ -2,12 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE } from '../worker/multiplayer.js';
 
+// (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
+// the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
+const _message = RoomLogic.prototype.message;
+RoomLogic.prototype.message = function (id, m) {
+  const out = _message.call(this, id, m);
+  const p = m && m.t === 'finish' && !m.raw ? this.get(id) : null;
+  if (!p || !p.claimed || p.finished) return out;
+  const c = p.claimed;
+  const v = this.verify(id, p.token, { score: c.score, accuracy: c.accuracy, maxCombo: c.maxCombo, counts: c.counts, grade: c.grade, failed: c.grade === 'F', pp: c.pp, beatmapSetId: this.map && this.map.onlineSetId, title: this.map && this.map.title, artist: this.map && this.map.artist, mods: [...new Set([...this.mods, ...(p.mods || [])])] }, { hash: this.map && this.map.hash });
+  return [...out, ...(v.out || [])];
+};
+
 test('presence: online list, statuses and invites between players', () => {
   const clock = { t: 0 };
   const p = new PresenceLogic(() => clock.t);
-  const joinOut = p.join('a', { name: 'Alice', pid: 'alicepid' });
+  const joinOut = p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
   assert.equal(joinOut[0].msg.t, 'welcome');
-  p.join('b', { name: 'Bob', status: 'room', pid: 'bobpid1' });
+  p.join('b', { name: 'Bob', status: 'room', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
   // only friends can be invited
   assert.equal(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' })[0].msg.msg, 'You can only invite your friends.');
   p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid', yes: true });
@@ -846,7 +858,7 @@ test('each lounge joins only its own kind of room: a duel from the Ranked Play l
 test('presence: public ids and songs on the list; spectating streams a play only while someone watches', () => {
   const clock = { t: 0 };
   const p = new PresenceLogic(() => clock.t);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   assert.equal(p.list().find(x => x.id === 'a').pid, 'alicepid1');
   p.message('a', { t: 'status', status: 'playing', song: { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 } });
   assert.deepEqual(p.list().find(x => x.id === 'a').song, { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 });
@@ -869,7 +881,7 @@ test('presence: public ids and songs on the list; spectating streams a play only
   p.message('a', { t: 'frames', ev: [150, 0, 0], at: 400, last: true });
   p.message('a', { t: 'frames', ev: [500, 1, 1], at: 600 });
   // a second watcher joining later gets all of it at once, with nothing more asked of Alice
-  p.join('c', { name: 'Cat', pid: 'catpid9' });
+  p.join('c', { name: 'Cat', pid: 'catpid9', key: 'key-catpid9-0123456789' });
   p.message('c', { t: 'friendReq', to: 'a' }); p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: true });
   const w2 = p.message('c', { t: 'watch', to: 'a' });
   const s2 = w2.find(o => o.msg.t === 'specStart');
@@ -893,7 +905,7 @@ test('presence: public ids and songs on the list; spectating streams a play only
 
 test('presence: a Ranked Play screen reaches spectators, and someone who starts watching gets the latest', () => {
   const p = new PresenceLogic(() => 0);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
   p.message('a', { t: 'status', status: 'ranked' });
   assert.equal(p.list().find(x => x.id === 'a').status, 'ranked');
@@ -907,7 +919,7 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   const p = new PresenceLogic(() => 0);
   const kept = {};
   p.persist = (kind, pid, list) => { kept[kind + ':' + pid] = list; };
-  p.join('a', { name: 'Alice', pid: 'alicepid' }); p.join('b', { name: 'Bob', pid: 'bobpid1' });
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
   const sent = p.message('a', { t: 'friendReq', to: 'b' });
   assert.ok(sent.some(o => o.to === 'a' && o.msg.t === 'friendSent'));
   assert.ok(sent.some(o => o.to === 'b' && o.msg.t === 'friendReq' && o.msg.from.name === 'Alice'));
@@ -922,10 +934,10 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   // friends come back after a restart (loaded from storage), and a new tab gets the list on joining
   const q = new PresenceLogic(() => 0);
   q.load({ alicepid: kept['fr:alicepid'], bobpid1: kept['fr:bobpid1'] }, {});
-  const hello = q.join('x', { name: 'Alice', pid: 'alicepid' });
+  const hello = q.join('x', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
   assert.deepEqual(hello.find(o => o.msg.t === 'friends').msg.list.map(f => f.name), ['Bob']);
   // a declined request goes away
-  p.join('c', { name: 'Cat', pid: 'catpid9' });
+  p.join('c', { name: 'Cat', pid: 'catpid9', key: 'key-catpid9-0123456789' });
   p.message('c', { t: 'friendReq', to: 'a' });
   p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: false });
   assert.equal(p.areFriends('alicepid', 'catpid9'), false); assert.equal(p.friendsMsg('alicepid').requests.length, 0);
@@ -946,19 +958,19 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
 test('presence chat: #lobby reaches everyone and is kept for late arrivals; private messages only between friends; rate limited', () => {
   const clock = { t: 0 };
   const p = new PresenceLogic(() => clock.t);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   const say = p.message('a', { t: 'say', text: '  hello\u0007 all  ' });
   assert.equal(say.length, 1); assert.equal(say[0].to, 'all');
   assert.deepEqual({ ...say[0].msg, from: say[0].msg.from.name }, { t: 'say', ch: '#lobby', from: 'Alice', text: 'hello  all', at: 0 });
   assert.deepEqual(p.message('a', { t: 'say', text: '   ' }), [], 'nothing to say');
   assert.equal(p.message('a', { t: 'say', text: 'x'.repeat(500) })[0].msg.text.length, 300);
   // someone coming online gets the recent lines
-  const hist = p.join('c', { name: 'Cat', pid: 'catpid333' }).find(o => o.msg.t === 'chatHist');
+  const hist = p.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' }).find(o => o.msg.t === 'chatHist');
   assert.equal(hist.to, 'c'); assert.equal(hist.msg.list.length, 2);
   // private messages: friends only, to every tab of both
   assert.equal(p.message('a', { t: 'pm', to: 'bobpid22', text: 'hi' })[0].msg.msg, 'You can only message your friends.');
   p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
-  p.join('b2', { name: 'Bob', pid: 'bobpid22', cid: 'tab2' });
+  p.join('b2', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789', cid: 'tab2' });
   const pm = p.message('a', { t: 'pm', to: 'bobpid22', text: 'hi' });
   assert.deepEqual(pm.map(o => [o.to, o.msg.with.pid, !!o.msg.mine]), [['b', 'alicepid1', false], ['b2', 'alicepid1', false], ['a', 'bobpid22', true]]);
   // 5 messages in 5 s, then a pause
@@ -972,100 +984,134 @@ test('presence chat: #lobby reaches everyone and is kept for late arrivals; priv
   assert.equal(p.chat.length, 100); assert.equal(p.chat[99].text, 'line119');
 });
 
-test('presence rankings: players report their totals; the top 50 by pp, with your own rank; bad numbers are clamped', () => {
-  const p = new PresenceLogic(() => 1000), saved = [];
-  p.persistRank = (pid, r) => saved.push(pid);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' }); p.join('x', { name: 'NoPid' });
-  assert.deepEqual(p.message('a', { t: 'stats', pp: 812.345, acc: 0.9712, plays: 120, grades: { ss: 3, s: 20, a: 40 } }), []);
-  p.message('b', { t: 'stats', pp: 1e12, acc: 7, plays: -5 });
-  p.message('x', { t: 'stats', pp: 50 }); // (no public id: not ranked)
-  p.message('a', { t: 'stats', pp: 812.345, acc: 0.9712, plays: 120, grades: { ss: 3, s: 20, a: 40 } }); // unchanged: not saved again
-  assert.deepEqual(saved, ['alicepid1', 'bobpid22']);
-  const r = p.message('a', { t: 'rankings' })[0].msg;
-  assert.equal(r.total, 2);
-  assert.deepEqual(r.list.map(x => [x.rank, x.name, x.pp, x.acc, x.plays]), [[1, 'Bob', 100000, 1, 0], [2, 'Alice', 812.35, 0.9712, 120]]);
-  assert.deepEqual([r.you.rank, r.you.ss, r.you.s, r.you.a], [2, 3, 20, 40]);
-  assert.equal(r.list[0].online, true);
-  // kept across a restart
-  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1') });
-  q.join('c', { name: 'Cat', pid: 'catpid333' });
-  assert.equal(q.message('c', { t: 'rankings' })[0].msg.list[0].name, 'Alice');
-  assert.equal(q.message('c', { t: 'rankings' })[0].msg.you, null);
+// a play as the server's judge (verifyPlay) returns it
+const judged = (o = {}) => ({ score: 900000, accuracy: 0.97, maxCombo: 400, counts: [300, 50, 5, 0, 0, 1], grade: 'S', stars: 3.2, pp: 100, mods: [], keys: 4, rate: 1, beatmapId: 111, ...o });
+const K1 = 'a'.repeat(64), K2 = 'b'.repeat(64);
+
+test('player ids belong to their key: the first key used with an id claims it; anyone else using it is a guest', () => {
+  const p = new PresenceLogic(), saved = [];
+  p.persistAuth = (pid, h) => saved.push([pid, h.length]);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'alice-secret-key-123456' });
+  assert.equal(p.users.get('a').pid, 'alicepid1');
+  assert.deepEqual(saved, [['alicepid1', 64]], 'only the hash is kept');
+  const out = p.join('x', { name: 'Mallory', pid: 'alicepid1', key: 'mallory-guess-000000000' });
+  assert.equal(p.users.get('x').pid, '', 'not Alice'); assert.ok(out.some(o => o.to === 'x' && o.msg.t === 'error'));
+  p.join('y', { name: 'NoKey', pid: 'nokeypid1' });
+  assert.equal(p.users.get('y').pid, '', 'no key: no id');
+  p.join('a2', { name: 'Alice', pid: 'alicepid1', key: 'alice-secret-key-123456', cid: 'tab2' });
+  assert.equal(p.users.get('a2').pid, 'alicepid1', 'the right key, another tab');
 });
 
-test('presence daily challenge: the first proposal sets the day\'s beatmap; best score per player; a new day starts fresh', () => {
+test('rankings come from plays the server judged: best pp per beatmap, weighted; what a player reports is ignored', () => {
+  const p = new PresenceLogic(() => 1000), saved = [];
+  p.persistRank = pid => saved.push(pid);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  // a player saying they have 99,999pp changes nothing
+  p.message('b', { t: 'stats', pp: 99999, acc: 1, plays: 9999, grades: { ss: 999 } });
+  p.message('b', { t: 'lbSubmit', key: K1, score: 1e7 });
+  assert.equal(p.message('a', { t: 'rankings' })[0].msg.total, 0);
+  // judged plays: Alice 200pp on one map then 100pp on another (95%), and a worse play of the first one
+  p.recordVerified('alicepid1', K1, judged({ pp: 200, accuracy: 0.98 }));
+  p.recordVerified('alicepid1', K2, judged({ pp: 100, accuracy: 0.9, grade: 'A' }));
+  p.recordVerified('alicepid1', K1, judged({ pp: 50, score: 500000 }));
+  p.recordVerified('bobpid22', K1, judged({ pp: 150, grade: 'SS' }));
+  const r = p.message('a', { t: 'rankings' })[0].msg;
+  assert.deepEqual(r.list.map(x => [x.rank, x.name, x.pp, x.plays]), [[1, 'Alice', 295, 3], [2, 'Bob', 150, 1]]);
+  assert.ok(Math.abs(r.list[0].acc - (0.98 + 0.9 * 0.95) / 1.95) < 1e-9);
+  assert.deepEqual([r.list[0].s, r.list[0].a, r.list[1].ss], [1, 1, 1]);
+  assert.equal(r.list[0].bests, undefined, 'not each player\'s whole list');
+  assert.equal(r.you.rank, 1);
+  // kept across a restart (and records from before verification — players' own reports — are dropped)
+  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), old: { pid: 'old', name: 'Old', pp: 5000 } });
+  q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => x.name), ['Alice']);
+});
+
+test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {
+  const p = new PresenceLogic(() => 5000), saved = [];
+  p.persistBoard = (k, l) => saved.push([k, l.length]);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' }); p.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
+  p.recordVerified('alicepid1', K1, judged({ score: 800000 }));
+  p.recordVerified('bobpid22', K1, judged({ score: 900000 }));
+  p.recordVerified('catpid333', K1, judged({ score: 700000 }));
+  p.recordVerified('alicepid1', K1, judged({ score: 600000 })); // (worse: kept the best)
+  const g = p.message('a', { t: 'lb', key: K1 })[0].msg;
+  assert.deepEqual(g.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000], [3, 'Cat', 700000]]);
+  assert.equal(g.you.rank, 2);
+  p.message('a', { t: 'friendReq', to: 'c' }); p.message('c', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  assert.deepEqual(p.message('a', { t: 'lb', key: K1, scope: 'friends' })[0].msg.scores.map(s => s.name), ['Alice', 'Cat']);
+  assert.equal(saved.length, 3);
+});
+
+test('daily challenge: the first proposal sets the day\'s beatmap; only judged plays of that beatmap count, best per player; a new day starts fresh', () => {
   const clock = { t: Date.parse('2026-10-04T10:00:00Z') };
-  const p = new PresenceLogic(() => clock.t), saved = [];
-  p.persistDaily = d => saved.push(d.day);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   const first = p.message('a', { t: 'daily' })[0].msg;
   assert.deepEqual([first.day, first.map, first.endsAt], ['2026-10-04', null, Date.parse('2026-10-05T00:00:00Z')]);
   assert.deepEqual(p.message('a', { t: 'dailyPropose', map: { onlineSetId: 0, onlineId: 5, keys: 4 } }), [], 'invalid');
-  const set = p.message('a', { t: 'dailyPropose', map: { onlineSetId: 10, onlineId: 11, keys: 4, title: 'Song', artist: 'Art', version: 'Hard', stars: 4.567 } });
-  assert.equal(set.length, 2); assert.equal(set[1].msg.map.onlineId, 11); assert.equal(set[1].msg.map.stars, 4.57);
+  p.message('a', { t: 'dailyPropose', map: { onlineSetId: 10, onlineId: 111, keys: 4, title: 'Song', stars: 4.567 } });
   p.message('b', { t: 'dailyPropose', map: { onlineSetId: 20, onlineId: 21, keys: 4 } });
-  assert.equal(p.daily.map.onlineId, 11, 'first proposal wins');
-  // scores: only on today's map, the best one per player kept
-  assert.deepEqual(p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 99, score: 1 }), []);
-  p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 800000, acc: 0.95, combo: 300, grade: 'S', mods: ['HD'] });
-  p.message('b', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 900000, acc: 0.97, combo: 400, grade: 'S' });
-  p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 11, score: 700000, acc: 0.9, combo: 100, grade: 'A' });
+  assert.equal(p.daily.map.onlineId, 111, 'first proposal wins');
+  // a player's own claim of a score: ignored
+  p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 111, score: 1e7 });
+  assert.equal(p.daily.scores.length, 0);
+  // judged plays: another beatmap, or yesterday's, don't count
+  p.recordVerified('alicepid1', K1, judged({ beatmapId: 999, score: 1e6 }), { daily: { day: '2026-10-04' } });
+  p.recordVerified('alicepid1', K1, judged({ score: 1e6 }), { daily: { day: '2026-10-03' } });
+  assert.equal(p.daily.scores.length, 0);
+  p.recordVerified('alicepid1', K1, judged({ score: 800000 }), { daily: { day: '2026-10-04' } });
+  p.recordVerified('bobpid22', K1, judged({ score: 900000 }), { daily: { day: '2026-10-04' } });
+  p.recordVerified('alicepid1', K1, judged({ score: 700000 }), { daily: { day: '2026-10-04' } });
   const board = p.message('a', { t: 'daily' })[0].msg;
   assert.deepEqual(board.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000]]);
-  assert.equal(board.you.rank, 2); assert.deepEqual(board.you.mods, ['HD']);
-  // the next day: a new beatmap to propose, no scores
+  assert.deepEqual(board.stats, { plays: 1, current: 1, best: 1, last: '2026-10-04' });
+  // the next day: a new beatmap to propose, no scores; a missed day breaks the streak
   clock.t = Date.parse('2026-10-05T00:00:01Z');
   const next = p.message('b', { t: 'daily' })[0].msg;
   assert.deepEqual([next.day, next.map, next.total], ['2026-10-05', null, 0]);
-  assert.ok(saved.includes('2026-10-05'));
-});
-
-test('presence daily challenge stats: days played, the current streak (broken by a missed day) and the best', () => {
-  const clock = { t: Date.parse('2026-10-01T10:00:00Z') };
-  const p = new PresenceLogic(() => clock.t);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' });
-  const play = () => { p.message('a', { t: 'daily' }); if (!p.daily.map) p.message('a', { t: 'dailyPropose', map: { onlineSetId: 1, onlineId: 2, keys: 4 } }); p.message('a', { t: 'dailyScore', day: p.daily.day, onlineId: 2, score: 1000 }); p.message('a', { t: 'dailyScore', day: p.daily.day, onlineId: 2, score: 2000 }); };
-  play(); clock.t += 86400000; play(); clock.t += 86400000; play();
-  assert.deepEqual(p.message('a', { t: 'daily' })[0].msg.stats, { plays: 3, current: 3, best: 3, last: '2026-10-03' });
-  clock.t += 2 * 86400000; // (a day missed)
+  clock.t = Date.parse('2026-10-07T00:00:01Z');
   assert.equal(p.message('a', { t: 'daily' })[0].msg.stats.current, 0);
-  play();
-  assert.deepEqual(p.message('a', { t: 'daily' })[0].msg.stats, { plays: 4, current: 1, best: 3, last: '2026-10-05' });
 });
 
-test('presence beatmap leaderboards: each player\'s best per beatmap, global or friends only', () => {
-  const p = new PresenceLogic(() => 5000), saved = [];
-  p.persistBoard = (k, l) => saved.push([k, l.length]);
-  const key = 'a'.repeat(32);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' }); p.join('c', { name: 'Cat', pid: 'catpid333' });
-  assert.deepEqual(p.message('a', { t: 'lbSubmit', key: 'nothex', score: 5 }), []);
-  p.message('a', { t: 'lbSubmit', key, score: 800000, acc: 0.95, combo: 300, grade: 'S', mods: ['HD'], counts: [100, 50, 3, 1, 0, 2], pp: 123.456 });
-  p.message('b', { t: 'lbSubmit', key, score: 900000, acc: 0.97, combo: 400, grade: 'S' });
-  p.message('c', { t: 'lbSubmit', key, score: 700000, acc: 0.9, combo: 100, grade: 'A' });
-  p.message('a', { t: 'lbSubmit', key, score: 600000 }); // (worse: kept the best)
-  const g = p.message('a', { t: 'lb', key })[0].msg;
-  assert.deepEqual(g.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000], [3, 'Cat', 700000]]);
-  assert.deepEqual([g.you.rank, g.you.pp, g.you.counts.join()], [2, 123.46, '100,50,3,1,0,2']);
-  // friends: you and your friends only
-  p.message('a', { t: 'friendReq', to: 'c' }); p.message('c', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
-  assert.deepEqual(p.message('a', { t: 'lb', key, scope: 'friends' })[0].msg.scores.map(s => s.name), ['Alice', 'Cat']);
-  assert.equal(saved.length, 3);
-  assert.equal(p.message('a', { t: 'lb', key: 'b'.repeat(32) })[0].msg.total, 0);
-});
-
-test('presence profiles: a player\'s game shares their profile; others open it with their rank, daily record and status', () => {
+test('profiles: shared by a player\'s game for others to open, with the server\'s own rank and verified totals', () => {
   const p = new PresenceLogic(() => 1000), saved = [];
   p.persistProfile = pid => saved.push(pid);
-  p.join('a', { name: 'Alice', pid: 'alicepid1' }); p.join('b', { name: 'Bob', pid: 'bobpid22' });
-  const prof = { plays: 12, pp: 345, top: [{ title: 'Song', version: 'Hard', grade: 'S', accuracy: 0.97, pp: 120 }], medals: { first: 1 } };
-  p.message('a', { t: 'stats', pp: 345, acc: 0.97, plays: 12, profile: prof });
-  p.message('a', { t: 'stats', pp: 345, acc: 0.97, plays: 12, profile: prof }); // (unchanged: not saved again)
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  const prof = { plays: 12, pp: 99999, top: [{ title: 'Song', version: 'Hard', grade: 'S', accuracy: 0.97, pp: 120 }] };
+  p.message('a', { t: 'stats', profile: prof }); p.message('a', { t: 'stats', profile: prof });
   assert.deepEqual(saved, ['alicepid1']);
+  p.recordVerified('alicepid1', K1, judged({ pp: 120 }));
   const m = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
-  assert.deepEqual([m.data.plays, m.data.top[0].title, m.data.name, m.rank, m.online, m.id, m.name], [12, 'Song', 'Alice', 1, true, 'a', 'Alice']);
+  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, 120, 1, true, 'a']);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
-  assert.deepEqual(p.message('b', { t: 'profile', pid: 'x!' }), []);
-  // too big: not kept
-  p.message('b', { t: 'stats', pp: 1, profile: { junk: 'x'.repeat(60000) } });
+  p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(60000) } });
   assert.equal(p.profiles.has('bobpid22'), false);
+});
+
+test('multiplayer results are the server\'s judgement: a claim alone counts for nothing; only the player\'s token; the room\'s mods', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('ABCDEF', () => clock.t);
+  r.join('a', 'Alice', true); r.join('b', 'Bob', false);
+  r.message('a', { t: 'map', map: { hash: 'h'.repeat(64), title: 'Song', artist: 'Art', keys: 4, onlineSetId: 5 } });
+  for (const id of ['a', 'b']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
+  r.message('a', { t: 'start' });
+  assert.equal(r.state, 'playing');
+  // Alice claims 1,000,000 but never sends her play; Bob's is judged
+  r.message('a', { t: 'finish', raw: true, result: { score: 1000000, accuracy: 1, passed: true, grade: 'SS', pp: 999 } });
+  assert.equal(r.verify('b', 'wrong-token', { score: 1 }).error, 'Not a player in this room.');
+  const judged = { score: 700000, accuracy: 0.9, maxCombo: 100, counts: [50, 20, 5, 0, 0, 3], grade: 'A', failed: false, pp: 40, mods: [], beatmapSetId: 5 };
+  assert.equal(r.verify('b', r.get('b').token, judged, { hash: 'h'.repeat(64) }).ok, true);
+  assert.equal(r.state, 'playing', 'waits for Alice\'s play');
+  clock.t += 21000;
+  const res = r.tick().find(o => o.msg && o.msg.t === 'results').msg.results;
+  assert.equal(res.winner, 'b');
+  const ra = res.rows.find(x => x.id === 'a');
+  assert.deepEqual([ra.score, ra.pp, ra.grade, ra.unverified], [0, 0, 'F', true]);
+  // the next match: a play with other mods than the room's is not this match's play
+  for (const id of ['a', 'b']) r.message(id, { t: 'ready', ready: true });
+  r.message('a', { t: 'start' });
+  const v = r.verify('a', r.get('a').token, { ...judged, mods: ['HR'] }, { hash: 'h'.repeat(64) });
+  assert.equal(v.error, 'Not the room\'s mods.');
+  assert.equal(r.get('a').finished.unverified, true);
 });

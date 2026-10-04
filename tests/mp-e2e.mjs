@@ -94,15 +94,27 @@ await shot(alice, 'mp-chat');
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => !document.querySelector('.chat'), null, { timeout: 3000 });
 // lazer's rankings: each player's totals, by pp
-await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'stats', pp: 432.1, acc: 0.9632, plays: 12, grades: { ss: 1, s: 4, a: 5 }, profile: { ...AshtonkMania.ProfileScreen.summary(), plays: 12, pp: 432.1 } }));
+// — only plays the server judged count: a player's own claims (99,999pp, a made-up leaderboard score) change nothing
+await bob.evaluate(() => { AshtonkMania.Presence.send({ t: 'stats', pp: 99999, acc: 1, plays: 9999, profile: AshtonkMania.ProfileScreen.summary() }); AshtonkMania.Presence.send({ t: 'lbSubmit', key: 'f'.repeat(64), score: 1e7 }); });
+// Bob's game sends a real play (perfect, as Auto plays it): the beatmap file and the key presses, judged by the server
+const bobScore = await bob.evaluate(async () => {
+  const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal');
+  const { notes } = await AshtonkMania.BeatmapManager.load(m.id);
+  const events = generateAutoInputs(prepareNotes(notes, m.keys, [], 1), m.keys).flat();
+  return Verified.submit({ rec: m, mods: [], modConfig: {}, seed: 1, events });
+});
+check('a play goes up as the beatmap and the key presses, and the server judges it itself', bobScore && bobScore.ok && bobScore.score === 1000000 && bobScore.grade === 'SS' && bobScore.pp > 0, JSON.stringify(bobScore));
+// a play sent with someone else's id but not their key is refused
+const forged = await bob.evaluate(async () => { const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', osu: btoa('x'), play: { mods: [], events: [] } }) }); return r.status; });
+check('…and nobody can send scores as someone else (their key)', forged === 403, String(forged));
 await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
 await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
-check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(() => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /432pp/.test(r.textContent) && /96\.32%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
+check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(pp => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && new RegExp(`${Math.round(pp)}pp`).test(r.textContent) && !/99,999/.test(r.textContent) && /100\.00%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }, bobScore.pp), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
 await shot(alice, 'mp-rankings');
 // clicking a player opens their full profile (lazer's user profile), from what their game shared
 await alice.click('.rk-table .rk-row:not(.rk-head)');
 await alice.waitForFunction(() => document.querySelector('.pf-name') && /Bob/.test(document.querySelector('.pf-name').textContent), null, { timeout: 5000 });
-check('rankings: clicking a player opens their full profile (rank, pp, play count, sections)', await alice.evaluate(() => /#1/.test(document.querySelector('.pf-global').textContent) && /432pp/.test(document.querySelector('.pf-header').textContent) && document.querySelectorAll('.pf-sec').length >= 4 && !document.querySelector('.pf-avatar[title]')), await alice.evaluate(() => document.querySelector('.pf-header').textContent.slice(0, 200)));
+check('rankings: clicking a player opens their full profile (rank, pp, play count, sections)', await alice.evaluate(pp => /#1/.test(document.querySelector('.pf-global').textContent) && document.querySelector('.pf-header').textContent.includes(`${Math.round(pp)}pp`) && document.querySelectorAll('.pf-sec').length >= 4 && !document.querySelector('.pf-avatar[title]'), bobScore.pp), await alice.evaluate(() => document.querySelector('.pf-header').textContent.slice(0, 200)), bobScore.pp);
 await shot(alice, 'mp-profile-other');
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'rankings', null, { timeout: 5000 });
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
@@ -114,20 +126,13 @@ check('daily challenge: the day\'s beatmap with the time remaining and Play', aw
 await bob.evaluate(m => { const D = AshtonkMania.Daily; D.ask(); }, dmap);
 await bob.waitForFunction(() => AshtonkMania.Daily.data && AshtonkMania.Daily.data.map, null, { timeout: 5000 });
 check('…the same beatmap for everyone', await bob.evaluate(id => AshtonkMania.Daily.data.map.onlineId === id, dmap.onlineId));
-await bob.evaluate(() => { const d = AshtonkMania.Daily.data; AshtonkMania.Daily.submit({ score: 912345, scoreStd: 912345, accuracy: 0.9711, maxCombo: 456, grade: 'S', mods: ['HD'] }, { day: d.day, onlineId: d.map.onlineId }); });
-await alice.waitForFunction(() => document.querySelectorAll('.dc-table .dc-row:not(.rk-head)').length === 1, null, { timeout: 5000 });
-check('…a passed play goes on everyone\'s leaderboard', await alice.evaluate(() => { const r = document.querySelector('.dc-table .dc-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && /912,345/.test(r.textContent) && /97\.11%/.test(r.textContent) && /HD/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.dc-table') && document.querySelector('.dc-table').textContent));
+check('…and its leaderboard has only plays the server judged (none yet)', await alice.evaluate(() => /No scores yet/.test(document.querySelector('.rk-empty, .dc-table') ? document.querySelector('#app').textContent : '')));
 await shot(alice, 'mp-daily');
-await bob.evaluate(() => AshtonkMania.Screens.go('profile'));
-await bob.waitForFunction(() => { const e = document.querySelector('.pf-daily'); return e && !e.hidden; }, null, { timeout: 5000 });
-check('profile: lazer\'s daily challenge box — days played and streaks', await bob.evaluate(() => /Daily Challenge\s*1d/.test(document.querySelector('.pf-daily').textContent) && /Current daily streak1d/.test(document.querySelector('.pf-daily-tip').textContent)), await bob.evaluate(() => document.querySelector('.pf-daily').textContent));
-await bob.evaluate(() => AshtonkMania.Screens.back());
 // lazer's global leaderboards at song select: Bob's best on a beatmap shows in Alice's Global scope
 const lbHash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);
-await bob.evaluate(h => AshtonkMania.Presence.send({ t: 'lbSubmit', key: h, score: 876543, acc: 0.9876, combo: 321, grade: 'S', mods: ['HD'], counts: [200, 30, 2, 0, 0, 1], pp: 55 }), lbHash);
 await alice.evaluate(() => { const S = AshtonkMania.Settings; S.set('songselect.lbScope', 'global'); S.set('songselect.detailTab', 'ranking'); const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('songselect', { mapId: m.id }); });
 await alice.waitForFunction(() => [...document.querySelectorAll('.lbs')].some(r => /Bob/.test(r.textContent)), null, { timeout: 8000 });
-check('song select: the Global scope shows other players\' best scores from the server', await alice.evaluate(() => { const r = [...document.querySelectorAll('.lbs')].find(x => /Bob/.test(x.textContent)); return /876,543/.test(r.textContent) && /98\.76%/.test(r.textContent) && /#1/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.lb') && document.querySelector('.lb').textContent.slice(0, 300)));
+check('song select: the Global scope shows other players\' best scores from the server', await alice.evaluate(() => { const r = [...document.querySelectorAll('.lbs')].find(x => /Bob/.test(x.textContent)); return /1,000,000/.test(r.textContent) && /100\.00%/.test(r.textContent) && /#1/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.lb') && document.querySelector('.lb').textContent.slice(0, 300)));
 await shot(alice, 'mp-global-lb');
 await alice.evaluate(() => { AshtonkMania.Settings.set('songselect.lbScope', 'local'); AshtonkMania.Screens.back(); });
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'daily', null, { timeout: 5000 });
