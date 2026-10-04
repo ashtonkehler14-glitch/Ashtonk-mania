@@ -1067,6 +1067,12 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     await mp.waitForTimeout(30);
   }
   check('phone: touching a column holds that column, letting go releases it', held.join() === '1000,0100,0010,0001' && await mp.evaluate(() => !AshtonkMania.GameplayScreen.s.held.some(Boolean)), held.join());
+  // turning the phone / leaving fullscreen mid-song: lazer's "click to resume" instead of the pause menu
+  await mp.evaluate(() => AshtonkMania.GameplayScreen.tapToResume()); await mp.waitForTimeout(300);
+  const tapUp = await mp.evaluate(() => ({ tap: !!document.querySelector('.gp-tap'), menu: !!document.querySelector('.pause-menu'), running: AshtonkMania.GameplayScreen.s.running }));
+  await mp.tap('.gp-tap'); await mp.waitForTimeout(200);
+  await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s.running, null, { timeout: 6000 });
+  check('phone: a paused song shows "Tap to resume" (no pause menu), and a tap carries on', tapUp.tap && !tapUp.menu && !tapUp.running && await mp.evaluate(() => !document.querySelector('.gp-tap')), JSON.stringify(tapUp));
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
@@ -1076,7 +1082,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone upright in the menus: asked to turn sideways (the game is used sideways, as lazer\'s app)', await mp.evaluate(() => !document.querySelector('.rot-prompt').hidden && /sideways/.test(document.querySelector('.rot-prompt').textContent)));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
   const land = await mp.evaluate(() => ({ rot: !document.querySelector('.rot-prompt').hidden, z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
-  check('phone sideways: the full desktop interface (1366×768), scaled to the screen as on lazer for Android (no rotate prompt)', !land.rot && land.z > 1.3 && land.w >= 1366, JSON.stringify(land));
+  check('phone sideways: the desktop interface scaled to the screen as on lazer for Android, at the phone\'s 125% UI scale (no rotate prompt)', !land.rot && land.z > 1.3 && Math.abs(land.w - 844 / (Math.min(844 / 1366, 390 / 768) * 1.25)) < 6, JSON.stringify(land));
   await mctx.close();
 }
 

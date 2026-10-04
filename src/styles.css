@@ -3828,3 +3828,20 @@ html.touch .ss-footer { padding-right: calc(20px + var(--corner)); }
 .mob-inst-quiet { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; color: rgba(255, 255, 255, .6); font-size: 13px; cursor: pointer; }
 .mob-inst-quiet input { width: 16px; height: 16px; accent-color: #ff66aa; }
 .mob-inst-how[hidden] { display: none; }
+
+/* phones: lazer's "click to resume" — the song waits under a dim layer until you tap */
+.gp-tap { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(0, 0, 0, .55); color: #fff; text-align: center; animation: fadeIn 200ms ease both; cursor: pointer; touch-action: none; }
+.gp-tap b { font-size: 1.6rem; font-weight: 700; letter-spacing: .02em; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.gp-tap span { color: rgba(255, 255, 255, .65); font-size: .95rem; }
+.gp-tap-ring { position: relative; width: 84px; height: 84px; margin-bottom: 10px; border: 4px solid #fff; border-radius: 50%; box-shadow: 0 0 24px rgba(255, 102, 170, .6); }
+.gp-tap-ring i { position: absolute; inset: 14px; border-radius: 50%; background: #ff66aa; animation: tapPulse 1.2s cubic-bezier(.22, 1, .36, 1) infinite; }
+@keyframes tapPulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+/* the player loader on an upright phone: the title and details sized to the narrow screen */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .gp-loader .pl-t { font-size: clamp(26px, 8vw, 44px); }
+  .gp-loader .pl-a { font-size: clamp(18px, 5vw, 26px); }
+  .gp-loader .pl-v { font-size: clamp(20px, 6vw, 32px); }
+  .gp-loader .pl-disclaimers { left: 16px; right: 16px; width: auto; top: auto; bottom: 24px; }
+}
+/* phones: lazer's health bar beside the pause button, not under it */
+html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300px); }

@@ -1,3 +1,6 @@
+/** A phone or tablet (no mouse): some defaults differ there. */
+const TOUCH_DEVICE = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 /* SettingsManager — schema-driven settings. The schema drives both defaults and the Settings UI,
  * so every visible control maps to a real stored value that some system reads. */
 
@@ -110,7 +113,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Input', g: 'Latency', k: 'input.latency', l: 'Input latency compensation', t: 'range', d: 0, min: -50, max: 50, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Shifts only your key presses (not the audio or notes).' },
   { x: 1, s: 'Input', g: 'Display', k: 'input.fullscreenOnPlay', l: 'Fullscreen while playing (tap the game to go back)', t: 'bool', d: true },
   // ── Interface
-  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
+  { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: TOUCH_DEVICE ? 1.25 : 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
@@ -199,6 +202,8 @@ const Settings = {
     // the skin's health bar sits beside the stage, where osu!mania puts it (it used to default to the top-left corner)
     if (!v['migr.hpStage']) { if (v['gameplay.healthStyle'] === 'skin') v['gameplay.healthStyle'] = 'skinstage'; v['migr.hpStage'] = true; }
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
+    // (phones: 125% by default — a phone that kept the old 90% default moves up to it)
+    if (!v['migr.uiScaleTouch']) { if (TOUCH_DEVICE && v['ui.scale'] === 0.9) delete v['ui.scale']; v['migr.uiScaleTouch'] = true; }
     // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
     // backups imported with per-column colours
     if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }

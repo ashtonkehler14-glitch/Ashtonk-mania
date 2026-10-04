@@ -29,11 +29,25 @@ const Game = {
  *  lazer's mobile app, the game is used sideways and only gameplay is upright: the screen turns upright for the song
  *  and back sideways after (where the browser lets it lock the turn; otherwise Orientation asks — see 19d-mobile).
  *  Leave fullscreen mid-song (the browser's bar swiped back, Esc) and a tap or click on the game puts it back. */
+/** The screen stays on while playing (a song with few notes would otherwise let a phone dim and lock). */
+const WakeLock = {
+  lock: null,
+  async hold() {
+    if (!('wakeLock' in navigator) || this.lock) return;
+    try { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => { this.lock = null; }); } catch { /* not allowed */ }
+    if (!this._vis) { this._vis = () => { if (document.visibilityState === 'visible' && Screens.currentName === 'gameplay') this.hold(); }; document.addEventListener('visibilitychange', this._vis); }
+  },
+  release() { const l = this.lock; this.lock = null; if (l) l.release().catch(() => {}); },
+};
+
 const PlayScreen = {
   want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
   enter() {
     const el = document.documentElement;
-    if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => this.lock(), () => {});
+    // (fullscreen keeps Esc for the game — the Keyboard Lock API: one press pauses, holding it leaves fullscreen)
+    const keys = () => { try { navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(['Escape']).catch(() => {}); } catch { /* not supported */ } };
+    if (document.fullscreenElement) keys();
+    if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { keys(); this.lock(); }, () => {});
     else this.lock();
   },
   lock() { clearTimeout(this._unT); if (typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
@@ -196,7 +210,12 @@ const GameplayScreen = {
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
-    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.pause(); };
+    WakeLock.hold();
+    // the keyboard is the game's: nothing else keeps focus (the button that started the song took Space and Enter)
+    if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
+    el.tabIndex = -1; requestAnimationFrame(() => { if (el.isConnected) el.focus({ preventScroll: true }); });
+    el.addEventListener('pointerdown', () => { if (document.activeElement !== el && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) el.focus({ preventScroll: true }); });
+    this._orient = () => { if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume(); };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
     this.params = params;
@@ -214,7 +233,15 @@ const GameplayScreen = {
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
     // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
-    this._blur = () => { if (this.s && this.s.running) { if (this.s.spectate) return; if (!this.s.mp) this.pause(); else this.releaseAll(); } };
+    this._blur = () => { if (this.s && this.s.running) { if (this.s.spectate) return; if (!this.s.mp) { if (this.phone()) this.tapToResume(); else this.pause(); } else this.releaseAll(); } };
+    // leaving fullscreen mid-song pauses it (on a computer the browser takes the Esc that leaves it): the pause menu,
+    // or on a phone a tap to go back
+    this._fsc = () => {
+      const s = this.s;
+      if (document.fullscreenElement || !PlayScreen.want() || App.installed || !s || !s.running || s.mp || s.spectate || s.replay) return;
+      if (this.phone()) this.tapToResume(); else this.pause();
+    };
+    document.addEventListener('fullscreenchange', this._fsc);
     // spectating: coming back to the tab goes straight back to the live play (no pause menu)
     this._vis = () => { if (document.visibilityState === 'visible' && this.s && this.s.spectate) Spectate.catchUp(this, this.s); };
     document.addEventListener('visibilitychange', this._vis);
@@ -258,6 +285,10 @@ const GameplayScreen = {
     if (this.el && this._touch) for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) this.el.removeEventListener(t, this._touch);
     document.removeEventListener('visibilitychange', this._vis);
     window.removeEventListener('resize', this._orient);
+    document.removeEventListener('fullscreenchange', this._fsc);
+    this.tapEl && this.tapEl.remove(); this.tapEl = null;
+    WakeLock.release();
+    try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ }
     PlayScreen.unlock();
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);
@@ -308,6 +339,8 @@ const GameplayScreen = {
     this.initAutoScale();
     // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
     this.healthMode = healthModeFor(layout);
+    // (phones: the stage spans the upright screen, so a bar beside it would be off-screen — lazer's bar at the top)
+    if (typeof Mobile !== 'undefined' && Mobile.touch && (this.healthMode === 'stage' || this.healthMode === 'skinstage' || this.healthMode === 'skin')) this.healthMode = 'lazer';
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
@@ -1222,7 +1255,27 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
 
   // ─────────────────────────────── pause / fail / complete ───────────────────────────────
-  pause() {
+  phone() { return typeof Mobile !== 'undefined' && Mobile.touch; },
+  /** Phones: the song stops where it is, and instead of the pause menu, lazer's "click to resume": a tap anywhere
+   *  (once the phone is held upright again — the turn prompt covers it till then) goes back to fullscreen and on.
+   *  Used when the phone is turned, fullscreen is left or another app comes up. */
+  tapToResume() {
+    const s = this.s;
+    if (!s || !s.running || s.finished) return;
+    this.pause({ quiet: true });
+    if (this.tapEl) this.tapEl.remove();
+    const el = this.tapEl = h('div.gp-tap', { role: 'button', 'aria-label': 'Tap to resume' }, h('div.gp-tap-ring', h('i')), h('b', 'Tap to resume'), h('span', 'The song is paused.'));
+    el.addEventListener('pointerup', e => {
+      e.stopPropagation();
+      if (this.tapEl !== el) return;
+      el.remove(); this.tapEl = null;
+      PlayScreen.enter();
+      UISounds.click();
+      this.resume();
+    });
+    this.el.append(el);
+  },
+  pause({ quiet = false } = {}) {
     const s = this.s;
     if (!s || !s.running || s.finished) return;
     this.releaseAll();
@@ -1230,7 +1283,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     Music.pause();
     if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime()); // (whoever's watching sees the pause too)
     SkinManager.sample('pause-loop').then(() => {});
-    this.showPause('Paused');
+    if (!quiet) this.showPause('Paused');
   },
   showPause(title, failed = false) {
     this.closePause();
@@ -1303,6 +1356,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const s = this.s;
     if (!s || s.running || s.failed || s.finished) return;
     if (typeof Mobile !== 'undefined' && Mobile.touch && !Mobile.portrait && !s.mp) return; // (turn upright first)
+    if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; }
     this.closePause();
     const delay = s.feed ? 0 : Settings.get('gameplay.unpauseDelay'); // (no countdown when watching)
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());

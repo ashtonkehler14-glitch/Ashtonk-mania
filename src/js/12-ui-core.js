@@ -1106,7 +1106,7 @@ const Zoom = {
     const touchLand = !desktop && W > H;
     const fit = touchLand ? clamp(Math.min(W / 1366, H / 768), 0.2, 4)
       : W >= 1000 && H >= 560 ? clamp(Math.min(W / 1366, H / 768), 0.75, 4) : desktop ? clamp(Math.min(W / 1366, H / 768), 0.3, 1) : 1;
-    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || 0.9, 0.5, 2) : 0.9;
+    const ui = typeof Settings !== 'undefined' && Settings.values ? clamp(Settings.get('ui.scale') || (TOUCH_DEVICE ? 1.25 : 0.9), 0.5, 2) : 0.9;
     const k = fit * ui / bz, z = Math.abs(k - 1) < 0.002 ? 1 : 1 / k;
     const r = document.documentElement.style;
     // (vw / vh inside the app mean the app's layout size, not the window's)
