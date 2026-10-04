@@ -12974,17 +12974,25 @@ const WakeLock = {
 };
 
 const PlayScreen = {
-  want() { return Settings.get('input.fullscreenOnPlay') || (typeof Mobile !== 'undefined' && Mobile.touch); },
+  phone() { return typeof Mobile !== 'undefined' && Mobile.touch; },
+  want() { return Settings.get('input.fullscreenOnPlay') || this.phone(); },
+  /** Starting a song. On a computer with "Fullscreen while playing" off (the default there) this leaves the window
+   *  exactly as it is — no fullscreen, no taking Esc from the browser, no turning the screen. */
   enter() {
+    if (!this.want()) return;
     const el = document.documentElement;
-    // (fullscreen keeps Esc for the game — the Keyboard Lock API: one press pauses, holding it leaves fullscreen)
-    const keys = () => { try { navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(['Escape']).catch(() => {}); } catch { /* not supported */ } };
-    if (document.fullscreenElement) keys();
-    if (this.want() && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { keys(); this.lock(); }, () => {});
+    // (fullscreen keeps Esc for the game — the Keyboard Lock API: one press pauses, holding it leaves fullscreen —
+    // only when the game itself made the song fullscreen)
+    const keys = () => { try { navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(['Escape']).catch(() => {}); this._keys = true; } catch { /* not supported */ } };
+    if (document.fullscreenElement) { if (this._ours) keys(); this.lock(); return; }
+    if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => { this._ours = true; keys(); this.lock(); }, () => this.lock());
     else this.lock();
   },
-  lock() { clearTimeout(this._unT); if (typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
+  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('portrait'); },
   unlock() {
+    if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
+    if (!document.fullscreenElement) this._ours = false;
+    if (!this.phone()) return;
     // (a retry comes straight back to gameplay: don't turn the screen in between)
     clearTimeout(this._unT);
     this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock('landscape'); }, 500);
@@ -13142,7 +13150,7 @@ const GameplayScreen = {
     this.lowEl = h('div.gp-lowhp', h('i'), h('i')); this._lowA = 0;
     el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.lowEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
-    PlayScreen.lock(); // (also on a retry, which doesn't go through Game.launch)
+    PlayScreen.enter(); // (also on a retry, which doesn't go through Game.launch)
     WakeLock.hold();
     // the keyboard is the game's: nothing else keeps focus (the button that started the song took Space and Enter)
     if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
@@ -13222,7 +13230,6 @@ const GameplayScreen = {
     document.removeEventListener('fullscreenchange', this._fsc);
     this.tapEl && this.tapEl.remove(); this.tapEl = null;
     WakeLock.release();
-    try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ }
     PlayScreen.unlock();
     this._audioSub && this._audioSub();
     cancelAnimationFrame(this._raf);

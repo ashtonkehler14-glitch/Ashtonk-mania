@@ -505,7 +505,9 @@ export class RoomLogic {
     if (this.state === 'playing') {
       // a finished play whose key presses never came in to be judged counts for nothing
       let lapsed = false;
-      for (const p of this.players) if (p.playing && !p.finished && p.claimed && this.now() >= p.verifyDue) { p.finished = { ...cleanResult({}), grade: 'F', unverified: true }; lapsed = true; }
+      // (no judgement in time — the judge can run out of CPU on a small server plan — the player's own result stands,
+      // marked unverified, rather than a 0 that would spoil the match)
+      for (const p of this.players) if (p.playing && !p.finished && p.claimed && this.now() >= p.verifyDue) { p.finished = { ...p.claimed, unverified: true }; lapsed = true; }
       if (lapsed) out.push(...this.checkFinished());
       if (this.state !== 'playing' || this.now() < this.deadline) return out;
       for (const p of this.players) if (p.playing && !p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
@@ -617,17 +619,12 @@ export class MatchRoom {
     if (!this.logic) this.logic = new RoomLogic(code);
     if (url.pathname.endsWith('/status')) return json({ code, open: this.logic.created, players: this.logic.players.length, state: this.logic.state });
     // a player's play, sent to be judged here (their room token proves who they are): see RoomLogic.verify
-    if (url.pathname.endsWith('/verify') && request.method === 'POST') {
-      if (Number(request.headers.get('content-length') || 0) > 8e6) return json({ error: 'Too big.' }, 413);
+    // (judged by the Worker that took the request — judging here would hold up, and on a small plan could reset, the
+    // whole room — then handed over on a path only the Worker uses; see judgePlay)
+    if (url.pathname.endsWith('/judged') && request.method === 'POST') {
       const body = await request.json().catch(() => null);
-      if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
-      let bytes;
-      try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return json({ error: 'Bad beatmap file.' }, 400); }
-      if (!bytes.length || bytes.length > 5e6) return json({ error: 'Bad beatmap file.' }, 400);
-      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
-      let r;
-      try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail: true }); } catch { r = { error: 'The play could not be judged.' }; }
-      const v = this.logic.verify(String(body.id || ''), String(body.token || ''), r, { hash });
+      if (!body || typeof body !== 'object' || !body.r || typeof body.r !== 'object') return json({ error: 'Bad request.' }, 400);
+      const v = this.logic.verify(String(body.id || ''), String(body.token || ''), body.r, { hash: String(body.hash || '') });
       this.dispatch(v.out || []); this.schedule();
       return json(v.ok ? { ok: true } : { error: v.error }, v.ok ? 200 : 422);
     }
@@ -1135,22 +1132,16 @@ export class Matchmaker {
    *  events }, daily? }. The file's SHA-256 is the beatmap's id; verifyPlay plays the key presses through the game's
    *  judging and works the score out; that score — never the player's own — goes on the boards and rankings. */
   async score(request) {
-    const len = Number(request.headers.get('content-length') || 0);
-    if (len > 8e6) return json({ error: 'Too big.' }, 413);
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+    if (!body || typeof body !== 'object' || !body.r || typeof body.r !== 'object') return json({ error: 'Bad request.' }, 400);
     await this.loadFriends();
     const pid = String(body.pid || '');
     if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.auth.has(pid) || this.presence.auth.get(pid) !== sha256hex(String(body.key || '').slice(0, 100))) return json({ error: 'Not signed in as that player.' }, 403);
     const t = Date.now(), last = (this._lastScore || (this._lastScore = new Map())).get(pid) || 0;
     if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
     this._lastScore.set(pid, t);
-    let bytes;
-    try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return json({ error: 'Bad beatmap file.' }, 400); }
-    if (!bytes.length || bytes.length > 5e6) return json({ error: 'Bad beatmap file.' }, 400);
-    const key = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
-    let r;
-    try { r = verifyPlay(new TextDecoder().decode(bytes), body.play); } catch (e) { return json({ error: 'The play could not be judged.' }, 422); }
+    const key = String(body.hash || ''), r = body.r;
+    if (!/^[a-f0-9]{64}$/.test(key)) return json({ error: 'Bad beatmap file.' }, 400);
     if (r.error) return json({ error: r.error }, 422);
     if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
@@ -1225,7 +1216,7 @@ export class Matchmaker {
       await this.loadFriends();
       return this.presenceSocket();
     }
-    if (url.pathname.endsWith('/score') && request.method === 'POST') return this.score(request);
+    if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
     if (url.pathname.endsWith('/rooms/update')) {
@@ -1271,6 +1262,22 @@ export class Matchmaker {
 }
 
 /** Routes /api/mp/* (called from the main Worker). */
+/** Judge a play in the Worker handling its request (never in a Durable Object: a long song's judging is heavy, and a
+ *  shared object that runs over its CPU limit is reset — every player connected to it would drop). Body: { osu (the
+ *  beatmap file, base64), play, … }. Returns { body, hash, r } — r the result or { error } — or { res } to answer with. */
+async function judgePlay(request, { noFail = false } = {}) {
+  if (Number(request.headers.get('content-length') || 0) > 8e6) return { res: json({ error: 'Too big.' }, 413) };
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') return { res: json({ error: 'Bad request.' }, 400) };
+  let bytes;
+  try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return { body, res: json({ error: 'Bad beatmap file.' }, 400) }; }
+  if (!bytes.length || bytes.length > 5e6) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+  let r;
+  try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail }); } catch { r = { error: 'The play could not be judged.' }; }
+  return { body, hash, r };
+}
+
 export async function handleMultiplayer(request, env, url) {
   if (!env.ROOMS || !env.MATCHMAKER) return json({ error: 'Multiplayer is not enabled on this server.' }, 503);
   const path = url.pathname;
@@ -1280,8 +1287,10 @@ export async function handleMultiplayer(request, env, url) {
     return stub.fetch(new Request(new URL(path, url), request));
   }
   if (path === '/api/mp/score' && request.method === 'POST') {
+    const j = await judgePlay(request, {});
+    if (j.res) return j.res;
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
-    return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: request.body, headers: { 'content-type': 'application/json', 'content-length': request.headers.get('content-length') || '' } }));
+    return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/rooms') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
@@ -1297,6 +1306,15 @@ export async function handleMultiplayer(request, env, url) {
     const code = m[1].toUpperCase();
     const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
     const u = new URL(url); u.searchParams.set('code', code);
+    if (m[2] === '/verify') {
+      if (request.method !== 'POST') return json({ error: 'Not found' }, 404);
+      const j = await judgePlay(request, { noFail: true });
+      if (j.res && !j.body) return j.res;
+      // (a judge that broke isn't the player's fault: the room waits it out and their own result stands)
+      if (j.r && j.r.error === 'The play could not be judged.') return json({ error: j.r.error }, 503);
+      u.pathname = `/api/mp/room/${code}/judged`;
+      return stub.fetch(new Request(u, { method: 'POST', body: JSON.stringify({ id: j.body.id, token: j.body.token, hash: j.hash || '', r: j.r || { error: 'The play could not be judged.' } }), headers: { 'content-type': 'application/json' } }));
+    }
     return stub.fetch(new Request(u, request));
   }
   return json({ error: 'Not found' }, 404);

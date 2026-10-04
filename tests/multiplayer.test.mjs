@@ -1089,7 +1089,7 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   assert.equal(p.profiles.has('bobpid22'), false);
 });
 
-test('multiplayer results are the server\'s judgement: a claim alone counts for nothing; only the player\'s token; the room\'s mods', () => {
+test('multiplayer results are the server\'s judgement where it can judge; a play it never judged keeps the player\'s own result, marked unverified; only the player\'s token; the room\'s mods', () => {
   const clock = { t: 0 };
   const r = new RoomLogic('ABCDEF', () => clock.t);
   r.join('a', 'Alice', true); r.join('b', 'Bob', false);
@@ -1097,7 +1097,7 @@ test('multiplayer results are the server\'s judgement: a claim alone counts for 
   for (const id of ['a', 'b']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
   r.message('a', { t: 'start' });
   assert.equal(r.state, 'playing');
-  // Alice claims 1,000,000 but never sends her play; Bob's is judged
+  // Alice's play never gets judged (the judge ran out of CPU, say); Bob's is judged
   r.message('a', { t: 'finish', raw: true, result: { score: 1000000, accuracy: 1, passed: true, grade: 'SS', pp: 999 } });
   assert.equal(r.verify('b', 'wrong-token', { score: 1 }).error, 'Not a player in this room.');
   const judged = { score: 700000, accuracy: 0.9, maxCombo: 100, counts: [50, 20, 5, 0, 0, 3], grade: 'A', failed: false, pp: 40, mods: [], beatmapSetId: 5 };
@@ -1105,9 +1105,8 @@ test('multiplayer results are the server\'s judgement: a claim alone counts for 
   assert.equal(r.state, 'playing', 'waits for Alice\'s play');
   clock.t += 21000;
   const res = r.tick().find(o => o.msg && o.msg.t === 'results').msg.results;
-  assert.equal(res.winner, 'b');
   const ra = res.rows.find(x => x.id === 'a');
-  assert.deepEqual([ra.score, ra.pp, ra.grade, ra.unverified], [0, 0, 'F', true]);
+  assert.deepEqual([ra.score, ra.grade, ra.unverified], [1000000, 'SS', true], 'her own result stands, marked unverified');
   // the next match: a play with other mods than the room's is not this match's play
   for (const id of ['a', 'b']) r.message(id, { t: 'ready', ready: true });
   r.message('a', { t: 'start' });
