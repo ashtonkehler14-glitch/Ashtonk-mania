@@ -4213,6 +4213,10 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-tapr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ed-tapr .btn { display: inline-flex; align-items: center; gap: 6px; }
 .ed-metro { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: rgba(255, 255, 255, .75); margin-left: 4px; }
+.ed-res { display: flex; align-items: center; gap: 14px; }
+.ed-bgthumb { flex: none; width: 160px; aspect-ratio: 16 / 9; border-radius: 8px; background: rgba(255, 255, 255, .06) center / cover no-repeat; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.ed-resi { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; font-size: 13px; }
+.ed-resi .muted { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ed-h3 { margin: 10px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
 .ed-form > p.muted { font-size: 13px; }
 .ed-kiai { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); box-shadow: inset 3px 0 0 #ff9922; }

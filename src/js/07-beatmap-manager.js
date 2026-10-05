@@ -312,24 +312,34 @@ const BeatmapManager = {
 
   /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files
    *  (its hash — and so its id — change; the old record goes). Returns the new difficulty. */
-  async saveDifficulty(rec, text) {
+  /** An edited difficulty back into the library (from the editor): the set's other files as they are, this .osu
+   *  replaced. opts.others: other difficulties rewritten with it ([{id, osuPath, text}] — lazer's set-wide details),
+   *  opts.extra: files added to the set or replaced ([{name, data}] — a new background). The set moves with its
+   *  details (its id comes from them): an old set left empty goes. */
+  async saveDifficulty(rec, text, opts = {}) {
     const set = this.setById.get(rec.setId);
     if (!set) throw new Error('That beatmap set is no longer in your library.');
+    const others = opts.others || [], extra = opts.extra || [];
     const osuLow = normPath(rec.osuPath).toLowerCase(), entries = [];
+    const extraLow = new Set(extra.map(x => normPath(x.name).toLowerCase()));
     for (const [low, real] of Object.entries(set.fileIndex || {})) {
-      if (low === osuLow || low.endsWith('.osu') || real.startsWith('__')) continue;
+      if (low === osuLow || low.endsWith('.osu') || real.startsWith('__') || extraLow.has(low)) continue;
       entries.push({ name: real, size: 0, read: async () => { const b = await DB.get('files', `${set.id}/${real}`); return new Uint8Array(b ? await b.arrayBuffer() : 0); } });
     }
+    for (const x of extra) entries.push({ name: x.name, size: x.data.length, read: async () => x.data });
     const bytes = new TextEncoder().encode(text);
     entries.push({ name: rec.osuPath, size: bytes.length, read: async () => bytes });
-    await DB.del('maps', rec.id); this.maps.delete(rec.id);
-    set.mapIds = set.mapIds.filter(x => x !== rec.id);
+    for (const o of others) { const ob = new TextEncoder().encode(o.text); entries.push({ name: o.osuPath, size: ob.length, read: async () => ob }); }
+    const gone = [rec.id, ...others.map(o => o.id)];
+    for (const id of gone) { await DB.del('maps', id); this.maps.delete(id); }
+    set.mapIds = set.mapIds.filter(x => !gone.includes(x));
     const report = { errors: [], warnings: [] };
     const sets = await this._importEntries(entries, set.sourceName || 'editor', report);
     if (report.errors.length) throw new Error(report.errors[0]);
-    Bus.emit('library:changed');
     const out = sets[0] && sets[0].maps.find(m => normPath(m.osuPath).toLowerCase() === osuLow);
     if (out && set.onlineId > 0) { const s2 = this.setById.get(out.setId); if (s2 && !(s2.onlineId > 0)) s2.onlineId = set.onlineId; }
+    if (out && out.setId !== set.id && !set.mapIds.length) await this.removeSet(set.id);
+    Bus.emit('library:changed');
     return out || null;
   },
   async removeSet(setId) {

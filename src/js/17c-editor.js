@@ -84,6 +84,7 @@ const EditorScreen = {
     this.meta = { Title: md.Title || '', TitleUnicode: md.TitleUnicode || md.Title || '', Artist: md.Artist || '', ArtistUnicode: md.ArtistUnicode || md.Artist || '',
       Creator: md.Creator || '', Version: md.Version || 'Normal', Source: md.Source || '', Tags: md.Tags || '' };
     this.diffSet = { hp: +(df.HPDrainRate ?? 5), od: +(df.OverallDifficulty ?? 5) };
+    this.origMeta = { ...this.meta }; this.newBg = null;
     this.red = this.red.map(r => ({ ...r }));
     this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t }));
     // lazer's bookmarks ([Editor] Bookmarks) and the song select preview point ([General] PreviewTime)
@@ -114,7 +115,7 @@ const EditorScreen = {
     this.editBtn = h('button.ed-menu', { onclick: e => this.editMenu(e) }, 'edit');
     this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing', 'verify'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
     const top = h('div.ed-top', this.fileBtn, this.editBtn, this.tabsEl,
-      h('div.ed-title', h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
+      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
     const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
     this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
     this.divEl = h('div.ed-div');
@@ -129,6 +130,7 @@ const EditorScreen = {
     this.pageEl = h('div.ed-page', { hidden: true });
     el.append(top, this.pageEl, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
       h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
+    this.paintTitle();
     this.paintDivisor();
     this.bindStage();
     this._key = e => this.onKey(e);
@@ -138,6 +140,7 @@ const EditorScreen = {
     const loop = () => { this._raf = requestAnimationFrame(loop); this.draw(); };
     this._raf = requestAnimationFrame(loop);
   },
+  paintTitle() { const r = this.rec; clearEl(this.titleEl).append(h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)); },
   size() {
     const k = Math.min(2, Zoom.dpr());
     for (const c of [this.canvas, this.tl]) { const w = Math.round(c.clientWidth * k), hh = Math.round(c.clientHeight * k); if (w && hh && (c.width !== w || c.height !== hh)) { c.width = w; c.height = hh; } }
@@ -182,11 +185,51 @@ const EditorScreen = {
         h('div.ed-row', field('Title', 'Title'), field('Title (original language)', 'TitleUnicode')),
         h('div.ed-row', field('Creator', 'Creator'), field('Difficulty name', 'Version')),
         h('div.ed-row', field('Source', 'Source'), field('Tags', 'Tags', 'separated by spaces'))),
+      h('div.ed-sec', h('h3', 'Resources'), this.resources()),
       h('div.ed-sec', h('h3', 'Difficulty'),
         h('label.ed-f', h('span', 'Key count'), keys),
         h('div.ed-row', slider('HP drain', 'hp'), slider('Accuracy (OD)', 'od'))),
       h('div.ed-sec', h('h3', 'Difficulties'), h('p.muted', 'A new difficulty in this set, with this one\'s song, timing and details: a copy of its notes, or blank.'),
         h('button.btn.primary', { onclick: () => this.newDifficulty() }, icon('plus'), 'Create new difficulty')));
+  },
+  /** lazer's Setup › Resources: the background (a new one goes into the set, for all its difficulties). */
+  resources() {
+    const img = h('div.ed-bgthumb');
+    const name = this.newBg ? this.newBg.name : this.rec.bgFile || '';
+    if (this.newBg) img.style.backgroundImage = `url("${this.newBg.url}")`;
+    else if (this.rec.bgFile) BeatmapManager.bgThumbURL(this.rec).then(u => { if (u) img.style.backgroundImage = `url("${u}")`; }).catch(() => {});
+    return h('div.ed-res', img, h('div.ed-resi', h('b', 'Background'), h('span.muted', name || 'None yet'),
+      h('button.btn.sm', { onclick: () => this.chooseBackground() }, icon('upload'), name ? 'Change…' : 'Choose…')));
+  },
+  async chooseBackground() {
+    const [f] = await pickFiles({ accept: 'image/*', multiple: false });
+    if (!f) return;
+    if (f.size > 20e6) { Toast.err('That picture is too big', 'Pick one under 20 MB.'); return; }
+    const name = f.name.replace(/[\\/:*?"<>|]/g, '').trim() || 'background.jpg';
+    if (this.newBg) URL.revokeObjectURL(this.newBg.url);
+    this.newBg = { name, data: new Uint8Array(await f.arrayBuffer()), url: URL.createObjectURL(f) };
+    this.setDirty(true);
+    if (this.tabName === 'setup') this.showTab('setup');
+  },
+  /** When the set-wide details (title, artist, creator, source, tags) or the background change, lazer changes them
+   *  for every difficulty in the set: the others' .osu files rewritten to go with this one. */
+  async siblings() {
+    const KEYS = ['Title', 'TitleUnicode', 'Artist', 'ArtistUnicode', 'Creator', 'Source', 'Tags'];
+    const metaCh = KEYS.some(k => (this.meta[k] || '') !== (this.origMeta[k] || ''));
+    const extra = this.newBg ? [{ name: this.newBg.name, data: this.newBg.data }] : [], others = [];
+    if (metaCh || this.newBg) {
+      const set = BeatmapManager.setById.get(this.rec.setId);
+      for (const id of set ? set.mapIds : []) {
+        const m = id !== this.rec.id && BeatmapManager.maps.get(id);
+        const blob = m && await BeatmapManager.getFile(m.setId, m.osuPath);
+        if (!blob) continue;
+        let t = (await blob.text()).replace(/\r\n/g, '\n');
+        if (metaCh) t = EditorScreen.setKeys(t, 'Metadata', Object.fromEntries(KEYS.map(k => [k, this.meta[k]])));
+        if (this.newBg) t = EditorScreen.setBackground(t, this.newBg.name);
+        others.push({ id, osuPath: m.osuPath, text: t });
+      }
+    }
+    return { others, extra };
   },
   timingPage() {
     const wrap = h('div.ed-form');
@@ -389,7 +432,7 @@ const EditorScreen = {
     // drain time (lazer's CheckDrainLength: under 30 seconds)
     if (N.length) { const len = Math.max(...N.map(n => n.end ?? n.t)) - N[0].t; if (len < 30000) P('problem', 'Compose', `The drain time is only ${fmtTime(len)} — a beatmap needs at least 30 seconds.`); }
     // audio and resources
-    if (!this.rec.bgFile) P('problem', 'Resources', 'There is no background image.');
+    if (!this.rec.bgFile && !this.newBg) P('problem', 'Resources', 'There is no background image.');
     if (this.preview < 0) P('warning', 'Audio', 'There is no preview point (song select would play the song from the middle).');
     // metadata (lazer's CheckMetadata…: empty fields, and unicode in the romanised ones)
     if (!this.meta.Title.trim()) P('problem', 'Metadata', 'The title is empty.');
@@ -721,6 +764,7 @@ const EditorScreen = {
       { label: 'Save (Ctrl+S)', icon: 'save', onClick: () => this.save() },
       { label: 'Test (F5)', icon: 'play', onClick: () => this.test() },
       { label: 'New beatmap from a song…', icon: 'music', onClick: () => this.newBeatmap() },
+      { label: 'Export package (.osz)', icon: 'download', onClick: async () => { if (this.dirty && !(await this.save())) return; BeatmapManager.exportOsz(this.rec.setId); } },
       { sep: true },
       { label: 'Exit', icon: 'back', onClick: () => this.exit() },
     ]);
@@ -757,6 +801,7 @@ const EditorScreen = {
       if (!/^\[Editor\]/m.test(text)) text = /^\[Metadata\]/m.test(text) ? text.replace(/^\[Metadata\]/m, '[Editor]\n\n[Metadata]') : text;
       text = EditorScreen.setKeys(text, 'Editor', { Bookmarks: this.bookmarks.map(Math.round).join(',') });
     }
+    if (this.newBg) text = EditorScreen.setBackground(text, this.newBg.name);
     text = EditorScreen.setSection(text, 'TimingPoints', tp);
     text = EditorScreen.setSection(text, 'HitObjects', hit);
     return text.replace(/\n{3,}/g, '\n\n');
@@ -768,6 +813,19 @@ const EditorScreen = {
     const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m);
     const end = next < 0 ? text.length : start + next;
     return `${text.slice(0, m.index)}[${name}]\n${lines.join('\n')}\n${next < 0 ? '' : '\n'}${text.slice(end)}`;
+  },
+  /** The [Events] background line (0,0,"file",0,0) set to a file: replaced where it is, or added. */
+  setBackground(text, file) {
+    const line = `0,0,"${file}",0,0`;
+    const m = /^\[Events\][ \t]*$/m.exec(text);
+    if (!m) return EditorScreen.setSection(text, 'Events', ['//Background and Video events', line]);
+    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m), end = next < 0 ? text.length : start + next;
+    let body = text.slice(start, end);
+    const re = /^[ \t]*0[ \t]*,[ \t]*0[ \t]*,[ \t]*"[^"\n]*"[^\n]*$/m;
+    if (re.test(body)) body = body.replace(re, line);
+    else if (/^\/\/Background and Video events.*$/m.test(body)) body = body.replace(/^(\/\/Background and Video events.*)$/m, `$1\n${line}`);
+    else body = `\n${line}${body}`;
+    return text.slice(0, start) + body + text.slice(end);
   },
   /** key:value lines in an .osu section set (each replaced where it is, or added). */
   setKeys(text, name, obj) {
@@ -786,9 +844,10 @@ const EditorScreen = {
     this._saving = true;
     try {
       const text = this.serialize();
-      const rec = await BeatmapManager.saveDifficulty(this.rec, text);
+      const rec = await BeatmapManager.saveDifficulty(this.rec, text, await this.siblings());
       if (!rec) throw new Error('The saved difficulty couldn\'t be read back.');
       this.rec = rec; this.text = text; this.setDirty(false);
+      this.origMeta = { ...this.meta }; this.paintTitle(); if (this.newBg) { URL.revokeObjectURL(this.newBg.url); this.newBg = null; }
       Settings.set('last.map', rec.id); SongSelect.selectedId = rec.id;
       Toast.ok('Beatmap saved', `${rec.version}: ${plural(this.notes.length, 'note', 'notes')}`);
       return true;

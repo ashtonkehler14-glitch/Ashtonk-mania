@@ -79,3 +79,13 @@ test('editor: bookmarks and the preview point are written into the .osu', () => 
   assert.match(t, /PreviewTime:2500/);
   assert.match(t, /\[Editor\]\nBookmarks:500,1500\n\n\[Metadata\]/, '[Editor] goes before [Metadata]');
 });
+
+test('editor: the background line in [Events] is replaced, or added', () => {
+  const ev = 'osu file format v14\n\n[Events]\n//Background and Video events\n0,0,"old.jpg",0,0\n//Break Periods\n\n[TimingPoints]\n0,500,4,1,0,100,1,0\n';
+  const t = EditorScreen.setBackground(ev, 'new bg.png');
+  assert.match(t, /\/\/Background and Video events\n0,0,"new bg\.png",0,0\n\/\/Break Periods/);
+  assert.doesNotMatch(t, /old\.jpg/);
+  const none = EditorScreen.setBackground('osu file format v14\n\n[Events]\n//Background and Video events\n//Break Periods\n\n[HitObjects]\n', 'a.jpg');
+  assert.match(none, /\/\/Background and Video events\n0,0,"a\.jpg",0,0\n\/\/Break Periods/);
+  assert.match(EditorScreen.setBackground('x\n', 'b.jpg'), /\[Events\]\n\/\/Background and Video events\n0,0,"b\.jpg",0,0/);
+});
