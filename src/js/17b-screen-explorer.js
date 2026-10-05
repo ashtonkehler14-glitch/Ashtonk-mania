@@ -703,18 +703,21 @@ const ExplorerScreen = {
     const state = { state: 'downloading', progress: 0, bytes: 0 };
     this.downloads.set(set.id, state);
     this.refreshCard(set);
+    // (lazer: a download is a notification with its progress, until it's in your library)
+    const note = Toast.progress(`Downloading ${set.artist} - ${set.title}`, 'Starting…');
     try {
       let lastPaint = 0;
       const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
-        if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); }
-      });
+        if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); note.set(p, p != null ? `${Math.round(p * 100)}% · ${fmtBytes(bytes || 0)}` : fmtBytes(bytes || 0)); }
+      }, { quiet: true });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
+      note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
     } catch (e) {
       state.state = 'error';
-      Toast.err(`Couldn't download ${set.title}`, friendlyError(e));
+      note.fail(`Couldn't download ${set.title}`, friendlyError(e));
     }
     this.refreshCard(set);
   },

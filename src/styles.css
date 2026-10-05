@@ -4123,3 +4123,7 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .pf-most-n { display: flex; align-items: center; gap: 6px; color: hsl(var(--o-h) 10% 75%); }
 .pf-most-n .i { width: 12px; height: 12px; }
 .pf-most-n b { color: #fff; font-size: 16px; }
+
+/* lazer's ProgressNotification */
+.toast.prog .t-bar { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }

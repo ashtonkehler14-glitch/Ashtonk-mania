@@ -217,6 +217,21 @@ const Toast = {
     el._arm();
     return close;
   },
+  /** lazer's ProgressNotification: a toast with a bar that stays until the work is done. Returns
+   *  { set(fraction, text), done(title, body), fail(title, body) }. */
+  progress(title, body = '') {
+    const box = $('#toasts');
+    const bar = h('i'), txt = h('div.t-body', body);
+    const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
+    box.appendChild(el);
+    while (box.children.length > 5) box.firstChild.remove();
+    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    return {
+      set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; },
+      done: (t, b) => { close(); Toast.ok(t, b); },
+      fail: (t, b) => { close(); Toast.err(t, b); },
+    };
+  },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
   clear() { for (const el of $('#toasts').children) { el.classList.add('out'); setTimeout(() => el.remove(), 300); } },
   ok(t, b) { return this.show(t, b, { type: 'ok' }); },
