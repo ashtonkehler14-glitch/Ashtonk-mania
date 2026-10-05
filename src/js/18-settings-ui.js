@@ -437,6 +437,50 @@ const ModSelect = {
     this.custState = state;
     this.cust.dataset.state = state;
   },
+  /** lazer's ModPresetColumn ("Personal Presets"), first of the columns: a named set of mods (with their settings)
+   *  per panel — click to put it on (again to take it off), right-click to rename or delete — and a "+" panel that
+   *  saves the mods you have on now as a new one. */
+  presetColumn(cur, setMods) {
+    const list = Settings.get('mods.presets') || [];
+    const q = this.query.trim().toLowerCase();
+    const save = l => Settings.set('mods.presets', l);
+    const same = p => { const a = [...p.mods].sort().join(), b = [...cur].sort().join(); return a === b; };
+    const col = h('div.modcol.mod-presets', { style: { '--c': '#ffd966' } }, h('div.modcol-h', h('span', 'Personal Presets'), list.length ? h('span.modcol-n', String(list.length)) : null));
+    const body = h('div.modcol-list');
+    for (const p of list) {
+      if (q && !p.name.toLowerCase().includes(q)) continue;
+      const on = same(p), off = p.mods.some(id => this.disabled && this.disabled.has(id));
+      const el = h(`button.mod-p.preset${on ? '.on' : ''}${off ? '.unavail' : ''}`, {
+        title: p.mods.map(id => MOD_BY_ID.get(id)?.name || id).join(', '),
+        onclick: () => {
+          if (off) return;
+          UISounds.play(on ? 'check-off' : 'check-on');
+          if (!on && p.config) Settings.set('mods.config', { ...ModSystem.config(), ...p.config });
+          setMods(on ? [] : ModSystem.normalize(p.mods));
+        },
+        oncontextmenu: e => {
+          e.preventDefault();
+          showMenu(e.clientX, e.clientY, [
+            { label: 'Rename', icon: 'edit', onClick: async () => { const n = await Dialog.prompt('Rename preset', p.name, { ok: 'Save' }); if (n && n.trim()) { p.name = n.trim().slice(0, 40); save([...list]); this.render(); } } },
+            { label: 'Use the mods on now', icon: 'retry', onClick: () => { if (!cur.length) return; p.mods = [...cur]; p.config = { ...ModSystem.config() }; save([...list]); this.render(); } },
+            { label: 'Delete', icon: 'trash', danger: true, onClick: () => { save(list.filter(x => x !== p)); this.render(); } },
+          ]);
+        },
+      }, h('span.mod-txt', h('b', p.name), h('span.preset-mods', ...p.mods.map(id => ModSystem.badge(id, true)))));
+      el.addEventListener('pointerenter', () => UISounds.hover());
+      body.append(el);
+    }
+    // (lazer's AddPresetButton: a "+" that asks for a name, with the mods you have on now)
+    body.append(h('button.mod-p.preset-add', { disabled: !cur.length, title: cur.length ? 'Save the mods you have on as a preset' : 'Turn some mods on first', onclick: async () => {
+      UISounds.click();
+      const n = await Dialog.prompt('New preset', '', { ok: 'Save', placeholder: cur.join(' ') });
+      if (n == null) return;
+      save([...list, { id: uid(), name: (n.trim() || cur.join(' ')).slice(0, 40), mods: [...cur], config: { ...ModSystem.config() } }]);
+      this.render();
+    } }, icon('plus')));
+    col.append(body);
+    return col;
+  },
   /** The mods the search finds (lazer: every word in the name, the name without spaces, or the acronym). */
   found() {
     const words = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -452,6 +496,7 @@ const ModSelect = {
     const setMods = v => { Settings.set('songselect.mods', v); this.render(); Bus.emit('mods:changed'); };
     const shown = new Set(this.found().map(m => m.id));
     const cols = h('div.modsel-cols');
+    cols.append(this.presetColumn(cur, setMods));
     for (const [gid, gname] of MOD_GROUPS) {
       const mods = MODS.filter(x => x.group === gid && shown.has(x.id));
       if (!mods.length) continue; // (a column the search leaves empty goes, as in lazer)

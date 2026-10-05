@@ -518,7 +518,7 @@ const modsel = await page.evaluate(() => ({ cols: document.querySelectorAll('.mo
 check('mod select: lazer columns, toggling a mod and its customise panel', modsel.cols >= 4 && modsel.on.includes('Hidden') && modsel.slider && modsel.custOn && modsel.mods.includes('HD'), JSON.stringify(modsel));
 // lazer's mod search: Tab to search, the columns keep only the mods found, Enter takes the first
 await page.keyboard.press('Tab'); await page.keyboard.type('mirror'); await page.waitForTimeout(100);
-const msearch = await page.evaluate(() => ({ shown: [...document.querySelectorAll('.mod-p')].map(b => b.querySelector('b').firstChild.textContent), focused: document.activeElement === AshtonkMania.ModSelect.searchEl }));
+const msearch = await page.evaluate(() => ({ shown: [...document.querySelectorAll('.modcol:not(.mod-presets) .mod-p')].map(b => b.querySelector('b').firstChild.textContent), focused: document.activeElement === AshtonkMania.ModSelect.searchEl }));
 await page.keyboard.press('Enter'); await page.waitForTimeout(100);
 const mtook = await page.evaluate(() => AshtonkMania.Settings.get('songselect.mods').includes('MR'));
 await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(100);

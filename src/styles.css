@@ -3945,3 +3945,12 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .sp-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .15); overflow: hidden; }
 .sp-bar i { display: block; height: 100%; background: #fff; transform-origin: 0 0; transform: scaleX(0); }
 .gp-hud.has-sp .hud-err { bottom: 66px; }
+
+/* lazer's Personal Presets column in mod select */
+.mod-presets .mod-p.preset { min-height: 56px; }
+.mod-presets .mod-p.preset .mod-txt b { font-size: .95rem; }
+.preset-mods { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.mod-presets .mod-p.on { background: hsl(45 60% 35%); }
+.mod-p.preset-add { justify-content: center; min-height: 44px; color: #ffd966; }
+.mod-p.preset-add:disabled { opacity: .4; cursor: default; }
+.mod-p.preset-add .i { width: 20px; height: 20px; }
