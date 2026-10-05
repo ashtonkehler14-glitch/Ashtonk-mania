@@ -485,10 +485,14 @@ const Toolbar = {
       ruleset,
       h('div.tb-spacer'),
       h('div.tb-group.tb-right',
+        // lazer's ToolbarChangelogButton
+        btn('sparkle', 'changelog', 'track recent dev updates in Ashtonk!mania', () => WhatsNew.show(), { right: true, cls: '.tb-changelog' }),
         btn('trophy', 'rankings', 'find out who\'s the best right now', this.pages.rankings, { right: true, dataset: { tab: 'rankings' } }),
         btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),
+        // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
+        btn('question', 'help', 'every keyboard shortcut, screen by screen', () => Shortcuts.open(), { key: '?', right: true, cls: '.tb-help' }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
