@@ -1417,6 +1417,11 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (s.held[col] === down) return;
     t = Math.round(t * 100) / 100;
     if (t < eng.lastTime) t = eng.lastTime; // keeps live play and replay playback bit-identical
+    // (a press and release that both came in during a stall are both moved up to the engine's time: the release is
+    // kept the judge's shortest hold after its press, or the server would take the play for a script and reject it)
+    if (!s.downAt) s.downAt = [];
+    if (down) s.downAt[col] = t;
+    else if (s.downAt[col] != null) { const min = Math.ceil((s.downAt[col] + VERIFY.MIN_HOLD * Math.max(s.rate, ModSystem.rate(s.mods, s.modConfig))) * 100 + 1) / 100; if (t < min) t = min; }
     s.held[col] = down;
     if (!down) this.renderer.onRelease(col, performance.now());
     if (!s.practice) s.events.push(t, col, down ? 1 : 0);
