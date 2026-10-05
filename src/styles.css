@@ -4339,3 +4339,6 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 /* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
 html:not(.perf) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
 @keyframes ovBgIn { from { background-color: transparent; } }
+/* (and closing: lazer's waves drop away — the overlay sinks as it fades) */
+html:not(.perf) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
+@keyframes ovOut { to { transform: translateY(18%); opacity: 0; } }
