@@ -311,6 +311,17 @@ const Music = {
     this.stretched = this.preservePitch ? await TimeStretch.stretch(this.buffer, rate, this.key, onProgress) : null;
   },
 
+  /** Change the playback rate while playing (Wind Up / Wind Down): the song position carries on from where it is,
+   *  at the new rate from now on (pitch follows — a buffer played as it is, not a time-stretched one). */
+  rampTo(rate) {
+    if (Math.abs(rate - this.rate) < 1e-4) return;
+    if (!this.playing || !this.source || this.stretched) { if (!this.playing) this.rate = rate; return; }
+    const ctx = AudioManager.ctx, t = ctx.currentTime, pos = this.timeAtCtx(t);
+    this.source.playbackRate.setValueAtTime(rate, t);
+    if (pos < 0) return; // (in the lead-in the start is already scheduled at the old rate; the ramp only begins at the first note anyway)
+    this.startCtx = t; this.startPos = pos;
+    this.rate = rate;
+  },
   /** Current song position in ms (can be negative during lead-in). */
   get time() { return this.timeAt(); },
   /** Song position (ms) heard at a performance.now() time (default: now). */

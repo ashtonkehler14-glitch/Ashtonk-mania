@@ -416,7 +416,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
+      loopA: null, loopB: null, speed: rate, ramp: practice ? null : ModSystem.ramp(mods), mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
@@ -891,6 +891,11 @@ const GameplayScreen = {
       }
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
       this.lastRender = realNow;
+      // Wind Up / Wind Down: the rate follows the song from its first note to its last
+      if (s.ramp && s.running && !s.finished) {
+        const k = clamp((now - s.firstNote) / Math.max(1, s.endTime - s.firstNote), 0, 1), r = s.ramp[0] + (s.ramp[1] - s.ramp[0]) * k;
+        if (Math.abs(r - s.rate) > 0.002) { s.rate = r; Music.rampTo(r); }
+      }
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;

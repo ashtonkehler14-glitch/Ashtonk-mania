@@ -6390,6 +6390,17 @@ const Music = {
     this.stretched = this.preservePitch ? await TimeStretch.stretch(this.buffer, rate, this.key, onProgress) : null;
   },
 
+  /** Change the playback rate while playing (Wind Up / Wind Down): the song position carries on from where it is,
+   *  at the new rate from now on (pitch follows — a buffer played as it is, not a time-stretched one). */
+  rampTo(rate) {
+    if (Math.abs(rate - this.rate) < 1e-4) return;
+    if (!this.playing || !this.source || this.stretched) { if (!this.playing) this.rate = rate; return; }
+    const ctx = AudioManager.ctx, t = ctx.currentTime, pos = this.timeAtCtx(t);
+    this.source.playbackRate.setValueAtTime(rate, t);
+    if (pos < 0) return; // (in the lead-in the start is already scheduled at the old rate; the ramp only begins at the first note anyway)
+    this.startCtx = t; this.startPos = pos;
+    this.rate = rate;
+  },
   /** Current song position in ms (can be negative during lead-in). */
   get time() { return this.timeAt(); },
   /** Song position (ms) heard at a performance.now() time (default: now). */
@@ -7250,9 +7261,9 @@ const MODS = [
     desc: 'Timing windows 1.4× wider, health drains half as much.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
-  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT'], rate: 0.75,
+  { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD'], rate: 0.75,
     desc: 'Less zoom… 0.75× speed, pitch preserved.' },
-  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT'], rate: 0.75, pitch: true,
+  { id: 'DC', name: 'Daycore', group: 'reduction', key: 'KeyR', mult: 0.5, color: '#b2ff66', incompatible: ['DT', 'NC', 'HT', 'RT', 'WU', 'WD'], rate: 0.75, pitch: true,
     desc: 'Whoaaaa… 0.75× speed with lowered pitch.' },
   { id: 'NR', name: 'No Release', group: 'reduction', key: 'KeyT', mult: 0.9, color: '#b2ff66', incompatible: ['NLN', 'IN'],
     desc: 'No more timing the end of hold notes: keep holding to the end for a MAX.' },
@@ -7266,9 +7277,9 @@ const MODS = [
     desc: 'Only MAX judgements allowed.' },
   { id: 'AC', name: 'Accuracy Challenge', group: 'increase', key: 'KeyK', mult: 1.0, color: '#ff6666', incompatible: ['NF', 'AT'], config: 'acc',
     desc: 'Fail if your accuracy drops below the target.' },
-  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'NC', 'RT'], rate: 1.5,
+  { id: 'DT', name: 'Double Time', group: 'increase', key: 'KeyF', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'NC', 'RT', 'WU', 'WD'], rate: 1.5,
     desc: 'Zoooooooooom… 1.5× speed, pitch preserved.' },
-  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT'], rate: 1.5, pitch: true,
+  { id: 'NC', name: 'Nightcore', group: 'increase', key: 'KeyG', mult: 1.0, color: '#ff6666', incompatible: ['HT', 'DC', 'DT', 'RT', 'WU', 'WD'], rate: 1.5, pitch: true,
     desc: 'Uguuuuuuuu… 1.5× speed with raised pitch.' },
   { id: 'HD', name: 'Hidden', group: 'increase', key: 'KeyH', mult: 1.0, color: '#ff6666', incompatible: ['FI', 'FL', 'CO'], config: 'cover',
     desc: 'Notes fade out before you hit them.' },
@@ -7290,10 +7301,14 @@ const MODS = [
     desc: 'Hold the keys. To the beat. Every gap between notes becomes a long note.' },
   { id: 'PC', name: 'Percy', group: 'conversion', key: 'KeyB', mult: 1.0, color: '#8c66ff', incompatible: ['NLN'], config: 'percy',
     desc: 'Long note tails are drawn shorter (visual only).' },
-  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#8c66ff', incompatible: ['HT', 'DC', 'DT', 'NC'], config: 'rate',
+  { id: 'RT', name: 'Song Speed', group: 'conversion', key: 'KeyN', mult: 1.0, color: '#8c66ff', incompatible: ['HT', 'DC', 'DT', 'NC', 'WU', 'WD'], config: 'rate',
     desc: 'Any playback rate from 0.5× to 2×.' },
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
+  { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD'], unranked: true, ramp: [1, 1.5],
+    desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
+  { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU'], unranked: true, ramp: [1, 0.75],
+    desc: 'Slow down… The song slows from 1× to 0.75× as it plays (pitch follows).' },
   { id: 'MU', name: 'Muted', group: 'fun', key: 'KeyO', mult: 1.0, color: '#ff66ab', incompatible: [], unranked: true, config: 'mu',
     desc: 'Can you still feel the rhythm without music?' },
   { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
@@ -7319,6 +7334,8 @@ const MOD_GLYPHS = {
   HD: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/>',
   FI: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
   MU: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+  WU: '<path d="M3 18c4 0 6-2 8-5s4-7 10-8"/><path d="M17 5h4v4"/>',
+  WD: '<path d="M3 6c4 0 6 2 8 5s4 7 10 8"/><path d="M17 19h4v-4"/>',
   CO: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 11h16" /><path d="M6 6.5h12M6 9h12" />',
   FL: '<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v4l-1.5 8h-3L9 13z"/><path d="M12 13v3"/>',
   MR: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
@@ -7369,6 +7386,8 @@ const ModSystem = {
     return 1;
   },
   pitchShift(list) { return list.some(id => MOD_BY_ID.get(id)?.pitch); },
+  /** Wind Up / Wind Down: the playback rate at the first note and at the last ([from, to]), or null. */
+  ramp(list) { for (const id of list) { const r = MOD_BY_ID.get(id)?.ramp; if (r) return r; } return null; },
   label(list) { return list.length ? list.join('') : 'NM'; },
   isRanked(list) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
   /** Column permutation for Mirror / Random. */
@@ -13160,7 +13179,7 @@ const SongSelect = {
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
-  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT', 'CN'], why: 'not available in multiplayer' } : {}); },
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT', 'CN', 'WU', 'WD'], why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;
@@ -13910,7 +13929,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
+      loopA: null, loopB: null, speed: rate, ramp: practice ? null : ModSystem.ramp(mods), mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
@@ -14385,6 +14404,11 @@ const GameplayScreen = {
       }
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
       this.lastRender = realNow;
+      // Wind Up / Wind Down: the rate follows the song from its first note to its last
+      if (s.ramp && s.running && !s.finished) {
+        const k = clamp((now - s.firstNote) / Math.max(1, s.endTime - s.firstNote), 0, 1), r = s.ramp[0] + (s.ramp[1] - s.ramp[0]) * k;
+        if (Math.abs(r - s.rate) > 0.002) { s.rate = r; Music.rampTo(r); }
+      }
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
@@ -16830,7 +16854,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
-    { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
+    { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays'] },
     { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
@@ -19741,7 +19765,7 @@ const MultiplayerScreen = {
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
     // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
-    ModSelect.open({ disabled: ['AT'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
+    ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;
@@ -22288,7 +22312,7 @@ const DailyScreen = {
         h('div.dc-meta', starBadge(m.stars || 0), h('span.dc-ver', m.version), h('span.dc-keys', `${m.keys}K`), m.length ? h('span', icon('clock'), fmtTime(m.length)) : null, m.creator ? h('span.dc-by', 'mapped by ', h('b', m.creator)) : null),
         h('div.dc-time', h('span', 'Time remaining'), this.timeEl, h('div.dc-tbar', this.timeBar)),
         h('div.dc-actions',
-          h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
+          h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
           play)));
   },
   async play() {
@@ -22502,7 +22526,7 @@ const PlaylistsScreen = {
       h('div.pls-head-r',
         h(`div.pls-time${open ? '' : '.ended'}`, h('span', open ? 'Closes in' : 'Closed'), h('b', open ? { dataset: { ends: p.ends } } : {}, open ? plDuration(Playlists.left(p)) : new Date(p.ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))),
         open && p.host.pid === me ? h('button.btn.sm.danger', { onclick: async () => { if (await Dialog.confirm('Close this playlist?', 'Nobody can set scores on it after that. The scores stay.', { ok: 'Close it', danger: true })) Presence.send({ t: 'plClose', id: p.id }); } }, 'Close') : null,
-        open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
+        open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
     const items = p.items.map((it, i) => this.itemRow(p, it, i, open, mods));
     const row = s => h(`div.rk-row.pls-brow.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
       h('span.rk-rank', `#${s.rank}`), h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),
