@@ -181,12 +181,14 @@ const SkinEditor = {
     const g = GameplayScreen.el, hud = GameplayScreen.hud;
     if (Screens.currentName !== 'gameplay' || !g || !document.body.contains(g)) { if (!this._gone) this._gone = performance.now(); else if (performance.now() - this._gone > 1500) this.close(); return; }
     this._gone = 0;
-    const vw = window.innerWidth, vh = window.innerHeight, L = 240, R = 260, T = 56, pad = 16;
-    const k = Math.min((vw - L - R - pad * 2) / vw, (vh - T - pad * 2) / vh);
+    // (the panels as the CSS lays them out: beside the game, narrower on a small screen, under it on a narrow one)
+    const vw = window.innerWidth, vh = window.innerHeight, narrow = vw < 700, mid = !narrow && vw < 1000;
+    const L = narrow ? 0 : mid ? 170 : 240, R = narrow ? 0 : mid ? 190 : 260, T = narrow || mid ? 48 : 56, B = narrow ? Math.round(vh * 0.42) : 0, pad = narrow ? 8 : 16;
+    const k = Math.min((vw - L - R - pad * 2) / vw, (vh - T - B - pad * 2) / vh);
     if (k > 0.2) {
       // (in the screen's own pixels: the page itself may be scaled, by z)
       const par = g.parentElement, pr = par.getBoundingClientRect(), z = par.offsetWidth ? pr.width / par.offsetWidth : 1;
-      const x = L + pad + ((vw - L - R - pad * 2) - vw * k) / 2, y = T + pad;
+      const x = L + pad + ((vw - L - R - pad * 2) - vw * k) / 2, y = T + pad + Math.max(0, ((vh - T - B - pad * 2) - vh * k) / 2);
       // (the translate and scale properties: the screen's own transition animates its transform)
       const tr = `${((x - pr.left) / (z || 1)).toFixed(1)}px ${((y - pr.top) / (z || 1)).toFixed(1)}px`, sc = k.toFixed(4);
       if (g.style.translate !== tr || g.style.scale !== sc) { g.style.transformOrigin = '0 0'; g.style.translate = tr; g.style.scale = sc; }
@@ -198,8 +200,11 @@ const SkinEditor = {
       const els = HudLayout.els(hud, p);
       let r = null;
       for (const el of els) {
-        const b = el.getBoundingClientRect();
-        if (!b.width || !b.height) continue;
+        const b0 = el.getBoundingClientRect();
+        if (!b0.width && !b0.height) continue;
+        // (a thin one — a bar drawn by its children — still gets a box you can grab)
+        const padY = Math.max(0, (12 - b0.height) / 2), padX = Math.max(0, (12 - b0.width) / 2);
+        const b = { left: b0.left - padX, right: b0.right + padX, top: b0.top - padY, bottom: b0.bottom + padY };
         r = r ? { l: Math.min(r.l, b.left), t: Math.min(r.t, b.top), r: Math.max(r.r, b.right), b: Math.max(r.b, b.bottom) } : { l: b.left, t: b.top, r: b.right, b: b.bottom };
       }
       if (!r) continue;
