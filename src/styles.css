@@ -4306,3 +4306,10 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .ed-tp { align-items: start; }
 .ed-tp > .btn { margin-top: 22px; }
 .ed-tp > .ed-tpn { line-height: 34px; margin-top: 18px; }
+.ch-stamp { color: #66ccff; text-decoration: none; border-bottom: 1px dotted currentColor; cursor: pointer; }
+.ch-stamp:hover { color: #99ddff; }
+/* lazer's TestGameplayButton: the editor's bottom-right corner */
+.editor .ed-bottom { grid-template-columns: 170px minmax(0, 1fr) 260px 110px; padding-right: 0; }
+.ed-testbtn { align-self: stretch; border: 0; background: #66a33d; color: #fff; font: inherit; font-size: 18px; font-weight: 600; cursor: pointer; transition: background 120ms; }
+.ed-testbtn:hover { background: #75b847; }
+@media (max-width: 700px) { .editor .ed-bottom { grid-template-columns: 120px minmax(0, 1fr) auto 70px; } .ed-testbtn { font-size: 14px; } }

@@ -77,7 +77,7 @@ const Spectate = {
     this.target = null; this.cur = null;
     this.showRk(null);
     this.paintPill();
-    if (this.watchingNow()) Screens.go('home');
+    if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home'); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', name);
     Presence.pushStatus();
   },

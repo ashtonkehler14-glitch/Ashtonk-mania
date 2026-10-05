@@ -126,10 +126,10 @@ const EditorScreen = {
     this.playBtn = h('button.ed-play', { onclick: () => this.togglePlay(), title: 'Play / pause (Space)' }, icon('play'));
     const rates = [0.25, 0.5, 0.75, 1].map(k => h(`button.ed-rate${k === this.rateK ? '.on' : ''}`, { onclick: () => this.setRate(k) }, `${k * 100}%`));
     this.ratesEl = h('div.ed-rates', ...rates);
-    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl));
+    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl), h('button.ed-testbtn', { title: 'Test (F5)', onclick: () => this.test() }, 'Test'));
     this.pageEl = h('div.ed-page', { hidden: true });
     el.append(top, this.pageEl, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
-      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
+      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+H'), ' flip'), h('div', h('kbd', 'Ctrl+J'), ' reverse'), h('div', h('kbd', '← →'), ' move column'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
     this.paintTitle();
     this.paintDivisor();
     this.bindStage();
@@ -536,6 +536,38 @@ const EditorScreen = {
     this.notes = this.notes.filter(n => !s.has(n)); for (const n of list) this.sel.delete(n);
     UISounds.play('check-off');
   },
+  /** Change the selected notes (lazer's flip, reverse and column moves): `fn` gives each its new place; nothing
+   *  changes if one would land on another note or off the stage. */
+  transform(fn, what) {
+    const list = [...this.sel];
+    if (!list.length) return false;
+    const next = list.map(n => ({ n, ...fn(n) }));
+    const others = this.notes.filter(n => !this.sel.has(n));
+    const bad = next.some(x => x.col < 0 || x.col >= this.keys || x.t < 0) ||
+      next.some((x, i) => next.some((y, j) => j !== i && y.col === x.col && !((y.end ?? y.t) < x.t || y.t > (x.end ?? x.t)))) ||
+      next.some(x => others.some(o => o.col === x.col && !((x.end ?? x.t) < o.t || x.t > (o.end ?? o.t))));
+    if (bad) { if (what) Toast.err(`Can't ${what}`, 'A note would land on another note or off the stage.'); return false; }
+    this.commit();
+    for (const x of next) { x.n.col = x.col; x.n.t = x.t; x.n.end = x.end; }
+    this.sortNotes();
+    return true;
+  },
+  /** lazer's timestamp for modding: "00:12:345 (12345|0,12500|2) - " — pasted in chat, it links back here. */
+  copyTimestamp() {
+    const list = [...this.sel].sort((a, b) => a.t - b.t || a.col - b.col);
+    const t = list.length ? list[0].t : Math.round(this.now()), tt = Math.max(0, t);
+    const ts = `${String(Math.floor(tt / 60000)).padStart(2, '0')}:${String(Math.floor(tt / 1000) % 60).padStart(2, '0')}:${String(Math.floor(tt) % 1000).padStart(3, '0')}`;
+    const text = `${ts}${list.length ? ` (${list.map(n => `${n.t}|${n.col}`).join(',')})` : ''} - `;
+    try { navigator.clipboard.writeText(text).catch(() => {}); } catch {}
+    Toast.show('Timestamp copied', text);
+    return text;
+  },
+  /** A timestamp's moment (from chat): there, with its notes ([t, col] pairs) selected. */
+  goTo(t, notes = []) {
+    if (this.tabName !== 'compose') this.showTab('compose');
+    this.sel = new Set(this.notes.filter(n => notes.some(([nt, nc]) => Math.abs(n.t - nt) < 2 && n.col === nc)));
+    this.seek(t);
+  },
   undoStep(back) {
     const from = back ? this.undo : this.redo, to = back ? this.redo : this.undo;
     if (!from.length) return;
@@ -725,6 +757,17 @@ const EditorScreen = {
     if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
     if (ctrl && e.code === 'KeyB') { stop(); this.toggleBookmark(e.shiftKey); return; }
     if (ctrl && e.altKey && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); this.jumpBookmark(e.code === 'ArrowRight' ? 1 : -1); return; }
+    // lazer's mania selection tools: flip (Ctrl+H), reverse (Ctrl+J), ← / → move between columns, Ctrl+Shift+C timestamp
+    if (ctrl && e.shiftKey && e.code === 'KeyC') { stop(); this.copyTimestamp(); return; }
+    if (ctrl && e.code === 'KeyH') { stop(); this.transform(n => ({ col: this.keys - 1 - n.col, t: n.t, end: n.end }), 'flip those notes'); return; }
+    if (ctrl && e.code === 'KeyJ') {
+      stop();
+      const list = [...this.sel]; if (!list.length) return;
+      const a = Math.min(...list.map(n => n.t)), b = Math.max(...list.map(n => n.end ?? n.t));
+      this.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }, 'reverse those notes');
+      return;
+    }
+    if (!ctrl && !e.altKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
     // lazer: copy, cut and paste (at the current time, snapped)
     if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {

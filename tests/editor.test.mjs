@@ -89,3 +89,19 @@ test('editor: the background line in [Events] is replaced, or added', () => {
   assert.match(none, /\/\/Background and Video events\n0,0,"a\.jpg",0,0\n\/\/Break Periods/);
   assert.match(EditorScreen.setBackground('x\n', 'b.jpg'), /\[Events\]\n\/\/Background and Video events\n0,0,"b\.jpg",0,0/);
 });
+
+test('editor: flip, reverse and column moves change the selection, and refuse to overlap', () => {
+  const E = state({ notes: [{ t: 0, col: 0, end: null }, { t: 500, col: 1, end: 900 }, { t: 1000, col: 3, end: null }] });
+  E.undo = []; E.redo = []; E.setDirty = () => {};
+  E.sel = new Set(E.notes.slice(0, 2));
+  assert.ok(E.transform(n => ({ col: E.keys - 1 - n.col, t: n.t, end: n.end })));
+  assert.equal(JSON.stringify(E.notes.map(n => [n.t, n.col, n.end])), '[[0,3,null],[500,2,900],[1000,3,null]]');
+  const a = 0, b = 900;
+  assert.ok(E.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }));
+  assert.equal(JSON.stringify(E.notes.map(n => [n.t, n.col, n.end])), '[[0,2,400],[900,3,null],[1000,3,null]]', 'reversed in time');
+  E.sel = new Set([E.notes[0]]);
+  assert.ok(!E.transform(n => ({ col: n.col + 2, t: n.t, end: n.end })), 'off the stage');
+  E.sel = new Set([E.notes[1]]); E.notes[1].t = 1000; E.notes[1].col = 2;
+  assert.ok(!E.transform(n => ({ col: 3, t: n.t, end: n.end })), 'onto another note');
+  assert.equal(E.undo.length, 2);
+});

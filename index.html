@@ -4325,6 +4325,13 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .ed-tp { align-items: start; }
 .ed-tp > .btn { margin-top: 22px; }
 .ed-tp > .ed-tpn { line-height: 34px; margin-top: 18px; }
+.ch-stamp { color: #66ccff; text-decoration: none; border-bottom: 1px dotted currentColor; cursor: pointer; }
+.ch-stamp:hover { color: #99ddff; }
+/* lazer's TestGameplayButton: the editor's bottom-right corner */
+.editor .ed-bottom { grid-template-columns: 170px minmax(0, 1fr) 260px 110px; padding-right: 0; }
+.ed-testbtn { align-self: stretch; border: 0; background: #66a33d; color: #fff; font: inherit; font-size: 18px; font-weight: 600; cursor: pointer; transition: background 120ms; }
+.ed-testbtn:hover { background: #75b847; }
+@media (max-width: 700px) { .editor .ed-bottom { grid-template-columns: 120px minmax(0, 1fr) auto 70px; } .ed-testbtn { font-size: 14px; } }
 
 </style>
 </head>
@@ -11820,8 +11827,9 @@ const HomeScreen = {
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed
         // lazer's beatmap editor, on the selected difficulty
-        ['editor', 'editor', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
-        ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('skins'))],
+        ['editor', 'beatmap', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
+        // lazer's skin editor, S (picking a skin is in Settings → Skin)
+        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => SkinEditor.open())],
         ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
         ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
         ['collections', 'collections', 'folder', '#dca000', ['KeyC'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('collections'))],
@@ -17447,8 +17455,8 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
-    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)'] },
-    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout'] },
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
+    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'The main menu\'s Edit has lazer\'s beatmap and skin editors (pick a skin in Settings → Skin)'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
@@ -18467,10 +18475,10 @@ const EditorScreen = {
     this.playBtn = h('button.ed-play', { onclick: () => this.togglePlay(), title: 'Play / pause (Space)' }, icon('play'));
     const rates = [0.25, 0.5, 0.75, 1].map(k => h(`button.ed-rate${k === this.rateK ? '.on' : ''}`, { onclick: () => this.setRate(k) }, `${k * 100}%`));
     this.ratesEl = h('div.ed-rates', ...rates);
-    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl));
+    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl), h('button.ed-testbtn', { title: 'Test (F5)', onclick: () => this.test() }, 'Test'));
     this.pageEl = h('div.ed-page', { hidden: true });
     el.append(top, this.pageEl, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
-      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
+      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+H'), ' flip'), h('div', h('kbd', 'Ctrl+J'), ' reverse'), h('div', h('kbd', '← →'), ' move column'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
     this.paintTitle();
     this.paintDivisor();
     this.bindStage();
@@ -18877,6 +18885,38 @@ const EditorScreen = {
     this.notes = this.notes.filter(n => !s.has(n)); for (const n of list) this.sel.delete(n);
     UISounds.play('check-off');
   },
+  /** Change the selected notes (lazer's flip, reverse and column moves): `fn` gives each its new place; nothing
+   *  changes if one would land on another note or off the stage. */
+  transform(fn, what) {
+    const list = [...this.sel];
+    if (!list.length) return false;
+    const next = list.map(n => ({ n, ...fn(n) }));
+    const others = this.notes.filter(n => !this.sel.has(n));
+    const bad = next.some(x => x.col < 0 || x.col >= this.keys || x.t < 0) ||
+      next.some((x, i) => next.some((y, j) => j !== i && y.col === x.col && !((y.end ?? y.t) < x.t || y.t > (x.end ?? x.t)))) ||
+      next.some(x => others.some(o => o.col === x.col && !((x.end ?? x.t) < o.t || x.t > (o.end ?? o.t))));
+    if (bad) { if (what) Toast.err(`Can't ${what}`, 'A note would land on another note or off the stage.'); return false; }
+    this.commit();
+    for (const x of next) { x.n.col = x.col; x.n.t = x.t; x.n.end = x.end; }
+    this.sortNotes();
+    return true;
+  },
+  /** lazer's timestamp for modding: "00:12:345 (12345|0,12500|2) - " — pasted in chat, it links back here. */
+  copyTimestamp() {
+    const list = [...this.sel].sort((a, b) => a.t - b.t || a.col - b.col);
+    const t = list.length ? list[0].t : Math.round(this.now()), tt = Math.max(0, t);
+    const ts = `${String(Math.floor(tt / 60000)).padStart(2, '0')}:${String(Math.floor(tt / 1000) % 60).padStart(2, '0')}:${String(Math.floor(tt) % 1000).padStart(3, '0')}`;
+    const text = `${ts}${list.length ? ` (${list.map(n => `${n.t}|${n.col}`).join(',')})` : ''} - `;
+    try { navigator.clipboard.writeText(text).catch(() => {}); } catch {}
+    Toast.show('Timestamp copied', text);
+    return text;
+  },
+  /** A timestamp's moment (from chat): there, with its notes ([t, col] pairs) selected. */
+  goTo(t, notes = []) {
+    if (this.tabName !== 'compose') this.showTab('compose');
+    this.sel = new Set(this.notes.filter(n => notes.some(([nt, nc]) => Math.abs(n.t - nt) < 2 && n.col === nc)));
+    this.seek(t);
+  },
   undoStep(back) {
     const from = back ? this.undo : this.redo, to = back ? this.redo : this.undo;
     if (!from.length) return;
@@ -19066,6 +19106,17 @@ const EditorScreen = {
     if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
     if (ctrl && e.code === 'KeyB') { stop(); this.toggleBookmark(e.shiftKey); return; }
     if (ctrl && e.altKey && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); this.jumpBookmark(e.code === 'ArrowRight' ? 1 : -1); return; }
+    // lazer's mania selection tools: flip (Ctrl+H), reverse (Ctrl+J), ← / → move between columns, Ctrl+Shift+C timestamp
+    if (ctrl && e.shiftKey && e.code === 'KeyC') { stop(); this.copyTimestamp(); return; }
+    if (ctrl && e.code === 'KeyH') { stop(); this.transform(n => ({ col: this.keys - 1 - n.col, t: n.t, end: n.end }), 'flip those notes'); return; }
+    if (ctrl && e.code === 'KeyJ') {
+      stop();
+      const list = [...this.sel]; if (!list.length) return;
+      const a = Math.min(...list.map(n => n.t)), b = Math.max(...list.map(n => n.end ?? n.t));
+      this.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }, 'reverse those notes');
+      return;
+    }
+    if (!ctrl && !e.altKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
     // lazer: copy, cut and paste (at the current time, snapped)
     if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
@@ -22452,7 +22503,7 @@ const Spectate = {
     this.target = null; this.cur = null;
     this.showRk(null);
     this.paintPill();
-    if (this.watchingNow()) Screens.go('home');
+    if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home'); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', name);
     Presence.pushStatus();
   },
@@ -23569,13 +23620,31 @@ const Chat = {
     const d = new Date(l.at), t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const me = l.from.pid && l.from.pid === Presence.pid();
     const act = /^\/me\s+/.test(l.text || '');
-    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', l.text)));
+    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', ...this.linkify(l.text))));
     // (/me: lazer's action line — the name and what they did, in italics)
     else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}${!me && this.mentions(l.text) ? '.mention' : ''}`,
       h('span.ch-time', t),
       h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
-      h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
+      h('span.ch-text', ...this.linkify(act ? l.text.replace(/^\/me\s+/, '') : l.text))));
     if (scroll && (stick || me)) this.lines.scrollTop = this.lines.scrollHeight;
+  },
+  /** lazer's editor timestamps (00:12:345 (12345|0,12500|2)) as links: they take the editor there and select those notes. */
+  linkify(text) {
+    const out = [], re = /\b(\d{2,}):(\d{2}):(\d{3})(?: \(((?:\d+\|\d+,?)+)\))?/g;
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) out.push(text.slice(last, m.index));
+      const t = +m[1] * 60000 + +m[2] * 1000 + +m[3], notes = m[4] ? m[4].split(',').filter(Boolean).map(x => x.split('|').map(Number)) : [];
+      out.push(h('a.ch-stamp', { href: '#', title: 'Go there in the editor', onclick: e => { e.preventDefault(); this.goStamp(t, notes); } }, m[0]));
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) out.push(text.slice(last));
+    return out;
+  },
+  goStamp(t, notes) {
+    if (Screens.currentName !== 'editor' || !EditorScreen.notes) { Toast.show('Open the beatmap in the editor', 'Timestamps take the editor to that moment.'); return; }
+    this.close();
+    EditorScreen.goTo(t, notes);
   },
   paintList() {
     if (!this.o) return;

@@ -78,8 +78,9 @@ const HomeScreen = {
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed
         // lazer's beatmap editor, on the selected difficulty
-        ['editor', 'editor', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
-        ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('skins'))],
+        ['editor', 'beatmap', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
+        // lazer's skin editor, S (picking a skin is in Settings → Skin)
+        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => SkinEditor.open())],
         ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
         ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
         ['collections', 'collections', 'folder', '#dca000', ['KeyC'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('collections'))],
