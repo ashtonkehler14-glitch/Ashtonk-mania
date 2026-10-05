@@ -214,12 +214,13 @@ const GameplayScreen = {
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');
     this.videoEl = h('video.gp-video', { muted: true, playsinline: true, preload: 'auto' }); this.videoEl.muted = true;
     this.canvas = h('canvas.gp-canvas');
+    this.sbCanvas = h('canvas.gp-sb'); this.sb = null; this._sbFor = null;
     this.breakEl = h('div.gp-break', { hidden: true });
     this.hud = h('div.gp-hud');
     this.failEl = h('div.gp-fail');
     // lazer's FailingLayer: red glows at the screen's sides as health falls under 20%
     this.lowEl = h('div.gp-lowhp', h('i'), h('i')); this._lowA = 0;
-    el.append(this.bgEl, this.videoEl, this.dimEl, this.canvas, this.failEl, this.lowEl, this.breakEl, this.hud);
+    el.append(this.bgEl, this.videoEl, this.sbCanvas, this.dimEl, this.canvas, this.failEl, this.lowEl, this.breakEl, this.hud);
     PlayScreen.attach(el);
     PlayScreen.enter(); // (also on a retry, which doesn't go through Game.launch)
     WakeLock.hold();
@@ -300,6 +301,7 @@ const GameplayScreen = {
     window.removeEventListener('keydown', this._keydown, true);
     if (this.videoEl) { this.videoEl.pause(); this.videoEl.removeAttribute('src'); this.videoEl.load(); }
     if (this._videoURL) { URL.revokeObjectURL(this._videoURL); this._videoURL = null; }
+    if (this.sb) { for (const b of this.sb.images.values()) b.close && b.close(); this.sb = null; } this._sbFor = null; this._sbCtx = null;
     window.removeEventListener('keyup', this._keyup, true);
     window.removeEventListener('blur', this._blur);
     if (this.el && this._touch) for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) this.el.removeEventListener(t, this._touch);
@@ -576,7 +578,45 @@ const GameplayScreen = {
       if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
       if (this._bgTok === tok && this._tok) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
     });
-    if (s) this.loadVideo();
+    if (s) { this.loadVideo(); this.loadStoryboard(); }
+  },
+  /** The beatmap's storyboard (its .osb and this difficulty's own [Events]), played behind the stage as lazer does —
+   *  under the background dim. A storyboard that draws the beatmap's background picture itself replaces it. */
+  async loadStoryboard() {
+    const s = this.s, set = s && BeatmapManager.setById.get(s.rec.setId);
+    if (!set || !set.storyboard || this._sbFor === s || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground') || Settings.get('graphics.performanceMode')) return;
+    this._sbFor = s;
+    try {
+      const osuBlob = await BeatmapManager.getFile(set.id, s.rec.osuPath);
+      const osbName = Object.values(set.fileIndex || {}).find(n => /\.osb$/i.test(n));
+      const osbBlob = osbName ? await BeatmapManager.getFile(set.id, osbName) : null;
+      const osu = osuBlob ? await osuBlob.text() : '', osb = osbBlob ? await osbBlob.text() : '';
+      const sprites = Storyboard.parse([osb, osu]);
+      if (!sprites.length || this.s !== s) return;
+      const paths = new Set();
+      for (const sp of sprites) {
+        const f = sp.file.toLowerCase(), dot = f.lastIndexOf('.');
+        if (!sp.anim) paths.add(f); else for (let i = 0; i < sp.anim.frames; i++) paths.add(dot < 0 ? f + i : f.slice(0, dot) + i + f.slice(dot));
+      }
+      const images = new Map();
+      await Promise.all([...paths].map(async f => { const b = await BeatmapManager.getFile(set.id, f).catch(() => null); if (b) { try { images.set(f, await createImageBitmap(b)); } catch { /* not a picture */ } } }));
+      if (this.s !== s) { for (const b of images.values()) b.close && b.close(); return; }
+      if (!images.size) return;
+      this.sb = new StoryboardPlayer(sprites, images, { widescreen: /WidescreenStoryboard:\s*1/.test(osb + '\n' + osu) });
+      const bgf = s.rec.bgFile && normPath(s.rec.bgFile).toLowerCase();
+      this.bgEl.classList.toggle('sb-hide', !!bgf && sprites.some(sp => sp.file.toLowerCase() === bgf));
+      this.sbCanvas.classList.add('on');
+    } catch (e) { console.warn('storyboard: couldn\'t be played', e); }
+  },
+  drawStoryboard(now) {
+    const c = this.sbCanvas, sb = this.sb;
+    if (!sb || !c) return;
+    const k = Math.min(1.5, typeof Zoom !== 'undefined' ? Zoom.dpr() : (window.devicePixelRatio || 1));
+    const W = Math.round(c.clientWidth * k), H = Math.round(c.clientHeight * k);
+    if (!W || !H) return;
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; this._sbCtx = null; }
+    const ctx = this._sbCtx || (this._sbCtx = c.getContext('2d'));
+    sb.draw(ctx, now, W, H);
   },
   /** Background video (mp4/webm stored at import) kept in sync with the audio clock. */
   async loadVideo() {
@@ -801,6 +841,7 @@ const GameplayScreen = {
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
       g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight; g.snapRed = s.snapRed;
       this.renderer.render(g);
+      if (this.sb) this.drawStoryboard(now);
       if (s.muted) this.mutedTick(now);
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);

@@ -224,6 +224,20 @@ const BeatmapManager = {
       if (ext === 'osb') storyboard = true;
       if (['wav', 'ogg', 'mp3'].includes(ext) && !n.includes('/') && e.size < 2e6) needed.add(n);
     }
+    // the storyboard: the .osb and the pictures it (and each difficulty's own [Events]) uses, up to 40MB of them
+    if (storyboard) {
+      try {
+        const texts = diffs.map(d => d.text || '');
+        for (const e of entries) if (fileExt(e.name.toLowerCase()) === 'osb' && e.size < 8e6) { needed.add(e.name.toLowerCase()); texts.unshift(new TextDecoder().decode(await e.read())); }
+        let total = 0;
+        for (const f of Storyboard.files(texts)) {
+          const e = lowerIndex.get(f);
+          if (!e || !/\.(png|jpe?g|gif|webp|bmp)$/i.test(f) || needed.has(f)) continue;
+          if ((total += e.size) > 40e6) break;
+          needed.add(f);
+        }
+      } catch (e) { console.warn('storyboard files', e); }
+    }
     const fileIndex = existing ? { ...existing.fileIndex } : {};
     const items = [];
     for (const n of needed) {

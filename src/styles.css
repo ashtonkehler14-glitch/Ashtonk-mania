@@ -4024,3 +4024,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .pl-none { padding: 14px; text-align: center; }
 @media (max-width: 760px) { .pl-cols { grid-template-columns: 1fr; } .pl-item-you { display: none; } .pl-top { padding-left: 10px; } .pl-top-row { grid-template-columns: 30px 20px minmax(0, 1fr) 80px 40px; } .pl-top-row > :nth-child(5), .pl-top-row > :nth-child(7) { display: none; } }
 .pl-board .dc-h { margin-top: 2px; }
+
+/* the storyboard, behind the stage and under the background dim (lazer) */
+.gp-sb { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 400ms; }
+.gp-sb.on { opacity: 1; }
+.gp-bg.sb-hide { opacity: 0; }
