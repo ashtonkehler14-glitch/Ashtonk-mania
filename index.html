@@ -4107,6 +4107,9 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .dc-ago { font-size: 11px; }
 @media (max-width: 900px) { .dc-cols { grid-template-columns: 1fr; } }
 
+.md-online { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
+.md-online .bso-ratings, .md-online .bso-fails { margin-top: 0; }
+
 </style>
 </head>
 <body>
@@ -13339,8 +13342,8 @@ const SongSelect = {
     if (items.length) showMenu(e.clientX, e.clientY, items);
   },
   /** lazer's BeatmapMetadataWedge (the Details tab): Creator / Genre, Source / Language, Submitted / Ranked in three
-   *  columns, then the user and mapper tags (clicking a tag searches for it); "-" where it isn't known. The online
-   *  ratings and fail/retry graphs only appear in lazer with online data, which local beatmaps don't have. */
+   *  columns, then the user and mapper tags (clicking a tag searches for it); "-" where it isn't known. A beatmap from
+   *  osu! also gets lazer's online panels — user rating, rating spread and points of failure — from its set's page. */
   metadataWedge(m, set) {
     const md = (label, value) => h('div.md', h('div.md-k', label), h('div.md-v', value || '-'));
     const name = (list, id) => { const e = (typeof list !== 'undefined' ? list : []).find(x => x[0] === id); return e && id ? e[1] : ''; };
@@ -13353,7 +13356,22 @@ const SongSelect = {
         h('div.md-col', md('Source', m.source), md('Language', name(typeof EXPLORE_LANGUAGES !== 'undefined' ? EXPLORE_LANGUAGES : [], set.languageId))),
         h('div.md-col', md('Submitted', date(set.submittedDate)), md('Ranked', date(set.rankedDate)))),
       md('User tags', ''),
-      h('div.md', h('div.md-k', 'Mapper tags'), h('div.md-v', tagEl)));
+      h('div.md', h('div.md-k', 'Mapper tags'), h('div.md-v', tagEl)),
+      this.onlinePanels(m, set));
+  },
+  onlinePanels(m, set) {
+    if (!(set.onlineId > 0) || typeof OnlineBeatmaps === 'undefined' || typeof ExplorerScreen === 'undefined') return null;
+    const cache = this._onlineSets || (this._onlineSets = new Map()), got = cache.get(set.onlineId);
+    if (got === undefined) {
+      cache.set(set.onlineId, null);
+      OnlineBeatmaps.getSet(set.onlineId).then(full => { cache.set(set.onlineId, full || false); const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.setId === set.id) { this._lbKey = null; this.updateInfo(); } })
+        .catch(() => cache.set(set.onlineId, false));
+      return null;
+    }
+    if (!got) return null;
+    const d = got.diffs.find(x => x.id === m.onlineId);
+    const parts = [ExplorerScreen.ratingsBox(got), d ? ExplorerScreen.failBox(d) : null].filter(Boolean);
+    return parts.length ? h('div.md-online', ...parts) : null;
   },
   collectionMenu(e, m) {
     const r = (e.currentTarget || e.target).getBoundingClientRect();
