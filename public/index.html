@@ -6459,7 +6459,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Automatically retry on fail', t: 'bool', d: false },
-  { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: 2500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
+  { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.leadIn', l: 'Minimum lead-in', t: 'range', d: TOUCH_DEVICE ? 4000 : 2500, min: 500, max: 5000, step: 100, fmt: v => `${(v / 1000).toFixed(1)}s` },
   // ── Audio
   { s: 'Audio', g: 'Volume', k: 'audio.master', l: 'Master', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Volume', k: 'audio.music', l: 'Music', t: 'range', d: 0.8, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
@@ -6578,6 +6578,8 @@ const Settings = {
     if (!v['migr.uiScale90']) { if (v['ui.scale'] === 0.8 || v['ui.scale'] === 1) v['ui.scale'] = 0.9; v['migr.uiScale90'] = true; }
     // (phones: 125% by default — a phone that kept the old 90% default moves up to it)
     // (on a computer the game no longer goes fullscreen by itself: it's back to off, the new default there)
+    // (phones: more time before the first note — 4s; a phone that kept the old 2.5s default moves up to it)
+    if (!v['migr.leadInTouch']) { if (TOUCH_DEVICE && v['gameplay.leadIn'] === 2500) delete v['gameplay.leadIn']; v['migr.leadInTouch'] = true; }
     if (!v['migr.fsPc']) { if (!TOUCH_DEVICE) delete v['input.fullscreenOnPlay']; v['migr.fsPc'] = true; }
     if (!v['migr.uiScaleTouch']) { if (TOUCH_DEVICE && v['ui.scale'] === 0.9) delete v['ui.scale']; v['migr.uiScaleTouch'] = true; }
     // the Custom skin's colour is Web-Osu-Mania's simple mode (white outer columns, the colour inside), even for
