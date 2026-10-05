@@ -4109,3 +4109,17 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 
 /* lazer: a line that mentions you is highlighted */
 .ch-line.mention { background: rgba(255, 204, 34, .12); box-shadow: inset 3px 0 0 #ffcc22; }
+
+/* lazer's profile: most played beatmaps */
+.pf-most { display: flex; flex-direction: column; gap: 4px; }
+.pf-most-row { display: flex; align-items: center; gap: 12px; padding: 6px 12px 6px 6px; border-radius: 8px; background: hsl(var(--o-h) 10% 20%); }
+.pf-most-row.click { cursor: pointer; }
+.pf-most-row.click:hover { background: hsl(var(--o-h) 10% 25%); }
+.pf-most-cover { width: 80px; height: 46px; flex: none; border-radius: 5px; background: hsl(var(--o-h) 10% 14%) center / cover; }
+.pf-most-t { flex: 1; min-width: 0; }
+.pf-most-title { font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-most-title span { font-weight: 400; color: hsl(var(--o-h) 10% 70%); font-size: 13px; }
+.pf-most-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; white-space: nowrap; overflow: hidden; }
+.pf-most-n { display: flex; align-items: center; gap: 6px; color: hsl(var(--o-h) 10% 75%); }
+.pf-most-n .i { width: 12px; height: 12px; }
+.pf-most-n b { color: #fff; font-size: 16px; }

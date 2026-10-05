@@ -238,6 +238,25 @@ const ProfileScreen = {
         h('div', h('span', 'Current daily streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
         h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
   },
+  mostRow(x, own) {
+    const cover = h('div.pf-most-cover');
+    if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['list@2x', 'list', 'card']);
+    else if (own) { const m = BeatmapManager.mapByHash(x.mapHash); if (m) BeatmapManager.bgThumbURL(m).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
+    const local = own && BeatmapManager.mapByHash(x.mapHash);
+    return h(`div.pf-most-row${local ? '.click' : ''}`, { onclick: local ? () => { UISounds.click(); Screens.go('songselect', { mapId: local.id }); } : null },
+      cover,
+      h('div.pf-most-t', h('div.pf-most-title', x.title, h('span', ` by ${x.artist}`)), h('div.pf-most-meta', starBadge(x.stars || 0), h('span.keys-tag', `${x.keys}K`), h('span', x.version), x.creator ? h('span.muted', `mapped by ${x.creator}`) : null)),
+      h('div.pf-most-n', icon('play'), h('b', fmtInt(x.count))));
+  },
+  /** lazer's "Most played beatmaps": your plays counted per difficulty, the most first. */
+  mostPlayed() {
+    const by = new Map();
+    for (const s of ScoreManager.scores) { const e = by.get(s.mapHash); if (e) { e.count++; if (s.date > e.last) e.last = s.date; } else by.set(s.mapHash, { s, count: 1, last: s.date }); }
+    return [...by.values()].sort((a, b) => b.count - a.count || b.last - a.last).slice(0, 10).map(({ s, count }) => {
+      const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId);
+      return { title: s.title, artist: s.artist, version: s.version, creator: s.creator, stars: s.stars, keys: s.keys, count, mapHash: s.mapHash, onlineSetId: set && set.onlineId > 0 ? set.onlineId : 0 };
+    });
+  },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
   localData() {
@@ -255,6 +274,7 @@ const ProfileScreen = {
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
       top: ScoreManager.bestPpPerMap().slice(0, 20).map(tp => lite(tp.score, tp.pp)),
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
+      mostPlayed: this.mostPlayed(),
       medals: Medals.unlocked(),
       ppHist: ScoreManager.ppHistory().slice(-60).map(x => ({ y: Math.round(x.pp), tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })),
       perDay: st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })),
@@ -330,7 +350,8 @@ const ProfileScreen = {
     const ppHist = d.ppHist || [], perDay = d.perDay || [];
     const hist = section('historical', 'Historical',
       ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist, { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : h('div.pf-empty', 'Nothing here yet.'));
+      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : h('div.pf-empty', 'Nothing here yet.'),
+      (d.mostPlayed || []).length ? sub('Most played beatmaps', d.mostPlayed.length, h('div.pf-most', ...d.mostPlayed.map(x => this.mostRow(x, own)))) : null);
     const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
     const topPlays = d.top || [];
     const ranks = section('ranks', 'Ranks',
