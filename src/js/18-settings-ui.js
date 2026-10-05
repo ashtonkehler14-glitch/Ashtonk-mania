@@ -141,6 +141,7 @@ const SettingsPanel = {
         row = form('fsel', cap, h('div.fline', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
         break;
       }
+      case 'skineditor': row = form('fbool', cap, h('button.btn.sm', { onclick: () => { this.close(); SkinEditor.open(); } }, icon('brush'), 'Open')); break;
       case 'data': row = form('fwide', cap, DataPanel.build()); break;
       case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
       case 'mascot': row = form('fwide', cap, h('div.fline',

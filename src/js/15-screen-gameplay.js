@@ -349,6 +349,7 @@ const GameplayScreen = {
     this.closePause();
   },
   onBack() {
+    if (SkinEditor.on) { SkinEditor.close(); return true; }
     if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
@@ -808,6 +809,9 @@ const GameplayScreen = {
     if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
+    // the skin editor's layout: where each HUD component goes, its size, and which are hidden
+    HudLayout.watch(this.hud);
+    if (this.params.skinEditor && !SkinEditor.on) SkinEditor.attach();
   },
 
   // ─────────────────────────────── main loop ───────────────────────────────
@@ -1306,7 +1310,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return Music.timeAtCtx(ctxT) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
   },
   onKeyDown(e) {
-    if (Screens.current !== this) return;
+    if (Screens.current !== this || SkinEditor.on) return;
     const s = this.s;
     if (Overlays.top()) return;
     // typing in the room's chat: the keys are the message's (Esc leaves the box)
@@ -1658,6 +1662,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // every note left is judged first (unhit ones are misses): however this is reached, a play can't end early with a clean score
     s.engine.advance(Infinity);
     s.finished = true; s.running = false;
+    // (the skin editor's Auto play loops the song: nothing is kept)
+    if (this.params.skinEditor) { setTimeout(() => { if (this.s === s) this.retry(); }, 600); return; }
     this.settleAutoScale();
     this.releaseAll();
     const summary = s.engine.summary();

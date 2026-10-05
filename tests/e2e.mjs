@@ -1205,6 +1205,21 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.waitForTimeout(600);
 }
 
+// lazer's skin editor (Ctrl+Shift+S): the game shrinks with Auto playing, and a component dragged there stays moved in a play
+{
+  await page.keyboard.press('Control+Shift+KeyS');
+  await page.waitForSelector('.se-box', { timeout: 20000 });
+  await page.waitForTimeout(800);
+  const box = await page.evaluate(() => { const b = [...document.querySelectorAll('.se-box')].find(b => b.textContent.startsWith('Score')); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, scale: +AshtonkMania.GameplayScreen.el.style.scale }; });
+  await page.mouse.move(box.x, box.y); await page.mouse.down(); await page.mouse.move(box.x - 120, box.y + 90, { steps: 6 }); await page.mouse.up();
+  const L = await page.evaluate(() => AshtonkMania.Settings.get('hud.layout').score || {});
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.waitForTimeout(1200);
+  const back = await page.evaluate(() => [AshtonkMania.Screens.currentName, !!document.querySelector('.se')]);
+  check('skin editor: the game shrinks, dragging the score moves it, and Esc closes back', box.scale > 0.3 && box.scale < 1 && L.x < -0.05 && L.y > 0.05 && back[0] !== 'gameplay' && !back[1], JSON.stringify({ box, L, back }));
+  await page.evaluate(() => AshtonkMania.Settings.set('hud.layout', {}));
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

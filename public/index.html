@@ -4251,6 +4251,58 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-empty-b { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 .ed-empty-b .btn { display: inline-flex; align-items: center; gap: 6px; }
 
+/* ── lazer's skin editor: the HUD layout over a shrunk game ── */
+.gp-hud > .hl-off { visibility: hidden !important; }
+body.se-open .gp-hud > .hl-off { visibility: visible !important; opacity: .25; }
+body.se-open { background: #121116; }
+body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 10px 40px rgba(0, 0, 0, .5); overflow: hidden; }
+.se { position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Torus, Outfit, system-ui, sans-serif; color: #fff; }
+.se > * { pointer-events: auto; }
+.se-boxes { position: fixed; inset: 0; }
+.se-top { position: fixed; left: 0; right: 0; top: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 16px; background: #24222b; box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
+.se-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.se-title b { font-size: 16px; font-weight: 600; }
+.se-title span { font-size: 13px; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.se-title .ic { color: #ffcc22; }
+.se-acts { display: flex; gap: 6px; flex: none; }
+.se-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+.se-btn:hover { background: rgba(255, 255, 255, .14); }
+.se-btn.primary { background: #66a33d; }
+.se-btn.primary:hover { background: #75b847; }
+.se-side { position: fixed; top: 48px; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px; background: #1c1b21; overflow-y: auto; }
+.se-l { left: 0; width: 240px; box-shadow: 2px 0 10px rgba(0, 0, 0, .3); }
+.se-r { right: 0; width: 260px; box-shadow: -2px 0 10px rgba(0, 0, 0, .3); }
+.se-ph { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); margin-bottom: 2px; }
+.se-list { display: flex; flex-direction: column; gap: 4px; }
+.se-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; padding: 0 6px 0 12px; border-radius: 6px; background: rgba(255, 255, 255, .05); font-size: 13px; cursor: pointer; }
+.se-item:hover { background: rgba(255, 255, 255, .09); }
+.se-item.on { box-shadow: inset 3px 0 0 #ffcc22; background: rgba(255, 204, 34, .1); }
+.se-item.off > span { opacity: .45; }
+.se-eye { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .08); color: #fff; cursor: pointer; }
+.se-item.off .se-eye { color: rgba(255, 255, 255, .5); }
+.se-eye .ic { width: 14px; height: 14px; }
+.se-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: rgba(255, 255, 255, .45); }
+.se-set { display: flex; flex-direction: column; gap: 14px; }
+.se-none { margin: 0; font-size: 13px; color: rgba(255, 255, 255, .5); }
+.se-name { font-size: 16px; font-weight: 600; }
+.se-f { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: rgba(255, 255, 255, .65); }
+.se-f > span { display: flex; justify-content: space-between; }
+.se-f > span b { color: #fff; }
+.se-pos { display: flex; gap: 12px; color: #fff; font-variant-numeric: tabular-nums; font-size: 13px; }
+.se-btns { display: flex; flex-direction: column; gap: 6px; }
+.se-btns .btn { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-start; }
+.se-box { position: absolute; box-sizing: border-box; border: 1px dashed rgba(255, 255, 255, .35); border-radius: 3px; cursor: move; touch-action: none; }
+.se-box:hover { border: 1px solid rgba(255, 204, 34, .7); background: rgba(255, 204, 34, .05); }
+.se-box.on { border: 2px solid #ffcc22; background: rgba(255, 204, 34, .06); }
+.se-box.off { border-color: rgba(255, 255, 255, .18); }
+.se-label { position: absolute; left: -1px; bottom: 100%; margin-bottom: 3px; padding: 1px 6px; border-radius: 3px; background: rgba(0, 0, 0, .7); font-size: 11px; white-space: nowrap; opacity: 0; transition: opacity 120ms; pointer-events: none; }
+.se-box:hover .se-label, .se-box.on .se-label { opacity: 1; }
+.se-box.on .se-label { background: #ffcc22; color: #222; font-weight: 600; }
+.se-handle { position: absolute; right: -6px; bottom: -6px; width: 10px; height: 10px; border-radius: 2px; background: #ffcc22; box-shadow: 0 0 0 2px #222; cursor: nwse-resize; display: none; }
+.se-box.on .se-handle { display: block; }
+.se-item > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.se-item small { font-size: 10.5px; color: rgba(255, 255, 255, .4); }
+
 </style>
 </head>
 <body>
@@ -6816,6 +6868,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
+  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: 'Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).' },
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
@@ -6872,7 +6925,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'mods.presets', d: [] },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
@@ -14069,6 +14122,7 @@ const GameplayScreen = {
     this.closePause();
   },
   onBack() {
+    if (SkinEditor.on) { SkinEditor.close(); return true; }
     if (this.s && this.s.spectate) { Spectate.stop(); return true; } // (Esc while spectating stops watching)
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
@@ -14528,6 +14582,9 @@ const GameplayScreen = {
     if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
+    // the skin editor's layout: where each HUD component goes, its size, and which are hidden
+    HudLayout.watch(this.hud);
+    if (this.params.skinEditor && !SkinEditor.on) SkinEditor.attach();
   },
 
   // ─────────────────────────────── main loop ───────────────────────────────
@@ -15026,7 +15083,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return Music.timeAtCtx(ctxT) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
   },
   onKeyDown(e) {
-    if (Screens.current !== this) return;
+    if (Screens.current !== this || SkinEditor.on) return;
     const s = this.s;
     if (Overlays.top()) return;
     // typing in the room's chat: the keys are the message's (Esc leaves the box)
@@ -15378,6 +15435,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // every note left is judged first (unhit ones are misses): however this is reached, a play can't end early with a clean score
     s.engine.advance(Infinity);
     s.finished = true; s.running = false;
+    // (the skin editor's Auto play loops the song: nothing is kept)
+    if (this.params.skinEditor) { setTimeout(() => { if (this.s === s) this.retry(); }, 600); return; }
     this.settleAutoScale();
     this.releaseAll();
     const summary = s.engine.summary();
@@ -15888,6 +15947,258 @@ const FPS = {
       else if (this.displayed && performance.now() - this.shownAt > 2000 && !this.hovered) { this.displayed = false; el.classList.remove('shown'); }
     }
     this.last = now;
+  },
+};
+
+/* ===== 15b-skin-editor.js ===== */
+/* osu!lazer's skin editor (Ctrl+Shift+S, or Settings → Skin → Skin layout editor), for the gameplay HUD: the game
+ * shrinks into the middle of the screen with Auto playing (the song loops), the HUD's components get boxes — drag
+ * one to move it, its corner handle to scale it — the Components list on the left shows and hides them, and the
+ * Settings on the right set the chosen one's scale and position. The layout is kept (`hud.layout`: each component's
+ * offset as a fraction of the screen, its scale, and whether it's hidden) and every play uses it. */
+
+const HUD_PARTS = [
+  { id: 'score', name: 'Score, accuracy & pp', sel: '.hud-score', origin: 'top right' },
+  { id: 'hp', name: 'Health display', sel: '.hud-hp, .hud-skinhp', origin: 'top left' },
+  { id: 'progress', name: 'Song progress', sel: '.hud-sp, .hud-progress', origin: 'bottom center' },
+  { id: 'error', name: 'Hit error meter', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
+  { id: 'jc', name: 'Judgement counter', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
+  { id: 'lb', name: 'Leaderboard', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
+];
+
+const HudLayout = {
+  override: null,
+  get() { if (this.override) return this.override; const v = Settings.get('hud.layout'); return v && typeof v === 'object' ? v : {}; },
+  els(hud, p) { return hud ? [...hud.children].filter(el => el.matches(p.sel)) : []; },
+  /** "x y" from a computed `translate` (the CSS one the element already has: the offset goes on top of it). */
+  split(t) {
+    if (!t || t === 'none') return ['0px', '0px'];
+    const out = []; let d = 0, cur = '';
+    for (const ch of t) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ' ' && !d) { if (cur) out.push(cur); cur = ''; } else cur += ch; }
+    if (cur) out.push(cur);
+    return [out[0] || '0px', out[1] || '0px'];
+  },
+  apply(hud) {
+    if (!hud) return;
+    const L = this.get(), W = hud.clientWidth || 1, H = hud.clientHeight || 1;
+    for (const p of HUD_PARTS) {
+      const c = L[p.id] || {};
+      for (const el of this.els(hud, p)) {
+        if (el.dataset.hlBase == null) { el.style.translate = ''; el.dataset.hlBase = getComputedStyle(el).translate || 'none'; }
+        const [bx, by] = this.split(el.dataset.hlBase), dx = (c.x || 0) * W, dy = (c.y || 0) * H, s = c.s && c.s !== 1 ? c.s : 0;
+        el.style.translate = dx || dy ? `calc(${bx} + ${dx.toFixed(1)}px) calc(${by} + ${dy.toFixed(1)}px)` : '';
+        el.style.scale = s ? String(s) : '';
+        el.style.transformOrigin = s ? p.origin : '';
+        el.classList.toggle('hl-off', !!c.off);
+        el.dataset.hl = p.id;
+      }
+    }
+  },
+  /** Kept up to date as the screen changes size (the offsets are fractions of it). */
+  watch(hud) {
+    if (this._ro) this._ro.disconnect();
+    this._ro = new ResizeObserver(() => this.apply(hud));
+    this._ro.observe(hud);
+    this.apply(hud);
+  },
+};
+
+const SkinEditor = {
+  on: false,
+  toggle() { this.on ? this.close() : this.open(); },
+  /** From the menus: Auto plays the selected beatmap (or any) to edit over; in gameplay: right there. */
+  open() {
+    if (this.on) return;
+    if (Screens.currentName === 'gameplay' && GameplayScreen.s) { this.attach(); return; }
+    const m = BeatmapManager.maps.get(SongSelect.selectedId) || BeatmapManager.maps.get(Settings.get('last.map')) || BeatmapManager.maps.values().next().value;
+    if (!m) { Toast.err('The skin editor needs a beatmap', 'Import one first: you edit the HUD while Auto plays it.'); return; }
+    if (typeof Overlays !== 'undefined') while (Overlays.top()) Overlays.top().close();
+    this._from = Screens.currentName && Screens.currentName !== 'gameplay' ? Screens.currentName : 'home';
+    Game.launch({ mapId: m.id, mods: ['AT'], mode: 'play', skinEditor: true, quick: true });
+  },
+  attach() {
+    if (this.on) return;
+    this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map();
+    UISounds.click();
+    const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
+    this.listEl = h('div.se-list');
+    this.setEl = h('div.se-set');
+    this.boxesEl = h('div.se-boxes');
+    this.boxesEl.addEventListener('pointerdown', e => { if (e.target === this.boxesEl) this.select(null); });
+    this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor' },
+      this.boxesEl,
+      h('div.se-top', h('div.se-title', icon('brush'), h('b', 'Skin editor'), h('span', `Currently editing: ${SkinManager.current ? SkinManager.current.name : 'skin'} — gameplay HUD`)),
+        h('div.se-acts', btn('Undo', 'back', () => this.undoStep()), btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
+      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', 'Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.')),
+      h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
+    document.body.append(this.el);
+    document.body.classList.add('se-open');
+    this._key = e => this.onKey(e);
+    window.addEventListener('keydown', this._key, true);
+    this.paintList(); this.paintSettings();
+    const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); this.frame(); };
+    this._raf = requestAnimationFrame(loop);
+  },
+  close() {
+    if (!this.on) return;
+    this.on = false;
+    cancelAnimationFrame(this._raf);
+    window.removeEventListener('keydown', this._key, true);
+    if (this.el) this.el.remove();
+    document.body.classList.remove('se-open');
+    const g = GameplayScreen.el; if (g) { g.style.translate = ''; g.style.scale = ''; g.style.transformOrigin = ''; }
+    UISounds.back();
+    if (Screens.currentName === 'gameplay' && GameplayScreen.params && GameplayScreen.params.skinEditor) {
+      Screens.go(this._from || 'home', {}, { replace: true });
+    }
+  },
+  onKey(e) {
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.key !== 'Escape') return;
+    const ctrl = e.ctrlKey || e.metaKey;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.repeat) return;
+    if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
+    if (ctrl && e.shiftKey && e.code === 'KeyS') { this.close(); return; }
+    if (ctrl && e.code === 'KeyZ') { this.undoStep(); return; }
+    if ((e.code === 'Delete' || e.code === 'Backspace') && this.sel) { this.setPart(this.sel, { off: true }); return; }
+  },
+
+  // ── the layout
+  layout() { return JSON.parse(JSON.stringify(HudLayout.get())); },
+  commit(L) {
+    this.undo.push(JSON.stringify(Settings.get('hud.layout') || {}));
+    if (this.undo.length > 100) this.undo.shift();
+    for (const k of Object.keys(L)) { const c = L[k]; if (!c.x && !c.y && (!c.s || c.s === 1) && !c.off) delete L[k]; }
+    Settings.set('hud.layout', L);
+    HudLayout.override = null;
+    HudLayout.apply(GameplayScreen.hud);
+    this.paintList(); this.paintSettings();
+  },
+  setPart(id, patch) { const L = this.layout(); L[id] = { ...(L[id] || {}), ...patch }; this.commit(L); },
+  undoStep() {
+    const prev = this.undo.pop();
+    if (prev == null) return;
+    Settings.set('hud.layout', JSON.parse(prev));
+    HudLayout.apply(GameplayScreen.hud);
+    this.paintList(); this.paintSettings();
+  },
+  resetAll() { this.commit({}); Toast.show('HUD layout reset', 'Everything is back where the skin puts it.'); },
+  /** A component shown by a setting (the judgement counter, hit error meter, leaderboard): turning it on builds it. */
+  setShown(p, on) {
+    if (p.setting) {
+      if (on && Settings.get(p.setting) && !(this.layout()[p.id] || {}).off) return;
+      if (on) { Settings.set(p.setting, true); this.setPart(p.id, { off: false }); }
+      else this.setPart(p.id, { off: true });
+      if (on && GameplayScreen.s) { GameplayScreen.buildHud(); }
+      return;
+    }
+    this.setPart(p.id, { off: !on });
+  },
+  shown(p) { return !(this.layout()[p.id] || {}).off && (!p.setting || !!Settings.get(p.setting)); },
+  select(id) { this.sel = id; this.paintList(); this.paintSettings(); },
+
+  paintList() {
+    clearEl(this.listEl).append(...HUD_PARTS.map(p => {
+      const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
+      return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { onclick: () => { UISounds.click(); this.select(p.id); } },
+        h('span', p.name, na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
+        h('button.se-eye', { title: on ? 'Hide' : 'Show', onclick: e => { e.stopPropagation(); UISounds.click(); this.setShown(p, !on); } }, icon(on ? 'check' : 'x')));
+    }));
+  },
+  paintSettings() {
+    const p = HUD_PARTS.find(x => x.id === this.sel);
+    if (!p) { clearEl(this.setEl).append(h('p.se-none', 'Pick a component to change it.')); return; }
+    const c = this.layout()[p.id] || {}, s = c.s || 1;
+    const val = h('b', `${Math.round(s * 100)}%`);
+    const sl = h('input.slider', { type: 'range', min: 0.3, max: 2.5, step: 0.05, value: s });
+    const paint = () => sl.style.setProperty('--p', ((sl.value - 0.3) / 2.2 * 100) + '%');
+    sl.addEventListener('input', () => {
+      val.textContent = `${Math.round(sl.value * 100)}%`; paint();
+      const L = this.layout(); L[p.id] = { ...(L[p.id] || {}), s: +sl.value }; HudLayout.override = L; HudLayout.apply(GameplayScreen.hud);
+    });
+    sl.addEventListener('change', () => this.setPart(p.id, { s: +sl.value }));
+    paint();
+    const hud = GameplayScreen.hud, W = hud ? hud.clientWidth : 1, H = hud ? hud.clientHeight : 1;
+    clearEl(this.setEl).append(
+      h('div.se-name', p.name),
+      h('label.se-f', h('span', 'Scale', val), sl),
+      h('div.se-f', h('span', 'Position'), h('div.se-pos', h('span', `X ${Math.round((c.x || 0) * W)}px`), h('span', `Y ${Math.round((c.y || 0) * H)}px`))),
+      h('div.se-btns',
+        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setPart(p.id, { x: 0, y: 0 }); } }, icon('target'), 'Reset position'),
+        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setPart(p.id, { s: 1 }); } }, icon('retry'), 'Reset scale'),
+        h('button.btn.sm', { onclick: () => { UISounds.click(); this.setShown(p, !this.shown(p)); } }, icon(this.shown(p) ? 'x' : 'check'), this.shown(p) ? 'Hide' : 'Show')));
+  },
+
+  // ── each frame: the game fits between the side panels, and the boxes follow the components
+  frame() {
+    const g = GameplayScreen.el, hud = GameplayScreen.hud;
+    if (Screens.currentName !== 'gameplay' || !g || !document.body.contains(g)) { if (!this._gone) this._gone = performance.now(); else if (performance.now() - this._gone > 1500) this.close(); return; }
+    this._gone = 0;
+    const vw = window.innerWidth, vh = window.innerHeight, L = 240, R = 260, T = 56, pad = 16;
+    const k = Math.min((vw - L - R - pad * 2) / vw, (vh - T - pad * 2) / vh);
+    if (k > 0.2) {
+      // (in the screen's own pixels: the page itself may be scaled, by z)
+      const par = g.parentElement, pr = par.getBoundingClientRect(), z = par.offsetWidth ? pr.width / par.offsetWidth : 1;
+      const x = L + pad + ((vw - L - R - pad * 2) - vw * k) / 2, y = T + pad;
+      // (the translate and scale properties: the screen's own transition animates its transform)
+      const tr = `${((x - pr.left) / (z || 1)).toFixed(1)}px ${((y - pr.top) / (z || 1)).toFixed(1)}px`, sc = k.toFixed(4);
+      if (g.style.translate !== tr || g.style.scale !== sc) { g.style.transformOrigin = '0 0'; g.style.translate = tr; g.style.scale = sc; }
+      this._k = k;
+    }
+    if (!hud) return;
+    const seen = new Set();
+    for (const p of HUD_PARTS) {
+      const els = HudLayout.els(hud, p);
+      let r = null;
+      for (const el of els) {
+        const b = el.getBoundingClientRect();
+        if (!b.width || !b.height) continue;
+        r = r ? { l: Math.min(r.l, b.left), t: Math.min(r.t, b.top), r: Math.max(r.r, b.right), b: Math.max(r.b, b.bottom) } : { l: b.left, t: b.top, r: b.right, b: b.bottom };
+      }
+      if (!r) continue;
+      seen.add(p.id);
+      let box = this.boxEls.get(p.id);
+      if (!box) { box = this.makeBox(p); this.boxEls.set(p.id, box); this.boxesEl.append(box); }
+      box.classList.toggle('on', this.sel === p.id);
+      box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off);
+      const st = `left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
+      if (box._st !== st) { box._st = st; box.style.cssText = st; }
+      box._r = r;
+    }
+    for (const [id, box] of this.boxEls) if (!seen.has(id)) { box.remove(); this.boxEls.delete(id); }
+    const key = [...seen].join();
+    if (key !== this._seenKey) { this._seenKey = key; this.present = seen; this.paintList(); }
+  },
+  makeBox(p) {
+    const handle = h('i.se-handle');
+    const box = h('div.se-box', h('span.se-label', p.name), handle);
+    box.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      e.preventDefault(); e.stopPropagation();
+      this.select(p.id);
+      box.setPointerCapture(e.pointerId);
+      const hud = GameplayScreen.hud, hr = hud.getBoundingClientRect(), L0 = this.layout(), c0 = { ...(L0[p.id] || {}) };
+      const scaling = e.target === handle, r = box._r;
+      // (scaling is about the component's anchor: the corner it sits from)
+      const [ox, oy] = p.origin.split(' ');
+      const ax = ox === 'right' ? r.r : ox === 'left' ? r.l : (r.l + r.r) / 2, ay = oy === 'bottom' ? r.b : oy === 'top' ? r.t : (r.t + r.b) / 2;
+      const d0 = Math.hypot(e.clientX - ax, e.clientY - ay) || 1, x0 = e.clientX, y0 = e.clientY;
+      let moved = false;
+      const move = ev => {
+        const L = this.layout(), c = { ...c0 };
+        if (scaling) c.s = clamp(Math.round((c0.s || 1) * Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0 * 20) / 20, 0.3, 2.5);
+        else { c.x = (c0.x || 0) + (ev.clientX - x0) / hr.width; c.y = (c0.y || 0) + (ev.clientY - y0) / hr.height; }
+        moved = moved || Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 2;
+        L[p.id] = c; HudLayout.override = L; HudLayout.apply(hud);
+      };
+      const up = () => {
+        box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
+        const L = HudLayout.override; HudLayout.override = null;
+        if (moved && L) this.commit(L); else HudLayout.apply(hud);
+      };
+      box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+    });
+    return box;
   },
 };
 
@@ -17104,6 +17415,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
     { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline'] },
+    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
@@ -18891,6 +19203,7 @@ const SettingsPanel = {
         row = form('fsel', cap, h('div.fline', sel, h('button.btn.sm', { onclick: () => { this.close(); Screens.go('skins'); } }, 'Browse')));
         break;
       }
+      case 'skineditor': row = form('fbool', cap, h('button.btn.sm', { onclick: () => { this.close(); SkinEditor.open(); } }, icon('brush'), 'Open')); break;
       case 'data': row = form('fwide', cap, DataPanel.build()); break;
       case 'shortcuts': row = form('fbool', cap, h('button.btn.sm', { onclick: () => Shortcuts.open() }, icon('keyboard'), 'Show all')); break;
       case 'mascot': row = form('fwide', cap, h('div.fline',
@@ -23698,7 +24011,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen, SkinEditor, HudLayout };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -23854,6 +24167,8 @@ const App = {
     }
     // global shortcuts
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
+    // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
     // lazer's Ctrl+F11: show / hide the FPS counter
     if ((e.ctrlKey || e.metaKey) && e.code === 'F11') { e.preventDefault(); Settings.set('graphics.showFps', !Settings.get('graphics.showFps')); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); OSD.show('Debug overlay', v ? 'shown' : 'hidden', 'Ctrl+Shift+D'); return; }
