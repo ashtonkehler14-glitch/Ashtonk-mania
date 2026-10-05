@@ -79,7 +79,26 @@ const Chat = {
   send(text) {
     const c = this.channels.get(this.cur);
     if (!Presence.ws) { Toast.err('Chat is offline', 'Can\'t reach the server right now — trying again…'); return; }
+    // lazer's chat commands: /me does something, /np says what you're listening to (or playing), /help lists them
+    const cmd = /^\/(\w+)\s*(.*)$/.exec(text);
+    if (cmd) {
+      const [, name, rest] = cmd, low = name.toLowerCase();
+      if (low === 'help') { this.local('Commands: /me <action> — /np (what you\'re listening to or playing) — /help'); return; }
+      if (low === 'np') {
+        const G = typeof GameplayScreen !== 'undefined' && Screens.currentName === 'gameplay' && GameplayScreen.s ? GameplayScreen.s.rec : null;
+        const m = G || MenuMusic.current;
+        if (!m) { this.local('Nothing is playing right now.'); return; }
+        text = `/me is ${G ? 'playing' : 'listening to'} ${m.artist} - ${m.title}${m.version ? ` [${m.version}]` : ''}`;
+      } else if (low !== 'me') { this.local(`Unknown command /${name} — try /help.`); return; }
+      else if (!rest.trim()) return;
+    }
     if (c.pm) Presence.send({ t: 'pm', to: c.pid, text }); else Presence.send({ t: 'say', text });
+  },
+  /** A line only you see (a command's answer). */
+  local(text) {
+    const c = this.channels.get(this.cur);
+    const l = { from: { name: '', pid: '' }, text, at: Date.now(), local: true };
+    c.lines.push(l); this.appendLine(l);
   },
   /** Start (or go back to) a private conversation with a friend. */
   message(u) {
@@ -105,10 +124,13 @@ const Chat = {
     const stick = this.lines.scrollHeight - this.lines.scrollTop - this.lines.clientHeight < 40;
     const d = new Date(l.at), t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const me = l.from.pid && l.from.pid === Presence.pid();
-    this.lines.append(h(`div.ch-line${me ? '.me' : ''}`,
+    const act = /^\/me\s+/.test(l.text || '');
+    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', l.text)));
+    // (/me: lazer's action line — the name and what they did, in italics)
+    else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}`,
       h('span.ch-time', t),
-      h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, l.from.name || '?'),
-      h('span.ch-text', l.text)));
+      h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
+      h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
     if (scroll && (stick || me)) this.lines.scrollTop = this.lines.scrollHeight;
   },
   paintList() {

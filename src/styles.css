@@ -4103,3 +4103,6 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-chat-in::placeholder { color: rgba(255, 255, 255, .45); }
 .gp-chat.typing .gp-chat-in { background: rgba(0, 0, 0, .8); box-shadow: 0 0 0 1px rgba(255, 102, 170, .6); }
 .gp-chat-in[disabled] { display: none; }
+
+.ch-line.act .ch-text, .ch-line.act .ch-name { font-style: italic; }
+.ch-line.local .ch-text { color: rgba(255, 255, 255, .55); font-style: italic; }
