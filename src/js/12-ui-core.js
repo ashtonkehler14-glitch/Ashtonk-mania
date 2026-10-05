@@ -1171,6 +1171,8 @@ const Screens = {
         if (oldEl) {
           oldEl.classList.remove('enter', 'zoom', 'from-right');
           oldEl.classList.add('leave'); if (transition === 'zoom') oldEl.classList.add('zoom');
+          // (an overlay closing to a screen that isn't one: lazer's pop-out as its waves drop)
+          if (oldEl.classList.contains('ov') && !(next.ov)) this._popOut = true;
           // lazer's main menu leaves slowly (its buttons fold away, then it fades over 400ms, InSine) under the next screen
           const fromMenu = prevName === 'home';
           if (fromMenu) oldEl.classList.add('from-menu');
@@ -1185,10 +1187,12 @@ const Screens = {
       if (prevName === 'home') el.classList.add('after-menu');
       if (transition === 'zoom') el.classList.add('zoom');
       if (transition === 'right') el.classList.add('from-right');
+      if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
       if (el.classList.contains('ov') && !document.documentElement.classList.contains('perf')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
+        if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);
         el.append(waves);
         setTimeout(() => waves.remove(), 1400);
       }

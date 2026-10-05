@@ -147,6 +147,11 @@ const AudioManager = {
     else if (name === 'click-short') buf = make(0.03, t => Math.sin(2 * Math.PI * 3200 * t) * env(t, 0.0005, 0.006) * 0.18);
     else if (name === 'click-short-confirm' || name === 'menuclick' || name === 'menuhit') buf = make(0.12, t => (Math.sin(2 * Math.PI * 880 * t) + Math.sin(2 * Math.PI * 1320 * t) * 0.5) * env(t, 0.002, 0.03) * 0.22);
     else if (name === 'menuback' || name === 'click-close') buf = make(0.12, t => Math.sin(2 * Math.PI * (900 - 2400 * t) * t) * env(t, 0.002, 0.035) * 0.22);
+    // lazer's overlay-big-pop-in / -out: a soft whoosh, rising as an overlay's waves sweep up, falling as they drop
+    else if (name === 'overlay-big-pop-in' || name === 'overlay-big-pop-out') {
+      const up = name.endsWith('in'); let lp = 0;
+      buf = make(0.32, (t, n) => { const f = up ? 0.04 + 0.5 * (t / 0.32) : 0.5 - 0.46 * (t / 0.32); lp += f * (n() - lp); return lp * env(t, up ? 0.06 : 0.01, up ? 0.09 : 0.07) * 0.9; });
+    }
     // song select (lazer's select-expand / select-difficulty / select-random)
     else if (name === 'select-expand') buf = make(0.13, t => Math.sin(2 * Math.PI * (520 + 1500 * t) * t) * env(t, 0.003, 0.035) * 0.2);
     else if (name === 'select-difficulty') buf = make(0.07, t => (Math.sin(2 * Math.PI * 1250 * t) + Math.sin(2 * Math.PI * 1875 * t) * 0.3) * env(t, 0.001, 0.014) * 0.2);
