@@ -60,6 +60,8 @@ const OnlineBeatmaps = {
       keys: Math.round(Number(b.cs ?? b.CS ?? 4)), od: Number(b.accuracy ?? b.OD ?? 0), hp: Number(b.drain ?? b.HP ?? 0),
       bpm: Number(b.bpm ?? b.BPM ?? raw.bpm ?? 0), length: Number(b.total_length ?? b.TotalLength ?? 0),
       notes: Number(b.count_circles ?? 0), lns: Number(b.count_sliders ?? 0),
+      // (the set's own page has where players quit or failed, 100 points across the song)
+      failtimes: b.failtimes && Array.isArray(b.failtimes.fail) ? { fail: b.failtimes.fail.map(Number), exit: (b.failtimes.exit || []).map(Number) } : null,
     })).filter(d => Number(d.mode) === 3).sort((a, b) => a.stars - b.stars);
     if (!diffs.length) return null;
     const st = raw.status ?? raw.ranked ?? raw.RankedStatus;
@@ -72,6 +74,7 @@ const OnlineBeatmaps = {
       playCount: Number(raw.play_count ?? raw.PlayCount ?? 0), favourites: Number(raw.favourite_count ?? raw.Favourites ?? 0),
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
       rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, submittedDate: raw.submitted_date ?? raw.SubmittedDate ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
+      ratings: Array.isArray(raw.ratings) && raw.ratings.length >= 11 ? raw.ratings.map(Number) : null,
       genreId: raw.genre_id ?? raw.genre?.id ?? null, languageId: raw.language_id ?? raw.language?.id ?? null,
     };
   },
@@ -564,8 +567,39 @@ const ExplorerScreen = {
     this.setEl = h('div.bso', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
     this.setO = makeOverlay(this.setEl, { backdrop: false, onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
     this.renderSet();
+    // (the search only lists a set; its own page adds the ratings and where players failed — fetched once)
+    if (!set.full) OnlineBeatmaps.getSet(set.id).then(full => {
+      if (!full) return;
+      set.full = true; set.ratings = full.ratings || set.ratings;
+      for (const d of set.diffs) { const f = full.diffs.find(x => x.id === d.id); if (f && f.failtimes) d.failtimes = f.failtimes; }
+      if (this.setView && this.setView.set === set) this.renderSet();
+    }).catch(() => {});
   },
   closeSet() { if (this.setO) this.setO.close(); },
+  /** lazer's UserRatings: negative (1–5) against positive (6–10) votes, and the spread of all ten. */
+  ratingsBox(set) {
+    const r = set.ratings;
+    if (!r) return null;
+    const neg = r.slice(1, 6).reduce((a, b) => a + b, 0), pos = r.slice(6, 11).reduce((a, b) => a + b, 0), tot = neg + pos;
+    if (!tot) return null;
+    const max = Math.max(...r.slice(1));
+    return h('div.bso-ratings',
+      h('div.bso-gh', 'User Rating'),
+      h('div.bso-rbar', h('i', { style: { width: (neg / tot * 100).toFixed(1) + '%' } })),
+      h('div.bso-rnums', h('span', fmtInt(neg)), h('span', fmtInt(pos))),
+      h('div.bso-gh', 'Rating Spread'),
+      h('div.bso-spread', ...r.slice(1, 11).map((v, i) => h('i', { title: `${i + 1}: ${fmtInt(v)}`, style: { height: (max ? Math.max(2, v / max * 100) : 2).toFixed(1) + '%', '--h': (i / 9 * 120).toFixed(0) } }))));
+  },
+  /** lazer's SuccessRate "Points of Failure": where players quit (exit) and failed, across the song. */
+  failBox(d) {
+    const f = d.failtimes;
+    if (!f) return null;
+    const n = Math.max(f.fail.length, f.exit.length), tot = i => (f.fail[i] || 0) + (f.exit[i] || 0);
+    let max = 0; for (let i = 0; i < n; i++) max = Math.max(max, tot(i));
+    if (!max) return null;
+    return h('div.bso-fails', h('div.bso-gh', 'Points of Failure'),
+      h('div.bso-failg', ...Array.from({ length: n }, (_, i) => h('div', h('i.ex', { style: { height: ((f.exit[i] || 0) / max * 100).toFixed(1) + '%' } }), h('i.fl', { style: { height: ((f.fail[i] || 0) / max * 100).toFixed(1) + '%' } })))));
+  },
   renderSet() {
     if (!this.setEl || !this.setView) return;
     const { set, diff: d } = this.setView;
@@ -641,7 +675,8 @@ const ExplorerScreen = {
             h('div.bso-basics', basic('clock', 'Length', fmtTime(d.length * 1000)), basic('music', 'BPM', String(Math.round(d.bpm))),
               basic('target', 'Notes', fmtInt(d.notes)), basic('list', 'Long notes', fmtInt(d.lns))),
             h('div.bso-bars', ...[bar('Keys', d.keys, 10, x => String(x)), bar('HP drain', d.hp, 10), bar('Accuracy', d.od, 10), bar('Stars', d.stars, 10, x => x.toFixed(2), '.sr'),
-              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean)))))));
+              set.rating ? bar('Rating', set.rating, 10, x => x.toFixed(1), '.rating') : null].filter(Boolean)),
+            this.ratingsBox(set), this.failBox(d))))));
     const sc = this.setEl.querySelector('.bso-scroll');
     if (sc) sc.scrollTop = top;
   },

@@ -4041,3 +4041,17 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .res-grank { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 4px auto 0; padding: 3px 12px; border-radius: 99px; background: rgba(255, 204, 34, .12); color: #ffd966; font-size: 13px; animation: fadeIn 300ms ease; }
 .res-grank .i { width: 14px; height: 14px; }
 .res-grank b { color: #fff; }
+
+/* lazer's beatmap overlay: user ratings, rating spread, points of failure */
+.bso-ratings, .bso-fails { margin-top: 14px; }
+.bso-gh { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .85); margin: 8px 0 4px; }
+.bso-rbar { height: 4px; border-radius: 2px; background: #b3d944; overflow: hidden; }
+.bso-rbar i { display: block; height: 100%; background: #e53e3e; }
+.bso-rnums { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255, 255, 255, .6); margin-top: 2px; }
+.bso-spread { display: flex; align-items: flex-end; gap: 2px; height: 40px; }
+.bso-spread i { flex: 1; border-radius: 2px 2px 0 0; background: hsl(var(--h) 70% 55%); }
+.bso-failg { display: flex; align-items: flex-end; gap: 1px; height: 46px; }
+.bso-failg > div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.bso-failg i { display: block; min-height: 0; }
+.bso-failg i.ex { background: #f2c94c; }
+.bso-failg i.fl { background: #c33a3a; }
