@@ -144,7 +144,7 @@ export function osuStatus() {
 }
 const SEARCH_TTL = 3600 * 1000, SET_TTL = 86400 * 1000; // (WOM's KV expiries: an hour, a set a day)
 const STALE_MAX = 7 * 86400 * 1000;
-const OSU_PATH = /^beatmapsets\/(?:search\?[^#]*|\d{1,10})$/;
+const OSU_PATH = /^(?:beatmapsets\/(?:search\?[^#]*|\d{1,10})|beatmaps\/(?:\d{1,10}|lookup\?checksum=[a-f0-9]{32}))$/;
 function remember(key, e) {
   osuApi.cache.delete(key); osuApi.cache.set(key, e);
   while (osuApi.cache.size > 200) osuApi.cache.delete(osuApi.cache.keys().next().value);
@@ -256,6 +256,19 @@ export async function handleGetBeatmap(url, env, fetchImpl = fetch) {
   } catch (e) { return text(e.message || STATUS_MESSAGES[500], e.status || 500); }
 }
 
+/** A beatmap's set and ranked status, found by its beatmap id or its .osu file's MD5 (for files that don't say which
+ *  set they're from): `/api/lookupBeatmap?id=` or `?checksum=`. */
+export async function handleLookupBeatmap(url, env, fetchImpl = fetch) {
+  const id = url.searchParams.get('id') || '', sum = (url.searchParams.get('checksum') || '').toLowerCase();
+  const path = /^\d{1,10}$/.test(id) ? `beatmaps/${id}` : /^[a-f0-9]{32}$/.test(sum) ? `beatmaps/lookup?checksum=${sum}` : '';
+  if (!path) return json({ error: 'Give a beatmap id or checksum.' }, 400);
+  try {
+    const b = await officialGet(path, env, fetchImpl, 7 * 86400000);
+    const set = b && b.beatmapset;
+    return json({ beatmapId: b.id || 0, setId: b.beatmapset_id || (set && set.id) || 0, status: String((set && set.status) || b.status || '') }, 200, { 'Cache-Control': 'public, max-age=86400' });
+  } catch (e) { return json({ error: e.message || 'Not found' }, e.status === 404 ? 404 : e.status || 500); }
+}
+
 export async function handleDownload(id, fetchImpl = fetch, provider = '') {
   if (!/^\d{1,9}$/.test(id)) return json({ error: 'Invalid beatmap set id' }, 400);
   const errors = [];
@@ -323,6 +336,7 @@ export default {
       return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
     }
     if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
+    if (url.pathname === '/api/lookupBeatmap') return handleLookupBeatmap(url, env);
     const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
     if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
     if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);

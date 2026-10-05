@@ -919,8 +919,8 @@ export class PresenceLogic {
    *  challenge record and whether they're online. */
   profileMsg(pid) {
     const data = this.profiles.get(pid) || null, r = this.ranks.get(pid);
-    // their best plays the server judged (the ones with a known song), best first — for a profile their game hasn't sent
-    const top = r && r.bests ? Object.values(r.bests).filter(b => b && b.title).sort((a, b) => b.pp - a.pp).slice(0, 20)
+    // their best plays the server judged (the ones with a known song, on ranked beatmaps), best first — for a profile their game hasn't sent
+    const top = r && r.bests ? Object.values(r.bests).filter(b => b && b.title && b.pp > 0).sort((a, b) => b.pp - a.pp).slice(0, 20)
       .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
@@ -1705,10 +1705,25 @@ async function judgePlay(request, { noFail = false } = {}) {
   let bytes;
   try { bytes = Uint8Array.from(atob(String(body.osu || '')), c => c.charCodeAt(0)); } catch { return { body, res: json({ error: 'Bad beatmap file.' }, 400) }; }
   if (!bytes.length || bytes.length > 5e6) return { body, res: json({ error: 'Bad beatmap file.' }, 400) };
-  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const hash = hex(await crypto.subtle.digest('SHA-256', bytes));
+  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from)
+  let md5 = ''; try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
   let r;
   try { r = verifyPlay(new TextDecoder().decode(bytes), body.play, { noFail }); } catch { r = { error: 'The play could not be judged.' }; }
-  return { body, hash, r };
+  return { body, hash, md5, r };
+}
+
+/** A judged beatmap's ranked status on osu!: by its set id, else its beatmap id, else its file's MD5 ('' when unknown). */
+export async function beatmapStatus(r, md5, env, get = officialGet) {
+  const week = 7 * 86400000;
+  try {
+    if (r.beatmapSetId > 0) return { status: String((await get(`beatmapsets/${r.beatmapSetId}`, env, fetch, week)).status || ''), setId: r.beatmapSetId };
+    const path = r.beatmapId > 0 ? `beatmaps/${r.beatmapId}` : /^[a-f0-9]{32}$/.test(md5 || '') ? `beatmaps/lookup?checksum=${md5}` : '';
+    if (!path) return { status: '', setId: 0 };
+    const b = await get(path, env, fetch, week), set = b && b.beatmapset;
+    return { status: String((set && set.status) || (b && b.status) || ''), setId: (b && b.beatmapset_id) || (set && set.id) || 0 };
+  } catch { return { status: '', setId: 0 }; }
 }
 
 export async function handleMultiplayer(request, env, url) {
@@ -1724,8 +1739,8 @@ export async function handleMultiplayer(request, env, url) {
     if (j.res) return j.res;
     // (as in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API, kept a week)
     if (j.r && !j.r.error && j.r.pp > 0 && env.TEST_ALL_RANKED !== '1') {
-      let st = '';
-      if (j.r.beatmapSetId > 0) { try { st = String((await officialGet(`beatmapsets/${j.r.beatmapSetId}`, env, fetch, 7 * 86400000)).status || ''); } catch { st = ''; } }
+      const { status: st, setId } = await beatmapStatus(j.r, j.md5, env);
+      if (setId > 0 && !(j.r.beatmapSetId > 0)) j.r = { ...j.r, beatmapSetId: setId };
       if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));

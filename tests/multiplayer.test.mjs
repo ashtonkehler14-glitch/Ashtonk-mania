@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -1285,4 +1285,15 @@ test('lazer\'s user tags: only players with a play on the beatmap can tag it; vo
   assert.deepEqual(kept.get(K1), { jumpstream: ['alicepid1', 'bobpid22'] });
   for (const t of PresenceLogic.USER_TAGS.slice(1, 12)) tags('a', { tag: t, on: true });
   assert.match(tags('a', { tag: PresenceLogic.USER_TAGS[20], on: true }).err, /10 tags/);
+});
+
+test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, else its file\'s MD5; unknown is unranked', async () => {
+  const asked = [], api = { 'beatmapsets/7': { status: 'ranked' }, 'beatmaps/42': { beatmapset_id: 9, beatmapset: { id: 9, status: 'loved' } }, ['beatmaps/lookup?checksum=' + 'a'.repeat(32)]: { beatmapset_id: 11, beatmapset: { id: 11, status: 'approved' } } };
+  const get = async p => { asked.push(p); if (!api[p]) throw Object.assign(new Error('nope'), { status: 404 }); return api[p]; };
+  assert.deepEqual(await beatmapStatus({ beatmapSetId: 7, beatmapId: 42 }, 'a'.repeat(32), {}, get), { status: 'ranked', setId: 7 });
+  assert.deepEqual(await beatmapStatus({ beatmapSetId: -1, beatmapId: 42 }, '', {}, get), { status: 'loved', setId: 9 });
+  assert.deepEqual(await beatmapStatus({ beatmapSetId: -1, beatmapId: -1 }, 'a'.repeat(32), {}, get), { status: 'approved', setId: 11 });
+  assert.deepEqual(await beatmapStatus({ beatmapSetId: -1, beatmapId: -1 }, 'b'.repeat(32), {}, get), { status: '', setId: 0 });
+  assert.deepEqual(await beatmapStatus({ beatmapSetId: -1, beatmapId: -1 }, '', {}, get), { status: '', setId: 0 });
+  assert.deepEqual(asked, ['beatmapsets/7', 'beatmaps/42', 'beatmaps/lookup?checksum=' + 'a'.repeat(32), 'beatmaps/lookup?checksum=' + 'b'.repeat(32)]);
 });

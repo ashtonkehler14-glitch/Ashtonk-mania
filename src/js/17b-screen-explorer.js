@@ -804,25 +804,56 @@ const ExplorerScreen = {
 };
 
 /** The online status (RANKED, LOVED, …) of beatmaps imported from files: looked up in the background for every set
- *  that has an online id and no status yet, one at a time, and kept with the set. */
+ *  without one, one at a time, and kept with the set — by its online id, or for a file that doesn't say which set
+ *  it's from, by a difficulty's beatmap id or its .osu file's MD5 (as osu! itself finds beatmaps). Only plays on
+ *  ranked beatmaps give pp, so a lookup that failed (offline, the server busy) is tried again the next day; one that
+ *  found nothing, the next week. */
 const BeatmapStatus = {
-  busy: false,
+  busy: false, DAY: 86400000,
+  due(s, now = Date.now()) {
+    if (s.status) return false;
+    if (!s.statusChecked) return true;
+    // (a check from before failures were told apart from "not found": once more)
+    if (!s.statusMiss && !s.statusErr) return s.statusV !== 2;
+    return now - s.statusChecked > (s.statusErr ? this.DAY : 7 * this.DAY);
+  },
+  /** {status, setId} for a set, or null when osu! has no such beatmap; throws when it couldn't be asked. */
+  async lookup(set) {
+    if (set.onlineId > 0) {
+      if (!await OnlineBeatmaps.checkApi()) throw new Error('offline');
+      const d = await OnlineBeatmaps.api(`api/getBeatmap?beatmapSetId=${encodeURIComponent(set.onlineId)}`);
+      return d ? { status: String(d.status || ''), setId: set.onlineId } : null;
+    }
+    const maps = set.mapIds.map(id => BeatmapManager.maps.get(id)).filter(Boolean);
+    const m = maps.find(x => x.onlineId > 0) || maps[0];
+    if (!m) return null;
+    let q = m.onlineId > 0 ? `id=${m.onlineId}` : '';
+    if (!q) { const b = await BeatmapManager.getFile(set.id, m.osuPath); if (!b) return null; q = `checksum=${md5Hex(new Uint8Array(await b.arrayBuffer()))}`; }
+    const r = await fetch(`api/lookupBeatmap?${q}`);
+    if (r.status === 404 || r.status === 400) return null;
+    if (!r.ok) throw Object.assign(new Error(`Code ${r.status}`), { status: r.status });
+    const d = await r.json();
+    return { status: String(d.status || ''), setId: d.setId || 0 };
+  },
   async sync() {
     if (this.busy || !navigator.onLine) return;
     this.busy = true;
     let changed = 0;
     try {
-      const todo = BeatmapManager.sets.filter(s => s.onlineId > 0 && !s.status && !s.statusChecked).slice(0, 200);
+      const todo = BeatmapManager.sets.filter(s => this.due(s)).slice(0, 200);
       for (const set of todo) {
         if (Screens.currentName === 'gameplay') { await sleep(5000); continue; } // (never during a song)
-        let st = null;
-        try { const d = await OnlineBeatmaps.getSet(set.onlineId); st = d && d.status; } catch (e) { if (e && e.status === 429) break; }
-        set.statusChecked = Date.now();
-        if (st) { set.status = st; changed++; }
+        let got;
+        try { got = await this.lookup(set); } catch (e) { if (e && e.status === 429) break; got = undefined; }
+        set.statusChecked = Date.now(); set.statusV = 2;
+        set.statusErr = got === undefined; set.statusMiss = got === null || (got && !got.status);
+        if (got && got.status) { set.status = got.status; changed++; }
+        if (got && got.setId > 0 && !(set.onlineId > 0)) set.onlineId = got.setId;
         await DB.put('sets', { ...set, maps: undefined }).catch(() => {});
         await sleep(700);
       }
     } finally { this.busy = false; }
-    if (changed) Bus.emit('library:changed');
+    // (pp follows: only plays on ranked beatmaps count, and the profile and rankings are worked out from them)
+    if (changed) { Bus.emit('library:changed'); if (typeof Rankings !== 'undefined') Rankings.report(); }
   },
 };
