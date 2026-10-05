@@ -9,5 +9,7 @@ export function load(files) {
   // expose top-level const/class declarations
   const names = [...src.matchAll(/^(?:const|class|function|let)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
   vm.runInContext(src + `\n;globalThis.__exports = {${names.join(',')}};`, ctx);
+  // (the context itself, to stub a browser global a test needs)
+  Object.defineProperty(ctx.__exports, '__ctx', { value: ctx });
   return ctx.__exports;
 }

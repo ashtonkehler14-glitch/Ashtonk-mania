@@ -86,6 +86,10 @@ const EditorScreen = {
     this.diffSet = { hp: +(df.HPDrainRate ?? 5), od: +(df.OverallDifficulty ?? 5) };
     this.red = this.red.map(r => ({ ...r }));
     this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t }));
+    // lazer's bookmarks ([Editor] Bookmarks) and the song select preview point ([General] PreviewTime)
+    const bk = /^Bookmarks[ \t]*:(.*)$/m.exec(this.text);
+    this.bookmarks = bk ? bk[1].split(',').map(x => parseInt(x, 10)).filter(x => Number.isFinite(x) && x >= 0).sort((a, b) => a - b) : [];
+    this.preview = Number.isFinite(bm.previewTime) && bm.previewTime >= 0 ? bm.previewTime : -1;
     this.tabName = 'compose';
     const buffer = await TrackCache.get(rec.setId, rec.audioFile);
     await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
@@ -107,8 +111,9 @@ const EditorScreen = {
     clearEl(el);
     const r = this.rec;
     this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
-    this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
-    const top = h('div.ed-top', this.fileBtn, this.tabsEl,
+    this.editBtn = h('button.ed-menu', { onclick: e => this.editMenu(e) }, 'edit');
+    this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing', 'verify'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
+    const top = h('div.ed-top', this.fileBtn, this.editBtn, this.tabsEl,
       h('div.ed-title', h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
     const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
     this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
@@ -148,7 +153,7 @@ const EditorScreen = {
     if (t === 'compose') { this.pageEl.hidden = true; return; }
     if (Music.playing && t === 'setup') this.togglePlay();
     this.pageEl.hidden = false;
-    clearEl(this.pageEl).append(t === 'setup' ? this.setupPage() : this.timingPage());
+    clearEl(this.pageEl).append(t === 'setup' ? this.setupPage() : t === 'verify' ? this.verifyPage() : this.timingPage());
   },
   setupPage() {
     const field = (label, key, hint) => {
@@ -203,7 +208,14 @@ const EditorScreen = {
       clearEl(wrap).append(h('h2', 'Timing'), h('p.muted', 'Red lines: where the beat starts and its tempo. Notes stay where they are when the timing changes.'),
         h('div.ed-tps', ...this.red.map(row)),
         h('button.btn.primary', { onclick: () => { const now = Math.round(this.now()), r = this.redAt(now); this.red.push({ time: now, beatLength: r.beatLength, meter: r.meter || 4, sampleSet: 1, sampleIndex: 0, volume: 100, uninherited: true, effects: 0 }); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } },
-          icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`));
+          icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`),
+        h('h3.ed-h3', 'Kiai time'),
+        h('p.muted', 'The song\'s chorus: the playfield glows. It starts and stops on an effect point.'),
+        h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('sparkle'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
+          h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(a); paint(); } }, icon('target')),
+          h('button.btn.sm.danger', { title: 'Remove', onclick: () => { for (const p of [...this.red, ...this.green]) if (p.time >= a - 1 && p.time < b) p.effects = (p.effects || 0) & ~1; this.setDirty(true); paint(); } }, icon('trash'))))),
+        h('div.ed-row2', h('button.btn', { onclick: () => { this.toggleKiai(); paint(); } }, icon('sparkle'), `${this.kiaiAt(this.snap(now)) ? 'End' : 'Start'} kiai at ${fmtTime(Math.max(0, this.snap(now)))}`),
+          h('button.btn', { onclick: () => { this.setPreview(); paint(); } }, icon('music'), this.preview >= 0 ? `Preview point: ${fmtTime(this.preview)} — set to now` : 'Set the preview point to now')));
     };
     paint();
     return wrap;
@@ -232,6 +244,115 @@ const EditorScreen = {
       Toast.ok(`Created ${name}`, copy ? 'A copy of the difficulty you were editing.' : 'A blank difficulty with one note to start from.');
       this.reopen(rec.id);
     } catch (e) { Toast.err('Couldn\'t create the difficulty', friendlyError(e)); }
+  },
+  // ── bookmarks, preview point, kiai (lazer: Ctrl+B / Ctrl+Shift+B, Ctrl+Alt+←/→; Edit › Set preview point; effect points)
+  toggleBookmark(remove) {
+    const t = this.snap(this.now());
+    if (remove) {
+      if (!this.bookmarks.length) return;
+      // (lazer: removes the closest one)
+      let best = this.bookmarks[0]; for (const b of this.bookmarks) if (Math.abs(b - t) < Math.abs(best - t)) best = b;
+      this.bookmarks = this.bookmarks.filter(b => b !== best);
+      Toast.show('Bookmark removed', fmtTime(best));
+    } else {
+      if (this.bookmarks.some(b => Math.abs(b - t) < 2)) return;
+      this.bookmarks = [...this.bookmarks, t].sort((a, b) => a - b);
+      Toast.show('Bookmark added', fmtTime(Math.max(0, t)));
+    }
+    this.setDirty(true);
+  },
+  jumpBookmark(dir) {
+    const now = this.now(), list = dir > 0 ? this.bookmarks.filter(b => b > now + 1) : this.bookmarks.filter(b => b < now - 1);
+    if (list.length) this.seek(dir > 0 ? list[0] : list[list.length - 1]);
+  },
+  setPreview() {
+    this.preview = Math.max(0, Math.round(this.now()));
+    this.setDirty(true);
+    Toast.show('Preview point set', `Song select plays the song from ${fmtTime(this.preview)}.`);
+  },
+  /** Every timing point (red and green) in order: the last one at or before a time decides its effects. */
+  points() { return [...this.red.map(r => ({ p: r, u: 1 })), ...this.green.map(g => ({ p: g, u: 0 }))].sort((a, b) => a.p.time - b.p.time || b.u - a.u); },
+  kiaiAt(t) { let on = false; for (const { p } of this.points()) { if (p.time <= t + 1) on = !!((p.effects || 0) & 1); else break; } return on; },
+  /** The kiai sections: [start, end] pairs (the end is the song's end when it doesn't stop). */
+  kiaiRanges() {
+    const out = []; let from = null;
+    for (const { p } of this.points()) {
+      const on = !!((p.effects || 0) & 1);
+      if (on && from == null) from = p.time; else if (!on && from != null) { if (p.time > from) out.push([from, p.time]); from = null; }
+    }
+    if (from != null) out.push([from, this.duration]);
+    return out;
+  },
+  /** Kiai starts (or stops) here: an effect point at the snapped time — an existing point there changes, or a green
+   *  line is added (keeping the scroll speed it's in). */
+  toggleKiai(t = this.snap(this.now())) {
+    t = Math.max(0, Math.round(t));
+    const on = !this.kiaiAt(t), at = [...this.red, ...this.green].filter(p => Math.abs(p.time - t) < 1);
+    if (at.length) for (const p of at) p.effects = on ? ((p.effects || 0) | 1) : ((p.effects || 0) & ~1);
+    else {
+      const r = this.redAt(t), g = this.green.filter(x => x.time <= t && x.time >= r.time).pop(), base = g || r;
+      this.green.push({ time: t, beatLength: g ? g.beatLength : -100, meter: r.meter || 4, sampleSet: base.sampleSet ?? 1, sampleIndex: base.sampleIndex ?? 0, volume: base.volume ?? 100, uninherited: false, effects: ((base.effects || 0) & ~1) | (on ? 1 : 0) });
+      this.green.sort((a, b) => a.time - b.time);
+    }
+    this.setDirty(true);
+    Toast.show(on ? 'Kiai starts here' : 'Kiai ends here', fmtTime(t));
+  },
+
+  /** lazer's Verify screen: the checks the beatmap must pass to be ranked (the ones that apply to mania), each a
+   *  problem, a warning or negligible; clicking one goes to it. */
+  issues() {
+    const out = [], P = (sev, cat, text, t = null, notes = null) => out.push({ sev, cat, text, t, notes });
+    const N = this.notes;
+    if (!N.length) P('problem', 'Compose', 'There are no notes.');
+    // concurrent / overlapping notes in a column, zero-length and too short hold notes
+    const cols = Array.from({ length: this.keys }, () => []);
+    for (const n of N) if (cols[n.col]) cols[n.col].push(n);
+    for (const c of cols) for (let i = 1; i < c.length; i++) {
+      const a = c[i - 1], b = c[i];
+      if (b.t <= (a.end ?? a.t)) P('problem', 'Compose', `${a.end != null ? 'A note is inside a hold note' : 'Two notes at the same time'} in column ${b.col + 1}.`, b.t, [a, b]);
+    }
+    for (const n of N) if (n.end != null && n.end - n.t <= 0) P('problem', 'Compose', 'A hold note has no length.', n.t, [n]);
+    // unsnapped (lazer's CheckUnsnappedObjects: off every 1/16 and 1/12 tick by 2ms or more is a problem, 1ms negligible)
+    const off = t => { const r = this.redAt(t); let m = Infinity; for (const d of [16, 12]) { const b = r.beatLength / d; if (b > 0) m = Math.min(m, Math.abs(t - (r.time + Math.round((t - r.time) / b) * b))); } return m; };
+    for (const n of N) for (const [t, what] of [[n.t, 'A note'], ...(n.end != null ? [[n.end, 'A hold note\'s end']] : [])]) {
+      const o = off(t);
+      if (o >= 2) P('problem', 'Timing', `${what} is unsnapped by ${Math.round(o)}ms.`, t, [n]);
+      else if (o >= 1) P('negligible', 'Timing', `${what} is unsnapped by ${Math.round(o)}ms.`, t, [n]);
+    }
+    if (N.length && N[0].t < this.red[0].time) P('problem', 'Timing', 'A note is before the first timing point.', N[0].t, [N[0]]);
+    const late = N.filter(n => (n.end ?? n.t) > this.duration + 1);
+    if (late.length) P('problem', 'Compose', `${plural(late.length, 'note is', 'notes are')} after the song ends.`, late[0].t, late);
+    // drain time (lazer's CheckDrainLength: under 30 seconds)
+    if (N.length) { const len = Math.max(...N.map(n => n.end ?? n.t)) - N[0].t; if (len < 30000) P('problem', 'Compose', `The drain time is only ${fmtTime(len)} — a beatmap needs at least 30 seconds.`); }
+    // audio and resources
+    if (!this.rec.bgFile) P('problem', 'Resources', 'There is no background image.');
+    if (this.preview < 0) P('warning', 'Audio', 'There is no preview point (song select would play the song from the middle).');
+    // metadata (lazer's CheckMetadata…: empty fields, and unicode in the romanised ones)
+    if (!this.meta.Title.trim()) P('problem', 'Metadata', 'The title is empty.');
+    if (!this.meta.Artist.trim()) P('problem', 'Metadata', 'The artist is empty.');
+    if (!this.meta.Creator.trim()) P('warning', 'Metadata', 'The creator is empty.');
+    for (const k of ['Title', 'Artist']) if (/[^\x20-\x7e]/.test(this.meta[k])) P('problem', 'Metadata', `The romanised ${k.toLowerCase()} has non-romanised characters (they go in the original language field).`);
+    if (!this.meta.Tags.trim()) P('negligible', 'Metadata', 'There are no tags (they help people find the beatmap).');
+    const rank = { problem: 0, warning: 1, negligible: 2 };
+    return out.sort((a, b) => rank[a.sev] - rank[b.sev] || (a.t ?? -1) - (b.t ?? -1));
+  },
+  verifyPage() {
+    const wrap = h('div.ed-form.ed-verify');
+    this.vShow = this.vShow || { problem: true, warning: true, negligible: false };
+    const NAMES = { problem: 'Problem', warning: 'Warning', negligible: 'Negligible' };
+    const paint = () => {
+      const all = this.issues(), list = all.filter(i => this.vShow[i.sev]);
+      const counts = { problem: 0, warning: 0, negligible: 0 }; for (const i of all) counts[i.sev]++;
+      const row = i => h(`button.ed-issue.${i.sev}`, { disabled: i.t == null, onclick: () => {
+        UISounds.click(); this.sel = new Set(i.notes || []); this.seek(i.t); this.showTab('compose');
+      } }, h('span.ed-isev', NAMES[i.sev]), h('span.ed-itime', i.t == null ? '' : fmtTime(Math.max(0, i.t))), h('span.ed-imsg', i.text), h('span.ed-icat', i.cat));
+      clearEl(wrap).append(h('h2', 'Verify'),
+        h('div.ed-vfilters', ...Object.keys(NAMES).map(k => h(`button.ed-vf.${k}${this.vShow[k] ? '.on' : ''}`, { onclick: () => { this.vShow[k] = !this.vShow[k]; UISounds.click(); paint(); } }, NAMES[k], h('b', String(counts[k]))))),
+        list.length ? h('div.ed-issues', h('div.ed-issue.head', h('span', 'Type'), h('span', 'Time'), h('span', 'Message'), h('span', 'Category')), ...list.slice(0, 300).map(row))
+          : h('div.ed-noissue', icon('check'), all.length ? 'Nothing to show with these filters.' : 'No issues found — this beatmap is ready to be played.'));
+    };
+    paint();
+    return wrap;
   },
   setDivisor(d) { this.divisor = d; Settings.set('editor.divisor', d); this.paintDivisor(); },
   setTool(t) { this.tool = t; for (const b of this.toolsEl.querySelectorAll('.ed-tool')) b.classList.toggle('on', b.dataset.tool === t); UISounds.click(); },
@@ -472,6 +593,12 @@ const EditorScreen = {
       o.fillStyle = 'rgba(154, 77, 255, .8)';
       bins.forEach((v, i) => { if (v) { const hh = Math.max(2, v / max * (H - 8)); o.fillRect(i * 3, H / 2 - hh / 2, 2, hh); } });
       for (const r of this.red) { o.fillStyle = '#ed1121'; o.fillRect(r.time / this.duration * W, 0, 1.5, 6); }
+      // (lazer's summary timeline parts: kiai sections, bookmarks and the preview point)
+      o.fillStyle = 'rgba(255, 153, 34, .75)';
+      for (const [a, b] of this.kiaiRanges()) o.fillRect(a / this.duration * W, H - 3, Math.max(1.5, (b - a) / this.duration * W), 3);
+      o.fillStyle = '#4080ff';
+      for (const b of this.bookmarks) o.fillRect(b / this.duration * W, H - 10, 1.5, 7);
+      if (this.preview >= 0) { o.fillStyle = '#88b300'; o.fillRect(this.preview / this.duration * W - 0.75, 0, 1.5, H); }
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.drawImage(this._tlImg, 0, 0);
     ctx.setTransform(k, 0, 0, k, 0, 0);
@@ -488,6 +615,8 @@ const EditorScreen = {
     if (ctrl && e.code === 'KeyS') { stop(); this.save(); return; }
     if (ctrl && e.code === 'KeyZ') { stop(); this.undoStep(!e.shiftKey); return; }
     if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
+    if (ctrl && e.code === 'KeyB') { stop(); this.toggleBookmark(e.shiftKey); return; }
+    if (ctrl && e.altKey && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); this.jumpBookmark(e.code === 'ArrowRight' ? 1 : -1); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
     // lazer: copy, cut and paste (at the current time, snapped)
     if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
@@ -530,6 +659,19 @@ const EditorScreen = {
       { label: 'Exit', icon: 'back', onClick: () => this.exit() },
     ]);
   },
+  /** lazer's Edit menu. */
+  editMenu() {
+    const r = this.editBtn.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, [
+      { label: 'Undo (Ctrl+Z)', icon: 'back', onClick: () => this.undoStep(true) },
+      { label: 'Redo (Ctrl+Y)', icon: 'retry', onClick: () => this.undoStep(false) },
+      { sep: true },
+      { label: 'Set preview point to current time', icon: 'music', onClick: () => this.setPreview() },
+      { label: 'Add bookmark (Ctrl+B)', icon: 'flag', onClick: () => this.toggleBookmark(false) },
+      { label: 'Remove closest bookmark (Ctrl+Shift+B)', icon: 'trash', onClick: () => this.toggleBookmark(true) },
+      { label: this.kiaiAt(this.snap(this.now())) ? 'End kiai here' : 'Start kiai here', icon: 'sparkle', onClick: () => this.toggleKiai() },
+    ]);
+  },
   /** The difficulty as an .osu file: the original, with its [Metadata], [Difficulty], [TimingPoints] and
    *  [HitObjects] written from the editor (`over`: a new difficulty's name and notes). */
   serialize(over = {}) {
@@ -543,6 +685,12 @@ const EditorScreen = {
     let text = this.text.replace(/\r\n/g, '\n');
     text = EditorScreen.setKeys(text, 'Metadata', meta);
     text = EditorScreen.setKeys(text, 'Difficulty', { HPDrainRate: +this.diffSet.hp.toFixed(1), OverallDifficulty: +this.diffSet.od.toFixed(1), CircleSize: this.keys });
+    text = EditorScreen.setKeys(text, 'General', { PreviewTime: Math.round(this.preview) });
+    if (this.bookmarks.length || /^\[Editor\]/m.test(text)) {
+      // (osu! keeps [Editor] between [General] and [Metadata])
+      if (!/^\[Editor\]/m.test(text)) text = /^\[Metadata\]/m.test(text) ? text.replace(/^\[Metadata\]/m, '[Editor]\n\n[Metadata]') : text;
+      text = EditorScreen.setKeys(text, 'Editor', { Bookmarks: this.bookmarks.map(Math.round).join(',') });
+    }
     text = EditorScreen.setSection(text, 'TimingPoints', tp);
     text = EditorScreen.setSection(text, 'HitObjects', hit);
     return text.replace(/\n{3,}/g, '\n\n');
