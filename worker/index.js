@@ -1,7 +1,7 @@
 /* Ashtonk!mania — Cloudflare Worker.
  * Serves the static client from ./public (ASSETS binding) and a small same-origin API:
  *   GET /api/health                                   → { ok, official, osuApps, proxy, multiplayer }
- *   GET /api/getBeatmaps?q&m&sort&cursor_string&s&nsfw&g&l → the osu! API's beatmapsets/search answer
+ *   GET /api/getBeatmaps?q&m&sort&cursor_string&s&nsfw&g&l&e → the osu! API's beatmapsets/search answer
  *   GET /api/getBeatmap?beatmapSetId=…                → one beatmap set from the osu! API
  *   GET /api/downloadBeatmap?destinationUrl=…         → an .osz from one of Web-Osu-Mania's download mirrors
  *   GET /api/download/:setId                          → the .osz from the first mirror that has it
@@ -34,7 +34,7 @@ const text = (msg, status) => new Response(msg, { status, statusText: status ===
 const timeout = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
 /** Web-Osu-Mania's getBeatmaps: only these parameters are passed on to osu!. */
-const KEEP_KEYS = new Set(['q', 'm', 'sort', 'cursor_string', 's', 'nsfw', 'g', 'l']);
+const KEEP_KEYS = new Set(['q', 'm', 'sort', 'cursor_string', 's', 'nsfw', 'g', 'l', 'e']); // (e: extra — has video / storyboard)
 /** WOM's getRateLimitMessage. */
 export const rateLimitMessage = retryAfter => `The site is being rate-limited by the osu! API, please try again ${retryAfter ? `after ${retryAfter} seconds` : 'later'}.`;
 const STATUS_MESSAGES = {

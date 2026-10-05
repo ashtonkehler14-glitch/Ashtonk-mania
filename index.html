@@ -16879,6 +16879,7 @@ const OnlineBeatmaps = {
     params.set('nsfw', String(p.nsfw !== false));
     if (p.genre) params.set('g', p.genre);
     if (p.language) params.set('l', p.language);
+    if (p.extra && p.extra.length) params.set('e', p.extra.join('.')); // (lazer's Extra filter: has video / has storyboard)
     const d = await this.api('api/getBeatmaps?' + params);
     const sets = (d.beatmapsets || []).map(x => this.normalize(x)).filter(Boolean)
       .map(s => ({ ...s, diffs: s.diffs.filter(x => (!p.keys.length || p.keys.includes(x.keys)) && (lo === null || x.stars >= lo) && (hi === null || x.stars <= hi)) }))
@@ -17015,7 +17016,7 @@ const EXPLORE_SORTS = [['title', 'Title'], ['artist', 'Artist'], ['difficulty', 
 // osu!'s genre and language ids, in the order osu! (and Web-Osu-Mania) list them
 const EXPLORE_GENRES = [[0, 'Any'], [1, 'Unspecified'], [2, 'Video Game'], [3, 'Anime'], [4, 'Rock'], [5, 'Pop'], [6, 'Other'], [7, 'Novelty'], [9, 'Hip Hop'], [10, 'Electronic'], [11, 'Metal'], [12, 'Classical'], [13, 'Folk'], [14, 'Jazz']];
 const EXPLORE_LANGUAGES = [[0, 'Any'], [2, 'English'], [4, 'Chinese'], [7, 'French'], [8, 'German'], [11, 'Italian'], [3, 'Japanese'], [6, 'Korean'], [10, 'Spanish'], [9, 'Swedish'], [12, 'Russian'], [13, 'Polish'], [5, 'Instrumental'], [1, 'Unspecified'], [14, 'Other']];
-const EXPLORE_DEFAULTS = { q: '', keys: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false, genre: 0, language: 0, nsfw: true, more: false };
+const EXPLORE_DEFAULTS = { q: '', keys: [], extra: [], status: 'leaderboard', sort: 'ranked', dir: 'desc', minStars: 0, maxStars: 20, hideOwned: false, genre: 0, language: 0, nsfw: true, more: false };
 /** "Anime · Japanese" from osu!'s genre / language ids (sources that don't send them give ''). */
 function genreLanguage(set) {
   const g = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
@@ -17052,11 +17053,12 @@ const ExplorerScreen = {
         st.more || st.minStars > 0 || st.maxStars < 20 ? h('div.ex-filter', h('span.ex-flabel', 'Stars'), this.starSliders()) : null,
         st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
         st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
+        st.more ? chipRow('Extra', [['video', 'Has video'], ['storyboard', 'Has storyboard']], v => (st.extra || []).includes(v), v => { const e = st.extra || []; st.extra = e.includes(v) ? e.filter(x => x !== v) : [...e, v]; }) : null,
         st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
         h('div.ex-filter', h('span.ex-flabel', ''), h('div.ex-chips',
           h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
           h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
-          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null))].filter(Boolean));
+          this.filtersChanged() ? h('button.ex-chip.ex-reset', { onclick: () => { Object.assign(st, { ...EXPLORE_DEFAULTS, keys: [], extra: [], more: st.more }); this.searchInput.value = ''; UISounds.click(); this.renderFilters(); this.newSearch(); Toast.show('Filters reset'); } }, icon('x'), 'Reset filters') : null))].filter(Boolean));
     };
     this.renderFilters();
     this.grid = h('div.ex-grid');
@@ -17132,7 +17134,7 @@ const ExplorerScreen = {
   filtersChanged() {
     const st = this.state, d = EXPLORE_DEFAULTS;
     return st.keys.length > 0 || st.status !== d.status || st.sort !== d.sort || st.dir !== d.dir || st.minStars !== d.minStars || st.maxStars !== d.maxStars
-      || st.genre !== d.genre || st.language !== d.language || st.nsfw !== d.nsfw;
+      || st.genre !== d.genre || st.language !== d.language || st.nsfw !== d.nsfw || (st.extra || []).length > 0;
   },
   async newSearch() {
     const st = this.state;
@@ -17144,7 +17146,7 @@ const ExplorerScreen = {
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw });
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw, extra: st.extra || [] });
       if (tok !== this.token) return;
       // pages come in osu!'s own order, one after another (as Web-Osu-Mania lists them)
       const seen = new Set(this.results.map(s => s.id));
