@@ -336,12 +336,12 @@ const HomeScreen = {
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
-      // a slow device (under 50fps over two seconds, once the menu has settled): from then on the lighter drawing of
+      // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (!this._slow && now - t0 > 1500) {
         if (document.hidden || dt >= 100) { winMs = winN = 0; } // (a hidden tab or a hitch isn't the device)
         else if ((winMs += dt, ++winN, winMs >= 2000)) {
-          if (winMs / winN > 20) { this._slow = true; document.documentElement.classList.add('slow'); }
+          if (winMs / winN > 18.2) { this._slow = true; document.documentElement.classList.add('slow'); }
           winMs = winN = 0;
         }
       }
@@ -621,6 +621,41 @@ const MenuTriangles = {
     [1148, 280, 103], [1219, 264, 186], [1321, 363, 103], [1236, 477, 64], [1269, 497, 83], [1353, 583, 64], [1254, 600, 94],
     [1220, 617, 195], [1119, 712, 195],
   ],
+  /** A worker that paints the picture, encodes it and finds a background's colour, away from the main thread (on a
+   *  slow Chromebook those took a quarter of a second each time the menu opened). null where workers can't. */
+  worker() {
+    if (this._w !== undefined) return this._w;
+    this._w = null;
+    try {
+      if (typeof OffscreenCanvas !== 'function' || typeof Worker !== 'function') return null;
+      const src = `const clamp = ${clamp.toString()};
+const rgbToHsl = ${rgbToHsl.toString()};
+const T = { OUTLINE: ${JSON.stringify(this.OUTLINE)}, SOLID: ${JSON.stringify(this.SOLID)}, RING: ${JSON.stringify(this.RING)}, ${this.paint.toString()} };
+onmessage = async ({ data: m }) => {
+  try {
+    if (m.avg) {
+      const bm = await createImageBitmap(await (await fetch(m.avg)).blob(), { resizeWidth: 12, resizeHeight: 12, resizeQuality: 'medium' });
+      const c = new OffscreenCanvas(12, 12), x = c.getContext('2d'); x.drawImage(bm, 0, 0); bm.close();
+      const d = x.getImageData(0, 0, 12, 12).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { const w = 0.2 + Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; n += w; }
+      const [hh, ss] = rgbToHsl(r / n, g / n, b / n);
+      postMessage({ id: m.id, col: [hh, clamp(ss * 1.1 + 0.08, 0.16, 0.62)] });
+    } else {
+      const c = new OffscreenCanvas(m.W, m.H);
+      T.paint(c.getContext('2d'), m.W, m.H, m.col);
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.95 }) });
+    }
+  } catch (e) { postMessage({ id: m.id, err: String(e) }); }
+};`;
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      const wait = new Map(); let id = 0;
+      w.onmessage = ({ data }) => { const f = wait.get(data.id); if (f) { wait.delete(data.id); f(data); } };
+      w.onerror = () => { for (const f of wait.values()) f({ err: 'worker' }); wait.clear(); this._w = null; };
+      this._w = { ask: m => new Promise(r => { const k = ++id; wait.set(k, r); w.postMessage({ ...m, id: k }); }) };
+    } catch (e) { this._w = null; }
+    return this._w;
+  },
   mount() {
     this.el = h('div.lz-tri', { 'aria-hidden': 'true' });
     this.running = true; this.col = null; this._drawn = null;
@@ -635,10 +670,13 @@ const MenuTriangles = {
   async fromImage(url) {
     let col = [326, 0.38];
     if (url) {
-      try {
-        const img = new Image(); img.crossOrigin = 'anonymous'; img.src = url; await img.decode();
+      const w = this.worker(), a = w && await w.ask({ avg: url });
+      if (a && a.col) col = a.col;
+      else try {
+        // (decoded straight to 12×12, off the main thread: decoding the whole background here stalled the menu)
+        const bm = await createImageBitmap(await (await fetch(url)).blob(), { resizeWidth: 12, resizeHeight: 12, resizeQuality: 'medium' });
         const c = document.createElement('canvas'); c.width = c.height = 12;
-        const x = c.getContext('2d'); x.drawImage(img, 0, 0, 12, 12);
+        const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0); bm.close();
         const d = x.getImageData(0, 0, 12, 12).data;
         let r = 0, g = 0, b = 0, n = 0;
         for (let i = 0; i < d.length; i += 4) { const w = 0.2 + Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; n += w; }
@@ -659,23 +697,34 @@ const MenuTriangles = {
     const key = `${this.col[0].toFixed(1)}|${this.col[1].toFixed(3)}|${W}x${H}`;
     if (key === this._drawn) return;
     this._drawn = key;
-    const cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    this.paint(cv.getContext('2d'), W, H, this.col);
-    // shown as a picture, not the canvas: a still image is decoded and uploaded once, where Chrome hands a canvas to
-    // the compositor again on every frame the menu animates (a big cost on slow Chromebooks)
-    cv.toBlob(async blob => {
-      if (key !== this._drawn || !blob) return;
+    // (the pictures already made are kept: coming back to the menu shows the last one straight away)
+    if (!this._urls) this._urls = new Map();
+    const show = async url => {
       const img = h('img', { alt: '', decoding: 'async', draggable: false });
-      img.src = URL.createObjectURL(blob);
+      img.src = url;
       try { await img.decode(); } catch (e) { /* shown when it loads */ }
-      if (key !== this._drawn || !el.isConnected) { URL.revokeObjectURL(img.src); return; }
-      const old = [...el.children], drop = () => old.forEach(o => { URL.revokeObjectURL(o.src); o.remove(); });
+      if (key !== this._drawn || !el.isConnected) return;
+      const old = [...el.children], drop = () => old.forEach(o => o.remove());
       el.append(img);
       if (!old.length || resized) { drop(); return; }
       img.classList.add('in');
       requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove('in')));
       setTimeout(drop, 1000);
+    };
+    if (this._urls.has(key)) { show(this._urls.get(key)); return; }
+    // painted off screen and shown as a picture, not the canvas: a still image is decoded and uploaded once, where
+    // Chrome hands a canvas to the compositor again on every frame the menu animates (a big cost on slow
+    // Chromebooks). (An OffscreenCanvas encodes it away from the main thread, as a JPEG: a PNG of the whole screen
+    // took a fifth of a second.)
+    const w = this.worker(), col = this.col;
+    const here = () => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; this.paint(cv.getContext('2d'), W, H, col); return new Promise(r => cv.toBlob(r, 'image/jpeg', 0.95)); };
+    const encoded = w ? w.ask({ W, H, col }).then(a => a.blob || here()) : here();
+    encoded.catch(() => null).then(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      this._urls.set(key, url);
+      if (this._urls.size > 4) { const [k, u] = this._urls.entries().next().value; this._urls.delete(k); setTimeout(() => URL.revokeObjectURL(u), 2000); }
+      if (key === this._drawn) show(url);
     });
   },
   paint(x, W, H, [hue, sat]) {

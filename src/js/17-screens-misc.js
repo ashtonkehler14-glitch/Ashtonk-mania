@@ -44,7 +44,7 @@ const BeatmapsScreen = {
     this.refresh();
     return el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); },
+  leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
   async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
   async renderSummary() {
     const maps = [...BeatmapManager.maps.values()];
@@ -71,27 +71,46 @@ const BeatmapsScreen = {
         'Drop .osz archives or beatmap folders anywhere on the window.'));
       return;
     }
-    for (const set of sets.slice(0, 400)) {
-      const thumb = h('div.mini-thumb', { style: { width: '84px', height: '52px' } });
-      BeatmapManager.thumbURL(set).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
-      const broken = set.maps.filter(m => m.problems.length);
-      const details = h('div', { hidden: true, style: { width: '100%', paddingTop: '8px' } },
-        h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
+    // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
+    // with its picture once it's near the screen, and its table of difficulties built only when it's opened
+    this._sets = sets; this._shown = 0;
+    if (this._io) this._io.disconnect();
+    const more = h('div.lib-more');
+    this.list.append(more);
+    this._io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) this.moreRows(more); }, { rootMargin: '600px' });
+    this._io.observe(more);
+    this.moreRows(more);
+  },
+  moreRows(more) {
+    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + 40);
+    if (from >= to) { more.remove(); if (this._io) this._io.disconnect(); return; }
+    this._shown = to;
+    const frag = document.createDocumentFragment();
+    for (const set of sets.slice(from, to)) frag.append(this.row(set));
+    more.before(frag);
+  },
+  row(set) {
+    const thumb = h('div.mini-thumb', { style: { width: '84px', height: '52px' } });
+    BeatmapManager.thumbURL(set, true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
+    const broken = set.maps.filter(m => m.problems.length);
+    const details = h('div', { hidden: true, style: { width: '100%', paddingTop: '8px' } });
+    const fill = () => {
+      if (details.firstChild) return;
+      details.append(h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
           ...set.maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', m.stars.toFixed(2)), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
             h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
         h('div.muted', { style: { fontSize: '.78rem', marginTop: '6px' } }, `Files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
-      const row = h('div.list-row', { style: { flexWrap: 'wrap' } },
-        thumb,
-        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
-        broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
-        Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
-        h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
-        h('button.icon-btn', { title: 'Details', onclick: () => { details.hidden = !details.hidden; } }, icon('info')),
-        h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
-        h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
-        details);
-      this.list.append(row);
-    }
+    };
+    return h('div.list-row.lib-row', { style: { flexWrap: 'wrap' } },
+      thumb,
+      h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
+      broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
+      Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
+      h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
+      h('button.icon-btn', { title: 'Details', onclick: () => { fill(); details.hidden = !details.hidden; } }, icon('info')),
+      h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
+      h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
+      details);
   },
 };
 
@@ -131,7 +150,7 @@ const CollectionsScreen = {
       const best = ScoreManager.best(hash);
       // the set's picture (like the Beatmaps page) instead of an empty slot where a grade goes; your grade by the title
       const thumb = h('div.mini-thumb', { style: { width: '68px', height: '42px' } });
-      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId)).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
+      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId), true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
       list.append(h('div.list-row', thumb,
         h('div.main', h('div.t', m ? `${m.artist} — ${m.title}` : 'Missing beatmap', best ? h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(best.grade)) : null), h('div.s', m ? `[${m.version}] · ${m.keys}K · ${m.creator}` : `hash ${hash.slice(0, 12)}… (not in library)`)),
         m ? starBadge(m.stars) : null,
@@ -269,7 +288,7 @@ const ProfileScreen = {
   beatmapCard(x, own) {
     const cover = h('div.pf-bc-cover');
     if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['card@2x', 'card', 'cover']);
-    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
+    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st, true).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
     const local = own && BeatmapManager.setById.get(x.setId);
     const open = () => {
       UISounds.click();
@@ -655,7 +674,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },

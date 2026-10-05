@@ -83,7 +83,10 @@ const SkinEditor = {
     this._key = e => this.onKey(e);
     window.addEventListener('keydown', this._key, true);
     this.paintList(); this.paintSettings();
-    const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); this.frame(); };
+    // (the boxes follow the HUD 15 times a second — each look at where things are makes the browser lay the page out
+    // again — and every frame while one is being dragged)
+    let n = 0;
+    const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); if (this._dragging || (n++ & 3) === 0) this.frame(); };
     this._raf = requestAnimationFrame(loop);
   },
   close() {
@@ -244,10 +247,12 @@ const SkinEditor = {
         L[p.id] = c; HudLayout.override = L; HudLayout.apply(hud);
       };
       const up = () => {
+        this._dragging = false;
         box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
         const L = HudLayout.override; HudLayout.override = null;
         if (moved && L) this.commit(L); else HudLayout.apply(hud);
       };
+      this._dragging = true;
       box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
     });
     return box;

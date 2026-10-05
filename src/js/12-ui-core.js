@@ -381,6 +381,9 @@ const Background = {
     let p = this._baked.get(key);
     if (p) return p;
     p = (async () => {
+      // (in the picture worker where it can: blurring here held up the menu each time the song changed)
+      const r0 = blur * 640 / Math.max(640, innerWidth), done = await ImageWorker.run({ op: 'blur', url, W: 640, r: r0 });
+      if (done && done.blob) return URL.createObjectURL(done.blob);
       const img = new Image();
       img.src = url;
       await img.decode();

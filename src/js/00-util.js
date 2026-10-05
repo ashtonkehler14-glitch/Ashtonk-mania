@@ -263,6 +263,20 @@ function loadImageBlob(blob) {
 
 /** Downscale an image blob to a JPEG thumbnail blob (for fast song-select panels). */
 async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
+  // (decoded and resized off the main thread where the browser can — a big background done here froze the menus for a
+  // moment on slow devices — then only copied onto the canvas and encoded, which is asynchronous too)
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const full = await createImageBitmap(blob);
+      const s = Math.min(1, maxW / full.width), w = Math.max(1, Math.round(full.width * s)), hh = Math.max(1, Math.round(full.height * s));
+      const bm = s < 1 ? await createImageBitmap(full, { resizeWidth: w, resizeHeight: hh, resizeQuality: 'high' }) : full;
+      if (bm !== full) full.close();
+      const c = document.createElement('canvas'); c.width = w; c.height = hh;
+      c.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return await new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
+    } catch (e) { /* not decodable this way: the image element below */ }
+  }
   const img = await loadImageBlob(blob);
   if (!img) return null;
   const s = Math.min(1, maxW / img.naturalWidth);
@@ -273,6 +287,44 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   URL.revokeObjectURL(img.src);
   return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
 }
+/** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
+const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
+
+/** Picture work off the main thread (a Web Worker with an OffscreenCanvas): blurring a song's background and similar
+ *  jobs froze the menus for a moment on slow devices each time the song changed. `run` resolves to null where workers
+ *  or OffscreenCanvas aren't available, and the caller does the work itself. */
+const ImageWorker = {
+  run(job) {
+    if (this.w === undefined) {
+      this.w = null;
+      try {
+        if (typeof OffscreenCanvas === 'function' && typeof Worker === 'function') {
+          const src = `onmessage = async ({ data: m }) => {
+  try {
+    if (m.op === 'blur') {
+      const blob = await (await fetch(m.url)).blob();
+      const full = await createImageBitmap(blob);
+      const W = m.W, H = Math.max(1, Math.round(W * full.height / Math.max(1, full.width)));
+      const bm = await createImageBitmap(full, { resizeWidth: W, resizeHeight: H, resizeQuality: 'high' }); full.close();
+      const c = new OffscreenCanvas(W, H), x = c.getContext('2d'), r = m.r;
+      x.filter = 'blur(' + r.toFixed(2) + 'px)';
+      x.drawImage(bm, -r * 2, -r * 2, W + r * 4, H + r * 4); bm.close();
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) });
+    } else postMessage({ id: m.id, err: 'unknown job' });
+  } catch (e) { postMessage({ id: m.id, err: String(e) }); }
+};`;
+          const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+          this.wait = new Map(); this.n = 0;
+          w.onmessage = ({ data }) => { const f = this.wait.get(data.id); if (f) { this.wait.delete(data.id); f(data.err ? null : data); } };
+          w.onerror = () => { for (const f of this.wait.values()) f(null); this.wait.clear(); this.w = null; };
+          this.w = w;
+        }
+      } catch (e) { this.w = null; }
+    }
+    if (!this.w) return Promise.resolve(null);
+    return new Promise(r => { const id = ++this.n; this.wait.set(id, r); this.w.postMessage({ ...job, id }); });
+  },
+};
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
 const BlobURLs = {

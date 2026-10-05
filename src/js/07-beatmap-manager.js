@@ -55,9 +55,12 @@ const BeatmapManager = {
   hasFile(setId, path) { const s = this.setById.get(setId); return !!(s && path && s.fileIndex[normPath(path).toLowerCase()]); },
   /** Song cards' pictures: sharp on big and high-density screens (they were 640px wide, which looked soft). */
   THUMB_W: 1280, THUMB_Q: 0.9, THUMB_V: 2,
-  async thumbURL(set) {
+  /** `small`: a 320px copy for small places (lists, profile cards) — the full card picture decoded into an 84px box,
+   *  hundreds at a time, stalled long lists. */
+  async thumbURL(set, small = false) {
     if (set && set.thumbV !== this.THUMB_V) this.upgradeThumb(set);
     if (!set || !set.thumb) return null;
+    if (small) return this.smallThumbURL(set);
     const cached = BlobURLs.map.get(`thumb:${set.id}`);
     if (cached) return cached;
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
@@ -70,17 +73,29 @@ const BeatmapManager = {
     const b = await this.getFile(map.setId, map.bgFile);
     return BlobURLs.get(key, b);
   },
-  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown. */
+  smallThumbURL(set) {
+    const key = `thumbs:${set.id}`;
+    if (BlobURLs.map.has(key)) return Promise.resolve(BlobURLs.map.get(key));
+    if (!this._small) this._small = new Map();
+    if (!this._small.has(key)) this._small.set(key, (async () => {
+      const b = await DB.get('files', `${set.id}/__thumb.jpg`);
+      const t = b && await makeThumbnail(b, 320, 0.85).catch(() => null);
+      return t ? BlobURLs.get(key, t) : (b ? BlobURLs.get(`thumb:${set.id}`, b) : null);
+    })().finally(() => this._small.delete(key)));
+    return this._small.get(key);
+  },
+  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown, and only when
+   *  the browser has a moment to spare (never in the middle of scrolling a list). */
   upgradeThumb(set) {
     if (set._thumbUp) return;
     set._thumbUp = true;
-    this._thumbQ = (this._thumbQ || Promise.resolve()).then(async () => {
+    this._thumbQ = (this._thumbQ || Promise.resolve()).then(() => new Promise(r => whenIdle(r))).then(async () => {
       if (set.thumbV === this.THUMB_V || this.setById.get(set.id) !== set) return;
       const m = (set.maps || []).find(x => x.bgFile && this.hasFile(set.id, x.bgFile));
       const b = m && await this.getFile(set.id, m.bgFile).catch(() => null);
       const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
       if (this.setById.get(set.id) !== set) return;
-      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); }
+      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); BlobURLs.drop(`thumbs:${set.id}`); }
       set.thumbV = this.THUMB_V;
       await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
       if (t) Bus.emit('thumb:changed', set.id);

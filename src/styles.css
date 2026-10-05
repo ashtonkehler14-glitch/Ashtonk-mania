@@ -4366,3 +4366,7 @@ html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(2
 .pf-bc-meta b { color: rgba(255, 255, 255, .9); }
 .pf-bc-foot { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; }
 .pf-bc-local { padding: 1px 8px; border-radius: 9px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+
+/* the beatmap library's rows: off-screen ones aren't laid out or painted (a big library scrolls like a small one) */
+.lib-row { content-visibility: auto; contain-intrinsic-size: auto 72px; }
+.lib-more { height: 1px; }

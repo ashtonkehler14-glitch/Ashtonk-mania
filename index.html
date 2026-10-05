@@ -4386,6 +4386,10 @@ html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(2
 .pf-bc-foot { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; }
 .pf-bc-local { padding: 1px 8px; border-radius: 9px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 
+/* the beatmap library's rows: off-screen ones aren't laid out or painted (a big library scrolls like a small one) */
+.lib-row { content-visibility: auto; contain-intrinsic-size: auto 72px; }
+.lib-more { height: 1px; }
+
 </style>
 </head>
 <body>
@@ -4675,6 +4679,20 @@ function loadImageBlob(blob) {
 
 /** Downscale an image blob to a JPEG thumbnail blob (for fast song-select panels). */
 async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
+  // (decoded and resized off the main thread where the browser can — a big background done here froze the menus for a
+  // moment on slow devices — then only copied onto the canvas and encoded, which is asynchronous too)
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const full = await createImageBitmap(blob);
+      const s = Math.min(1, maxW / full.width), w = Math.max(1, Math.round(full.width * s)), hh = Math.max(1, Math.round(full.height * s));
+      const bm = s < 1 ? await createImageBitmap(full, { resizeWidth: w, resizeHeight: hh, resizeQuality: 'high' }) : full;
+      if (bm !== full) full.close();
+      const c = document.createElement('canvas'); c.width = w; c.height = hh;
+      c.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      return await new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
+    } catch (e) { /* not decodable this way: the image element below */ }
+  }
   const img = await loadImageBlob(blob);
   if (!img) return null;
   const s = Math.min(1, maxW / img.naturalWidth);
@@ -4685,6 +4703,44 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   URL.revokeObjectURL(img.src);
   return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
 }
+/** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
+const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
+
+/** Picture work off the main thread (a Web Worker with an OffscreenCanvas): blurring a song's background and similar
+ *  jobs froze the menus for a moment on slow devices each time the song changed. `run` resolves to null where workers
+ *  or OffscreenCanvas aren't available, and the caller does the work itself. */
+const ImageWorker = {
+  run(job) {
+    if (this.w === undefined) {
+      this.w = null;
+      try {
+        if (typeof OffscreenCanvas === 'function' && typeof Worker === 'function') {
+          const src = `onmessage = async ({ data: m }) => {
+  try {
+    if (m.op === 'blur') {
+      const blob = await (await fetch(m.url)).blob();
+      const full = await createImageBitmap(blob);
+      const W = m.W, H = Math.max(1, Math.round(W * full.height / Math.max(1, full.width)));
+      const bm = await createImageBitmap(full, { resizeWidth: W, resizeHeight: H, resizeQuality: 'high' }); full.close();
+      const c = new OffscreenCanvas(W, H), x = c.getContext('2d'), r = m.r;
+      x.filter = 'blur(' + r.toFixed(2) + 'px)';
+      x.drawImage(bm, -r * 2, -r * 2, W + r * 4, H + r * 4); bm.close();
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) });
+    } else postMessage({ id: m.id, err: 'unknown job' });
+  } catch (e) { postMessage({ id: m.id, err: String(e) }); }
+};`;
+          const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+          this.wait = new Map(); this.n = 0;
+          w.onmessage = ({ data }) => { const f = this.wait.get(data.id); if (f) { this.wait.delete(data.id); f(data.err ? null : data); } };
+          w.onerror = () => { for (const f of this.wait.values()) f(null); this.wait.clear(); this.w = null; };
+          this.w = w;
+        }
+      } catch (e) { this.w = null; }
+    }
+    if (!this.w) return Promise.resolve(null);
+    return new Promise(r => { const id = ++this.n; this.wait.set(id, r); this.w.postMessage({ ...job, id }); });
+  },
+};
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
 const BlobURLs = {
@@ -7197,9 +7253,12 @@ const BeatmapManager = {
   hasFile(setId, path) { const s = this.setById.get(setId); return !!(s && path && s.fileIndex[normPath(path).toLowerCase()]); },
   /** Song cards' pictures: sharp on big and high-density screens (they were 640px wide, which looked soft). */
   THUMB_W: 1280, THUMB_Q: 0.9, THUMB_V: 2,
-  async thumbURL(set) {
+  /** `small`: a 320px copy for small places (lists, profile cards) — the full card picture decoded into an 84px box,
+   *  hundreds at a time, stalled long lists. */
+  async thumbURL(set, small = false) {
     if (set && set.thumbV !== this.THUMB_V) this.upgradeThumb(set);
     if (!set || !set.thumb) return null;
+    if (small) return this.smallThumbURL(set);
     const cached = BlobURLs.map.get(`thumb:${set.id}`);
     if (cached) return cached;
     const b = await DB.get('files', `${set.id}/__thumb.jpg`);
@@ -7212,17 +7271,29 @@ const BeatmapManager = {
     const b = await this.getFile(map.setId, map.bgFile);
     return BlobURLs.get(key, b);
   },
-  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown. */
+  smallThumbURL(set) {
+    const key = `thumbs:${set.id}`;
+    if (BlobURLs.map.has(key)) return Promise.resolve(BlobURLs.map.get(key));
+    if (!this._small) this._small = new Map();
+    if (!this._small.has(key)) this._small.set(key, (async () => {
+      const b = await DB.get('files', `${set.id}/__thumb.jpg`);
+      const t = b && await makeThumbnail(b, 320, 0.85).catch(() => null);
+      return t ? BlobURLs.get(key, t) : (b ? BlobURLs.get(`thumb:${set.id}`, b) : null);
+    })().finally(() => this._small.delete(key)));
+    return this._small.get(key);
+  },
+  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown, and only when
+   *  the browser has a moment to spare (never in the middle of scrolling a list). */
   upgradeThumb(set) {
     if (set._thumbUp) return;
     set._thumbUp = true;
-    this._thumbQ = (this._thumbQ || Promise.resolve()).then(async () => {
+    this._thumbQ = (this._thumbQ || Promise.resolve()).then(() => new Promise(r => whenIdle(r))).then(async () => {
       if (set.thumbV === this.THUMB_V || this.setById.get(set.id) !== set) return;
       const m = (set.maps || []).find(x => x.bgFile && this.hasFile(set.id, x.bgFile));
       const b = m && await this.getFile(set.id, m.bgFile).catch(() => null);
       const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
       if (this.setById.get(set.id) !== set) return;
-      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); }
+      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); BlobURLs.drop(`thumbs:${set.id}`); }
       set.thumbV = this.THUMB_V;
       await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
       if (t) Bus.emit('thumb:changed', set.id);
@@ -8565,6 +8636,10 @@ class ScrollMap {
 /** The visible (not fully transparent) part of an image, in its own pixels — worked out once per image. Skin textures
  *  are often mostly empty padding, and only this part is worth drawing. null: the pixels can't be read. */
 const _visibleBoxes = new WeakMap();
+/** Pre-scaled (and cropped) sprites, by image and size — shared by every renderer, so the skin previews, the skin
+ *  editor and each new play don't make them all again (that was most of what opening those cost on a slow device).
+ *  Each image keeps its 24 most recent sizes. */
+const SPRITES = { spr: new WeakMap(), crop: new WeakMap() };
 function visibleBox(img) {
   let b = _visibleBoxes.get(img);
   if (b !== undefined) return b;
@@ -8600,7 +8675,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
     this.crop = crop; this.cropX = 0;
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._tx = 0; this._noteRefW = 0;
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
@@ -8619,7 +8694,7 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0;
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
     this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = []; this._cmb = null; this.lastCombo = 0;
     this.resize(true);
@@ -8717,7 +8792,7 @@ class ManiaRenderer {
     return [Math.ceil(Math.max(sideL, light, 4 * s) + 2), Math.ceil(right + 2)];
   }
   _geom() {
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
     const s = this.H / 480;
@@ -11046,6 +11121,9 @@ const Background = {
     let p = this._baked.get(key);
     if (p) return p;
     p = (async () => {
+      // (in the picture worker where it can: blurring here held up the menu each time the song changed)
+      const r0 = blur * 640 / Math.max(640, innerWidth), done = await ImageWorker.run({ op: 'blur', url, W: 640, r: r0 });
+      if (done && done.blob) return URL.createObjectURL(done.blob);
       const img = new Image();
       img.src = url;
       await img.decode();
@@ -12233,12 +12311,12 @@ const HomeScreen = {
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
-      // a slow device (under 50fps over two seconds, once the menu has settled): from then on the lighter drawing of
+      // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (!this._slow && now - t0 > 1500) {
         if (document.hidden || dt >= 100) { winMs = winN = 0; } // (a hidden tab or a hitch isn't the device)
         else if ((winMs += dt, ++winN, winMs >= 2000)) {
-          if (winMs / winN > 20) { this._slow = true; document.documentElement.classList.add('slow'); }
+          if (winMs / winN > 18.2) { this._slow = true; document.documentElement.classList.add('slow'); }
           winMs = winN = 0;
         }
       }
@@ -12518,6 +12596,41 @@ const MenuTriangles = {
     [1148, 280, 103], [1219, 264, 186], [1321, 363, 103], [1236, 477, 64], [1269, 497, 83], [1353, 583, 64], [1254, 600, 94],
     [1220, 617, 195], [1119, 712, 195],
   ],
+  /** A worker that paints the picture, encodes it and finds a background's colour, away from the main thread (on a
+   *  slow Chromebook those took a quarter of a second each time the menu opened). null where workers can't. */
+  worker() {
+    if (this._w !== undefined) return this._w;
+    this._w = null;
+    try {
+      if (typeof OffscreenCanvas !== 'function' || typeof Worker !== 'function') return null;
+      const src = `const clamp = ${clamp.toString()};
+const rgbToHsl = ${rgbToHsl.toString()};
+const T = { OUTLINE: ${JSON.stringify(this.OUTLINE)}, SOLID: ${JSON.stringify(this.SOLID)}, RING: ${JSON.stringify(this.RING)}, ${this.paint.toString()} };
+onmessage = async ({ data: m }) => {
+  try {
+    if (m.avg) {
+      const bm = await createImageBitmap(await (await fetch(m.avg)).blob(), { resizeWidth: 12, resizeHeight: 12, resizeQuality: 'medium' });
+      const c = new OffscreenCanvas(12, 12), x = c.getContext('2d'); x.drawImage(bm, 0, 0); bm.close();
+      const d = x.getImageData(0, 0, 12, 12).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { const w = 0.2 + Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; n += w; }
+      const [hh, ss] = rgbToHsl(r / n, g / n, b / n);
+      postMessage({ id: m.id, col: [hh, clamp(ss * 1.1 + 0.08, 0.16, 0.62)] });
+    } else {
+      const c = new OffscreenCanvas(m.W, m.H);
+      T.paint(c.getContext('2d'), m.W, m.H, m.col);
+      postMessage({ id: m.id, blob: await c.convertToBlob({ type: 'image/jpeg', quality: 0.95 }) });
+    }
+  } catch (e) { postMessage({ id: m.id, err: String(e) }); }
+};`;
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      const wait = new Map(); let id = 0;
+      w.onmessage = ({ data }) => { const f = wait.get(data.id); if (f) { wait.delete(data.id); f(data); } };
+      w.onerror = () => { for (const f of wait.values()) f({ err: 'worker' }); wait.clear(); this._w = null; };
+      this._w = { ask: m => new Promise(r => { const k = ++id; wait.set(k, r); w.postMessage({ ...m, id: k }); }) };
+    } catch (e) { this._w = null; }
+    return this._w;
+  },
   mount() {
     this.el = h('div.lz-tri', { 'aria-hidden': 'true' });
     this.running = true; this.col = null; this._drawn = null;
@@ -12532,10 +12645,13 @@ const MenuTriangles = {
   async fromImage(url) {
     let col = [326, 0.38];
     if (url) {
-      try {
-        const img = new Image(); img.crossOrigin = 'anonymous'; img.src = url; await img.decode();
+      const w = this.worker(), a = w && await w.ask({ avg: url });
+      if (a && a.col) col = a.col;
+      else try {
+        // (decoded straight to 12×12, off the main thread: decoding the whole background here stalled the menu)
+        const bm = await createImageBitmap(await (await fetch(url)).blob(), { resizeWidth: 12, resizeHeight: 12, resizeQuality: 'medium' });
         const c = document.createElement('canvas'); c.width = c.height = 12;
-        const x = c.getContext('2d'); x.drawImage(img, 0, 0, 12, 12);
+        const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0); bm.close();
         const d = x.getImageData(0, 0, 12, 12).data;
         let r = 0, g = 0, b = 0, n = 0;
         for (let i = 0; i < d.length; i += 4) { const w = 0.2 + Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; n += w; }
@@ -12556,23 +12672,34 @@ const MenuTriangles = {
     const key = `${this.col[0].toFixed(1)}|${this.col[1].toFixed(3)}|${W}x${H}`;
     if (key === this._drawn) return;
     this._drawn = key;
-    const cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    this.paint(cv.getContext('2d'), W, H, this.col);
-    // shown as a picture, not the canvas: a still image is decoded and uploaded once, where Chrome hands a canvas to
-    // the compositor again on every frame the menu animates (a big cost on slow Chromebooks)
-    cv.toBlob(async blob => {
-      if (key !== this._drawn || !blob) return;
+    // (the pictures already made are kept: coming back to the menu shows the last one straight away)
+    if (!this._urls) this._urls = new Map();
+    const show = async url => {
       const img = h('img', { alt: '', decoding: 'async', draggable: false });
-      img.src = URL.createObjectURL(blob);
+      img.src = url;
       try { await img.decode(); } catch (e) { /* shown when it loads */ }
-      if (key !== this._drawn || !el.isConnected) { URL.revokeObjectURL(img.src); return; }
-      const old = [...el.children], drop = () => old.forEach(o => { URL.revokeObjectURL(o.src); o.remove(); });
+      if (key !== this._drawn || !el.isConnected) return;
+      const old = [...el.children], drop = () => old.forEach(o => o.remove());
       el.append(img);
       if (!old.length || resized) { drop(); return; }
       img.classList.add('in');
       requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove('in')));
       setTimeout(drop, 1000);
+    };
+    if (this._urls.has(key)) { show(this._urls.get(key)); return; }
+    // painted off screen and shown as a picture, not the canvas: a still image is decoded and uploaded once, where
+    // Chrome hands a canvas to the compositor again on every frame the menu animates (a big cost on slow
+    // Chromebooks). (An OffscreenCanvas encodes it away from the main thread, as a JPEG: a PNG of the whole screen
+    // took a fifth of a second.)
+    const w = this.worker(), col = this.col;
+    const here = () => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; this.paint(cv.getContext('2d'), W, H, col); return new Promise(r => cv.toBlob(r, 'image/jpeg', 0.95)); };
+    const encoded = w ? w.ask({ W, H, col }).then(a => a.blob || here()) : here();
+    encoded.catch(() => null).then(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      this._urls.set(key, url);
+      if (this._urls.size > 4) { const [k, u] = this._urls.entries().next().value; this._urls.delete(k); setTimeout(() => URL.revokeObjectURL(u), 2000); }
+      if (key === this._drawn) show(url);
     });
   },
   paint(x, W, H, [hue, sat]) {
@@ -16288,7 +16415,10 @@ const SkinEditor = {
     this._key = e => this.onKey(e);
     window.addEventListener('keydown', this._key, true);
     this.paintList(); this.paintSettings();
-    const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); this.frame(); };
+    // (the boxes follow the HUD 15 times a second — each look at where things are makes the browser lay the page out
+    // again — and every frame while one is being dragged)
+    let n = 0;
+    const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); if (this._dragging || (n++ & 3) === 0) this.frame(); };
     this._raf = requestAnimationFrame(loop);
   },
   close() {
@@ -16449,10 +16579,12 @@ const SkinEditor = {
         L[p.id] = c; HudLayout.override = L; HudLayout.apply(hud);
       };
       const up = () => {
+        this._dragging = false;
         box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
         const L = HudLayout.override; HudLayout.override = null;
         if (moved && L) this.commit(L); else HudLayout.apply(hud);
       };
+      this._dragging = true;
       box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
     });
     return box;
@@ -17126,7 +17258,7 @@ const BeatmapsScreen = {
     this.refresh();
     return el;
   },
-  leave() { (this._unsub || []).forEach(f => f()); },
+  leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
   async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
   async renderSummary() {
     const maps = [...BeatmapManager.maps.values()];
@@ -17153,27 +17285,46 @@ const BeatmapsScreen = {
         'Drop .osz archives or beatmap folders anywhere on the window.'));
       return;
     }
-    for (const set of sets.slice(0, 400)) {
-      const thumb = h('div.mini-thumb', { style: { width: '84px', height: '52px' } });
-      BeatmapManager.thumbURL(set).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
-      const broken = set.maps.filter(m => m.problems.length);
-      const details = h('div', { hidden: true, style: { width: '100%', paddingTop: '8px' } },
-        h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
+    // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
+    // with its picture once it's near the screen, and its table of difficulties built only when it's opened
+    this._sets = sets; this._shown = 0;
+    if (this._io) this._io.disconnect();
+    const more = h('div.lib-more');
+    this.list.append(more);
+    this._io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) this.moreRows(more); }, { rootMargin: '600px' });
+    this._io.observe(more);
+    this.moreRows(more);
+  },
+  moreRows(more) {
+    const sets = this._sets || [], from = this._shown, to = Math.min(sets.length, from + 40);
+    if (from >= to) { more.remove(); if (this._io) this._io.disconnect(); return; }
+    this._shown = to;
+    const frag = document.createDocumentFragment();
+    for (const set of sets.slice(from, to)) frag.append(this.row(set));
+    more.before(frag);
+  },
+  row(set) {
+    const thumb = h('div.mini-thumb', { style: { width: '84px', height: '52px' } });
+    BeatmapManager.thumbURL(set, true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
+    const broken = set.maps.filter(m => m.problems.length);
+    const details = h('div', { hidden: true, style: { width: '100%', paddingTop: '8px' } });
+    const fill = () => {
+      if (details.firstChild) return;
+      details.append(h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
           ...set.maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', m.stars.toFixed(2)), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
             h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
         h('div.muted', { style: { fontSize: '.78rem', marginTop: '6px' } }, `Files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
-      const row = h('div.list-row', { style: { flexWrap: 'wrap' } },
-        thumb,
-        h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
-        broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
-        Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
-        h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
-        h('button.icon-btn', { title: 'Details', onclick: () => { details.hidden = !details.hidden; } }, icon('info')),
-        h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
-        h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
-        details);
-      this.list.append(row);
-    }
+    };
+    return h('div.list-row.lib-row', { style: { flexWrap: 'wrap' } },
+      thumb,
+      h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
+      broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
+      Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
+      h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
+      h('button.icon-btn', { title: 'Details', onclick: () => { fill(); details.hidden = !details.hidden; } }, icon('info')),
+      h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
+      h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
+      details);
   },
 };
 
@@ -17213,7 +17364,7 @@ const CollectionsScreen = {
       const best = ScoreManager.best(hash);
       // the set's picture (like the Beatmaps page) instead of an empty slot where a grade goes; your grade by the title
       const thumb = h('div.mini-thumb', { style: { width: '68px', height: '42px' } });
-      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId)).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
+      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId), true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
       list.append(h('div.list-row', thumb,
         h('div.main', h('div.t', m ? `${m.artist} — ${m.title}` : 'Missing beatmap', best ? h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(best.grade)) : null), h('div.s', m ? `[${m.version}] · ${m.keys}K · ${m.creator}` : `hash ${hash.slice(0, 12)}… (not in library)`)),
         m ? starBadge(m.stars) : null,
@@ -17351,7 +17502,7 @@ const ProfileScreen = {
   beatmapCard(x, own) {
     const cover = h('div.pf-bc-cover');
     if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['card@2x', 'card', 'cover']);
-    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
+    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st, true).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
     const local = own && BeatmapManager.setById.get(x.setId);
     const open = () => {
       UISounds.click();
@@ -17737,7 +17888,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },

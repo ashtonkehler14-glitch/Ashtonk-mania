@@ -22,6 +22,10 @@ class ScrollMap {
 /** The visible (not fully transparent) part of an image, in its own pixels — worked out once per image. Skin textures
  *  are often mostly empty padding, and only this part is worth drawing. null: the pixels can't be read. */
 const _visibleBoxes = new WeakMap();
+/** Pre-scaled (and cropped) sprites, by image and size — shared by every renderer, so the skin previews, the skin
+ *  editor and each new play don't make them all again (that was most of what opening those cost on a slow device).
+ *  Each image keeps its 24 most recent sizes. */
+const SPRITES = { spr: new WeakMap(), crop: new WeakMap() };
 function visibleBox(img) {
   let b = _visibleBoxes.get(img);
   if (b !== undefined) return b;
@@ -57,7 +61,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false } = {}) {
     this.canvas = canvas;
     this.crop = crop; this.cropX = 0;
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._tx = 0; this._noteRefW = 0;
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
       this._ro = new ResizeObserver(es => { const r = es[es.length - 1].contentRect; this._hostW = r.width; this._hostH = r.height; });
@@ -76,7 +80,7 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0;
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
     this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = []; this._cmb = null; this.lastCombo = 0;
     this.resize(true);
@@ -174,7 +178,7 @@ class ManiaRenderer {
     return [Math.ceil(Math.max(sideL, light, 4 * s) + 2), Math.ceil(right + 2)];
   }
   _geom() {
-    this._spr = new WeakMap(); this._crop = new WeakMap(); this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
+    this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
     const s = this.H / 480;
