@@ -4324,6 +4324,9 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
   .pf-name { font-size: 1.5rem; }
   .page-back .lz-back, .ss-footer .lz-back { height: 40px; min-width: 104px; font-size: .85rem; }
 }
+/* (the results card fits a sideways phone's height instead of scrolling) */
+@media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
+@media (max-height: 420px) { .results .rs { zoom: .64; } }
 
 </style>
 </head>
