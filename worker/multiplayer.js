@@ -1151,6 +1151,8 @@ export class Matchmaker {
         return;
       }
       if (!this.presence.users.has(id)) { try { server.close(4001, 'stale'); } catch { /* closed */ } return; } // pruned: the client reconnects
+      // the tab closing: off the list now (the close itself may never arrive)
+      if (msg.t === 'bye') { gone(); try { server.close(1000, 'bye'); } catch { /* closed */ } return; }
       // (a beatmap's leaderboard comes out of storage the first time it's asked for)
       // (and a player's profile the first time it's opened)
       if (msg.t === 'profile' && /^[a-z0-9]{6,24}$/.test(String(msg.pid || '')) && !this.presence.profiles.has(msg.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(msg.pid)) {

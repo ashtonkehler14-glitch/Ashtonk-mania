@@ -529,6 +529,9 @@ const Presence = {
 // Closing (or reloading) the tab is leaving on purpose: the room is told at once, rather than waiting for a dropped
 // connection to come back. (A page frozen into the back/forward cache just drops, and reconnects if it's restored.)
 addEventListener('pagehide', e => {
+  // (and you're off the online list at once, rather than when the server notices the silence)
+  const pw = Presence.ws;
+  if (pw && !e.persisted) { try { if (pw.readyState === 1) pw.send(JSON.stringify({ t: 'bye' })); pw.close(1000, 'bye'); } catch { /* closing */ } }
   const ws = Multiplayer.ws;
   if (e.persisted || !ws) return;
   try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); } catch { /* closing */ }
