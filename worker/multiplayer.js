@@ -129,7 +129,9 @@ export class RoomLogic {
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
-      starting: !!this.pendingStart, players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away })),
+      starting: !!this.pendingStart, players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away,
+        // (their song's over: what they got — judged, or as their game reported it while the judge checks it)
+        fin: this.state === 'playing' && p.playing && (p.finished || p.claimed) ? (({ score, accuracy, maxCombo, counts, grade, passed, forfeit }) => ({ score, accuracy, maxCombo, counts, grade, passed, forfeit, checked: !!p.finished }))(p.finished || p.claimed) : null })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
@@ -396,7 +398,8 @@ export class RoomLogic {
         // the result is the judged play, or 0 if none comes in time
         if (this.state !== 'playing' || !p.playing || p.finished || p.claimed) return [];
         p.claimed = cleanResult(m.result); p.verifyDue = this.now() + VERIFY_WAIT;
-        return this.checkFinished();
+        // (everyone's told straight away that their song's over — not only once every play has been judged)
+        return (o => o.length ? o : [this.roomMsg()])(this.checkFinished());
       case 'quit':
         if (this.state !== 'playing' || !p.playing || p.finished) return [];
         // Ranked Play: leaving the song scores 0 for this round; the other player plays on
@@ -570,7 +573,7 @@ export class RoomLogic {
       return { error: r.error || (!sameMap ? 'Not this room\'s beatmap.' : 'Not the room\'s mods.'), out: this.checkFinished() };
     }
     p.finished = { score: r.score, accuracy: r.accuracy, maxCombo: r.maxCombo, counts: r.counts, grade: r.failed ? 'F' : r.grade, passed: !r.failed, pp: r.pp, forfeit: false, verified: true };
-    return { ok: true, out: this.checkFinished() };
+    return { ok: true, out: (o => o.length ? o : [this.roomMsg()])(this.checkFinished()) };
   }
 
   checkFinished(someoneLeft = false) {

@@ -138,7 +138,12 @@ test('live scores go to the opponent only; with win by pp, higher pp wins', () =
   const r = room(); r.message('a', { t: 'settings', settings: { win: 'pp' } }); ready(r); r.message('a', { t: 'start' });
   const live = r.message('a', { t: 'score', score: 5000, acc: 0.99, combo: 10, hp: 1 });
   assert.deepEqual(live[0].to, { except: 'a' });
-  assert.equal(r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, passed: true, grade: 'A', pp: 120 } }).length, 0, 'waits for both');
+  const first = r.message('a', { t: 'finish', result: { score: 900000, accuracy: 0.97, passed: true, grade: 'A', pp: 120 } });
+  assert.equal(msgs(first, 'results').length, 0, 'waits for both');
+  // (but the room hears straight away that a's song is over, with what they got)
+  const seen = msgs(first, 'room').pop().msg.room.players.find(p => p.id === 'a').fin;
+  assert.ok(seen && seen.score === 900000 && seen.grade === 'A', JSON.stringify(seen));
+  assert.equal(msgs(first, 'room').pop().msg.room.players.find(p => p.id === 'b').fin, null);
   const out = r.message('b', { t: 'finish', result: { score: 950000, accuracy: 0.95, passed: true, grade: 'A', pp: 95 } });
   const res = msgs(out, 'results')[0].msg.results;
   assert.equal(res.winner, 'a', 'more pp wins even with less score (e.g. a harder difficulty)');

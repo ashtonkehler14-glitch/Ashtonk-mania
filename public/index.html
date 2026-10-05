@@ -1316,6 +1316,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-pstate i .i { width: 11px; height: 11px; stroke-width: 3.4; }
 .mp-pstate.ready i { background: #aadd00; }
 .mp-pstate.playing i { background: #8fd4ff; }
+.mp-pstate.finished i { background: #ffcc22; }
 .mp-state { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: var(--text-2); }
 .mp-state.on { background: #88b300; color: #fff; }
 .mp-state.warn { background: rgba(255, 204, 34, .15); color: #ffcc22; }
@@ -17597,7 +17598,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -21437,7 +21438,7 @@ const MultiplayerScreen = {
       // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
       if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
-      const state = p.playing ? 'playing' : r.map && p.ready ? 'ready' : ''; // (a beatmap still downloading isn't shown: it installs in the background)
+      const state = p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : ''; // (a beatmap still downloading isn't shown: it installs in the background)
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
@@ -21445,12 +21446,12 @@ const MultiplayerScreen = {
         h('span.grow'),
         (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
-        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
+        !isMe && p.playing && !p.fin && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
           UISounds.click();
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'ready' ? 'check' : 'play')), state) : null));
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : 'check')), state) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
@@ -23580,10 +23581,14 @@ const MpResults = {
     if (res) return { res, rows: res.rows };
     const room = Multiplayer.room, rows = [];
     if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, mods: this.my.mods, done: true });
-    for (const [id, o] of Multiplayer.opps || []) {
-      const p = room && room.players.find(x => x.id === id);
+    // (everyone in the match: those with live scores, and any that haven't sent one)
+    const opps = Multiplayer.opps || new Map(), ids = new Set([...opps.keys(), ...(room ? room.players.filter(x => x.playing).map(x => x.id) : [])]);
+    for (const id of ids) {
+      const p = room && room.players.find(x => x.id === id), o = opps.get(id) || {};
       if (!p || id === Multiplayer.me) continue;
-      rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, counts: null, grade: null, mods: [], pending: true });
+      // (their song's over: their result, as the server has it — still being checked, or judged — not "still playing")
+      if (p.fin) rows.push({ id, name: p.name, score: p.fin.score, accuracy: p.fin.accuracy, maxCombo: p.fin.maxCombo, counts: p.fin.counts, grade: p.fin.forfeit ? 'F' : p.fin.grade, mods: p.mods || [], done: true });
+      else rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, counts: null, grade: null, mods: [], pending: true });
     }
     rows.sort((a, b) => b.score - a.score);
     rows.forEach((r, i) => { r.place = i + 1; });
