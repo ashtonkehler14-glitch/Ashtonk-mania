@@ -1547,6 +1547,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return {
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
+      status: (BeatmapManager.setById.get(s.rec.setId) || {}).status || null, // (only plays on ranked beatmaps count toward pp)
       keys: s.keys, stars, pp,
       mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),

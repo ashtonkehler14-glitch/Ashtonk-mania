@@ -672,9 +672,11 @@ check('beatmap sources: choosing Beatconnect / SayoBot / a custom URL changes wh
   src.alt.preview === 'https://beatconnect.io/preview/5.mp3' && src.alt.cover === 'https://a.sayobot.cn/beatmaps/5/covers/cover.webp'
   && src.alt.dl[0] === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://dl.sayobot.cn/beatmaps/download/5') && src.alt.direct[0] === 'https://dl.sayobot.cn/beatmaps/download/5' && src.custom === 'https://example.org/d/5', JSON.stringify(src));
 
-// pp tracking
+// pp tracking (ranked beatmaps only: the test set counts as ranked, then not)
+const unrankedPp = await page.evaluate(() => AshtonkMania.ScoreManager.totalPp().total);
+await page.evaluate(() => { for (const s of AshtonkMania.BeatmapManager.sets) s.status = 'ranked'; });
 const ppInfo = await page.evaluate(() => ({ total: AshtonkMania.ScoreManager.totalPp().total, best: AshtonkMania.ScoreManager.bestPpPerMap().length }));
-check('pp is tracked from passed scores', ppInfo.total > 0 && ppInfo.best >= 1, JSON.stringify(ppInfo));
+check('pp is tracked from passed scores on ranked beatmaps only', ppInfo.total > 0 && ppInfo.best >= 1 && unrankedPp === 0, JSON.stringify({ ...ppInfo, unrankedPp }));
 // score display: always osu!lazer's standardised score (the setting is gone)
 {
   const sd = await page.evaluate(async () => {

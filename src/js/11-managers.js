@@ -30,10 +30,20 @@ const ScoreManager = {
     const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
     return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);
   },
-  /** Best pp per beatmap (osu! counts one score per map toward the total). */
+  /** As in osu!, only plays on ranked (or approved) beatmaps count toward your pp — loved, qualified, pending and
+   *  graveyard ones, and beatmaps that aren't online, don't. The status the set had when the score was set, else
+   *  the one looked up for it now. */
+  isRanked(s) {
+    let st = s && s.status;
+    if (!st && typeof BeatmapManager !== 'undefined') { const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId); st = set && set.status; }
+    st = String(st || '').toLowerCase();
+    return st === 'ranked' || st === 'approved';
+  },
+  /** Best pp per beatmap (osu! counts one score per map toward the total; ranked beatmaps only). */
   bestPpPerMap(scores = this.scores) {
     const best = new Map();
     for (const s of scores) {
+      if (!this.isRanked(s)) continue;
       const pp = this.ppOf(s);
       if (pp > 0 && (!best.has(s.mapHash) || best.get(s.mapHash).pp < pp)) best.set(s.mapHash, { pp, score: s });
     }
@@ -44,7 +54,7 @@ const ScoreManager = {
   ppHistory() {
     const out = [], best = new Map();
     for (const s of this.scores) {
-      const pp = this.ppOf(s);
+      const pp = this.isRanked(s) ? this.ppOf(s) : 0;
       if (pp > (best.get(s.mapHash) || 0)) best.set(s.mapHash, pp);
       else if (!pp) continue;
       out.push({ date: s.date, pp: OsuMath.totalPp([...best.values()]).total, title: s.title, version: s.version });

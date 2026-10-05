@@ -1339,6 +1339,12 @@ export async function handleMultiplayer(request, env, url) {
   if (path === '/api/mp/score' && request.method === 'POST') {
     const j = await judgePlay(request, {});
     if (j.res) return j.res;
+    // (as in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API, kept a week)
+    if (j.r && !j.r.error && j.r.pp > 0 && env.TEST_ALL_RANKED !== '1') {
+      let st = '';
+      if (j.r.beatmapSetId > 0) { try { st = String((await officialGet(`beatmapsets/${j.r.beatmapSetId}`, env, fetch, 7 * 86400000)).status || ''); } catch { st = ''; } }
+      if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
+    }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
   }

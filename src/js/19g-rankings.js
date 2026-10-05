@@ -13,7 +13,7 @@ const Rankings = {
   },
   reportSoon() { clearTimeout(this._rt); this._rt = setTimeout(() => this.report(), 2000); },
 };
-for (const ev of ['scores:changed', 'profile:changed']) Bus.on(ev, () => Rankings.reportSoon());
+for (const ev of ['scores:changed', 'profile:changed', 'library:changed']) Bus.on(ev, () => Rankings.reportSoon()); // (library: ranked statuses arriving change what counts)
 
 /** Online scores: a passed play goes to the game server as the beatmap file and the key presses — never as a score.
  *  The server checks the file against the beatmap's id, plays the key presses through the game's own judging
