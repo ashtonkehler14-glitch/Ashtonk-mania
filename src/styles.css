@@ -4031,3 +4031,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-bg.sb-hide { opacity: 0; }
 
 .pl-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
+
+.bso-gscore { cursor: pointer; }
+.bso-gscore:hover { background: rgba(255, 255, 255, .06); }
+.bso-gscore.me b { color: #ffd966; }
+.bso-mods { font-size: 11px; }

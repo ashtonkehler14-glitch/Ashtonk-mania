@@ -750,6 +750,9 @@ export class PresenceLogic {
     this.dailyStats = new Map(); this.persistDailyStats = null;
     // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
     this.boards = new Map(); this.persistBoard = null;
+    // each board's osu! beatmap id (read from the judged file), so a beatmap's board can be found by its id alone —
+    // lazer's beatmap overlay, before it's downloaded (lbid:<id> in storage)
+    this.boardIds = new Map(); this.persistBoardId = null;
     // players' keys, by public id (only the key's SHA-256 is kept): pid → hash
     this.auth = new Map(); this.persistAuth = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
@@ -822,6 +825,7 @@ export class PresenceLogic {
       this.boards.set(key, next);
       if (this.persistBoard) this.persistBoard(key, next);
     }
+    if (r.beatmapId > 0 && this.boardIds.get(r.beatmapId) !== key) { this.boardIds.set(r.beatmapId, key); if (this.persistBoardId) this.persistBoardId(r.beatmapId, key); }
     // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
     const rec = old || { pid, name, avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
     if (!rec.bests) rec.bests = {}; // (a record from before the server judged plays: its pp stays as reported)
@@ -1093,7 +1097,12 @@ export class PresenceLogic {
       p.ends = this.now(); this.savePlaylist(p);
       return [{ to: id, msg: this.plMsg(p, u.pid) }];
     }
-    if (msg.t === 'lb') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.boardMsg(key, u.pid, msg.scope) }] : []; }
+    if (msg.t === 'lb') {
+      // (by the beatmap's file hash, or — `id` — by its osu! beatmap id)
+      const bid = Math.floor(Number(msg.id) || 0), key = bid > 0 ? this.boardIds.get(bid) : PresenceLogic.lbKey(msg.key);
+      if (bid > 0 && !key) return [{ to: id, msg: { t: 'lb', id: bid, key: '', scope: msg.scope === 'friends' ? 'friends' : 'global', total: 0, you: null, scores: [] } }];
+      return key ? [{ to: id, msg: { ...this.boardMsg(key, u.pid, msg.scope), ...(bid > 0 ? { id: bid } : {}) } }] : [];
+    }
     // (scores go up only as plays the server judges itself: POST /api/mp/score — see Matchmaker.score)
     if (msg.t === 'dailyPropose') {
       // the first proposal of the day wins (everyone then gets it)
@@ -1299,7 +1308,17 @@ export class Matchmaker {
         });
         return;
       }
-      const key = (msg.t === 'lb' || msg.t === 'lbSubmit') && PresenceLogic.lbKey(msg.key);
+      // (a board asked for by beatmap id: which board that is comes out of storage first)
+      const bid = msg.t === 'lb' ? Math.floor(Number(msg.id) || 0) : 0;
+      if (bid > 0 && !this.presence.boardIds.has(bid) && !(this._bidMiss || (this._bidMiss = new Set())).has(bid)) {
+        this.state.storage.get(`lbid:${bid}`).catch(() => null).then(k => {
+          if (typeof k === 'string' && !this.presence.boardIds.has(bid)) this.presence.boardIds.set(bid, k); else if (!k) this._bidMiss.add(bid);
+          if (this._bidMiss.size > 5000) this._bidMiss.clear();
+          if (this.presence.users.has(id)) onMessage({ data: JSON.stringify(msg) });
+        });
+        return;
+      }
+      const key = (msg.t === 'lb' || msg.t === 'lbSubmit') && (bid > 0 ? this.presence.boardIds.get(bid) : PresenceLogic.lbKey(msg.key));
       if (key && !this.presence.boards.has(key)) {
         this.state.storage.get(`lb:${key}`).catch(() => null).then(v => {
           if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []);
@@ -1361,6 +1380,7 @@ export class Matchmaker {
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistPlaylist = p => { st.put(`pl:${p.id}`, p).catch(() => {}); };
+      this.presence.persistBoardId = (bid, key) => { this._bidMiss && this._bidMiss.delete(bid); st.put(`lbid:${bid}`, key).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
       this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
       this.presence.persistProfile = (pid, data) => { st.put(`pf:${pid}`, data).catch(() => {}); };

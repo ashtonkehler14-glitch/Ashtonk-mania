@@ -321,7 +321,9 @@ const ExplorerScreen = {
     window.addEventListener('online', online);
     const resized = () => this.renderWindow(); // (a different width can mean a different number of columns)
     window.addEventListener('resize', resized);
-    this._unsub = [Bus.on('library:changed', () => this.renderResults()), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
+    this._unsub = [Bus.on('library:changed', () => this.renderResults()),
+      // (a difficulty's global board, asked for by its beatmap id, for the open beatmap overlay)
+      Bus.on('lb', m => { if (!m.id) return; (this.lbById ||= new Map()).set(m.id, { ...m, at: Date.now() }); if (this.setView && this.setView.diff && this.setView.diff.id === m.id) this.renderSet(); }), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
@@ -597,6 +599,19 @@ const ExplorerScreen = {
     const localMap = owned ? owned.maps.find(x => x.onlineId === d.id) : null;
     const localScores = localMap ? ScoreManager.forMap(localMap.hash).slice(0, 8) : [];
     const basic = (ic, label, v) => h('div.bso-basic', icon(ic), h('span', label), h('b', v));
+    // lazer's scores section: the difficulty's global leaderboard (scores the server judged), by its beatmap id
+    const lbs = this.lbById || (this.lbById = new Map()), lb = lbs.get(d.id);
+    if (d.id > 0 && (!lb || Date.now() - lb.at > 60000) && !(this._lbAsked && this._lbAsked.id === d.id && Date.now() - this._lbAsked.at < 5000) && typeof Presence !== 'undefined' && Presence.ws) {
+      this._lbAsked = { id: d.id, at: Date.now() }; Presence.send({ t: 'lb', id: d.id, scope: 'global' });
+    }
+    const me = typeof Presence !== 'undefined' ? Presence.pid() : '';
+    const lbRow = sc => h(`div.bso-score.bso-gscore${sc.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: sc.pid, name: sc.name, avatar: sc.avatar }); } },
+      h('span.bso-rank', `#${sc.rank}`), rankPill(sc.grade), Presence.avatarEl(sc, 20), h('b', sc.name), h('span.grow'),
+      sc.mods && sc.mods.length ? h('span.dim.bso-mods', sc.mods.join(' ')) : null, h('span.dim', `${fmtInt(sc.combo)}x`), h('span.dim', fmtAcc(sc.acc)), h('b', fmtScore(sc.score)));
+    const global = d.id > 0 ? h('div.bso-sec', h('h3', 'Global ranking', h('small', d.version)),
+      !lb ? h('div.muted', Presence.ws ? 'Loading scores…' : 'Scores need the online server.')
+        : lb.scores.length ? h('div.bso-scorelist', ...lb.scores.slice(0, 10).map(lbRow), ...(lb.you && lb.you.rank > 10 ? [h('div.rk-sep', '…'), lbRow(lb.you)] : []))
+          : h('div.muted', 'No scores yet. Be the first to set one!')) : null;
     // one calm page: the cover with the title, who mapped it and the buttons; a single details card on the right;
     // below, only what there is (tags, and your scores once it's in your library)
     // (tags and your scores sit in the left column under the buttons, so the page is one full screen)
@@ -604,7 +619,7 @@ const ExplorerScreen = {
         [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
         owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
           localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean));
+            : h('div.muted', 'No scores on this difficulty yet.')) : null, global].filter(Boolean));
     clearEl(this.setEl).append(h('div.bso-scroll',
       h('div.bso-header', cover, h('div.bso-shade'),
         h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),

@@ -4051,6 +4051,11 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 
 .pl-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
 
+.bso-gscore { cursor: pointer; }
+.bso-gscore:hover { background: rgba(255, 255, 255, .06); }
+.bso-gscore.me b { color: #ffd966; }
+.bso-mods { font-size: 11px; }
+
 </style>
 </head>
 <body>
@@ -12406,7 +12411,7 @@ const SongSelect = {
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // an online leaderboard arriving for the beatmap on show
-      Bus.on('lb', d => { this._online = d; const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
+      Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
@@ -16652,7 +16657,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
-    { icon: 'trophy', title: 'Online', items: ['Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -17028,7 +17033,9 @@ const ExplorerScreen = {
     window.addEventListener('online', online);
     const resized = () => this.renderWindow(); // (a different width can mean a different number of columns)
     window.addEventListener('resize', resized);
-    this._unsub = [Bus.on('library:changed', () => this.renderResults()), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
+    this._unsub = [Bus.on('library:changed', () => this.renderResults()),
+      // (a difficulty's global board, asked for by its beatmap id, for the open beatmap overlay)
+      Bus.on('lb', m => { if (!m.id) return; (this.lbById ||= new Map()).set(m.id, { ...m, at: Date.now() }); if (this.setView && this.setView.diff && this.setView.diff.id === m.id) this.renderSet(); }), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
@@ -17304,6 +17311,19 @@ const ExplorerScreen = {
     const localMap = owned ? owned.maps.find(x => x.onlineId === d.id) : null;
     const localScores = localMap ? ScoreManager.forMap(localMap.hash).slice(0, 8) : [];
     const basic = (ic, label, v) => h('div.bso-basic', icon(ic), h('span', label), h('b', v));
+    // lazer's scores section: the difficulty's global leaderboard (scores the server judged), by its beatmap id
+    const lbs = this.lbById || (this.lbById = new Map()), lb = lbs.get(d.id);
+    if (d.id > 0 && (!lb || Date.now() - lb.at > 60000) && !(this._lbAsked && this._lbAsked.id === d.id && Date.now() - this._lbAsked.at < 5000) && typeof Presence !== 'undefined' && Presence.ws) {
+      this._lbAsked = { id: d.id, at: Date.now() }; Presence.send({ t: 'lb', id: d.id, scope: 'global' });
+    }
+    const me = typeof Presence !== 'undefined' ? Presence.pid() : '';
+    const lbRow = sc => h(`div.bso-score.bso-gscore${sc.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: sc.pid, name: sc.name, avatar: sc.avatar }); } },
+      h('span.bso-rank', `#${sc.rank}`), rankPill(sc.grade), Presence.avatarEl(sc, 20), h('b', sc.name), h('span.grow'),
+      sc.mods && sc.mods.length ? h('span.dim.bso-mods', sc.mods.join(' ')) : null, h('span.dim', `${fmtInt(sc.combo)}x`), h('span.dim', fmtAcc(sc.acc)), h('b', fmtScore(sc.score)));
+    const global = d.id > 0 ? h('div.bso-sec', h('h3', 'Global ranking', h('small', d.version)),
+      !lb ? h('div.muted', Presence.ws ? 'Loading scores…' : 'Scores need the online server.')
+        : lb.scores.length ? h('div.bso-scorelist', ...lb.scores.slice(0, 10).map(lbRow), ...(lb.you && lb.you.rank > 10 ? [h('div.rk-sep', '…'), lbRow(lb.you)] : []))
+          : h('div.muted', 'No scores yet. Be the first to set one!')) : null;
     // one calm page: the cover with the title, who mapped it and the buttons; a single details card on the right;
     // below, only what there is (tags, and your scores once it's in your library)
     // (tags and your scores sit in the left column under the buttons, so the page is one full screen)
@@ -17311,7 +17331,7 @@ const ExplorerScreen = {
         [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
         owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
           localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', 'No scores on this difficulty yet.')) : null].filter(Boolean));
+            : h('div.muted', 'No scores on this difficulty yet.')) : null, global].filter(Boolean));
     clearEl(this.setEl).append(h('div.bso-scroll',
       h('div.bso-header', cover, h('div.bso-shade'),
         h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
@@ -19243,7 +19263,7 @@ const MultiplayerScreen = {
     // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi' }), h('div.mp-lobby',
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'queue up for a 1v1, or open a duel' : 'lounge — join a room, or make your own' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       // lazer's LoungeSubScreen: the search box along the top, then "Create room" (and joining by code) above the rooms
       h('input.input.mp-search.mp-search-top', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',

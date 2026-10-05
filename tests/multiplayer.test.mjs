@@ -1161,3 +1161,14 @@ test('playlists: a player puts beatmaps up for a while; judged plays on them mak
   assert.equal(p.message('b', { t: 'pl', id: made.id })[0].msg.board.find(x => x.name === 'Bob').done, 1);
   assert.ok(saved.length >= 4);
 });
+
+test('a beatmap\'s board can be asked for by its osu! beatmap id (lazer\'s beatmap overlay)', () => {
+  const p = new PresenceLogic(() => 5000), ids = [];
+  p.persistBoardId = (bid, key) => ids.push([bid, key]);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  assert.deepEqual(p.message('a', { t: 'lb', id: 111 })[0].msg.scores, [], 'nothing yet');
+  p.recordVerified('alicepid1', K1, judged({ score: 800000, beatmapId: 111 }));
+  const m = p.message('a', { t: 'lb', id: 111 })[0].msg;
+  assert.equal(m.id, 111); assert.equal(m.key, K1); assert.equal(m.scores[0].score, 800000);
+  assert.deepEqual(ids, [[111, K1]]);
+});
