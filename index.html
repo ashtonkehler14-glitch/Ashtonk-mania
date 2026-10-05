@@ -2199,8 +2199,8 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 
 /* main menu: triangles behind everything; lazer's sway-and-bounce on the hovered button's icon */
 .lz-tri { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: #1c1018; }
-.lz-tri canvas { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; }
-.lz-tri canvas.in { opacity: 0; transition: none; }
+.lz-tri img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 900ms ease; user-select: none; }
+.lz-tri img.in { opacity: 0; transition: none; }
 
 /* notifications (osu!lazer's NotificationOverlay): a panel sliding in from the right under the toolbar */
 .nf-panel { position: fixed; top: var(--toolbar-h); right: 0; bottom: 0; z-index: 95; width: 320px; max-width: calc(92 * var(--vw)); display: flex; flex-direction: column; background: rgb(24, 22, 28); box-shadow: -8px 0 30px rgba(0, 0, 0, .45);
@@ -3323,9 +3323,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rkm-stage.st-stars { display: flex; }
 
 /* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
-.perf .neru-img { animation: none; filter: none; }
-.perf .neru.hop .neru-img { animation: neruHop 620ms linear; }
-.perf .settings-panel, .perf .np-panel, .perf .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.perf .neru-img, .slow .neru-img { animation: none; filter: none; }
+.perf .neru.hop .neru-img, .slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
+.perf .settings-panel, .perf .np-panel, .perf .nf-panel, .slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 
 .spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
 .spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
@@ -4357,10 +4357,10 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @keyframes ovBodyIn { from { transform: translateY(80px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body { animation: none; } }
 /* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
-html:not(.perf) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
+html:not(.perf):not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
 @keyframes ovBgIn { from { background-color: transparent; } }
 /* (and closing: lazer's waves drop away — the overlay sinks as it fades) */
-html:not(.perf) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
+html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
 @keyframes ovOut { to { transform: translateY(18%); opacity: 0; } }
 /* lazer's BeatmapCard on the profile: the cover behind, the details over a dark gradient */
 .pf-bcs { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
@@ -11819,7 +11819,7 @@ const Screens = {
       if (transition === 'right') el.classList.add('from-right');
       if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
-      if (el.classList.contains('ov') && !document.documentElement.classList.contains('perf')) {
+      if (el.classList.contains('ov') && !document.documentElement.matches('.perf, .slow')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
         if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);
@@ -11865,7 +11865,7 @@ const HomeScreen = {
     // lazer's background source: the skin's menu background (the triangles) or the beatmap's
     const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, Settings.get('ui.menuBackground') === 'beatmap' ? null : MenuTriangles.mount(), this.flashL, this.flashR,
       h('div.lz-stage', this.area, this.logo), this.ticker, h('div.lz-bottom', this.tip), NeruMascot.build(),
-      this.fountainCv = h('canvas.lz-fountain'));
+      this.fountainCv = h('canvas.lz-fountain', { style: { visibility: 'hidden' } }));
     this._parts = []; this._spewers = [];
     this.el = el;
     // coming back (from song select, the lounge…): lazer resumes the menu where you left it — the same row of buttons,
@@ -12173,14 +12173,25 @@ const HomeScreen = {
     const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
     const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
-    let frame = 0;
+    let visClear = false, winMs = 0, winN = 0, lastDraw = 0;
+    const t0 = performance.now();
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
-      // Performance (Chromebook) mode: the visualiser at half resolution, both canvases redrawn every other frame
-      const lite = document.documentElement.classList.contains('perf'), draw = !lite || (++frame & 1) === 0;
+      // a slow device (under 50fps over two seconds, once the menu has settled): from then on the lighter drawing of
+      // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
+      if (!this._slow && now - t0 > 1500) {
+        if (document.hidden || dt >= 100) { winMs = winN = 0; } // (a hidden tab or a hitch isn't the device)
+        else if ((winMs += dt, ++winN, winMs >= 2000)) {
+          if (winMs / winN > 20) { this._slow = true; document.documentElement.classList.add('slow'); }
+          winMs = winN = 0;
+        }
+      }
+      const lite = this._slow || document.documentElement.classList.contains('perf');
+      const draw = !lite || now - lastDraw > 30;
+      if (draw) lastDraw = now;
       const an = AudioManager.analyser, playing = an && Music.playing;
       // ── amplitudes (lazer: every 50ms, the spectrum shifted 5 bars round each time; half as tall outside kiai)
       let peak = 0;
@@ -12205,10 +12216,21 @@ const HomeScreen = {
       const decay = dt * 0.0024;
       for (let i = 0; i < N; i++) { freq[i] -= decay * (freq[i] + 0.03); if (freq[i] < 0) freq[i] = 0; }
       // ── visualiser canvas: logo-local units, the disc's edge at radius 0.47 × 512
-      const dpr = lite ? 0.5 : 1;
-      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); }
+      // (drawn at the size it's shown — the logo is often half size or less — measured twice a second, in 1/8 steps)
+      if (now - this._szAt > 500 || !this._szAt) {
+        this._szAt = now;
+        const px = Math.min(2, window.devicePixelRatio || 1);
+        this._visK = clamp(Math.ceil(cv.getBoundingClientRect().width * px / CW * 8) / 8, 0.25, lite ? 0.5 : 1);
+        this._triS = clamp(Math.ceil(this.tris.getBoundingClientRect().width * px / 32) * 32, 96, lite ? 192 : 384);
+      }
+      const dpr = this._visK || 1;
+      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); visClear = true; }
       const x = cv.getContext('2d');
-      if (draw) {
+      // (no bars and nothing on the canvas: nothing to draw, and nothing for the compositor to upload)
+      let any = false;
+      for (let i = 0; i < N; i++) if (freq[i] >= 1 / 600) { any = true; break; }
+      if (draw && (any || !visClear)) {
+      visClear = !any;
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -12227,7 +12249,7 @@ const HomeScreen = {
       // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
       vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
       if (this._kick) { vel += this._kick; this._kick = 0; }
-      const tc = this.tris, TS = lite ? 192 : 384;
+      const tc = this.tris, TS = this._triS || (lite ? 192 : 384);
       if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const tx = tc.getContext('2d');
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
@@ -12303,7 +12325,9 @@ const HomeScreen = {
     const cv = this.fountainCv;
     if (!cv) return;
     const parts = this._parts, sp = this._spewers;
-    if (!parts.length && !sp.length) { if (this._fountainDirty) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); this._fountainDirty = false; } return; }
+    // (an empty fountain is hidden: a full-screen layer of nothing is still composited every frame)
+    if (!parts.length && !sp.length) { if (this._fountainDirty) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); cv.style.visibility = 'hidden'; this._fountainDirty = false; } return; }
+    if (!this._fountainDirty) cv.style.visibility = '';
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Zoom.dpr();
     if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const rnd = v => (Math.random() * 2 - 1) * v;
@@ -12479,15 +12503,24 @@ const MenuTriangles = {
     const key = `${this.col[0].toFixed(1)}|${this.col[1].toFixed(3)}|${W}x${H}`;
     if (key === this._drawn) return;
     this._drawn = key;
-    const cv = h('canvas');
+    const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     this.paint(cv.getContext('2d'), W, H, this.col);
-    const old = [...el.children];
-    el.append(cv);
-    if (!old.length || resized) { old.forEach(o => o.remove()); return; }
-    cv.classList.add('in');
-    requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.remove('in')));
-    setTimeout(() => old.forEach(o => o.remove()), 1000);
+    // shown as a picture, not the canvas: a still image is decoded and uploaded once, where Chrome hands a canvas to
+    // the compositor again on every frame the menu animates (a big cost on slow Chromebooks)
+    cv.toBlob(async blob => {
+      if (key !== this._drawn || !blob) return;
+      const img = h('img', { alt: '', decoding: 'async', draggable: false });
+      img.src = URL.createObjectURL(blob);
+      try { await img.decode(); } catch (e) { /* shown when it loads */ }
+      if (key !== this._drawn || !el.isConnected) { URL.revokeObjectURL(img.src); return; }
+      const old = [...el.children], drop = () => old.forEach(o => { URL.revokeObjectURL(o.src); o.remove(); });
+      el.append(img);
+      if (!old.length || resized) { drop(); return; }
+      img.classList.add('in');
+      requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove('in')));
+      setTimeout(drop, 1000);
+    });
   },
   paint(x, W, H, [hue, sat]) {
     const k = Math.max(W / 2000, H / 1125), ox = (W - 2000 * k) / 2, oy = (H - 1125 * k) / 2;
@@ -17648,6 +17681,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'The main menu\'s Edit has lazer\'s beatmap and skin editors (pick a skin in Settings → Skin)'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },

@@ -21,7 +21,7 @@ const HomeScreen = {
     // lazer's background source: the skin's menu background (the triangles) or the beatmap's
     const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, Settings.get('ui.menuBackground') === 'beatmap' ? null : MenuTriangles.mount(), this.flashL, this.flashR,
       h('div.lz-stage', this.area, this.logo), this.ticker, h('div.lz-bottom', this.tip), NeruMascot.build(),
-      this.fountainCv = h('canvas.lz-fountain'));
+      this.fountainCv = h('canvas.lz-fountain', { style: { visibility: 'hidden' } }));
     this._parts = []; this._spewers = [];
     this.el = el;
     // coming back (from song select, the lounge…): lazer resumes the menu where you left it — the same row of buttons,
@@ -329,14 +329,25 @@ const HomeScreen = {
     const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
     const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
-    let frame = 0;
+    let visClear = false, winMs = 0, winN = 0, lastDraw = 0;
+    const t0 = performance.now();
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
-      // Performance (Chromebook) mode: the visualiser at half resolution, both canvases redrawn every other frame
-      const lite = document.documentElement.classList.contains('perf'), draw = !lite || (++frame & 1) === 0;
+      // a slow device (under 50fps over two seconds, once the menu has settled): from then on the lighter drawing of
+      // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
+      if (!this._slow && now - t0 > 1500) {
+        if (document.hidden || dt >= 100) { winMs = winN = 0; } // (a hidden tab or a hitch isn't the device)
+        else if ((winMs += dt, ++winN, winMs >= 2000)) {
+          if (winMs / winN > 20) { this._slow = true; document.documentElement.classList.add('slow'); }
+          winMs = winN = 0;
+        }
+      }
+      const lite = this._slow || document.documentElement.classList.contains('perf');
+      const draw = !lite || now - lastDraw > 30;
+      if (draw) lastDraw = now;
       const an = AudioManager.analyser, playing = an && Music.playing;
       // ── amplitudes (lazer: every 50ms, the spectrum shifted 5 bars round each time; half as tall outside kiai)
       let peak = 0;
@@ -361,10 +372,21 @@ const HomeScreen = {
       const decay = dt * 0.0024;
       for (let i = 0; i < N; i++) { freq[i] -= decay * (freq[i] + 0.03); if (freq[i] < 0) freq[i] = 0; }
       // ── visualiser canvas: logo-local units, the disc's edge at radius 0.47 × 512
-      const dpr = lite ? 0.5 : 1;
-      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); }
+      // (drawn at the size it's shown — the logo is often half size or less — measured twice a second, in 1/8 steps)
+      if (now - this._szAt > 500 || !this._szAt) {
+        this._szAt = now;
+        const px = Math.min(2, window.devicePixelRatio || 1);
+        this._visK = clamp(Math.ceil(cv.getBoundingClientRect().width * px / CW * 8) / 8, 0.25, lite ? 0.5 : 1);
+        this._triS = clamp(Math.ceil(this.tris.getBoundingClientRect().width * px / 32) * 32, 96, lite ? 192 : 384);
+      }
+      const dpr = this._visK || 1;
+      if (cv.width !== Math.round(CW * dpr)) { cv.width = cv.height = Math.round(CW * dpr); visClear = true; }
       const x = cv.getContext('2d');
-      if (draw) {
+      // (no bars and nothing on the canvas: nothing to draw, and nothing for the compositor to upload)
+      let any = false;
+      for (let i = 0; i < N; i++) if (freq[i] >= 1 / 600) { any = true; break; }
+      if (draw && (any || !visClear)) {
+      visClear = !any;
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
       x.clearRect(0, 0, CW, CW);
       x.globalCompositeOperation = 'lighter';
@@ -383,7 +405,7 @@ const HomeScreen = {
       // ── the cookie's triangles (TrianglesV2: 14 outlines, 300 wide, drifting up at 50px/s × velocity)
       vel = playing ? vel + ((this._kiai ? 2 : 1) - vel) * (1 - Math.pow(0.995, dt)) : vel + (0.5 - vel) * (1 - Math.pow(0.9, dt));
       if (this._kick) { vel += this._kick; this._kick = 0; }
-      const tc = this.tris, TS = lite ? 192 : 384;
+      const tc = this.tris, TS = this._triS || (lite ? 192 : 384);
       if (tc.width !== TS) { tc.width = tc.height = TS; this._triGrad = null; }
       const tx = tc.getContext('2d');
       const D = S * 0.94, sc = TS / D, triW = 300 * sc, triH = 260 * sc;
@@ -459,7 +481,9 @@ const HomeScreen = {
     const cv = this.fountainCv;
     if (!cv) return;
     const parts = this._parts, sp = this._spewers;
-    if (!parts.length && !sp.length) { if (this._fountainDirty) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); this._fountainDirty = false; } return; }
+    // (an empty fountain is hidden: a full-screen layer of nothing is still composited every frame)
+    if (!parts.length && !sp.length) { if (this._fountainDirty) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); cv.style.visibility = 'hidden'; this._fountainDirty = false; } return; }
+    if (!this._fountainDirty) cv.style.visibility = '';
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Zoom.dpr();
     if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const rnd = v => (Math.random() * 2 - 1) * v;
@@ -635,15 +659,24 @@ const MenuTriangles = {
     const key = `${this.col[0].toFixed(1)}|${this.col[1].toFixed(3)}|${W}x${H}`;
     if (key === this._drawn) return;
     this._drawn = key;
-    const cv = h('canvas');
+    const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     this.paint(cv.getContext('2d'), W, H, this.col);
-    const old = [...el.children];
-    el.append(cv);
-    if (!old.length || resized) { old.forEach(o => o.remove()); return; }
-    cv.classList.add('in');
-    requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.remove('in')));
-    setTimeout(() => old.forEach(o => o.remove()), 1000);
+    // shown as a picture, not the canvas: a still image is decoded and uploaded once, where Chrome hands a canvas to
+    // the compositor again on every frame the menu animates (a big cost on slow Chromebooks)
+    cv.toBlob(async blob => {
+      if (key !== this._drawn || !blob) return;
+      const img = h('img', { alt: '', decoding: 'async', draggable: false });
+      img.src = URL.createObjectURL(blob);
+      try { await img.decode(); } catch (e) { /* shown when it loads */ }
+      if (key !== this._drawn || !el.isConnected) { URL.revokeObjectURL(img.src); return; }
+      const old = [...el.children], drop = () => old.forEach(o => { URL.revokeObjectURL(o.src); o.remove(); });
+      el.append(img);
+      if (!old.length || resized) { drop(); return; }
+      img.classList.add('in');
+      requestAnimationFrame(() => requestAnimationFrame(() => img.classList.remove('in')));
+      setTimeout(drop, 1000);
+    });
   },
   paint(x, W, H, [hue, sat]) {
     const k = Math.max(W / 2000, H / 1125), ox = (W - 2000 * k) / 2, oy = (H - 1125 * k) / 2;
