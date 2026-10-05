@@ -75,6 +75,7 @@ const OnlineBeatmaps = {
       video: !!(raw.video ?? raw.HasVideo), nsfw: !!raw.nsfw, diffs,
       rankedDate: raw.ranked_date ?? raw.RankedDate ?? raw.approved_date ?? null, submittedDate: raw.submitted_date ?? raw.SubmittedDate ?? null, lastUpdated: raw.last_updated ?? raw.LastUpdate ?? null, rating: Number(raw.rating ?? raw.Rating ?? 0) || this.ratingOf(raw.ratings),
       ratings: Array.isArray(raw.ratings) && raw.ratings.length >= 11 ? raw.ratings.map(Number) : null,
+      tags: String(raw.tags ?? raw.Tags ?? ''), description: raw.description && typeof raw.description === 'object' ? String(raw.description.description || '') : '',
       genreId: raw.genre_id ?? raw.genre?.id ?? null, languageId: raw.language_id ?? raw.language?.id ?? null,
     };
   },
@@ -570,12 +571,27 @@ const ExplorerScreen = {
     // (the search only lists a set; its own page adds the ratings and where players failed — fetched once)
     if (!set.full) OnlineBeatmaps.getSet(set.id).then(full => {
       if (!full) return;
-      set.full = true; set.ratings = full.ratings || set.ratings;
+      set.full = true; set.ratings = full.ratings || set.ratings; set.description = full.description || set.description; set.tags = full.tags || set.tags;
       for (const d of set.diffs) { const f = full.diffs.find(x => x.id === d.id); if (f && f.failtimes) d.failtimes = f.failtimes; }
       if (this.setView && this.setView.set === set) this.renderSet();
     }).catch(() => {});
   },
   closeSet() { if (this.setO) this.setO.close(); },
+  /** lazer's Info section: the mapper's description (as plain text — its HTML isn't trusted) and the tags. */
+  descBox(set) {
+    let text = '';
+    if (set.description) {
+      try {
+        const doc = new DOMParser().parseFromString(set.description.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d)>/gi, '\n'), 'text/html');
+        for (const x of doc.querySelectorAll('script, style, noscript, template')) x.remove();
+        text = (doc.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+      } catch { text = ''; }
+    }
+    const tags = (set.tags || '').split(/\s+/).filter(Boolean).slice(0, 40);
+    if (!text && !tags.length) return null;
+    return h('div.bso-sec', h('h3', 'Description'), text ? h('div.bso-desc', text) : null,
+      tags.length ? h('div.bso-tagwords', ...tags.map(t => h('button.bso-tagw', { title: 'Search for this tag', onclick: () => { UISounds.click(); this.closeSet(); this.searchInput.value = t; this.state.q = t; this.newSearch(); } }, t))) : null);
+  },
   /** lazer's UserRatings: negative (1–5) against positive (6–10) votes, and the spread of all ten. */
   ratingsBox(set) {
     const r = set.ratings;
@@ -653,7 +669,7 @@ const ExplorerScreen = {
         [set.source, genre, lang].some(Boolean) ? h('div.bso-tags', ...[['Source', set.source], ['Genre', genre], ['Language', lang]].filter(([, v]) => v).map(([k, v]) => h('span.bso-tag', h('small', k), v))) : null,
         owned ? h('div.bso-sec', h('h3', 'Your scores', h('small', d.version)),
           localScores.length ? h('div.bso-scorelist', ...localScores.map((sc, i) => h('div.bso-score', h('span.bso-rank', `#${i + 1}`), rankPill(sc.grade), h('b', sc.player || ProfileManager.profile.name), h('span.grow'), h('span.dim', fmtAcc(sc.accuracy)), h('b', fmtScore(ScoreManager.value(sc))))))
-            : h('div.muted', 'No scores on this difficulty yet.')) : null, global].filter(Boolean));
+            : h('div.muted', 'No scores on this difficulty yet.')) : null, global, this.descBox(set)].filter(Boolean));
     clearEl(this.setEl).append(h('div.bso-scroll',
       h('div.bso-header', cover, h('div.bso-shade'),
         h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),

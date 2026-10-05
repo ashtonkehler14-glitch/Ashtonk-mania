@@ -4055,3 +4055,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .bso-failg i { display: block; min-height: 0; }
 .bso-failg i.ex { background: #f2c94c; }
 .bso-failg i.fl { background: #c33a3a; }
+
+.bso-desc { white-space: pre-line; font-size: 13px; line-height: 1.5; color: rgba(255, 255, 255, .8); max-height: 220px; overflow-y: auto; }
+.bso-tagwords { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 8px; }
+.bso-tagw { border: 0; background: none; padding: 0; color: #8fc9ff; font: inherit; font-size: 12px; cursor: pointer; }
+.bso-tagw:hover { text-decoration: underline; }
