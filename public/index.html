@@ -4219,6 +4219,12 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .editor { position: absolute; }
 .editor .ed-page[hidden] { display: none; }
 
+.ed-empty { margin: auto; max-width: 520px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.ed-empty h2 { margin: 0; font-size: 28px; font-weight: 300; }
+.ed-empty p { margin: 0; color: rgba(255, 255, 255, .65); }
+.ed-empty-b { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.ed-empty-b .btn { display: inline-flex; align-items: center; gap: 6px; }
+
 </style>
 </head>
 <body>
@@ -17991,6 +17997,41 @@ const EditorScreen = {
     if (Music.playing) Music.pause();
     if (this._ro) this._ro.disconnect();
   },
+  /** Nothing to edit yet: pick a difficulty in song select, or start a new beatmap from a song. */
+  empty() {
+    clearEl(this.el).append(h('div.ed-empty',
+      h('h2', 'Beatmap editor'), h('p', 'Choose a difficulty to edit in song select, or start a new beatmap from a song file.'),
+      h('div.ed-empty-b',
+        h('button.btn.primary', { onclick: () => this.newBeatmap() }, icon('music'), 'New beatmap from a song…'),
+        h('button.btn', { onclick: () => Screens.go('songselect', {}, { replace: true }) }, icon('beatmap'), 'Song select'),
+        h('button.btn', { onclick: () => Screens.go('home', {}, { replace: true }) }, icon('back'), 'Back'))));
+  },
+  /** lazer: a brand new beatmap from a song file — a set with one 4K difficulty at 120 BPM (set the real timing on
+   *  the Timing screen) and a single note, opened here. */
+  async newBeatmap() {
+    const [file] = await pickFiles({ accept: 'audio/*,.mp3,.ogg,.wav', multiple: false });
+    if (!file) return;
+    const base = file.name.replace(/\.[^.]+$/, '').trim() || 'New song';
+    const [artist, title] = base.includes(' - ') ? base.split(' - ', 2) : ['Unknown artist', base];
+    const audioName = 'audio' + (file.name.match(/\.[^.]+$/) || ['.mp3'])[0].toLowerCase();
+    const creator = ProfileManager.profile.name || 'Mapper';
+    const text = `osu file format v14\n\n[General]\nAudioFilename: ${audioName}\nAudioLeadIn: 0\nPreviewTime: -1\nCountdown: 0\nSampleSet: Soft\nStackLeniency: 0.7\nMode: 3\nLetterboxInBreaks: 0\nSpecialStyle: 0\nWidescreenStoryboard: 1\n\n` +
+      `[Editor]\nDistanceSpacing: 1\nBeatDivisor: 4\nGridSize: 4\nTimelineZoom: 1\n\n` +
+      `[Metadata]\nTitle:${title}\nTitleUnicode:${title}\nArtist:${artist}\nArtistUnicode:${artist}\nCreator:${creator}\nVersion:Normal\nSource:\nTags:\nBeatmapID:0\nBeatmapSetID:-1\n\n` +
+      `[Difficulty]\nHPDrainRate:7\nCircleSize:4\nOverallDifficulty:7\nApproachRate:5\nSliderMultiplier:1.4\nSliderTickRate:1\n\n[Events]\n//Background and Video events\n//Break Periods\n//Storyboard Layer 0 (Background)\n\n` +
+      `[TimingPoints]\n0,500,4,1,0,100,1,0\n\n[HitObjects]\n64,192,2000,1,0,0:0:0:0:\n`;
+    const bytes = new TextEncoder().encode(text), audio = new Uint8Array(await file.arrayBuffer());
+    const osuName = `${artist} - ${title} (${creator}) [Normal].osu`.replace(/[\\/:*?"<>|]/g, '');
+    try {
+      const report = { errors: [], warnings: [] };
+      const sets = await BeatmapManager._importEntries([{ name: audioName, size: audio.length, read: async () => audio }, { name: osuName, size: bytes.length, read: async () => bytes }], base, report);
+      const m = sets[0] && sets[0].maps[0];
+      if (!m) throw new Error(report.errors[0] || report.warnings[0] || 'The song couldn\'t be read.');
+      Bus.emit('library:changed');
+      Toast.ok('New beatmap', 'Set its timing on the Timing screen first: it starts at 120 BPM.');
+      if (Screens.current === this) this.reopen(m.id); else Screens.go('editor', { mapId: m.id });
+    } catch (e) { Toast.err('Couldn\'t make a beatmap from that file', friendlyError(e)); }
+  },
   /** Open another difficulty here (the new one just made). */
   reopen(mapId) {
     this.leave();
@@ -18001,7 +18042,7 @@ const EditorScreen = {
   },
   async load(mapId) {
     const rec = BeatmapManager.maps.get(mapId) || BeatmapManager.maps.get(SongSelect.selectedId);
-    if (!rec) throw new Error('Pick a beatmap first: the editor edits the selected difficulty.');
+    if (!rec) { this.empty(); return; }
     const { bm, notes } = await BeatmapManager.load(rec.id);
     const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath);
     this.rec = rec; this.bm = bm; this.text = await blob.text(); this.keys = BeatmapParser.keyCount(bm);
@@ -18020,6 +18061,12 @@ const EditorScreen = {
     await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
     await Music.setRate(1, false);
     this.duration = Music.duration || (this.notes.length ? this.notes[this.notes.length - 1].t + 2000 : 60000);
+    // the song's waveform for the timeline (lazer shows it behind the timeline): the loudest sample in each slice
+    try {
+      const ch = buffer.getChannelData(0), N = 600, step = Math.max(1, Math.floor(ch.length / N)), peaks = new Float32Array(N);
+      for (let i = 0; i < N; i++) { let m = 0; const a = i * step, b = Math.min(ch.length, a + step); for (let j = a; j < b; j += 16) { const v = Math.abs(ch[j]); if (v > m) m = v; } peaks[i] = m; }
+      this.peaks = peaks;
+    } catch { this.peaks = null; }
     if (Screens.current !== this) return;
     this.build();
   },
@@ -18383,6 +18430,12 @@ const EditorScreen = {
       off.width = c.width; off.height = c.height;
       const o = off.getContext('2d'); o.setTransform(k, 0, 0, k, 0, 0);
       o.fillStyle = 'rgba(255,255,255,.06)'; o.fillRect(0, H / 2 - 1, W, 2);
+      if (this.peaks) {
+        // (the waveform spans the buffer; the timeline spans the song — the same length)
+        o.fillStyle = 'rgba(102, 204, 255, .22)';
+        const P = this.peaks, n = P.length;
+        for (let i = 0; i < n; i++) { const x = i / n * W, hh = Math.max(1, P[i] * (H - 4)); o.fillRect(x, H / 2 - hh / 2, Math.max(1, W / n), hh); }
+      }
       const N = Math.max(1, Math.floor(W / 3)), bins = new Array(N).fill(0);
       for (const n of this.notes) bins[clamp(Math.floor(n.t / this.duration * N), 0, N - 1)]++;
       const max = Math.max(1, ...bins);
@@ -18442,6 +18495,7 @@ const EditorScreen = {
     showMenu(r.left, r.bottom + 4, [
       { label: 'Save (Ctrl+S)', icon: 'save', onClick: () => this.save() },
       { label: 'Test (F5)', icon: 'play', onClick: () => this.test() },
+      { label: 'New beatmap from a song…', icon: 'music', onClick: () => this.newBeatmap() },
       { sep: true },
       { label: 'Exit', icon: 'back', onClick: () => this.exit() },
     ]);

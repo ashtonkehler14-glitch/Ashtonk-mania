@@ -4199,3 +4199,9 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-form > .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
 .editor { position: absolute; }
 .editor .ed-page[hidden] { display: none; }
+
+.ed-empty { margin: auto; max-width: 520px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.ed-empty h2 { margin: 0; font-size: 28px; font-weight: 300; }
+.ed-empty p { margin: 0; color: rgba(255, 255, 255, .65); }
+.ed-empty-b { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.ed-empty-b .btn { display: inline-flex; align-items: center; gap: 6px; }
