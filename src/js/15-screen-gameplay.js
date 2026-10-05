@@ -470,8 +470,32 @@ const GameplayScreen = {
     return [h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
       this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
       this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+      this.loaderToggle('gameplay.video', 'Show storyboard / video', () => this.applyStoryboardVideo()),
       this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
       rec && offset ? this.loaderOffset(rec) : null].filter(Boolean);
+  },
+  /** lazer's PlayerCheckbox: a switch beside its label. */
+  loaderToggle(k, label, after) {
+    const t = h(`button.toggle${Settings.get(k) ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!Settings.get(k)), 'aria-label': label, onclick: e => {
+      e.preventDefault(); const v = !Settings.get(k); Settings.set(k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); after && after();
+    } });
+    t.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
+    return h('div.pl-toggle', h('span', label), t);
+  },
+  /** The storyboard and video turned on or off from the loader or the pause screen. */
+  applyStoryboardVideo() {
+    const on = Settings.get('gameplay.video');
+    if (!on) {
+      if (this.sbCanvas) this.sbCanvas.classList.remove('on');
+      if (this.bgEl) this.bgEl.classList.remove('sb-hide');
+      if (this.videoEl) { this.videoEl.classList.remove('on'); this.videoEl.pause(); }
+      if (this.sb) { for (const b of this.sb.images.values()) b.close && b.close(); this.sb = null; }
+      this._sbFor = null;
+      return;
+    }
+    if (!this.s) return;
+    if (this._videoURL) this.videoEl.classList.add('on'); else this.loadVideo();
+    this.loadStoryboard();
   },
   loaderSlider(k, label, min, max, step, fmt, after) {
     const inp = h('input.slider', { type: 'range', min, max, step, value: Settings.get(k), 'aria-label': label });

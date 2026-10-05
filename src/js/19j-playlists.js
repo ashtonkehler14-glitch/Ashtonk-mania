@@ -34,7 +34,7 @@ const PlaylistsScreen = {
   enter(params = {}) {
     if (params.id) { this.openId = params.id; Playlists.cur = null; } else if (!Playlists.cur) this.openId = null;
     this.tabsEl = h('div.dash-tabs');
-    const create = h('button.btn.primary.pl-create', { onclick: () => this.create() }, icon('plus'), 'Create playlist');
+    const create = h('button.btn.primary.pls-create', { onclick: () => this.create() }, icon('plus'), 'Create playlist');
     const { el, page } = pageShell('playlists', 'play beatmaps put up by other players — set your best on each before they close', [create], { icon: 'list', hue: 'green', tabs: this.tabsEl, wide: true });
     this.page = page;
     this._unsub = [Bus.on('playlists', () => this.render()), Bus.on('library:changed', () => this.render()),
@@ -70,7 +70,7 @@ const PlaylistsScreen = {
       const bg = h('div.mp-rbg');
       if (p.cover > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(p.cover, 'card')}")`;
       const open = Playlists.open(p);
-      const row = h(`button.mp-room-row.pl-card${open ? '' : '.ended'}`, { onclick: () => { UISounds.click(); this.openId = p.id; Playlists.cur = null; Playlists.ask(p.id); this.render(); } },
+      const row = h(`button.mp-room-row.pls-card${open ? '' : '.ended'}`, { onclick: () => { UISounds.click(); this.openId = p.id; Playlists.cur = null; Playlists.ask(p.id); this.render(); } },
         bg, h('div.mp-rshade'),
         h(`span.mp-rstate${open ? '.on' : ''}`, { dataset: open ? { ends: p.ends, pre: 'Ends in ' } : {} }, open ? `Ends in ${plDuration(Playlists.left(p))}` : 'Ended'),
         h('div.mp-rbody', h('div.mp-rname', p.name),
@@ -82,7 +82,7 @@ const PlaylistsScreen = {
       row.addEventListener('pointerenter', () => UISounds.hover());
       return row;
     };
-    clearEl(this.page).append(shown.length ? h('div.mp-rooms.pl-list', ...shown.map(card))
+    clearEl(this.page).append(shown.length ? h('div.mp-rooms.pls-list', ...shown.map(card))
       : h('div.rk-empty', this.tab === 'mine' ? 'You haven\'t made a playlist yet. Create one from the button up top.' : this.tab === 'ended' ? 'No playlists have ended lately.' : 'No playlists are open right now. Create one and everyone can play it!'));
   },
   /** One playlist: its beatmaps on the left (each with its best scores), everyone's totals on the right. */
@@ -90,38 +90,38 @@ const PlaylistsScreen = {
     const p = Playlists.cur;
     if (!p || p.id !== this.openId) { clearEl(this.page).append(h('div.rk-empty', h('span.spinner'), 'Loading the playlist…')); return; }
     const open = Playlists.open(p), me = Presence.pid(), mods = (Settings.get('songselect.mods') || []).filter(x => x !== 'AT' && x !== 'CN');
-    const back = h('button.btn.sm.pl-back', { onclick: () => { UISounds.back(); this.openId = null; this.render(); } }, icon('back'), 'All playlists');
-    const head = h('div.pl-head',
-      h('div.pl-head-l', h('div.pl-name', p.name),
-        h('div.pl-by', Presence.avatarEl(p.host, 20), 'hosted by ', h('b', p.host.name), h('span.pl-dot', '·'), `${p.items.length} beatmap${p.items.length === 1 ? '' : 's'}`)),
-      h('div.pl-head-r',
-        h(`div.pl-time${open ? '' : '.ended'}`, h('span', open ? 'Closes in' : 'Closed'), h('b', open ? { dataset: { ends: p.ends } } : {}, open ? plDuration(Playlists.left(p)) : new Date(p.ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))),
+    const back = h('button.btn.sm.pls-back', { onclick: () => { UISounds.back(); this.openId = null; this.render(); } }, icon('back'), 'All playlists');
+    const head = h('div.pls-head',
+      h('div.pls-head-l', h('div.pls-name', p.name),
+        h('div.pls-by', Presence.avatarEl(p.host, 20), 'hosted by ', h('b', p.host.name), h('span.pls-dot', '·'), `${p.items.length} beatmap${p.items.length === 1 ? '' : 's'}`)),
+      h('div.pls-head-r',
+        h(`div.pls-time${open ? '' : '.ended'}`, h('span', open ? 'Closes in' : 'Closed'), h('b', open ? { dataset: { ends: p.ends } } : {}, open ? plDuration(Playlists.left(p)) : new Date(p.ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))),
         open && p.host.pid === me ? h('button.btn.sm.danger', { onclick: async () => { if (await Dialog.confirm('Close this playlist?', 'Nobody can set scores on it after that. The scores stay.', { ok: 'Close it', danger: true })) Presence.send({ t: 'plClose', id: p.id }); } }, 'Close') : null,
         open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
     const items = p.items.map((it, i) => this.itemRow(p, it, i, open, mods));
-    const row = s => h(`div.rk-row.pl-brow.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
+    const row = s => h(`div.rk-row.pls-brow.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
       h('span.rk-rank', `#${s.rank}`), h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),
       h('span.hl', fmtInt(s.score)), h('span', `${s.done}/${p.items.length}`));
-    const board = h('div.pl-board', h('h3.dc-h', 'Overall', h('span', ` ${fmtInt(p.board.length)} player${p.board.length === 1 ? '' : 's'}`)),
-      p.board.length ? h('div.rk-table', h('div.rk-row.rk-head.pl-brow', h('span'), h('span'), h('span.hl', 'Total score'), h('span', 'Played')), ...p.board.map(row),
+    const board = h('div.pls-board', h('h3.dc-h', 'Overall', h('span', ` ${fmtInt(p.board.length)} player${p.board.length === 1 ? '' : 's'}`)),
+      p.board.length ? h('div.rk-table', h('div.rk-row.rk-head.pls-brow', h('span'), h('span'), h('span.hl', 'Total score'), h('span', 'Played')), ...p.board.map(row),
         ...(p.you && p.you.rank > 50 ? [h('div.rk-sep', '…'), row(p.you)] : [])) : h('div.rk-empty', 'No scores yet. Be the first!'));
-    clearEl(this.page).append(back, head, h('div.pl-cols', h('div.pl-items', ...items), board));
+    clearEl(this.page).append(back, head, h('div.pls-cols', h('div.pls-items', ...items), board));
     this.tickTimes();
   },
   itemRow(p, it, i, open, mods) {
     const local = Multiplayer.localMap(it), f = this.fetch && this.fetch.hash === it.hash ? this.fetch : null;
-    const cover = h('div.pl-cover');
+    const cover = h('div.pls-cover');
     if (it.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, it.onlineSetId, ['list@2x', 'list', 'card']);
     const exp = this.expanded === it.hash;
-    const play = open ? h('button.btn.sm.primary.pl-play', { disabled: !!(f && !f.error) || (!local && !(it.onlineSetId > 0)), onclick: e => { e.stopPropagation(); this.play(p, it); } },
+    const play = open ? h('button.btn.sm.primary.pls-play', { disabled: !!(f && !f.error) || (!local && !(it.onlineSetId > 0)), onclick: e => { e.stopPropagation(); this.play(p, it); } },
       local ? 'Play' : f && !f.error ? `${Math.round((f.progress || 0) * 100)}%` : it.onlineSetId > 0 ? 'Download' : 'Not online') : null;
-    const top = exp ? h('div.pl-top', it.top.length ? it.top.map(s => h('div.pl-top-row', h('span.rk-rank', `#${s.rank}`), Presence.avatarEl(s, 18), h('span.rk-name', s.name),
-      h('span.pl-top-sc', fmtInt(s.score)), h('span', fmtAcc(s.acc)), rankPill(s.grade), h('span.dc-mods-col', (s.mods || []).join(' ')))) : h('div.muted', 'No scores on this one yet.')) : null;
-    return h(`div.pl-item${exp ? '.open' : ''}`, { onclick: () => { UISounds.click(); this.expanded = exp ? null : it.hash; this.render(); } },
-      h('div.pl-item-main', h('span.pl-num', String(i + 1)), cover,
-        h('div.pl-item-t', h('div.pl-item-title', it.title, h('span', ` ${it.artist}`)),
-          h('div.pl-item-meta', starBadge(it.stars), h('span.keys-tag', `${it.keys}K`), h('span', it.version), it.creator ? h('span.muted', `mapped by ${it.creator}`) : null)),
-        h('div.pl-item-you', it.you ? [h('b', fmtInt(it.you.score)), h('span', `#${it.you.rank} of ${it.plays}`)] : h('span.muted', it.plays ? `${it.plays} played` : 'unplayed')),
+    const top = exp ? h('div.pls-top', it.top.length ? it.top.map(s => h('div.pls-top-row', h('span.rk-rank', `#${s.rank}`), Presence.avatarEl(s, 18), h('span.rk-name', s.name),
+      h('span.pls-top-sc', fmtInt(s.score)), h('span', fmtAcc(s.acc)), rankPill(s.grade), h('span.dc-mods-col', (s.mods || []).join(' ')))) : h('div.muted', 'No scores on this one yet.')) : null;
+    return h(`div.pls-item${exp ? '.open' : ''}`, { onclick: () => { UISounds.click(); this.expanded = exp ? null : it.hash; this.render(); } },
+      h('div.pls-item-main', h('span.pls-num', String(i + 1)), cover,
+        h('div.pls-item-t', h('div.pls-item-title', it.title, h('span', ` ${it.artist}`)),
+          h('div.pls-item-meta', starBadge(it.stars), h('span.keys-tag', `${it.keys}K`), h('span', it.version), it.creator ? h('span.muted', `mapped by ${it.creator}`) : null)),
+        h('div.pls-item-you', it.you ? [h('b', fmtInt(it.you.score)), h('span', `#${it.you.rank} of ${it.plays}`)] : h('span.muted', it.plays ? `${it.plays} played` : 'unplayed')),
         play),
       top);
   },
@@ -155,27 +155,27 @@ const PlaylistsScreen = {
     const all = [...BeatmapManager.maps.values()].filter(m => { const set = BeatmapManager.setById.get(m.setId); return set && set.onlineId > 0; })
       .sort((a, b) => a.title.localeCompare(b.title) || a.stars - b.stars);
     if (sel && all.includes(sel)) st.picked.push(sel);
-    const name = h('input.input.pl-in', { value: st.name, maxlength: 60, oninput: e => { st.name = e.target.value; }, onkeydown: e => e.stopPropagation() });
+    const name = h('input.input.pls-in', { value: st.name, maxlength: 60, oninput: e => { st.name = e.target.value; }, onkeydown: e => e.stopPropagation() });
     const durs = [[1, '1 hour'], [3, '3 hours'], [6, '6 hours'], [12, '12 hours'], [24, '1 day'], [72, '3 days'], [168, '1 week'], [336, '2 weeks']];
-    const dur = h('select.input.pl-in', { onchange: e => { st.hours = +e.target.value; } }, ...durs.map(([v, l]) => h('option', { value: v, selected: v === st.hours }, l)));
-    const search = h('input.input.pl-in', { type: 'search', placeholder: 'search your beatmaps', oninput: e => { st.q = e.target.value.toLowerCase(); paint(); }, onkeydown: e => e.stopPropagation() });
-    const listEl = h('div.pl-pick'), count = h('div.pl-count');
+    const dur = h('select.input.pls-in', { onchange: e => { st.hours = +e.target.value; } }, ...durs.map(([v, l]) => h('option', { value: v, selected: v === st.hours }, l)));
+    const search = h('input.input.pls-in', { type: 'search', placeholder: 'search your beatmaps', oninput: e => { st.q = e.target.value.toLowerCase(); paint(); }, onkeydown: e => e.stopPropagation() });
+    const listEl = h('div.pls-pick'), count = h('div.pls-count');
     const paint = () => {
       const words = st.q.split(/\s+/).filter(Boolean);
       const shown = all.filter(m => { const t = `${m.artist} ${m.title} ${m.version} ${m.creator}`.toLowerCase(); return words.every(w => t.includes(w)); }).slice(0, 200);
       clearEl(listEl).append(...(shown.length ? shown.map(m => {
         const on = st.picked.includes(m);
-        return h(`button.pl-pick-row${on ? '.on' : ''}`, { onclick: () => {
+        return h(`button.pls-pick-row${on ? '.on' : ''}`, { onclick: () => {
           UISounds.click();
           if (on) st.picked = st.picked.filter(x => x !== m);
           else if (st.picked.length < 20) st.picked.push(m); else Toast.show('That\'s 20', 'A playlist holds up to 20 beatmaps.');
           paint();
-        } }, h('span.pl-check', on ? icon('check') : null), starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.pl-pick-t', `${m.artist} - ${m.title} `, h('b', `[${m.version}]`)));
-      }) : [h('div.muted.pl-none', all.length ? 'Nothing matches.' : 'Only beatmaps from osu! can go in a playlist (so everyone can download them) — get some from the beatmap listing first.')]));
+        } }, h('span.pls-check', on ? icon('check') : null), starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.pls-pick-t', `${m.artist} - ${m.title} `, h('b', `[${m.version}]`)));
+      }) : [h('div.muted.pls-none', all.length ? 'Nothing matches.' : 'Only beatmaps from osu! can go in a playlist (so everyone can download them) — get some from the beatmap listing first.')]));
       count.textContent = `${st.picked.length} of 20 picked`;
     };
     paint();
-    const body = h('div.pl-form', h('label', 'Name'), name, h('label', 'Open for'), dur, h('label', 'Beatmaps'), search, listEl, count);
+    const body = h('div.pls-form', h('label', 'Name'), name, h('label', 'Open for'), dur, h('label', 'Beatmaps'), search, listEl, count);
     Dialog.popup('Create a playlist', body, [
       { label: 'Create', colour: '#ff66aa', onClick: () => {
         if (!st.picked.length) { Toast.err('Pick at least one beatmap'); return; }
