@@ -1185,6 +1185,13 @@ const Screens = {
       if (prevName === 'home') el.classList.add('after-menu');
       if (transition === 'zoom') el.classList.add('zoom');
       if (transition === 'right') el.classList.add('from-right');
+      // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
+      if (el.classList.contains('ov') && !document.documentElement.classList.contains('perf')) {
+        const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
+        const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
+        el.append(waves);
+        setTimeout(() => waves.remove(), 1400);
+      }
       $('#screens').appendChild(el);
       Toolbar.setActive(next.tab || name);
       $('#app').classList.toggle('in-game', !!next.inGame);

@@ -4324,3 +4324,18 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 .pf-act-i .ic { width: 12px; height: 12px; }
 .pf-act-rank { color: #ffcc22; }
 .pf-act-t { flex: none; color: rgba(255, 255, 255, .45); font-size: 12px; }
+/* lazer's WaveOverlayContainer: opening an overlay, four waves in its colour scheme (Light4, Light3, Dark4, Dark3),
+ * each tilted its own way, sweep up through the screen one after another (800ms, OutQuint) as the content rises in */
+.ov-waves { position: absolute; inset: 0; z-index: 30; overflow: hidden; pointer-events: none; }
+.ov-waves i { position: absolute; left: -25%; width: 150%; top: 0; height: 115%; transform: translateY(110%) rotate(var(--r)); animation: ovWave calc(820ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) both; box-shadow: 0 0 40px rgba(0, 0, 0, .25); }
+.ov-waves i:nth-child(1) { --r: 13deg; background: hsl(var(--o-h) 40% 50%); }
+.ov-waves i:nth-child(2) { --r: -7deg; background: hsl(var(--o-h) 40% 60%); animation-delay: calc(55ms * var(--anim)); }
+.ov-waves i:nth-child(3) { --r: 4deg; background: hsl(var(--o-h) 20% 20%); animation-delay: calc(110ms * var(--anim)); }
+.ov-waves i:nth-child(4) { --r: -2deg; background: hsl(var(--o-h) 20% 25%); animation-delay: calc(165ms * var(--anim)); }
+@keyframes ovWave { 0% { transform: translateY(110%) rotate(var(--r)); } 100% { transform: translateY(-150%) rotate(var(--r)); } }
+.ov.screen.enter > .screen-body { animation: ovBodyIn calc(700ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) calc(120ms * var(--anim)) both; }
+@keyframes ovBodyIn { from { transform: translateY(80px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body { animation: none; } }
+/* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
+html:not(.perf) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
+@keyframes ovBgIn { from { background-color: transparent; } }
