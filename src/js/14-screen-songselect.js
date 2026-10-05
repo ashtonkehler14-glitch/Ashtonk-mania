@@ -359,9 +359,9 @@ const SongSelect = {
     this.expandedSet = this.selectedId ? BeatmapManager.maps.get(this.selectedId)?.setId : null;
     if (this.groups) this.expandGroupOf(this.selectedId, true);
     this.layoutRows();
-    // (lazer's MatchesCount: every difficulty listed, a difficulty in two groups counting twice)
-    const nDiffs = shown.reduce((a, r) => a + r.maps.length, 0);
-    this.countEl.textContent = `${fmtInt(nDiffs)} ${nDiffs === 1 ? 'match' : 'matches'}`;
+    // (the number of songs found — a song with several difficulties counts once)
+    const nSongs = new Set(shown.map(r => r.set.id)).size;
+    this.countEl.textContent = `${fmtInt(nSongs)} ${nSongs === 1 ? 'match' : 'matches'}`;
     this.renderEmpty();
     this.updateInfo();
     this.renderVisible(true);

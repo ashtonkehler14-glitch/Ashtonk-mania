@@ -159,7 +159,7 @@ const grouped = await page.evaluate(() => {
   S.set('songselect.group', 'none'); s.rebuild();
   return { ranged, heads, open, want: sel && `${sel.keys}K`, diffs };
 });
-check('song select: the star range filters difficulties and Group lists them under lazer\'s group headers', grouped.ranged.n === 3 && grouped.ranged.count === '3 matches' && grouped.heads.length === 4 && grouped.open === grouped.want && grouped.diffs === 1, JSON.stringify(grouped));
+check('song select: the star range filters difficulties (the count is of songs), and Group lists them under lazer\'s group headers', grouped.ranged.n === 3 && grouped.ranged.count === '1 match' && grouped.heads.length === 4 && grouped.open === grouped.want && grouped.diffs === 1, JSON.stringify(grouped));
 
 // favorite
 await page.evaluate(async () => { await AshtonkMania.Favorites.toggle(AshtonkMania.BeatmapManager.sets[0].id); });
