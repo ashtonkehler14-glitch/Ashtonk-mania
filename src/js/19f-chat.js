@@ -123,6 +123,7 @@ const Chat = {
     const c = this.channels.get(this.cur) || this.channels.get('#lobby');
     this.cur = c.key; c.unread = 0;
     this.talk.textContent = c.pm ? `talking with ${c.name}` : `talking in ${c.name}`;
+    this.input.dataset.kbLabel = c.name; // (the phone's typing bar shows where it goes)
     clearEl(this.lines);
     if (!c.lines.length) this.lines.append(h('div.ch-empty', c.pm ? `Say hi to ${c.name}!` : Presence.ws ? 'Nobody has said anything yet.' : 'Connecting…'));
     for (const l of c.lines) this.appendLine(l, false);

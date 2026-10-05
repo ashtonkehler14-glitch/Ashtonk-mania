@@ -3878,6 +3878,14 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 @keyframes kbBlink { 50% { opacity: 0; } }
 .kb-done { flex: none; width: 44px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #ff66ab; color: #fff; }
 .kb-done svg { width: 20px; height: 20px; }
+/* a chat box: lazer's chat colours — the channel as the label, a send button that wakes up once there's text */
+.kb-bar.kb-chat .kb-label { color: #66ccff; text-transform: none; }
+.kb-bar.kb-chat .kb-field { border-radius: 20px; padding: 0 16px; box-shadow: inset 0 0 0 1.5px rgba(255, 102, 171, .35); }
+.kb-bar.kb-chat .kb-done { width: 40px; border-radius: 50%; transition: opacity 150ms, transform 150ms var(--ease-out, ease-out); }
+.kb-done.off { opacity: .4; transform: scale(.92); }
+.kb-count { flex: none; min-width: 2ch; font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, .5); text-align: right; }
+.kb-count:empty { display: none; }
+.kb-count.low { color: #ff6b6b; }
 /* another player's profile: their status and lazer's header buttons (add friend, message, spectate, invite) */
 .pf-online { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); font-size: .85rem; }
 .pf-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: flex-end; }
@@ -10683,6 +10691,7 @@ const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
   up: '<path d="M6 15l6-6 6 6"/>',
+  send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
@@ -17728,7 +17737,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
@@ -23634,6 +23643,9 @@ const Keyboard = {
     // keyCode 13): sent on to a chat box as one, so the message goes
     document.addEventListener('beforeinput', e => { const a = e.target; if (e.inputType === 'insertLineBreak' && this.sends(a)) { e.preventDefault(); this.enter(a); } }, true);
     document.addEventListener('keydown', e => { if (e.isTrusted && e.keyCode === 13 && e.key !== 'Enter' && this.sends(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); this.enter(e.target); } }, true);
+    // a chat message sent (the box emptied by its Enter): the keyboard goes away, as in a messaging app — it comes back
+    // with a tap on the box for the next one (a message that couldn't go keeps its text, and the keyboard)
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && this.sends(e.target)) this.afterSend(e.target); }, true); // (capture: before the box's own handler empties it)
     // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
   },
@@ -23641,17 +23653,22 @@ const Keyboard = {
     this.label = h('span.kb-label'); this.text = h('span.kb-text');
     this.doneBtn = h('button.kb-done', { 'aria-label': 'Done', onclick: () => {
       const a = this.typing();
-      // a chat box: the button sends (as Enter does) and the keyboard stays up for the next message
-      if (a && this.sends(a)) { this.enter(a); return; }
+      // a chat box: the button sends, as Enter does (and the keyboard then goes away)
+      if (a && this.sends(a)) { if (a.value.trim()) this.enter(a); return; }
       if (a) a.blur();
     } }, icon('check'));
-    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.doneBtn);
+    this.count = h('span.kb-count');
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.count, this.doneBtn);
     // (touching the bar keeps the box focused — and the keyboard up — except on the done button, unless it sends)
     this.bar.addEventListener('pointerdown', e => { const a = this.typing(); if (!e.target.closest('.kb-done') || (a && this.sends(a))) e.preventDefault(); });
     document.body.append(this.bar);
   },
   /** A chat box: its keyboard key and the bar's button send the message. */
   sends(a) { return !!a && (a.enterKeyHint === 'send' || a.getAttribute('aria-label') === 'Chat message'); },
+  afterSend(a) {
+    const had = a.value;
+    setTimeout(() => { if (had.trim() && !a.value && document.activeElement === a) a.blur(); }, 0);
+  },
   /** Enter, as the box's own handler listens for it (some phone keyboards don't send a proper one). */
   enter(a) { a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })); },
   upd() {
@@ -23677,8 +23694,15 @@ const Keyboard = {
     if (!a || !this.bar) return;
     // (a chat box: the button is Send)
     const send = this.sends(a);
-    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'chat' : 'check')); }
-    const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'send' : 'check')); }
+    this.bar.classList.toggle('kb-chat', send);
+    this.doneBtn.classList.toggle('off', send && !(a.value || '').trim()); // (nothing to send yet)
+    // where the message goes (the chat's channel or the player), else what the box is for
+    const lab = a.dataset.kbLabel || a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    // (the characters left, once it's getting close to the box's limit)
+    const max = a.maxLength > 0 ? a.maxLength : 0, left = max - (a.value || '').length;
+    this.count.textContent = max && left <= 50 ? String(left) : '';
+    this.count.classList.toggle('low', max > 0 && left <= 10);
     this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
     this.label.hidden = !lab;
     let v = a.value || '';
@@ -24028,6 +24052,7 @@ const Chat = {
     const c = this.channels.get(this.cur) || this.channels.get('#lobby');
     this.cur = c.key; c.unread = 0;
     this.talk.textContent = c.pm ? `talking with ${c.name}` : `talking in ${c.name}`;
+    this.input.dataset.kbLabel = c.name; // (the phone's typing bar shows where it goes)
     clearEl(this.lines);
     if (!c.lines.length) this.lines.append(h('div.ch-empty', c.pm ? `Say hi to ${c.name}!` : Presence.ws ? 'Nobody has said anything yet.' : 'Connecting…'));
     for (const l of c.lines) this.appendLine(l, false);

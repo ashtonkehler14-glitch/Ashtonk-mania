@@ -3859,6 +3859,14 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 @keyframes kbBlink { 50% { opacity: 0; } }
 .kb-done { flex: none; width: 44px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #ff66ab; color: #fff; }
 .kb-done svg { width: 20px; height: 20px; }
+/* a chat box: lazer's chat colours — the channel as the label, a send button that wakes up once there's text */
+.kb-bar.kb-chat .kb-label { color: #66ccff; text-transform: none; }
+.kb-bar.kb-chat .kb-field { border-radius: 20px; padding: 0 16px; box-shadow: inset 0 0 0 1.5px rgba(255, 102, 171, .35); }
+.kb-bar.kb-chat .kb-done { width: 40px; border-radius: 50%; transition: opacity 150ms, transform 150ms var(--ease-out, ease-out); }
+.kb-done.off { opacity: .4; transform: scale(.92); }
+.kb-count { flex: none; min-width: 2ch; font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, .5); text-align: right; }
+.kb-count:empty { display: none; }
+.kb-count.low { color: #ff6b6b; }
 /* another player's profile: their status and lazer's header buttons (add friend, message, spectate, invite) */
 .pf-online { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--muted); font-size: .85rem; }
 .pf-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: flex-end; }

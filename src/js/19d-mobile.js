@@ -123,6 +123,9 @@ const Keyboard = {
     // keyCode 13): sent on to a chat box as one, so the message goes
     document.addEventListener('beforeinput', e => { const a = e.target; if (e.inputType === 'insertLineBreak' && this.sends(a)) { e.preventDefault(); this.enter(a); } }, true);
     document.addEventListener('keydown', e => { if (e.isTrusted && e.keyCode === 13 && e.key !== 'Enter' && this.sends(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); this.enter(e.target); } }, true);
+    // a chat message sent (the box emptied by its Enter): the keyboard goes away, as in a messaging app — it comes back
+    // with a tap on the box for the next one (a message that couldn't go keeps its text, and the keyboard)
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && this.sends(e.target)) this.afterSend(e.target); }, true); // (capture: before the box's own handler empties it)
     // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
   },
@@ -130,17 +133,22 @@ const Keyboard = {
     this.label = h('span.kb-label'); this.text = h('span.kb-text');
     this.doneBtn = h('button.kb-done', { 'aria-label': 'Done', onclick: () => {
       const a = this.typing();
-      // a chat box: the button sends (as Enter does) and the keyboard stays up for the next message
-      if (a && this.sends(a)) { this.enter(a); return; }
+      // a chat box: the button sends, as Enter does (and the keyboard then goes away)
+      if (a && this.sends(a)) { if (a.value.trim()) this.enter(a); return; }
       if (a) a.blur();
     } }, icon('check'));
-    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.doneBtn);
+    this.count = h('span.kb-count');
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.count, this.doneBtn);
     // (touching the bar keeps the box focused — and the keyboard up — except on the done button, unless it sends)
     this.bar.addEventListener('pointerdown', e => { const a = this.typing(); if (!e.target.closest('.kb-done') || (a && this.sends(a))) e.preventDefault(); });
     document.body.append(this.bar);
   },
   /** A chat box: its keyboard key and the bar's button send the message. */
   sends(a) { return !!a && (a.enterKeyHint === 'send' || a.getAttribute('aria-label') === 'Chat message'); },
+  afterSend(a) {
+    const had = a.value;
+    setTimeout(() => { if (had.trim() && !a.value && document.activeElement === a) a.blur(); }, 0);
+  },
   /** Enter, as the box's own handler listens for it (some phone keyboards don't send a proper one). */
   enter(a) { a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })); },
   upd() {
@@ -166,8 +174,15 @@ const Keyboard = {
     if (!a || !this.bar) return;
     // (a chat box: the button is Send)
     const send = this.sends(a);
-    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'chat' : 'check')); }
-    const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'send' : 'check')); }
+    this.bar.classList.toggle('kb-chat', send);
+    this.doneBtn.classList.toggle('off', send && !(a.value || '').trim()); // (nothing to send yet)
+    // where the message goes (the chat's channel or the player), else what the box is for
+    const lab = a.dataset.kbLabel || a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
+    // (the characters left, once it's getting close to the box's limit)
+    const max = a.maxLength > 0 ? a.maxLength : 0, left = max - (a.value || '').length;
+    this.count.textContent = max && left <= 50 ? String(left) : '';
+    this.count.classList.toggle('low', max > 0 && left <= 10);
     this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
     this.label.hidden = !lab;
     let v = a.value || '';
