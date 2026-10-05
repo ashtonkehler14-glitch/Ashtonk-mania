@@ -889,7 +889,9 @@ export class PresenceLogic {
     let pp = 0, accW = 0, wSum = 0;
     list.forEach(([, x], i) => { const w = 0.95 ** i; pp += x.pp * w; accW += x.acc * w; wSum += w; });
     const g = list.map(([, x]) => x.grade);
-    rec.v = { pp: Math.round(pp * 100) / 100, acc: wSum ? accW / wSum : 0, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+    // (ranked score: the best score on each ranked beatmap, added up — lazer's Score rankings)
+    const rscore = list.reduce((a, [, x]) => a + (x.pp > 0 ? x.score || 0 : 0), 0);
+    rec.v = { pp: Math.round(pp * 100) / 100, acc: wSum ? accW / wSum : 0, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length, rscore };
     PresenceLogic.settleRank(rec);
     this.ranks.set(pid, rec);
     if (this.persistRank) this.persistRank(pid, rec);
@@ -1026,15 +1028,18 @@ export class PresenceLogic {
     const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
     const use = rep.pp > v.pp ? rep : v;
     r.pp = use.pp; r.acc = use.acc; r.ss = use.ss; r.s = use.s; r.a = use.a;
+    r.rscore = Math.max(v.rscore || 0, rep.rscore || 0);
     return r;
   }
   /** The top 50 by pp, and where you stand. */
-  rankings(pid) {
-    const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
+  rankings(pid, mode = 'performance') {
+    // lazer's Performance and Score tables: by total pp, or by ranked score
+    const byScore = mode === 'score';
+    const all = [...this.ranks.values()].filter(r => byScore ? r.rscore > 0 : r.pp > 0).sort(byScore ? (a, b) => b.rscore - a.rscore || b.pp - a.pp : (a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
     const pub = ({ bests, v, rep, _lazy, sb, ...r }) => r; // (not each player's whole list of plays)
-    return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
+    return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
     for (const [pid, l] of Object.entries(friends || {})) this.friends.set(pid, new Map(l));
@@ -1121,7 +1126,7 @@ export class PresenceLogic {
       // their standing as their game reports it (see settleRank), and their name and picture as they are now
       const p = msg.profile && typeof msg.profile === 'object' ? msg.profile : null, num = (x, max) => (Number.isFinite(+x) ? Math.min(max, Math.max(0, +x)) : 0);
       const gr = p && p.grades && typeof p.grades === 'object' ? p.grades : {};
-      const rep = p ? { pp: Math.round(num(p.pp, 100000) * 100) / 100, acc: num(p.avgAcc, 1), ss: num(gr.SS, 1e6) + num(gr.XH, 1e6), s: num(gr.S, 1e6) + num(gr.SH, 1e6), a: num(gr.A, 1e6) } : null;
+      const rep = p ? { pp: Math.round(num(p.pp, 100000) * 100) / 100, acc: num(p.avgAcc, 1), ss: num(gr.SS, 1e6) + num(gr.XH, 1e6), s: num(gr.S, 1e6) + num(gr.SH, 1e6), a: num(gr.A, 1e6), rscore: Math.round(num(p.rankedScore, 1e13)) } : null;
       let rec = this.ranks.get(u.pid);
       if (!rec && rep && rep.pp > 0) { rec = { pid: u.pid, name: u.name, avatar: u.avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY }; this.ranks.set(u.pid, rec); }
       if (rec) {
@@ -1133,7 +1138,7 @@ export class PresenceLogic {
       }
       return [];
     }
-    if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
+    if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
     if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     // ── user tags

@@ -132,6 +132,11 @@ await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
 await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
 check('rankings list players by pp (lazer\'s performance table, no accuracy column)', await alice.evaluate(pp => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && new RegExp(`${Math.round(pp)}pp`).test(r.textContent) && !/99,999/.test(r.textContent) && !/%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }, bobScore.pp), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
 await shot(alice, 'mp-rankings');
+// lazer's Score table: ranked score (the best score on each ranked beatmap, added up)
+await alice.evaluate(() => [...document.querySelectorAll('.ov-tab')].find(b => b.textContent === 'score').click());
+const scoreTab = await alice.waitForFunction(() => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'), hd = document.querySelector('.rk-head'); return r && hd && /Ranked Score/.test(hd.textContent) && /Bob/.test(r.textContent) && /1,000,000/.test(r.textContent); }, null, { timeout: 8000 }).then(() => true, () => false);
+check('rankings: lazer\'s Score tab lists players by ranked score', scoreTab, await alice.evaluate(() => (document.querySelector('.rk-table') || {}).textContent));
+await alice.evaluate(() => [...document.querySelectorAll('.ov-tab')].find(b => b.textContent === 'performance').click());
 // clicking a player opens their full profile (lazer's user profile), from what their game shared
 await alice.click('.rk-table .rk-row:not(.rk-head)');
 await alice.waitForFunction(() => document.querySelector('.pf-name') && /Bob/.test(document.querySelector('.pf-name').textContent), null, { timeout: 5000 });

@@ -1302,3 +1302,16 @@ test('a judged beatmap\'s ranked status: by its set id, else its beatmap id, els
   assert.deepEqual(await beatmapStatus({ beatmapSetId: -1, beatmapId: -1 }, '', {}, get), { status: '', setId: 0 });
   assert.deepEqual(asked, ['beatmapsets/7', 'beatmaps/42', 'beatmaps/lookup?checksum=' + 'a'.repeat(32), 'beatmaps/lookup?checksum=' + 'b'.repeat(32)]);
 });
+
+test('lazer\'s Score rankings: ranked score is the best score on each ranked beatmap, added up', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  p.recordVerified('alicepid1', K1, judged({ pp: 300, score: 800000 }));
+  p.recordVerified('bobpid22', K1, judged({ pp: 100, score: 900000 }));
+  p.recordVerified('bobpid22', K2, judged({ pp: 50, score: 700000 }));
+  p.recordVerified('bobpid22', 'c'.repeat(64), judged({ pp: 0, score: 999999 })); // (an unranked beatmap: no ranked score)
+  const perf = p.message('a', { t: 'rankings' })[0].msg, sc = p.message('a', { t: 'rankings', mode: 'score' })[0].msg;
+  assert.equal(perf.mode, 'performance'); assert.deepEqual(perf.list.map(r => r.name), ['Alice', 'Bob']);
+  assert.equal(sc.mode, 'score'); assert.deepEqual(sc.list.map(r => [r.name, r.rscore]), [['Bob', 1600000], ['Alice', 800000]]);
+  assert.equal(sc.you.rank, 2);
+});

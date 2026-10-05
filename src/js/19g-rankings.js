@@ -62,29 +62,38 @@ const RankingsScreen = {
   data: null,
   enter() {
     Presence.start();
-    const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', tabs: h('div.dash-tabs', h('button.ov-tab.on', 'performance')), wide: true });
+    // lazer's Performance and Score tables
+    this.mode = this.mode || 'performance';
+    const tabs = h('div.dash-tabs', ...['performance', 'score'].map(m => h(`button.ov-tab${m === this.mode ? '.on' : ''}`, { dataset: { m }, onclick: () => {
+      if (this.mode === m) return;
+      UISounds.click(); this.mode = m; this.data = null;
+      for (const b of tabs.children) b.classList.toggle('on', b.dataset.m === m);
+      this.render(); this.ask();
+    } }, m)));
+    const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', tabs, wide: true });
     this.page = page;
-    this._unsub = [Bus.on('rankings', d => { this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) this.ask(); })];
+    this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) this.ask(); })];
     this.ask();
     this._tick = setInterval(() => this.ask(), 30000);
     this.render();
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._tick); },
-  ask() { Rankings.report(); Presence.send({ t: 'rankings' }); },
+  ask() { Rankings.report(); Presence.send({ t: 'rankings', mode: this.mode || 'performance' }); },
   render() {
     if (!this.page) return;
     const d = this.data;
     if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
-    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
+    const byScore = this.mode === 'score';
+    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', byScore ? 'Ranked Score' : 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
     const row = r => {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
         h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
-        h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
+        h('span', fmtInt(r.plays)), h('span.hl', byScore ? fmtInt(r.rscore || 0) : `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)
       el.classList.add('click');
