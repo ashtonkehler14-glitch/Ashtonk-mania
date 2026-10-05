@@ -3176,8 +3176,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pause-box { position: absolute; inset: 0; width: auto; display: grid; grid-template-rows: 1fr auto 1fr; align-items: center; }
 .pm-head { display: grid; place-items: center; }
 .pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
-.pm-buttons { padding: 0 50px; gap: 2px; }
-.pm-btn { height: 80px; font-size: 28px; font-weight: 700; }
+.pm-buttons { padding: 0 50px; gap: 6px; width: 100%; max-width: 900px; justify-self: center; } /* (a comfortable width, not the whole of a wide screen) */
+.pm-btn { height: 72px; font-size: 26px; font-weight: 700; }
 /* lazer's DialogButton: long bars (80% of the width); hovered, one widens a little with a glow and its label spreads */
 .pm-btn .pm-label { display: inline-block; transition: letter-spacing 200ms cubic-bezier(.22, 1, .36, 1); }
 .pm-btn:focus-visible .pm-band { filter: brightness(1.15); }
