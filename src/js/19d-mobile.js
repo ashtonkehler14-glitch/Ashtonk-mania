@@ -12,10 +12,20 @@ const Mobile = {
   /** Right after loading (before the first-run setup): recommend the app. */
   early() {
     if (!this.touch) return;
+    this.noZoom();
     Orientation.init();
     let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
     if (!App.installed && !quiet) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
+  },
+  /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
+   *  user-scalable=no, so its gestures are stopped here) and double-tapping. */
+  noZoom() {
+    const stop = e => { if (e.cancelable) e.preventDefault(); };
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
+    document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (typeof e.scale === 'number' && e.scale !== 1)) stop(e); }, { passive: false });
+    // (double-tap zoom: touch-action: manipulation on the page)
+    document.documentElement.classList.add('no-zoom');
   },
   /** After the first-run setup. */
   init() {

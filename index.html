@@ -2,7 +2,7 @@
 <html lang="en" data-theme="lazer">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#18171c">
 <title>Ashtonk!mania</title>
@@ -2020,10 +2020,10 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
    (the overlay's Highlight1 inside overlays) */
 .input { border-radius: 5px; background-color: rgba(0, 0, 0, .5); }
 .input::placeholder { font-style: italic; color: #b4b4b4; opacity: 1; }
-.input:focus { border-color: #ffcc22; box-shadow: 0 0 0 2px #ffcc22; }
+.input:focus { border-color: rgba(255, 255, 255, .22); box-shadow: none; }
 /* (text boxes show focus with that border, not the accent outline on top of it) */
 .input:focus-visible { outline: none; }
-.ov .input:focus, .settings-panel .input:focus, .setup .input:focus { border-color: var(--ohl, hsl(var(--o-h, 255) 100% 70%)); box-shadow: 0 0 0 2px var(--ohl, hsl(var(--o-h, 255) 100% 70%)); }
+.ov .input:focus, .settings-panel .input:focus, .setup .input:focus { border-color: rgba(255, 255, 255, .22); box-shadow: none; }
 .settings-panel .fsel .input:focus { box-shadow: none; }
 /* OsuButton: 5px corners, bold text */
 .btn { border-radius: 5px; font-weight: 700; }
@@ -4364,6 +4364,8 @@ span.md-tag { cursor: default; }
 .ut-chip.voted { background: rgba(102, 204, 255, .14); color: #cdeeff; }
 .ut-chip.mine { background: #66ccff; color: #10202a; font-weight: 600; }
 .ut-chip small { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+/* phones and tablets: no double-tap zoom anywhere */
+html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 
 </style>
 </head>
@@ -17513,7 +17515,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -23227,10 +23229,20 @@ const Mobile = {
   /** Right after loading (before the first-run setup): recommend the app. */
   early() {
     if (!this.touch) return;
+    this.noZoom();
     Orientation.init();
     let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
     if (!App.installed && !quiet) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
+  },
+  /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
+   *  user-scalable=no, so its gestures are stopped here) and double-tapping. */
+  noZoom() {
+    const stop = e => { if (e.cancelable) e.preventDefault(); };
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
+    document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (typeof e.scale === 'number' && e.scale !== 1)) stop(e); }, { passive: false });
+    // (double-tap zoom: touch-action: manipulation on the page)
+    document.documentElement.classList.add('no-zoom');
   },
   /** After the first-run setup. */
   init() {
