@@ -4314,6 +4314,16 @@ span.md-tag { cursor: default; }
 .ut-chip small { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
 /* phones and tablets: no double-tap zoom anywhere */
 html.no-zoom, html.no-zoom body { touch-action: manipulation; }
+/* short screens (a phone held sideways): the overlays' banner, the profile's cover and the back button take less height */
+@media (max-height: 520px) {
+  .ov-head::before { height: 22px; }
+  .ov-content { padding-top: 12px; }
+  .pf-header { margin-top: -12px; }
+  .pf-top { height: 150px; }
+  .pf-top .pf-avatar { width: 84px !important; height: 84px !important; font-size: 2.2rem !important; border-radius: 16px; }
+  .pf-name { font-size: 1.5rem; }
+  .page-back .lz-back, .ss-footer .lz-back { height: 40px; min-width: 104px; font-size: .85rem; }
+}
 
 </style>
 </head>
