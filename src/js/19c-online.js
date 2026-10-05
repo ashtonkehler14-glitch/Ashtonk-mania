@@ -149,8 +149,10 @@ const Spectate = {
       if (c.pauseShown || now >= c.pause - 400 * s.rate) return; // (waiting at the pause isn't "waiting for the stream")
     }
     if (c.ended) { if (c.buffering) this.buffer(screen, s, false); return; }
-    if (s.running && now > c.at - 150 * s.rate) this.buffer(screen, s, true);
-    else if (c.buffering && c.at - now > SPEC_DELAY * 0.6 * s.rate) this.buffer(screen, s, false);
+    // (each time playback has to wait for the stream it carries on a little further behind — up to 3s more — so a
+    // patchy connection settles into smooth playback instead of stopping again and again)
+    if (s.running && now > c.at - 150 * s.rate) { c.lag = Math.min(3000, (c.lag || 0) + 400); this.buffer(screen, s, true); }
+    else if (c.buffering && c.at - now > (SPEC_DELAY * 0.6 + (c.lag || 0)) * s.rate) this.buffer(screen, s, false);
   },
   showPause(screen, s) {
     const c = s.spectate;
@@ -230,7 +232,24 @@ const Spectate = {
         else if (n === 'style' && /expression|javascript:/i.test(a.value)) el.removeAttribute('style');
       }
     }
-    this.rkView.replaceChildren(t.content);
+    // (updated in place — only what changed — so nothing on their screen restarts or flickers between updates)
+    Spectate.morph(this.rkView, t.content);
+  },
+  /** Make `el`'s children match `src`'s: same elements kept (their attributes and text brought up to date), others
+   *  added or removed. */
+  morph(el, src) {
+    const a = [...el.childNodes], b = [...src.childNodes];
+    for (let i = 0; i < b.length; i++) {
+      const x = a[i], y = b[i];
+      if (!x) { el.appendChild(y); continue; }
+      if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { el.replaceChild(y, x); continue; }
+      if (x.nodeType === 3 || x.nodeType === 8) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; continue; }
+      if (x.nodeType !== 1) continue;
+      for (const at of [...x.attributes]) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
+      for (const at of [...y.attributes]) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+      this.morph(x, y);
+    }
+    for (let i = a.length - 1; i >= b.length; i--) a[i].remove();
   },
   /** A piece of the player's screen (compressed, in chunks): put together, unpacked and shown. */
   async onMirror(m) {
@@ -253,11 +272,23 @@ const Spectate = {
    *  watchers see what you're doing. Mid-song they watch the song itself, played back from your key presses. */
   mirrorTick() {
     const H = this.host;
-    if (!H.watchers || !Presence.ws) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
+    if (!H.watchers || !Presence.ws) {
+      if (this._mo) { this._mo.disconnect(); this._mo = null; }
+      if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); }
+      return;
+    }
     const G = typeof GameplayScreen !== 'undefined' ? GameplayScreen : null, s = G && G.s;
-    const live = Screens.currentName === 'gameplay' && s && s.running && !s.failed && !s.finished;
+    // (in gameplay only the fail and pause screens are copied — a song, its loading screen and its intro aren't: the
+    // watchers have their own, and copying them would cost the player frames)
+    const live = Screens.currentName === 'gameplay' && !(s && (s.failed || G.pauseEl));
     if (live) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
-    const app = $('#app'), html = app ? this.mirrorHtml(app) : null;
+    const app = $('#app');
+    if (!app) return;
+    // (copied only after something on screen changed)
+    if (!this._mo) { this._mo = new MutationObserver(() => { this._dirty = true; }); this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true }); this._dirty = true; }
+    if (!this._dirty && this._mirOn) return;
+    this._dirty = false;
+    const html = this.mirrorHtml(app);
     if (!html || html === this._mirHtml) return;
     this._mirHtml = html; this._mirOn = true;
     this.sendMirror(html);
@@ -271,13 +302,15 @@ const Spectate = {
     const live = app.querySelector('.gp-canvas'), copy = c.querySelector('.gp-canvas');
     if (live && copy && live.width && live.height) {
       try {
+        if (this._snap && performance.now() - this._snap.at < 1000) { const img = document.createElement('img'); img.className = copy.className; img.setAttribute('style', copy.getAttribute('style') || ''); img.src = this._snap.url; copy.replaceWith(img); throw 0; }
         const k = Math.min(1, 480 / live.width), t = document.createElement('canvas');
         t.width = Math.round(live.width * k); t.height = Math.round(live.height * k);
         t.getContext('2d').drawImage(live, 0, 0, t.width, t.height);
         const img = document.createElement('img');
         img.className = copy.className; img.setAttribute('style', copy.getAttribute('style') || ''); img.src = t.toDataURL('image/jpeg', 0.6);
+        this._snap = { at: performance.now(), url: img.src };
         copy.replaceWith(img);
-      } catch { /* a canvas that can't be read */ }
+      } catch { /* a canvas that can't be read (or the last picture reused) */ }
     }
     return c.innerHTML;
   },
@@ -332,7 +365,7 @@ const Spectate = {
     const H = this.host;
     if (H.s !== s || !H.watchers || s.finished) return;
     const t = performance.now();
-    if (t - H.lastSend < 400) return;
+    if (t - H.lastSend < 200) return;
     H.lastSend = t;
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100);
     H.sent = s.events.length;

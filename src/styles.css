@@ -3960,3 +3960,6 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mod-p.preset-add { justify-content: center; min-height: 44px; color: #ffd966; }
 .mod-p.preset-add:disabled { opacity: .4; cursor: default; }
 .mod-p.preset-add .i { width: 20px; height: 20px; }
+
+/* a spectated screen: kept still between updates (its entrance animations would otherwise play again each time) */
+.spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { animation: none !important; }
