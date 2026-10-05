@@ -306,18 +306,24 @@ const ExplorerScreen = {
     ring.innerHTML = `<circle cx="26" cy="26" r="${R}" class="bg"/><circle cx="26" cy="26" r="${R}" class="fg" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}" transform="rotate(-90 26 26)"/>`;
     const fg = ring.querySelector('.fg');
     this.topBtn = h('button.ex-totop', { title: 'Back to top', 'aria-label': 'Back to top', onclick: () => { UISounds.click(); scroller.scrollTo({ top: 0, behavior: 'smooth' }); } }, ring, icon('up'));
-    const paintRing = () => { const max = scroller.scrollHeight - scroller.clientHeight; const p = max > 0 ? clamp(scroller.scrollTop / max, 0, 1) : 0; fg.setAttribute('stroke-dashoffset', (C * (1 - p)).toFixed(2)); };
+    // (how far the list can scroll is measured when its size changes, not on every scroll)
+    let maxScroll = 0;
+    const paintRing = () => { const p = maxScroll > 0 ? clamp((this._st ?? 0) / maxScroll, 0, 1) : 0; const v = (C * (1 - p)).toFixed(2); if (v !== this._ringV) { this._ringV = v; fg.setAttribute('stroke-dashoffset', v); } };
     // (and when the page's size settles — the screen sliding in, the header taking its height — the cards in view
     // are worked out again: before, the first results could sit unloaded until you scrolled)
-    this._ringRO = new ResizeObserver(() => { paintRing(); if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); }); });
-    this._ringRO.observe(this.grid); this._ringRO.observe(scroller); // (more results loading in moves the bottom further away)
+    this._ringRO = new ResizeObserver(() => { maxScroll = scroller.scrollHeight - scroller.clientHeight; this._mDirty = true; paintRing(); if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); }); });
+    this._ringRO.observe(this.grid); this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
+    this._st = undefined; this._m = null; this._mDirty = true; this._ringV = null; // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
+      this._st = scroller.scrollTop; // (read here, where the page is already laid out, and used by the frame after)
       if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); });
-      this.topBtn.classList.toggle('show', scroller.scrollTop > 600);
-      paintRing();
-      this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => this.shield.classList.remove('on'), 160);
+      // (the ring once a frame, after the window has moved: measuring the page in the scroll event made the browser
+      // lay it out again in the middle of every scroll)
+      if (!this._ringRaf) this._ringRaf = requestAnimationFrame(() => { this._ringRaf = 0; paintRing(); this.topBtn.classList.toggle('show', this._st > 600); });
+      this._scrolling = true;
+      this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => { this._scrolling = false; this.shield.classList.remove('on'); }, 160);
     }, { passive: true });
     el.append(scroller, this.topBtn);
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { root: scroller, rootMargin: '0px 0px 3000px 0px' });
@@ -325,7 +331,7 @@ const ExplorerScreen = {
     // back online after an offline error: search again by itself
     const online = () => { if (this.error) this.newSearch(); };
     window.addEventListener('online', online);
-    const resized = () => this.renderWindow(); // (a different width can mean a different number of columns)
+    const resized = () => { this._mDirty = true; this.renderWindow(); }; // (a different width can mean a different number of columns)
     window.addEventListener('resize', resized);
     this._unsub = [Bus.on('library:changed', () => this.renderResults()),
       // (a difficulty's global board, asked for by its beatmap id, for the open beatmap overlay)
@@ -419,22 +425,50 @@ const ExplorerScreen = {
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
     // cards that haven't changed are kept as they are (rebuilding every card made the whole page flash
     // each time another page of results came in)
+    // (cards are only built as they near the screen — see cardEl — not a whole page of fifty in one frame)
     const old = this._cards || new Map(), next = new Map();
-    const cards = list.map(set => {
+    const entries = list.map(set => {
       const sig = this.cardSig(set), c = old.get(set.id);
-      const card = c && c.sig === sig && c.set === set ? c.el : this.card(set);
-      // a card new to the list fades in once (and drops the animation after)
-      if (!c) { card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
-      next.set(set.id, { el: card, sig, set });
-      return card;
+      const e = c && c.sig === sig && c.set === set ? c : { set, sig, el: null, isNew: !c };
+      next.set(set.id, e);
+      return e;
     });
     this._cards = next;
-    this._all = cards;
+    this._all = entries;
+    this._mDirty = true; this._st = top;
     this.renderWindow();
     this.renderStatus();
     if (scroller) scroller.scrollTop = top;
     // once more after layout (the first row's height, and where the grid sits, are only known then)
     requestAnimationFrame(() => requestAnimationFrame(() => this.renderWindow()));
+  },
+  /** The columns, the distance from one row to the next and where the grid starts in the list. */
+  measureGrid(grid, sc) {
+    const cs = getComputedStyle(grid);
+    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
+    // the real distance from one row to the next, measured on the page (an estimate drifts further off the further
+    // down the list you go, until the window is drawn off screen)
+    const kids = grid.children;
+    let rowH = 0;
+    if (kids.length > cols && kids[cols].offsetTop > kids[0].offsetTop) rowH = kids[cols].offsetTop - kids[0].offsetTop;
+    else if (kids[0] && kids[0].offsetHeight) rowH = kids[0].offsetHeight + (parseFloat(cs.rowGap) || 0);
+    // where the grid starts in the list, from layout offsets (the header's scroll effects move things on screen,
+    // which threw on-screen positions further off the further down you were)
+    let gridTop = 0;
+    if (sc) for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
+    const vh = (sc && sc.clientHeight) || innerHeight; // (not laid out yet, mid-transition: assume a full window)
+    // (measured for real only once there are two rows of cards to measure, until then it's asked again)
+    this._mDirty = !(kids.length > cols && rowH > 0 && sc && sc.clientHeight);
+    return { cols, rowH: rowH || (this._m && this._m.rowH) || 0, gridTop, vh };
+  },
+  /** A result's card, built the first time it's needed. */
+  cardEl(e) {
+    if (e.el) return e.el;
+    const card = e.el = this.card(e.set);
+    // a card new to the list fades in once (and drops the animation after) — not while scrolling, where it'd only
+    // be a moving layer for the compositor to juggle
+    if (e.isNew && !this._scrolling) { e.isNew = false; card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
+    return card;
   },
   /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
    *  space. However long the list grows, scrolling it costs the same as the first page. */
@@ -442,36 +476,38 @@ const ExplorerScreen = {
     const grid = this.grid, all = this._all || [];
     if (!grid) return;
     const sc = grid.closest('.screen-body');
-    const cs = getComputedStyle(grid);
-    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
-    // the real distance from one row to the next, measured on the page (an estimate drifts further off the further
-    // down the list you go, until the window is drawn off screen)
-    const kids = grid.children;
-    if (kids.length > cols && kids[cols].offsetTop > kids[0].offsetTop) this._rowH = kids[cols].offsetTop - kids[0].offsetTop;
-    else if (kids[0] && kids[0].offsetHeight) this._rowH = this._rowH || kids[0].offsetHeight + (parseFloat(cs.rowGap) || 0);
-    const rowH = this._rowH || 110, rows = Math.ceil(all.length / cols);
+    // the grid's measurements are taken again only when something changed size (_mDirty: a resize, new results, the
+    // header growing): scrolling reads none of them, so it never has the browser lay the page out mid-frame
+    if (this._mDirty !== false || !this._m) this._m = this.measureGrid(grid, sc);
+    const { cols, gridTop, vh } = this._m;
+    const rowH = this._m.rowH || 110, rows = Math.ceil(all.length / cols);
+    const st = this._st ?? (sc ? sc.scrollTop : 0);
     let from = 0, to = rows;
     if (sc && all.length > cols * 12) {
-      // where the grid starts in the list, from layout offsets (the header's scroll effects move things on screen,
-      // which threw on-screen positions further off the further down you were)
-      let gridTop = 0;
-      for (let e = grid; e && e !== sc; e = e.offsetParent) { gridTop += e.offsetTop; if (e.offsetParent && !sc.contains(e.offsetParent) && e.offsetParent !== sc) { gridTop -= sc.offsetTop; break; } }
-      const vh = sc.clientHeight || innerHeight; // (not laid out yet, mid-transition: assume a full window)
-      const range = extra => [clamp(Math.floor((sc.scrollTop - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((sc.scrollTop - gridTop + vh + extra) / rowH), 0, rows)];
-      // what's in the page already is kept while it still covers the screen with half a screen to spare; past that,
-      // the window moves on with a screen and a half either side (so it changes every few hundred pixels, not every row)
-      const [needA, needB] = range(vh);
+      const range = extra => [clamp(Math.floor((st - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((st - gridTop + vh + extra) / rowH), 0, rows)];
+      // what's in the page already is kept while it still covers the screen with a third of a screen to spare; past
+      // that, the window moves on to two thirds of a screen either side — a row or two at a time as you scroll, so no
+      // one frame has to lay out and paint dozens of new cards (that was a visible hitch on slow Chromebooks)
+      const [needA, needB] = range(vh / 3);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(vh * 2);
+      else [from, to] = range(vh * 2 / 3);
       // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
       const [pa, pb] = range(vh * 3);
-      for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) { const f = all[i]._loadCovers; if (f) { all[i]._loadCovers = null; f(); } }
+      // (the cards ahead are built a few a frame, so a new page of results never lands in one long frame)
+      let budget = 4, more = false;
+      for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) {
+        const e = all[i];
+        if (!e.el && i >= from * cols && i < to * cols) this.cardEl(e); // (needed now)
+        else if (!e.el) { if (budget-- > 0) this.cardEl(e); else { more = true; continue; } }
+        const f = e.el._loadCovers; if (f) { e.el._loadCovers = null; f(); }
+      }
+      if (more && !this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); });
       // and the next page is asked for long before the end of the list comes into view
       if (this.hasMore && !this.loading && !this.error && pb >= rows - 2) this.loadMore();
-    } else for (const c of all) { const f = c._loadCovers; if (f) { c._loadCovers = null; f(); } }
+    } else for (const e of all) { const c = this.cardEl(e), f = c._loadCovers; if (f) { c._loadCovers = null; f(); } }
     this._win = { from, to, cols, n: all.length };
-    const shown = all.slice(from * cols, to * cols);
+    const shown = all.slice(from * cols, to * cols).map(e => this.cardEl(e));
     const pt = from ? `${from * rowH}px` : '', pb = to < rows ? `${(rows - to) * rowH}px` : '';
     if (grid.style.paddingTop !== pt) grid.style.paddingTop = pt;
     if (grid.style.paddingBottom !== pb) grid.style.paddingBottom = pb;
@@ -505,8 +541,11 @@ const ExplorerScreen = {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
     // covers load as the card nears the screen (not 100 images per page at once, most of them far below)
     const loadCovers = () => {
-      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], () => thumb.classList.add('loaded'));
-      OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], () => bg.classList.add('loaded'));
+      // (they fade in only on a card you're looking at; one that loads ahead of the screen or mid-scroll is simply
+      // there — every fade is its own compositor layer for a moment, and dozens at once stuttered the scroll)
+      const show = el => () => { if (this._scrolling || !el.isConnected) el.style.transition = 'none'; el.classList.add('loaded'); };
+      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb));
+      OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg));
     };
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
     const len = Math.max(...set.diffs.map(d => d.length));
@@ -769,7 +808,12 @@ const ExplorerScreen = {
   },
   refreshCard(set) {
     const old = this.grid && this.grid.querySelector(`.ex-card[data-id="${set.id}"]`);
-    if (old) { const card = this.card(set); old.replaceWith(card); if (this._cards) this._cards.set(set.id, { el: card, sig: this.cardSig(set), set }); }
+    if (old) {
+      const card = this.card(set), e = this._cards && this._cards.get(set.id);
+      old.replaceWith(card);
+      if (e) { e.el = card; e.sig = this.cardSig(set); e.set = set; }
+      if (card._loadCovers) { card._loadCovers(); card._loadCovers = null; }
+    }
     if (this.setView && this.setView.set.id === set.id) this.renderSet();
   },
   togglePreview(id) {

@@ -73,11 +73,19 @@ const ICONS = {
   trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
 };
 function icon(name, cls = '') {
-  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', `i ${cls}`); s.setAttribute('aria-hidden', 'true');
-  s.innerHTML = (ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"');
-  return s;
+  // (each icon is parsed once and copied after that: lists build hundreds of them, and parsing the markup every
+  // time was a good part of what a long list cost to draw)
+  const key = name + '|' + cls;
+  let t = icon.cache.get(key);
+  if (!t) {
+    t = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    t.setAttribute('viewBox', '0 0 24 24'); t.setAttribute('class', `i ${cls}`); t.setAttribute('aria-hidden', 'true');
+    t.innerHTML = (ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"');
+    icon.cache.set(key, t);
+  }
+  return t.cloneNode(true);
 }
+icon.cache = new Map();
 
 /** Star rating colour ramp. */
 function starColour(sr) {
@@ -1152,6 +1160,8 @@ const Screens = {
   history: [],
   busy: false,
   register(name, screen) { this.registry[name] = screen; },
+  /** The screens' entrance animations (each ends where the element rests, so letting go of it changes nothing). */
+  ENTRANCES: new Set(['scrIn', 'scrInRight', 'scrInZoom', 'scrInMenu', 'ssWedgeIn', 'ssCarIn', 'ssFootIn', 'ovBodyIn', 'ovBgIn', 'wedgeIn']),
   async go(name, params = {}, { replace = false, transition = 'default' } = {}) {
     // (a screen may be swapped for another first: in a multiplayer room, "home" means back to the room)
     if (this.redirect && !params.noRedirect) { name = this.redirect(name, this.currentName); if (!name) return; }
@@ -1196,6 +1206,13 @@ const Screens = {
         el.append(waves);
         setTimeout(() => waves.remove(), 1400);
       }
+      // once it has come in, the screen's entrance animations are let go: one held on its last frame (fill: both)
+      // keeps the screen on a compositor layer of its own, and then everything in it that overlaps — every card of a
+      // long list — gets a layer too (hundreds of them, which made scrolling stutter on slow Chromebooks)
+      el.addEventListener('animationend', e => {
+        if (!this.ENTRANCES.has(e.animationName)) return;
+        for (const a of el.getAnimations({ subtree: true })) if (a.playState === 'finished' && this.ENTRANCES.has(a.animationName)) a.cancel();
+      });
       $('#screens').appendChild(el);
       Toolbar.setActive(next.tab || name);
       $('#app').classList.toggle('in-game', !!next.inGame);

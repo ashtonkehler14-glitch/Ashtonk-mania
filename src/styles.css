@@ -1009,7 +1009,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ex-counts .i { width: 12px; height: 12px; opacity: .85; }
 .ex-play { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; display: grid; place-items: center; opacity: 0; transform: scale(.8); transition: opacity var(--t-fast), transform var(--t-fast) var(--ease-out), background var(--t-fast); }
 .ex-play .i { width: 20px; height: 20px; }
-.ex-card:hover .ex-play, .ex-card:has(:focus-visible) .ex-play, .ex-play[data-ic="pause"] { opacity: 1; transform: none; }
+.ex-card:hover .ex-play, .ex-card:focus-visible .ex-play, .ex-card:focus-within:not(:focus) .ex-play, .ex-play[data-ic="pause"] { opacity: 1; transform: none; }
 .ex-play[data-ic="pause"] { background: var(--accent); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .3); }
 .ex-card .ex-play:hover { background: var(--accent); transform: scale(1.1); }
 @media (hover: none) { .ex-play { opacity: 1; transform: none; } }
@@ -2303,7 +2303,7 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* ── beatmap listing, lazer style: BeatmapCardNormal (thumbnail + details over the faded cover), two columns */
 .ex-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .ex-grid { grid-template-columns: 1fr; } }
-.ex-card { position: relative; isolation: isolate; overflow: hidden; display: flex; height: 100px; padding: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; transition: transform 200ms var(--ease-out), box-shadow 200ms; }
+.ex-card { position: relative; isolation: isolate; overflow: hidden; display: flex; height: 100px; contain: size layout style; /* (a card's insides never move the grid: adding cards while scrolling doesn't re-lay out the rest) */ padding: 0; border-radius: 10px; background: hsl(var(--o-h) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; transition: transform 200ms var(--ease-out), box-shadow 200ms; }
 .ex-card.ex-new { animation: rowIn 300ms var(--ease-out) both; } /* (only while it comes in: a finished animation left on hundreds of cards slowed every restyle) */
 .ex-card:hover, .ex-card:focus-visible { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); outline: none; }
 .ex-cardbg { position: absolute; inset: 0; z-index: -2; background: center / cover no-repeat; opacity: 0; transition: opacity 400ms; }
@@ -2512,9 +2512,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 1100px) and (hover: none) and (orientation: portrait) { .ex-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ex-grid { grid-template-columns: 1fr; } }
 .ex-card .ex-cb { transition: padding-right 250ms var(--ease-out); }
-.ex-card:hover .ex-cb, .ex-card:has(:focus-visible) .ex-cb { padding-right: 52px; }
+.ex-card:hover .ex-cb, .ex-card:focus-visible .ex-cb, .ex-card:focus-within:not(:focus) .ex-cb { padding-right: 52px; }
 .ex-side { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; background: hsl(var(--o-h) 10% 10% / .92); transform: translateX(100%); transition: transform 250ms var(--ease-out); }
-.ex-card:hover .ex-side, .ex-card:has(:focus-visible) .ex-side { transform: none; }
+.ex-card:hover .ex-side, .ex-card:focus-visible .ex-side, .ex-card:focus-within:not(:focus) .ex-side { transform: none; }
 .ex-side-btn { flex: 1; display: grid; place-items: center; border: 0; background: none; color: rgba(255, 255, 255, .85); cursor: pointer; transition: background 120ms, color 120ms; }
 .ex-side-btn + .ex-side-btn { border-top: 1px solid rgba(255, 255, 255, .06); }
 .ex-side-btn .i { width: 18px; height: 18px; }
