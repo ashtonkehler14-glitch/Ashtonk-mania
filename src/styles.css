@@ -3929,3 +3929,10 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-lowhp i { position: absolute; top: 0; bottom: 0; width: 20%; }
 .gp-lowhp i:first-child { left: 0; background: linear-gradient(90deg, #ed1121, rgba(237, 17, 33, 0)); }
 .gp-lowhp i:last-child { right: 0; background: linear-gradient(270deg, #ed1121, rgba(237, 17, 33, 0)); }
+
+/* another player's score, opened from the multiplayer results: lazer's expanded score panel, centred over them */
+.mpr-pop { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; animation: mprPop 260ms var(--ease-out); }
+.mpr-pop.out { animation: mprPopOut 180ms ease-in forwards; }
+.mpr-pop > .rs { width: min(360px, 92vw); margin-top: 40px; }
+@keyframes mprPop { from { opacity: 0; transform: scale(.9); } }
+@keyframes mprPopOut { to { opacity: 0; transform: scale(.92); } }

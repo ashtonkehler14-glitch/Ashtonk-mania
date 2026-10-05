@@ -3949,6 +3949,13 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-lowhp i:first-child { left: 0; background: linear-gradient(90deg, #ed1121, rgba(237, 17, 33, 0)); }
 .gp-lowhp i:last-child { right: 0; background: linear-gradient(270deg, #ed1121, rgba(237, 17, 33, 0)); }
 
+/* another player's score, opened from the multiplayer results: lazer's expanded score panel, centred over them */
+.mpr-pop { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; animation: mprPop 260ms var(--ease-out); }
+.mpr-pop.out { animation: mprPopOut 180ms ease-in forwards; }
+.mpr-pop > .rs { width: min(360px, 92vw); margin-top: 40px; }
+@keyframes mprPop { from { opacity: 0; transform: scale(.9); } }
+@keyframes mprPopOut { to { opacity: 0; transform: scale(.92); } }
+
 </style>
 </head>
 <body>
@@ -20733,12 +20740,29 @@ const MpResults = {
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
     const at = rows.findIndex(r => r.id === me);
-    const panel = (r, i) => this.panel(r, i, first, res);
+    // (another player's panel opens as a full score panel, as lazer's results expand the one you pick)
+    const panel = (r, i) => { const e = this.panel(r, i, first, res); if (r.id !== me && !r.pending) { e.classList.add('cp-click'); e.title = 'See their score'; e.onclick = () => { UISounds.click(); this.expand(r, res); }; } return e; };
     clearEl(this.before).append(...rows.slice(0, Math.max(0, at)).map(panel));
     clearEl(this.after).append(...(at < 0 ? rows : rows.slice(at + 1)).map((r, k) => panel(r, (at < 0 ? 0 : at + 1) + k)));
     // (your own panel: its place and the winner's crown)
     const mine2 = rows.find(r => r.id === me);
     if (this.place) this.place.textContent = mine2 ? `#${mine2.place}` : '';
+  },
+  /** Another player's score as lazer's expanded score panel (the one in the middle of the results screen), over the
+   *  results; a click outside it or Esc closes it. */
+  expand(r, res) {
+    const m = (res && res.map) || (Multiplayer.room && Multiplayer.room.map) || {};
+    const local = m.hash ? BeatmapManager.mapByHash(m.hash) : null;
+    const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
+    const g = r.forfeit ? 'F' : r.grade || 'D';
+    const score = { online: true, player: r.name, avatar: p && p.avatar, score: r.score || 0, scoreStd: r.score || 0, accuracy: r.accuracy || 0, maxCombo: r.maxCombo || 0,
+      counts: r.counts || [0, 0, 0, 0, 0, 0], grade: g, mods: r.mods || [], passed: !r.forfeit && g !== 'F', pp: r.pp || 0, date: Date.now(), replayId: null,
+      title: m.title || (local && local.title) || '', artist: m.artist || (local && local.artist) || '', version: (r.diff && r.diff.version) || m.version || (local && local.version) || '',
+      creator: (local && local.creator) || m.creator || '', keys: (local && local.keys) || m.keys || 4, stars: (r.diff && r.diff.stars) || (local && local.stars) || m.stars || 0, mapHash: (r.diff && r.diff.hash) || m.hash || '' };
+    const card = ResultsScreen.gradeCard(score, { watched: 'online' });
+    const box = h('div.mpr-pop', { role: 'dialog', 'aria-label': `${r.name}'s score` }, card);
+    const o = makeOverlay(box, { onKey: e => { if (e.key === 'Escape') { UISounds.back(); o.close(); return true; } } });
+    box.addEventListener('click', e => { if (e.target === box) { UISounds.back(); o.close(); } });
   },
   /** lazer's contracted ScorePanel (130 × 385). */
   panel(r, i, animate, res) {
@@ -21256,7 +21280,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
