@@ -20362,6 +20362,18 @@ const Spectate = {
     const c = app.cloneNode(true);
     for (const el of c.querySelectorAll('.spec-rk, .cursor, #cursor, .kb-bar')) el.remove();
     for (const el of c.querySelectorAll('input, textarea')) { const src = el.id && app.querySelector('#' + CSS.escape(el.id)); el.setAttribute('value', el.value || (src && src.value) || ''); }
+    // (a canvas carries nothing as HTML: the stage — under a fail or pause screen — goes as a small picture)
+    const live = app.querySelector('.gp-canvas'), copy = c.querySelector('.gp-canvas');
+    if (live && copy && live.width && live.height) {
+      try {
+        const k = Math.min(1, 480 / live.width), t = document.createElement('canvas');
+        t.width = Math.round(live.width * k); t.height = Math.round(live.height * k);
+        t.getContext('2d').drawImage(live, 0, 0, t.width, t.height);
+        const img = document.createElement('img');
+        img.className = copy.className; img.setAttribute('style', copy.getAttribute('style') || ''); img.src = t.toDataURL('image/jpeg', 0.6);
+        copy.replaceWith(img);
+      } catch { /* a canvas that can't be read */ }
+    }
     return c.innerHTML;
   },
   async sendMirror(html) {
