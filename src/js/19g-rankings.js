@@ -42,11 +42,11 @@ const Verified = {
       await sleep(1500);
     }
   },
-  async submit({ rec, mods, modConfig, seed, events, daily = null, playlist = null }) {
+  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
     if (!Multiplayer.available()) return null;
     const osu = await this.file(rec);
     if (!osu) return null;
-    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily, playlist });
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
     try {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);

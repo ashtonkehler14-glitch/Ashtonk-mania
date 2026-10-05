@@ -72,19 +72,12 @@ const HomeScreen = {
         ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
-        // lazer's playlists button, L
-        ['playlists', 'playlists', 'list', '#5e3fba', ['KeyL'], 'play', 'play', null, () => this.enterMode(() => Screens.go('playlists'))],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
-        // where lazer has the beatmap and skin editors: everything for changing what's installed
         // lazer's beatmap editor, on the selected difficulty
         ['editor', 'beatmap', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
         // lazer's skin editor, S (picking a skin is in Settings → Skin)
         ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => SkinEditor.open())],
-        ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
-        ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
-        ['collections', 'collections', 'folder', '#dca000', ['KeyC'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('collections'))],
-        ['replays', 'replays', 'film', '#eeaa00', ['KeyR'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('replays'))],
         ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
         ['edit', 'edit', 'editcircle', '#eeaa00', ['KeyE'], 'top', 'top', null, () => this.setState('edit')],
         ['browse', 'browse', 'beatmap', '#a5cc00', ['KeyB', 'KeyD'], 'top', 'top', null, () => this.enterMode(() => Screens.go('explore'))],
@@ -527,14 +520,27 @@ const HomeScreen = {
     'Get more options for a beatmap by right-clicking on its panel at song select!',
     'Press F2 at song select for a random beatmap; Shift+F2 goes back to the one before!',
     'Drop .osz, .osk and .osr files anywhere on the game to import them!',
-    'Ranked Play lets you queue for rated 1v1 matches against players of your skill!',
+    'Ranked Play matches you 1v1 with someone at the difficulty you pick!',
     'Press Ctrl+B anywhere to browse for new beatmaps!',
+    'Press F12 to take a screenshot!',
+    'Press Ctrl+Shift+S to move the score, health and the rest of the HUD where you like them!',
+  ],
+  // (on a phone or tablet: no keyboard, so tips about the screen instead)
+  TOUCH_TIPS: [
+    'Tap the gear in the top left to change any setting!',
+    'Tap the note in the top bar to see what\'s playing and skip songs!',
+    'Long-press a beatmap at song select for more options!',
+    'Each column of the screen is a key while you play — the whole height of it!',
+    'Ranked Play matches you 1v1 with someone at the difficulty you pick!',
+    'Find new beatmaps under Browse on the main menu!',
+    'Edit → skin lets you move the score, health and the rest of the HUD where you like them!',
   ],
   showTip() {
     if (Settings.get('ui.menuTips') === false || !this.tip) return;
-    let i; do { i = Math.floor(Math.random() * this.TIPS.length); } while (this.TIPS.length > 1 && i === this._lastTip);
+    const list = typeof Mobile !== 'undefined' && Mobile.touch ? this.TOUCH_TIPS : this.TIPS;
+    let i; do { i = Math.floor(Math.random() * list.length); } while (list.length > 1 && i === this._lastTip);
     this._lastTip = i;
-    const tip = this.TIPS[i];
+    const tip = list[i];
     clearEl(this.tip).append(h('div.lz-tip-t', icon('bulb'), h('b', 'Menu tip')), h('div.lz-tip-b', tip));
     const hold = 1000 + 80 * tip.length, total = 600 + 800 + hold + 2000;
     this.tip.getAnimations().forEach(a => a.cancel());
