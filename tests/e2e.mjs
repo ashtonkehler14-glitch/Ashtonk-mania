@@ -142,7 +142,7 @@ const syntax = await page.evaluate(() => AshtonkMania.SongSelect.results[0].maps
 check('filter syntax (keys>=8)', JSON.stringify(syntax) === '[8,9]', JSON.stringify(syntax));
 const only = await page.evaluate(() => { const s = AshtonkMania.SongSelect, n = q => { s.searchInput.value = q; s.query = q; s.rebuild(true); return s.results.length; }; return { all: n(''), word: n('anthem'), loose: n('tsnhm'), none: n('zzqx') }; });
 check('search keeps only the songs it names (lazer: every word must appear; no loose letter matching)', only.all >= 1 && only.word === 1 && only.loose === 0 && only.none === 0, JSON.stringify(only));
-await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
+await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.group', 'none'); AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));
 await page.evaluate(() => { AshtonkMania.Settings.set('songselect.sort', 'title'); AshtonkMania.SongSelect.rebuild(); });
 // lazer's FilterControl: the star range keeps only difficulties inside it; Group puts the sets under group headers,

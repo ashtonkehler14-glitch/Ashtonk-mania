@@ -24,6 +24,22 @@ const Mobile = {
     const stop = e => { if (e.cancelable) e.preventDefault(); };
     for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
     document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (typeof e.scale === 'number' && e.scale !== 1)) stop(e); }, { passive: false });
+    // two fingers up or down change the volume (as the mouse wheel does on a computer) — not mid-song, where two
+    // fingers are two keys
+    let vol = null;
+    document.addEventListener('touchstart', e => {
+      const playing = Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running && GameplayScreen.s.mode === 'play';
+      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se, .editor')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!vol || e.touches.length !== 2) return;
+      const y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      vol.acc += vol.y - y; vol.y = y;
+      // (one step — 5% — for every 24px the fingers move; up is louder)
+      while (Math.abs(vol.acc) >= 24) { const d = Math.sign(vol.acc); vol.acc -= d * 24; VolumeOverlay.adjust(VolumeOverlay.sel || 'master', d * 0.05); }
+      if (e.cancelable) e.preventDefault(); // (the page doesn't scroll under it)
+    }, { passive: false });
+    document.addEventListener('touchend', e => { if (e.touches.length < 2) vol = null; }, { passive: true });
     // (double-tap zoom: touch-action: manipulation on the page)
     document.documentElement.classList.add('no-zoom');
   },
@@ -103,19 +119,34 @@ const Keyboard = {
     document.addEventListener('focusin', () => setTimeout(() => this.upd(), 30));
     document.addEventListener('focusout', () => setTimeout(() => this.upd(), 30));
     for (const ev of ['input', 'selectionchange', 'keyup']) document.addEventListener(ev, () => { if (this.bar && !this.bar.hidden) this.paint(); });
+    // a phone keyboard's Enter / Send that doesn't arrive as an Enter key (a line break, or key "Unidentified" with
+    // keyCode 13): sent on to a chat box as one, so the message goes
+    document.addEventListener('beforeinput', e => { const a = e.target; if (e.inputType === 'insertLineBreak' && this.sends(a)) { e.preventDefault(); this.enter(a); } }, true);
+    document.addEventListener('keydown', e => { if (e.isTrusted && e.keyCode === 13 && e.key !== 'Enter' && this.sends(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); this.enter(e.target); } }, true);
     // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
   },
   build() {
     this.label = h('span.kb-label'); this.text = h('span.kb-text');
-    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text),
-      h('button.kb-done', { 'aria-label': 'Done', onclick: () => { const a = this.typing(); if (a) a.blur(); } }, icon('check')));
-    // (touching the bar keeps the box focused — and the keyboard up — except on the done button)
-    this.bar.addEventListener('pointerdown', e => { if (!e.target.closest('.kb-done')) e.preventDefault(); });
+    this.doneBtn = h('button.kb-done', { 'aria-label': 'Done', onclick: () => {
+      const a = this.typing();
+      // a chat box: the button sends (as Enter does) and the keyboard stays up for the next message
+      if (a && this.sends(a)) { this.enter(a); return; }
+      if (a) a.blur();
+    } }, icon('check'));
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.doneBtn);
+    // (touching the bar keeps the box focused — and the keyboard up — except on the done button, unless it sends)
+    this.bar.addEventListener('pointerdown', e => { const a = this.typing(); if (!e.target.closest('.kb-done') || (a && this.sends(a))) e.preventDefault(); });
     document.body.append(this.bar);
   },
+  /** A chat box: its keyboard key and the bar's button send the message. */
+  sends(a) { return !!a && (a.enterKeyHint === 'send' || a.getAttribute('aria-label') === 'Chat message'); },
+  /** Enter, as the box's own handler listens for it (some phone keyboards don't send a proper one). */
+  enter(a) { a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })); },
   upd() {
     const a = this.typing();
+    if (a && this.sends(a) && a.enterKeyHint !== 'send') a.enterKeyHint = 'send';
+
     const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
     this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
     // the keyboard put away (the phone's back button) with the box still focused: typing is over — the box lets go
@@ -133,6 +164,9 @@ const Keyboard = {
   paint() {
     const a = this.typing();
     if (!a || !this.bar) return;
+    // (a chat box: the button is Send)
+    const send = this.sends(a);
+    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'chat' : 'check')); }
     const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
     this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
     this.label.hidden = !lab;

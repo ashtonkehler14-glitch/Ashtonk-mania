@@ -7020,7 +7020,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Save replays automatically', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
-  { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
+  { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
@@ -7060,6 +7060,8 @@ const Settings = {
     if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }
     // downloads work as Web-Osu-Mania's: one chosen provider (Mino by default), straight from the browser unless proxied
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
+    // song select groups by key count by default; a list left ungrouped moves to it, once
+    if (!v['migr.groupKeys']) { if (v['songselect.group'] === 'none') delete v['songselect.group']; v['migr.groupKeys'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
@@ -17598,7 +17600,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Rankings have lazer\'s Score table too: players by ranked score (their best score on each ranked beatmap, added up)', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Rankings have lazer\'s Score table too: players by ranked score (their best score on each ranked beatmap, added up)', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -23354,6 +23356,22 @@ const Mobile = {
     const stop = e => { if (e.cancelable) e.preventDefault(); };
     for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
     document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (typeof e.scale === 'number' && e.scale !== 1)) stop(e); }, { passive: false });
+    // two fingers up or down change the volume (as the mouse wheel does on a computer) — not mid-song, where two
+    // fingers are two keys
+    let vol = null;
+    document.addEventListener('touchstart', e => {
+      const playing = Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running && GameplayScreen.s.mode === 'play';
+      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se, .editor')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!vol || e.touches.length !== 2) return;
+      const y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      vol.acc += vol.y - y; vol.y = y;
+      // (one step — 5% — for every 24px the fingers move; up is louder)
+      while (Math.abs(vol.acc) >= 24) { const d = Math.sign(vol.acc); vol.acc -= d * 24; VolumeOverlay.adjust(VolumeOverlay.sel || 'master', d * 0.05); }
+      if (e.cancelable) e.preventDefault(); // (the page doesn't scroll under it)
+    }, { passive: false });
+    document.addEventListener('touchend', e => { if (e.touches.length < 2) vol = null; }, { passive: true });
     // (double-tap zoom: touch-action: manipulation on the page)
     document.documentElement.classList.add('no-zoom');
   },
@@ -23433,19 +23451,34 @@ const Keyboard = {
     document.addEventListener('focusin', () => setTimeout(() => this.upd(), 30));
     document.addEventListener('focusout', () => setTimeout(() => this.upd(), 30));
     for (const ev of ['input', 'selectionchange', 'keyup']) document.addEventListener(ev, () => { if (this.bar && !this.bar.hidden) this.paint(); });
+    // a phone keyboard's Enter / Send that doesn't arrive as an Enter key (a line break, or key "Unidentified" with
+    // keyCode 13): sent on to a chat box as one, so the message goes
+    document.addEventListener('beforeinput', e => { const a = e.target; if (e.inputType === 'insertLineBreak' && this.sends(a)) { e.preventDefault(); this.enter(a); } }, true);
+    document.addEventListener('keydown', e => { if (e.isTrusted && e.keyCode === 13 && e.key !== 'Enter' && this.sends(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); this.enter(e.target); } }, true);
     // (the browser mustn't scroll the page itself to the box: the bar shows it instead)
     window.addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); });
   },
   build() {
     this.label = h('span.kb-label'); this.text = h('span.kb-text');
-    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text),
-      h('button.kb-done', { 'aria-label': 'Done', onclick: () => { const a = this.typing(); if (a) a.blur(); } }, icon('check')));
-    // (touching the bar keeps the box focused — and the keyboard up — except on the done button)
-    this.bar.addEventListener('pointerdown', e => { if (!e.target.closest('.kb-done')) e.preventDefault(); });
+    this.doneBtn = h('button.kb-done', { 'aria-label': 'Done', onclick: () => {
+      const a = this.typing();
+      // a chat box: the button sends (as Enter does) and the keyboard stays up for the next message
+      if (a && this.sends(a)) { this.enter(a); return; }
+      if (a) a.blur();
+    } }, icon('check'));
+    this.bar = h('div.kb-bar', { hidden: true }, this.label, h('div.kb-field', this.text), this.doneBtn);
+    // (touching the bar keeps the box focused — and the keyboard up — except on the done button, unless it sends)
+    this.bar.addEventListener('pointerdown', e => { const a = this.typing(); if (!e.target.closest('.kb-done') || (a && this.sends(a))) e.preventDefault(); });
     document.body.append(this.bar);
   },
+  /** A chat box: its keyboard key and the bar's button send the message. */
+  sends(a) { return !!a && (a.enterKeyHint === 'send' || a.getAttribute('aria-label') === 'Chat message'); },
+  /** Enter, as the box's own handler listens for it (some phone keyboards don't send a proper one). */
+  enter(a) { a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })); },
   upd() {
     const a = this.typing();
+    if (a && this.sends(a) && a.enterKeyHint !== 'send') a.enterKeyHint = 'send';
+
     const vvH = window.visualViewport ? Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) : 0;
     this.height = Math.max(this.vkH || 0, vvH > 60 ? vvH : 0);
     // the keyboard put away (the phone's back button) with the box still focused: typing is over — the box lets go
@@ -23463,6 +23496,9 @@ const Keyboard = {
   paint() {
     const a = this.typing();
     if (!a || !this.bar) return;
+    // (a chat box: the button is Send)
+    const send = this.sends(a);
+    if (this.doneBtn._send !== send) { this.doneBtn._send = send; this.doneBtn.setAttribute('aria-label', send ? 'Send' : 'Done'); this.doneBtn.replaceChildren(icon(send ? 'chat' : 'check')); }
     const lab = a.getAttribute('aria-label') || a.placeholder || (a.labels && a.labels[0] && a.labels[0].textContent) || '';
     this.label.textContent = lab.length > 28 ? lab.slice(0, 27) + '…' : lab;
     this.label.hidden = !lab;

@@ -181,7 +181,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Save replays automatically', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
-  { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
+  { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
@@ -221,6 +221,8 @@ const Settings = {
     if (!v['migr.womSimple']) { if (v['wom.colorMode'] === 'custom') v['wom.colorMode'] = 'simple'; v['migr.womSimple'] = true; }
     // downloads work as Web-Osu-Mania's: one chosen provider (Mino by default), straight from the browser unless proxied
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
+    // song select groups by key count by default; a list left ungrouped moves to it, once
+    if (!v['migr.groupKeys']) { if (v['songselect.group'] === 'none') delete v['songselect.group']; v['migr.groupKeys'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
