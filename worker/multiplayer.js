@@ -887,7 +887,7 @@ export class PresenceLogic {
     this.requests.get(a)?.delete(b); this.requests.get(b)?.delete(a);
     for (const p of [a, b]) { this.save('fr', p); this.save('fq', p); }
   }
-  static STALE = 70000; // clients ping every 10 s (a background tab maybe once a minute); silent this long = gone (a dropped connection may never say so)
+  static STALE = 35000; // clients ping every 10 s and go offline after 30 s in the background; silent this long = gone (a dropped connection may never say so)
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   list() { return [...this.users.entries()].map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size })); }
   join(id, msg) {

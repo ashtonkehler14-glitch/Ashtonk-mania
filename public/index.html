@@ -18607,7 +18607,26 @@ const Presence = {
       this.later();
     };
   },
-  later() { clearTimeout(this._t); this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
+  later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
+  /** The game left in the background (another tab, another app, the phone locked) for 30s goes offline, so nobody
+   *  sees it as online while no one is there — unless it's in a room, spectating or being watched; it's back online
+   *  the moment it comes to the front. */
+  away: false,
+  hidden() {
+    clearTimeout(this._awayT);
+    this._awayT = setTimeout(() => {
+      if (!document.hidden || Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers))) return;
+      this.away = true; clearTimeout(this._t);
+      const ws = this.ws;
+      if (ws) { this.ws = null; try { ws.close(1000, 'away'); } catch { /* closed */ } this.players = []; this._listed = false; clearInterval(this._ping); Bus.emit('presence:changed'); }
+    }, 30000);
+  },
+  shown() {
+    clearTimeout(this._awayT);
+    if (!this.away) return;
+    this.away = false; this.retry = 0;
+    if (this.started && !this.ws) this.connect();
+  },
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
   pushStatus() {
     const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
@@ -19198,7 +19217,8 @@ const MultiplayerScreen = {
 // check a connection that may have died while the tab was in the background)
 addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return;
+  if (document.hidden) { Presence.hidden(); return; }
+  Presence.shown();
   if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now();
   else if (Multiplayer.ws) Multiplayer.ping();
 });

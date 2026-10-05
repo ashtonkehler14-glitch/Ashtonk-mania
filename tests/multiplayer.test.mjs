@@ -45,7 +45,7 @@ test('presence: silent players drop off, a reconnecting tab replaces its old ent
   p.join('a', { name: 'Alice', cid: 'tab1' }); p.join('b', { name: 'Bob', cid: 'tab2' });
   clock.t = 20000; p.message('a', { t: 'ping' });
   assert.deepEqual(p.prune().gone, []);
-  clock.t = 80000;
+  clock.t = 40000; // (35s silent = gone)
   const r = p.prune();
   assert.deepEqual(r.gone, ['b']); // Bob went quiet
   assert.deepEqual(r.out[0].msg.players.map(x => x.name), ['Alice']);
