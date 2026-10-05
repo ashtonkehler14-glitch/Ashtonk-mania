@@ -222,6 +222,10 @@ await alice.waitForFunction(() => AshtonkMania.Music.playing, null, { timeout: 1
 await bob.waitForTimeout(2500);
 await shot(alice, 'mp-ingame');
 const board = await bob.evaluate(() => [...document.querySelectorAll('.hud-mp-row')].map(r => r.querySelector('.nm').textContent + ' ' + r.querySelector('.sc').textContent));
+await bob.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'chat', text: 'gl hf from bob' }));
+const gpChat = await alice.waitForFunction(() => [...document.querySelectorAll('.gp-chat .gp-chat-l')].some(l => /gl hf from bob/.test(l.textContent)), null, { timeout: 5000 }).then(() => true, () => false);
+const gpIn = await alice.evaluate(() => { const i = document.querySelector('.gp-chat-in'); return i && i.disabled; });
+check('lazer\'s in-game chat: a room message shows in the corner mid-song, with no box to type in while playing', gpChat && gpIn, JSON.stringify({ gpChat, gpIn }));
 check('in-game board shows both players with their live score', board.length === 2 && board.some(t => t.includes('Alice')) && board.every(t => /\d$/.test(t) && !/pp$/.test(t)), JSON.stringify(board));
 await bob.waitForSelector('.hud-mpfailed', { timeout: 20000 });
 check('as in lazer multiplayer: running out of health marks the play failed, and it carries on', await bob.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s.mpFailed && !s.failed && s.running && s.engine.health.value <= 0; }));

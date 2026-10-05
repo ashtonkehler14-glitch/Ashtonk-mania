@@ -290,7 +290,37 @@ const GameplayScreen = {
     requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
     return el;
   },
+  /** lazer's GameplayChatDisplay: the room's chat in the corner during a multiplayer song. You can read it while
+   *  you play; you can type (Enter) once your own song is over — finished or failed — while the others play on. */
+  buildGpChat(s) {
+    if (this._gpChatOff) this._gpChatOff();
+    const list = h('div.gp-chat-list');
+    const line = m => m.from ? h('div.gp-chat-l', h('b', m.name), h('span', m.text)) : m.text ? h('div.gp-chat-l.sys', m.text) : null;
+    for (const m of (Multiplayer.chat || []).slice(-5)) { const el = line(m); if (el) list.append(el); }
+    this.gpChatIn = h('input.gp-chat-in', { maxlength: 300, disabled: true, placeholder: 'chat is available when your song is over', 'aria-label': 'Chat message' }); this._gpOpen = false;
+    this.gpChatIn.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); const t = this.gpChatIn.value.trim(); if (t) Multiplayer.send({ t: 'chat', text: t }); this.gpChatIn.value = ''; this.gpChatIn.blur(); }
+    });
+    this.gpChatIn.addEventListener('focus', () => this.gpChat.classList.add('typing'));
+    this.gpChatIn.addEventListener('blur', () => { this.gpChat.classList.remove('typing'); if (this.el) this.el.focus({ preventScroll: true }); });
+    this.gpChat = h('div.gp-chat', list, this.gpChatIn);
+    this.hud.append(this.gpChat);
+    this._gpChatOff = Bus.on('mp:chat', m => {
+      const el = line(m); if (!el) return;
+      list.append(el); while (list.children.length > 5) list.firstChild.remove();
+      this.gpChat.classList.add('fresh'); clearTimeout(this._gpChatT); this._gpChatT = setTimeout(() => this.gpChat && this.gpChat.classList.remove('fresh'), 5000);
+    });
+  },
+  gpChatOpen() { const s = this.s; return !!(s && s.mp && s.finished); },
+  /** (the box can't be clicked into mid-song: it would take the keys) */
+  gpChatTick() {
+    const open = this.gpChatOpen();
+    if (open === this._gpOpen) return;
+    this._gpOpen = open; this.gpChatIn.disabled = !open;
+    this.gpChatIn.placeholder = open ? 'press Enter to chat' : 'chat is available when your song is over';
+  },
   leave() {
+    if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;
     document.title = APP_NAME;
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
@@ -746,6 +776,7 @@ const GameplayScreen = {
       this.jc = { items, el: h(`div.hud-jc.${Settings.get('gameplay.judgementCounterFlow') === 'horizontal' ? 'h' : 'v'}`, ...items.map(i => i.el)) };
       this.hud.append(this.jc.el);
     }
+    if (s.mp) this.buildGpChat(s);
     if (s.mp) { this.mpBoard = h('div.hud-mp'); this.hud.append(this.mpBoard); this._mpSent = 0; this._mpRows = null; this.mpTeams = null; this._mpT = 0; this._mpDrawn = 0; }
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard'));
@@ -1011,6 +1042,7 @@ const GameplayScreen = {
       this.skipBtn.style.setProperty('--left', left.toFixed(3));
     }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
+    if (this.gpChatIn) this.gpChatTick();
     if (this.skinHp) this.skinHp.update(e.health.value, performance.now());
     if (this.hpEl) {
       const q = Math.round(clamp(e.health.value, 0, 1) * 400);
@@ -1263,6 +1295,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (Screens.current !== this) return;
     const s = this.s;
     if (Overlays.top()) return;
+    // typing in the room's chat: the keys are the message's (Esc leaves the box)
+    if (this.gpChatIn && document.activeElement === this.gpChatIn) { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); this.gpChatIn.blur(); } return; }
+    if (this.gpChatIn && e.code === 'Enter' && !e.repeat && this.gpChatOpen()) { e.preventDefault(); e.stopPropagation(); this.gpChatIn.focus(); return; }
     if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) this.onBack(); return; }
     if (!s || !this.loaderGone) {
       if (!this.loaderGone && (e.code === 'Space' || e.code === 'Enter') && !(e.target.closest && e.target.closest('input, button'))) { e.preventDefault(); this.loaderSkip = true; }

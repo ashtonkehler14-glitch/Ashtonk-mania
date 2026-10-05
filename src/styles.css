@@ -4091,3 +4091,15 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .md-online { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
 .md-online .bso-ratings, .md-online .bso-fails { margin-top: 0; }
 .hud-skip .sk-label { white-space: nowrap; }
+
+/* lazer's GameplayChatDisplay: the room's chat, bottom left, during a multiplayer song */
+.gp-chat { position: absolute; left: 14px; bottom: 60px; width: min(360px, 32vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; opacity: .45; transition: opacity 300ms; z-index: 3; }
+.gp-chat.fresh, .gp-chat.typing { opacity: 1; }
+.gp-chat-list { display: flex; flex-direction: column; gap: 2px; font-size: 13px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+.gp-chat-l { color: rgba(255, 255, 255, .9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gp-chat-l b { color: #8fd1ff; margin-right: 6px; }
+.gp-chat-l.sys { color: rgba(255, 255, 255, .55); font-style: italic; }
+.gp-chat-in { pointer-events: auto; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, .55); color: #fff; font: inherit; font-size: 13px; outline: none; }
+.gp-chat-in::placeholder { color: rgba(255, 255, 255, .45); }
+.gp-chat.typing .gp-chat-in { background: rgba(0, 0, 0, .8); box-shadow: 0 0 0 1px rgba(255, 102, 170, .6); }
+.gp-chat-in[disabled] { display: none; }
