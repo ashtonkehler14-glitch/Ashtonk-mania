@@ -208,8 +208,7 @@ const Settings = {
     // (phones: 125% by default — a phone that kept the old 90% default moves up to it)
     // (on a computer the game no longer goes fullscreen by itself: it's back to off, the new default there)
     // (phones: more time before the first note — 4s; a phone that kept the old 2.5s default moves up to it)
-    // (background dim and blur at 50% for everyone, once — the defaults, which earlier versions had changed)
-    if (!v['migr.bg50']) { delete v['gameplay.bgDim']; delete v['gameplay.bgBlur']; v['migr.bg50'] = true; }
+    // (background dim and blur default to 50%; a player's own choice is always kept)
     if (!v['migr.leadInTouch']) { if (TOUCH_DEVICE && v['gameplay.leadIn'] === 2500) delete v['gameplay.leadIn']; v['migr.leadInTouch'] = true; }
     if (!v['migr.fsPc']) { if (!TOUCH_DEVICE) delete v['input.fullscreenOnPlay']; v['migr.fsPc'] = true; }
     if (!v['migr.uiScaleTouch']) { if (TOUCH_DEVICE && v['ui.scale'] === 0.9) delete v['ui.scale']; v['migr.uiScaleTouch'] = true; }
