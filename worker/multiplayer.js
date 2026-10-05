@@ -1055,7 +1055,8 @@ export class PresenceLogic {
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, ...(tu.rkview ? [{ to: id, msg: { t: 'specRk', id: to, html: tu.rkview } }] : []), { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
+      const screen = tu.rk ? tu.rk.z.map((z, part) => ({ to: id, msg: { t: 'specRk', id: to, seq: tu.rk.seq, part, parts: tu.rk.parts, z } })) : tu.rkview ? [{ to: id, msg: { t: 'specRk', id: to, html: tu.rkview } }] : [];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name } }, ...screen, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
       out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, paused: tu.paused ?? null } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
@@ -1063,9 +1064,18 @@ export class PresenceLogic {
     }
     if (msg.t === 'unwatch') return this.unwatch(id, String(msg.to || u.watching || ''));
     // a Ranked Play match's screen as the player sees it (between songs), for their spectators
+    // (the player's whole screen whenever they're not mid-song: compressed and sent in chunks, each passed straight on
+    // and the latest full set kept for anyone who starts watching)
     if (msg.t === 'rkview') {
-      const html = typeof msg.html === 'string' && msg.html.length <= 400000 ? msg.html : null;
-      u.rkview = html;
+      if (typeof msg.z === 'string') {
+        const parts = Math.trunc(Number(msg.parts)), part = Math.trunc(Number(msg.part)), seq = Number(msg.seq);
+        if (!(parts >= 1 && parts <= 40 && part >= 0 && part < parts && Number.isFinite(seq)) || msg.z.length > 61000) return [];
+        if (!u.rk || u.rk.seq !== seq) u.rk = { seq, parts, z: [] };
+        u.rk.z[part] = msg.z; u.rkview = null;
+        return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, seq, part, parts, z: msg.z } }));
+      }
+      const html = typeof msg.html === 'string' && msg.html.length <= 60000 ? msg.html : null;
+      u.rkview = html; u.rk = null;
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, html } }));
     }
     if (msg.t === 'play') {

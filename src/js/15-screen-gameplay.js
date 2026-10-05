@@ -1403,16 +1403,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
-    // (lazer's player settings, top right: change the offset or the background without leaving the song)
-    else if (!failed && !s.mp && s.rec) {
-      // (the groups fold up on their headers as lazer's do; Visual starts folded so the panel clears the buttons)
-      const groups = this.playerSettings(s.rec, s.mode === 'play');
-      for (const g of groups) { const t = g.querySelector('.pl-gt'); t.setAttribute('role', 'button'); t.onclick = () => { UISounds.click(); g.classList.toggle('collapsed'); }; }
-      if (groups.length > 1) groups[0].classList.add('collapsed');
-      const panel = h('div.pl-settings.pm-settings', ...groups);
-      panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); document.activeElement && document.activeElement.blur(); this.resume(); } });
-      el.append(panel);
-    }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');

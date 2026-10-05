@@ -526,6 +526,18 @@ check('back in the Ranked Play lounge', true);
 
 // the dashboard: Alice's friends (Bob among them), then she spectates his play live from his panel's ⋯ menu
 await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+// spectating someone in the menus: their screen, as they see it, kept up to date
+{
+  await bob.waitForTimeout(800);
+  await alice.evaluate(() => { const b = AshtonkMania.Presence.players.find(p => p.name === 'Bob'); AshtonkMania.Spectate.watch(b); });
+  const homeSeen = await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 }).then(() => true, () => false);
+  await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); 
+  const ssSeen = await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 }).then(() => true, () => false);
+  check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen }));
+  await alice.evaluate(() => AshtonkMania.Spectate.stop({ quiet: true }));
+  await bob.evaluate(() => AshtonkMania.Screens.go('home'));
+  await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
+}
 await alice.waitForTimeout(500);
 await alice.click('#toolbar [data-tab="dashboard"]');
 await alice.evaluate(() => [...document.querySelectorAll('.dash-tabs .ov-tab')].find(b => /^friends$/.test(b.textContent)).click());
@@ -558,6 +570,8 @@ check('spectating: switching away doesn\'t bring up the pause menu', await alice
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.pause-menu', { timeout: 3000 });
 const sawPause = await alice.waitForSelector('.spec-pause', { timeout: 8000 }).then(() => true, () => false);
+const mirPause = await alice.waitForSelector('.spec-rk .pause-menu', { timeout: 6000 }).then(() => true, () => false);
+check('spectating: the watcher sees the player\'s own screen while the song can\'t go on (their pause menu, as they see it)', mirPause);
 const pausedT = await alice.evaluate(() => AshtonkMania.Music.time);
 await alice.waitForTimeout(600);
 const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 50 && !AshtonkMania.GameplayScreen.s.running, pausedT);

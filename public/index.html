@@ -14394,16 +14394,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
-    // (lazer's player settings, top right: change the offset or the background without leaving the song)
-    else if (!failed && !s.mp && s.rec) {
-      // (the groups fold up on their headers as lazer's do; Visual starts folded so the panel clears the buttons)
-      const groups = this.playerSettings(s.rec, s.mode === 'play');
-      for (const g of groups) { const t = g.querySelector('.pl-gt'); t.setAttribute('role', 'button'); t.onclick = () => { UISounds.click(); g.classList.toggle('collapsed'); }; }
-      if (groups.length > 1) groups[0].classList.add('collapsed');
-      const panel = h('div.pl-settings.pm-settings', ...groups);
-      panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); document.activeElement && document.activeElement.blur(); this.resume(); } });
-      el.append(panel);
-    }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -20155,7 +20145,7 @@ const Friends = {
   },
 };
 
-const SPEC_DELAY = 2500; // ms of song time the watcher stays behind the player
+const SPEC_DELAY = 1500; // ms of song time the watcher stays behind the player (enough for the stream's chunks)
 
 const Spectate = {
   target: null, // { id, name }: who we're watching (we follow them from play to play)
@@ -20166,7 +20156,6 @@ const Spectate = {
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (!Friends.has(p.pid)) { Toast.show('Friends only', `Add ${p.name} as a friend to spectate them.`); return; }
-    if (p.status !== 'playing' && p.status !== 'ranked') { Toast.show(`${p.name} isn't playing right now`, 'You can spectate someone while they\'re playing a beatmap or a Ranked Play match.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
@@ -20191,7 +20180,7 @@ const Spectate = {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     if (!this.target || m.id !== this.target.id) return;
     if (m.t === 'specWait') { this.paintPill(`waiting for ${m.name} to play…`); return; }
-    if (m.t === 'specRk') { this.showRk(m.html); return; }
+    if (m.t === 'specRk') { this.onMirror(m); return; }
     if (m.t === 'specStart') { this.start(m); return; }
     if (m.t === 'specFrames') {
       const c = this.cur;
@@ -20211,7 +20200,7 @@ const Spectate = {
     }
     if (m.t === 'specEnd') {
       if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
-      if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; }
+      if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; this.showRk(this._rk); }
       if (m.quit && this.watchingNow()) { Toast.show(`${this.target.name} quit the song`, 'Waiting for their next one…'); Screens.go('home'); }
       this.paintPill(`waiting for ${this.target.name}'s next song…`);
     }
@@ -20270,6 +20259,7 @@ const Spectate = {
       h('div.pm-buttons', h('button.pm-btn.danger', { style: { '--c': '#aa1b27' }, onclick: () => { UISounds.click(); this.stop(); } }, h('span.pm-band'), h('span.pm-label', 'Stop spectating')))));
     screen.el.appendChild(c.pauseEl);
     screen.el.classList.add('show-cursor');
+    this.showRk(this._rk);
   },
   hidePause(screen, s) {
     const c = s && s.spectate;
@@ -20278,6 +20268,7 @@ const Spectate = {
     if (c.pauseEl) { c.pauseEl.remove(); c.pauseEl = null; }
     screen.el.classList.remove('show-cursor');
     s.running = true; Music.play(Music.pausedPos);
+    this.showRk(this._rk);
   },
   /** Back in the tab after a while: straight back to the live play (a couple of seconds behind it). */
   catchUp(screen, s) {
@@ -20295,6 +20286,7 @@ const Spectate = {
     c.buffering = on;
     if (on) { s.running = false; Music.pause(); c.msg = h('div.hud-center-msg.spec-wait', `Waiting for ${c.name}…`); screen.hud.append(c.msg); }
     else { if (c.msg) { c.msg.remove(); c.msg = null; } s.running = true; Music.play(Music.pausedPos); }
+    this.showRk(this._rk); // (their screen over the song while it waits on them; gone when it carries on)
   },
 
   /** You stop watching when you go and do something of your own: your own play, or any screen other than the one
@@ -20309,9 +20301,12 @@ const Spectate = {
   /** A friend's Ranked Play screen (their picks, cards, timer and results between songs), shown read-only over the
    *  game while you watch them; their songs play as usual spectating. Their page is copied as HTML, so it's cleaned
    *  first: no scripts, event handlers, frames or links, and only https/data images. */
+  /** Watching their song but it can't go on (they failed, paused or stopped, so no more key presses come): their
+   *  screen is shown over it. */
+  stalled() { const c = this.cur; return !!(c && (c.buffering || c.pauseShown || c.ended)); },
   showRk(html) {
     this._rk = html || null;
-    if (!html || !this.target || this.watchingNow()) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
+    if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
       this.rkEl = h('div.spec-rk', this.rkView, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
@@ -20332,16 +20327,58 @@ const Spectate = {
     }
     this.rkView.replaceChildren(t.content);
   },
+  /** A piece of the player's screen (compressed, in chunks): put together, unpacked and shown. */
+  async onMirror(m) {
+    if (m.z == null) { this._mirIn = null; this.showRk(m.html || null); return; }
+    let r = this._mirIn;
+    if (!r || r.seq !== m.seq) r = this._mirIn = { seq: m.seq, parts: m.parts, z: [] };
+    r.z[m.part] = m.z;
+    for (let i = 0; i < r.parts; i++) if (r.z[i] == null) return;
+    this._mirIn = null;
+    try {
+      const bin = Uint8Array.from(atob(r.z.join('')), ch => ch.charCodeAt(0));
+      const html = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+      if (this._mirShown != null && m.seq < this._mirShown) return; // (an older screen unpacked late)
+      this._mirShown = m.seq;
+      this.showRk(html);
+    } catch (e) { console.warn('spectate: a screen that couldn\'t be unpacked', e); }
+  },
+  /** While anyone watches: everything you see, whenever you're not in the middle of a song (your fail and pause
+   *  screens, results, menus, Ranked Play between songs) — copied as it changes, at most 4 times a second, so the
+   *  watchers see what you're doing. Mid-song they watch the song itself, played back from your key presses. */
+  mirrorTick() {
+    const H = this.host;
+    if (!H.watchers || !Presence.ws) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
+    const G = typeof GameplayScreen !== 'undefined' ? GameplayScreen : null, s = G && G.s;
+    const live = Screens.currentName === 'gameplay' && s && s.running && !s.failed && !s.finished;
+    if (live) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
+    const app = $('#app'), html = app ? this.mirrorHtml(app) : null;
+    if (!html || html === this._mirHtml) return;
+    this._mirHtml = html; this._mirOn = true;
+    this.sendMirror(html);
+  },
+  /** The screen as HTML, without what's only yours (the spectating panel, the cursor). */
+  mirrorHtml(app) {
+    const c = app.cloneNode(true);
+    for (const el of c.querySelectorAll('.spec-rk, .cursor, #cursor, .kb-bar')) el.remove();
+    for (const el of c.querySelectorAll('input, textarea')) { const src = el.id && app.querySelector('#' + CSS.escape(el.id)); el.setAttribute('value', el.value || (src && src.value) || ''); }
+    return c.innerHTML;
+  },
+  async sendMirror(html) {
+    const seq = this._mirSeq = (this._mirSeq || 0) + 1;
+    try {
+      const buf = new Uint8Array(await new Response(new Blob([html]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+      if (seq !== this._mirSeq) return; // (a newer screen is on its way)
+      let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      const z = btoa(bin), CH = 60000, parts = Math.max(1, Math.ceil(z.length / CH));
+      if (parts > 40) return; // (a screen too big to send: the last one stays)
+      for (let i = 0; i < parts; i++) Presence.send({ t: 'rkview', seq, part: i, parts, z: z.slice(i * CH, (i + 1) * CH) });
+    } catch (e) { console.warn('spectate: couldn\'t send the screen', e); }
+  },
   /** Your Ranked Play screen, sent to your spectators as it changes (at most 4 times a second). */
   hostRk(root, force = false) {
-    if (!Presence.ws) return;
-    const html = root && root.isConnected && this.host.watchers ? root.outerHTML : null;
-    const t = performance.now();
-    if (!force && html && t - (this._rkAt || 0) < 250) return;
-    if (html === this._rkSent && !force) return;
-    if (!html && this._rkSent == null && !force) return;
-    this._rkAt = t; this._rkSent = html;
-    Presence.send({ t: 'rkview', html });
+    // (now part of the whole-screen mirror)
+    if (force) this.mirrorTick();
   },
 
   // ── being watched: stream this play's inputs while anyone watches
@@ -20609,6 +20646,9 @@ const OnlinePanel = {
 
 // (spectating ends when you go and do something of your own)
 Bus.on('screen:changed', name => Spectate.onScreen(name));
+
+// (being watched: your screen goes to your spectators as it changes — nothing happens while nobody watches)
+setInterval(() => { try { Spectate.mirrorTick(); } catch (e) { /* the next tick tries again */ } }, 250);
 
 /* ===== 19d-mobile.js ===== */
 /* Phones and tablets. Menus: held sideways, the full interface as osu!lazer on Android shows it (Zoom scales it);
