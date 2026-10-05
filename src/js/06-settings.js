@@ -67,6 +67,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.barLines', l: 'Bar lines', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.snapColours', l: 'Timing-based note colouring', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.lowHealthRed', l: 'Fade playfield to red when health is low', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },

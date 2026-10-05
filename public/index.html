@@ -4780,6 +4780,20 @@ const BeatmapParser = {
     }
     return out;
   },
+  /** lazer's timing-based note colouring: a note's beat snap (the finest of 1/1…1/16 it sits on, within 2ms) as
+   *  osu!'s beat snap colour — 1/1 white, 1/2 red, 1/4 blue, 1/8 yellow, 1/16 dark purple, 1/3 purple, 1/6 and
+   *  1/12 orange — and grey when it sits on none of them. */
+  snapColour(t, red) {
+    if (!red || !red.length) return null;
+    const tp = red[Math.max(0, bsearchLE(red, t, 'time'))], bl = tp.beatLength;
+    if (!(bl > 0)) return null;
+    const beats = (t - tp.time) / bl;
+    for (const [d, c] of [[1, '#ffffff'], [2, '#ed1121'], [4, '#66ccff'], [3, '#aa88ff'], [8, '#ffcc22'], [6, '#ff9a3c'], [12, '#cc6600'], [16, '#6644cc']]) {
+      const x = beats * d;
+      if (Math.abs(x - Math.round(x)) * bl / d < 2) return c;
+    }
+    return '#a0a0a0';
+  },
   timing(bm) {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);
@@ -6457,6 +6471,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgBlur', l: 'Background blur', t: 'range', d: 0.5, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.hitLighting', l: 'Hit lighting', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.barLines', l: 'Bar lines', t: 'bool', d: true },
+  { s: 'Gameplay', g: 'Effects', k: 'gameplay.snapColours', l: 'Timing-based note colouring', t: 'bool', d: false },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.lowHealthRed', l: 'Fade playfield to red when health is low', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.comboEffects', l: 'Combo effects', t: 'bool', d: true, hint: 'Combo pulse and milestone flashes.' },
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
@@ -8336,6 +8351,7 @@ class ManiaRenderer {
    *  which showed as uneven motion, most of all when the playfield is drawn below full resolution. */
   _noteImg(img, x, yTop, w, h, flipY = false) {
     if (!img || w <= 0 || h <= 0) return;
+    if (this._snapC) img = this._tint(img, this._snapC, true); // (timing-based note colouring)
     if (this.up) yTop = this.H - yTop - h;
     const tx = this._tx;
     this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, yTop);
@@ -8540,6 +8556,7 @@ class ManiaRenderer {
         if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
         // scroll positions don't change during a play: computed once per note
         if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
+        this._snapC = g.snapRed ? (n._snap === undefined ? (n._snap = BeatmapParser.snapColour(n.time, g.snapRed)) : n._snap) : null;
         let yHead = y0 - n._hp * ppm;
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
@@ -8568,6 +8585,7 @@ class ManiaRenderer {
         }
       }
     }
+    this._snapC = null;
     // missed notes fading out (lazer: FadeOut(150, Easing.In))
     const mf = this._missFx;
     if (mf && mf.length) {
@@ -8583,7 +8601,9 @@ class ManiaRenderer {
         if (y - nh > this.H) continue;
         const k = el / 150;
         ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
+        this._snapC = g.snapRed ? n._snap || null : null;
         this._noteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh, this.fl.note[c]);
+        this._snapC = null;
       }
       mf.length = keep;
       ctx.globalAlpha = 1;
@@ -9047,16 +9067,27 @@ class ManiaRenderer {
     ctx.globalAlpha = 1;
   }
   /** A glyph tinted (multiplied) by a colour, cached. */
-  _tint(img, colour) {
+  /** `grey`: tint a lightened greyscale copy, so a coloured sprite takes the colour itself rather than a mix. */
+  _tint(img, colour, grey = false) {
     let m = this._tints || (this._tints = new WeakMap()), e = m.get(img);
     if (!e) { e = new Map(); m.set(img, e); }
-    let c = e.get(colour);
+    const key = grey ? 'g' + colour : colour;
+    let c = e.get(key);
     if (!c) {
       c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const x = c.getContext('2d');
+      if (grey) { // (the note's shape in the colour, keeping a little of its own light and shade)
+        x.fillStyle = colour; x.fillRect(0, 0, c.width, c.height);
+        x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
+        x.globalCompositeOperation = 'soft-light'; x.globalAlpha = 0.35; x.filter = 'grayscale(1)'; x.drawImage(img, 0, 0);
+        x.filter = 'none'; x.globalAlpha = 1; x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
+        e.set(key, c);
+        return c;
+      }
+      x.drawImage(img, 0, 0);
       x.globalCompositeOperation = 'multiply'; x.fillStyle = colour; x.fillRect(0, 0, c.width, c.height);
       x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
-      e.set(colour, c);
+      e.set(key, c);
     }
     return c;
   }
@@ -13348,6 +13379,7 @@ const GameplayScreen = {
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : mods.includes('CO') ? (modConfig.coDir ? 'HD' : 'FI') : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      snapRed: Settings.get('gameplay.snapColours') ? redTiming.red : null,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
       muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };
@@ -13706,7 +13738,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0 };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -13756,7 +13788,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight; g.snapRed = s.snapRed;
       this.renderer.render(g);
       if (s.muted) this.mutedTick(now);
       this.updateHud(now);

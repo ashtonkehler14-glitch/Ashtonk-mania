@@ -152,6 +152,20 @@ const BeatmapParser = {
     }
     return out;
   },
+  /** lazer's timing-based note colouring: a note's beat snap (the finest of 1/1…1/16 it sits on, within 2ms) as
+   *  osu!'s beat snap colour — 1/1 white, 1/2 red, 1/4 blue, 1/8 yellow, 1/16 dark purple, 1/3 purple, 1/6 and
+   *  1/12 orange — and grey when it sits on none of them. */
+  snapColour(t, red) {
+    if (!red || !red.length) return null;
+    const tp = red[Math.max(0, bsearchLE(red, t, 'time'))], bl = tp.beatLength;
+    if (!(bl > 0)) return null;
+    const beats = (t - tp.time) / bl;
+    for (const [d, c] of [[1, '#ffffff'], [2, '#ed1121'], [4, '#66ccff'], [3, '#aa88ff'], [8, '#ffcc22'], [6, '#ff9a3c'], [12, '#cc6600'], [16, '#6644cc']]) {
+      const x = beats * d;
+      if (Math.abs(x - Math.round(x)) * bl / d < 2) return c;
+    }
+    return '#a0a0a0';
+  },
   timing(bm) {
     const tps = bm.timingPoints;
     const red = tps.filter(t => t.uninherited && t.beatLength > 0);

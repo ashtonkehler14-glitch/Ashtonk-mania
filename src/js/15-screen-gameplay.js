@@ -388,6 +388,7 @@ const GameplayScreen = {
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
       hidden: mods.includes('HD') ? 'HD' : mods.includes('FI') ? 'FI' : mods.includes('CO') ? (modConfig.coDir ? 'HD' : 'FI') : null, percy: mods.includes('PC') ? modConfig.percy : 0,
+      snapRed: Settings.get('gameplay.snapColours') ? redTiming.red : null,
       flashlight: mods.includes('FL') ? clamp(Number(modConfig.flSize) || 1, 0.5, 1.5) : 0,
       muted: mods.includes('MU') ? { count: Math.max(0, Number(modConfig.muCount ?? 100)), inverse: !!modConfig.muInverse, metronome: modConfig.muMetronome !== 0 } : null,
     };
@@ -746,7 +747,7 @@ const GameplayScreen = {
   },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
-    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0 };
+    const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
@@ -796,7 +797,7 @@ const GameplayScreen = {
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
       g.engine = eng; g.held = s.held; g.realNow = realNow; g.keyLabels = s.keyLabels;
-      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight;
+      g.hidden = s.hidden; g.percy = s.percy; g.bars = s.bars; g.flashlight = s.flashlight; g.snapRed = s.snapRed;
       this.renderer.render(g);
       if (s.muted) this.mutedTick(now);
       this.updateHud(now);

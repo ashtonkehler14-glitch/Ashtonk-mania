@@ -548,3 +548,10 @@ test('bar lines: one per bar from each timing point, every fourth major, "omit f
   assert.deepEqual([...bars.map(b => b.major)], [true, false, false, false, false, false]);
   assert.equal(BeatmapParser.barLines([{ time: 0, beatLength: 0, meter: 4 }], 5000).length, 0);
 });
+
+test('timing-based note colouring: each note by its beat snap, as osu!\'s beat snap colours', () => {
+  const red = [{ time: 1000, beatLength: 500, meter: 4 }];
+  const c = t => BeatmapParser.snapColour(t, red);
+  assert.deepEqual([c(1000), c(1250), c(1125), c(1062.5), c(1000 + 500 / 3), c(1000 + 500 / 6), c(1031.25), c(1017)],
+    ['#ffffff', '#ed1121', '#66ccff', '#ffcc22', '#aa88ff', '#ff9a3c', '#6644cc', '#a0a0a0']);
+});

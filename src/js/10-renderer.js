@@ -355,6 +355,7 @@ class ManiaRenderer {
    *  which showed as uneven motion, most of all when the playfield is drawn below full resolution. */
   _noteImg(img, x, yTop, w, h, flipY = false) {
     if (!img || w <= 0 || h <= 0) return;
+    if (this._snapC) img = this._tint(img, this._snapC, true); // (timing-based note colouring)
     if (this.up) yTop = this.H - yTop - h;
     const tx = this._tx;
     this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, yTop);
@@ -559,6 +560,7 @@ class ManiaRenderer {
         if (n.state === NS.DONE || (n.state === NS.MISSED && !n.isLN)) continue;
         // scroll positions don't change during a play: computed once per note
         if (n._sc !== sc) { n._sc = sc; n._hp = sc.pos(n.time); n._tp = n.isLN ? sc.posAt(g.percy ? Math.max(n.time, n.end - g.percy) : n.end) : 0; }
+        this._snapC = g.snapRed ? (n._snap === undefined ? (n._snap = BeatmapParser.snapColour(n.time, g.snapRed)) : n._snap) : null;
         let yHead = y0 - n._hp * ppm;
         if (yHead < top && !n.isLN) break;
         if (n.isLN) {
@@ -587,6 +589,7 @@ class ManiaRenderer {
         }
       }
     }
+    this._snapC = null;
     // missed notes fading out (lazer: FadeOut(150, Easing.In))
     const mf = this._missFx;
     if (mf && mf.length) {
@@ -602,7 +605,9 @@ class ManiaRenderer {
         if (y - nh > this.H) continue;
         const k = el / 150;
         ctx.globalAlpha = (1 - k * k) * this._noteAlpha(y, g.hidden) * 0.9;
+        this._snapC = g.snapRed ? n._snap || null : null;
         this._noteImg(texN.frameAt(realNow), this.colX[c], y - nh, this.colW[c], nh, this.fl.note[c]);
+        this._snapC = null;
       }
       mf.length = keep;
       ctx.globalAlpha = 1;
@@ -1066,16 +1071,27 @@ class ManiaRenderer {
     ctx.globalAlpha = 1;
   }
   /** A glyph tinted (multiplied) by a colour, cached. */
-  _tint(img, colour) {
+  /** `grey`: tint a lightened greyscale copy, so a coloured sprite takes the colour itself rather than a mix. */
+  _tint(img, colour, grey = false) {
     let m = this._tints || (this._tints = new WeakMap()), e = m.get(img);
     if (!e) { e = new Map(); m.set(img, e); }
-    let c = e.get(colour);
+    const key = grey ? 'g' + colour : colour;
+    let c = e.get(key);
     if (!c) {
       c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const x = c.getContext('2d');
+      if (grey) { // (the note's shape in the colour, keeping a little of its own light and shade)
+        x.fillStyle = colour; x.fillRect(0, 0, c.width, c.height);
+        x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
+        x.globalCompositeOperation = 'soft-light'; x.globalAlpha = 0.35; x.filter = 'grayscale(1)'; x.drawImage(img, 0, 0);
+        x.filter = 'none'; x.globalAlpha = 1; x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
+        e.set(key, c);
+        return c;
+      }
+      x.drawImage(img, 0, 0);
       x.globalCompositeOperation = 'multiply'; x.fillStyle = colour; x.fillRect(0, 0, c.width, c.height);
       x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
-      e.set(colour, c);
+      e.set(key, c);
     }
     return c;
   }
