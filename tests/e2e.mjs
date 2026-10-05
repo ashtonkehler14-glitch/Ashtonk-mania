@@ -1111,6 +1111,20 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('Manage collections (lazer\'s dialog): typing in "Create a new collection" makes one, Esc closes it', mc.made && !mc.open, JSON.stringify(mc));
   await page.evaluate(async () => { const c = AshtonkMania.Collections.list.find(c => c.name === 'Dialog made'); if (c) await AshtonkMania.Collections.remove(c.id); });
 }
+// results: picking another score's panel swaps it into the middle; leaving afterwards leaves nothing behind
+{
+  const ok = await page.evaluate(async () => { const SM = AshtonkMania.ScoreManager, s = SM.scores.find(x => x.passed && SM.forMap(x.mapHash).filter(y => y.passed).length > 1);
+    if (!s) return false; AshtonkMania.Screens.go('results', { score: s, fromList: true }); return true; });
+  if (ok) {
+    await page.waitForSelector('.cp.cp-click', { timeout: 5000 });
+    const before = await page.evaluate(() => document.querySelector('.res-grid > .rs .rs-score, .res-grid > .rs')?.textContent.slice(0, 200));
+    await page.click('.cp.cp-click'); await page.waitForTimeout(700);
+    const after = await page.evaluate(() => document.querySelector('.res-grid > .rs .rs-score, .res-grid > .rs')?.textContent.slice(0, 200));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(1200);
+    const left = await page.evaluate(() => ({ screen: AshtonkMania.Screens.currentName, stray: document.querySelectorAll('.results, .res-grid, .cp').length }));
+    check('results: picking another score swaps it into the middle, and going back leaves nothing of the results behind', before !== after && left.screen !== 'results' && left.stray === 0, JSON.stringify(left));
+  }
+}
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {
   await page.setViewportSize({ width: 1024, height: 600 });

@@ -8,6 +8,7 @@ const MpResults = {
    *  either side of yours, in placing order, and who won above them. Repaints as they finish. */
   mount(body, grid, card, score) {
     this.my = score; this._key = null; this._final = false;
+    this.grid = grid; this.card = card; this.focus = Multiplayer.me; // (whose score is the big panel: yours to start with)
     this.head = h('div.res-mp-head');
     this.before = h('div.res-mp-side.before'); this.after = h('div.res-mp-side.after');
     // (your panel keeps its place in the row: the others sit before and after it)
@@ -71,18 +72,48 @@ const MpResults = {
     }
     const map = (res && res.map) || (Multiplayer.room && Multiplayer.room.map);
     clearEl(this.head).append(h(`div.mpr-verdict.${cls}`, verdict), map ? h('div.mpr-map', `${map.artist} - ${map.title}`, map.version ? h('span', ` [${map.version}]`) : null) : null);
-    const at = rows.findIndex(r => r.id === me);
-    // (another player's panel opens as a full score panel, as lazer's results expand the one you pick)
-    const panel = (r, i) => { const e = this.panel(r, i, first, res); if (r.id !== me && !r.pending) { e.classList.add('cp-click'); e.title = 'See their score'; e.onclick = () => { UISounds.click(); this.expand(r, res); }; } return e; };
+    let at = rows.findIndex(r => r.id === this.focus);
+    if (at < 0) { this.focus = me; at = rows.findIndex(r => r.id === me); }
+    // (any other panel can be picked: it becomes the big one in the middle, as lazer's results do)
+    const panel = (r, i) => { const e = this.panel(r, i, first, res); e.dataset.sid = r.id; if (r.id !== this.focus && !r.pending) { e.classList.add('cp-click'); e.title = r.id === me ? 'Back to your score' : 'See their score'; e.onclick = () => { UISounds.click(); this.focusOn(r, res, e); }; } return e; };
     clearEl(this.before).append(...rows.slice(0, Math.max(0, at)).map(panel));
     clearEl(this.after).append(...(at < 0 ? rows : rows.slice(at + 1)).map((r, k) => panel(r, (at < 0 ? 0 : at + 1) + k)));
     // (your own panel: its place and the winner's crown)
-    const mine2 = rows.find(r => r.id === me);
+    const mine2 = rows.find(r => r.id === this.focus);
     if (this.place) this.place.textContent = mine2 ? `#${mine2.place}` : '';
+  },
+  /** Make a player's score the big panel: theirs grows out of where their small one was, and the one that was big goes
+   *  back into the row. */
+  focusOn(r, res, fromEl) {
+    if (!this.card || !this.card.isConnected) return;
+    const me = r.id === Multiplayer.me;
+    const fromRect = fromEl.getBoundingClientRect(), oldRect = this.card.getBoundingClientRect(), oldId = this.focus;
+    const card = ResultsScreen.gradeCard(me ? this.my : this.scoreOf(r, res), me ? { mp: true } : { watched: 'online', mp: true });
+    if (this.place) card.prepend(this.place);
+    this.card.replaceWith(card); this.card = card;
+    this.focus = r.id; this._key = null;
+    this.paint();
+    requestAnimationFrame(() => {
+      const fly = (el, from) => {
+        if (!el || !from) return;
+        const to = el.getBoundingClientRect();
+        if (!to.width || !to.height) return;
+        el.animate([{ transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+      };
+      fly(card, fromRect);
+      fly(this.grid && this.grid.parentNode && this.grid.parentNode.querySelector(`.cp[data-sid="${CSS.escape(String(oldId))}"]`), oldRect);
+    });
   },
   /** Another player's score as lazer's expanded score panel (the one in the middle of the results screen), over the
    *  results; a click outside it or Esc closes it. */
   expand(r, res) {
+    const card = ResultsScreen.gradeCard(this.scoreOf(r, res), { watched: 'online' });
+    const box = h('div.mpr-pop', { role: 'dialog', 'aria-label': `${r.name}'s score` }, card);
+    const o = makeOverlay(box, { onKey: e => { if (e.key === 'Escape') { UISounds.back(); o.close(); return true; } } });
+    box.addEventListener('click', e => { if (e.target === box) { UISounds.back(); o.close(); } });
+  },
+  /** A row of the match's results as a score the results screen can show in full. */
+  scoreOf(r, res) {
     const m = (res && res.map) || (Multiplayer.room && Multiplayer.room.map) || {};
     const local = m.hash ? BeatmapManager.mapByHash(m.hash) : null;
     const room = Multiplayer.room, p = room && room.players.find(x => x.id === r.id);
@@ -91,10 +122,7 @@ const MpResults = {
       counts: r.counts || [0, 0, 0, 0, 0, 0], grade: g, mods: r.mods || [], passed: !r.forfeit && g !== 'F', pp: r.pp || 0, date: Date.now(), replayId: null,
       title: m.title || (local && local.title) || '', artist: m.artist || (local && local.artist) || '', version: (r.diff && r.diff.version) || m.version || (local && local.version) || '',
       creator: (local && local.creator) || m.creator || '', keys: (local && local.keys) || m.keys || 4, stars: (r.diff && r.diff.stars) || (local && local.stars) || m.stars || 0, mapHash: (r.diff && r.diff.hash) || m.hash || '' };
-    const card = ResultsScreen.gradeCard(score, { watched: 'online' });
-    const box = h('div.mpr-pop', { role: 'dialog', 'aria-label': `${r.name}'s score` }, card);
-    const o = makeOverlay(box, { onKey: e => { if (e.key === 'Escape') { UISounds.back(); o.close(); return true; } } });
-    box.addEventListener('click', e => { if (e.target === box) { UISounds.back(); o.close(); } });
+    return score;
   },
   /** lazer's contracted ScorePanel (130 × 385). */
   panel(r, i, animate, res) {

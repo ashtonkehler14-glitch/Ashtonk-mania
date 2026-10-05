@@ -55,8 +55,11 @@ const ResultsScreen = {
     if (!old || !old.isConnected || score === oldScore) return;
     const fromRect = fromEl && fromEl.getBoundingClientRect(), oldCard = old.querySelector('.res-grid > .rs'), oldRect = oldCard && oldCard.getBoundingClientRect();
     (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = [];
-    const fresh = this.enter({ ...this.p, score, fromList: true, fresh: false, replay: null });
-    old.replaceWith(fresh);
+    // (the screen keeps its own element — the one the screen manager removes on leaving — and takes the new contents)
+    const built = this.enter({ ...this.p, score, fromList: true, fresh: false, replay: null });
+    old.replaceChildren(...built.childNodes);
+    this._el = old;
+    const fresh = old;
     requestAnimationFrame(() => {
       const fly = (el, from) => {
         if (!el || !from) return;

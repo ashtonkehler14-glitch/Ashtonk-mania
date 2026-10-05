@@ -228,6 +228,14 @@ check('as in lazer multiplayer: running out of health marks the play failed, and
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'results' && AshtonkMania.Multiplayer.lastResults && document.querySelectorAll('.cp').length === 1 && document.querySelector('.res-grid .rs-top') && !document.querySelector('.mpr-verdict.wait'), null, { timeout: 40000 })));
 const mpr = await Promise.all([alice, bob].map(p => p.evaluate(() => ({ verdict: document.querySelector('.mpr-verdict').textContent, place: document.querySelector('.res-mp-myplace').textContent, before: [...document.querySelectorAll('.res-mp-side.before .cp-name')].map(e => e.firstChild.textContent), after: [...document.querySelectorAll('.res-mp-side.after .cp-name')].map(e => e.firstChild.textContent) }))));
 await alice.waitForTimeout(1200); await shot(alice, 'mp-results-screen'); await shot(bob, 'mp-results-screen-bob');
+// picking Bob's panel makes his the big one (and Alice's goes into the row); picking hers brings it back
+{
+  await alice.click('.cp.cp-click'); await alice.waitForTimeout(700);
+  const sw = await alice.evaluate(() => ({ main: document.querySelector('.res-grid > .rs .rs-name')?.textContent, row: [...document.querySelectorAll('.cp .cp-name')].map(e => e.firstChild.textContent) }));
+  await alice.click('.cp.cp-click'); await alice.waitForTimeout(700);
+  const back = await alice.evaluate(() => document.querySelector('.res-grid > .rs .rs-name')?.textContent);
+  check('multiplayer results: picking another player\'s panel makes it the big one, and yours comes back the same way', sw.main === 'Bob' && sw.row.includes('Alice') && back === 'Alice', JSON.stringify({ ...sw, back }));
+}
 check('after the song, the results screen with your panel and the other player\'s, winner first', mpr[0].verdict === 'You win!' && mpr[1].verdict === 'You lose' && mpr[0].place === '#1' && mpr[1].place === '#2' && mpr[0].after.join() === 'Bob' && !mpr[0].before.length && mpr[1].before.join() === 'Alice' && !mpr[1].after.length, JSON.stringify(mpr));
 await Promise.all([alice, bob].map(p => p.evaluate(() => AshtonkMania.Screens.go('multiplayer', {}, { replace: true }))));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.lastResults, null, { timeout: 10000 })));
