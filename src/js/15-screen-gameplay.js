@@ -991,8 +991,15 @@ const GameplayScreen = {
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
+      // (rows slide to their new places — lazer's leaderboard animates each score's move — instead of jumping)
+      const rows = [me, ...this._lbRows], before = me._pos ? rows.map(r => r.el.getBoundingClientRect().top) : null;
       me._pos = above + 1; setText(me.pos, `#${above + 1}`); me.el.style.order = above * 2 + 1; me.el.classList.toggle('first', above === 0);
       this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, `#${p}`); r.el.style.order = i * 2 + (i >= above ? 2 : 0); r.el.classList.toggle('first', p === 1); });
+      if (before) rows.forEach((r, i) => {
+        const d = before[i] - r.el.getBoundingClientRect().top;
+        if (!d) return;
+        r.el.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+      });
     }
     const sub = fmtAcc(e.score.judged ? e.score.accuracy : 1), cmb = `${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }

@@ -1342,24 +1342,30 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-res-row .main { flex: 1; }
 .mp-res-row .s { color: var(--muted); font-size: .8rem; }
 .mp-res-score { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.hud-mp { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2.5px; width: 260px; }
-.hud-mp-row { --pc: #2e576b; position: relative; display: flex; flex: none; height: 38px; margin-left: 20px; border: 2px solid transparent; border-radius: 10px; overflow: hidden; transform: skewX(-11.31deg); background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 20%, transparent), var(--pc)) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); transition: margin-left 500ms cubic-bezier(.34, 1.56, .64, 1); }
-.hud-mp-row.first { --pc: #99eb47; margin-left: 0; }
-.hud-mp-row.me { --pc: #ebc247; margin-left: 0; }
+.hud-mp { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; width: 250px; }
+/* a slim dark glass panel per score: an accent stripe at the left (lime for first, gold for you, team colours), the
+   place, the avatar, the name over the score, accuracy over combo — yours a little larger and brighter */
+.hud-mp-row { --pc: rgba(255, 255, 255, .28); position: relative; display: flex; align-items: center; flex: none; height: 40px; margin-left: 10px; padding-right: 10px; border-radius: 9px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(14, 12, 20, .78), rgba(14, 12, 20, .5)); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(255, 255, 255, .06); opacity: .78;
+  transition: margin-left 400ms var(--ease-out), opacity 300ms, box-shadow 300ms, background 300ms; will-change: transform; }
+.hud-mp-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--pc); }
+.hud-mp-row.first { --pc: #99eb47; }
+.hud-mp-row.me { --pc: #ffc33d; margin-left: 0; opacity: 1; background: linear-gradient(90deg, rgba(56, 42, 10, .85), rgba(20, 16, 10, .6)); box-shadow: 0 2px 14px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 195, 61, .35); }
+.hud-mp-row.me.first { --pc: #99eb47; box-shadow: 0 2px 14px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(153, 235, 71, .45); }
 .hud-mp-row.red { --pc: #e24f4f; } .hud-mp-row.blue { --pc: #4f8fe2; }
-.hud-mp-row.away { --pc: #888; }
-.hud-mp-row.away .nm { color: #eb4747; }
-.mpl-left { flex: none; width: 57px; margin-left: -2px; display: flex; align-items: center; justify-content: center; padding-right: 17px; background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 20%, #0000), color-mix(in srgb, var(--pc) 50%, #0000)); transition: width 500ms cubic-bezier(.34, 1.56, .64, 1); }
-.hud-mp-row.first .mpl-left, .hud-mp-row.me .mpl-left { width: 77px; padding-right: 37px; }
-.mpl-left .pos { font-size: 14px; font-weight: 600; transform: skewX(11.31deg); }
-.mpl-av { position: absolute; top: 0; bottom: 0; left: 36px; z-index: 1; width: 34px; border-radius: 10px; overflow: hidden; transition: left 500ms cubic-bezier(.34, 1.56, .64, 1); }
-.hud-mp-row.first .mpl-av, .hud-mp-row.me .mpl-av { left: 56px; }
-.mpl-av > * { width: 120% !important; height: 100% !important; margin-left: -10%; border-radius: 0 !important; transform: skewX(11.31deg); font-size: 15px !important; }
-.mpl-right { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 20px 0 21px; background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 10%, #0000), color-mix(in srgb, var(--pc) 30%, #0000)); }
-.mpl-right > div { display: flex; align-items: baseline; gap: 6px; transform: skewX(11.31deg); }
-.mpl-right .nm { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mpl-right .acc, .mpl-right .cmb { flex: none; font-size: 12px; font-weight: 600; }
-.mpl-right .sc { flex: 1; font-size: 16px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.hud-mp-row.away { --pc: #777; opacity: .5; }
+.hud-mp-row.away .nm { color: #eb6b6b; }
+.mpl-left { flex: none; width: 38px; padding-left: 4px; display: flex; align-items: center; justify-content: center; }
+.mpl-left .pos { font-size: 13px; font-weight: 700; color: var(--pc); font-variant-numeric: tabular-nums; }
+.hud-mp-row:not(.first):not(.me) .mpl-left .pos { color: rgba(255, 255, 255, .7); }
+.mpl-av { flex: none; width: 28px; height: 28px; margin-right: 9px; border-radius: 7px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12); }
+.mpl-av > * { width: 100% !important; height: 100% !important; border-radius: 0 !important; font-size: 13px !important; }
+.mpl-right { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.mpl-right > div { display: flex; align-items: baseline; gap: 6px; }
+.mpl-right .nm { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.1; color: rgba(255, 255, 255, .95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpl-right .acc, .mpl-right .cmb { flex: none; font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, .62); font-variant-numeric: tabular-nums; }
+.mpl-right .sc { flex: 1; font-size: 15px; font-weight: 600; line-height: 1.1; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.hud-mp-row.me .mpl-right .sc { color: #fff; }
 .hud-mp { transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out); }
 .hud-mp.lb-off { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
 .hud-lb { width: 260px; }
@@ -13982,8 +13988,15 @@ const GameplayScreen = {
     // ties go to the score that was set first
     const above = this._lbRows.filter(r => r.score >= sc).length;
     if (me._pos !== above + 1) {
+      // (rows slide to their new places — lazer's leaderboard animates each score's move — instead of jumping)
+      const rows = [me, ...this._lbRows], before = me._pos ? rows.map(r => r.el.getBoundingClientRect().top) : null;
       me._pos = above + 1; setText(me.pos, `#${above + 1}`); me.el.style.order = above * 2 + 1; me.el.classList.toggle('first', above === 0);
       this._lbRows.forEach((r, i) => { const p = i + 1 + (i >= above ? 1 : 0); setText(r.pos, `#${p}`); r.el.style.order = i * 2 + (i >= above ? 2 : 0); r.el.classList.toggle('first', p === 1); });
+      if (before) rows.forEach((r, i) => {
+        const d = before[i] - r.el.getBoundingClientRect().top;
+        if (!d) return;
+        r.el.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+      });
     }
     const sub = fmtAcc(e.score.judged ? e.score.accuracy : 1), cmb = `${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
