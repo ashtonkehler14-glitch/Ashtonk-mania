@@ -596,6 +596,47 @@ const GameplayScreen = {
     if (Math.abs(vid.currentTime - target) > 0.12) vid.currentTime = target;
   },
 
+  /** lazer's ArgonSongProgress, along the bottom: the beatmap's note density as a bar graph that lights up as the song
+   *  plays, a bar under it, and the elapsed and remaining time either side; watching a replay, a click seeks. */
+  songProgress(s) {
+    const N = 120, bins = new Array(N).fill(0), start = s.firstNote, len = Math.max(1, s.endTime - start);
+    for (const n of s.baseNotes) bins[clamp(Math.floor((n.time - start) / len * N), 0, N - 1)]++;
+    // (smoothed a little, so a song reads as a shape rather than a comb)
+    const sm = bins.map((_, i) => (bins[i - 1] || 0) * 0.25 + bins[i] * 0.5 + (bins[i + 1] || 0) * 0.25);
+    bins.splice(0, N, ...sm);
+    const max = Math.max(1e-6, ...bins);
+    const cv = h('canvas.sp-graph'), bar = h('i'), el1 = h('span'), el2 = h('span');
+    const el = h('div.hud-sp', h('div.sp-times', el1, el2), cv, h('div.sp-bar', bar));
+    let drawn = -1;
+    const draw = k => {
+      const w = cv.clientWidth, hh = cv.clientHeight, dpr = Zoom.dpr();
+      if (!w || !hh) return;
+      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr); drawn = -1; }
+      if (k === drawn) return;
+      drawn = k;
+      const c = cv.getContext('2d'), bw = cv.width / N;
+      c.clearRect(0, 0, cv.width, cv.height);
+      for (let i = 0; i < N; i++) {
+        const bh = Math.max(1, bins[i] / max * cv.height);
+        c.fillStyle = i < k ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)';
+        c.fillRect(i * bw + bw * 0.15, cv.height - bh, bw * 0.7, bh);
+      }
+    };
+    if (s.mode === 'replay') {
+      el.classList.add('seek');
+      el.addEventListener('pointerdown', e => { const r = el.getBoundingClientRect(); this.replaySeek(start + clamp((e.clientX - r.left) / r.width, 0, 1) * len); });
+    }
+    return {
+      el,
+      update: (now, p) => {
+        draw(Math.floor(p * N));
+        bar.style.transform = `scaleX(${p.toFixed(4)})`;
+        const t1 = fmtTime(Math.max(0, now - start) / s.rate), t2 = '-' + fmtTime(Math.max(0, s.endTime - Math.max(now, start)) / s.rate);
+        if (el1.textContent !== t1) el1.textContent = t1;
+        if (el2.textContent !== t2) el2.textContent = t2;
+      },
+    };
+  },
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
@@ -605,7 +646,10 @@ const GameplayScreen = {
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
     this.ppEl = h('div.hud-pp');
     const pd = Settings.get('gameplay.progressDisplay');
+    this.sp = pd === 'graph' ? this.songProgress(s) : null;
+    this.hud.classList.toggle('has-sp', !!this.sp);
     this.hud.append(
+      ...(this.sp ? [this.sp.el] : []),
       h('div.hud-progress', { style: { display: pd === 'bar' || pd === 'both' ? '' : 'none' } }, this.progEl),
       // one right-aligned stack (score, accuracy, pp, mods) so nothing can overlap whatever each line holds
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
@@ -873,6 +917,7 @@ const GameplayScreen = {
       this._progT = wall;
       const pq = Math.round(p * 400), pieQ = Math.round(pieP * 200);
       if (pq !== this._pq) { this._pq = pq; this.progEl.style.transform = `scaleX(${pq / 400})`; }
+      if (this.sp) this.sp.update(now, p);
       if (pieQ !== this._pieQ || lead !== this._lead) {
         this._pieQ = pieQ;
         this.pieEl.style.setProperty('--p', (pieQ / 2) + '%');

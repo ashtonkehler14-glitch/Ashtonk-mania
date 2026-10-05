@@ -72,7 +72,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Effects', k: 'gameplay.showJudgements', l: 'Show judgements', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.showMax', l: 'Show MAX (300g) judgements', t: 'bool', d: true },
   { x: 1, s: 'Gameplay', g: 'Effects', k: 'gameplay.earlyLate', l: 'Early / late indicator', t: 'range', d: 0, min: 0, max: 100, step: 5, fmt: v => v ? `≥ ${v}ms` : 'Off', hint: 'Shows EARLY or LATE under non-MAX judgements beyond this error.' },
-  { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress display', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['none', 'Hidden']] },
+  { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress display', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['graph', 'Graph (lazer)'], ['none', 'Hidden']] },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
