@@ -1024,10 +1024,14 @@ test('rankings: judged plays (best pp per beatmap, weighted), or what a player\'
   // Bob's game reports 400pp from his own scores: higher than his judged 150, so it stands until judged plays pass it
   p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 } } });
   assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Bob', 400], ['Alice', 295]]);
-  // kept across a restart, records from before plays were judged here included
-  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), old: { pid: 'old', name: 'Old', pp: 5000, acc: 0.9 } });
+  // kept across a restart; records from before only ranked beatmaps gave pp start over (their game re-reports them)
+  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9 } });
   q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
-  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Old', 5000], ['Alice', 295]]);
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', 295]]);
+  assert.equal(q.ranks.get('oldpid44').pp, 0);
+  q.join('o', { name: 'Old', pid: 'oldpid44', key: 'key-oldpid44-0123456789' });
+  q.message('o', { t: 'stats', profile: { pp: 120, avgAcc: 0.9, plays: 3, grades: {} } });
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', 295], ['Old', 120]]);
 });
 
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {

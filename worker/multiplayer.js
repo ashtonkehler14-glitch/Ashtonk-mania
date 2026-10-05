@@ -100,6 +100,22 @@ export class RoomLogic {
     this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
   }
   get(id) { return this.players.find(p => p.id === id); }
+  /** A regular room's setup — beatmap, mods, settings, host — kept in storage, so a restart of the server (every new
+   *  version deployed restarts it) doesn't wipe the room: the players reconnect into it as it was. (A match under way,
+   *  Quick Play and Ranked Play can't be carried over.) */
+  saveable() {
+    if (!this.created || this.mode !== 'custom' || !this.players.length) return null;
+    const host = this.get(this.hostId);
+    return { v: 1, map: this.map, mods: this.mods, modConfig: this.modConfig, settings: this.settings, hostPid: host ? host.pid : '', at: this.now() };
+  }
+  restore(d) {
+    if (!d || d.v !== 1 || this.created || this.now() - (d.at || 0) > 6 * 3600000) return false;
+    this.created = true; this.mode = 'custom';
+    this.map = d.map || null; this.mods = Array.isArray(d.mods) ? d.mods : []; this.modConfig = d.modConfig || null;
+    this.settings = { ...defaultSettings(), ...(d.settings || {}) };
+    this.restoredHost = d.hostPid || '';
+    return true;
+  }
   /** The room as one player sees it (`viewer`): in Ranked Play your own cards are shown, your opponent's are not. */
   snapshot(viewer = null) {
     const q = this.qp;
@@ -173,6 +189,7 @@ export class RoomLogic {
       token: newToken() }; // (for this player's plays sent to be judged: see verify)
     this.players.push(p);
     if (!this.hostId) this.hostId = id;
+    if (this.restoredHost && p.pid === this.restoredHost) { this.hostId = id; this.restoredHost = ''; } // (the host back after a restart)
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
     const out = [{ to: id, msg: { t: 'welcome', you: id, token: p.token, room: this.snapshot(id) } }, this.roomMsg(), this.system(`${p.name} joined the room`)];
     if (this.rp) {
@@ -617,6 +634,8 @@ export class MatchRoom {
     const url = new URL(request.url);
     const code = url.searchParams.get('code') || '';
     if (!this.logic) this.logic = new RoomLogic(code);
+    if (!this._restored) this._restored = this.state.storage.get('room').then(d => { if (d && this.logic.restore(d)) this.announce(true); }).catch(() => {});
+    await this._restored;
     if (url.pathname.endsWith('/status')) return json({ code, open: this.logic.created, players: this.logic.players.length, state: this.logic.state });
     // a player's play, sent to be judged here (their room token proves who they are): see RoomLogic.verify
     // (judged by the Worker that took the request — judging here would hold up, and on a small plan could reset, the
@@ -633,7 +652,9 @@ export class MatchRoom {
     server.accept();
     let id = crypto.randomUUID().slice(0, 8);
     let joined = false;
-    server.addEventListener('message', ev => {
+    server.addEventListener('message', ev => { try { onMessage(ev); } catch (e) { console.error('room message', e); } });
+    // (one message that goes wrong is dropped — an error escaping here could reset the room for everyone in it)
+    const onMessage = ev => {
       if (typeof ev.data !== 'string' || ev.data.length > 16384) return;
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
@@ -654,7 +675,7 @@ export class MatchRoom {
       this.seen.set(id, Date.now());
       this.dispatch(this.logic.message(id, msg));
       this.schedule();
-    });
+    };
     const gone = () => {
       if (!joined) return;
       joined = false;
@@ -668,15 +689,26 @@ export class MatchRoom {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  saveSoon() {
+    clearTimeout(this._saveT);
+    this._saveT = setTimeout(() => {
+      const d = this.logic && this.logic.saveable(), body = JSON.stringify(d);
+      if (body === this._saved) return;
+      this._saved = body;
+      (d ? this.state.storage.put('room', d) : this.state.storage.delete('room')).catch(() => {});
+    }, 1000);
+  }
   schedule() {
     if (this.timer || !this.logic.wantsTick()) return;
     this.timer = setInterval(() => {
-      this.dispatch(this.logic.tick());
+      let out = [];
+      try { out = this.logic.tick(); } catch (e) { console.error('room tick', e); }
+      this.dispatch(out);
       if (!this.logic.wantsTick()) { clearInterval(this.timer); this.timer = null; }
     }, 1000);
   }
   dispatch(out) {
-    if (out && out.length) this.announce();
+    if (out && out.length) { this.announce(); this.saveSoon(); }
     for (const { to, msg, each } of out || []) {
       const data = each ? null : JSON.stringify(msg);
       for (const [id, ws] of this.socks) {
@@ -752,7 +784,7 @@ export class PresenceLogic {
       if (this.persistBoard) this.persistBoard(key, next);
     }
     // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
-    const rec = old || { pid, name, avatar, plays: 0, bests: {} };
+    const rec = old || { pid, name, avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
     if (!rec.bests) rec.bests = {}; // (a record from before the server judged plays: its pp stays as reported)
     rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
     const b = rec.bests[key];
@@ -845,13 +877,20 @@ export class PresenceLogic {
   loadRanks(ranks) {
     for (const [pid, r] of Object.entries(ranks || {})) {
       if (!r || typeof r !== 'object') continue;
-      if (!r.rep && !r.v && Number.isFinite(r.pp)) { r.rep = { pp: r.pp, acc: r.acc || 0, ss: r.ss || 0, s: r.s || 0, a: r.a || 0 }; if (r.bests) r.v = { pp: r.pp, acc: r.acc || 0, ss: r.ss || 0, s: r.s || 0, a: r.a || 0 }; }
+      // (records from before only ranked beatmaps gave pp: their plays can't be told apart, so their standing starts over
+      //  — the player's game reports its ranked-only pp the next time they're online, and new plays are judged as usual)
+      if ((r.pol || 0) < PresenceLogic.RANK_POLICY) {
+        const zero = { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+        for (const b of Object.values(r.bests || {})) if (b) b.pp = 0;
+        r.v = { ...zero }; r.rep = { ...zero }; r.pol = PresenceLogic.RANK_POLICY; r.reset = true;
+      }
       PresenceLogic.settleRank(r);
       this.ranks.set(pid, r);
     }
   }
   /** A player's standing: the pp of the plays judged here or, while that's lower (a small server can't always judge a
    *  long song in time), what their game reports from their own scores — whichever is higher. */
+  static RANK_POLICY = 2;
   static settleRank(r) {
     const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
     const use = rep.pp > v.pp ? rep : v;
@@ -952,7 +991,7 @@ export class PresenceLogic {
       const gr = p && p.grades && typeof p.grades === 'object' ? p.grades : {};
       const rep = p ? { pp: Math.round(num(p.pp, 100000) * 100) / 100, acc: num(p.avgAcc, 1), ss: num(gr.SS, 1e6) + num(gr.XH, 1e6), s: num(gr.S, 1e6) + num(gr.SH, 1e6), a: num(gr.A, 1e6) } : null;
       let rec = this.ranks.get(u.pid);
-      if (!rec && rep && rep.pp > 0) { rec = { pid: u.pid, name: u.name, avatar: u.avatar, plays: 0, bests: {} }; this.ranks.set(u.pid, rec); }
+      if (!rec && rep && rep.pp > 0) { rec = { pid: u.pid, name: u.name, avatar: u.avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY }; this.ranks.set(u.pid, rec); }
       if (rec) {
         const before = JSON.stringify([rec.name, rec.avatar, rec.rep]);
         rec.name = u.name; rec.avatar = u.avatar;
@@ -1138,7 +1177,9 @@ export class Matchmaker {
     server.accept();
     const id = crypto.randomUUID().slice(0, 8);
     let joined = false;
-    server.addEventListener('message', ev => {
+    server.addEventListener('message', ev => { try { onMessage(ev); } catch (e) { console.error('presence message', e); } });
+    // (one message that goes wrong is dropped — an error escaping here could reset the object, and with it everyone online)
+    const onMessage = ev => {
       if (typeof ev.data !== 'string' || ev.data.length > 65536) return; // (a play's inputs go up in chunks of up to ~60 KB)
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
@@ -1172,7 +1213,7 @@ export class Matchmaker {
         return;
       }
       this.send(this.presence.message(id, msg));
-    });
+    };
     const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
     server.addEventListener('close', gone);
     server.addEventListener('error', gone);
@@ -1217,6 +1258,7 @@ export class Matchmaker {
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
+      for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
