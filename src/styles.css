@@ -4060,3 +4060,11 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .bso-tagwords { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 8px; }
 .bso-tagw { border: 0; background: none; padding: 0; color: #8fc9ff; font: inherit; font-size: 12px; cursor: pointer; }
 .bso-tagw:hover { text-decoration: underline; }
+
+/* lazer's user status (toolbar user menu) */
+.st-opt { display: inline-flex; align-items: center; gap: 8px; }
+.st-opt i { width: 8px; height: 8px; border-radius: 50%; }
+.tb-av { position: relative; }
+.tb-st { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; }
+.tb-st.dnd { background: #ff6666; }
+.tb-st.offline { background: #999; }

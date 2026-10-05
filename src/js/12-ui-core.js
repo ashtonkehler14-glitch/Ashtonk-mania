@@ -609,11 +609,17 @@ const Toolbar = {
   updateProfile() {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32)));
+    const st = Settings.get('online.status') || 'online';
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
+    // lazer's UserDropdown: your status first
+    const cur = Settings.get('online.status') || 'online';
+    const status = (v, label, col) => ({ label: h('span.st-opt', h('i', { style: { background: col } }), label), checked: cur === v, onClick: () => this.setStatus(v) });
     const m = showMenu(r.right, r.bottom + 6, [
+      status('online', 'Online', '#b3d944'), status('dnd', 'Do not disturb', '#ff6666'), status('offline', 'Appear offline', '#999999'),
+      { sep: true },
       { label: 'Profile', icon: 'user', onClick: () => Screens.go('profile') },
       { label: 'Replays', icon: 'film', onClick: () => Screens.go('replays') },
       { sep: true },
@@ -625,6 +631,14 @@ const Toolbar = {
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
     ]);
     return m;
+  },
+  /** Online, Do not disturb (no invites or pop-ups) or Appear offline (off everyone's list, can't be spectated). */
+  setStatus(v) {
+    if ((Settings.get('online.status') || 'online') === v) return;
+    Settings.set('online.status', v);
+    if (typeof Presence !== 'undefined') Presence.send({ t: 'vis', v });
+    this.updateProfile();
+    Toast.show(v === 'offline' ? 'You appear offline' : v === 'dnd' ? 'Do not disturb' : 'You\'re online', v === 'offline' ? 'Nobody sees you on the online list or can spectate you.' : v === 'dnd' ? 'No invites or pop-ups until you change it back.' : 'Everyone can see you on the online list.');
   },
   /** Kept for callers that announce the playing track; the panel reads MenuMusic.current. */
   setNowPlaying(map) { if (map && MenuMusic.current !== map) { MenuMusic.current = map; this.updateNp(); NowPlaying.render(); } else if (!map) this.updateNp(); },

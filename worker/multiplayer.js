@@ -875,7 +875,7 @@ export class PresenceLogic {
     // their best plays the server judged (the ones with a known song), best first — for a profile their game hasn't sent
     const top = r && r.bests ? Object.values(r.bests).filter(b => b && b.title).sort((a, b) => b.pp - a.pp).slice(0, 20)
       .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
-    const online = [...this.users.entries()].find(([, x]) => x.pid === pid);
+    const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     return { t: 'profile', pid, data, top, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
       rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
@@ -965,7 +965,7 @@ export class PresenceLogic {
   /** The top 50 by pp, and where you stand. */
   rankings(pid) {
     const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
-    const online = new Set([...this.users.values()].map(u => u.pid));
+    const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
     const pub = ({ bests, v, rep, ...r }) => r; // (not each player's whole list of plays)
     return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
@@ -979,7 +979,7 @@ export class PresenceLogic {
   /** Everyone online with this public id (a player can have the game open in two tabs). */
   byPid(pid) { return [...this.users.entries()].filter(([, u]) => u.pid && u.pid === pid).map(([id]) => id); }
   friendsMsg(pid) {
-    const online = new Set([...this.users.values()].map(u => u.pid));
+    const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ pid: p, name, online: online.has(p) })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => ({ pid: p, name })) };
   }
   /** Tell both sides (every tab of each) their friends changed. */
@@ -993,7 +993,8 @@ export class PresenceLogic {
   }
   static STALE = 35000; // clients ping every 10 s and go offline after 30 s in the background; silent this long = gone (a dropped connection may never say so)
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
-  list() { return [...this.users.entries()].map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size })); }
+  // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
+  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -1002,7 +1003,7 @@ export class PresenceLogic {
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
     if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
     this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
-      pid, song: null, seen: this.now(),
+      pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
     const me = this.users.get(id);
@@ -1145,9 +1146,19 @@ export class PresenceLogic {
       return [...targets.map(x => ({ to: x, msg: { t: 'pm', with: { pid: u.pid, name: u.name, avatar: u.avatar }, from, text, at: t } })),
         ...this.byPid(u.pid).map(x => ({ to: x, msg: { t: 'pm', with: { pid: to, name: toName }, from, text, at: t, mine: true } }))];
     }
+    if (msg.t === 'vis') {
+      const v = cleanVis(msg.v);
+      if (v === u.vis) return [];
+      u.vis = v;
+      const out = [];
+      // (gone offline to everyone else: nobody can keep watching)
+      if (v === 'offline') for (const w of [...u.watchers]) out.push(...this.unwatch(w, id), { to: w, msg: { t: 'specEnd', id, gone: true } });
+      return [...out, this.broadcast()];
+    }
     if (msg.t === 'invite') {
       const code = str(msg.code, 8).toUpperCase();
-      if (!validCode(code) || !this.users.has(msg.to) || msg.to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (!validCode(code) || !this.users.has(msg.to) || msg.to === id || this.users.get(msg.to).vis === 'offline') return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (this.users.get(msg.to).vis === 'dnd') return [{ to: id, msg: { t: 'error', msg: 'That player isn\'t taking invites right now (Do not disturb).' } }];
       if (!this.areFriends(u.pid, this.users.get(msg.to).pid)) return [{ to: id, msg: { t: 'error', msg: 'You can only invite your friends.' } }];
       if (this.users.get(msg.to).status !== 'menu') return [{ to: id, msg: { t: 'error', msg: 'That player is already in a room.' } }];
       const key = `${msg.to}|${code}`, t = this.now();
@@ -1189,7 +1200,7 @@ export class PresenceLogic {
     // ── spectating
     if (msg.t === 'watch') {
       const to = String(msg.to || ''), tu = this.users.get(to);
-      if (!tu || to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
+      if (!tu || to === id || tu.vis === 'offline') return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
@@ -1268,6 +1279,7 @@ const cleanHead = h => {
     noFail: !!h.noFail, rules: Math.round(num(h.rules, 0, 100, 1)), player: str(h.player, 24),
   };
 };
+const cleanVis = v => v === 'dnd' || v === 'offline' ? v : 'online';
 const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.

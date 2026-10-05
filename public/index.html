@@ -4080,6 +4080,14 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .bso-tagw { border: 0; background: none; padding: 0; color: #8fc9ff; font: inherit; font-size: 12px; cursor: pointer; }
 .bso-tagw:hover { text-decoration: underline; }
 
+/* lazer's user status (toolbar user menu) */
+.st-opt { display: inline-flex; align-items: center; gap: 8px; }
+.st-opt i { width: 8px; height: 8px; border-radius: 50%; }
+.tb-av { position: relative; }
+.tb-st { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; }
+.tb-st.dnd { background: #ff6666; }
+.tb-st.offline { background: #999; }
+
 </style>
 </head>
 <body>
@@ -6634,6 +6642,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
+  { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
@@ -10826,11 +10835,17 @@ const Toolbar = {
   updateProfile() {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32)));
+    const st = Settings.get('online.status') || 'online';
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
+    // lazer's UserDropdown: your status first
+    const cur = Settings.get('online.status') || 'online';
+    const status = (v, label, col) => ({ label: h('span.st-opt', h('i', { style: { background: col } }), label), checked: cur === v, onClick: () => this.setStatus(v) });
     const m = showMenu(r.right, r.bottom + 6, [
+      status('online', 'Online', '#b3d944'), status('dnd', 'Do not disturb', '#ff6666'), status('offline', 'Appear offline', '#999999'),
+      { sep: true },
       { label: 'Profile', icon: 'user', onClick: () => Screens.go('profile') },
       { label: 'Replays', icon: 'film', onClick: () => Screens.go('replays') },
       { sep: true },
@@ -10842,6 +10857,14 @@ const Toolbar = {
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
     ]);
     return m;
+  },
+  /** Online, Do not disturb (no invites or pop-ups) or Appear offline (off everyone's list, can't be spectated). */
+  setStatus(v) {
+    if ((Settings.get('online.status') || 'online') === v) return;
+    Settings.set('online.status', v);
+    if (typeof Presence !== 'undefined') Presence.send({ t: 'vis', v });
+    this.updateProfile();
+    Toast.show(v === 'offline' ? 'You appear offline' : v === 'dnd' ? 'Do not disturb' : 'You\'re online', v === 'offline' ? 'Nobody sees you on the online list or can spectate you.' : v === 'dnd' ? 'No invites or pop-ups until you change it back.' : 'Everyone can see you on the online list.');
   },
   /** Kept for callers that announce the playing track; the panel reads MenuMusic.current. */
   setNowPlaying(map) { if (map && MenuMusic.current !== map) { MenuMusic.current = map; this.updateNp(); NowPlaying.render(); } else if (!map) this.updateNp(); },
@@ -16692,6 +16715,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
+    { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
@@ -19150,7 +19174,7 @@ const Presence = {
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key() }));
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key(), vis: Settings.get('online.status') || 'online' }));
       this._song = null; this.pushStatus();
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
@@ -20761,7 +20785,8 @@ const Friends = {
   /** A friend request arrived: asked straight away (or once the current song is over). */
   async onRequest(m) {
     const from = m.from || {};
-    if (Screens.currentName === 'gameplay') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
+    // (in a song, or set to Do not disturb: a quiet note instead of a question)
+    if (Screens.currentName === 'gameplay' || Settings.get('online.status') === 'dnd') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
     UISounds.play('check-on');
     const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and chat.', { ok: 'Accept', cancel: 'Not now' });
     if (ok) this.answer(from.pid, true);
@@ -21200,7 +21225,7 @@ const Spectate = {
   paintWatchers(names) {
     const prev = this._names || [];
     this._names = names;
-    for (const n of names) if (!prev.includes(n) && Screens.currentName !== 'gameplay') Toast.show(`${n} is spectating you`);
+    for (const n of names) if (!prev.includes(n) && Screens.currentName !== 'gameplay' && Settings.get('online.status') !== 'dnd') Toast.show(`${n} is spectating you`);
     const hud = Screens.currentName === 'gameplay' && GameplayScreen.hud;
     if (this.watchEl && (!hud || !names.length || !hud.contains(this.watchEl))) { this.watchEl.remove(); this.watchEl = null; }
     if (!hud || !names.length) return;

@@ -1179,3 +1179,22 @@ test('a judged play says where the player\'s best now stands on the beatmap\'s b
   assert.deepEqual((({ rank, of, best }) => ({ rank, of, best }))(p.recordVerified('bobpid22', K1, judged({ score: 900000 }))), { rank: 1, of: 2, best: true });
   assert.deepEqual((({ rank, of, best }) => ({ rank, of, best }))(p.recordVerified('alicepid1', K1, judged({ score: 700000 }))), { rank: 2, of: 2, best: false });
 });
+
+test('user status: appear offline leaves the list and can\'t be watched or invited; do not disturb takes no invites', () => {
+  const p = new PresenceLogic(() => 5000);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789', vis: 'offline' });
+  assert.deepEqual(p.list().map(x => x.name), ['Alice'], 'Bob joined appearing offline');
+  assert.equal(p.message('a', { t: 'watch', to: 'b' })[0].msg.msg, 'That player is no longer online.');
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  assert.equal(p.friendsMsg('alicepid1').list[0].online, false, 'offline to his friends too');
+  // Bob comes online; Alice starts watching him, then he goes invisible again: she stops
+  const back = p.message('b', { t: 'vis', v: 'online' });
+  assert.ok(back.some(o => o.to === 'all' && o.msg.players.some(x => x.name === 'Bob')));
+  p.message('a', { t: 'watch', to: 'b' });
+  const gone = p.message('b', { t: 'vis', v: 'offline' });
+  assert.ok(gone.some(o => o.to === 'a' && o.msg.t === 'specEnd' && o.msg.gone));
+  // do not disturb: listed (marked), but no invites
+  p.message('b', { t: 'vis', v: 'dnd' });
+  assert.equal(p.list().find(x => x.name === 'Bob').dnd, true);
+  assert.match(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' })[0].msg.msg, /Do not disturb/);
+});

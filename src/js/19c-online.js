@@ -43,7 +43,8 @@ const Friends = {
   /** A friend request arrived: asked straight away (or once the current song is over). */
   async onRequest(m) {
     const from = m.from || {};
-    if (Screens.currentName === 'gameplay') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
+    // (in a song, or set to Do not disturb: a quiet note instead of a question)
+    if (Screens.currentName === 'gameplay' || Settings.get('online.status') === 'dnd') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
     UISounds.play('check-on');
     const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and chat.', { ok: 'Accept', cancel: 'Not now' });
     if (ok) this.answer(from.pid, true);
@@ -482,7 +483,7 @@ const Spectate = {
   paintWatchers(names) {
     const prev = this._names || [];
     this._names = names;
-    for (const n of names) if (!prev.includes(n) && Screens.currentName !== 'gameplay') Toast.show(`${n} is spectating you`);
+    for (const n of names) if (!prev.includes(n) && Screens.currentName !== 'gameplay' && Settings.get('online.status') !== 'dnd') Toast.show(`${n} is spectating you`);
     const hud = Screens.currentName === 'gameplay' && GameplayScreen.hud;
     if (this.watchEl && (!hud || !names.length || !hud.contains(this.watchEl))) { this.watchEl.remove(); this.watchEl = null; }
     if (!hud || !names.length) return;
