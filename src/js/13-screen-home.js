@@ -83,10 +83,10 @@ const HomeScreen = {
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
-        // lazer's beatmap editor, on the selected difficulty
-        ['editor', 'beatmap', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
-        // lazer's skin editor, S (picking a skin is in Settings → Skin)
-        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => SkinEditor.open())],
+        // your beatmaps: import them, extract them (.osz) and edit collections
+        ['beatmaps', 'beatmap', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('beatmaps'))],
+        // skins: preview and import them, and edit the one you use (its layout editor)
+        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('skins'))],
         ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
         ['edit', 'edit', 'editcircle', '#eeaa00', ['KeyE'], 'top', 'top', null, () => this.setState('edit')],
         ['browse', 'browse', 'beatmap', '#a5cc00', ['KeyB', 'KeyD'], 'top', 'top', null, () => this.enterMode(() => Screens.go('explore'))],
@@ -263,7 +263,7 @@ const HomeScreen = {
   /** The logo: from the big logo, open the bar; in the bar, press the first button of the row showing. */
   logoClick() {
     this.flash(0.4, 1500, 'cubic-bezier(.16, 1, .3, 1)');
-    const first = { top: 'play', play: 'solo', multi: 'lounge', edit: 'skins' }[this.menuState];
+    const first = { top: 'play', play: 'solo', multi: 'lounge', edit: 'beatmaps' }[this.menuState];
     if (this.menuState === 'initial') { UISounds.click(); this.setState('top'); return; }
     const b = first && this.btns.find(x => x.dataset.id === first);
     if (b) this.trigger(b);

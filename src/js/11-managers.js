@@ -208,7 +208,7 @@ const ProfileManager = {
   },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
-    if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
+    if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 512, 0.9); await DB.put('files', t || blob, 'profile/avatar'); }
     await this.loadAvatar(); await this.save();
   },
   avatarURL: null,
@@ -223,17 +223,25 @@ const ProfileManager = {
     else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
   },
-  /** What other players see: the preset / public picture's id, or a small copy of an uploaded picture (64 px). */
+  /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 160 px, sharp
+   *  wherever it's shown (it was 64 px, blurry in profiles and on high-density screens), smaller only if it has to be
+   *  to fit what the server takes. */
   sharedAvatar: '',
+  AVATAR_MAX: 24000, // (the server's limit, worker/multiplayer.js cleanAvatar)
   async makeSharedAvatar() {
     const a = this.profile.avatar || 'default';
     if (a.startsWith('preset:') || a.startsWith('file:')) return a;
     if (a !== 'custom' || !this.avatarURL) return '';
     const img = new Image(); img.src = this.avatarURL; await img.decode();
-    const c = document.createElement('canvas'); c.width = c.height = 64;
-    const x = c.getContext('2d'), sz = Math.min(img.naturalWidth, img.naturalHeight);
-    x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, 64, 64);
-    return c.toDataURL('image/jpeg', 0.8);
+    const sz = Math.min(img.naturalWidth, img.naturalHeight);
+    for (const [px, q] of [[160, 0.88], [160, 0.75], [128, 0.75], [96, 0.75], [64, 0.8]]) {
+      const c = document.createElement('canvas'); c.width = c.height = px;
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+      x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, px, px);
+      const webp = c.toDataURL('image/webp', q), url = webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', q);
+      if (url.length <= this.AVATAR_MAX) return url;
+    }
+    return '';
   },
   /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {

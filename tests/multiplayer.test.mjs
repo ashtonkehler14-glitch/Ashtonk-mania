@@ -752,7 +752,8 @@ test('shared avatars: presets, public pictures and small inline images only', ()
   assert.equal(cleanAvatar('data:image/jpeg;base64,QUJD'), 'data:image/jpeg;base64,QUJD');
   assert.equal(cleanAvatar('javascript:alert(1)'), '');
   assert.equal(cleanAvatar('data:image/svg+xml;base64,QUJD'), '');
-  assert.equal(cleanAvatar('data:image/jpeg;base64,' + 'A'.repeat(20000)), '');
+  assert.equal(cleanAvatar('data:image/jpeg;base64,' + 'A'.repeat(30000)), ''); // (over the 24000-character limit)
+  assert.ok(cleanAvatar('data:image/webp;base64,' + 'A'.repeat(20000)).length > 0); // (a 160px picture fits)
   const r = new RoomLogic('X'); r.join('a', 'Alice', true, { avatar: 'preset:miku' });
   assert.equal(r.snapshot().players[0].avatar, 'preset:miku');
   const p = new PresenceLogic(); p.join('a', { name: 'A', avatar: 'preset:neru' });

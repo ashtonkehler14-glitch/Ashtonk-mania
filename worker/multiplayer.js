@@ -53,7 +53,7 @@ const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x))
 const speedMods = list => cleanMods(list).filter(x => RATE_MODS.includes(x)).slice(0, 1);
 const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.entries(c).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
 /** A shared profile picture: a preset / public picture id, or a small inline JPEG / PNG / WebP. */
-export const cleanAvatar = a => typeof a === 'string' && a.length <= 12000 && /^(preset:[\w-]{1,32}|file:[\w .()-]{1,64}|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/.test(a) ? a : '';
+export const cleanAvatar = a => typeof a === 'string' && a.length <= 24000 && /^(preset:[\w-]{1,32}|file:[\w .()-]{1,64}|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/.test(a) ? a : '';
 export const validCode = c => typeof c === 'string' && /^[A-Z0-9]{4,8}$/.test(c);
 
 const str = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);

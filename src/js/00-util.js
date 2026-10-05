@@ -262,7 +262,7 @@ function loadImageBlob(blob) {
 }
 
 /** Downscale an image blob to a JPEG thumbnail blob (for fast song-select panels). */
-async function makeThumbnail(blob, maxW = 640) {
+async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   const img = await loadImageBlob(blob);
   if (!img) return null;
   const s = Math.min(1, maxW / img.naturalWidth);
@@ -271,7 +271,7 @@ async function makeThumbnail(blob, maxW = 640) {
   c.height = Math.max(1, Math.round(img.naturalHeight * s));
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   URL.revokeObjectURL(img.src);
-  return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', 0.82));
+  return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
 }
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */

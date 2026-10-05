@@ -53,7 +53,10 @@ const BeatmapManager = {
     return real ? DB.get('files', `${setId}/${real}`) : null;
   },
   hasFile(setId, path) { const s = this.setById.get(setId); return !!(s && path && s.fileIndex[normPath(path).toLowerCase()]); },
+  /** Song cards' pictures: sharp on big and high-density screens (they were 640px wide, which looked soft). */
+  THUMB_W: 1280, THUMB_Q: 0.9, THUMB_V: 2,
   async thumbURL(set) {
+    if (set && set.thumbV !== this.THUMB_V) this.upgradeThumb(set);
     if (!set || !set.thumb) return null;
     const cached = BlobURLs.map.get(`thumb:${set.id}`);
     if (cached) return cached;
@@ -67,6 +70,22 @@ const BeatmapManager = {
     const b = await this.getFile(map.setId, map.bgFile);
     return BlobURLs.get(key, b);
   },
+  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown. */
+  upgradeThumb(set) {
+    if (set._thumbUp) return;
+    set._thumbUp = true;
+    this._thumbQ = (this._thumbQ || Promise.resolve()).then(async () => {
+      if (set.thumbV === this.THUMB_V || this.setById.get(set.id) !== set) return;
+      const m = (set.maps || []).find(x => x.bgFile && this.hasFile(set.id, x.bgFile));
+      const b = m && await this.getFile(set.id, m.bgFile).catch(() => null);
+      const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
+      if (this.setById.get(set.id) !== set) return;
+      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); }
+      set.thumbV = this.THUMB_V;
+      await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
+      if (t) Bus.emit('thumb:changed', set.id);
+    }).catch(() => {});
+  },
   /** A small copy of this difficulty's own background (low background quality): made once per picture, so a
    *  difficulty with a different background from the rest of its set still shows its own. */
   async bgThumbURL(map) {
@@ -74,7 +93,7 @@ const BeatmapManager = {
     const key = `bgthumb:${map.setId}/${map.bgFile}`;
     if (BlobURLs.map.has(key)) return BlobURLs.map.get(key);
     const b = await this.getFile(map.setId, map.bgFile);
-    const t = b && await makeThumbnail(b, 640).catch(() => null);
+    const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
     return t ? BlobURLs.get(key, t) : this.thumbURL(this.setById.get(map.setId));
   },
 
@@ -287,7 +306,7 @@ const BeatmapManager = {
     if (bgRec && !thumb) {
       try {
         const e = lowerIndex.get(bgRec.bgFile.toLowerCase());
-        const t = await makeThumbnail(new Blob([await e.read()]), 640);
+        const t = await makeThumbnail(new Blob([await e.read()]), this.THUMB_W, this.THUMB_Q);
         if (t) { await DB.put('files', t, `${setId}/__thumb.jpg`); thumb = true; }
       } catch (e) { /* ignore */ }
     }
@@ -298,7 +317,7 @@ const BeatmapManager = {
       title: md.Title || 'Unknown title', titleUnicode: md.TitleUnicode || md.Title || '',
       artist: md.Artist || 'Unknown artist', artistUnicode: md.ArtistUnicode || md.Artist || '',
       creator: md.Creator || 'Unknown', source: md.Source || '', tags: md.Tags || '',
-      mapIds: [...mapIds], fileIndex, thumb, storyboard, video,
+      mapIds: [...mapIds], fileIndex, thumb, thumbV: existing && existing.thumb ? existing.thumbV : this.THUMB_V, storyboard, video,
       added: existing?.added || Date.now(), sourceName,
     };
     await DB.putMany([{ store: 'sets', value: set }, ...mapRecords.map(r => ({ store: 'maps', value: r }))]);

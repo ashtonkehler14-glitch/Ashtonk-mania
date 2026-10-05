@@ -4666,7 +4666,7 @@ function loadImageBlob(blob) {
 }
 
 /** Downscale an image blob to a JPEG thumbnail blob (for fast song-select panels). */
-async function makeThumbnail(blob, maxW = 640) {
+async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   const img = await loadImageBlob(blob);
   if (!img) return null;
   const s = Math.min(1, maxW / img.naturalWidth);
@@ -4675,7 +4675,7 @@ async function makeThumbnail(blob, maxW = 640) {
   c.height = Math.max(1, Math.round(img.naturalHeight * s));
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   URL.revokeObjectURL(img.src);
-  return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', 0.82));
+  return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
 }
 
 /** Object-URL cache so blobs from IndexedDB are only materialised once. */
@@ -7187,7 +7187,10 @@ const BeatmapManager = {
     return real ? DB.get('files', `${setId}/${real}`) : null;
   },
   hasFile(setId, path) { const s = this.setById.get(setId); return !!(s && path && s.fileIndex[normPath(path).toLowerCase()]); },
+  /** Song cards' pictures: sharp on big and high-density screens (they were 640px wide, which looked soft). */
+  THUMB_W: 1280, THUMB_Q: 0.9, THUMB_V: 2,
   async thumbURL(set) {
+    if (set && set.thumbV !== this.THUMB_V) this.upgradeThumb(set);
     if (!set || !set.thumb) return null;
     const cached = BlobURLs.map.get(`thumb:${set.id}`);
     if (cached) return cached;
@@ -7201,6 +7204,22 @@ const BeatmapManager = {
     const b = await this.getFile(map.setId, map.bgFile);
     return BlobURLs.get(key, b);
   },
+  /** Remake an older, smaller card picture at today's size — one set at a time, as its card is shown. */
+  upgradeThumb(set) {
+    if (set._thumbUp) return;
+    set._thumbUp = true;
+    this._thumbQ = (this._thumbQ || Promise.resolve()).then(async () => {
+      if (set.thumbV === this.THUMB_V || this.setById.get(set.id) !== set) return;
+      const m = (set.maps || []).find(x => x.bgFile && this.hasFile(set.id, x.bgFile));
+      const b = m && await this.getFile(set.id, m.bgFile).catch(() => null);
+      const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
+      if (this.setById.get(set.id) !== set) return;
+      if (t) { await DB.put('files', t, `${set.id}/__thumb.jpg`); set.thumb = true; BlobURLs.drop(`thumb:${set.id}`); }
+      set.thumbV = this.THUMB_V;
+      await DB.put('sets', { ...set, maps: undefined, _thumbUp: undefined });
+      if (t) Bus.emit('thumb:changed', set.id);
+    }).catch(() => {});
+  },
   /** A small copy of this difficulty's own background (low background quality): made once per picture, so a
    *  difficulty with a different background from the rest of its set still shows its own. */
   async bgThumbURL(map) {
@@ -7208,7 +7227,7 @@ const BeatmapManager = {
     const key = `bgthumb:${map.setId}/${map.bgFile}`;
     if (BlobURLs.map.has(key)) return BlobURLs.map.get(key);
     const b = await this.getFile(map.setId, map.bgFile);
-    const t = b && await makeThumbnail(b, 640).catch(() => null);
+    const t = b && await makeThumbnail(b, this.THUMB_W, this.THUMB_Q).catch(() => null);
     return t ? BlobURLs.get(key, t) : this.thumbURL(this.setById.get(map.setId));
   },
 
@@ -7421,7 +7440,7 @@ const BeatmapManager = {
     if (bgRec && !thumb) {
       try {
         const e = lowerIndex.get(bgRec.bgFile.toLowerCase());
-        const t = await makeThumbnail(new Blob([await e.read()]), 640);
+        const t = await makeThumbnail(new Blob([await e.read()]), this.THUMB_W, this.THUMB_Q);
         if (t) { await DB.put('files', t, `${setId}/__thumb.jpg`); thumb = true; }
       } catch (e) { /* ignore */ }
     }
@@ -7432,7 +7451,7 @@ const BeatmapManager = {
       title: md.Title || 'Unknown title', titleUnicode: md.TitleUnicode || md.Title || '',
       artist: md.Artist || 'Unknown artist', artistUnicode: md.ArtistUnicode || md.Artist || '',
       creator: md.Creator || 'Unknown', source: md.Source || '', tags: md.Tags || '',
-      mapIds: [...mapIds], fileIndex, thumb, storyboard, video,
+      mapIds: [...mapIds], fileIndex, thumb, thumbV: existing && existing.thumb ? existing.thumbV : this.THUMB_V, storyboard, video,
       added: existing?.added || Date.now(), sourceName,
     };
     await DB.putMany([{ store: 'sets', value: set }, ...mapRecords.map(r => ({ store: 'maps', value: r }))]);
@@ -10177,7 +10196,7 @@ const ProfileManager = {
   },
   async setAvatar(kind, blob) {
     this.profile.avatar = kind;
-    if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 256); await DB.put('files', t || blob, 'profile/avatar'); }
+    if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 512, 0.9); await DB.put('files', t || blob, 'profile/avatar'); }
     await this.loadAvatar(); await this.save();
   },
   avatarURL: null,
@@ -10192,17 +10211,25 @@ const ProfileManager = {
     else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
   },
-  /** What other players see: the preset / public picture's id, or a small copy of an uploaded picture (64 px). */
+  /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 160 px, sharp
+   *  wherever it's shown (it was 64 px, blurry in profiles and on high-density screens), smaller only if it has to be
+   *  to fit what the server takes. */
   sharedAvatar: '',
+  AVATAR_MAX: 24000, // (the server's limit, worker/multiplayer.js cleanAvatar)
   async makeSharedAvatar() {
     const a = this.profile.avatar || 'default';
     if (a.startsWith('preset:') || a.startsWith('file:')) return a;
     if (a !== 'custom' || !this.avatarURL) return '';
     const img = new Image(); img.src = this.avatarURL; await img.decode();
-    const c = document.createElement('canvas'); c.width = c.height = 64;
-    const x = c.getContext('2d'), sz = Math.min(img.naturalWidth, img.naturalHeight);
-    x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, 64, 64);
-    return c.toDataURL('image/jpeg', 0.8);
+    const sz = Math.min(img.naturalWidth, img.naturalHeight);
+    for (const [px, q] of [[160, 0.88], [160, 0.75], [128, 0.75], [96, 0.75], [64, 0.8]]) {
+      const c = document.createElement('canvas'); c.width = c.height = px;
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+      x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, px, px);
+      const webp = c.toDataURL('image/webp', q), url = webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', q);
+      if (url.length <= this.AVATAR_MAX) return url;
+    }
+    return '';
   },
   /** Avatar element (custom image or monogram). */
   avatarEl(size = 40) {
@@ -11944,10 +11971,10 @@ const HomeScreen = {
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
-        // lazer's beatmap editor, on the selected difficulty
-        ['editor', 'beatmap', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
-        // lazer's skin editor, S (picking a skin is in Settings → Skin)
-        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => SkinEditor.open())],
+        // your beatmaps: import them, extract them (.osz) and edit collections
+        ['beatmaps', 'beatmap', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('beatmaps'))],
+        // skins: preview and import them, and edit the one you use (its layout editor)
+        ['skin', 'skin', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('skins'))],
         ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
         ['edit', 'edit', 'editcircle', '#eeaa00', ['KeyE'], 'top', 'top', null, () => this.setState('edit')],
         ['browse', 'browse', 'beatmap', '#a5cc00', ['KeyB', 'KeyD'], 'top', 'top', null, () => this.enterMode(() => Screens.go('explore'))],
@@ -12124,7 +12151,7 @@ const HomeScreen = {
   /** The logo: from the big logo, open the bar; in the bar, press the first button of the row showing. */
   logoClick() {
     this.flash(0.4, 1500, 'cubic-bezier(.16, 1, .3, 1)');
-    const first = { top: 'play', play: 'solo', multi: 'lounge', edit: 'skins' }[this.menuState];
+    const first = { top: 'play', play: 'solo', multi: 'lounge', edit: 'beatmaps' }[this.menuState];
     if (this.menuState === 'initial') { UISounds.click(); this.setState('top'); return; }
     const b = first && this.btns.find(x => x.dataset.id === first);
     if (b) this.trigger(b);
@@ -17074,6 +17101,7 @@ const BeatmapsScreen = {
   q: '',
   enter() {
     const { el, page } = pageShell('Beatmap library', null, [
+      h('button.btn', { onclick: () => Screens.go('collections') }, icon('folder'), 'Collections'),
       h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'),
       h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.osr,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
     ], { icon: 'music', hue: 'blue' });
@@ -17132,7 +17160,7 @@ const BeatmapsScreen = {
         Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
         h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
         h('button.icon-btn', { title: 'Details', onclick: () => { details.hidden = !details.hidden; } }, icon('info')),
-        h('button.icon-btn', { title: 'Export .osz', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
+        h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
         h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
         details);
       this.list.append(row);
@@ -17383,7 +17411,7 @@ const ProfileScreen = {
     const p = own ? ProfileManager.profile : { name: d.name || (this.remote && this.remote.name) || 'Player', created: d.created };
     const xp = { level: d.level || 1, into: d.xpInto || 0, need: d.xpNeed || 1, progress: clamp(d.xpProgress || 0, 0, 1) };
     const st = { plays: d.plays || 0, playtime: d.playtime || 0, passed: d.passed || 0, avgAcc: d.avgAcc || 0, notes: d.notes || 0, highestCombo: d.highestCombo || 0, grades: d.grades || {} };
-    const rankedScore = d.rankedScore || 0, pp = { total: d.pp || 0 };
+    const pp = { total: d.pp || 0 };
     const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
     if (own) { avatar.title = 'Change avatar'; avatar.addEventListener('click', () => AvatarPicker.open()); }
@@ -17424,7 +17452,7 @@ const ProfileScreen = {
           h('div.pf-big', { title: 'The best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
         h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
       h('div.pf-detail-r',
-        dl('Ranked score', fmtInt(rankedScore)), dl('Play count', fmtInt(st.plays)),
+        dl('Play count', fmtInt(st.plays)),
         dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
     // sections, with lazer's sticky tab bar
     const secs = [];
@@ -17672,6 +17700,8 @@ const SkinsScreen = {
     this.main.append(
       h('div.row', { style: { marginBottom: '12px', flexWrap: 'wrap' } }, h('h2', { style: { margin: 0, fontWeight: 900 } }, skin.name), h('span.grow'),
         h(`button.btn${inUse ? '' : '.primary'}`, { disabled: inUse, onclick: async () => { await SkinManager.select(meta.id); Toast.ok('Skin selected', skin.name); } }, inUse ? 'Selected' : 'Use this skin'),
+        // lazer's skin editor: move, scale and hide what's on screen while Auto plays (it edits the skin in use)
+        h('button.btn.sk-edit', { title: 'Edit this skin\'s layout (Ctrl+Shift+S)', onclick: async () => { if (!inUse) await SkinManager.select(meta.id); SkinEditor.open(); } }, icon('edit'), 'Edit skin'),
         !meta.builtin ? h('button.btn.ghost', { onclick: () => SkinManager.exportOsk(meta.id) }, icon('download'), 'Export') : null,
         !meta.builtin ? h('button.btn.danger', { title: 'Delete skin', 'aria-label': 'Delete skin', onclick: async () => { if (await Dialog.confirm('Delete skin?', `${skin.name} will be removed.`, { ok: 'Delete', danger: true })) { await SkinManager.remove(meta.id); this.sel = SkinManager.current.id; } } }, icon('trash')) : null),
       h('div.sk-keys', h('span.muted', 'Preview'),
@@ -17694,18 +17724,18 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Editors', sections: [
-    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
-    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'The main menu\'s Edit has lazer\'s beatmap and skin editors (pick a skin in Settings → Skin)'] },
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
+    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 50fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps and the ones you made in the editor, as cards', 'Rankings have lazer\'s Score table too: players by ranked score (their best score on each ranked beatmap, added up)', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit has Beatmap (import beatmaps, extract them as .osz and edit collections) and Skin (preview and import skins, and Edit skin to change the layout of the one you use)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps and the ones you made in the editor, as cards', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -24123,15 +24153,8 @@ const RankingsScreen = {
   data: null,
   enter() {
     Presence.start();
-    // lazer's Performance and Score tables
-    this.mode = this.mode || 'performance';
-    const tabs = h('div.dash-tabs', ...['performance', 'score'].map(m => h(`button.ov-tab${m === this.mode ? '.on' : ''}`, { dataset: { m }, onclick: () => {
-      if (this.mode === m) return;
-      UISounds.click(); this.mode = m; this.data = null;
-      for (const b of tabs.children) b.classList.toggle('on', b.dataset.m === m);
-      this.render(); this.ask();
-    } }, m)));
-    const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', tabs, wide: true });
+    this.mode = 'performance'; // (by total pp)
+    const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', wide: true });
     this.page = page;
     this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) this.ask(); })];
     this.ask();
@@ -24147,14 +24170,13 @@ const RankingsScreen = {
     if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
-    const byScore = this.mode === 'score';
-    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', byScore ? 'Ranked Score' : 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
+    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
     const row = r => {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
         h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
-        h('span', fmtInt(r.plays)), h('span.hl', byScore ? fmtInt(r.rscore || 0) : `${fmtInt(Math.round(r.pp))}pp`),
+        h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)
       el.classList.add('click');
