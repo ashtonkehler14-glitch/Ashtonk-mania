@@ -97,7 +97,7 @@ const PlaylistsScreen = {
       h('div.pls-head-r',
         h(`div.pls-time${open ? '' : '.ended'}`, h('span', open ? 'Closes in' : 'Closed'), h('b', open ? { dataset: { ends: p.ends } } : {}, open ? plDuration(Playlists.left(p)) : new Date(p.ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))),
         open && p.host.pid === me ? h('button.btn.sm.danger', { onclick: async () => { if (await Dialog.confirm('Close this playlist?', 'Nobody can set scores on it after that. The scores stay.', { ok: 'Close it', danger: true })) Presence.send({ t: 'plClose', id: p.id }); } }, 'Close') : null,
-        open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
+        open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD', 'AS'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
     const items = p.items.map((it, i) => this.itemRow(p, it, i, open, mods));
     const row = s => h(`div.rk-row.pls-brow.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
       h('span.rk-rank', `#${s.rank}`), h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),

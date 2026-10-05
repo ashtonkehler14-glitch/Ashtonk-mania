@@ -416,7 +416,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, ramp: practice ? null : ModSystem.ramp(mods), mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
+      loopA: null, loopB: null, speed: rate, ramp: practice ? null : ModSystem.ramp(mods), adaptive: !practice && ModSystem.adaptive(mods), adaptTarget: 1, adaptHist: [], mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
@@ -892,6 +892,13 @@ const GameplayScreen = {
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
       this.lastRender = realNow;
       // Wind Up / Wind Down: the rate follows the song from its first note to its last
+      // Adaptive Speed: the rate eases towards what the recent hits suggest (at most 0.25× a second)
+      if (s.adaptive && s.running && !s.finished && Math.abs(s.adaptTarget - s.rate) > 0.002) {
+        const dt = Math.min(0.1, Math.max(0, (realNow - (this._asT || realNow)) / 1000)), step = 0.25 * dt;
+        const r = s.rate + clamp(s.adaptTarget - s.rate, -step, step);
+        if (Math.abs(r - s.rate) > 0.001) { s.rate = r; Music.rampTo(r); }
+      }
+      this._asT = realNow;
       if (s.ramp && s.running && !s.finished) {
         const k = clamp((now - s.firstNote) / Math.max(1, s.endTime - s.firstNote), 0, 1), r = s.ramp[0] + (s.ramp[1] - s.ramp[0]) * k;
         if (Math.abs(r - s.rate) > 0.002) { s.rate = r; Music.rampTo(r); }
@@ -1418,6 +1425,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     s.down.forEach(d => d.clear());
   },
 
+  /** Adaptive Speed: each hit suggests a rate — early: faster, late: slower, a miss: 10% slower — and the last ten
+   *  suggestions, averaged, are where the rate heads (0.5×–2×). */
+  adaptHit(s, e) {
+    const sug = e.j === J.MISS ? s.rate * 0.9 : e.err != null ? s.rate * (1 - clamp(e.err / s.rate, -80, 80) / 400) : null;
+    if (sug == null) return;
+    s.adaptHist.push(sug); if (s.adaptHist.length > 10) s.adaptHist.shift();
+    s.adaptTarget = clamp(s.adaptHist.reduce((a, b) => a + b, 0) / s.adaptHist.length, 0.5, 2);
+  },
   onEngineEvent(e) {
     if (this._resim) return; // seeking a replay: re-judging up to the new time, no effects or sounds
     const s = this.s;
@@ -1426,6 +1441,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.renderer.onJudgement(e, realNow);
       if (this.errMeter) this.errMeter.add(e.err, e.j, realNow);
       if (e.err != null) s.debug.lastErr = e.err / s.rate;
+      if (s.adaptive) this.adaptHit(s, e);
       if (e.j === J.MISS && s.engine.score.comboBreaks && this._lastCombo >= 20) SkinManager.sample('combobreak').then(b => b && AudioManager.play(b));
       this._lastCombo = s.engine.score.combo;
     } else if (e.type === 'earlyRelease' && e.broke) {
