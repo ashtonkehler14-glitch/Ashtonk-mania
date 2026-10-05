@@ -200,7 +200,8 @@ const EditorScreen = {
         t.addEventListener('change', () => { r.time = Math.round(+t.value || 0); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); });
         bpm.addEventListener('change', () => { const b = +bpm.value; if (b > 0) { r.beatLength = 60000 / b; this.setDirty(true); } });
         meter.addEventListener('change', () => { r.meter = +meter.value; this.setDirty(true); });
-        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t), h('label', 'BPM', bpm), h('label', 'Meter', meter),
+        const nudge = d => h('button.ed-ng', { title: `${d > 0 ? '+' : ''}${d}ms`, onclick: e => { e.preventDefault(); r.time = Math.max(-5000, Math.round(r.time + d)); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); t.value = Math.round(r.time); } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`);
+        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t, h('span.ed-nudge', nudge(-10), nudge(-1), nudge(1), nudge(10))), h('label', 'BPM', bpm), h('label', 'Meter', meter),
           h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(r.time); paint(); } }, icon('target')),
           h('button.btn.sm', { title: 'Move to the current time', onclick: () => { r.time = now; this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } }, icon('clock')),
           this.red.length > 1 ? h('button.btn.sm.danger', { title: 'Delete', onclick: () => { this.red = this.red.filter(x => x !== r); this.setDirty(true); paint(); } }, icon('trash')) : null);
@@ -209,6 +210,7 @@ const EditorScreen = {
         h('div.ed-tps', ...this.red.map(row)),
         h('button.btn.primary', { onclick: () => { const now = Math.round(this.now()), r = this.redAt(now); this.red.push({ time: now, beatLength: r.beatLength, meter: r.meter || 4, sampleSet: 1, sampleIndex: 0, volume: 100, uninherited: true, effects: 0 }); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } },
           icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`),
+        this.tapPanel(paint),
         h('h3.ed-h3', 'Kiai time'),
         h('p.muted', 'The song\'s chorus: the playfield glows. It starts and stops on an effect point.'),
         h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('sparkle'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
@@ -219,6 +221,68 @@ const EditorScreen = {
     };
     paint();
     return wrap;
+  },
+  /** lazer's TapTimingControl: tap along to the song (the button, or T) and the BPM is worked out from the taps;
+   *  apply it to the timing point you're in — with the offset too, when you tapped while the song played. And the
+   *  metronome, ticking every beat while the song plays on this screen. */
+  tapPanel(repaint) {
+    const tp = this._tap || (this._tap = { list: [] }), res = this.tapResult();
+    const r = this.redAt(this.now());
+    const out = h('div.ed-tapbox',
+      h('div.ed-tapl',
+        h('button.ed-tapbtn', { onpointerdown: e => { e.preventDefault(); this.tap(); } }, h('b', 'Tap'), h('small', 'or press T')),
+        h('div.ed-tapinfo',
+          h('div.ed-tapbpm', res ? `${res.bpm.toFixed(res.bpm < 100 ? 2 : 1)}` : '—', h('small', ' BPM')),
+          h('div.muted', res ? `${tp.list.length} taps${res.phase != null ? ' with the song' : ''}` : 'Tap to the beat — 4 or more taps'))),
+      h('div.ed-tapr',
+        h('button.btn.sm', { disabled: !res, onclick: () => { r.beatLength = 60000 / +res.bpm.toFixed(2); this.setDirty(true); Toast.show('BPM applied', `${res.bpm.toFixed(2)} BPM from ${fmtTime(Math.max(0, r.time))}`); repaint(); } }, icon('check'), 'Apply BPM'),
+        h('button.btn.sm', { disabled: !res || res.phase == null, title: 'The BPM, and the timing point moved onto your taps', onclick: () => {
+          const b = 60000 / +res.bpm.toFixed(2); r.beatLength = b;
+          // (the beat nearest the timing point's old time, on the taps' phase)
+          r.time = Math.round(res.phase + Math.round((r.time - res.phase) / b) * b);
+          this.red.sort((a, b2) => a.time - b2.time); this.setDirty(true); Toast.show('BPM and offset applied', `${res.bpm.toFixed(2)} BPM at ${Math.round(r.time)}ms`); repaint();
+        } }, icon('target'), 'Apply BPM + offset'),
+        h('button.btn.sm.ghost', { onclick: () => { tp.list = []; repaint(); } }, icon('retry'), 'Reset'),
+        h('label.ed-metro', h('input', { type: 'checkbox', checked: this.metronome !== false, onchange: e => { this.metronome = e.target.checked; } }), 'Metronome')));
+    this._tapRepaint = repaint;
+    return out;
+  },
+  tap() {
+    const tp = this._tap || (this._tap = { list: [] }), now = performance.now();
+    const last = tp.list[tp.list.length - 1];
+    if (last && now - last.real > 2000) tp.list = [];
+    tp.list.push({ real: now, song: Music.playing ? this.now() : null });
+    if (tp.list.length > 16) tp.list.shift();
+    UISounds.click();
+    if (this._tapRepaint && this.tabName === 'timing') this._tapRepaint();
+  },
+  /** The BPM from the taps (the mean gap, in song time when the song played), and the beat's phase. */
+  tapResult() {
+    const L = (this._tap && this._tap.list) || [];
+    if (L.length < 4) return null;
+    const song = L.every(x => x.song != null), ts = L.map(x => song ? x.song : x.real);
+    const gap = (ts[ts.length - 1] - ts[0]) / (ts.length - 1);
+    if (!(gap > 100 && gap < 3000)) return null;
+    let phase = null;
+    if (song) {
+      // the circular mean of each tap's place within the beat
+      let sx = 0, sy = 0;
+      for (const t of ts) { const a = (t / gap) * 2 * Math.PI; sx += Math.cos(a); sy += Math.sin(a); }
+      phase = ((Math.atan2(sy, sx) / (2 * Math.PI)) * gap + gap) % gap;
+    }
+    return { bpm: 60000 / gap, phase };
+  },
+  metronomeTick(now) {
+    if (this.metronome === false || this.tabName !== 'timing' || !Music.playing) { this._mBeat = null; return; }
+    const r = this.redAt(now), meter = r.meter > 0 ? r.meter : 4;
+    if (!(r.beatLength > 0)) return;
+    const beat = Math.floor((now - r.time) / r.beatLength + 1e-6), key = r.time + ':' + beat;
+    if (key === this._mBeat) return;
+    const first = this._mBeat == null;
+    this._mBeat = key;
+    if (first && now - (r.time + beat * r.beatLength) > 60) return;
+    const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+    if (buf) AudioManager.play(buf, { volume: 0.6 });
   },
   async newDifficulty() {
     const name = (await Dialog.prompt('New difficulty', '', { ok: 'Create', placeholder: 'Difficulty name' }) || '').trim();
@@ -566,6 +630,7 @@ const EditorScreen = {
     if (this.timeEl.textContent !== ts) this.timeEl.textContent = ts;
     const bpm = `${Math.round(60000 / this.redAt(now).beatLength)} BPM`;
     if (this.bpmEl.textContent !== bpm) this.bpmEl.textContent = bpm;
+    this.metronomeTick(now);
     if (Music.playing && now >= this.duration) { this.pos = this.duration; Music.pause(); clearEl(this.playBtn).append(icon('play')); }
     this.drawTimeline(now);
   },
@@ -637,6 +702,7 @@ const EditorScreen = {
       return;
     }
     if (e.code === 'Delete' || e.code === 'Backspace') { stop(); this.remove([...this.sel]); return; }
+    if (e.code === 'KeyT' && !ctrl && this.tabName === 'timing') { stop(); if (!e.repeat) this.tap(); return; }
     if (e.code === 'Digit1') { stop(); this.setTool('select'); return; }
     if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
     if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }

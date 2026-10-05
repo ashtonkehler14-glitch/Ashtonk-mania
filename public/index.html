@@ -4216,6 +4216,22 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-tpn { align-self: center; font-weight: 700; color: #ed1121; }
 .ed-num, .ed-tp .select { width: 100%; }
 .ed-form > .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.ed-tp label .ed-nudge { display: flex; gap: 3px; margin-top: 2px; }
+.ed-ng { flex: 1; height: 20px; padding: 0; border: 0; border-radius: 4px; background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .75); font: inherit; font-size: 10.5px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ed-ng:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+/* lazer's TapTimingControl */
+.ed-tapbox { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.ed-tapl { display: flex; align-items: center; gap: 16px; }
+.ed-tapbtn { width: 92px; height: 92px; border: 0; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #ff7ab8, #d6337e); box-shadow: 0 6px 18px rgba(214, 51, 126, .35), inset 0 -4px 0 rgba(0, 0, 0, .18); color: #fff; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; transition: transform 60ms; user-select: none; touch-action: manipulation; }
+.ed-tapbtn:active { transform: scale(.94); }
+.ed-tapbtn b { font-size: 20px; }
+.ed-tapbtn small { font-size: 10px; opacity: .8; }
+.ed-tapinfo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ed-tapbpm { font-size: 30px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.ed-tapbpm small { font-size: 13px; color: rgba(255, 255, 255, .6); }
+.ed-tapr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ed-tapr .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ed-metro { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: rgba(255, 255, 255, .75); margin-left: 4px; }
 .ed-h3 { margin: 10px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
 .ed-form > p.muted { font-size: 13px; }
 .ed-kiai { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); box-shadow: inset 3px 0 0 #ff9922; }
@@ -4302,6 +4318,9 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .se-box.on .se-handle { display: block; }
 .se-item > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .se-item small { font-size: 10.5px; color: rgba(255, 255, 255, .4); }
+.ed-tp { align-items: start; }
+.ed-tp > .btn { margin-top: 22px; }
+.ed-tp > .ed-tpn { line-height: 34px; margin-top: 18px; }
 
 </style>
 </head>
@@ -17414,7 +17433,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
-    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline'] },
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges'] },
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
@@ -18508,7 +18527,8 @@ const EditorScreen = {
         t.addEventListener('change', () => { r.time = Math.round(+t.value || 0); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); });
         bpm.addEventListener('change', () => { const b = +bpm.value; if (b > 0) { r.beatLength = 60000 / b; this.setDirty(true); } });
         meter.addEventListener('change', () => { r.meter = +meter.value; this.setDirty(true); });
-        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t), h('label', 'BPM', bpm), h('label', 'Meter', meter),
+        const nudge = d => h('button.ed-ng', { title: `${d > 0 ? '+' : ''}${d}ms`, onclick: e => { e.preventDefault(); r.time = Math.max(-5000, Math.round(r.time + d)); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); t.value = Math.round(r.time); } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`);
+        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t, h('span.ed-nudge', nudge(-10), nudge(-1), nudge(1), nudge(10))), h('label', 'BPM', bpm), h('label', 'Meter', meter),
           h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(r.time); paint(); } }, icon('target')),
           h('button.btn.sm', { title: 'Move to the current time', onclick: () => { r.time = now; this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } }, icon('clock')),
           this.red.length > 1 ? h('button.btn.sm.danger', { title: 'Delete', onclick: () => { this.red = this.red.filter(x => x !== r); this.setDirty(true); paint(); } }, icon('trash')) : null);
@@ -18517,6 +18537,7 @@ const EditorScreen = {
         h('div.ed-tps', ...this.red.map(row)),
         h('button.btn.primary', { onclick: () => { const now = Math.round(this.now()), r = this.redAt(now); this.red.push({ time: now, beatLength: r.beatLength, meter: r.meter || 4, sampleSet: 1, sampleIndex: 0, volume: 100, uninherited: true, effects: 0 }); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } },
           icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`),
+        this.tapPanel(paint),
         h('h3.ed-h3', 'Kiai time'),
         h('p.muted', 'The song\'s chorus: the playfield glows. It starts and stops on an effect point.'),
         h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('sparkle'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
@@ -18527,6 +18548,68 @@ const EditorScreen = {
     };
     paint();
     return wrap;
+  },
+  /** lazer's TapTimingControl: tap along to the song (the button, or T) and the BPM is worked out from the taps;
+   *  apply it to the timing point you're in — with the offset too, when you tapped while the song played. And the
+   *  metronome, ticking every beat while the song plays on this screen. */
+  tapPanel(repaint) {
+    const tp = this._tap || (this._tap = { list: [] }), res = this.tapResult();
+    const r = this.redAt(this.now());
+    const out = h('div.ed-tapbox',
+      h('div.ed-tapl',
+        h('button.ed-tapbtn', { onpointerdown: e => { e.preventDefault(); this.tap(); } }, h('b', 'Tap'), h('small', 'or press T')),
+        h('div.ed-tapinfo',
+          h('div.ed-tapbpm', res ? `${res.bpm.toFixed(res.bpm < 100 ? 2 : 1)}` : '—', h('small', ' BPM')),
+          h('div.muted', res ? `${tp.list.length} taps${res.phase != null ? ' with the song' : ''}` : 'Tap to the beat — 4 or more taps'))),
+      h('div.ed-tapr',
+        h('button.btn.sm', { disabled: !res, onclick: () => { r.beatLength = 60000 / +res.bpm.toFixed(2); this.setDirty(true); Toast.show('BPM applied', `${res.bpm.toFixed(2)} BPM from ${fmtTime(Math.max(0, r.time))}`); repaint(); } }, icon('check'), 'Apply BPM'),
+        h('button.btn.sm', { disabled: !res || res.phase == null, title: 'The BPM, and the timing point moved onto your taps', onclick: () => {
+          const b = 60000 / +res.bpm.toFixed(2); r.beatLength = b;
+          // (the beat nearest the timing point's old time, on the taps' phase)
+          r.time = Math.round(res.phase + Math.round((r.time - res.phase) / b) * b);
+          this.red.sort((a, b2) => a.time - b2.time); this.setDirty(true); Toast.show('BPM and offset applied', `${res.bpm.toFixed(2)} BPM at ${Math.round(r.time)}ms`); repaint();
+        } }, icon('target'), 'Apply BPM + offset'),
+        h('button.btn.sm.ghost', { onclick: () => { tp.list = []; repaint(); } }, icon('retry'), 'Reset'),
+        h('label.ed-metro', h('input', { type: 'checkbox', checked: this.metronome !== false, onchange: e => { this.metronome = e.target.checked; } }), 'Metronome')));
+    this._tapRepaint = repaint;
+    return out;
+  },
+  tap() {
+    const tp = this._tap || (this._tap = { list: [] }), now = performance.now();
+    const last = tp.list[tp.list.length - 1];
+    if (last && now - last.real > 2000) tp.list = [];
+    tp.list.push({ real: now, song: Music.playing ? this.now() : null });
+    if (tp.list.length > 16) tp.list.shift();
+    UISounds.click();
+    if (this._tapRepaint && this.tabName === 'timing') this._tapRepaint();
+  },
+  /** The BPM from the taps (the mean gap, in song time when the song played), and the beat's phase. */
+  tapResult() {
+    const L = (this._tap && this._tap.list) || [];
+    if (L.length < 4) return null;
+    const song = L.every(x => x.song != null), ts = L.map(x => song ? x.song : x.real);
+    const gap = (ts[ts.length - 1] - ts[0]) / (ts.length - 1);
+    if (!(gap > 100 && gap < 3000)) return null;
+    let phase = null;
+    if (song) {
+      // the circular mean of each tap's place within the beat
+      let sx = 0, sy = 0;
+      for (const t of ts) { const a = (t / gap) * 2 * Math.PI; sx += Math.cos(a); sy += Math.sin(a); }
+      phase = ((Math.atan2(sy, sx) / (2 * Math.PI)) * gap + gap) % gap;
+    }
+    return { bpm: 60000 / gap, phase };
+  },
+  metronomeTick(now) {
+    if (this.metronome === false || this.tabName !== 'timing' || !Music.playing) { this._mBeat = null; return; }
+    const r = this.redAt(now), meter = r.meter > 0 ? r.meter : 4;
+    if (!(r.beatLength > 0)) return;
+    const beat = Math.floor((now - r.time) / r.beatLength + 1e-6), key = r.time + ':' + beat;
+    if (key === this._mBeat) return;
+    const first = this._mBeat == null;
+    this._mBeat = key;
+    if (first && now - (r.time + beat * r.beatLength) > 60) return;
+    const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+    if (buf) AudioManager.play(buf, { volume: 0.6 });
   },
   async newDifficulty() {
     const name = (await Dialog.prompt('New difficulty', '', { ok: 'Create', placeholder: 'Difficulty name' }) || '').trim();
@@ -18874,6 +18957,7 @@ const EditorScreen = {
     if (this.timeEl.textContent !== ts) this.timeEl.textContent = ts;
     const bpm = `${Math.round(60000 / this.redAt(now).beatLength)} BPM`;
     if (this.bpmEl.textContent !== bpm) this.bpmEl.textContent = bpm;
+    this.metronomeTick(now);
     if (Music.playing && now >= this.duration) { this.pos = this.duration; Music.pause(); clearEl(this.playBtn).append(icon('play')); }
     this.drawTimeline(now);
   },
@@ -18945,6 +19029,7 @@ const EditorScreen = {
       return;
     }
     if (e.code === 'Delete' || e.code === 'Backspace') { stop(); this.remove([...this.sel]); return; }
+    if (e.code === 'KeyT' && !ctrl && this.tabName === 'timing') { stop(); if (!e.repeat) this.tap(); return; }
     if (e.code === 'Digit1') { stop(); this.setTool('select'); return; }
     if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
     if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }
