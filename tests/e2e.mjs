@@ -1189,6 +1189,22 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('dangerous dialog button: one press confirms (no holding)', !after.open && after.v === true, JSON.stringify(after));
 }
 
+// lazer's beatmap editor: a note placed and saved goes into the library as that difficulty
+{
+  await page.evaluate(() => { const M = AshtonkMania, m = [...M.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); M.Screens.go('editor', { mapId: m.id }); });
+  await page.waitForSelector('.ed-canvas', { timeout: 15000 });
+  const r = await page.evaluate(async () => {
+    const E = AshtonkMania.EditorScreen, before = E.notes.length, lastT = E.notes[E.notes.length - 1].t;
+    E.add(0, E.snap(lastT + 2000)); E.add(1, E.snap(lastT + 2500), E.snap(lastT + 3500));
+    const ok = await E.save();
+    const m = AshtonkMania.BeatmapManager.maps.get(E.rec.id);
+    return { ok, before, after: E.notes.length, lib: m ? m.noteCount + m.lnCount : 0, same: [...AshtonkMania.BeatmapManager.maps.values()].filter(x => x.version === '4K Normal').length };
+  });
+  check('beatmap editor: notes placed and saved become the difficulty in the library (no duplicate left behind)', r.ok && r.after === r.before + 2 && r.lib === r.after && r.same === 1, JSON.stringify(r));
+  await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
+  await page.waitForTimeout(600);
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

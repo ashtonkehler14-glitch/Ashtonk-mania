@@ -1617,6 +1617,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   quit() {
     clearTimeout(this._cdT);
+    if (this.params.editor) { Screens.go('editor', this.params.editor, { replace: true }); return; } // (lazer: Test comes back to the editor)
     if (this.params.replay && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
     Screens.go('songselect', { mapId: this.params.mapId }, { replace: true });
   },
@@ -1668,7 +1669,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null, playlist: this.params.playlist ? { id: this.params.playlist.id } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null, editor: this.params.editor || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode }, { replace: true, transition: 'zoom' }); }, 600);

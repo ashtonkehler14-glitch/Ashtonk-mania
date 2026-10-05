@@ -310,6 +310,28 @@ const BeatmapManager = {
     return set;
   },
 
+  /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files
+   *  (its hash — and so its id — change; the old record goes). Returns the new difficulty. */
+  async saveDifficulty(rec, text) {
+    const set = this.setById.get(rec.setId);
+    if (!set) throw new Error('That beatmap set is no longer in your library.');
+    const osuLow = normPath(rec.osuPath).toLowerCase(), entries = [];
+    for (const [low, real] of Object.entries(set.fileIndex || {})) {
+      if (low === osuLow || low.endsWith('.osu') || real.startsWith('__')) continue;
+      entries.push({ name: real, size: 0, read: async () => { const b = await DB.get('files', `${set.id}/${real}`); return new Uint8Array(b ? await b.arrayBuffer() : 0); } });
+    }
+    const bytes = new TextEncoder().encode(text);
+    entries.push({ name: rec.osuPath, size: bytes.length, read: async () => bytes });
+    await DB.del('maps', rec.id); this.maps.delete(rec.id);
+    set.mapIds = set.mapIds.filter(x => x !== rec.id);
+    const report = { errors: [], warnings: [] };
+    const sets = await this._importEntries(entries, set.sourceName || 'editor', report);
+    if (report.errors.length) throw new Error(report.errors[0]);
+    Bus.emit('library:changed');
+    const out = sets[0] && sets[0].maps.find(m => normPath(m.osuPath).toLowerCase() === osuLow);
+    if (out && set.onlineId > 0) { const s2 = this.setById.get(out.setId); if (s2 && !(s2.onlineId > 0)) s2.onlineId = set.onlineId; }
+    return out || null;
+  },
   async removeSet(setId) {
     const set = this.setById.get(setId);
     if (!set) return;

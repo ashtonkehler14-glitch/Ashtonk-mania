@@ -4154,6 +4154,47 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mp-auto .i { width: 16px; height: 16px; color: #ffd966; }
 .mp-auto b { color: #ffd966; font-variant-numeric: tabular-nums; }
 
+/* ── lazer's beatmap editor (compose) */
+.editor { position: absolute; inset: 0; display: flex; flex-direction: column; background: #16151b; color: #fff; user-select: none; }
+.ed-loading { margin: auto; display: flex; align-items: center; gap: 10px; color: rgba(255, 255, 255, .7); }
+.ed-top { height: 40px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #24222b; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); z-index: 1; }
+.ed-menu { height: 28px; padding: 0 12px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.ed-menu:hover { background: rgba(255, 255, 255, .14); }
+.ed-tabs { display: flex; gap: 4px; }
+.ed-tab { height: 28px; padding: 0 14px; border: 0; border-radius: 5px; background: none; color: rgba(255, 255, 255, .6); font: inherit; font-size: 14px; }
+.ed-tab.on { color: #fff; box-shadow: inset 0 -2px 0 #ffcc22; }
+.ed-title { flex: 1; min-width: 0; text-align: right; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, .7); }
+.ed-title b { color: #fff; }
+.ed-dirty { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 204, 34, .2); color: #ffd966; }
+.ed-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr) 170px; }
+.ed-left, .ed-right { padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; background: rgba(0, 0, 0, .18); }
+.ed-ph { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); margin: 4px 2px; }
+.ed-tool { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .05); color: #fff; font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
+.ed-tool .i { width: 16px; height: 16px; }
+.ed-tool span { flex: 1; }
+.ed-tool kbd { font-size: 11px; opacity: .5; }
+.ed-tool.on { background: #ffcc22; color: #222; }
+.ed-stage { position: relative; min-width: 0; min-height: 0; }
+.ed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.ed-div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ed-dv { height: 30px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .05); color: var(--c); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+.ed-dv.on { background: var(--c); color: #111; }
+.ed-help { margin-top: auto; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .55); }
+.ed-help kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .08); color: #fff; }
+.ed-bottom { height: 60px; flex: none; display: grid; grid-template-columns: 170px minmax(0, 1fr) 260px; align-items: center; gap: 14px; padding: 0 12px; background: #24222b; }
+.ed-time { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 300; }
+.ed-bpm { font-size: 11px; color: rgba(255, 255, 255, .55); }
+.ed-tlwrap { height: 40px; position: relative; }
+.ed-tl { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
+.ed-ctl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.ed-play { width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.ed-play .i { width: 18px; height: 18px; }
+.ed-rates { display: flex; gap: 3px; }
+.ed-rate { height: 26px; padding: 0 7px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .7); font: inherit; font-size: 12px; cursor: pointer; }
+.ed-rate.on { background: #66ccff; color: #111; }
+@media (max-width: 900px) { .ed-main { grid-template-columns: 120px minmax(0, 1fr) 110px; } .ed-help { display: none; } .ed-bottom { grid-template-columns: 110px minmax(0, 1fr) auto; } .ed-rates { display: none; } }
+.screen.editor, .editor { padding: 0; }
+
 </style>
 </head>
 <body>
@@ -6775,7 +6816,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'mods.presets', d: [] },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
@@ -7180,6 +7221,28 @@ const BeatmapManager = {
     return set;
   },
 
+  /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files
+   *  (its hash — and so its id — change; the old record goes). Returns the new difficulty. */
+  async saveDifficulty(rec, text) {
+    const set = this.setById.get(rec.setId);
+    if (!set) throw new Error('That beatmap set is no longer in your library.');
+    const osuLow = normPath(rec.osuPath).toLowerCase(), entries = [];
+    for (const [low, real] of Object.entries(set.fileIndex || {})) {
+      if (low === osuLow || low.endsWith('.osu') || real.startsWith('__')) continue;
+      entries.push({ name: real, size: 0, read: async () => { const b = await DB.get('files', `${set.id}/${real}`); return new Uint8Array(b ? await b.arrayBuffer() : 0); } });
+    }
+    const bytes = new TextEncoder().encode(text);
+    entries.push({ name: rec.osuPath, size: bytes.length, read: async () => bytes });
+    await DB.del('maps', rec.id); this.maps.delete(rec.id);
+    set.mapIds = set.mapIds.filter(x => x !== rec.id);
+    const report = { errors: [], warnings: [] };
+    const sets = await this._importEntries(entries, set.sourceName || 'editor', report);
+    if (report.errors.length) throw new Error(report.errors[0]);
+    Bus.emit('library:changed');
+    const out = sets[0] && sets[0].maps.find(m => normPath(m.osuPath).toLowerCase() === osuLow);
+    if (out && set.onlineId > 0) { const s2 = this.setById.get(out.setId); if (s2 && !(s2.onlineId > 0)) s2.onlineId = set.onlineId; }
+    return out || null;
+  },
   async removeSet(setId) {
     const set = this.setById.get(setId);
     if (!set) return;
@@ -11614,9 +11677,11 @@ const HomeScreen = {
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed
-        ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('skins'))],
+        // lazer's beatmap editor, on the selected difficulty
+        ['editor', 'editor', 'editcircle', '#eeaa00', ['KeyE'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('editor', { mapId: SongSelect.selectedId || Settings.get('last.map') }))],
+        ['skins', 'skins', 'brush', '#eeaa00', ['KeyS'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('skins'))],
         ['import', 'import', 'upload', '#dca000', ['KeyI'], 'edit', 'edit', null, () => importViaPicker('.osz,.osk,.zip,.osu,.osr')],
-        ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB', 'KeyE'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
+        ['beatmaps', 'beatmaps', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('beatmaps'))],
         ['collections', 'collections', 'folder', '#dca000', ['KeyC'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('collections'))],
         ['replays', 'replays', 'film', '#eeaa00', ['KeyR'], 'edit', 'edit', null, () => this.enterMode(() => Screens.go('replays'))],
         ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
@@ -13495,6 +13560,7 @@ const SongSelect = {
       { label: 'Play', icon: 'play', onClick: () => this.play() },
       { label: 'Practice', icon: 'flag', onClick: () => this.play('practice') },
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
+      { label: 'Edit', icon: 'editcircle', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
@@ -13544,6 +13610,7 @@ const SongSelect = {
       btn('Play', 'play', () => this.play()),
       btn('Practice', 'flag', () => this.play('practice')),
       btn('Watch Auto', 'film', () => this.play('auto')),
+      btn('Edit', 'editcircle', () => Screens.go('editor', { mapId: m.id })),
       btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)),
       btn('Clear local scores', 'trash', () => this.clearScores(m)),
       btn('Hide', 'x', () => this.hideMap(m)),
@@ -15214,6 +15281,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   quit() {
     clearTimeout(this._cdT);
+    if (this.params.editor) { Screens.go('editor', this.params.editor, { replace: true }); return; } // (lazer: Test comes back to the editor)
     if (this.params.replay && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
     Screens.go('songselect', { mapId: this.params.mapId }, { replace: true });
   },
@@ -15265,7 +15333,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null, playlist: this.params.playlist ? { id: this.params.playlist.id } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null, editor: this.params.editor || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode }, { replace: true, transition: 'zoom' }); }, 600);
@@ -15868,7 +15936,7 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.playlist) Screens.go('playlists', { id: this.p.playlist.id }, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.playlist) Screens.go('playlists', { id: this.p.playlist.id }, { replace: true }); else if (this.p.editor) Screens.go('editor', this.p.editor, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -16979,6 +17047,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
@@ -17865,6 +17934,410 @@ const BeatmapStatus = {
       }
     } finally { this.busy = false; }
     if (changed) Bus.emit('library:changed');
+  },
+};
+
+/* ===== 17c-editor.js ===== */
+/* osu!lazer's beatmap editor, for mania: the Compose screen — a playfield scrolling with the song, where notes and
+ * hold notes are placed, moved and deleted, snapped to the beat divisor (lines coloured as lazer colours them);
+ * the song plays (at 25–100% speed) and a timeline along the bottom seeks; undo / redo; Save writes the difficulty
+ * back into your library (its file changes, so it gets a new id) and Test plays it from the editor, coming back
+ * after. Timing and metadata (lazer's Timing and Setup screens) are kept as they are. */
+
+const EDIT_DIVISORS = [1, 2, 3, 4, 6, 8, 12, 16];
+/** lazer's BindableBeatDivisor.GetColourFor: the colour of a tick by the smallest divisor it falls on. */
+function snapColour(d) {
+  return { 1: '#ffffff', 2: '#ed1121', 3: '#8866ee', 4: '#66ccff', 6: '#eedd00', 8: '#eedd00', 12: '#888888', 16: '#888888' }[d] || '#888888';
+}
+
+const EditorScreen = {
+  inGame: true, transient: true, tab: 'songselect',
+  enter(p = {}) {
+    const el = h('div.editor');
+    this.el = el;
+    this.tool = 'select'; this.divisor = Settings.get('editor.divisor') || 4; this.zoom = 0.45; this.rateK = 1;
+    this.sel = new Set(); this.undo = []; this.redo = []; this.dirty = false; this.pos = p.pos || 0; this.hover = null;
+    el.append(h('div.ed-loading', h('span.spinner'), 'Loading the editor…'));
+    this.load(p.mapId).catch(e => { Toast.err('Couldn\'t open the editor', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); });
+    return el;
+  },
+  leave() {
+    cancelAnimationFrame(this._raf); this._raf = 0;
+    window.removeEventListener('keydown', this._key, true);
+    if (Music.playing) Music.pause();
+    if (this._ro) this._ro.disconnect();
+  },
+  async load(mapId) {
+    const rec = BeatmapManager.maps.get(mapId) || BeatmapManager.maps.get(SongSelect.selectedId);
+    if (!rec) throw new Error('Pick a beatmap first: the editor edits the selected difficulty.');
+    const { bm, notes } = await BeatmapManager.load(rec.id);
+    const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath);
+    this.rec = rec; this.bm = bm; this.text = await blob.text(); this.keys = BeatmapParser.keyCount(bm);
+    this.red = bm.timingPoints.filter(t => t.uninherited);
+    if (!this.red.length) this.red = [{ time: 0, beatLength: 500, meter: 4, uninherited: true }];
+    this.notes = notes.map(n => ({ t: Math.round(n.time), col: n.col, end: n.isLN ? Math.round(n.end) : null }));
+    const buffer = await TrackCache.get(rec.setId, rec.audioFile);
+    await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
+    await Music.setRate(1, false);
+    this.duration = Music.duration || (this.notes.length ? this.notes[this.notes.length - 1].t + 2000 : 60000);
+    if (Screens.current !== this) return;
+    this.build();
+  },
+
+  // ── layout
+  build() {
+    const el = this.el;
+    clearEl(el);
+    const r = this.rec;
+    this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
+    const top = h('div.ed-top', this.fileBtn, h('div.ed-tabs', h('button.ed-tab.on', 'compose')),
+      h('div.ed-title', h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
+    const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
+    this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
+    this.divEl = h('div.ed-div');
+    this.canvas = h('canvas.ed-canvas');
+    this.stage = h('div.ed-stage', this.canvas);
+    this.timeEl = h('div.ed-time'); this.bpmEl = h('div.ed-bpm');
+    this.tl = h('canvas.ed-tl');
+    this.playBtn = h('button.ed-play', { onclick: () => this.togglePlay(), title: 'Play / pause (Space)' }, icon('play'));
+    const rates = [0.25, 0.5, 0.75, 1].map(k => h(`button.ed-rate${k === this.rateK ? '.on' : ''}`, { onclick: () => this.setRate(k) }, `${k * 100}%`));
+    this.ratesEl = h('div.ed-rates', ...rates);
+    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl));
+    el.append(top, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
+      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
+    this.paintDivisor();
+    this.bindStage();
+    this._key = e => this.onKey(e);
+    window.addEventListener('keydown', this._key, true);
+    this._ro = new ResizeObserver(() => this.size()); this._ro.observe(this.stage); this._ro.observe(this.tl);
+    this.size();
+    const loop = () => { this._raf = requestAnimationFrame(loop); this.draw(); };
+    this._raf = requestAnimationFrame(loop);
+  },
+  size() {
+    const k = Math.min(2, Zoom.dpr());
+    for (const c of [this.canvas, this.tl]) { const w = Math.round(c.clientWidth * k), hh = Math.round(c.clientHeight * k); if (w && hh && (c.width !== w || c.height !== hh)) { c.width = w; c.height = hh; } }
+    this._k = k; this._tlDirty = true;
+  },
+  paintDivisor() {
+    clearEl(this.divEl).append(...EDIT_DIVISORS.map(d => h(`button.ed-dv${d === this.divisor ? '.on' : ''}`, { style: { '--c': snapColour(d) }, onclick: () => this.setDivisor(d) }, `1/${d}`)));
+  },
+  setDivisor(d) { this.divisor = d; Settings.set('editor.divisor', d); this.paintDivisor(); },
+  setTool(t) { this.tool = t; for (const b of this.toolsEl.querySelectorAll('.ed-tool')) b.classList.toggle('on', b.dataset.tool === t); UISounds.click(); },
+  async setRate(k) {
+    const was = Music.playing, at = this.now();
+    if (was) Music.pause();
+    this.rateK = k; await Music.setRate(k, false);
+    for (const b of this.ratesEl.children) b.classList.toggle('on', b.textContent === `${k * 100}%`);
+    this.pos = at; if (was) Music.play(at);
+  },
+
+  // ── time
+  now() { return Music.playing ? Music.time : this.pos; },
+  redAt(t) { let r = this.red[0]; for (const x of this.red) { if (x.time <= t + 1) r = x; else break; } return r; },
+  snap(t) { const r = this.redAt(t), b = r.beatLength / this.divisor; return Math.round(r.time + Math.round((t - r.time) / b) * b); },
+  step(dir) {
+    const t = this.now(), r = this.redAt(t), b = r.beatLength / this.divisor;
+    const s = this.snap(t);
+    let n = Math.abs(s - t) > 2 && Math.sign(s - t) === dir ? s : Math.round(s + dir * b);
+    this.seek(n);
+  },
+  seek(t) {
+    t = clamp(t, Math.min(0, this.red[0].time), this.duration);
+    if (Music.playing) Music.play(t); else this.pos = t;
+  },
+  togglePlay() {
+    if (Music.playing) { this.pos = Music.time; Music.pause(); }
+    else { if (this.pos >= this.duration - 50) this.pos = 0; Music.play(this.pos); }
+    clearEl(this.playBtn).append(icon(Music.playing ? 'pause' : 'play'));
+  },
+
+  // ── geometry
+  geo() {
+    const c = this.canvas, k = this._k || 1, W = c.width / k, H = c.height / k;
+    const cw = Math.min(64, Math.max(28, (W * 0.5) / this.keys)), x0 = Math.round(W / 2 - cw * this.keys / 2), hitY = Math.round(H * 0.82);
+    return { W, H, cw, x0, hitY, px: this.zoom };
+  },
+  yOf(t, g, now) { return g.hitY - (t - now) * g.px; },
+  tOf(y, g, now) { return now + (g.hitY - y) / g.px; },
+  at(ev) {
+    const r = this.canvas.getBoundingClientRect(), g = this.geo(), x = (ev.clientX - r.left) * (g.W / r.width), y = (ev.clientY - r.top) * (g.H / r.height);
+    const col = Math.floor((x - g.x0) / g.cw), t = this.tOf(y, g, this.now());
+    return { col, t, x, y, inside: col >= 0 && col < this.keys };
+  },
+  noteAt(a) {
+    const g = this.geo(), now = this.now(), tol = 9 / g.px;
+    for (let i = this.notes.length - 1; i >= 0; i--) {
+      const n = this.notes[i];
+      if (n.col !== a.col) continue;
+      if (n.end != null ? a.t >= n.t - tol && a.t <= n.end + tol : Math.abs(a.t - n.t) <= tol) return n;
+    }
+    return null;
+  },
+
+  // ── editing
+  commit() {
+    this.undo.push(JSON.stringify(this.notes)); if (this.undo.length > 200) this.undo.shift();
+    this.redo = []; this.setDirty(true);
+  },
+  setDirty(v) { this.dirty = v; if (this.dirtyEl) this.dirtyEl.hidden = !v; this._tlDirty = true; },
+  sortNotes() { this.notes.sort((a, b) => a.t - b.t || a.col - b.col); },
+  clash(col, t, end, except) { return this.notes.some(n => n !== except && !(except instanceof Set && except.has(n)) && n.col === col && !((end ?? t) < n.t || t > (n.end ?? n.t))); },
+  add(col, t, end = null) {
+    if (col < 0 || col >= this.keys || this.clash(col, t, end)) return null;
+    this.commit();
+    const n = { t, col, end }; this.notes.push(n); this.sortNotes();
+    UISounds.play('check-on');
+    return n;
+  },
+  remove(list) {
+    if (!list.length) return;
+    this.commit();
+    const s = new Set(list);
+    this.notes = this.notes.filter(n => !s.has(n)); for (const n of list) this.sel.delete(n);
+    UISounds.play('check-off');
+  },
+  undoStep(back) {
+    const from = back ? this.undo : this.redo, to = back ? this.redo : this.undo;
+    if (!from.length) return;
+    to.push(JSON.stringify(this.notes));
+    this.notes = JSON.parse(from.pop()); this.sel.clear(); this.setDirty(true);
+  },
+  bindStage() {
+    const c = this.canvas;
+    c.addEventListener('contextmenu', e => e.preventDefault());
+    c.addEventListener('pointermove', e => { if (!this._drag) this.hover = this.at(e); else this.dragMove(e); });
+    c.addEventListener('pointerleave', () => { this.hover = null; });
+    c.addEventListener('pointerdown', e => {
+      const a = this.at(e);
+      if (e.button === 2) { const n = this.noteAt(a); if (n) this.remove(this.sel.has(n) ? [...this.sel] : [n]); return; }
+      if (e.button !== 0) return;
+      c.setPointerCapture(e.pointerId);
+      const hit = a.inside ? this.noteAt(a) : null;
+      if (this.tool === 'select' || hit) {
+        if (hit) {
+          if (e.shiftKey || e.ctrlKey) { this.sel.has(hit) ? this.sel.delete(hit) : this.sel.add(hit); }
+          else if (!this.sel.has(hit)) { this.sel.clear(); this.sel.add(hit); }
+          // dragging the selection: by whole snaps and columns
+          this._drag = { kind: 'move', from: a, base: [...this.sel].map(n => ({ n, t: n.t, col: n.col, end: n.end })), moved: false };
+        } else { if (!e.shiftKey) this.sel.clear(); this._drag = { kind: 'box', from: a, to: a }; }
+        return;
+      }
+      if (!a.inside) return;
+      const t = this.snap(a.t);
+      if (this.tool === 'note') { this.add(a.col, t); return; }
+      if (this.tool === 'hold') this._drag = { kind: 'hold', col: a.col, t, end: t };
+    });
+    c.addEventListener('pointerup', () => this.dragEnd());
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (e.ctrlKey) { this.zoom = clamp(this.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.1, 2.5); return; }
+      if (e.shiftKey) { const i = EDIT_DIVISORS.indexOf(this.divisor); this.setDivisor(EDIT_DIVISORS[clamp(i + (e.deltaY > 0 ? -1 : 1), 0, EDIT_DIVISORS.length - 1)]); return; }
+      this.step(e.deltaY > 0 ? -1 : 1);
+    }, { passive: false });
+    // the timeline: click or drag to seek
+    const seekTl = e => { const r = this.tl.getBoundingClientRect(); this.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * this.duration); };
+    this.tl.addEventListener('pointerdown', e => { this.tl.setPointerCapture(e.pointerId); seekTl(e); this._tlDrag = true; });
+    this.tl.addEventListener('pointermove', e => { if (this._tlDrag) seekTl(e); });
+    this.tl.addEventListener('pointerup', () => { this._tlDrag = false; });
+  },
+  dragMove(e) {
+    const d = this._drag, a = this.at(e);
+    if (d.kind === 'hold') { d.end = Math.max(d.t, this.snap(a.t)); return; }
+    if (d.kind === 'box') { d.to = a; return; }
+    if (d.kind === 'move') {
+      const dt = this.snap(d.from.t + (a.t - d.from.t)) - this.snap(d.from.t), dc = a.col - d.from.col;
+      const ok = d.base.every(b => b.col + dc >= 0 && b.col + dc < this.keys);
+      if (!ok || (!dt && !dc)) return;
+      const moved = new Set(d.base.map(b => b.n));
+      if (d.base.some(b => this.clash(b.col + dc, b.t + dt, b.end != null ? b.end + dt : null, moved))) return;
+      if (!d.moved) { this.commit(); d.moved = true; }
+      for (const b of d.base) { b.n.t = b.t + dt; b.n.col = b.col + dc; b.n.end = b.end != null ? b.end + dt : null; }
+      this.sortNotes(); this.setDirty(true);
+    }
+  },
+  dragEnd() {
+    const d = this._drag; this._drag = null;
+    if (!d) return;
+    if (d.kind === 'hold') {
+      if (d.end - d.t >= 10) this.add(d.col, d.t, d.end); else this.add(d.col, d.t);
+    } else if (d.kind === 'box') {
+      const t0 = Math.min(d.from.t, d.to.t), t1 = Math.max(d.from.t, d.to.t), c0 = Math.min(d.from.col, d.to.col), c1 = Math.max(d.from.col, d.to.col);
+      if (Math.abs(d.from.y - d.to.y) > 4 || Math.abs(d.from.x - d.to.x) > 4) for (const n of this.notes) if (n.col >= c0 && n.col <= c1 && (n.end ?? n.t) >= t0 && n.t <= t1) this.sel.add(n);
+    }
+  },
+
+  // ── drawing
+  draw() {
+    const c = this.canvas;
+    if (!c || !c.width) return;
+    const k = this._k || 1, ctx = this._ctx || (this._ctx = c.getContext('2d'));
+    const g = this.geo(), now = this.now(), { W, H, cw, x0, hitY } = g;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.fillStyle = '#16151b'; ctx.fillRect(0, 0, W, H);
+    const tTop = this.tOf(0, g, now), tBot = this.tOf(H, g, now);
+    // the stage
+    ctx.fillStyle = '#0b0b0f'; ctx.fillRect(x0, 0, cw * this.keys, H);
+    ctx.fillStyle = 'rgba(255,255,255,.06)'; for (let i = 1; i < this.keys; i++) ctx.fillRect(x0 + i * cw, 0, 1, H);
+    // beat snap lines (lazer's colours: 1/1 white, 1/2 red, 1/3 purple, 1/4 blue, 1/6 & 1/8 yellow, finer grey)
+    for (let ri = 0; ri < this.red.length; ri++) {
+      const r = this.red[ri], next = this.red[ri + 1] ? this.red[ri + 1].time : Infinity, b = r.beatLength / this.divisor, meter = r.meter > 0 ? r.meter : 4;
+      if (!(b > 1)) continue;
+      const from = Math.max(r.time, tBot), to = Math.min(next, tTop);
+      if (from > to) continue;
+      let i = Math.ceil((from - r.time) / b - 1e-6);
+      for (let t = r.time + i * b; t <= to && t < next; i++, t = r.time + i * b) {
+        let d = 1; for (const x of EDIT_DIVISORS) if (x <= this.divisor && Math.abs((i * x / this.divisor) - Math.round(i * x / this.divisor)) < 1e-6) { d = x; break; }
+        const bar = i % (this.divisor * meter) === 0;
+        ctx.globalAlpha = d === 1 ? (bar ? 0.9 : 0.55) : 0.35;
+        ctx.fillStyle = snapColour(d);
+        ctx.fillRect(x0, Math.round(this.yOf(t, g, now)) - (bar ? 1 : 0), cw * this.keys, bar ? 3 : d === 1 ? 2 : 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // notes
+    const noteH = 14, pad = 3;
+    for (const n of this.notes) {
+      const end = n.end ?? n.t;
+      if (end < tBot - 50 || n.t > tTop + 50) continue;
+      const x = x0 + n.col * cw + pad, w = cw - pad * 2, y = this.yOf(n.t, g, now), sel = this.sel.has(n);
+      if (n.end != null) {
+        const ye = this.yOf(n.end, g, now);
+        ctx.fillStyle = sel ? 'rgba(255, 204, 34, .55)' : 'rgba(150, 70, 255, .55)';
+        ctx.fillRect(x + w * 0.15, ye, w * 0.7, y - ye);
+        ctx.fillStyle = sel ? '#ffcc22' : '#7d3cff'; this.rr(ctx, x, ye - noteH / 2, w, noteH, 4); ctx.fill();
+      }
+      ctx.fillStyle = sel ? '#ffcc22' : '#9a4dff';
+      this.rr(ctx, x, y - noteH / 2, w, noteH, 4); ctx.fill();
+      if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+    }
+    // what the tool would place
+    const hv = this.hover, d = this._drag;
+    if (d && d.kind === 'hold') {
+      const x = x0 + d.col * cw + pad, w = cw - pad * 2, y = this.yOf(d.t, g, now), ye = this.yOf(d.end, g, now);
+      ctx.globalAlpha = 0.6; ctx.fillStyle = '#9a4dff'; ctx.fillRect(x + w * 0.15, ye, w * 0.7, y - ye); this.rr(ctx, x, y - noteH / 2, w, noteH, 4); ctx.fill(); this.rr(ctx, x, ye - noteH / 2, w, noteH, 4); ctx.fill(); ctx.globalAlpha = 1;
+    } else if (hv && hv.inside && this.tool !== 'select' && !d) {
+      const t = this.snap(hv.t), x = x0 + hv.col * cw + pad, w = cw - pad * 2;
+      ctx.globalAlpha = 0.4; ctx.fillStyle = '#c9a6ff'; this.rr(ctx, x, this.yOf(t, g, now) - noteH / 2, w, noteH, 4); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    if (d && d.kind === 'box') {
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+      const y0 = this.yOf(d.from.t, g, now), y1 = this.yOf(d.to.t, g, now);
+      ctx.fillRect(Math.min(d.from.x, d.to.x), Math.min(y0, y1), Math.abs(d.to.x - d.from.x), Math.abs(y1 - y0));
+      ctx.strokeRect(Math.min(d.from.x, d.to.x), Math.min(y0, y1), Math.abs(d.to.x - d.from.x), Math.abs(y1 - y0));
+    }
+    // the hit line
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 - 6, hitY - 1, cw * this.keys + 12, 2);
+    // clock and BPM
+    const tt = Math.max(0, now), mm = Math.floor(tt / 60000), ss = Math.floor(tt / 1000) % 60, ms = Math.floor(tt) % 1000;
+    const ts = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}:${String(ms).padStart(3, '0')}`;
+    if (this.timeEl.textContent !== ts) this.timeEl.textContent = ts;
+    const bpm = `${Math.round(60000 / this.redAt(now).beatLength)} BPM`;
+    if (this.bpmEl.textContent !== bpm) this.bpmEl.textContent = bpm;
+    if (Music.playing && now >= this.duration) { this.pos = this.duration; Music.pause(); clearEl(this.playBtn).append(icon('play')); }
+    this.drawTimeline(now);
+  },
+  rr(ctx, x, y, w, hh, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, hh, r) : ctx.rect(x, y, w, hh); },
+  /** lazer's summary timeline: where the notes are across the song, and where you are. */
+  drawTimeline(now) {
+    const c = this.tl, k = this._k || 1;
+    if (!c.width) return;
+    const ctx = this._tlCtx || (this._tlCtx = c.getContext('2d')), W = c.width / k, H = c.height / k;
+    if (this._tlDirty || !this._tlImg) {
+      this._tlDirty = false;
+      const off = this._tlImg || (this._tlImg = document.createElement('canvas'));
+      off.width = c.width; off.height = c.height;
+      const o = off.getContext('2d'); o.setTransform(k, 0, 0, k, 0, 0);
+      o.fillStyle = 'rgba(255,255,255,.06)'; o.fillRect(0, H / 2 - 1, W, 2);
+      const N = Math.max(1, Math.floor(W / 3)), bins = new Array(N).fill(0);
+      for (const n of this.notes) bins[clamp(Math.floor(n.t / this.duration * N), 0, N - 1)]++;
+      const max = Math.max(1, ...bins);
+      o.fillStyle = 'rgba(154, 77, 255, .8)';
+      bins.forEach((v, i) => { if (v) { const hh = Math.max(2, v / max * (H - 8)); o.fillRect(i * 3, H / 2 - hh / 2, 2, hh); } });
+      for (const r of this.red) { o.fillStyle = '#ed1121'; o.fillRect(r.time / this.duration * W, 0, 1.5, 6); }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.drawImage(this._tlImg, 0, 0);
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    const x = clamp(now / this.duration, 0, 1) * W;
+    ctx.fillStyle = '#ffcc22'; ctx.fillRect(x - 1, 0, 2, H);
+  },
+
+  // ── keys
+  onKey(e) {
+    if (Screens.current !== this || Overlays.top()) return;
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const ctrl = e.ctrlKey || e.metaKey, stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+    if (e.code === 'Space') { stop(); this.togglePlay(); return; }
+    if (ctrl && e.code === 'KeyS') { stop(); this.save(); return; }
+    if (ctrl && e.code === 'KeyZ') { stop(); this.undoStep(!e.shiftKey); return; }
+    if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
+    if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
+    if (e.code === 'Delete' || e.code === 'Backspace') { stop(); this.remove([...this.sel]); return; }
+    if (e.code === 'Digit1') { stop(); this.setTool('select'); return; }
+    if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
+    if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { stop(); this.step(e.code === 'ArrowUp' ? 1 : -1); return; }
+    if (e.code === 'Home') { stop(); this.seek(0); return; }
+    if (e.code === 'End') { stop(); this.seek(this.notes.length ? this.notes[this.notes.length - 1].t : this.duration); return; }
+    if (e.code === 'F5' || (ctrl && e.code === 'Enter')) { stop(); this.test(); return; }
+    if (e.code === 'Escape') { stop(); this.exit(); }
+  },
+  onBack() { this.exit(); return true; },
+
+  // ── file
+  fileMenu() {
+    const r = this.fileBtn.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, [
+      { label: 'Save (Ctrl+S)', icon: 'save', onClick: () => this.save() },
+      { label: 'Test (F5)', icon: 'play', onClick: () => this.test() },
+      { sep: true },
+      { label: 'Exit', icon: 'back', onClick: () => this.exit() },
+    ]);
+  },
+  /** The difficulty as an .osu file: the original, with its [HitObjects] written from the notes. */
+  serialize() {
+    const lines = this.notes.map(n => {
+      const x = Math.floor((n.col + 0.5) * 512 / this.keys);
+      return n.end != null ? `${x},192,${n.t},128,0,${n.end}:0:0:0:0:` : `${x},192,${n.t},1,0,0:0:0:0:`;
+    });
+    const text = this.text.replace(/\r\n/g, '\n');
+    const i = text.search(/^\[HitObjects\]\s*$/m);
+    const head = i < 0 ? text.trimEnd() + '\n\n' : text.slice(0, i);
+    return `${head}[HitObjects]\n${lines.join('\n')}\n`;
+  },
+  async save() {
+    if (this._saving) return false;
+    this._saving = true;
+    try {
+      const text = this.serialize();
+      const rec = await BeatmapManager.saveDifficulty(this.rec, text);
+      if (!rec) throw new Error('The saved difficulty couldn\'t be read back.');
+      this.rec = rec; this.text = text; this.setDirty(false);
+      Settings.set('last.map', rec.id); SongSelect.selectedId = rec.id;
+      Toast.ok('Beatmap saved', `${rec.version}: ${plural(this.notes.length, 'note', 'notes')}`);
+      return true;
+    } catch (e) { Toast.err('Couldn\'t save', friendlyError(e)); return false; } finally { this._saving = false; }
+  },
+  async test() {
+    if (this.dirty && !(await this.save())) return;
+    if (Music.playing) Music.pause();
+    UISounds.click();
+    Game.launch({ mapId: this.rec.id, mode: 'play', mods: [], editor: { mapId: this.rec.id, pos: this.now() } });
+  },
+  async exit() {
+    if (this.dirty) {
+      const choice = await new Promise(res => {
+        let v = 'cancel';
+        Dialog.popup('Save your changes?', 'You have changes that haven\'t been saved.', [
+          { label: 'Save and exit', colour: '#ff66aa', onClick: () => { v = 'save'; } },
+          { label: 'Exit without saving', colour: '#cc3333', cls: 'ok.danger', onClick: () => { v = 'discard'; } },
+          { label: 'Keep editing', colour: '#66ccff', cls: 'cancel', cancel: true },
+        ], { icon: 'save', onClose: () => res(v) });
+      });
+      if (choice === 'cancel') return;
+      if (choice === 'save' && !(await this.save())) return;
+    }
+    Screens.go('songselect', { mapId: this.rec.id }, { replace: true });
   },
 };
 
@@ -22808,6 +23281,7 @@ const App = {
     Screens.register('rankings', RankingsScreen);
     Screens.register('daily', DailyScreen);
     Screens.register('playlists', PlaylistsScreen);
+    Screens.register('editor', EditorScreen);
     Screens.register('multiplayer', MultiplayerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
@@ -22818,7 +23292,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

@@ -592,6 +592,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },

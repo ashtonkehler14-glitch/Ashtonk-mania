@@ -4134,3 +4134,44 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mp-auto { display: flex; align-items: center; gap: 6px; margin-right: 12px; font-size: 14px; color: rgba(255, 255, 255, .8); }
 .mp-auto .i { width: 16px; height: 16px; color: #ffd966; }
 .mp-auto b { color: #ffd966; font-variant-numeric: tabular-nums; }
+
+/* ── lazer's beatmap editor (compose) */
+.editor { position: absolute; inset: 0; display: flex; flex-direction: column; background: #16151b; color: #fff; user-select: none; }
+.ed-loading { margin: auto; display: flex; align-items: center; gap: 10px; color: rgba(255, 255, 255, .7); }
+.ed-top { height: 40px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #24222b; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); z-index: 1; }
+.ed-menu { height: 28px; padding: 0 12px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.ed-menu:hover { background: rgba(255, 255, 255, .14); }
+.ed-tabs { display: flex; gap: 4px; }
+.ed-tab { height: 28px; padding: 0 14px; border: 0; border-radius: 5px; background: none; color: rgba(255, 255, 255, .6); font: inherit; font-size: 14px; }
+.ed-tab.on { color: #fff; box-shadow: inset 0 -2px 0 #ffcc22; }
+.ed-title { flex: 1; min-width: 0; text-align: right; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, .7); }
+.ed-title b { color: #fff; }
+.ed-dirty { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 204, 34, .2); color: #ffd966; }
+.ed-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr) 170px; }
+.ed-left, .ed-right { padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; background: rgba(0, 0, 0, .18); }
+.ed-ph { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); margin: 4px 2px; }
+.ed-tool { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .05); color: #fff; font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
+.ed-tool .i { width: 16px; height: 16px; }
+.ed-tool span { flex: 1; }
+.ed-tool kbd { font-size: 11px; opacity: .5; }
+.ed-tool.on { background: #ffcc22; color: #222; }
+.ed-stage { position: relative; min-width: 0; min-height: 0; }
+.ed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.ed-div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ed-dv { height: 30px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .05); color: var(--c); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+.ed-dv.on { background: var(--c); color: #111; }
+.ed-help { margin-top: auto; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .55); }
+.ed-help kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .08); color: #fff; }
+.ed-bottom { height: 60px; flex: none; display: grid; grid-template-columns: 170px minmax(0, 1fr) 260px; align-items: center; gap: 14px; padding: 0 12px; background: #24222b; }
+.ed-time { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 300; }
+.ed-bpm { font-size: 11px; color: rgba(255, 255, 255, .55); }
+.ed-tlwrap { height: 40px; position: relative; }
+.ed-tl { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
+.ed-ctl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.ed-play { width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.ed-play .i { width: 18px; height: 18px; }
+.ed-rates { display: flex; gap: 3px; }
+.ed-rate { height: 26px; padding: 0 7px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .7); font: inherit; font-size: 12px; cursor: pointer; }
+.ed-rate.on { background: #66ccff; color: #111; }
+@media (max-width: 900px) { .ed-main { grid-template-columns: 120px minmax(0, 1fr) 110px; } .ed-help { display: none; } .ed-bottom { grid-template-columns: 110px minmax(0, 1fr) auto; } .ed-rates { display: none; } }
+.screen.editor, .editor { padding: 0; }
