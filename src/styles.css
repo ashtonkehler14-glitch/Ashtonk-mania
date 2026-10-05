@@ -4175,3 +4175,27 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-rate.on { background: #66ccff; color: #111; }
 @media (max-width: 900px) { .ed-main { grid-template-columns: 120px minmax(0, 1fr) 110px; } .ed-help { display: none; } .ed-bottom { grid-template-columns: 110px minmax(0, 1fr) auto; } .ed-rates { display: none; } }
 .screen.editor, .editor { padding: 0; }
+/* the editor's Setup and Timing screens */
+.ed-page { position: absolute; top: 40px; left: 0; right: 0; bottom: 60px; z-index: 2; overflow: auto; background: #1b1a21; padding: 24px; }
+.ed-form { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.ed-form h2 { margin: 0; font-size: 26px; font-weight: 300; }
+.ed-form > p { margin: 0; }
+.ed-sec { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.ed-sec h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
+.ed-sec p { margin: 0; font-size: 13px; }
+.ed-sec .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ed-f { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: rgba(255, 255, 255, .65); min-width: 0; }
+.ed-f > span { display: flex; justify-content: space-between; }
+.ed-f > span b { color: #fff; }
+.ed-f small { opacity: .55; }
+.ed-f .input, .ed-f .select { width: 100%; }
+.ed-tps { display: flex; flex-direction: column; gap: 6px; }
+.ed-tp { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 100px auto auto auto; align-items: end; gap: 10px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.ed-tp.cur { box-shadow: inset 3px 0 0 #ed1121; }
+.ed-tp label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .6); }
+.ed-tpn { align-self: center; font-weight: 700; color: #ed1121; }
+.ed-num, .ed-tp .select { width: 100%; }
+.ed-form > .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.editor { position: absolute; }
+.editor .ed-page[hidden] { display: none; }

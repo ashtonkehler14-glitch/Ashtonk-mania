@@ -4194,6 +4194,30 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-rate.on { background: #66ccff; color: #111; }
 @media (max-width: 900px) { .ed-main { grid-template-columns: 120px minmax(0, 1fr) 110px; } .ed-help { display: none; } .ed-bottom { grid-template-columns: 110px minmax(0, 1fr) auto; } .ed-rates { display: none; } }
 .screen.editor, .editor { padding: 0; }
+/* the editor's Setup and Timing screens */
+.ed-page { position: absolute; top: 40px; left: 0; right: 0; bottom: 60px; z-index: 2; overflow: auto; background: #1b1a21; padding: 24px; }
+.ed-form { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.ed-form h2 { margin: 0; font-size: 26px; font-weight: 300; }
+.ed-form > p { margin: 0; }
+.ed-sec { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
+.ed-sec h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
+.ed-sec p { margin: 0; font-size: 13px; }
+.ed-sec .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ed-f { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: rgba(255, 255, 255, .65); min-width: 0; }
+.ed-f > span { display: flex; justify-content: space-between; }
+.ed-f > span b { color: #fff; }
+.ed-f small { opacity: .55; }
+.ed-f .input, .ed-f .select { width: 100%; }
+.ed-tps { display: flex; flex-direction: column; gap: 6px; }
+.ed-tp { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 100px auto auto auto; align-items: end; gap: 10px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.ed-tp.cur { box-shadow: inset 3px 0 0 #ed1121; }
+.ed-tp label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .6); }
+.ed-tpn { align-self: center; font-weight: 700; color: #ed1121; }
+.ed-num, .ed-tp .select { width: 100%; }
+.ed-form > .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.editor { position: absolute; }
+.editor .ed-page[hidden] { display: none; }
 
 </style>
 </head>
@@ -17047,7 +17071,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
-    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options'] },
+    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
@@ -17967,6 +17991,14 @@ const EditorScreen = {
     if (Music.playing) Music.pause();
     if (this._ro) this._ro.disconnect();
   },
+  /** Open another difficulty here (the new one just made). */
+  reopen(mapId) {
+    this.leave();
+    this.sel = new Set(); this.undo = []; this.redo = []; this.dirty = false; this.pos = 0; this.hover = null; this._ctx = null; this._tlCtx = null; this._tlImg = null;
+    clearEl(this.el).append(h('div.ed-loading', h('span.spinner'), 'Loading the editor…'));
+    SongSelect.selectedId = mapId;
+    this.load(mapId).catch(e => Toast.err('Couldn\'t open the difficulty', friendlyError(e)));
+  },
   async load(mapId) {
     const rec = BeatmapManager.maps.get(mapId) || BeatmapManager.maps.get(SongSelect.selectedId);
     if (!rec) throw new Error('Pick a beatmap first: the editor edits the selected difficulty.');
@@ -17976,6 +18008,14 @@ const EditorScreen = {
     this.red = bm.timingPoints.filter(t => t.uninherited);
     if (!this.red.length) this.red = [{ time: 0, beatLength: 500, meter: 4, uninherited: true }];
     this.notes = notes.map(n => ({ t: Math.round(n.time), col: n.col, end: n.isLN ? Math.round(n.end) : null }));
+    // lazer's Setup and Timing screens: the song's details and difficulty settings, and its timing points
+    const md = bm.metadata || {}, df = bm.difficulty || {};
+    this.meta = { Title: md.Title || '', TitleUnicode: md.TitleUnicode || md.Title || '', Artist: md.Artist || '', ArtistUnicode: md.ArtistUnicode || md.Artist || '',
+      Creator: md.Creator || '', Version: md.Version || 'Normal', Source: md.Source || '', Tags: md.Tags || '' };
+    this.diffSet = { hp: +(df.HPDrainRate ?? 5), od: +(df.OverallDifficulty ?? 5) };
+    this.red = this.red.map(r => ({ ...r }));
+    this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t }));
+    this.tabName = 'compose';
     const buffer = await TrackCache.get(rec.setId, rec.audioFile);
     await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
     await Music.setRate(1, false);
@@ -17990,7 +18030,8 @@ const EditorScreen = {
     clearEl(el);
     const r = this.rec;
     this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
-    const top = h('div.ed-top', this.fileBtn, h('div.ed-tabs', h('button.ed-tab.on', 'compose')),
+    this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
+    const top = h('div.ed-top', this.fileBtn, this.tabsEl,
       h('div.ed-title', h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
     const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
     this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
@@ -18003,7 +18044,8 @@ const EditorScreen = {
     const rates = [0.25, 0.5, 0.75, 1].map(k => h(`button.ed-rate${k === this.rateK ? '.on' : ''}`, { onclick: () => this.setRate(k) }, `${k * 100}%`));
     this.ratesEl = h('div.ed-rates', ...rates);
     const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl));
-    el.append(top, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
+    this.pageEl = h('div.ed-page', { hidden: true });
+    el.append(top, this.pageEl, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
       h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
     this.paintDivisor();
     this.bindStage();
@@ -18021,6 +18063,98 @@ const EditorScreen = {
   },
   paintDivisor() {
     clearEl(this.divEl).append(...EDIT_DIVISORS.map(d => h(`button.ed-dv${d === this.divisor ? '.on' : ''}`, { style: { '--c': snapColour(d) }, onclick: () => this.setDivisor(d) }, `1/${d}`)));
+  },
+  /** lazer's editor screens: Setup (details and difficulty), Compose (the notes) and Timing (BPM and offset). */
+  showTab(t) {
+    this.tabName = t; UISounds.click();
+    for (const b of this.tabsEl.children) b.classList.toggle('on', b.dataset.t === t);
+    if (t === 'compose') { this.pageEl.hidden = true; return; }
+    if (Music.playing && t === 'setup') this.togglePlay();
+    this.pageEl.hidden = false;
+    clearEl(this.pageEl).append(t === 'setup' ? this.setupPage() : this.timingPage());
+  },
+  setupPage() {
+    const field = (label, key, hint) => {
+      const inp = h('input.input', { value: this.meta[key], maxlength: key === 'Tags' ? 1000 : 200, oninput: () => { this.meta[key] = inp.value.replace(/[\r\n]/g, ' '); this.setDirty(true); } });
+      inp.addEventListener('keydown', e => e.stopPropagation());
+      return h('label.ed-f', h('span', label), inp, hint ? h('small', hint) : null);
+    };
+    const slider = (label, key) => {
+      const v = h('b', String(this.diffSet[key]));
+      const inp = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: this.diffSet[key] });
+      const paint = () => inp.style.setProperty('--p', (inp.value * 10) + '%');
+      inp.addEventListener('input', () => { this.diffSet[key] = +inp.value; v.textContent = (+inp.value).toFixed(1); paint(); this.setDirty(true); });
+      paint();
+      return h('label.ed-f', h('span', label, v), inp);
+    };
+    const keys = h('select.select', { onchange: () => {
+      const k = +keys.value;
+      if (this.notes.some(n => n.col >= k)) { Toast.err('Notes are in the columns that would go', `Move or delete the notes in columns ${k + 1}–${this.keys} first.`); keys.value = this.keys; return; }
+      this.keys = k; this.setDirty(true);
+    } }, ...Array.from({ length: 10 }, (_, i) => h('option', { value: i + 1, selected: i + 1 === this.keys }, `${i + 1}K`)));
+    keys.addEventListener('keydown', e => e.stopPropagation());
+    return h('div.ed-form',
+      h('h2', 'Beatmap setup'),
+      h('div.ed-sec', h('h3', 'Metadata'),
+        h('div.ed-row', field('Artist', 'Artist'), field('Artist (original language)', 'ArtistUnicode')),
+        h('div.ed-row', field('Title', 'Title'), field('Title (original language)', 'TitleUnicode')),
+        h('div.ed-row', field('Creator', 'Creator'), field('Difficulty name', 'Version')),
+        h('div.ed-row', field('Source', 'Source'), field('Tags', 'Tags', 'separated by spaces'))),
+      h('div.ed-sec', h('h3', 'Difficulty'),
+        h('label.ed-f', h('span', 'Key count'), keys),
+        h('div.ed-row', slider('HP drain', 'hp'), slider('Accuracy (OD)', 'od'))),
+      h('div.ed-sec', h('h3', 'Difficulties'), h('p.muted', 'A new difficulty in this set, with this one\'s song, timing and details: a copy of its notes, or blank.'),
+        h('button.btn.primary', { onclick: () => this.newDifficulty() }, icon('plus'), 'Create new difficulty')));
+  },
+  timingPage() {
+    const wrap = h('div.ed-form');
+    const paint = () => {
+      const now = Math.round(this.now());
+      const row = (r, i) => {
+        const t = h('input.input.ed-num', { type: 'number', value: Math.round(r.time), step: 1 });
+        const bpm = h('input.input.ed-num', { type: 'number', value: +(60000 / r.beatLength).toFixed(3), step: 0.001, min: 1 });
+        const meter = h('select.select', ...[3, 4, 5, 6, 7].map(m => h('option', { value: m, selected: (r.meter || 4) === m }, `${m}/4`)));
+        for (const x of [t, bpm, meter]) x.addEventListener('keydown', e => e.stopPropagation());
+        t.addEventListener('change', () => { r.time = Math.round(+t.value || 0); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); });
+        bpm.addEventListener('change', () => { const b = +bpm.value; if (b > 0) { r.beatLength = 60000 / b; this.setDirty(true); } });
+        meter.addEventListener('change', () => { r.meter = +meter.value; this.setDirty(true); });
+        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t), h('label', 'BPM', bpm), h('label', 'Meter', meter),
+          h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(r.time); paint(); } }, icon('target')),
+          h('button.btn.sm', { title: 'Move to the current time', onclick: () => { r.time = now; this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } }, icon('clock')),
+          this.red.length > 1 ? h('button.btn.sm.danger', { title: 'Delete', onclick: () => { this.red = this.red.filter(x => x !== r); this.setDirty(true); paint(); } }, icon('trash')) : null);
+      };
+      clearEl(wrap).append(h('h2', 'Timing'), h('p.muted', 'Red lines: where the beat starts and its tempo. Notes stay where they are when the timing changes.'),
+        h('div.ed-tps', ...this.red.map(row)),
+        h('button.btn.primary', { onclick: () => { const now = Math.round(this.now()), r = this.redAt(now); this.red.push({ time: now, beatLength: r.beatLength, meter: r.meter || 4, sampleSet: 1, sampleIndex: 0, volume: 100, uninherited: true, effects: 0 }); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } },
+          icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`));
+    };
+    paint();
+    return wrap;
+  },
+  async newDifficulty() {
+    const name = (await Dialog.prompt('New difficulty', '', { ok: 'Create', placeholder: 'Difficulty name' }) || '').trim();
+    if (!name) return;
+    const set = BeatmapManager.setById.get(this.rec.setId);
+    if (set && set.maps.some(m => m.version.toLowerCase() === name.toLowerCase())) { Toast.err('That difficulty name is taken', 'Pick another name.'); return; }
+    // lazer: a copy of this difficulty's notes, or a blank one (here with a single note: a difficulty needs one to be kept)
+    const copy = await new Promise(res => {
+      let v = null;
+      Dialog.popup(`Create "${name}"`, 'Start from this difficulty\'s notes, or from scratch?', [
+        { label: 'Copy this difficulty', colour: '#ff66aa', onClick: () => { v = true; } },
+        { label: 'Start blank', colour: '#66ccff', onClick: () => { v = false; } },
+      ], { icon: 'plus', onClose: () => res(v) });
+    });
+    if (copy == null) return;
+    if (this.dirty && !(await this.save())) return;
+    const clean = x => String(x).replace(/[\\/:*?"<>|]/g, '').trim();
+    const file = `${clean(this.meta.Artist)} - ${clean(this.meta.Title)} (${clean(this.meta.Creator)}) [${clean(name)}].osu`;
+    const text = this.serialize({ Version: name, notes: copy ? this.notes : [{ t: Math.round(this.red[0].time + this.red[0].beatLength * 4), col: 0, end: null }] });
+    try {
+      const rec = await BeatmapManager.saveDifficulty({ id: '__new', setId: this.rec.setId, osuPath: file }, text);
+      if (!rec) throw new Error('The new difficulty couldn\'t be read back.');
+      Toast.ok(`Created ${name}`, copy ? 'A copy of the difficulty you were editing.' : 'A blank difficulty with one note to start from.');
+      this.reopen(rec.id);
+    } catch (e) { Toast.err('Couldn\'t create the difficulty', friendlyError(e)); }
   },
   setDivisor(d) { this.divisor = d; Settings.set('editor.divisor', d); this.paintDivisor(); },
   setTool(t) { this.tool = t; for (const b of this.toolsEl.querySelectorAll('.ed-tool')) b.classList.toggle('on', b.dataset.tool === t); UISounds.click(); },
@@ -18272,6 +18406,24 @@ const EditorScreen = {
     if (ctrl && e.code === 'KeyZ') { stop(); this.undoStep(!e.shiftKey); return; }
     if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
+    // lazer: copy, cut and paste (at the current time, snapped)
+    if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
+      stop();
+      const list = [...this.sel]; if (!list.length) return;
+      const t0 = Math.min(...list.map(n => n.t));
+      this.clip = list.map(n => ({ dt: n.t - t0, col: n.col, len: n.end != null ? n.end - n.t : null }));
+      if (e.code === 'KeyX') this.remove(list); else Toast.show(`Copied ${plural(list.length, 'note', 'notes')}`);
+      return;
+    }
+    if (ctrl && e.code === 'KeyV') {
+      stop();
+      if (!this.clip || !this.clip.length) return;
+      const at = this.snap(this.now()), made = [];
+      this.commit();
+      for (const c of this.clip) { const t = at + c.dt, end = c.len != null ? t + c.len : null; if (c.col < this.keys && !this.clash(c.col, t, end)) { const n = { t, col: c.col, end }; this.notes.push(n); made.push(n); } }
+      this.sortNotes(); this.sel = new Set(made);
+      return;
+    }
     if (e.code === 'Delete' || e.code === 'Backspace') { stop(); this.remove([...this.sel]); return; }
     if (e.code === 'Digit1') { stop(); this.setTool('select'); return; }
     if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
@@ -18294,16 +18446,42 @@ const EditorScreen = {
       { label: 'Exit', icon: 'back', onClick: () => this.exit() },
     ]);
   },
-  /** The difficulty as an .osu file: the original, with its [HitObjects] written from the notes. */
-  serialize() {
-    const lines = this.notes.map(n => {
+  /** The difficulty as an .osu file: the original, with its [Metadata], [Difficulty], [TimingPoints] and
+   *  [HitObjects] written from the editor (`over`: a new difficulty's name and notes). */
+  serialize(over = {}) {
+    const notes = over.notes || this.notes, meta = { ...this.meta, ...(over.Version ? { Version: over.Version } : {}) };
+    const hit = notes.map(n => {
       const x = Math.floor((n.col + 0.5) * 512 / this.keys);
       return n.end != null ? `${x},192,${n.t},128,0,${n.end}:0:0:0:0:` : `${x},192,${n.t},1,0,0:0:0:0:`;
     });
-    const text = this.text.replace(/\r\n/g, '\n');
-    const i = text.search(/^\[HitObjects\]\s*$/m);
-    const head = i < 0 ? text.trimEnd() + '\n\n' : text.slice(0, i);
-    return `${head}[HitObjects]\n${lines.join('\n')}\n`;
+    const tp = [...this.red.map(r => ({ ...r, u: 1 })), ...this.green.map(g => ({ ...g, u: 0 }))].sort((a, b) => a.time - b.time || b.u - a.u)
+      .map(p => `${Math.round(p.time)},${p.beatLength},${p.meter || 4},${p.sampleSet ?? 1},${p.sampleIndex ?? 0},${p.volume ?? 100},${p.u},${p.effects || 0}`);
+    let text = this.text.replace(/\r\n/g, '\n');
+    text = EditorScreen.setKeys(text, 'Metadata', meta);
+    text = EditorScreen.setKeys(text, 'Difficulty', { HPDrainRate: +this.diffSet.hp.toFixed(1), OverallDifficulty: +this.diffSet.od.toFixed(1), CircleSize: this.keys });
+    text = EditorScreen.setSection(text, 'TimingPoints', tp);
+    text = EditorScreen.setSection(text, 'HitObjects', hit);
+    return text.replace(/\n{3,}/g, '\n\n');
+  },
+  /** An .osu section's lines replaced (added at the end when there isn't one). */
+  setSection(text, name, lines) {
+    const re = new RegExp(`^\\[${name}\\][ \\t]*$`, 'm'), m = re.exec(text);
+    if (!m) return `${text.trimEnd()}\n\n[${name}]\n${lines.join('\n')}\n`;
+    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m);
+    const end = next < 0 ? text.length : start + next;
+    return `${text.slice(0, m.index)}[${name}]\n${lines.join('\n')}\n${next < 0 ? '' : '\n'}${text.slice(end)}`;
+  },
+  /** key:value lines in an .osu section set (each replaced where it is, or added). */
+  setKeys(text, name, obj) {
+    const re = new RegExp(`^\\[${name}\\][ \\t]*$`, 'm'), m = re.exec(text);
+    if (!m) return EditorScreen.setSection(text, name, Object.entries(obj).map(([k, v]) => `${k}:${v}`));
+    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m);
+    let body = next < 0 ? rest : rest.slice(0, next);
+    for (const [k, v] of Object.entries(obj)) {
+      const kr = new RegExp(`^${k}[ \\t]*:.*$`, 'm');
+      if (kr.test(body)) body = body.replace(kr, `${k}:${v}`); else body = body.replace(/\s*$/, `\n${k}:${v}\n`);
+    }
+    return text.slice(0, start) + body.replace(/\s*$/, '\n\n') + (next < 0 ? '' : rest.slice(next));
   },
   async save() {
     if (this._saving) return false;
