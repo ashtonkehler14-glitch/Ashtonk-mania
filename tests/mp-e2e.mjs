@@ -92,12 +92,17 @@ await alice.waitForFunction(() => [...document.querySelectorAll('.ch-line')].som
 check('…and shows in the sender\'s chat with the time and their name', await alice.evaluate(() => { const l = [...document.querySelectorAll('.ch-line')].pop(); return l && /hello from alice/.test(l.textContent) && l.querySelector('.ch-name').textContent === 'Alice' && /\d/.test(l.querySelector('.ch-time').textContent); }));
 await shot(alice, 'mp-chat');
 // lazer's /np: an action line saying what she's listening to
+await alice.evaluate(() => { if (!AshtonkMania.MenuMusic.current) AshtonkMania.MenuMusic.current = [...AshtonkMania.BeatmapManager.maps.values()][0]; }); // (what's playing)
 await alice.fill('.ch-input', '/np'); await alice.press('.ch-input', 'Enter');
 const np = await bob.waitForFunction(() => AshtonkMania.Chat.channels.get('#lobby').lines.some(l => /^\/me is (listening to|playing) /.test(l.text)), null, { timeout: 5000 }).then(() => true, () => false);
 const npLine = await alice.waitForFunction(() => { const l = [...document.querySelectorAll('.ch-line.act')].pop(); return l && /^\* Alice$/.test(l.querySelector('.ch-name').textContent) && /^is (listening to|playing) /.test(l.querySelector('.ch-text').textContent); }, null, { timeout: 5000 }).then(() => true, () => false);
 check('chat /np sends an action line ("* Alice is listening to …")', np && npLine, JSON.stringify({ np, npLine }));
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => !document.querySelector('.chat'), null, { timeout: 3000 });
+// lazer's mention notification: Bob says Alice's name while her chat is closed
+await bob.evaluate(() => AshtonkMania.Presence.send({ t: 'say', text: 'nice play alice!' }));
+const mention = await alice.waitForFunction(() => [...document.querySelectorAll('#toasts *')].some(t => /Bob mentioned you in #lobby/.test(t.textContent)), null, { timeout: 5000 }).then(() => true, () => false);
+check('a #lobby message with your name in it is a notification (lazer\'s mention)', mention);
 // lazer's rankings: each player's totals, by pp
 // — only plays the server judged count: a player's own claims (99,999pp, a made-up leaderboard score) change nothing
 await bob.evaluate(() => { AshtonkMania.Presence.send({ t: 'stats', pp: 99999, acc: 1, plays: 9999, profile: AshtonkMania.ProfileScreen.summary() }); AshtonkMania.Presence.send({ t: 'lbSubmit', key: 'f'.repeat(64), score: 1e7 }); });

@@ -4126,6 +4126,9 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ch-line.act .ch-text, .ch-line.act .ch-name { font-style: italic; }
 .ch-line.local .ch-text { color: rgba(255, 255, 255, .55); font-style: italic; }
 
+/* lazer: a line that mentions you is highlighted */
+.ch-line.mention { background: rgba(255, 204, 34, .12); box-shadow: inset 3px 0 0 #ffcc22; }
+
 </style>
 </head>
 <body>
@@ -21930,7 +21933,12 @@ const Chat = {
       this.paint();
       return;
     }
-    if (m.t === 'say') this.add('#lobby', m);
+    if (m.t === 'say') {
+      this.add('#lobby', m);
+      // lazer's MentionNotification: your name in #lobby while you're not looking at it (not in Do not disturb)
+      if (this.mentions(m.text) && !(m.from && m.from.pid === Presence.pid()) && !(this.o && this.cur === '#lobby') && Settings.get('online.status') !== 'dnd' && Screens.currentName !== 'gameplay')
+        Toast.show(`${m.from.name} mentioned you in #lobby`, m.text.length > 80 ? m.text.slice(0, 80) + '…' : m.text, { onClick: () => this.open('#lobby') });
+    }
     else if (m.t === 'pm' && m.with && m.with.pid) {
       const key = 'pm:' + m.with.pid;
       if (!this.channels.has(key)) this.channels.set(key, { key, name: m.with.name, pid: m.with.pid, pm: true, lines: [], unread: 0 });
@@ -21941,6 +21949,12 @@ const Chat = {
         Toast.show(`${m.from.name} sent you a message`, m.text.length > 80 ? m.text.slice(0, 80) + '…' : m.text, { onClick: () => this.open(key) });
       }
     }
+  },
+  /** Does this message say your name (as a word)? */
+  mentions(text) {
+    const n = (ProfileManager.profile.name || '').trim();
+    if (n.length < 2) return false;
+    return new RegExp(`(^|[^\\p{L}\\p{N}_])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}_])`, 'iu').test(String(text || ''));
   },
   add(key, line) {
     const c = this.channels.get(key);
@@ -22038,7 +22052,7 @@ const Chat = {
     const act = /^\/me\s+/.test(l.text || '');
     if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', l.text)));
     // (/me: lazer's action line — the name and what they did, in italics)
-    else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}`,
+    else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}${!me && this.mentions(l.text) ? '.mention' : ''}`,
       h('span.ch-time', t),
       h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
       h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
