@@ -1234,3 +1234,34 @@ test('a player whose best plays are stored apart can\'t have them started over b
   p.recordVerified('alicepid1', K1, judged({ pp: 100 }));
   assert.equal(Object.keys(p.ranks.get('alicepid1').bests).length, 2, 'the new play joins the ones read');
 });
+
+test('lazer\'s auto start: someone readies up, a countdown runs, and the match starts with whoever\'s ready; auto skip skips on the first ask', () => {
+  const clock = { t: 0 };
+  const r = room(clock);
+  r.message('a', { t: 'settings', settings: { autoStart: 30, autoSkip: true } });
+  assert.equal(r.settings.autoStart, 30);
+  r.message('a', { t: 'map', map: MAP });
+  r.message('b', { t: 'hasMap', has: true });
+  assert.equal(r.snapshot().autoLeft, 0, 'nobody ready: no countdown');
+  r.message('b', { t: 'ready', ready: true });
+  assert.equal(r.snapshot().autoLeft, 30000);
+  assert.ok(r.wantsTick());
+  clock.t = 29000; assert.equal(msgs(r.tick(), 'start').length, 0);
+  // (Alice, the host, never readied: Bob plays on his own)
+  clock.t = 30000;
+  const s = msgs(r.tick(), 'start');
+  assert.equal(s.length, 1); assert.deepEqual(s[0].msg.players, ['b']);
+  assert.equal(r.state, 'playing');
+  assert.deepEqual(msgs(r.message('b', { t: 'skip' }), 'skip').length, 1, 'auto skip: no vote needed');
+});
+
+test('auto start stops when nobody is ready any more', () => {
+  const clock = { t: 0 };
+  const r = room(clock);
+  r.message('a', { t: 'settings', settings: { autoStart: 60 } });
+  r.message('a', { t: 'map', map: MAP }); r.message('b', { t: 'hasMap', has: true });
+  r.message('b', { t: 'ready', ready: true });
+  assert.equal(r.snapshot().autoLeft, 60000);
+  r.message('b', { t: 'ready', ready: false });
+  assert.equal(r.snapshot().autoLeft, 0);
+});

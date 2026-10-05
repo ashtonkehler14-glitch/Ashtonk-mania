@@ -2082,11 +2082,11 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-team.blue .mp-team-h > span:first-child { color: var(--team-blue-l); }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .mp-teams { grid-template-columns: 1fr; } }
 
-.mp-set { display: flex; flex-direction: column; gap: 16px; min-width: min(560px, calc(80 * var(--vw))); }
+.mp-set { display: flex; flex-direction: column; gap: 16px; width: min(560px, calc(80 * var(--vw))); max-width: 100%; min-width: 0; }
 .mp-set-row { display: flex; flex-direction: column; gap: 7px; }
 .mp-set-l { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.mp-seg { display: flex; flex-wrap: wrap; gap: 6px; }
-.mp-seg-b { flex: 1 1 110px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-fast); }
+.mp-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 6px; }
+.mp-seg-b { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-fast); }
 .mp-seg-b:hover { background: rgba(255, 255, 255, .1); }
 .mp-seg-b.on { background: hsl(var(--o-h, 320) 45% 40%); box-shadow: inset 0 0 0 1px hsl(var(--o-h, 320) 60% 65%); }
 .mp-seg-b b { font-size: .9rem; }
@@ -4129,3 +4129,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }
 
 .pm-desc { margin: 6px 0 0; font-size: 18px; color: #fff; text-align: center; text-shadow: 0 0 6px rgba(0, 0, 0, .5); }
+
+/* lazer's multiplayer auto start countdown */
+.mp-auto { display: flex; align-items: center; gap: 6px; margin-right: 12px; font-size: 14px; color: rgba(255, 255, 255, .8); }
+.mp-auto .i { width: 16px; height: 16px; color: #ffd966; }
+.mp-auto b { color: #ffd966; font-variant-numeric: tabular-nums; }

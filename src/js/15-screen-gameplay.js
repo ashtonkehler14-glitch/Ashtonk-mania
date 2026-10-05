@@ -1049,6 +1049,8 @@ const GameplayScreen = {
       this._canSkip = canSkip; this._canSkipOut = outro; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now;
       setText(this.skipBtn.querySelector('.sk-label'), outro ? 'Skip outro' : 'Skip');
     }
+    // lazer's room auto skip: the intro goes without anyone asking
+    if (canSkip && !outro && s.mp && !s.skipVoted && Multiplayer.room && Multiplayer.room.settings && Multiplayer.room.settings.autoSkip) this.skip();
     if (canSkip) {
       const end = outro ? oe : s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
       this.skipBtn.style.setProperty('--left', left.toFixed(3));

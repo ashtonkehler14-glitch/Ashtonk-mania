@@ -841,7 +841,15 @@ const MultiplayerScreen = {
       title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
       onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
     }, label);
-    clearEl(this.footEl).append(h('div.grow'), readyBtn);
+    // lazer's auto start countdown, beside the button
+    this._autoEnd = r.autoLeft > 0 ? Date.now() + r.autoLeft : 0;
+    this.autoEl = this._autoEnd ? h('div.mp-auto', icon('clock'), h('span', 'Starting in '), h('b', fmtTime(r.autoLeft))) : null;
+    if (this._autoEnd && !this._autoT) this._autoT = setInterval(() => {
+      const b = this.autoEl && this.autoEl.isConnected && this.autoEl.querySelector('b');
+      if (!b || !this._autoEnd) { clearInterval(this._autoT); this._autoT = null; return; }
+      b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
+    }, 250);
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
@@ -931,6 +939,9 @@ const MultiplayerScreen = {
         seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
         seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
         seg('Visibility', 'public', [[true, 'Public', 'listed in the lobby'], [false, 'Private', 'join with the code']]),
+        // lazer's auto start (the match starts with whoever's ready when the countdown ends) and auto skip
+        seg('Auto start', 'autoStart', [[0, 'Off'], [30, '30s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]),
+        seg('Auto skip', 'autoSkip', [[false, 'Off'], [true, 'On', 'intros skipped for everyone']]),
         h('div.mp-set-row', h('div.mp-set-l', 'Room size'), size));
     };
     paint();

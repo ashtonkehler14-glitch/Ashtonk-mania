@@ -89,7 +89,10 @@ function cleanResult(r) {
 }
 
 // a regular room plays like osu!'s multiplayer: head to head, the highest score wins
-const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, queue: 'host', public: true });
+// (autoStart: lazer's auto start — seconds after someone readies up before the match starts with whoever's ready, 0
+//  off; autoSkip: every intro skipped as soon as anyone asks)
+const AUTO_STARTS = [0, 30, 60, 120, 300];
+const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, queue: 'host', public: true, autoStart: 0, autoSkip: false });
 
 export class RoomLogic {
   constructor(code, now = () => Date.now(), rnd = Math.random) {
@@ -121,7 +124,7 @@ export class RoomLogic {
     const q = this.qp;
     return {
       code: this.code, state: this.state, host: this.hostId, map: this.map, mods: this.mods, modConfig: this.modConfig,
-      mode: this.mode, settings: { ...this.settings },
+      mode: this.mode, settings: { ...this.settings }, autoLeft: this.autoAt ? Math.max(0, this.autoAt - this.now()) : 0,
       rp: this.rp ? this.rp.view(viewer) : null,
       qp: q ? { keys: q.keys, round: q.round, rounds: q.rounds, phase: q.phase, left: q.deadline ? Math.max(0, q.deadline - this.now()) : 0,
         pool: q.pool, picks: { ...q.picks }, chosen: q.chosen, points: { ...q.points } } : null,
@@ -268,6 +271,8 @@ export class RoomLogic {
         }
         if (typeof o.public === 'boolean' && o.public !== st.public) { st.public = o.public; changes.push(o.public ? 'listed in the lobby' : 'private (join with the code)'); }
         if (['host', 'rotate'].includes(o.queue) && o.queue !== st.queue) { st.queue = o.queue; changes.push(o.queue === 'rotate' ? 'the host rotates after each match' : 'the host picks every map'); }
+        if (AUTO_STARTS.includes(o.autoStart) && o.autoStart !== st.autoStart) { st.autoStart = o.autoStart; changes.push(o.autoStart ? `auto start after ${o.autoStart >= 60 ? `${o.autoStart / 60} min` : `${o.autoStart}s`}` : 'auto start off'); this.armAuto(); }
+        if (typeof o.autoSkip === 'boolean' && o.autoSkip !== st.autoSkip) { st.autoSkip = o.autoSkip; changes.push(o.autoSkip ? 'intros skipped automatically' : 'auto skip off'); }
         if (!changes.length) return [];
         for (const x of this.players) x.ready = false;
         return [this.roomMsg(), this.system(`Room settings: ${changes.join(', ')}`)];
@@ -361,6 +366,7 @@ export class RoomLogic {
         if (this.state !== 'lobby') return [];
         p.ready = !!m.ready && !!this.map;
         if (!p.ready) this.pendingStart = false;
+        this.armAuto();
         return [this.roomMsg()];
       case 'start': {
         if (!host || this.state !== 'lobby') return [];
@@ -377,7 +383,7 @@ export class RoomLogic {
         p.skip = true;
         const active = this.players.filter(x => x.playing && !x.finished);
         const votes = active.filter(x => x.skip).length;
-        if (votes < active.length) return [{ to: 'all', msg: { t: 'skipvote', votes, total: active.length } }];
+        if (votes < active.length && !this.settings.autoSkip) return [{ to: 'all', msg: { t: 'skipvote', votes, total: active.length } }];
         this.skipped = true;
         return [{ to: 'all', msg: { t: 'skip' } }];
       }
@@ -403,8 +409,14 @@ export class RoomLogic {
 
   canBegin() { return this.state === 'lobby' && !!this.map && !this.vote && this.players.length >= 2 && this.players.every(x => x.ready && x.hasMap); }
   /** Start a match for `list` (everyone in a custom room; whoever loaded the beatmap in Quick Play). */
+  /** lazer's auto start: the countdown runs while anyone's ready (and stops when nobody is). */
+  armAuto() {
+    const sec = this.settings.autoStart || 0, anyReady = this.players.some(x => x.ready);
+    if (!sec || !anyReady || this.state !== 'lobby' || this.qp || this.rp) { this.autoAt = 0; return; }
+    if (!this.autoAt) this.autoAt = this.now() + sec * 1000;
+  }
   beginMatch(list) {
-    this.pendingStart = false;
+    this.pendingStart = false; this.autoAt = 0;
     this.state = 'playing'; this.skipped = false;
     this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }
@@ -494,7 +506,7 @@ export class RoomLogic {
     return [];
   }
   /** Does the room need its clock ticking (a match to time out, a Quick Play / Ranked Play phase to end)? */
-  wantsTick() { return this.state === 'playing' || this.players.some(p => p.away) || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
+  wantsTick() { return this.state === 'playing' || !!this.autoAt || this.players.some(p => p.away) || !!(this.qp && this.qp.deadline) || !!(this.rp && this.rp.deadline); }
 
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {
@@ -531,6 +543,14 @@ export class RoomLogic {
       return [...out, ...this.checkFinished()];
     }
     if (this.state !== 'lobby') return out;
+    // auto start: the match begins with whoever's ready (and has the beatmap) when the countdown runs out
+    if (this.autoAt && this.now() >= this.autoAt && !this.qp && !this.rp) {
+      this.autoAt = 0;
+      const ready = this.players.filter(x => x.ready && x.hasMap);
+      if (this.map && !this.vote && ready.length && this.players.length >= 2) return [...out, this.system('Auto start: the match is starting'), ...this.beginMatch(ready)];
+      this.armAuto();
+      return [...out, this.roomMsg()];
+    }
     return [...out, ...(this.rp ? this.rp.tick() : this.qpTick())];
   }
 

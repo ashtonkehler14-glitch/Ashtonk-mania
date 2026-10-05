@@ -2101,11 +2101,11 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-team.blue .mp-team-h > span:first-child { color: var(--team-blue-l); }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .mp-teams { grid-template-columns: 1fr; } }
 
-.mp-set { display: flex; flex-direction: column; gap: 16px; min-width: min(560px, calc(80 * var(--vw))); }
+.mp-set { display: flex; flex-direction: column; gap: 16px; width: min(560px, calc(80 * var(--vw))); max-width: 100%; min-width: 0; }
 .mp-set-row { display: flex; flex-direction: column; gap: 7px; }
 .mp-set-l { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.mp-seg { display: flex; flex-wrap: wrap; gap: 6px; }
-.mp-seg-b { flex: 1 1 110px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-fast); }
+.mp-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 6px; }
+.mp-seg-b { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-fast); }
 .mp-seg-b:hover { background: rgba(255, 255, 255, .1); }
 .mp-seg-b.on { background: hsl(var(--o-h, 320) 45% 40%); box-shadow: inset 0 0 0 1px hsl(var(--o-h, 320) 60% 65%); }
 .mp-seg-b b { font-size: .9rem; }
@@ -4148,6 +4148,11 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }
 
 .pm-desc { margin: 6px 0 0; font-size: 18px; color: #fff; text-align: center; text-shadow: 0 0 6px rgba(0, 0, 0, .5); }
+
+/* lazer's multiplayer auto start countdown */
+.mp-auto { display: flex; align-items: center; gap: 6px; margin-right: 12px; font-size: 14px; color: rgba(255, 255, 255, .8); }
+.mp-auto .i { width: 16px; height: 16px; color: #ffd966; }
+.mp-auto b { color: #ffd966; font-variant-numeric: tabular-nums; }
 
 </style>
 </head>
@@ -14641,6 +14646,8 @@ const GameplayScreen = {
       this._canSkip = canSkip; this._canSkipOut = outro; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now;
       setText(this.skipBtn.querySelector('.sk-label'), outro ? 'Skip outro' : 'Skip');
     }
+    // lazer's room auto skip: the intro goes without anyone asking
+    if (canSkip && !outro && s.mp && !s.skipVoted && Multiplayer.room && Multiplayer.room.settings && Multiplayer.room.settings.autoSkip) this.skip();
     if (canSkip) {
       const end = outro ? oe : s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
       this.skipBtn.style.setProperty('--left', left.toFixed(3));
@@ -16977,7 +16984,7 @@ const CHANGELOG = [
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
-    { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
+    { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
     { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
   ] },
@@ -19882,7 +19889,15 @@ const MultiplayerScreen = {
       title: canStart && r.vote ? 'Everyone has to accept or decline the speed mod first' : ready && !canStart ? 'Click to stop being ready' : '',
       onclick: () => { UISounds.click(); Multiplayer.send(canStart ? { t: 'start' } : { t: 'ready', ready: !ready }); },
     }, label);
-    clearEl(this.footEl).append(h('div.grow'), readyBtn);
+    // lazer's auto start countdown, beside the button
+    this._autoEnd = r.autoLeft > 0 ? Date.now() + r.autoLeft : 0;
+    this.autoEl = this._autoEnd ? h('div.mp-auto', icon('clock'), h('span', 'Starting in '), h('b', fmtTime(r.autoLeft))) : null;
+    if (this._autoEnd && !this._autoT) this._autoT = setInterval(() => {
+      const b = this.autoEl && this.autoEl.isConnected && this.autoEl.querySelector('b');
+      if (!b || !this._autoEnd) { clearInterval(this._autoT); this._autoT = null; return; }
+      b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
+    }, 250);
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn);
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
@@ -19972,6 +19987,9 @@ const MultiplayerScreen = {
         seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
         seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
         seg('Visibility', 'public', [[true, 'Public', 'listed in the lobby'], [false, 'Private', 'join with the code']]),
+        // lazer's auto start (the match starts with whoever's ready when the countdown ends) and auto skip
+        seg('Auto start', 'autoStart', [[0, 'Off'], [30, '30s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]),
+        seg('Auto skip', 'autoSkip', [[false, 'Off'], [true, 'On', 'intros skipped for everyone']]),
         h('div.mp-set-row', h('div.mp-set-l', 'Room size'), size));
     };
     paint();
