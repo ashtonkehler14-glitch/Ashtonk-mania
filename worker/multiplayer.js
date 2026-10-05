@@ -921,7 +921,12 @@ export class PresenceLogic {
   dailyMsg(pid) {
     const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
     const at = sorted.findIndex(s => s.pid === pid), end = Date.parse(d.day + 'T00:00:00Z') + 86400000;
-    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
+    // lazer's score breakdown (how many scores fall in each 100,000) and event feed (the newest scores, with their place)
+    const bins = new Array(11).fill(0);
+    for (const x of sorted) bins[Math.min(10, Math.floor((x.score || 0) / 100000))]++;
+    const recent = [...sorted.map((x, i) => ({ x, rank: i + 1 }))].sort((a, b) => b.x.at - a.x.at).slice(0, 8)
+      .map(({ x, rank }) => ({ ...this.current({ pid: x.pid, name: x.name, avatar: x.avatar }), pid: x.pid, score: x.score, rank, at: x.at }));
+    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, bins, recent, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
       scores: sorted.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;

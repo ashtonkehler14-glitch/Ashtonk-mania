@@ -74,9 +74,23 @@ const DailyScreen = {
         ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
       : h('div.rk-empty', 'No scores yet today. Be the first!');
     const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
-    if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(head, board); }
-    else clearEl(this.page).append(this.cardEl, head, board);
+    const cols = h('div.dc-cols', h('div.dc-main', head, board), this.side(d));
+    if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
+    else clearEl(this.page).append(this.cardEl, cols);
     this.tickTime();
+  },
+  /** lazer's daily challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
+   *  event feed (the newest scores and where they placed). */
+  side(d) {
+    const bins = d.bins || [], max = Math.max(1, ...bins), mine = d.you ? Math.min(10, Math.floor(d.you.score / 100000)) : -1;
+    const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : `${Math.floor(s / 3600)}h ago`; };
+    return h('div.dc-side',
+      h('div.dc-panel', h('div.dc-ph', 'Total passes'), h('div.dc-big', fmtInt(d.total || 0))),
+      bins.length ? h('div.dc-panel', h('div.dc-ph', 'Score breakdown'),
+        h('div.dc-bins', ...bins.map((n, i) => h(`div.dc-bin${i === mine ? '.mine' : ''}`, { title: `${i === 10 ? '1,000,000' : `${fmtInt(i * 100000)}–${fmtInt(i * 100000 + 99999)}`}: ${fmtInt(n)}` },
+          h('span.dc-bn', n ? fmtCompact(n) : ''), h('i', { style: { height: (n / max * 100).toFixed(1) + '%' } }), h('span.dc-bl', i === 10 ? '1M' : `${i * 100}k`))))) : null,
+      d.recent && d.recent.length ? h('div.dc-panel', h('div.dc-ph', 'Event feed'),
+        ...d.recent.map(r => h('div.dc-ev', Presence.avatarEl(r, 18), h('span', h('b', r.name), ' got ', h('b', `#${fmtInt(r.rank)}`), ` with ${fmtInt(r.score)}`), h('span.muted.dc-ago', ago(r.at))))) : null);
   },
   buildCard(m, local, f, mods) {
     const cover = h('div.dc-cover');

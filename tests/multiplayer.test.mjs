@@ -1198,3 +1198,16 @@ test('user status: appear offline leaves the list and can\'t be watched or invit
   assert.equal(p.list().find(x => x.name === 'Bob').dnd, true);
   assert.match(p.message('a', { t: 'invite', to: 'b', code: 'ABCDEF' })[0].msg.msg, /Do not disturb/);
 });
+
+test('the daily challenge sends lazer\'s score breakdown and event feed', () => {
+  const clock = { t: Date.parse('2026-10-05T12:00:00Z') };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  p.dailyNow().map = { onlineSetId: 1, onlineId: 111, keys: 4, title: 'T', artist: 'A', version: 'V', stars: 4 };
+  p.recordVerified('alicepid1', K1, judged({ score: 950000, beatmapId: 111 }), { daily: { day: '2026-10-05' } });
+  clock.t += 1000;
+  p.recordVerified('bobpid22', K1, judged({ score: 420000, beatmapId: 111 }), { daily: { day: '2026-10-05' } });
+  const d = p.dailyMsg('alicepid1');
+  assert.equal(d.bins.length, 11); assert.equal(d.bins[9], 1); assert.equal(d.bins[4], 1);
+  assert.deepEqual(d.recent.map(x => [x.score, x.rank]), [[420000, 2], [950000, 1]], 'newest first, with its place');
+});
