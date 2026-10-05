@@ -3536,10 +3536,15 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .md-tag { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: hsl(var(--ss-h) 40% 75%); cursor: pointer; }
 .md-tag:hover { color: #fff; }
 /* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
-.spec-rk { position: absolute; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
+.spec-rk { position: fixed; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
 .spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
 .spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
 .spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
+.spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
+.spec-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
+.spec-cur { position: absolute; left: 0; top: 0; z-index: 1; transform-origin: 0 0; pointer-events: none; transition: transform 34ms linear; will-change: transform; }
+.spec-cur img { display: block; width: 26px; height: 26px; margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; }
+.spec-cur.down img { filter: drop-shadow(0 0 6px rgba(255, 102, 171, .9)); }
 /* MultiplayerResultsScreen: every player's contracted ScorePanel (130 × 385: #444 with 20px corners, the avatar,
    name, judgements, combo and accuracy, mods; the score and grade below), winner first, yours lifted and outlined */
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
@@ -3733,7 +3738,7 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* lazer's RankingsOverlay, PerformanceTable (Green scheme): 32px rows 3px apart, 4px corners, Background4 →
    Background3 on hover; 12px text, the stats in Foreground1, Performance in white; headers above in 12px */
 .rk-table { display: flex; flex-direction: column; gap: 3px; max-width: 1100px; margin: 0 auto; padding-top: 10px; }
-.rk-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 90px 90px 110px 60px 60px 60px; align-items: center; height: 32px; padding: 0 10px; border-radius: 4px; background: hsl(var(--o-h) 10% 20%); font-size: 12px; color: hsl(var(--o-h) 10% 60%); transition: background 100ms; }
+.rk-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 90px 110px 60px 60px 60px; align-items: center; height: 32px; padding: 0 10px; border-radius: 4px; background: hsl(var(--o-h) 10% 20%); font-size: 12px; color: hsl(var(--o-h) 10% 60%); transition: background 100ms; }
 .rk-row > span { text-align: center; white-space: nowrap; }
 .rk-row.click { cursor: pointer; }
 .rk-row:not(.rk-head):hover { background: hsl(var(--o-h) 10% 25%); }
@@ -3749,7 +3754,7 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .rk-sep { text-align: center; color: hsl(var(--o-h) 10% 40%); }
 .rk-foot { max-width: 1100px; margin: 14px auto 0; color: hsl(var(--o-h) 10% 40%); font-size: 12px; text-align: right; }
 .rk-empty { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: hsl(var(--o-h) 10% 60%); }
-@media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(4), .rk-row > span:nth-child(n+6) { display: none; } }
+@media (max-width: 760px) { .rk-row { grid-template-columns: 46px minmax(0, 1fr) 70px 80px; } .rk-row > span:nth-child(n+5) { display: none; } }
 .pf-global { cursor: pointer; }
 
 /* lazer's daily challenge (Plum scheme): the day's beatmap on its cover, the time left with a draining bar, Mods and

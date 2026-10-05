@@ -1,6 +1,6 @@
 /* osu!lazer's RankingsOverlay (Green colour scheme), performance rankings: everyone who has played, by their total pp.
  * lazer's PerformanceTable — 32px rows 3px apart on Background4 (Background3 under the pointer), the rank, the player,
- * then Accuracy, Play Count, Performance (the one picked out in white) and SS / S / A counts in Foreground1. Each
+ * then Play Count, Performance (the one picked out in white) and SS / S / A counts in Foreground1. Each
  * player's totals come from their own game (the same pp the profile shows), sent whenever they change. */
 
 const Rankings = {
@@ -77,13 +77,13 @@ const RankingsScreen = {
     if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
-    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Accuracy'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
+    const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
     const row = r => {
       const u = { pid: r.pid, name: r.name, avatar: r.avatar, online: !!r.online, id: r.online ? (Presence.players.find(p => p.pid === r.pid) || {}).id : null };
       const el = h(`div.rk-row${r.pid === me ? '.me' : ''}`,
         h('span.rk-rank', `#${fmtInt(r.rank)}`),
         h('span.rk-user', Presence.avatarEl(r, 22), h('span.rk-name', r.name), r.online ? h('span.rk-on', { title: 'Online' }) : null),
-        h('span', fmtAcc(r.acc)), h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
+        h('span', fmtInt(r.plays)), h('span.hl', `${fmtInt(Math.round(r.pp))}pp`),
         h('span', fmtInt(r.ss || 0)), h('span', fmtInt(r.s || 0)), h('span', fmtInt(r.a || 0)));
       // (lazer: a player opens their profile; right-click for the rest)
       el.classList.add('click');

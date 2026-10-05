@@ -420,7 +420,7 @@ const Presence = {
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
       else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
-      else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite and spectate each other.'); }
+      else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite each other to rooms.'); }
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
@@ -807,7 +807,7 @@ const MultiplayerScreen = {
         h('span.grow'),
         (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
-        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid && Friends.has(p.pid) ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
+        !isMe && p.playing && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
           UISounds.click();
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);

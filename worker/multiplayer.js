@@ -891,6 +891,16 @@ export class PresenceLogic {
   /** A player's standing: the pp of the plays judged here or, while that's lower (a small server can't always judge a
    *  long song in time), what their game reports from their own scores — whichever is higher. */
   static RANK_POLICY = 2;
+  /** A standing from the best plays a player's profile lists (only the ones on ranked beatmaps: `isRanked(entry)`),
+   *  weighted as osu! weights them; null when none count. */
+  static rankFromTop(top, isRanked) {
+    const list = (Array.isArray(top) ? top : []).filter(x => x && Number.isFinite(+x.pp) && +x.pp > 0 && x.passed !== false && isRanked(x)).sort((a, b) => b.pp - a.pp);
+    if (!list.length) return null;
+    let pp = 0, accW = 0, wSum = 0;
+    list.forEach((x, i) => { const w = 0.95 ** i; pp += Math.min(100000, +x.pp) * w; accW += Math.min(1, Math.max(0, +x.accuracy || 0)) * w; wSum += w; });
+    const g = list.map(x => x.grade);
+    return { pp: Math.round(pp * 100) / 100, acc: accW / wSum, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+  }
   static settleRank(r) {
     const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
     const use = rep.pp > v.pp ? rep : v;
@@ -1090,7 +1100,6 @@ export class PresenceLogic {
     if (msg.t === 'watch') {
       const to = String(msg.to || ''), tu = this.users.get(to);
       if (!tu || to === id) return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
-      if (!this.areFriends(u.pid, tu.pid)) return [{ to: id, msg: { t: 'error', msg: 'You can only spectate your friends.' } }];
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
@@ -1116,6 +1125,13 @@ export class PresenceLogic {
       const html = typeof msg.html === 'string' && msg.html.length <= 60000 ? msg.html : null;
       u.rkview = html; u.rk = null;
       return [...u.watchers].map(w => ({ to: w, msg: { t: 'specRk', id, html } }));
+    }
+    // where their pointer is on that screen (0–1 across and down) and whether it's pressed, passed straight on
+    if (msg.t === 'rkcur') {
+      if (!u.watchers.size) return [];
+      const c = v => Math.min(1, Math.max(0, Number(v) || 0));
+      const cur = { t: 'specCur', id, x: Math.round(c(msg.x) * 10000) / 10000, y: Math.round(c(msg.y) * 10000) / 10000, d: !!msg.d };
+      return [...u.watchers].map(w => ({ to: w, msg: cur }));
     }
     if (msg.t === 'play') {
       if (!msg.head || typeof msg.head !== 'object') return [];
@@ -1259,6 +1275,7 @@ export class Matchmaker {
       this.presence.load(fr, fq);
       this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
+      this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
@@ -1282,6 +1299,48 @@ export class Matchmaker {
         } catch { /* storage full or unavailable: the in-memory answers still work */ }
       },
     };
+  }
+  /** Players whose standing started over (or who never had one) and aren't online to re-report it: their standing
+   *  from the best plays their profile lists, counting only those on ranked beatmaps — the profile says so, or (shared
+   *  by an older game) the song is looked up on osu! by its artist, title and difficulty name. Once per player. */
+  async restoreRanks() {
+    const st = this.state.storage, P = this.presence, statusOf = new Map();
+    let lookups = 0;
+    const ranked = async x => {
+      if (typeof x.ranked === 'boolean') return x.ranked;
+      const k = `${x.artist}|${x.title}|${x.version}|${x.creator || ''}`.toLowerCase();
+      if (!statusOf.has(k)) {
+        if (++lookups > 300 || !x.title) return false; // (the rest next time)
+        let found = '';
+        try {
+          const q = encodeURIComponent(`${x.artist || ''} ${x.title}`.trim().slice(0, 200));
+          const d = await officialGet(`beatmapsets/search?q=${q}&m=3&s=any`, this.env, fetch, 7 * 86400000);
+          const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+          const sets = (d && d.beatmapsets) || [];
+          const hit = sets.find(b => same(b.title, x.title) && same(b.artist, x.artist) && (b.beatmaps || []).some(m => same(m.version, x.version)) && (!x.creator || same(b.creator, x.creator)))
+            || sets.find(b => same(b.title, x.title) && (b.beatmaps || []).some(m => same(m.version, x.version)));
+          found = hit ? String(hit.status || '') : '';
+        } catch { return false; }
+        statusOf.set(k, found);
+      }
+      const v = statusOf.get(k);
+      return v === 'ranked' || v === 'approved';
+    };
+    for (const [k, data] of await st.list({ prefix: 'pf:' })) {
+      const pid = k.slice(3), rec = P.ranks.get(pid);
+      if (!data || typeof data !== 'object' || !Array.isArray(data.top) || !data.top.length) continue;
+      if (rec && (rec.restored || rec.pp > 0)) continue;
+      if ([...P.users.values()].some(u => u.pid === pid)) continue; // (online: their game reports it)
+      const flags = await Promise.all(data.top.slice(0, 50).map(x => x && typeof x === 'object' ? ranked(x) : false));
+      if (lookups > 300) break;
+      const rep = PresenceLogic.rankFromTop(data.top.slice(0, 50).filter((x, i) => flags[i]), () => true);
+      const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
+      r.restored = true;
+      if (rep && (!r.rep || r.rep.pp < rep.pp)) r.rep = rep;
+      PresenceLogic.settleRank(r);
+      P.ranks.set(pid, r);
+      if (P.persistRank) P.persistRank(pid, r);
+    }
   }
   closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
   send(out) {

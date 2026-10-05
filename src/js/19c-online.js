@@ -30,7 +30,7 @@ const Friends = {
   async toggle(p) {
     if (!p || !p.pid) return;
     if (this.has(p.pid)) {
-      if (!(await Dialog.confirm(`Remove ${p.name} from your friends?`, 'You won\'t be able to invite or spectate each other until you\'re friends again.', { ok: 'Remove', danger: true }))) return;
+      if (!(await Dialog.confirm(`Remove ${p.name} from your friends?`, 'You won\'t be able to invite each other to rooms until you\'re friends again.', { ok: 'Remove', danger: true }))) return;
       Presence.send({ t: 'unfriend', pid: p.pid });
       return;
     }
@@ -45,7 +45,7 @@ const Friends = {
     const from = m.from || {};
     if (Screens.currentName === 'gameplay') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
     UISounds.play('check-on');
-    const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and spectate each other\'s plays.', { ok: 'Accept', cancel: 'Not now' });
+    const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and chat.', { ok: 'Accept', cancel: 'Not now' });
     if (ok) this.answer(from.pid, true);
   },
 };
@@ -60,7 +60,6 @@ const Spectate = {
   // ── watching
   watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
-    if (!Friends.has(p.pid)) { Toast.show('Friends only', `Add ${p.name} as a friend to spectate them.`); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
@@ -71,6 +70,7 @@ const Spectate = {
   },
   stop({ quiet = false } = {}) {
     if (!this.target) return;
+    this._lastCur = null; this._fit = null;
     Presence.send({ t: 'unwatch', to: this.target.id });
     const name = this.target.name;
     this.target = null; this.cur = null;
@@ -86,6 +86,7 @@ const Spectate = {
     if (!this.target || m.id !== this.target.id) return;
     if (m.t === 'specWait') { this.paintPill(`waiting for ${m.name} to play…`); return; }
     if (m.t === 'specRk') { this.onMirror(m); return; }
+    if (m.t === 'specCur') { this.onCur(m); return; }
     if (m.t === 'specStart') { this.start(m); return; }
     if (m.t === 'specFrames') {
       const c = this.cur;
@@ -216,8 +217,10 @@ const Spectate = {
     if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
-      this.rkEl = h('div.spec-rk', this.rkView, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
-      ($('#app') || document.body).appendChild(this.rkEl);
+      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }));
+      this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('small', 'Esc to stop'), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
+      document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
+      if (this._lastCur) this.onCur(this._lastCur);
     }
     const t = document.createElement('template');
     t.innerHTML = html;
@@ -234,6 +237,31 @@ const Spectate = {
     }
     // (updated in place — only what changed — so nothing on their screen restarts or flickers between updates)
     Spectate.morph(this.rkView, t.content);
+    // their scroll positions (a list scrolled down shows as they see it)
+    for (const el of this.rkView.querySelectorAll('[data-ss]')) {
+      const [y, x] = el.getAttribute('data-ss').split(',').map(Number);
+      if (Math.abs(el.scrollTop - (y || 0)) > 0.5 || Math.abs(el.scrollLeft - (x || 0)) > 0.5) el.scrollTo({ top: y || 0, left: x || 0, behavior: 'instant' }); // (not eased: it follows theirs)
+    }
+    this.fitRk();
+  },
+  /** Their screen at their window's size, scaled to fit yours (so it's laid out exactly as they see it). */
+  fitRk() {
+    const f = this.rkView && this.rkView.firstElementChild;
+    if (!f || !f.classList.contains('spec-frame')) return;
+    const vw = +f.dataset.vw || innerWidth, vh = +f.dataset.vh || innerHeight, W = this.rkEl.clientWidth || innerWidth, H = this.rkEl.clientHeight || innerHeight;
+    const k = Math.min(W / vw, H / vh), x = (W - vw * k) / 2, y = (H - vh * k) / 2;
+    const st = `${f.dataset.st || ''};position:absolute;inset:auto;left:0;top:0;width:${vw}px;height:${vh}px;--vw:${vw / 100}px;--vh:${vh / 100}px;transform:translate(${x}px,${y}px) scale(${k});transform-origin:0 0`; // (their app's size, their --vw / --vh)
+    if (f.getAttribute('style') !== st) f.setAttribute('style', st);
+    this._fit = { vw, vh, k, x, y };
+  },
+  /** Their pointer, where it is on their screen. */
+  onCur(m) {
+    this._lastCur = m;
+    const c = this.rkCur, f = this._fit;
+    if (!c || !f) return;
+    c.hidden = false;
+    c.style.transform = `translate(${f.x + m.x * f.vw * f.k}px,${f.y + m.y * f.vh * f.k}px) scale(${(m.d ? 0.9 : 1) * Math.max(0.5, f.k)})`;
+    c.classList.toggle('down', !!m.d);
   },
   /** Make `el`'s children match `src`'s: same elements kept (their attributes and text brought up to date), others
    *  added or removed. */
@@ -273,7 +301,7 @@ const Spectate = {
   mirrorTick() {
     const H = this.host;
     if (!H.watchers || !Presence.ws) {
-      if (this._mo) { this._mo.disconnect(); this._mo = null; }
+      if (this._mo) { this._mo.disconnect(); this._mo = null; this.hostCur(false); }
       if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); }
       return;
     }
@@ -284,35 +312,106 @@ const Spectate = {
     if (live) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
     const app = $('#app');
     if (!app) return;
-    // (copied only after something on screen changed)
-    if (!this._mo) { this._mo = new MutationObserver(() => { this._dirty = true; }); this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true }); this._dirty = true; }
+    // (copied as soon as something on screen changes — or a list is scrolled — at most every MIR_GAP ms)
+    if (!this._mo) {
+      this._mo = new MutationObserver(recs => { if (recs.some(r => r.attributeName !== 'data-ss' && !(r.target.closest && r.target.closest('.spec-rk')))) this.mirrorSoon(); });
+      this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true });
+      this.hostCur(true);
+      this._dirty = true;
+    }
+    this.mirrorFlush();
+  },
+  MIR_GAP: 33,
+  mirrorSoon() {
+    this._dirty = true;
+    if (this._mirT) return;
+    const wait = Math.max(0, (this._mirAt || 0) + Math.max(this.MIR_GAP, (this._mirCost || 0) * 6) - performance.now());
+    this._mirT = setTimeout(() => { this._mirT = 0; try { this.mirrorTick(); } catch { /* the next change tries again */ } }, wait);
+  },
+  mirrorFlush() {
     if (!this._dirty && this._mirOn) return;
+    if (this._mirBusy) { this._mirAgain = true; return; } // (the last screen is still being packed: this one goes next)
     this._dirty = false;
-    const html = this.mirrorHtml(app);
+    const t0 = performance.now();
+    const html = this.mirrorHtml($('#app'));
+    this._mirCost = performance.now() - t0; this._mirAt = performance.now();
     if (!html || html === this._mirHtml) return;
     this._mirHtml = html; this._mirOn = true;
-    this.sendMirror(html);
+    this._mirBusy = true;
+    this.sendMirror(html).finally(() => { this._mirBusy = false; if (this._mirAgain) { this._mirAgain = false; this._dirty = true; this.mirrorSoon(); } });
   },
-  /** The screen as HTML, without what's only yours (the spectating panel, the cursor). */
+  /** While anyone watches: where your pointer is (sent up to 30 times a second while it moves) and every scroll. */
+  hostCur(on) {
+    if (on === !!this._curOn) return;
+    this._curOn = on;
+    if (!this._curFns) {
+      let last = 0, pend = null, tm = 0, down = false;
+      const send = () => { tm = 0; last = performance.now(); if (pend && this._curOn) Presence.send({ t: 'rkcur', ...pend }); pend = null; };
+      const move = e => {
+        if (e.type === 'pointerdown') down = true; else if (e.type === 'pointerup' || e.type === 'pointercancel') down = false;
+        pend = { x: e.clientX / innerWidth, y: e.clientY / innerHeight, d: down };
+        if (tm) return;
+        const gap = 33 - (performance.now() - last);
+        if (gap <= 0 || e.type !== 'pointermove') send(); else tm = setTimeout(send, gap);
+      };
+      const scroll = e => { const el = e.target; if (el && el.nodeType === 1 && el.closest('#app') && !el.closest('.spec-rk')) { (this._scrolled ||= new Set()).add(el); this.mirrorSoon(); } };
+      this._curFns = { move, scroll };
+    }
+    const f = this._curFns, o = { capture: true, passive: true };
+    for (const ev of ['pointermove', 'pointerdown', 'pointerup', 'pointercancel']) (on ? addEventListener : removeEventListener)(ev, f.move, o);
+    (on ? document.addEventListener : document.removeEventListener).call(document, 'scroll', f.scroll, o);
+  },
+  /** The screen as HTML, without what's only yours (the spectating panel, the typing bar), at your window's size. */
   mirrorHtml(app) {
+    // (scroll positions ride along as an attribute; the watcher scrolls its copy to match)
+    if (this._scrolled) for (const el of this._scrolled) {
+      if (!el.isConnected) { this._scrolled.delete(el); continue; }
+      const v = `${Math.round(el.scrollTop)},${Math.round(el.scrollLeft)}`;
+      if (el.getAttribute('data-ss') !== v) el.setAttribute('data-ss', v);
+    }
     const c = app.cloneNode(true);
     for (const el of c.querySelectorAll('.spec-rk, .cursor, #cursor, .kb-bar')) el.remove();
     for (const el of c.querySelectorAll('input, textarea')) { const src = el.id && app.querySelector('#' + CSS.escape(el.id)); el.setAttribute('value', el.value || (src && src.value) || ''); }
-    // (a canvas carries nothing as HTML: the stage — under a fail or pause screen — goes as a small picture)
-    const live = app.querySelector('.gp-canvas'), copy = c.querySelector('.gp-canvas');
-    if (live && copy && live.width && live.height) {
+    // (a canvas carries nothing as HTML: each one — the stage under a fail or pause screen, the menu's triangles —
+    // goes as a small picture, taken again at most every second or two)
+    const lives = [...app.querySelectorAll('canvas')].filter(x => !x.closest('.spec-rk, .kb-bar')), copies = [...c.querySelectorAll('canvas')];
+    const snaps = this._snaps || (this._snaps = new WeakMap()), now = performance.now();
+    lives.forEach((live, i) => {
+      const copy = copies[i];
+      if (!copy || !live.width || !live.height || live.clientWidth < 48 || live.clientHeight < 48) return;
       try {
-        if (this._snap && performance.now() - this._snap.at < 1000) { const img = document.createElement('img'); img.className = copy.className; img.setAttribute('style', copy.getAttribute('style') || ''); img.src = this._snap.url; copy.replaceWith(img); throw 0; }
-        const k = Math.min(1, 480 / live.width), t = document.createElement('canvas');
-        t.width = Math.round(live.width * k); t.height = Math.round(live.height * k);
-        t.getContext('2d').drawImage(live, 0, 0, t.width, t.height);
+        const sn = snaps.get(live);
+        // (pictures are taken between copies, never while one is being made: the copy stays quick)
+        if (!sn || now - sn.at > (live.classList.contains('gp-canvas') ? 1000 : 2000)) this.snapSoon(live);
+        if (!sn) return;
         const img = document.createElement('img');
-        img.className = copy.className; img.setAttribute('style', copy.getAttribute('style') || ''); img.src = t.toDataURL('image/jpeg', 0.6);
-        this._snap = { at: performance.now(), url: img.src };
+        for (const a of copy.attributes) if (a.name !== 'width' && a.name !== 'height') img.setAttribute(a.name, a.value);
+        img.style.width = live.clientWidth + 'px'; img.style.height = live.clientHeight + 'px'; img.style.objectFit = 'fill';
+        if (!sn.url) return;
+        img.src = sn.url;
         copy.replaceWith(img);
-      } catch { /* a canvas that can't be read (or the last picture reused) */ }
-    }
-    return c.innerHTML;
+      } catch { /* a canvas that can't be read */ }
+    });
+    // (inside a stand-in for the app itself — its classes say what's showing: in a song, the toolbar hidden, a side
+    // panel open — at the app's own size)
+    const cls = [...app.classList].filter(x => x !== 'zoomfix').join(' ');
+    return `<div id="app" class="spec-frame ${cls}" data-st="${(app.getAttribute('style') || '').replace(/"/g, '&quot;')}" data-vw="${app.offsetWidth || innerWidth}" data-vh="${app.offsetHeight || innerHeight}">${c.innerHTML}</div>`;
+  },
+  snapSoon(live) {
+    const q = this._snapQ || (this._snapQ = new Set());
+    if (q.has(live)) return;
+    q.add(live);
+    setTimeout(() => {
+      q.delete(live);
+      if (!this.host.watchers || !live.isConnected) return;
+      try {
+        const k = Math.min(1, 480 / live.width), t = document.createElement('canvas');
+        t.width = Math.max(1, Math.round(live.width * k)); t.height = Math.max(1, Math.round(live.height * k));
+        t.getContext('2d').drawImage(live, 0, 0, t.width, t.height);
+        this._snaps.set(live, { at: performance.now(), url: t.toDataURL('image/webp', 0.6) }); // (WebP keeps see-through parts see-through)
+        this.mirrorSoon();
+      } catch { this._snaps.set(live, { at: performance.now() + 60000, url: '' }); } // (one that can't be read: not tried again for a while)
+    }, 60);
   },
   async sendMirror(html) {
     const seq = this._mirSeq = (this._mirSeq || 0) + 1;
@@ -441,7 +540,7 @@ const UserPanels = {
     const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
     return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
   },
-  canSpectate(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && (u.status === 'playing' || u.status === 'ranked'); },
+  canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)
   canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
   /** UserPanel.ContextMenuItems: View profile first, then what you can do with them. */
   menuItems(u) {
@@ -507,7 +606,7 @@ const UserPanels = {
       h('div.up-ph', this.cover(u), Presence.avatarEl(u, 84), h('div', h('h3', u.name), h('div.up-ph-st', this.statusIcon(u), this.statusMsg(u)))),
       h('div.up-ph-rows',
         h('div', h('span', 'Status'), h('b', this.statusText(u))),
-        friend ? h('div', h('span', 'Friend'), h('b', 'Yes — you can invite and spectate each other')) : !me ? h('div', h('span', 'Friend'), h('b', Friends.requested(u.pid) ? 'Request sent' : 'No')) : null,
+        friend ? h('div', h('span', 'Friend'), h('b', 'Yes — you can invite each other')) : !me ? h('div', h('span', 'Friend'), h('b', Friends.requested(u.pid) ? 'Request sent' : 'No')) : null,
         u.watchers ? h('div', h('span', 'Spectators'), h('b', String(u.watchers))) : null),
       friend && !me ? h('button.up-unfriend', { onclick: () => { o.close(); Friends.toggle(u); } }, 'Remove friend…') : null);
     const o = Dialog.custom(me ? 'Your profile' : `${u.name}'s profile`, body, acts);
@@ -599,3 +698,12 @@ Bus.on('screen:changed', name => Spectate.onScreen(name));
 
 // (being watched: your screen goes to your spectators as it changes — nothing happens while nobody watches)
 setInterval(() => { try { Spectate.mirrorTick(); } catch (e) { /* the next tick tries again */ } }, 250);
+// watching someone's screen: it's theirs, so your keys don't reach your own menus underneath — Esc stops watching
+addEventListener('keydown', e => {
+  if (!Spectate.rkEl || !Spectate.target) return;
+  if (e.ctrlKey || e.metaKey || /^F\d+$/.test(e.key)) return; // (the browser's own: reload, zoom, fullscreen)
+  if (document.querySelector('.dialog')) return; // (a dialog of yours, e.g. a friend request, still answers)
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.key === 'Escape' && !e.repeat) { UISounds.click(); Spectate.stop(); }
+}, true);
+addEventListener('resize', () => { if (Spectate.rkEl) { Spectate.fitRk(); if (Spectate._lastCur) Spectate.onCur(Spectate._lastCur); } });

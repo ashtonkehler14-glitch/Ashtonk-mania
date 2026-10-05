@@ -246,7 +246,7 @@ const ProfileScreen = {
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
     const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, creator: s.creator, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s,
       // (enough for other players to open it on the results screen)
-      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed });
+      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed, ranked: ScoreManager.isRanked(s) });
     const day = 86400000, g = st.grades || {};
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,

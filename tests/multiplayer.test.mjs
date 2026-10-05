@@ -862,9 +862,7 @@ test('presence: public ids and songs on the list; spectating streams a play only
   assert.equal(p.list().find(x => x.id === 'a').pid, 'alicepid1');
   p.message('a', { t: 'status', status: 'playing', song: { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 } });
   assert.deepEqual(p.list().find(x => x.id === 'a').song, { title: 'Song', artist: 'Art', version: '4K Hard', stars: 3.2, keys: 4 });
-  // only friends can spectate each other
-  assert.equal(p.message('b', { t: 'watch', to: 'a' })[0].msg.msg, 'You can only spectate your friends.');
-  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  // (anyone can spectate anyone: Bob and Alice aren't friends)
   const head = { mapHash: 'abc', onlineSetId: 5, title: 'Song', keys: 4, mods: ['HD', 'AT'], rate: 1, seed: 7 };
   // nobody watching: the play is announced, but its inputs aren't streamed
   assert.deepEqual(p.message('a', { t: 'play', head }), []);
@@ -1125,4 +1123,12 @@ test('multiplayer results are the server\'s judgement where it can judge; a play
   const v = r.verify('a', r.get('a').token, { ...judged, mods: ['HR'] }, { hash: 'h'.repeat(64) });
   assert.equal(v.error, 'Not the room\'s mods.');
   assert.equal(r.get('a').finished.unverified, true);
+});
+
+test('a standing from a profile\'s best plays counts only the ones on ranked beatmaps', () => {
+  const top = [{ pp: 300, accuracy: 0.9, grade: 'A', ranked: false }, { pp: 200, accuracy: 1, grade: 'SS', ranked: true }, { pp: 100, accuracy: 0.95, grade: 'S', ranked: true }, { pp: 50, ranked: true, passed: false }];
+  const r = PresenceLogic.rankFromTop(top, x => x.ranked);
+  assert.equal(r.pp, 295);
+  assert.deepEqual([r.ss, r.s, r.a], [1, 1, 0]);
+  assert.equal(PresenceLogic.rankFromTop([{ pp: 300, ranked: false }], x => x.ranked), null);
 });

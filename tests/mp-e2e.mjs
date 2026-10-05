@@ -109,7 +109,7 @@ const forged = await bob.evaluate(async () => { const r = await fetch('api/mp/sc
 check('…and nobody can send scores as someone else (their key)', forged === 403, String(forged));
 await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
 await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
-check('rankings list players by pp (lazer\'s performance table)', await alice.evaluate(pp => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && new RegExp(`${Math.round(pp)}pp`).test(r.textContent) && !/99,999/.test(r.textContent) && /100\.00%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }, bobScore.pp), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
+check('rankings list players by pp (lazer\'s performance table, no accuracy column)', await alice.evaluate(pp => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && new RegExp(`${Math.round(pp)}pp`).test(r.textContent) && !/99,999/.test(r.textContent) && !/%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }, bobScore.pp), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));
 await shot(alice, 'mp-rankings');
 // clicking a player opens their full profile (lazer's user profile), from what their game shared
 await alice.click('.rk-table .rk-row:not(.rk-head)');
@@ -156,7 +156,7 @@ const pending = await panelMenu(alice, 'Bob'); await alice.keyboard.press('Escap
 await bob.click('.dialog .pd-btn.ok');
 await alice.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Bob'), null, { timeout: 5000 });
 const both = await bob.waitForFunction(() => AshtonkMania.Friends.list().some(f => f.name === 'Alice'), null, { timeout: 5000 }).then(() => true, () => false);
-check('friend requests: the ⋯ menu\'s "Add friend" sends one, the other player accepts from a prompt, and both become friends', frBefore.includes('View profile') && frBefore.includes('Add friend') && !frBefore.includes('Spectate') && pending.includes('Friend request sent') && both, JSON.stringify({ frBefore, pending, both }));
+check('friend requests: the ⋯ menu\'s "Add friend" sends one, the other player accepts from a prompt, and both become friends; anyone can be spectated', frBefore.includes('View profile') && frBefore.includes('Add friend') && frBefore.includes('Spectate') && pending.includes('Friend request sent') && both, JSON.stringify({ frBefore, pending, both }));
 // unfriending is in the ⋯ menu (not one click away) and asks first
 const fm = await panelMenu(alice, 'Bob'); await alice.keyboard.press('Escape');
 check('…once friends, "Remove friend" is in the ⋯ menu', fm.includes('Remove friend'), JSON.stringify(fm));
@@ -543,6 +543,23 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
   await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); 
   const ssSeen = await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 }).then(() => true, () => false);
   check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen }));
+  // no lag: a change on Bob's screen is on Alice's within a few frames
+  await bob.waitForTimeout(500);
+  const lags = [];
+  for (let i = 0; i < 5; i++) {
+    const t0 = await bob.evaluate(i => { document.querySelector('#app .ss').setAttribute('data-mark', 'k' + i); return Date.now(); }, i);
+    const t1 = await alice.waitForFunction(i => document.querySelector(`.spec-rk [data-mark="k${i}"]`) && Date.now(), i, { timeout: 3000, polling: 'raf' }).then(h => h.jsonValue(), () => null);
+    lags.push(t1 ? t1 - t0 : 9999);
+  }
+  // his pointer shows; her keys and clicks don't touch her own menus; Esc stops watching
+  await bob.mouse.move(300, 300); await bob.mouse.move(600, 400);
+  const cur = await alice.waitForSelector('.spec-rk .spec-cur:not([hidden])', { timeout: 3000 }).then(() => true, () => false);
+  const was = await alice.evaluate(() => AshtonkMania.Screens.currentName);
+  await alice.mouse.click(700, 400); await alice.keyboard.press('Enter'); await alice.waitForTimeout(300);
+  const still = await alice.evaluate(was => AshtonkMania.Screens.currentName === was && !!AshtonkMania.Spectate.target, was);
+  await alice.keyboard.press('Escape'); await alice.waitForTimeout(300);
+  const stopped = await alice.evaluate(() => !AshtonkMania.Spectate.target && !document.querySelector('.spec-rk'));
+  check('menu spectating: changes arrive within ~100ms, the pointer shows, input is blocked and Esc stops', Math.max(...lags) < 150 && cur && still && stopped, JSON.stringify({ lags, cur, still, stopped }));
   await alice.evaluate(() => AshtonkMania.Spectate.stop({ quiet: true }));
   await bob.evaluate(() => AshtonkMania.Screens.go('home'));
   await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
