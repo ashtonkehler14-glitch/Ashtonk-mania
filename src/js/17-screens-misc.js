@@ -210,7 +210,10 @@ const ProfileScreen = {
     const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
-      Bus.on('profile:remote', m => { if (this.remote && m.pid === this.remote.pid) {
+      Bus.on('profile:remote', m => {
+        // (your own profile: the server's list of your first places)
+        if (!this.remote && m.pid === Presence.pid()) { this.ownFirsts = { list: m.firsts || [], count: m.firstCount || 0 }; this.render(); return; }
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: m.firsts || [], count: m.firstCount || 0 };
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -219,7 +222,7 @@ const ProfileScreen = {
       Bus.on('rankings', d => { if (this.remote) return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
     if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
-    else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); }
+    else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
@@ -357,7 +360,9 @@ const ProfileScreen = {
     const ranks = section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
         ? h('div.pf-scores', ...topPlays.map((x, i) => row(x, i, true)))
-        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')));
+        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')),
+      // lazer: the beatmaps they're #1 on, on the global leaderboards
+      (f => sub('First place ranks', f.count, f.list.length ? h('div.pf-scores', ...f.list.map((x, i) => row(x, i, false))) : h('div.pf-empty', own ? 'Not #1 on any beatmap yet.' : 'No first place ranks yet.')))((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [], count: 0 }));
     const got = d.medals || {};
     const medals = section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
     const recent = d.recent || [];

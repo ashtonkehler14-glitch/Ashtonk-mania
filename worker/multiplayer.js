@@ -753,6 +753,8 @@ export class PresenceLogic {
     // each board's osu! beatmap id (read from the judged file), so a beatmap's board can be found by its id alone —
     // lazer's beatmap overlay, before it's downloaded (lbid:<id> in storage)
     this.boardIds = new Map(); this.persistBoardId = null;
+    // lazer's "First place ranks": the beatmaps each player is #1 on (f1:<pid>), kept as the boards change
+    this.firsts = new Map(); this.persistFirsts = null;
     // players' keys, by public id (only the key's SHA-256 is kept): pid → hash
     this.auth = new Map(); this.persistAuth = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
@@ -821,9 +823,16 @@ export class PresenceLogic {
     const board = this.boards.get(key) || [];
     const prev = board.find(x => x.pid === pid);
     if (!prev || prev.score < entry.score) {
+      const before = board[0] ? board[0].pid : null;
       const next = [...board.filter(x => x.pid !== pid), entry].sort((a, b) => b.score - a.score || a.date - b.date).slice(0, PresenceLogic.LB_KEEP);
       this.boards.set(key, next);
       if (this.persistBoard) this.persistBoard(key, next);
+      // a new #1 (or the #1 beating their own score): their first place, taken from whoever had it
+      if (next[0].pid === pid) {
+        if (before && before !== pid) this.setFirst(before, key, null);
+        this.setFirst(pid, key, { score: entry.score, acc: entry.acc, grade: entry.grade, mods: entry.mods, combo: entry.combo, pp: entry.pp, date: t,
+          title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120), stars: entry.stars });
+      }
     }
     if (r.beatmapId > 0 && this.boardIds.get(r.beatmapId) !== key) { this.boardIds.set(r.beatmapId, key); if (this.persistBoardId) this.persistBoardId(r.beatmapId, key); }
     // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
@@ -877,9 +886,18 @@ export class PresenceLogic {
       .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
-    return { t: 'profile', pid, data, top, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
+    const f1 = Object.values(this.firsts.get(pid) || {}).sort((a, b) => b.date - a.date);
+    const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
+    return { t: 'profile', pid, data, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
       rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
+  setFirst(pid, key, v) {
+    const m = this.firsts.get(pid) || {};
+    if (v) m[key] = v; else delete m[key];
+    this.firsts.set(pid, m);
+    if (this.persistFirsts) this.persistFirsts(pid, m);
+  }
+  loadFirsts(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.firsts.set(pid, v); }
   static LB_KEEP = 100;
   static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
   boardMsg(key, pid, scope) {
@@ -1388,6 +1406,8 @@ export class Matchmaker {
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
+        const f1 = {}; for (const [k, v] of await st.list({ prefix: 'f1:' })) f1[k.slice(3)] = v;
+        this.presence.loadFirsts(f1);
         const pl = {}, plOld = [];
         for (const [k, v] of await st.list({ prefix: 'pl:' })) { if (v && Date.now() - (v.ends || 0) >= PresenceLogic.PL_KEEP) plOld.push(k); else pl[k.slice(3)] = v; }
         if (plOld.length) st.delete(plOld.slice(0, 128)).catch(() => {}); // (long-closed playlists go for good)
@@ -1400,6 +1420,32 @@ export class Matchmaker {
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      // (once: the first places on boards set before they were kept — each board's #1, named from their best there;
+      //  a few boards at a time, a little apart, so it never holds the server up)
+      const backfill = async () => {
+        const state = await st.get('f1v1').catch(() => true);
+        if (state === true) return;
+        const P = this.presence, opts = { prefix: 'lb:', limit: 25 };
+        if (typeof state === 'string') opts.startAfter = state;
+        const page = await st.list(opts);
+        let last = null;
+        for (const [k, list] of page) {
+          last = k;
+          const top = Array.isArray(list) && list[0], key = k.slice(3);
+          if (!top || !top.pid) continue;
+          const cur = P.firsts.get(top.pid) || {};
+          if (cur[key]) continue;
+          const b = P.ranks.get(top.pid) && P.ranks.get(top.pid).bests && P.ranks.get(top.pid).bests[key];
+          cur[key] = { score: top.score, acc: top.acc, grade: top.grade, mods: top.mods || [], combo: top.combo, pp: top.pp, date: top.date, stars: top.stars,
+            title: b ? b.title : '', artist: b ? b.artist : '', version: b ? b.version : '' };
+          P.firsts.set(top.pid, cur); st.put(`f1:${top.pid}`, cur).catch(() => {});
+        }
+        if (page.size < 25 || !last) { st.put('f1v1', true).catch(() => {}); return; }
+        await st.put('f1v1', last);
+        setTimeout(() => backfill().catch(() => {}), 2000);
+      };
+      setTimeout(() => backfill().catch(() => {}), 5000);
+      this.presence.persistFirsts = (pid, m) => { (Object.keys(m).length ? st.put(`f1:${pid}`, m) : st.delete(`f1:${pid}`)).catch(() => {}); };
       this.presence.persistPlaylist = p => { st.put(`pl:${p.id}`, p).catch(() => {}); };
       this.presence.persistBoardId = (bid, key) => { this._bidMiss && this._bidMiss.delete(bid); st.put(`lbid:${bid}`, key).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
@@ -1428,7 +1474,7 @@ export class Matchmaker {
    *  from the best plays their profile lists, counting only those on ranked beatmaps — the profile says so, or (shared
    *  by an older game) the song is looked up on osu! by its artist, title and difficulty name. Once per player. */
   async restoreRanks() {
-    const st = this.state.storage, P = this.presence, statusOf = new Map();
+    const st = this.state.storage, P = this.presence, statusOf = this._statusOf || (this._statusOf = new Map()); // (kept across the chunks)
     let lookups = 0;
     const ranked = async x => {
       if (typeof x.ranked === 'boolean') return x.ranked;
@@ -1450,7 +1496,15 @@ export class Matchmaker {
       const v = statusOf.get(k);
       return v === 'ranked' || v === 'approved';
     };
-    for (const [k, data] of await st.list({ prefix: 'pf:' })) {
+    // (a few profiles at a time, a little apart, so it never holds the server up; done once)
+    const state = await st.get('rr1').catch(() => true);
+    if (state === true) return;
+    const opts = { prefix: 'pf:', limit: 20 };
+    if (typeof state === 'string') opts.startAfter = state;
+    const page = await st.list(opts);
+    let lastKey = null;
+    for (const [k, data] of page) {
+      lastKey = k;
       const pid = k.slice(3), rec = P.ranks.get(pid);
       if (!data || typeof data !== 'object' || !Array.isArray(data.top) || !data.top.length) continue;
       if (rec && (rec.restored || rec.pp > 0)) continue;
@@ -1465,6 +1519,10 @@ export class Matchmaker {
       P.ranks.set(pid, r);
       if (P.persistRank) P.persistRank(pid, r);
     }
+    if (lookups > 300) return; // (the osu! lookups for this start are used up: the rest next time)
+    if (page.size < 20 || !lastKey) { st.put('rr1', true).catch(() => {}); return; }
+    await st.put('rr1', lastKey);
+    setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 1500);
   }
   closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
   send(out) {

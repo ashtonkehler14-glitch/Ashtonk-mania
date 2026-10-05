@@ -1211,3 +1211,14 @@ test('the daily challenge sends lazer\'s score breakdown and event feed', () => 
   assert.equal(d.bins.length, 11); assert.equal(d.bins[9], 1); assert.equal(d.bins[4], 1);
   assert.deepEqual(d.recent.map(x => [x.score, x.rank]), [[420000, 2], [950000, 1]], 'newest first, with its place');
 });
+
+test('first place ranks: a player who takes #1 on a beatmap has it, and loses it when someone beats them', () => {
+  const p = new PresenceLogic(() => 5000);
+  p.recordVerified('alicepid1', K1, judged({ score: 800000, title: 'One' }));
+  p.recordVerified('alicepid1', K2, judged({ score: 700000, title: 'Two' }));
+  assert.equal(p.profileMsg('alicepid1').firstCount, 2);
+  p.recordVerified('bobpid22', K1, judged({ score: 900000, title: 'One' }));
+  p.recordVerified('bobpid22', K2, judged({ score: 600000, title: 'Two' })); // (not enough)
+  assert.deepEqual(p.profileMsg('alicepid1').firsts.map(x => x.title), ['Two']);
+  assert.deepEqual(p.profileMsg('bobpid22').firsts.map(x => [x.title, x.score]), [['One', 900000]]);
+});
