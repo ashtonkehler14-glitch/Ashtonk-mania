@@ -6935,6 +6935,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Layout', k: 'ui.scale', l: 'UI scaling', t: 'range', d: TOUCH_DEVICE ? 1.25 : 0.9, min: 0.75, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.menuBackground', l: 'Background source', t: 'select', d: 'skin', o: [['skin', 'Skin'], ['beatmap', 'Beatmap']], hint: 'lazer\'s: the menu\'s triangle picture (in the playing song\'s colour), or the playing song\'s own background.' },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
@@ -11809,7 +11810,8 @@ const HomeScreen = {
     // lazer's SongTicker: the new song's title and artist at the top right for a few seconds
     this.ticker = h('div.lz-ticker', this.tkTitle = h('div.lz-tk-t'), this.tkArtist = h('div.lz-tk-a'));
     this.tip = h('div.lz-tipbox');
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), this.flashL, this.flashR,
+    // lazer's background source: the skin's menu background (the triangles) or the beatmap's
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, Settings.get('ui.menuBackground') === 'beatmap' ? null : MenuTriangles.mount(), this.flashL, this.flashR,
       h('div.lz-stage', this.area, this.logo), this.ticker, h('div.lz-bottom', this.tip), NeruMascot.build(),
       this.fountainCv = h('canvas.lz-fountain'));
     this._parts = []; this._spewers = [];
@@ -11836,6 +11838,13 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
     this._offMusic = Bus.on('music:changed', m => this.showTicker(m));
     this._offDaily = Bus.on('daily', () => this.paintDaily());
+    // (the background source changed in settings: the triangles come or go straight away)
+    this._offBgSrc = Bus.on('settings:changed', k => {
+      if (k !== 'ui.menuBackground' || !this.el) return;
+      const tri = this.el.querySelector(':scope > .lz-tri'), want = Settings.get('ui.menuBackground') !== 'beatmap';
+      if (want && !tri) this.el.prepend(MenuTriangles.mount());
+      else if (!want && tri) { MenuTriangles.stop(); tri.remove(); }
+    });
     if (Presence.ws) Daily.ask();
     this.paintDaily(); this._dailyT = setInterval(() => this.paintDaily(), 1000);
     this.loop();
@@ -11846,6 +11855,7 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
     if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
+    if (this._offBgSrc) this._offBgSrc();
     clearTimeout(this._tbT); $('#app').classList.remove('hide-toolbar');
   },
 
@@ -17553,7 +17563,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },

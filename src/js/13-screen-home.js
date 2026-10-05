@@ -18,7 +18,8 @@ const HomeScreen = {
     // lazer's SongTicker: the new song's title and artist at the top right for a few seconds
     this.ticker = h('div.lz-ticker', this.tkTitle = h('div.lz-tk-t'), this.tkArtist = h('div.lz-tk-a'));
     this.tip = h('div.lz-tipbox');
-    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, MenuTriangles.mount(), this.flashL, this.flashR,
+    // lazer's background source: the skin's menu background (the triangles) or the beatmap's
+    const el = h('div.home.lz-menu', { dataset: { state: 'initial' } }, Settings.get('ui.menuBackground') === 'beatmap' ? null : MenuTriangles.mount(), this.flashL, this.flashR,
       h('div.lz-stage', this.area, this.logo), this.ticker, h('div.lz-bottom', this.tip), NeruMascot.build(),
       this.fountainCv = h('canvas.lz-fountain'));
     this._parts = []; this._spewers = [];
@@ -45,6 +46,13 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
     this._offMusic = Bus.on('music:changed', m => this.showTicker(m));
     this._offDaily = Bus.on('daily', () => this.paintDaily());
+    // (the background source changed in settings: the triangles come or go straight away)
+    this._offBgSrc = Bus.on('settings:changed', k => {
+      if (k !== 'ui.menuBackground' || !this.el) return;
+      const tri = this.el.querySelector(':scope > .lz-tri'), want = Settings.get('ui.menuBackground') !== 'beatmap';
+      if (want && !tri) this.el.prepend(MenuTriangles.mount());
+      else if (!want && tri) { MenuTriangles.stop(); tri.remove(); }
+    });
     if (Presence.ws) Daily.ask();
     this.paintDaily(); this._dailyT = setInterval(() => this.paintDaily(), 1000);
     this.loop();
@@ -55,6 +63,7 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
     if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
+    if (this._offBgSrc) this._offBgSrc();
     clearTimeout(this._tbT); $('#app').classList.remove('hide-toolbar');
   },
 
