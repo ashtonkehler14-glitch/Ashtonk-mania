@@ -767,7 +767,7 @@ const EditorScreen = {
       this.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }, 'reverse those notes');
       return;
     }
-    if (!ctrl && !e.altKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
+    if (!ctrl && !e.altKey && !e.shiftKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
     // lazer: copy, cut and paste (at the current time, snapped)
     if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
@@ -793,6 +793,14 @@ const EditorScreen = {
     if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
     if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }
     if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { stop(); this.step(e.code === 'ArrowUp' ? 1 : -1); return; }
+    // lazer: ← / → seek by the beat snap (with nothing selected), Shift+← / → to the previous / next note
+    if (!ctrl && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      stop();
+      const d = e.code === 'ArrowRight' ? 1 : -1;
+      if (e.shiftKey) { const now = this.now(), n = d > 0 ? this.notes.find(x => x.t > now + 1) : [...this.notes].reverse().find(x => x.t < now - 1); if (n) this.seek(n.t); }
+      else this.step(d);
+      return;
+    }
     if (e.code === 'Home') { stop(); this.seek(0); return; }
     if (e.code === 'End') { stop(); this.seek(this.notes.length ? this.notes[this.notes.length - 1].t : this.duration); return; }
     if (e.code === 'F5' || (ctrl && e.code === 'Enter')) { stop(); this.test(); return; }

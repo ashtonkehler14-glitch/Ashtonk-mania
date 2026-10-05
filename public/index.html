@@ -17457,6 +17457,7 @@ const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
     { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'The main menu\'s Edit has lazer\'s beatmap and skin editors (pick a skin in Settings → Skin)'] },
+    { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
@@ -19116,7 +19117,7 @@ const EditorScreen = {
       this.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }, 'reverse those notes');
       return;
     }
-    if (!ctrl && !e.altKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
+    if (!ctrl && !e.altKey && !e.shiftKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
     if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
     // lazer: copy, cut and paste (at the current time, snapped)
     if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
@@ -19142,6 +19143,14 @@ const EditorScreen = {
     if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
     if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }
     if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { stop(); this.step(e.code === 'ArrowUp' ? 1 : -1); return; }
+    // lazer: ← / → seek by the beat snap (with nothing selected), Shift+← / → to the previous / next note
+    if (!ctrl && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      stop();
+      const d = e.code === 'ArrowRight' ? 1 : -1;
+      if (e.shiftKey) { const now = this.now(), n = d > 0 ? this.notes.find(x => x.t > now + 1) : [...this.notes].reverse().find(x => x.t < now - 1); if (n) this.seek(n.t); }
+      else this.step(d);
+      return;
+    }
     if (e.code === 'Home') { stop(); this.seek(0); return; }
     if (e.code === 'End') { stop(); this.seek(this.notes.length ? this.notes[this.notes.length - 1].t : this.duration); return; }
     if (e.code === 'F5' || (ctrl && e.code === 'Enter')) { stop(); this.test(); return; }
@@ -24184,6 +24193,89 @@ const PlaylistsScreen = {
   },
 };
 
+/* ===== 19k-screenshot.js ===== */
+/* osu!lazer's screenshots (F12): a PNG of the screen, saved with the date and time in its name and a notification
+ * that opens it. In gameplay the picture is put together from the game's own layers — the background (dimmed and
+ * blurred as you play it), the video and storyboard, the playfield, and the score — so it's instant and needs no
+ * permission; elsewhere the browser captures this tab (it asks the first time). */
+
+const Screenshot = {
+  async take() {
+    if (this._busy) return;
+    this._busy = true;
+    try {
+      const canvas = Screens.currentName === 'gameplay' && GameplayScreen.s ? await this.gameplay() : await this.capture();
+      if (!canvas) return;
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('The picture couldn\'t be made.');
+      const d = new Date(), p2 = n => String(n).padStart(2, '0');
+      const name = `ashtonk!mania ${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}.png`;
+      downloadBlob(blob, name);
+      const url = URL.createObjectURL(blob);
+      this.last = { name, size: blob.size, width: canvas.width, height: canvas.height };
+      Toast.show('Screenshot saved', `${name} — click to view`, { onClick: () => window.open(url, '_blank') });
+      setTimeout(() => URL.revokeObjectURL(url), 10 * 60000);
+    } catch (e) {
+      if (e && e.name === 'NotAllowedError') Toast.show('No screenshot', 'The browser needs permission to capture this tab.');
+      else Toast.err('Couldn\'t take a screenshot', friendlyError(e));
+    } finally { this._busy = false; }
+  },
+  /** The gameplay screen from its layers, at the screen's full resolution. */
+  async gameplay() {
+    const G = GameplayScreen, el = G.el, box = el.getBoundingClientRect();
+    const k = Math.min(3, window.devicePixelRatio || 1), W = Math.round(el.clientWidth * k), H = Math.round(el.clientHeight * k);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    const sx = W / (box.width || 1), sy = H / (box.height || 1);
+    const at = node => { const r = node.getBoundingClientRect(); return [(r.left - box.left) * sx, (r.top - box.top) * sy, r.width * sx, r.height * sy]; };
+    const cover = (img, iw, ih) => { const s = Math.max(W / iw, H / ih), w = iw * s, hh = ih * s; ctx.drawImage(img, (W - w) / 2, (H - hh) / 2, w, hh); };
+    // the background (its blurred copy, as shown)
+    const m = /url\("?([^")]+)"?\)/.exec(G.bgEl.style.backgroundImage || '');
+    if (m) { const img = await this.image(m[1]).catch(() => null); if (img) cover(img, img.naturalWidth, img.naturalHeight); }
+    const v = G.videoEl;
+    if (v && v.readyState >= 2 && v.videoWidth && getComputedStyle(v).display !== 'none' && +getComputedStyle(v).opacity > 0) cover(v, v.videoWidth, v.videoHeight);
+    if (G.sbCanvas && G.sbCanvas.width) { const [x, y, w, hh] = at(G.sbCanvas); ctx.drawImage(G.sbCanvas, x, y, w, hh); }
+    // the dim over them
+    const dim = +getComputedStyle(G.dimEl).opacity || 0;
+    if (dim > 0) { ctx.fillStyle = `rgba(0, 0, 0, ${dim})`; ctx.fillRect(0, 0, W, H); }
+    if (G.canvas && G.canvas.width) { const [x, y, w, hh] = at(G.canvas); ctx.drawImage(G.canvas, x, y, w, hh); }
+    // the score and accuracy, top right, as the HUD shows them
+    if (G.scoreEl && G.scoreEl.offsetParent !== null && !G.hud.classList.contains('hidden-hud')) {
+      const draw = (node, text, weight) => {
+        const r = node.getBoundingClientRect(); if (!r.width) return;
+        const cs = getComputedStyle(node), size = parseFloat(cs.fontSize) * sy;
+        ctx.font = `${weight} ${size}px Torus, Outfit, system-ui, sans-serif`;
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0, 0, 0, .6)'; ctx.shadowBlur = 8 * sy;
+        ctx.fillStyle = cs.color || '#fff';
+        ctx.fillText(text, (r.right - box.left) * sx, (r.top + r.height / 2 - box.top) * sy);
+        ctx.shadowBlur = 0;
+      };
+      draw(G.scoreEl, fmtScore(G._lastSc || 0), 700);
+      draw(G.accEl, fmtAcc(G._lastAcc ?? 1), 600);
+    }
+    return c;
+  },
+  image(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); },
+  /** This tab, through the browser's screen capture (one frame). */
+  async capture() {
+    const md = navigator.mediaDevices;
+    if (!md || !md.getDisplayMedia) { Toast.err('Screenshots need a newer browser', 'This browser can\'t capture the page — screenshots still work while playing.'); return null; }
+    const stream = await md.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
+    const track = stream.getVideoTracks()[0];
+    try {
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.srcObject = stream;
+      await v.play();
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext('2d').drawImage(v, 0, 0);
+      return c;
+    } finally { track.stop(); }
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -24238,7 +24330,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen, SkinEditor, HudLayout };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen, SkinEditor, HudLayout, Screenshot };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -24396,6 +24488,8 @@ const App = {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
     // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
+    // lazer's F12: a screenshot
+    if (e.code === 'F12' && !e.ctrlKey && !e.altKey && !e.shiftKey) { e.preventDefault(); Screenshot.take(); return; }
     // lazer's Ctrl+F11: show / hide the FPS counter
     if ((e.ctrlKey || e.metaKey) && e.code === 'F11') { e.preventDefault(); Settings.set('graphics.showFps', !Settings.get('graphics.showFps')); return; }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); const v = !Settings.get('debug.overlay'); Settings.set('debug.overlay', v); OSD.show('Debug overlay', v ? 'shown' : 'hidden', 'Ctrl+Shift+D'); return; }

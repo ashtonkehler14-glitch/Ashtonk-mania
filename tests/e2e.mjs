@@ -1220,6 +1220,16 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.evaluate(() => AshtonkMania.Settings.set('hud.layout', {}));
 }
 
+// lazer's F12 screenshot: in gameplay it's put together from the game's layers, at the screen's size
+{
+  await page.evaluate(() => { window.__shots = []; window.downloadBlob = (b, n) => window.__shots.push({ b, n }); const M = AshtonkMania, m = [...M.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); M.Game.launch({ mapId: m.id, mods: ['AT'], mode: 'play' }); });
+  await page.waitForTimeout(5000);
+  await page.keyboard.press('F12'); await page.waitForTimeout(1500);
+  const r = await page.evaluate(async () => { const s = window.__shots[0]; if (!s) return null; const bmp = await createImageBitmap(s.b); return { n: s.n, w: bmp.width, h: bmp.height, type: s.b.type }; });
+  check('F12 in gameplay saves a PNG screenshot of the screen', !!r && r.type === 'image/png' && r.w >= 800 && /^ashtonk!mania \d{4}-\d\d-\d\d .*\.png$/.test(r.n), JSON.stringify(r));
+  await page.evaluate(() => AshtonkMania.GameplayScreen.quit()); await page.waitForTimeout(1200);
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();
