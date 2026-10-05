@@ -76,6 +76,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress display', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['graph', 'Graph (lazer)'], ['none', 'Hidden']] },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hudMode', l: 'HUD overlay visibility mode', t: 'select', d: 'always', o: [['always', 'Always'], ['gameplay', 'Hide during gameplay'], ['never', 'Never']], hint: 'Hide during gameplay: the HUD shows before the first note, in breaks and when paused. Hold Ctrl to peek at it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorMeter', l: 'Hit error meter', t: 'bool', d: true, hint: 'osu!lazer\'s bar at the bottom of the screen: how early or late each hit was, against the timing windows.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Show judgement counter', t: 'bool', d: false, hint: 'osu!lazer\'s judgement counter: how many of each judgement so far.' },

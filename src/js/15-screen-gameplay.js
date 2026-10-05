@@ -738,7 +738,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -917,6 +917,7 @@ const GameplayScreen = {
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);
       this.updateBreak(now);
+      this.hudMode(now);
       this.syncVideo(now);
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
@@ -1351,7 +1352,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       return;
     }
     // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it
-    if ((e.key === 'Control') && this.hud.classList.contains('hidden-hud')) this.hud.classList.add('peek');
+    if ((e.key === 'Control') && (this.hud.classList.contains('hidden-hud') || this.hud.classList.contains('auto-hide'))) this.hud.classList.add('peek');
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
@@ -1726,6 +1727,13 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return { score, replay };
   },
 
+  /** lazer's HUD overlay visibility mode: always, hidden during gameplay (shown before the first note, in breaks,
+   *  when paused or finished), or never. Ctrl peeks, as with Shift+Tab. */
+  hudMode(now) {
+    const s = this.s, mode = Settings.get('gameplay.hudMode') || 'always';
+    const off = mode === 'never' || (mode === 'gameplay' && s.running && !s.finished && !this._inBreak && now > s.firstNote - 500 * s.rate);
+    if (off !== this._hudOff) { this._hudOff = off; this.hud.classList.toggle('auto-hide', off); }
+  },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
   updateBreak(now) {

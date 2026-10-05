@@ -4327,6 +4327,10 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 /* (the results card fits a sideways phone's height instead of scrolling) */
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
+/* lazer's HUD overlay visibility mode (hidden during gameplay / never): the HUD fades out — but not the touch columns,
+ * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
+.gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.hud-hfm):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
+.gp-hud.auto-hide.peek > * { opacity: 1 !important; }
 
 </style>
 </head>
@@ -6875,6 +6879,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.progressDisplay', l: 'Song progress display', t: 'select', d: 'pie', o: [['pie', 'Pie chart'], ['bar', 'Bar'], ['both', 'Pie + bar'], ['graph', 'Graph (lazer)'], ['none', 'Hidden']] },
   { x: 1, s: 'Gameplay', g: 'HUD', k: 'gameplay.showPp', l: 'Show performance points counter', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.leaderboard', l: 'Always show gameplay leaderboard', t: 'bool', d: true, desc: 'Local scores on the left while you play (osu!lazer-style). Tab shows or hides it.' },
+  { s: 'Gameplay', g: 'HUD', k: 'gameplay.hudMode', l: 'HUD overlay visibility mode', t: 'select', d: 'always', o: [['always', 'Always'], ['gameplay', 'Hide during gameplay'], ['never', 'Never']], hint: 'Hide during gameplay: the HUD shows before the first note, in breaks and when paused. Hold Ctrl to peek at it.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.showHealth', l: 'Show health display', t: 'bool', d: true },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.hitErrorMeter', l: 'Hit error meter', t: 'bool', d: true, hint: 'osu!lazer\'s bar at the bottom of the screen: how early or late each hit was, against the timing windows.' },
   { s: 'Gameplay', g: 'HUD', k: 'gameplay.judgementCounter', l: 'Show judgement counter', t: 'bool', d: false, hint: 'osu!lazer\'s judgement counter: how many of each judgement so far.' },
@@ -14585,7 +14590,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -14764,6 +14769,7 @@ const GameplayScreen = {
       this.updateHud(now);
       if (this.errMeter) this.errMeter.draw(realNow);
       this.updateBreak(now);
+      this.hudMode(now);
       this.syncVideo(now);
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
@@ -15198,7 +15204,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       return;
     }
     // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it
-    if ((e.key === 'Control') && this.hud.classList.contains('hidden-hud')) this.hud.classList.add('peek');
+    if ((e.key === 'Control') && (this.hud.classList.contains('hidden-hud') || this.hud.classList.contains('auto-hide'))) this.hud.classList.add('peek');
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const col = s.keyMap.get(e.code);
@@ -15573,6 +15579,13 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     return { score, replay };
   },
 
+  /** lazer's HUD overlay visibility mode: always, hidden during gameplay (shown before the first note, in breaks,
+   *  when paused or finished), or never. Ctrl peeks, as with Shift+Tab. */
+  hudMode(now) {
+    const s = this.s, mode = Settings.get('gameplay.hudMode') || 'always';
+    const off = mode === 'never' || (mode === 'gameplay' && s.running && !s.finished && !this._inBreak && now > s.firstNote - 500 * s.rate);
+    if (off !== this._hudOff) { this._hudOff = off; this.hud.classList.toggle('auto-hide', off); }
+  },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
   updateBreak(now) {
@@ -17511,7 +17524,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },

@@ -4308,3 +4308,7 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 /* (the results card fits a sideways phone's height instead of scrolling) */
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
+/* lazer's HUD overlay visibility mode (hidden during gameplay / never): the HUD fades out — but not the touch columns,
+ * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
+.gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.hud-hfm):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
+.gp-hud.auto-hide.peek > * { opacity: 1 !important; }
