@@ -1388,7 +1388,9 @@ export class Matchmaker {
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
-        const pl = {}; for (const [k, v] of await st.list({ prefix: 'pl:' })) pl[k.slice(3)] = v;
+        const pl = {}, plOld = [];
+        for (const [k, v] of await st.list({ prefix: 'pl:' })) { if (v && Date.now() - (v.ends || 0) >= PresenceLogic.PL_KEEP) plOld.push(k); else pl[k.slice(3)] = v; }
+        if (plOld.length) st.delete(plOld.slice(0, 128)).catch(() => {}); // (long-closed playlists go for good)
         this.presence.loadPlaylists(pl);
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
       } catch { /* storage unavailable: start empty */ }
