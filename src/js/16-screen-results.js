@@ -7,7 +7,7 @@ const ResultsScreen = {
     this.p = p;
     const s = p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
-    const el = h('div.results');
+    const el = this._el = h('div.results');
     if (map) BeatmapManager.bgURL(map).then(u => Background.set(u));
     const body = h('div.res-body');
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
@@ -47,6 +47,28 @@ const ResultsScreen = {
       grid.style.scale = k < 0.995 ? k.toFixed(4) : '';
     };
     ro.observe(body); ro.observe(grid);
+  },
+  /** lazer's results: picking another score's panel makes it the big one in the middle — it grows out of where the
+   *  small panel was, while the score that was big shrinks back into the row. */
+  swapTo(score, fromEl) {
+    const old = this._el, oldScore = this.p.score;
+    if (!old || !old.isConnected || score === oldScore) return;
+    const fromRect = fromEl && fromEl.getBoundingClientRect(), oldCard = old.querySelector('.res-grid > .rs'), oldRect = oldCard && oldCard.getBoundingClientRect();
+    (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = [];
+    const fresh = this.enter({ ...this.p, score, fromList: true, fresh: false, replay: null });
+    old.replaceWith(fresh);
+    requestAnimationFrame(() => {
+      const fly = (el, from) => {
+        if (!el || !from) return;
+        const to = el.getBoundingClientRect();
+        if (!to.width || !to.height) return;
+        const sx = from.width / to.width, sy = from.height / to.height, dx = from.left - to.left, dy = from.top - to.top;
+        el.animate([{ transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.6 }, { transformOrigin: '0 0', transform: 'none', opacity: 1 }],
+          { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+      };
+      fly(fresh.querySelector('.res-grid > .rs'), fromRect);
+      fly(fresh.querySelector(`.cp[data-sid="${CSS.escape(String(oldScore.id))}"]`), oldRect);
+    });
   },
   leave() { MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the

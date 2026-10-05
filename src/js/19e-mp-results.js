@@ -30,7 +30,8 @@ const MpResults = {
     // (the two either side of yours, so your own panel keeps its size)
     const mine = all.indexOf(s), from = Math.max(0, mine - 2);
     const rows = all.map(row).slice(from, mine + 3), at = mine - from;
-    const el = (r, i) => { const e = this.panel(r, i, true, null); e.classList.add('cp-click'); e.title = new Date(r.src.date).toLocaleString(); e.onclick = () => { UISounds.click(); Screens.go('results', { score: r.src, fromList: true }, { replace: true }); }; return e; };
+    // (clicking one makes it the big panel, swapped in place as lazer's results do)
+    const el = (r, i) => { const e = this.panel(r, i, true, null); e.classList.add('cp-click'); e.dataset.sid = String(r.id); e.title = new Date(r.src.date).toLocaleString(); e.onclick = () => { UISounds.click(); ResultsScreen.swapTo(r.src, e); }; return e; };
     const before = h('div.res-mp-side.before', ...rows.slice(0, at).map((r, k) => el(r, k))), after = h('div.res-mp-side.after', ...rows.slice(at + 1).map((r, k) => el(r, at + 1 + k)));
     grid.prepend(before); card.after(after);
     grid.closest('.res-body').classList.add('mp', 'solo-list');
