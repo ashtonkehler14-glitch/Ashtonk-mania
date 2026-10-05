@@ -1222,3 +1222,15 @@ test('first place ranks: a player who takes #1 on a beatmap has it, and loses it
   assert.deepEqual(p.profileMsg('alicepid1').firsts.map(x => x.title), ['Two']);
   assert.deepEqual(p.profileMsg('bobpid22').firsts.map(x => [x.title, x.score]), [['One', 900000]]);
 });
+
+test('a player whose best plays are stored apart can\'t have them started over by a new play before they\'re read', () => {
+  const p = new PresenceLogic(() => 5000);
+  p.loadRanks({ alicepid1: { pid: 'alicepid1', name: 'Alice', plays: 3, pol: 2, sb: 1, rep: { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, v: { pp: 300, acc: 0.95, ss: 0, s: 1, a: 0 } } });
+  assert.equal(p.ranks.get('alicepid1')._lazy, true);
+  assert.equal(p.rankings('alicepid1').you.pp, 300, 'the totals are there without the plays');
+  assert.equal(p.rankings('alicepid1').you._lazy, undefined);
+  assert.throws(() => p.recordVerified('alicepid1', K1, judged({ score: 1 })));
+  p.ranks.get('alicepid1').bests = { [K2]: { pp: 300, acc: 0.95, grade: 'S', score: 900000 } }; delete p.ranks.get('alicepid1')._lazy;
+  p.recordVerified('alicepid1', K1, judged({ pp: 100 }));
+  assert.equal(Object.keys(p.ranks.get('alicepid1').bests).length, 2, 'the new play joins the ones read');
+});

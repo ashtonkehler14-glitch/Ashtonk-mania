@@ -837,6 +837,7 @@ export class PresenceLogic {
     if (r.beatmapId > 0 && this.boardIds.get(r.beatmapId) !== key) { this.boardIds.set(r.beatmapId, key); if (this.persistBoardId) this.persistBoardId(r.beatmapId, key); }
     // the player's record: best pp per beatmap → total pp (each next one 95% as much), accuracy weighted the same way
     const rec = old || { pid, name, avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
+    if (rec._lazy && !rec.bests) throw new Error('A player\'s best plays have to be loaded before a new one is recorded.'); // (never start them over by mistake)
     if (!rec.bests) rec.bests = {}; // (a record from before the server judged plays: its pp stays as reported)
     rec.name = name; rec.avatar = avatar; rec.plays++; rec.at = t;
     const b = rec.bests[key];
@@ -955,6 +956,8 @@ export class PresenceLogic {
   loadRanks(ranks) {
     for (const [pid, r] of Object.entries(ranks || {})) {
       if (!r || typeof r !== 'object') continue;
+      // (stored apart — rb:<pid> — and read only when needed: the rankings need just the totals)
+      if (r.sb && !r.bests) r._lazy = true;
       // (records from before only ranked beatmaps gave pp: their plays can't be told apart, so their standing starts over
       //  — the player's game reports its ranked-only pp the next time they're online, and new plays are judged as usual)
       if ((r.pol || 0) < PresenceLogic.RANK_POLICY) {
@@ -990,7 +993,7 @@ export class PresenceLogic {
     const all = [...this.ranks.values()].filter(r => r.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
-    const pub = ({ bests, v, rep, ...r }) => r; // (not each player's whole list of plays)
+    const pub = ({ bests, v, rep, _lazy, sb, ...r }) => r; // (not each player's whole list of plays)
     return { t: 'rankings', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
@@ -1337,9 +1340,14 @@ export class Matchmaker {
       if (msg.t === 'bye') { gone(); try { server.close(1000, 'bye'); } catch { /* closed */ } return; }
       // (a beatmap's leaderboard comes out of storage the first time it's asked for)
       // (and a player's profile the first time it's opened)
-      if (msg.t === 'profile' && /^[a-z0-9]{6,24}$/.test(String(msg.pid || '')) && !this.presence.profiles.has(msg.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(msg.pid)) {
-        this._pfLoaded.add(msg.pid);
-        this.state.storage.get(`pf:${msg.pid}`).catch(() => null).then(v => {
+      // (their best plays too, when they're kept apart and not read yet)
+      const lazyBests = msg.t === 'profile' && (r => r && r._lazy && !r.bests)(this.presence.ranks.get(String(msg.pid || '')));
+      if (msg.t === 'profile' && /^[a-z0-9]{6,24}$/.test(String(msg.pid || '')) && (lazyBests || (!this.presence.profiles.has(msg.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(msg.pid)))) {
+        (this._pfLoaded || (this._pfLoaded = new Set())).add(msg.pid);
+        Promise.all([
+          this.presence.profiles.has(msg.pid) ? null : this.state.storage.get(`pf:${msg.pid}`).catch(() => null),
+          this.ensureBests(msg.pid).catch(() => {}),
+        ]).then(([v]) => {
           if (v && typeof v === 'object' && !this.presence.profiles.has(msg.pid)) this.presence.profiles.set(msg.pid, v);
           if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
         });
@@ -1388,6 +1396,7 @@ export class Matchmaker {
     if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
     const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
+    await this.ensureBests(pid);
     const { out, entry, total, rank, of, best } = this.presence.recordVerified(pid, key, r, { daily, playlist });
     this.send(out);
     return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best });
@@ -1415,7 +1424,12 @@ export class Matchmaker {
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
-      this.presence.persistRank = (pid, r) => { st.put(`rk:${pid}`, r).catch(() => {}); };
+      // (a player's totals and their best plays are kept apart: the totals load with the server, the plays when needed)
+      this.presence.persistRank = (pid, r) => { const { bests, _lazy, ...rest } = r; st.put(`rk:${pid}`, { ...rest, sb: 1 }).catch(() => {}); if (bests) st.put(`rb:${pid}`, bests).catch(() => {}); r.sb = 1; };
+      // records from before that: split a few at a time, in the background
+      const inline = [...this.presence.ranks].filter(([, r]) => !r.sb && r.bests).map(([pid]) => pid);
+      const split = () => { for (const pid of inline.splice(0, 20)) { const r = this.presence.ranks.get(pid); if (r && !r.sb) this.presence.persistRank(pid, r); } if (inline.length) setTimeout(split, 500); };
+      if (inline.length) setTimeout(split, 3000);
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
@@ -1435,6 +1449,7 @@ export class Matchmaker {
           if (!top || !top.pid) continue;
           const cur = P.firsts.get(top.pid) || {};
           if (cur[key]) continue;
+          await this.ensureBests(top.pid);
           const b = P.ranks.get(top.pid) && P.ranks.get(top.pid).bests && P.ranks.get(top.pid).bests[key];
           cur[key] = { score: top.score, acc: top.acc, grade: top.grade, mods: top.mods || [], combo: top.combo, pp: top.pp, date: top.date, stars: top.stars,
             title: b ? b.title : '', artist: b ? b.artist : '', version: b ? b.version : '' };
@@ -1469,6 +1484,14 @@ export class Matchmaker {
         } catch { /* storage full or unavailable: the in-memory answers still work */ }
       },
     };
+  }
+  /** A player's best plays, read from storage the first time they're needed. */
+  async ensureBests(pid) {
+    const r = this.presence.ranks.get(pid);
+    if (!r || !r._lazy || r.bests) return;
+    const b = await this.state.storage.get(`rb:${pid}`).catch(() => null);
+    if (!r.bests) r.bests = b && typeof b === 'object' ? b : {};
+    delete r._lazy;
   }
   /** Players whose standing started over (or who never had one) and aren't online to re-report it: their standing
    *  from the best plays their profile lists, counting only those on ranked beatmaps — the profile says so, or (shared
