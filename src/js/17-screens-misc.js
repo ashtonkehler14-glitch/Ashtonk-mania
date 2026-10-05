@@ -251,6 +251,38 @@ const ProfileScreen = {
       h('div.pf-most-t', h('div.pf-most-title', x.title, h('span', ` by ${x.artist}`)), h('div.pf-most-meta', starBadge(x.stars || 0), h('span.keys-tag', `${x.keys}K`), h('span', x.version), x.creator ? h('span.muted', `mapped by ${x.creator}`) : null)),
       h('div.pf-most-n', icon('play'), h('b', fmtInt(x.count))));
   },
+  /** lazer's profile Beatmaps section: your favourite beatmaps, and the ones you made (in the editor, under your name). */
+  beatmapLists() {
+    const lite = set => {
+      const maps = set.mapIds.map(id => BeatmapManager.maps.get(id)).filter(Boolean), stars = maps.map(m => m.stars || 0);
+      return { title: set.title, artist: set.artist, creator: set.creator, status: set.status || '', onlineSetId: set.onlineId > 0 ? set.onlineId : 0, setId: set.id,
+        diffs: maps.length, keys: [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b), lo: stars.length ? Math.min(...stars) : 0, hi: stars.length ? Math.max(...stars) : 0 };
+    };
+    const me = (ProfileManager.profile.name || '').trim().toLowerCase();
+    return {
+      favourites: [...Favorites.set].map(id => BeatmapManager.setById.get(id)).filter(Boolean).slice(0, 50).map(lite),
+      made: me ? BeatmapManager.sets.filter(st => (st.creator || '').trim().toLowerCase() === me).slice(0, 50).map(lite) : [],
+    };
+  },
+  /** lazer's BeatmapCard: the cover, the title and artist, the mapper, the status and the difficulties. */
+  beatmapCard(x, own) {
+    const cover = h('div.pf-bc-cover');
+    if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['card@2x', 'card', 'cover']);
+    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
+    const local = own && BeatmapManager.setById.get(x.setId);
+    const open = () => {
+      UISounds.click();
+      if (local && local.mapIds.length) Screens.go('songselect', { mapId: local.mapIds[0] });
+      else if (x.onlineSetId > 0) OnlineBeatmaps.getSet(x.onlineSetId).then(full => full && ExplorerScreen.openSet(full)).catch(() => {});
+    };
+    return h(`div.pf-bc${local || x.onlineSetId > 0 ? '.click' : ''}`, { onclick: open },
+      cover,
+      h('div.pf-bc-in',
+        h('div.pf-bc-title', x.title), h('div.pf-bc-artist', `by ${x.artist}`),
+        h('div.pf-bc-meta', x.creator ? h('span', 'mapped by ', h('b', x.creator)) : null),
+        h('div.pf-bc-foot', statusPill(x.status) || h('span.pf-bc-local', 'local'), starBadge(x.lo || 0), x.hi > x.lo + 0.05 ? h('span.muted', `– ${(x.hi || 0).toFixed(2)}`) : null,
+          h('span.muted', `${x.diffs} diff${x.diffs === 1 ? '' : 's'} · ${(x.keys || []).map(k => k + 'K').join(' ')}`))));
+  },
   /** lazer's "Most played beatmaps": your plays counted per difficulty, the most first. */
   mostPlayed() {
     const by = new Map();
@@ -278,6 +310,7 @@ const ProfileScreen = {
       top: ScoreManager.bestPpPerMap().slice(0, 20).map(tp => lite(tp.score, tp.pp)),
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
       mostPlayed: this.mostPlayed(),
+      ...this.beatmapLists(),
       medals: Medals.unlocked(),
       ppHist: ScoreManager.ppHistory().slice(-60).map(x => ({ y: Math.round(x.pp), tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })),
       perDay: st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })),
@@ -286,7 +319,8 @@ const ProfileScreen = {
   /** The same, for sending: without the local score objects. */
   summary() {
     const d = this.localData(), strip = a => a.map(({ _s, ...x }) => x);
-    return { ...d, top: strip(d.top), recent: strip(d.recent) };
+    // (20 of each beatmap list: the profile has to fit what the server keeps)
+    return { ...d, top: strip(d.top), recent: strip(d.recent), favourites: (d.favourites || []).slice(0, 20), made: (d.made || []).slice(0, 20) };
   },
   render() {
     const page = this.page;
@@ -373,6 +407,11 @@ const ProfileScreen = {
       // lazer: the beatmaps they're #1 on, on the global leaderboards
       (f => sub('First place ranks', f.count, f.list.length ? more(f.list, (x, i) => row(x, i, false)) : h('div.pf-empty', own ? 'Not #1 on any beatmap yet.' : 'No first place ranks yet.')))((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [], count: 0 }));
     const got = d.medals || {};
+    const favs = d.favourites || [], made = d.made || [];
+    const cards = list => (b => { b.className = 'pf-bcs'; return b; })(more(list, x => this.beatmapCard(x, own), 6));
+    const maps = section('beatmaps', 'Beatmaps',
+      sub('Favourite beatmaps', favs.length, favs.length ? cards(favs) : h('div.pf-empty', own ? 'No favourites yet — the heart on a beatmap in song select adds it here.' : 'No favourite beatmaps.')),
+      sub('Created beatmaps', made.length, made.length ? cards(made) : h('div.pf-empty', own ? 'Nothing yet — beatmaps you make in the editor show here.' : 'No beatmaps yet.')));
     const medals = section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
     const recent = d.recent || [];
     // lazer's Recent activity: what happened, newest first — medals unlocked, #1 ranks achieved
@@ -389,7 +428,7 @@ const ProfileScreen = {
         : h('div.pf-empty', 'No recent plays.')));
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, medals, rec);
+    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, maps, medals, rec);
     this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
@@ -619,7 +658,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Rankings have lazer\'s Score table too: players by ranked score (their best score on each ranked beatmap, added up)', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit is lazer\'s again: just the beatmap and skin editors (replays, your beatmap library and collections are in the menu under your name)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps and the ones you made in the editor, as cards', 'Rankings have lazer\'s Score table too: players by ranked score (their best score on each ranked beatmap, added up)', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },

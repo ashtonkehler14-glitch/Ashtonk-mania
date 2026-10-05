@@ -4343,3 +4343,18 @@ html:not(.perf) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn
 /* (and closing: lazer's waves drop away — the overlay sinks as it fades) */
 html:not(.perf) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
 @keyframes ovOut { to { transform: translateY(18%); opacity: 0; } }
+/* lazer's BeatmapCard on the profile: the cover behind, the details over a dark gradient */
+.pf-bcs { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.pf-bcs > .pf-more { grid-column: 1 / -1; }
+.pf-bc { position: relative; height: 100px; border-radius: 10px; overflow: hidden; background: hsl(var(--o-h) 10% 18%); }
+.pf-bc.click { cursor: pointer; }
+.pf-bc-cover { position: absolute; inset: 0; background: hsl(var(--o-h) 10% 14%) center / cover; transition: transform 300ms var(--ease-out, ease); }
+.pf-bc-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .82) 0%, rgba(0, 0, 0, .55) 60%, rgba(0, 0, 0, .3)); }
+.pf-bc.click:hover .pf-bc-cover { transform: scale(1.04); }
+.pf-bc-in { position: relative; height: 100%; display: flex; flex-direction: column; gap: 1px; padding: 10px 14px; min-width: 0; }
+.pf-bc-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+.pf-bc-artist { font-size: 12.5px; color: rgba(255, 255, 255, .85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-bc-meta { font-size: 11.5px; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-bc-meta b { color: rgba(255, 255, 255, .9); }
+.pf-bc-foot { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.pf-bc-local { padding: 1px 8px; border-radius: 9px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
