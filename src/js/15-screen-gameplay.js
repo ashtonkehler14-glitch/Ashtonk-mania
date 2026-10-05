@@ -1000,10 +1000,14 @@ const GameplayScreen = {
         setText(this.ppEl, t);
       }
     } else if (this.ppEl.textContent) this.ppEl.textContent = '';
-    const canSkip = s.running && now < s.skipTarget - 1500 * s.rate && !s.practice;
-    if (canSkip !== this._canSkip) { this._canSkip = canSkip; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now; }
+    const oe = this.outroEnd(s), outro = !!oe && s.running && e.finished && now > s.endTime + 400 * s.rate && now < oe - 500;
+    const canSkip = (s.running && now < s.skipTarget - 1500 * s.rate && !s.practice) || outro;
+    if (canSkip !== this._canSkip || outro !== this._canSkipOut) {
+      this._canSkip = canSkip; this._canSkipOut = outro; this.skipBtn.style.display = canSkip ? '' : 'none'; this._skipFrom = now;
+      setText(this.skipBtn.querySelector('.sk-label'), outro ? 'Skip outro' : 'Skip');
+    }
     if (canSkip) {
-      const end = s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
+      const end = outro ? oe : s.skipTarget - 1500 * s.rate, left = clamp((end - now) / Math.max(1, end - this._skipFrom), 0, 1);
       this.skipBtn.style.setProperty('--left', left.toFixed(3));
     }
     if (s.mp) this.updateMp(e); else this.updateLeaderboard();
@@ -1240,7 +1244,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const s = this.s, e = s.engine;
     if (s.finished) return;
     if (e.health.failed && !s.practice) { this.fail(now); return; }
-    const done = e.finished && now > s.endTime + 400 * s.rate;
+    // (lazer: a storyboard that carries on past the last note is waited for — its outro — and can be skipped)
+    const done = e.finished && now > Math.max(s.endTime + 400 * s.rate, this.outroEnd(s));
     const audioDone = !Music.playing && Music.pausedPos >= Music.duration - 5 && now > 0;
     if (s.practice) return;
     if (done || (audioDone && now > s.endTime)) {
@@ -1389,9 +1394,12 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     }
   },
 
+  /** When a storyboard's outro ends (0: none — no storyboard past the last note, or in multiplayer). */
+  outroEnd(s) { return !s.mp && !s.practice && this.sb && this.sb.end > s.endTime + 400 * s.rate ? this.sb.end : 0; },
   skip() {
     const s = this.s;
     if (!s || !s.running) return;
+    if (this._canSkipOut) { UISounds.click(); this._canSkipOut = false; this.complete(); return; }
     const now = this.gameTime();
     if (now >= s.skipTarget - 1000 * s.rate) return;
     if (s.mp) {
@@ -1776,7 +1784,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     switch (e.code) {
       case 'Space':
         if (e.repeat) return true;
-        if (s.running && this.gameTime() < s.skipTarget - 1000 * s.rate) this.skip(); else this.replayToggle();
+        if (s.running && (this._canSkipOut || this.gameTime() < s.skipTarget - 1000 * s.rate)) this.skip(); else this.replayToggle();
         return true;
       case 'ArrowLeft': this.replaySeek(this.gameTime() - 5000 * s.rate); return true;
       case 'ArrowRight': this.replaySeek(this.gameTime() + 5000 * s.rate); return true;

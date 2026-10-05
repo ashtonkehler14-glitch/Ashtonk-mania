@@ -4090,3 +4090,4 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 
 .md-online { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
 .md-online .bso-ratings, .md-online .bso-fails { margin-top: 0; }
+.hud-skip .sk-label { white-space: nowrap; }

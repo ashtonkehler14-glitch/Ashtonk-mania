@@ -208,6 +208,7 @@ class StoryboardPlayer {
     // (drawn layer by layer, each in file order)
     this.sprites = sprites.filter(s => s.layer !== SB_LAYERS.Fail).sort((a, b) => a.layer - b.layer || a.order - b.order);
     this.byStart = [...this.sprites].sort((a, b) => a.start - b.start);
+    this.end = 0; for (const s of this.sprites) if (s.end > this.end) this.end = s.end; // (when the last sprite's done: the outro's end)
     this.reset();
     this.tints = new Map();
   }
