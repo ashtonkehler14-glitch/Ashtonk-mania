@@ -609,6 +609,8 @@ const MODS = [
     desc: 'Can you still feel the rhythm without music?' },
   { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
+  { id: 'CN', name: 'Cinema', group: 'automation', key: 'Comma', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
+    desc: 'Watch the video without visual distractions.' },
 ];
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
 /** A glyph for every mod (24×24, stroked), in the spirit of osu!lazer's mod icons. */
@@ -638,6 +640,7 @@ const MOD_GLYPHS = {
   PC: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 17M8 15.5L20 7"/>',
   RT: '<path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/>',
   DA: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" class="fillme"/><circle cx="15" cy="12" r="2" class="fillme"/><circle cx="7" cy="17" r="2" class="fillme"/>',
+  CN: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/>',
   AT: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01"/><circle cx="12" cy="3.5" r="1.2" class="fillme"/>',
 };
 /** osu!lazer's mod icon: a rounded hexagon in the mod type's colour with the mod's glyph on it. */
@@ -660,8 +663,10 @@ const ModSystem = {
   toggle(list, id) {
     const m = MOD_BY_ID.get(id);
     if (!m) return list;
-    if (list.includes(id)) return list.filter(x => x !== id);
-    return this.normalize([...list.filter(x => !m.incompatible.includes(x) && !(MOD_BY_ID.get(x)?.incompatible || []).includes(id)), id]);
+    // (Cinema is Auto with nothing drawn over the background: it brings Auto with it, and goes with it)
+    const tie = r => r.includes('CN') && !r.includes('AT') ? this.normalize([...r, 'AT']) : r;
+    if (list.includes(id)) return list.filter(x => x !== id && !(id === 'AT' && x === 'CN'));
+    return tie(this.normalize([...list.filter(x => !m.incompatible.includes(x) && !(MOD_BY_ID.get(x)?.incompatible || []).includes(id)), id]));
   },
   config(cfg) { return { ...MOD_CONFIG_DEFAULTS, ...(cfg || (typeof Settings !== 'undefined' ? Settings.get('mods.config') : null) || {}) }; },
   multiplier(list, cfg) {

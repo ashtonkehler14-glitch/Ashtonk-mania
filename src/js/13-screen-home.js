@@ -72,6 +72,8 @@ const HomeScreen = {
         ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
+        // lazer's playlists button, L
+        ['playlists', 'playlists', 'list', '#5e3fba', ['KeyL'], 'play', 'play', null, () => this.enterMode(() => Screens.go('playlists'))],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed

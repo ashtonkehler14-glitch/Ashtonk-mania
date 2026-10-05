@@ -1132,3 +1132,32 @@ test('a standing from a profile\'s best plays counts only the ones on ranked bea
   assert.deepEqual([r.ss, r.s, r.a], [1, 1, 0]);
   assert.equal(PresenceLogic.rankFromTop([{ pp: 300, ranked: false }], x => x.ranked), null);
 });
+
+test('playlists: a player puts beatmaps up for a while; judged plays on them make each beatmap\'s board and the totals', () => {
+  const clock = { t: 1000 };
+  const p = new PresenceLogic(() => clock.t), saved = [];
+  p.persistPlaylist = x => saved.push(x.id);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  const item = (hash, t) => ({ hash, onlineId: 1, onlineSetId: 2, keys: 4, title: t, artist: 'Art', version: 'Hard', stars: 3 });
+  assert.equal(p.message('a', { t: 'plCreate', name: 'Mine', hours: 3, items: [] })[0].msg.t, 'error', 'needs a beatmap');
+  const out = p.message('a', { t: 'plCreate', name: 'Mine', hours: 3, items: [item(K1, 'One'), item(K2, 'Two'), item(K1, 'dupe'), { hash: 'bad' }] });
+  const made = out[0].msg;
+  assert.equal(made.made, true); assert.equal(made.items.length, 2); assert.equal(made.ends - made.created, 3 * 3600000);
+  assert.ok(out.some(o => o.to === 'b' && o.msg.t === 'plList' && o.msg.list.length === 1), 'everyone sees it listed');
+  // judged plays count toward it; only the best per beatmap
+  p.recordVerified('alicepid1', K1, judged({ score: 800000 }), { playlist: { id: made.id } });
+  p.recordVerified('alicepid1', K1, judged({ score: 700000 }), { playlist: { id: made.id } });
+  p.recordVerified('bobpid22', K1, judged({ score: 900000 }), { playlist: { id: made.id } });
+  p.recordVerified('alicepid1', K2, judged({ score: 500000 }), { playlist: { id: made.id } });
+  p.recordVerified('bobpid22', K2, judged({ score: 100000 })); // (not played from the playlist)
+  const m = p.message('b', { t: 'pl', id: made.id })[0].msg;
+  assert.deepEqual(m.board.map(x => [x.name, x.score, x.done]), [['Alice', 1300000, 2], ['Bob', 900000, 1]]);
+  assert.deepEqual(m.items[0].top.map(x => [x.name, x.score]), [['Bob', 900000], ['Alice', 800000]]);
+  assert.equal(m.you.rank, 2);
+  // the host closes it: no more scores
+  assert.deepEqual(p.message('b', { t: 'plClose', id: made.id }), [], 'only the host');
+  p.message('a', { t: 'plClose', id: made.id });
+  p.recordVerified('bobpid22', K2, judged({ score: 990000 }), { playlist: { id: made.id } });
+  assert.equal(p.message('b', { t: 'pl', id: made.id })[0].msg.board.find(x => x.name === 'Bob').done, 1);
+  assert.ok(saved.length >= 4);
+});

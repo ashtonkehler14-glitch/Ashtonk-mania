@@ -754,7 +754,46 @@ export class PresenceLogic {
     this.auth = new Map(); this.persistAuth = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
     this.profiles = new Map(); this.profileJson = new Map(); this.persistProfile = null;
+    // lazer's playlists: lists of beatmaps a player puts up for a while, each with everyone's best score on each
+    // beatmap and an overall board of their totals (kept in storage, pl:<id>)
+    this.playlists = new Map(); this.persistPlaylist = null;
   }
+  static PL_ITEMS = 20;
+  static PL_OPEN = 3; // playlists one player can have open at once
+  static PL_KEEP = 14 * 86400000; // an ended playlist is kept (and listed) this long
+  loadPlaylists(all) {
+    const now = this.now();
+    for (const p of Object.values(all || {})) if (p && p.id && Array.isArray(p.items) && now - p.ends < PresenceLogic.PL_KEEP) this.playlists.set(p.id, p);
+  }
+  /** What the playlists list shows of one. */
+  plCard(p) {
+    const players = Object.keys(p.scores || {}).length, first = p.items[0] || {};
+    const stars = p.items.map(x => x.stars || 0);
+    return { id: p.id, name: p.name, host: { pid: p.host.pid, ...this.nameOf(p.host) }, created: p.created, ends: p.ends, items: p.items.length, players,
+      cover: first.onlineSetId || 0, keys: [...new Set(p.items.map(x => x.keys))].sort((a, b) => a - b), minStars: Math.min(...stars), maxStars: Math.max(...stars) };
+  }
+  /** A player's name and picture as they are now. */
+  nameOf(x) { const c = this.current({ pid: x.pid, name: x.name, avatar: x.avatar }); return { name: c.name, avatar: c.avatar }; }
+  plList(pid) {
+    const now = this.now(), all = [...this.playlists.values()].filter(p => now - p.ends < PresenceLogic.PL_KEEP).sort((a, b) => b.created - a.created).slice(0, 100);
+    return { t: 'plList', now, list: all.map(p => this.plCard(p)) };
+  }
+  /** One playlist in full: its beatmaps (each with its top 10 and your best), and everyone's totals. */
+  plMsg(p, pid) {
+    const sc = p.scores || {};
+    const totals = Object.entries(sc).map(([who, v]) => {
+      const best = Object.values(v.best || {});
+      return { pid: who, ...this.nameOf({ pid: who, name: v.name, avatar: v.avatar }), score: best.reduce((a, b) => a + b.score, 0), done: best.length,
+        acc: best.length ? best.reduce((a, b) => a + b.acc, 0) / best.length : 0 };
+    }).sort((a, b) => b.score - a.score || b.done - a.done || b.acc - a.acc).map((x, i) => ({ ...x, rank: i + 1 }));
+    const items = p.items.map(it => {
+      const rows = Object.entries(sc).filter(([, v]) => v.best && v.best[it.hash]).map(([who, v]) => ({ pid: who, ...this.nameOf({ pid: who, name: v.name, avatar: v.avatar }), ...v.best[it.hash] }))
+        .sort((a, b) => b.score - a.score || a.at - b.at).map((x, i) => ({ ...x, rank: i + 1 }));
+      return { ...it, plays: rows.length, top: rows.slice(0, 10), you: rows.find(x => x.pid === pid) || null };
+    });
+    return { t: 'pl', now: this.now(), ...this.plCard(p), items, board: totals.slice(0, 50), you: totals.find(x => x.pid === pid) || null };
+  }
+  savePlaylist(p) { if (this.persistPlaylist) this.persistPlaylist(p); }
   static PROFILE_MAX = 48000; // characters of JSON
   /** Does this key own this public id? The first key used with an id claims it. */
   claim(pid, key) {
@@ -771,7 +810,7 @@ export class PresenceLogic {
   /** A play the server judged itself (verifyPlay): onto the beatmap's leaderboard, into the player's best plays —
    *  their total pp, accuracy and grades for the rankings are worked out from those — and, when it's the daily
    *  challenge's beatmap today, onto its board. Nothing a player says about their score counts anywhere else. */
-  recordVerified(pid, key, r, { daily = null } = {}) {
+  recordVerified(pid, key, r, { daily = null, playlist = null } = {}) {
     const t = this.now(), online = [...this.users.values()].find(x => x.pid === pid), old = this.ranks.get(pid);
     const name = online ? online.name : old ? old.name : 'Player', avatar = online ? online.avatar : old ? old.avatar : '';
     const entry = { pid, name, avatar, score: r.score, acc: r.accuracy, combo: r.maxCombo, grade: r.grade, mods: r.mods, counts: r.counts, pp: Math.round(r.pp * 100) / 100, stars: r.stars, date: t };
@@ -800,8 +839,18 @@ export class PresenceLogic {
     PresenceLogic.settleRank(rec);
     this.ranks.set(pid, rec);
     if (this.persistRank) this.persistRank(pid, rec);
-    // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
     const out = [];
+    // a playlist's beatmap (while the playlist is open): the player's best on it there
+    const pl = playlist && this.playlists.get(String(playlist.id || ''));
+    if (pl && pl.ends > t && pl.items.some(x => x.hash === key)) {
+      const v = (pl.scores ||= {})[pid] ||= { name, avatar, best: {} };
+      v.name = name; v.avatar = avatar;
+      const was = v.best[key];
+      if (!was || was.score < entry.score) v.best[key] = { score: entry.score, acc: entry.acc, combo: entry.combo, grade: entry.grade, mods: entry.mods, at: t };
+      this.savePlaylist(pl);
+      for (const [x, ux] of this.users) if (ux.pid === pid) out.push({ to: x, msg: this.plMsg(pl, pid) });
+    }
+    // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
     const d = this.dailyNow();
     if (daily && d.map && daily.day === d.day && r.beatmapId === d.map.onlineId) {
       this.countDailyDay(pid, d.day);
@@ -1014,6 +1063,36 @@ export class PresenceLogic {
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
     if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
+    // ── playlists
+    if (msg.t === 'plList') return [{ to: id, msg: this.plList(u.pid) }];
+    if (msg.t === 'pl') { const p = this.playlists.get(String(msg.id || '')); return [{ to: id, msg: p ? this.plMsg(p, u.pid) : { t: 'pl', id: String(msg.id || '').slice(0, 12), gone: true } }]; }
+    if (msg.t === 'plCreate') {
+      if (!u.pid) return [];
+      const now = this.now(), open = [...this.playlists.values()].filter(p => p.host.pid === u.pid && p.ends > now).length;
+      if (open >= PresenceLogic.PL_OPEN) return [{ to: id, msg: { t: 'error', msg: `You can have ${PresenceLogic.PL_OPEN} playlists open at once. Close one first.` } }];
+      const seen = new Set(), items = [];
+      for (const m of Array.isArray(msg.items) ? msg.items.slice(0, PresenceLogic.PL_ITEMS) : []) {
+        if (!m || typeof m !== 'object') continue;
+        const hash = String(m.hash || '');
+        if (!/^[a-f0-9]{64}$/.test(hash) || seen.has(hash)) continue;
+        seen.add(hash);
+        const n = (v, max) => Math.min(max, Math.max(0, Math.floor(Number(v) || 0)));
+        items.push({ hash, onlineId: n(m.onlineId, 1e10), onlineSetId: n(m.onlineSetId, 1e10), keys: Math.min(18, Math.max(1, n(m.keys, 18))), title: str(m.title, 120), artist: str(m.artist, 120),
+          version: str(m.version, 120), creator: str(m.creator, 40), stars: Math.round(Math.min(20, Math.max(0, Number(m.stars) || 0)) * 100) / 100, length: n(m.length, 36e5) });
+      }
+      if (!items.length) return [{ to: id, msg: { t: 'error', msg: 'A playlist needs at least one beatmap.' } }];
+      const hours = [1, 3, 6, 12, 24, 72, 168, 336].includes(Number(msg.hours)) ? Number(msg.hours) : 24;
+      let pid; do pid = makeCode(8); while (this.playlists.has(pid));
+      const p = { id: pid, name: str(msg.name, 60) || `${u.name}'s playlist`, host: { pid: u.pid, name: u.name, avatar: u.avatar }, created: now, ends: now + hours * 3600000, items, scores: {} };
+      this.playlists.set(pid, p); this.savePlaylist(p);
+      return [{ to: id, msg: { ...this.plMsg(p, u.pid), made: true } }, ...[...this.users.keys()].map(x => ({ to: x, msg: this.plList(this.users.get(x).pid) }))];
+    }
+    if (msg.t === 'plClose') {
+      const p = this.playlists.get(String(msg.id || ''));
+      if (!p || p.host.pid !== u.pid || p.ends <= this.now()) return [];
+      p.ends = this.now(); this.savePlaylist(p);
+      return [{ to: id, msg: this.plMsg(p, u.pid) }];
+    }
     if (msg.t === 'lb') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.boardMsg(key, u.pid, msg.scope) }] : []; }
     // (scores go up only as plays the server judges itself: POST /api/mp/score — see Matchmaker.score)
     if (msg.t === 'dailyPropose') {
@@ -1252,7 +1331,8 @@ export class Matchmaker {
     if (r.error) return json({ error: r.error }, 422);
     if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
-    const { out, entry, total } = this.presence.recordVerified(pid, key, r, { daily });
+    const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
+    const { out, entry, total } = this.presence.recordVerified(pid, key, r, { daily, playlist });
     this.send(out);
     return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total });
   }
@@ -1270,6 +1350,8 @@ export class Matchmaker {
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
+        const pl = {}; for (const [k, v] of await st.list({ prefix: 'pl:' })) pl[k.slice(3)] = v;
+        this.presence.loadPlaylists(pl);
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
@@ -1278,6 +1360,7 @@ export class Matchmaker {
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      this.presence.persistPlaylist = p => { st.put(`pl:${p.id}`, p).catch(() => {}); };
       this.presence.persistDailyStats = (pid, v) => { st.put(`ds:${pid}`, v).catch(() => {}); };
       this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
       this.presence.persistProfile = (pid, data) => { st.put(`pf:${pid}`, data).catch(() => {}); };
@@ -1447,7 +1530,7 @@ export async function handleMultiplayer(request, env, url) {
       if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
-    return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
+    return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/rooms') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));

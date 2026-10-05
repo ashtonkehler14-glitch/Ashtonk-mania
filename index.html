@@ -3988,6 +3988,62 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 /* a spectated screen: kept still between updates (its entrance animations would otherwise play again each time) */
 .spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { animation: none !important; }
 
+/* lazer's Cinema mod: the playfield and HUD aren't shown, only the background (and its video) */
+.gameplay.cinema .gp-canvas, .gameplay.cinema .gp-hud, .gameplay.cinema .gp-lowhp, .gameplay.cinema .gp-break { opacity: 0; transition: opacity 500ms; }
+
+/* ── playlists (lazer's playlists lounge and room) */
+.pl-create { display: inline-flex; align-items: center; gap: 6px; }
+.pl-create .i { width: 16px; height: 16px; }
+.pl-list { display: flex; flex-direction: column; gap: 8px; }
+.pl-card.ended { filter: saturate(.4) brightness(.8); }
+.pl-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.pl-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 10px; background: hsl(var(--o-h) 10% 18%); margin-bottom: 14px; flex-wrap: wrap; }
+.pl-name { font-size: 26px; font-weight: 600; color: #fff; line-height: 1.2; }
+.pl-by { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: hsl(var(--o-h) 10% 70%); }
+.pl-by b { color: #fff; }
+.pl-dot { opacity: .5; }
+.pl-head-r { display: flex; align-items: center; gap: 10px; }
+.pl-time { display: flex; flex-direction: column; align-items: flex-end; margin-right: 6px; }
+.pl-time span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--o-h) 10% 60%); }
+.pl-time b { font-size: 18px; color: hsl(var(--o-h) 70% 70%); font-variant-numeric: tabular-nums; }
+.pl-time.ended b { color: hsl(var(--o-h) 10% 70%); font-size: 14px; }
+.pl-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pl-items { display: flex; flex-direction: column; gap: 6px; }
+.pl-item { border-radius: 8px; background: hsl(var(--o-h) 10% 20%); cursor: pointer; overflow: hidden; transition: background 120ms; }
+.pl-item:hover, .pl-item.open { background: hsl(var(--o-h) 10% 24%); }
+.pl-item-main { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; min-height: 56px; }
+.pl-num { width: 22px; text-align: center; font-weight: 600; color: hsl(var(--o-h) 10% 60%); }
+.pl-cover { width: 72px; height: 44px; flex: none; border-radius: 5px; background: hsl(var(--o-h) 10% 14%) center / cover; }
+.pl-item-t { flex: 1; min-width: 0; }
+.pl-item-title { font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-item-title span { font-weight: 400; color: hsl(var(--o-h) 10% 70%); font-size: 13px; }
+.pl-item-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: hsl(var(--o-h) 10% 80%); white-space: nowrap; overflow: hidden; }
+.pl-item-you { display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; min-width: 90px; }
+.pl-item-you b { color: #fff; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pl-item-you span { color: hsl(var(--o-h) 10% 65%); }
+.pl-play { min-width: 92px; }
+.pl-top { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px 10px 40px; font-size: 12px; cursor: default; }
+.pl-top-row { display: grid; grid-template-columns: 36px 22px minmax(0, 1fr) 90px 64px 40px minmax(0, 90px); align-items: center; gap: 6px; height: 26px; color: hsl(var(--o-h) 10% 75%); }
+.pl-top-row .rk-name { color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-top-sc { color: #fff; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pl-board .rk-table { padding-top: 4px; }
+.pl-brow { grid-template-columns: 56px minmax(0, 1fr) 110px 70px !important; }
+.pl-form { display: flex; flex-direction: column; gap: 6px; text-align: left; width: min(520px, 80vw); }
+.pl-form label { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .7); margin-top: 6px; }
+.pl-in { width: 100%; }
+.pl-pick { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; padding: 4px; border-radius: 6px; background: rgba(0, 0, 0, .25); }
+.pl-pick-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; background: none; border: 0; color: #ddd; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.pl-pick-row:hover { background: rgba(255, 255, 255, .06); }
+.pl-pick-row.on { background: rgba(255, 102, 170, .18); color: #fff; }
+.pl-pick-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-check { width: 16px; height: 16px; flex: none; border-radius: 4px; border: 1.5px solid rgba(255, 255, 255, .35); display: grid; place-items: center; }
+.pl-pick-row.on .pl-check { background: #ff66aa; border-color: #ff66aa; }
+.pl-check .i { width: 12px; height: 12px; }
+.pl-count { font-size: 12px; color: rgba(255, 255, 255, .6); text-align: right; }
+.pl-none { padding: 14px; text-align: center; }
+@media (max-width: 760px) { .pl-cols { grid-template-columns: 1fr; } .pl-item-you { display: none; } .pl-top { padding-left: 10px; } .pl-top-row { grid-template-columns: 30px 20px minmax(0, 1fr) 80px 40px; } .pl-top-row > :nth-child(5), .pl-top-row > :nth-child(7) { display: none; } }
+.pl-board .dc-h { margin-top: 2px; }
+
 </style>
 </head>
 <body>
@@ -7142,6 +7198,8 @@ const MODS = [
     desc: 'Can you still feel the rhythm without music?' },
   { id: 'AT', name: 'Auto', group: 'automation', key: 'KeyM', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
     desc: 'Watch a perfect automated play-through. Scores are not saved.' },
+  { id: 'CN', name: 'Cinema', group: 'automation', key: 'Comma', mult: 1.0, color: '#66ccff', incompatible: ['NF', 'SD', 'PF', 'PSS', 'AC'], unranked: true,
+    desc: 'Watch the video without visual distractions.' },
 ];
 const MOD_BY_ID = new Map(MODS.map(m => [m.id, m]));
 /** A glyph for every mod (24×24, stroked), in the spirit of osu!lazer's mod icons. */
@@ -7171,6 +7229,7 @@ const MOD_GLYPHS = {
   PC: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 17M8 15.5L20 7"/>',
   RT: '<path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/>',
   DA: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" class="fillme"/><circle cx="15" cy="12" r="2" class="fillme"/><circle cx="7" cy="17" r="2" class="fillme"/>',
+  CN: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/>',
   AT: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01"/><circle cx="12" cy="3.5" r="1.2" class="fillme"/>',
 };
 /** osu!lazer's mod icon: a rounded hexagon in the mod type's colour with the mod's glyph on it. */
@@ -7193,8 +7252,10 @@ const ModSystem = {
   toggle(list, id) {
     const m = MOD_BY_ID.get(id);
     if (!m) return list;
-    if (list.includes(id)) return list.filter(x => x !== id);
-    return this.normalize([...list.filter(x => !m.incompatible.includes(x) && !(MOD_BY_ID.get(x)?.incompatible || []).includes(id)), id]);
+    // (Cinema is Auto with nothing drawn over the background: it brings Auto with it, and goes with it)
+    const tie = r => r.includes('CN') && !r.includes('AT') ? this.normalize([...r, 'AT']) : r;
+    if (list.includes(id)) return list.filter(x => x !== id && !(id === 'AT' && x === 'CN'));
+    return tie(this.normalize([...list.filter(x => !m.incompatible.includes(x) && !(MOD_BY_ID.get(x)?.incompatible || []).includes(id)), id]));
   },
   config(cfg) { return { ...MOD_CONFIG_DEFAULTS, ...(cfg || (typeof Settings !== 'undefined' ? Settings.get('mods.config') : null) || {}) }; },
   multiplier(list, cfg) {
@@ -9691,7 +9752,7 @@ const LZMA = {
 };
 
 /** osu!'s legacy mod bits ⇄ our mods (lazer-only mods have no bit and are left out of an .osr). */
-const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
+const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
 
 const Osr = {
   /** Read an .osr: { mode, version, beatmapMD5, player, counts, score, maxCombo, mods (bits), date, frames, seed }. */
@@ -11074,6 +11135,8 @@ const HomeScreen = {
         ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
+        // lazer's playlists button, L
+        ['playlists', 'playlists', 'list', '#5e3fba', ['KeyL'], 'play', 'play', null, () => this.enterMode(() => Screens.go('playlists'))],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // where lazer has the beatmap and skin editors: everything for changing what's installed
@@ -12697,7 +12760,7 @@ const SongSelect = {
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
-  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT'], why: 'not available in multiplayer' } : {}); },
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT', 'CN'], why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;
@@ -13356,6 +13419,7 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
+    this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
     const modConfig = replay ? (replay.modConfig || {}) : (p.modConfig || ModSystem.config());
     let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
@@ -13581,9 +13645,10 @@ const GameplayScreen = {
     // the loader keeps the menus' look (25% dim and blur); your dim and blur take over when the song starts — or
     // while you're adjusting them on the loader, as a preview (lazer)
     const menuLook = !this.loaderGone && !this.loaderHold;
-    this.baseDim = menuLook ? Background.MENU_DIM : show ? Settings.get('gameplay.bgDim') : 1;
+    const cinema = !menuLook && s && s.mods.includes('CN'); // (Cinema: the background as it is, undimmed and sharp)
+    this.baseDim = menuLook ? Background.MENU_DIM : cinema ? 0 : show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    const blur = menuLook ? Background.MENU_BLUR : Settings.get('gameplay.bgBlur');
+    const blur = menuLook ? Background.MENU_BLUR : cinema ? 0 : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.bgThumbURL(rec) : BeatmapManager.bgURL(rec)).then(async u => {
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
@@ -14547,9 +14612,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null, playlist: this.params.playlist ? { id: this.params.playlist.id } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode }, { replace: true, transition: 'zoom' }); }, 600);
@@ -15152,7 +15217,7 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.playlist) Screens.go('playlists', { id: this.p.playlist.id }, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -16222,6 +16287,12 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.5', title: 'Playlists', sections: [
+    { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
+    { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
+    { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
+    { icon: 'trophy', title: 'Online', items: ['Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
+  ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
     { icon: 'mods', title: 'New mods', items: ['Flashlight: only the part of the stage near the receptors can be seen, and it shrinks as your combo grows', 'Cover: cover part of the stage from the top or the bottom', 'Muted (in the new Fun column): the music fades as your combo builds, with a metronome'] },
@@ -18636,6 +18707,7 @@ const Presence = {
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
       else if (m.t === 'daily') Daily.on(m);
+      else if (m.t === 'plList' || m.t === 'pl') Playlists.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
@@ -21410,11 +21482,11 @@ const Verified = {
       await sleep(1500);
     }
   },
-  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
+  async submit({ rec, mods, modConfig, seed, events, daily = null, playlist = null }) {
     if (!Multiplayer.available()) return null;
     const osu = await this.file(rec);
     if (!osu) return null;
-    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
+    const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily, playlist });
     try {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
@@ -21673,6 +21745,200 @@ const Medals = {
   count() { const got = this.unlocked(); return MEDALS.filter(m => got[m.id]).length; },
 };
 
+/* ===== 19j-playlists.js ===== */
+/* osu!lazer's playlists: a player puts up a list of beatmaps for a while (an hour to two weeks); everyone can play
+ * them as often as they like until it closes, each beatmap keeping everyone's best score, and the playlist an overall
+ * board of their totals. Reached from Play on the main menu. The server keeps the playlists and the scores, which —
+ * as everywhere — are the plays it judged itself (Verified, with `playlist`). */
+
+const Playlists = {
+  list: null, // the latest list (cards)
+  cur: null,  // the playlist open on screen, in full
+  _skew: 0,   // the server's clock minus ours
+  on(m) {
+    if (typeof m.now === 'number') this._skew = m.now - Date.now();
+    if (m.t === 'plList') this.list = m.list || [];
+    else if (m.t === 'pl') {
+      if (m.gone) { if (this.cur && this.cur.id === m.id) { this.cur = null; Toast.show('That playlist is gone', 'It closed a while ago.'); } }
+      else if (!this.cur || this.cur.id === m.id || m.made) this.cur = m;
+      if (m.made) { PlaylistsScreen.openId = m.id; UISounds.play('check-on'); Toast.ok('Playlist created', 'It\'s listed for everyone now.'); }
+    }
+    Bus.emit('playlists', m);
+  },
+  ask(id) { Presence.start(); Presence.send(id ? { t: 'pl', id } : { t: 'plList' }); },
+  /** ms until it closes (≤ 0: closed). */
+  left(p) { return p.ends - (Date.now() + this._skew); },
+  open(p) { return this.left(p) > 0; },
+};
+
+/** "2d 4h", "3h 12m", "12m 5s" */
+function plDuration(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), hh = Math.floor(s / 3600) % 24, mm = Math.floor(s / 60) % 60;
+  return d ? `${d}d ${hh}h` : hh ? `${hh}h ${mm}m` : `${mm}m ${s % 60}s`;
+}
+
+const PlaylistsScreen = {
+  tab: 'active', // lazer's RoomStatusFilter: open / ended / mine
+  enter(params = {}) {
+    if (params.id) { this.openId = params.id; Playlists.cur = null; } else if (!Playlists.cur) this.openId = null;
+    this.tabsEl = h('div.dash-tabs');
+    const create = h('button.btn.primary.pl-create', { onclick: () => this.create() }, icon('plus'), 'Create playlist');
+    const { el, page } = pageShell('playlists', 'play beatmaps put up by other players — set your best on each before they close', [create], { icon: 'list', hue: 'green', tabs: this.tabsEl, wide: true });
+    this.page = page;
+    this._unsub = [Bus.on('playlists', () => this.render()), Bus.on('library:changed', () => this.render()),
+      Bus.on('presence:changed', () => { if (!Playlists.list) Playlists.ask(); })];
+    Playlists.ask(); if (this.openId) Playlists.ask(this.openId);
+    this._tick = setInterval(() => this.tickTimes(), 1000);
+    this._poll = setInterval(() => { Playlists.ask(); if (this.openId) Playlists.ask(this.openId); }, 20000);
+    this.render();
+    return el;
+  },
+  leave() { (this._unsub || []).forEach(f => f()); clearInterval(this._tick); clearInterval(this._poll); },
+  onKey(e) {
+    if (e.key === 'Escape' && this.openId) { UISounds.back(); this.openId = null; this.render(); return true; }
+    return false;
+  },
+  tickTimes() {
+    for (const el of this.page ? this.page.querySelectorAll('[data-ends]') : []) {
+      const l = +el.dataset.ends - (Date.now() + Playlists._skew);
+      const t = l > 0 ? `${el.dataset.pre || ''}${plDuration(l)}` : 'Ended';
+      if (el.textContent !== t) el.textContent = t;
+    }
+  },
+  render() {
+    if (!this.page) return;
+    clearEl(this.tabsEl).append(...[['active', 'open'], ['ended', 'ended'], ['mine', 'mine']].map(([k, l]) =>
+      h(`button.ov-tab${this.tab === k && !this.openId ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.openId = null; this.render(); } }, l)));
+    if (this.openId) return this.renderOne();
+    const L = Playlists.list;
+    if (!L) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading playlists…' : 'Playlists need the online server — trying to connect…')); return; }
+    const me = Presence.pid();
+    const shown = L.filter(p => this.tab === 'mine' ? p.host.pid === me : this.tab === 'ended' ? !Playlists.open(p) : Playlists.open(p));
+    const card = p => {
+      const bg = h('div.mp-rbg');
+      if (p.cover > 0) bg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(p.cover, 'card')}")`;
+      const open = Playlists.open(p);
+      const row = h(`button.mp-room-row.pl-card${open ? '' : '.ended'}`, { onclick: () => { UISounds.click(); this.openId = p.id; Playlists.cur = null; Playlists.ask(p.id); this.render(); } },
+        bg, h('div.mp-rshade'),
+        h(`span.mp-rstate${open ? '.on' : ''}`, { dataset: open ? { ends: p.ends, pre: 'Ends in ' } : {} }, open ? `Ends in ${plDuration(Playlists.left(p))}` : 'Ended'),
+        h('div.mp-rbody', h('div.mp-rname', p.name),
+          h('div.mp-rmap', starBadge(p.minStars), p.maxStars > p.minStars ? [h('span', '–'), starBadge(p.maxStars)] : null,
+            h('span', `${p.items} beatmap${p.items === 1 ? '' : 's'}`), ...p.keys.map(k => h('span.keys-tag', `${k}K`))),
+          h('div.mp-rmeta', h('span', `hosted by ${p.host.name}`), h('span', `${fmtInt(p.players)} player${p.players === 1 ? '' : 's'}`))),
+        h('div.mp-rplayers', Presence.avatarEl(p.host, 32)),
+        h('span.mp-rjoin', 'View'));
+      row.addEventListener('pointerenter', () => UISounds.hover());
+      return row;
+    };
+    clearEl(this.page).append(shown.length ? h('div.mp-rooms.pl-list', ...shown.map(card))
+      : h('div.rk-empty', this.tab === 'mine' ? 'You haven\'t made a playlist yet. Create one from the button up top.' : this.tab === 'ended' ? 'No playlists have ended lately.' : 'No playlists are open right now. Create one and everyone can play it!'));
+  },
+  /** One playlist: its beatmaps on the left (each with its best scores), everyone's totals on the right. */
+  renderOne() {
+    const p = Playlists.cur;
+    if (!p || p.id !== this.openId) { clearEl(this.page).append(h('div.rk-empty', h('span.spinner'), 'Loading the playlist…')); return; }
+    const open = Playlists.open(p), me = Presence.pid(), mods = (Settings.get('songselect.mods') || []).filter(x => x !== 'AT' && x !== 'CN');
+    const back = h('button.btn.sm.pl-back', { onclick: () => { UISounds.back(); this.openId = null; this.render(); } }, icon('back'), 'All playlists');
+    const head = h('div.pl-head',
+      h('div.pl-head-l', h('div.pl-name', p.name),
+        h('div.pl-by', Presence.avatarEl(p.host, 20), 'hosted by ', h('b', p.host.name), h('span.pl-dot', '·'), `${p.items.length} beatmap${p.items.length === 1 ? '' : 's'}`)),
+      h('div.pl-head-r',
+        h(`div.pl-time${open ? '' : '.ended'}`, h('span', open ? 'Closes in' : 'Closed'), h('b', open ? { dataset: { ends: p.ends } } : {}, open ? plDuration(Playlists.left(p)) : new Date(p.ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))),
+        open && p.host.pid === me ? h('button.btn.sm.danger', { onclick: async () => { if (await Dialog.confirm('Close this playlist?', 'Nobody can set scores on it after that. The scores stay.', { ok: 'Close it', danger: true })) Presence.send({ t: 'plClose', id: p.id }); } }, 'Close') : null,
+        open ? h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods') : null));
+    const items = p.items.map((it, i) => this.itemRow(p, it, i, open, mods));
+    const row = s => h(`div.rk-row.pl-brow.click${s.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: s.pid, name: s.name, avatar: s.avatar }); } },
+      h('span.rk-rank', `#${s.rank}`), h('span.rk-user', Presence.avatarEl(s, 22), h('span.rk-name', s.name)),
+      h('span.hl', fmtInt(s.score)), h('span', `${s.done}/${p.items.length}`));
+    const board = h('div.pl-board', h('h3.dc-h', 'Overall', h('span', ` ${fmtInt(p.board.length)} player${p.board.length === 1 ? '' : 's'}`)),
+      p.board.length ? h('div.rk-table', h('div.rk-row.rk-head.pl-brow', h('span'), h('span'), h('span.hl', 'Total score'), h('span', 'Played')), ...p.board.map(row),
+        ...(p.you && p.you.rank > 50 ? [h('div.rk-sep', '…'), row(p.you)] : [])) : h('div.rk-empty', 'No scores yet. Be the first!'));
+    clearEl(this.page).append(back, head, h('div.pl-cols', h('div.pl-items', ...items), board));
+    this.tickTimes();
+  },
+  itemRow(p, it, i, open, mods) {
+    const local = Multiplayer.localMap(it), f = this.fetch && this.fetch.hash === it.hash ? this.fetch : null;
+    const cover = h('div.pl-cover');
+    if (it.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, it.onlineSetId, ['list@2x', 'list', 'card']);
+    const exp = this.expanded === it.hash;
+    const play = open ? h('button.btn.sm.primary.pl-play', { disabled: !!(f && !f.error) || (!local && !(it.onlineSetId > 0)), onclick: e => { e.stopPropagation(); this.play(p, it); } },
+      local ? 'Play' : f && !f.error ? `${Math.round((f.progress || 0) * 100)}%` : it.onlineSetId > 0 ? 'Download' : 'Not online') : null;
+    const top = exp ? h('div.pl-top', it.top.length ? it.top.map(s => h('div.pl-top-row', h('span.rk-rank', `#${s.rank}`), Presence.avatarEl(s, 18), h('span.rk-name', s.name),
+      h('span.pl-top-sc', fmtInt(s.score)), h('span', fmtAcc(s.acc)), rankPill(s.grade), h('span.dc-mods-col', (s.mods || []).join(' ')))) : h('div.muted', 'No scores on this one yet.')) : null;
+    return h(`div.pl-item${exp ? '.open' : ''}`, { onclick: () => { UISounds.click(); this.expanded = exp ? null : it.hash; this.render(); } },
+      h('div.pl-item-main', h('span.pl-num', String(i + 1)), cover,
+        h('div.pl-item-t', h('div.pl-item-title', it.title, h('span', ` ${it.artist}`)),
+          h('div.pl-item-meta', starBadge(it.stars), h('span.keys-tag', `${it.keys}K`), h('span', it.version), it.creator ? h('span.muted', `mapped by ${it.creator}`) : null)),
+        h('div.pl-item-you', it.you ? [h('b', fmtInt(it.you.score)), h('span', `#${it.you.rank} of ${it.plays}`)] : h('span.muted', it.plays ? `${it.plays} played` : 'unplayed')),
+        play),
+      top);
+  },
+  async play(p, it) {
+    UISounds.click();
+    let local = Multiplayer.localMap(it);
+    if (!local) {
+      const f = this.fetch = { hash: it.hash, progress: 0 };
+      this.render();
+      let last = 0;
+      try {
+        await OnlineBeatmaps.downloadAndImport({ id: it.onlineSetId, title: it.title, artist: it.artist }, x => { f.progress = x; if (performance.now() - last > 200) { last = performance.now(); this.render(); } }, { quiet: true });
+      } catch (e) { f.error = e.message; Toast.err('Couldn\'t download the beatmap', friendlyError(e)); this.render(); return; }
+      this.fetch = null;
+      local = Multiplayer.localMap(it);
+      this.render();
+      if (!local) { Toast.err('Couldn\'t find that difficulty', 'The set downloaded, but this version of the difficulty isn\'t in it.'); return; }
+      if (Screens.currentName !== 'playlists') return;
+    }
+    if (local.hash !== it.hash) Toast.show('A different version of this difficulty', 'Yours isn\'t the same file as the playlist\'s, so the score won\'t count. Re-download the set to update it.');
+    Game.launch({ mapId: local.id, mods: (Settings.get('songselect.mods') || []).filter(x => x !== 'AT' && x !== 'CN'), playlist: { id: p.id } });
+  },
+
+  /** lazer's playlist creation: a name, how long it stays open, and the beatmaps (from your library — ones that are
+   *  online, so everyone else can download them). */
+  create() {
+    if (!Presence.ws) { Toast.err('Not connected', 'Playlists need the online server.'); return; }
+    UISounds.click();
+    const st = { name: `${ProfileManager.profile.name}'s playlist`, hours: 24, picked: [], q: '' };
+    const sel = BeatmapManager.maps.get(SongSelect.selectedId) || null;
+    const all = [...BeatmapManager.maps.values()].filter(m => { const set = BeatmapManager.setById.get(m.setId); return set && set.onlineId > 0; })
+      .sort((a, b) => a.title.localeCompare(b.title) || a.stars - b.stars);
+    if (sel && all.includes(sel)) st.picked.push(sel);
+    const name = h('input.input.pl-in', { value: st.name, maxlength: 60, oninput: e => { st.name = e.target.value; }, onkeydown: e => e.stopPropagation() });
+    const durs = [[1, '1 hour'], [3, '3 hours'], [6, '6 hours'], [12, '12 hours'], [24, '1 day'], [72, '3 days'], [168, '1 week'], [336, '2 weeks']];
+    const dur = h('select.input.pl-in', { onchange: e => { st.hours = +e.target.value; } }, ...durs.map(([v, l]) => h('option', { value: v, selected: v === st.hours }, l)));
+    const search = h('input.input.pl-in', { type: 'search', placeholder: 'search your beatmaps', oninput: e => { st.q = e.target.value.toLowerCase(); paint(); }, onkeydown: e => e.stopPropagation() });
+    const listEl = h('div.pl-pick'), count = h('div.pl-count');
+    const paint = () => {
+      const words = st.q.split(/\s+/).filter(Boolean);
+      const shown = all.filter(m => { const t = `${m.artist} ${m.title} ${m.version} ${m.creator}`.toLowerCase(); return words.every(w => t.includes(w)); }).slice(0, 200);
+      clearEl(listEl).append(...(shown.length ? shown.map(m => {
+        const on = st.picked.includes(m);
+        return h(`button.pl-pick-row${on ? '.on' : ''}`, { onclick: () => {
+          UISounds.click();
+          if (on) st.picked = st.picked.filter(x => x !== m);
+          else if (st.picked.length < 20) st.picked.push(m); else Toast.show('That\'s 20', 'A playlist holds up to 20 beatmaps.');
+          paint();
+        } }, h('span.pl-check', on ? icon('check') : null), starBadge(m.stars), h('span.keys-tag', `${m.keys}K`), h('span.pl-pick-t', `${m.artist} - ${m.title} `, h('b', `[${m.version}]`)));
+      }) : [h('div.muted.pl-none', all.length ? 'Nothing matches.' : 'Only beatmaps from osu! can go in a playlist (so everyone can download them) — get some from the beatmap listing first.')]));
+      count.textContent = `${st.picked.length} of 20 picked`;
+    };
+    paint();
+    const body = h('div.pl-form', h('label', 'Name'), name, h('label', 'Open for'), dur, h('label', 'Beatmaps'), search, listEl, count);
+    Dialog.popup('Create a playlist', body, [
+      { label: 'Create', colour: '#ff66aa', onClick: () => {
+        if (!st.picked.length) { Toast.err('Pick at least one beatmap'); return; }
+        Presence.send({ t: 'plCreate', name: st.name, hours: st.hours, items: st.picked.map(m => {
+          const set = BeatmapManager.setById.get(m.setId);
+          return { hash: m.hash, onlineId: m.onlineId, onlineSetId: set ? set.onlineId : 0, keys: m.keys, title: m.title, artist: m.artist, version: m.version, creator: m.creator, stars: m.stars, length: m.length };
+        }) });
+        this.tab = 'mine'; this.openId = null;
+      } },
+      { label: 'Cancel', colour: '#66ccff', cls: 'cancel', cancel: true },
+    ], { icon: 'list' });
+    setTimeout(() => name.focus(), 30);
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -21715,6 +21981,7 @@ const App = {
     Screens.register('dashboard', DashboardScreen);
     Screens.register('rankings', RankingsScreen);
     Screens.register('daily', DailyScreen);
+    Screens.register('playlists', PlaylistsScreen);
     Screens.register('multiplayer', MultiplayerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
@@ -21725,7 +21992,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

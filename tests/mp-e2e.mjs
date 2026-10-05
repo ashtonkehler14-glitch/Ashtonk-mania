@@ -610,6 +610,37 @@ await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null,
 check('Esc stops spectating; Bob stops streaming', await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
 await bob.evaluate(() => AshtonkMania.Screens.go('home'));
 
+// lazer's playlists: Alice puts a beatmap up from the play menu; Bob finds it, his judged play goes on its boards
+{
+  for (const p of [alice, bob]) await p.evaluate(() => { for (const s of AshtonkMania.BeatmapManager.sets) s.onlineId = 4242; }); // (as if it came from osu!)
+  await alice.evaluate(() => { AshtonkMania.Screens.go('home'); AshtonkMania.Screens.current.setState('play'); });
+  await alice.waitForTimeout(500);
+  await alice.click('[data-id="playlists"]');
+  await alice.waitForSelector('.pl-create', { timeout: 5000 });
+  await alice.click('.pl-create');
+  await alice.waitForSelector('.pl-pick-row');
+  await alice.fill('.pl-form input[type="search"]', '4K Normal');
+  if (!(await alice.$('.pl-pick-row.on'))) await alice.click('.pl-pick-row'); // (the song select's difficulty starts picked)
+  const picked = await alice.evaluate(() => document.querySelector('.pl-count').textContent);
+  await alice.click('.dialog .pd-btn.ok');
+  const opened = await alice.waitForSelector('.pl-head .pl-name', { timeout: 5000 }).then(() => true, () => false);
+  await shot(alice, 'mp-playlist');
+  await bob.evaluate(() => AshtonkMania.Screens.go('playlists'));
+  const listed = await bob.waitForSelector('.pl-card', { timeout: 5000 }).then(() => true, () => false);
+  await bob.click('.pl-card');
+  await bob.waitForSelector('.pl-item', { timeout: 5000 });
+  const id = await bob.evaluate(() => AshtonkMania.Playlists.cur.id);
+  const sc = await bob.evaluate(async id => {
+    const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal');
+    const { notes } = await AshtonkMania.BeatmapManager.load(m.id);
+    const events = generateAutoInputs(prepareNotes(notes, m.keys, [], 1), m.keys).flat();
+    return Verified.submit({ rec: m, mods: [], modConfig: {}, seed: 1, events, playlist: { id } });
+  }, id);
+  const onBoard = await bob.waitForFunction(() => { const r = document.querySelector('.pl-board .rk-row:not(.rk-head)'); return r && /Bob/.test(r.textContent) && /1,000,000/.test(r.textContent) && /1\/1/.test(r.textContent); }, null, { timeout: 5000 }).then(() => true, () => false);
+  await shot(bob, 'mp-playlist-board');
+  check('playlists: one is created from the play menu, listed for everyone, and a judged play on it makes its board', /^[1-9]\d* of 20/.test(picked) && opened && listed && sc && sc.ok && onBoard, JSON.stringify({ picked, opened, listed, sc: sc && sc.ok, onBoard }));
+}
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
 await mf.dispose();

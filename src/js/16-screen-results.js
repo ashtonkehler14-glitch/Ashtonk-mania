@@ -98,7 +98,7 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.playlist) Screens.go('playlists', { id: this.p.playlist.id }, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);

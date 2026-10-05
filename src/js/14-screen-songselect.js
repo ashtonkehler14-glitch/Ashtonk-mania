@@ -789,7 +789,7 @@ const SongSelect = {
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
-  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT'], why: 'not available in multiplayer' } : {}); },
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT', 'CN'], why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;

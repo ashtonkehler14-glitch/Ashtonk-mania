@@ -565,6 +565,12 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.5', title: 'Playlists', sections: [
+    { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
+    { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
+    { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
+    { icon: 'trophy', title: 'Online', items: ['Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
+  ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
     { icon: 'mods', title: 'New mods', items: ['Flashlight: only the part of the stage near the receptors can be seen, and it shrinks as your combo grows', 'Cover: cover part of the stage from the top or the bottom', 'Muted (in the new Fun column): the music fades as your combo builds, with a metronome'] },

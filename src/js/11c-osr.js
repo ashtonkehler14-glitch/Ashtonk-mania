@@ -143,7 +143,7 @@ const LZMA = {
 };
 
 /** osu!'s legacy mod bits ⇄ our mods (lazer-only mods have no bit and are left out of an .osr). */
-const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
+const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
 
 const Osr = {
   /** Read an .osr: { mode, version, beatmapMD5, player, counts, score, maxCombo, mods (bits), date, frames, seed }. */

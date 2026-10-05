@@ -340,6 +340,7 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
+    this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
     const modConfig = replay ? (replay.modConfig || {}) : (p.modConfig || ModSystem.config());
     let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
@@ -565,9 +566,10 @@ const GameplayScreen = {
     // the loader keeps the menus' look (25% dim and blur); your dim and blur take over when the song starts — or
     // while you're adjusting them on the loader, as a preview (lazer)
     const menuLook = !this.loaderGone && !this.loaderHold;
-    this.baseDim = menuLook ? Background.MENU_DIM : show ? Settings.get('gameplay.bgDim') : 1;
+    const cinema = !menuLook && s && s.mods.includes('CN'); // (Cinema: the background as it is, undimmed and sharp)
+    this.baseDim = menuLook ? Background.MENU_DIM : cinema ? 0 : show ? Settings.get('gameplay.bgDim') : 1;
     this.dimEl.style.opacity = this.baseDim;
-    const blur = menuLook ? Background.MENU_BLUR : Settings.get('gameplay.bgBlur');
+    const blur = menuLook ? Background.MENU_BLUR : cinema ? 0 : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.bgThumbURL(rec) : BeatmapManager.bgURL(rec)).then(async u => {
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
@@ -1531,9 +1533,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
-      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
+      if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null, playlist: this.params.playlist ? { id: this.params.playlist.id } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, playlist: this.params.playlist || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       const score = this.buildScore(true, summary);
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode }, { replace: true, transition: 'zoom' }); }, 600);
