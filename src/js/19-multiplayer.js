@@ -450,15 +450,31 @@ const Presence = {
   away: false,
   hidden() {
     clearTimeout(this._awayT);
-    this._awayT = setTimeout(() => {
-      if (!document.hidden || Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers))) return;
-      this.away = true; clearTimeout(this._t);
-      const ws = this.ws;
-      if (ws) { this.ws = null; try { ws.close(1000, 'away'); } catch { /* closed */ } this.players = []; this._listed = false; clearInterval(this._ping); Bus.emit('presence:changed'); }
-    }, 30000);
+    this._awayT = setTimeout(() => { if (document.hidden && !this.busy()) this.goAway(); }, 30000);
   },
+  /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
+  busy() {
+    return Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+      (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
+  },
+  goAway() {
+    if (this.away) return;
+    this.away = true; clearTimeout(this._t);
+    const ws = this.ws;
+    if (ws) { this.ws = null; try { ws.close(1000, 'away'); } catch { /* closed */ } this.players = []; this._listed = false; clearInterval(this._ping); Bus.emit('presence:changed'); }
+  },
+  /** The game left open with nobody using it (the tab in front, the computer unattended) goes offline after 10
+   *  minutes without a key, click or touch — and comes back at the next one. */
+  IDLE: 10 * 60000,
+  lastInput: performance.now(),
+  input() {
+    this.lastInput = performance.now();
+    if (this.away && !document.hidden) this.shown();
+  },
+  idleCheck() { if (this.started && !this.away && !document.hidden && performance.now() - this.lastInput > this.IDLE && !this.busy()) this.goAway(); },
   shown() {
     clearTimeout(this._awayT);
+    this.lastInput = performance.now();
     if (!this.away) return;
     this.away = false; this.retry = 0;
     if (this.started && !this.ws) this.connect();
@@ -1066,6 +1082,9 @@ const MultiplayerScreen = {
 // the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
 // check a connection that may have died while the tab was in the background)
 addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => Presence.input(), { capture: true, passive: true });
+addEventListener('pointermove', () => { if (Presence.away || performance.now() - Presence.lastInput > 5000) Presence.input(); }, { capture: true, passive: true });
+setInterval(() => Presence.idleCheck(), 30000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { Presence.hidden(); return; }
   Presence.shown();

@@ -669,6 +669,18 @@ await bob.evaluate(() => AshtonkMania.Screens.go('home'));
 }
 
 check('no page errors', errors.length === 0, errors.join(' | '));
+// nobody at the keyboard: the game left open goes offline after a while (here 1 s), and comes back at the next key
+{
+  const bobId = await bob.evaluate(() => AshtonkMania.Presence.me);
+  const seen = () => alice.evaluate(id => AshtonkMania.Presence.players.some(p => p.id === id), bobId);
+  const before = await seen();
+  await bob.evaluate(() => { const P = AshtonkMania.Presence; P._idleWas = P.IDLE; P.IDLE = 1000; P.lastInput = performance.now() - 5000; P.idleCheck(); });
+  await alice.evaluate(() => AshtonkMania.Presence.send({ t: 'list' })); await alice.waitForTimeout(1500);
+  const gone = !(await alice.evaluate(() => AshtonkMania.Presence.players.some(p => p.name === 'Bob')));
+  await bob.evaluate(() => { const P = AshtonkMania.Presence; P.IDLE = P._idleWas; }); await bob.keyboard.press('Shift');
+  const back = await alice.waitForFunction(() => AshtonkMania.Presence.players.some(p => p.name === 'Bob'), null, { timeout: 15000 }).then(() => true, () => false);
+  check('someone who leaves the game open and walks away goes offline, and is back the moment they press a key', before && gone && back, JSON.stringify({ before, gone, back }));
+}
 await browser.close();
 await mf.dispose();
 const failed = results.filter(r => !r.ok);

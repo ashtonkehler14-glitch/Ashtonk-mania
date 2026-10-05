@@ -17513,7 +17513,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -20956,15 +20956,31 @@ const Presence = {
   away: false,
   hidden() {
     clearTimeout(this._awayT);
-    this._awayT = setTimeout(() => {
-      if (!document.hidden || Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers))) return;
-      this.away = true; clearTimeout(this._t);
-      const ws = this.ws;
-      if (ws) { this.ws = null; try { ws.close(1000, 'away'); } catch { /* closed */ } this.players = []; this._listed = false; clearInterval(this._ping); Bus.emit('presence:changed'); }
-    }, 30000);
+    this._awayT = setTimeout(() => { if (document.hidden && !this.busy()) this.goAway(); }, 30000);
   },
+  /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
+  busy() {
+    return Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+      (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
+  },
+  goAway() {
+    if (this.away) return;
+    this.away = true; clearTimeout(this._t);
+    const ws = this.ws;
+    if (ws) { this.ws = null; try { ws.close(1000, 'away'); } catch { /* closed */ } this.players = []; this._listed = false; clearInterval(this._ping); Bus.emit('presence:changed'); }
+  },
+  /** The game left open with nobody using it (the tab in front, the computer unattended) goes offline after 10
+   *  minutes without a key, click or touch — and comes back at the next one. */
+  IDLE: 10 * 60000,
+  lastInput: performance.now(),
+  input() {
+    this.lastInput = performance.now();
+    if (this.away && !document.hidden) this.shown();
+  },
+  idleCheck() { if (this.started && !this.away && !document.hidden && performance.now() - this.lastInput > this.IDLE && !this.busy()) this.goAway(); },
   shown() {
     clearTimeout(this._awayT);
+    this.lastInput = performance.now();
     if (!this.away) return;
     this.away = false; this.retry = 0;
     if (this.started && !this.ws) this.connect();
@@ -21572,6 +21588,9 @@ const MultiplayerScreen = {
 // the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
 // check a connection that may have died while the tab was in the background)
 addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => Presence.input(), { capture: true, passive: true });
+addEventListener('pointermove', () => { if (Presence.away || performance.now() - Presence.lastInput > 5000) Presence.input(); }, { capture: true, passive: true });
+setInterval(() => Presence.idleCheck(), 30000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { Presence.hidden(); return; }
   Presence.shown();
