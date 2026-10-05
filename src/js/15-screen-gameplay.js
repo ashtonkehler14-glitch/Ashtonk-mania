@@ -1534,7 +1534,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     let prog = null;
     try { const now = this.gameTime(); if (s.endTime > s.firstNote) prog = Math.round(clamp((now - s.firstNote) / (s.endTime - s.firstNote), 0, 1) * 100); } catch { prog = null; }
     const el = h('div.pause-menu', h('div.pause-box',
-      h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase())),
+      // (lazer's GameplayMenuOverlay descriptions under the title)
+      h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
+        (d => d ? h('p.pm-desc', d) : null)(failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
       h('div.pm-buttons', ...btns),
       h('div.pm-info',
         h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),

@@ -3174,7 +3174,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
    song progress and accuracy centred below */
 .pause-menu { display: block; }
 .pause-box { position: absolute; inset: 0; width: auto; display: grid; grid-template-rows: 1fr auto 1fr; align-items: center; }
-.pm-head { display: grid; place-items: center; }
+.pm-head { display: grid; place-items: center; align-content: center; }
 .pause-box h2, .pause-box h2.failed, .pause-box h2 { margin: 0; font-size: 48px; font-weight: 600; letter-spacing: 5px; color: #ffcc22; text-shadow: none; }
 .pm-buttons { padding: 0 50px; gap: 6px; width: 100%; max-width: 900px; justify-self: center; } /* (a comfortable width, not the whole of a wide screen) */
 .pm-btn { height: 72px; font-size: 26px; font-weight: 700; }
@@ -4146,6 +4146,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 /* lazer's ProgressNotification */
 .toast.prog .t-bar { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }
+
+.pm-desc { margin: 6px 0 0; font-size: 18px; color: #fff; text-align: center; text-shadow: 0 0 6px rgba(0, 0, 0, .5); }
 
 </style>
 </head>
@@ -15088,7 +15090,9 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     let prog = null;
     try { const now = this.gameTime(); if (s.endTime > s.firstNote) prog = Math.round(clamp((now - s.firstNote) / (s.endTime - s.firstNote), 0, 1) * 100); } catch { prog = null; }
     const el = h('div.pause-menu', h('div.pause-box',
-      h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase())),
+      // (lazer's GameplayMenuOverlay descriptions under the title)
+      h('div.pm-head', h(`h2${failed ? '.failed' : ''}`, title.toLowerCase()),
+        (d => d ? h('p.pm-desc', d) : null)(failed ? 'you\'re dead, try again?' : /^paused$/i.test(title) ? 'you\'re not going to do what i think you\'re going to do, are ya?' : '')),
       h('div.pm-buttons', ...btns),
       h('div.pm-info',
         h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
