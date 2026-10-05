@@ -117,6 +117,17 @@ check('a play goes up as the beatmap and the key presses, and the server judges 
 // a play sent with someone else's id but not their key is refused
 const forged = await bob.evaluate(async () => { const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: AshtonkMania.Presence.pid(), key: 'not-bobs-key-0000000000', osu: btoa('x'), play: { mods: [], events: [] } }) }); return r.status; });
 check('…and nobody can send scores as someone else (their key)', forged === 403, String(forged));
+// lazer's user tags: only a player with a score on the beatmap can tag it; everyone sees the votes
+{
+  const hash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);
+  const ask = (pg, h) => pg.evaluate(async h => { AshtonkMania.UserTags.ask(h, true); for (let i = 0; i < 50; i++) { const c = AshtonkMania.UserTags.get(h); if (c && !c.pending && c.all.length) return c; await new Promise(r => setTimeout(r, 100)); } return AshtonkMania.UserTags.get(h); }, h);
+  const a0 = await ask(alice, hash), b0 = await ask(bob, hash);
+  await bob.evaluate(h => { AshtonkMania.UserTags.vote(h, 'jumpstream', true); AshtonkMania.UserTags.vote(h, 'stamina', true); }, hash);
+  await alice.evaluate(h => AshtonkMania.UserTags.vote(h, 'gimmick', true), hash);
+  await bob.waitForTimeout(800);
+  const a1 = await ask(alice, hash);
+  check('user tags (lazer): only a player with a score on the beatmap can tag it, and everyone sees the votes', !a0.can && b0.can && a0.all.includes('jumpstream') && a1.tags.map(t => t.tag).join() === 'jumpstream,stamina' && !a1.tags.some(t => t.mine), JSON.stringify({ a0: a0.can, b0: b0.can, a1: a1.tags }));
+}
 await alice.evaluate(() => AshtonkMania.Screens.go('rankings'));
 await alice.waitForFunction(() => document.querySelectorAll('.rk-table .rk-row:not(.rk-head)').length >= 1, null, { timeout: 5000 }); await alice.waitForTimeout(150);
 check('rankings list players by pp (lazer\'s performance table, no accuracy column)', await alice.evaluate(pp => { const r = document.querySelector('.rk-table .rk-row:not(.rk-head)'); return /#1/.test(r.textContent) && /Bob/.test(r.textContent) && new RegExp(`${Math.round(pp)}pp`).test(r.textContent) && !/99,999/.test(r.textContent) && !/%/.test(r.textContent) && document.querySelector('#toolbar [data-tab="rankings"]').classList.contains('on'); }, bobScore.pp), await alice.evaluate(() => document.querySelector('.rk-table') && document.querySelector('.rk-table').textContent));

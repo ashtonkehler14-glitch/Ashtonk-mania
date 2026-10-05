@@ -135,6 +135,8 @@ const SongSelect = {
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
+      // (the selected beatmap's user tags came in)
+      Bus.on('tags', key => { const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.hash === key) { this._lbKey = null; this.updateInfo(); } }),
       Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
@@ -1006,7 +1008,7 @@ const SongSelect = {
         h('div.md-col', md('Creator', m.creator), md('Genre', name(typeof EXPLORE_GENRES !== 'undefined' ? EXPLORE_GENRES : [], set.genreId))),
         h('div.md-col', md('Source', m.source), md('Language', name(typeof EXPLORE_LANGUAGES !== 'undefined' ? EXPLORE_LANGUAGES : [], set.languageId))),
         h('div.md-col', md('Submitted', date(set.submittedDate)), md('Ranked', date(set.rankedDate)))),
-      md('User tags', ''),
+      h('div.md', h('div.md-k', 'User tags'), h('div.md-v', (UserTags.ask(m.hash), UserTags.chips(m.hash)) || '-')),
       h('div.md', h('div.md-k', 'Mapper tags'), h('div.md-v', tagEl)),
       this.onlinePanels(m, set));
   },

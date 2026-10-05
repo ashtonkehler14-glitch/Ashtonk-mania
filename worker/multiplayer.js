@@ -782,9 +782,15 @@ export class PresenceLogic {
     // lazer's playlists: lists of beatmaps a player puts up for a while, each with everyone's best score on each
     // beatmap and an overall board of their totals (kept in storage, pl:<id>)
     this.playlists = new Map(); this.persistPlaylist = null;
+    // lazer's user tags: each beatmap's (by its file's id) tags, with who voted for them — `persistTags` keeps them
+    this.tags = new Map(); this.persistTags = null;
   }
   static PL_ITEMS = 20;
   static PL_OPEN = 3; // playlists one player can have open at once
+  /** lazer's user tags, for mania: the ones players can put on a beatmap after playing it. */
+  static USER_TAGS = ['stream', 'jumpstream', 'handstream', 'chordstream', 'chordjack', 'jack', 'minijack', 'speed', 'stamina', 'technical', 'long notes', 'inverse',
+    'hybrid', 'trill', 'roll', 'bracket', 'anchor', 'burst', 'dump', 'delay', 'polyrhythm', 'scroll speed changes', 'gimmick', 'vibro', 'beginner friendly', 'sight-read friendly'];
+  static TAG_VOTES = 10; // tags one player can vote for on one beatmap
   static PL_KEEP = 14 * 86400000; // an ended playlist is kept (and listed) this long
   loadPlaylists(all) {
     const now = this.now();
@@ -817,6 +823,17 @@ export class PresenceLogic {
       return { ...it, plays: rows.length, top: rows.slice(0, 10), you: rows.find(x => x.pid === pid) || null };
     });
     return { t: 'pl', now: this.now(), ...this.plCard(p), items, board: totals.slice(0, 50), you: totals.find(x => x.pid === pid) || null };
+  }
+  /** Has this player a play on this beatmap the server knows of (on its board, or among their best plays)? */
+  played(pid, key) {
+    const r = this.ranks.get(pid);
+    return !!((r && r.bests && r.bests[key]) || (this.boards.get(key) || []).some(x => x.pid === pid));
+  }
+  /** A beatmap's tags, most votes first (lazer shows a tag once enough players agree: here, any vote). */
+  tagsMsg(key, pid) {
+    const votes = this.tags.get(key) || {};
+    const list = Object.entries(votes).map(([tag, who]) => ({ tag, n: who.length, mine: who.includes(pid) })).sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag));
+    return { t: 'tags', key, tags: list, all: PresenceLogic.USER_TAGS, can: !!pid && this.played(pid, key) };
   }
   savePlaylist(p) { if (this.persistPlaylist) this.persistPlaylist(p); }
   static PROFILE_MAX = 48000; // characters of JSON
@@ -1116,6 +1133,24 @@ export class PresenceLogic {
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid) }];
     if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
+    // ── user tags
+    if (msg.t === 'tags') { const key = PresenceLogic.lbKey(msg.key); return key ? [{ to: id, msg: this.tagsMsg(key, u.pid) }] : []; }
+    if (msg.t === 'tagVote') {
+      const key = PresenceLogic.lbKey(msg.key), tag = String(msg.tag || '');
+      if (!key || !u.pid || !PresenceLogic.USER_TAGS.includes(tag)) return [];
+      if (!this.played(u.pid, key)) return [{ to: id, msg: { ...this.tagsMsg(key, u.pid), err: 'Set a score on this beatmap first (it has to reach the server) — then you can tag it.' } }];
+      const votes = this.tags.get(key) || {}, mine = Object.keys(votes).filter(k => votes[k].includes(u.pid));
+      if (msg.on && !mine.includes(tag)) {
+        if (mine.length >= PresenceLogic.TAG_VOTES) return [{ to: id, msg: { ...this.tagsMsg(key, u.pid), err: `You can vote for ${PresenceLogic.TAG_VOTES} tags on a beatmap.` } }];
+        votes[tag] = [...(votes[tag] || []), u.pid];
+      } else if (!msg.on && mine.includes(tag)) {
+        votes[tag] = votes[tag].filter(x => x !== u.pid);
+        if (!votes[tag].length) delete votes[tag];
+      }
+      this.tags.set(key, votes);
+      if (this.persistTags) this.persistTags(key, votes);
+      return [{ to: id, msg: this.tagsMsg(key, u.pid) }];
+    }
     // ── playlists
     if (msg.t === 'plList') return [{ to: id, msg: this.plList(u.pid) }];
     if (msg.t === 'pl') { const p = this.playlists.get(String(msg.id || '')); return [{ to: id, msg: p ? this.plMsg(p, u.pid) : { t: 'pl', id: String(msg.id || '').slice(0, 12), gone: true } }]; }
@@ -1373,6 +1408,27 @@ export class Matchmaker {
         });
         return;
       }
+      // (a beatmap's user tags come out of storage the first time they're asked for — with its board, and the voter's
+      // best plays when they aren't read yet: they decide whether that player may tag it)
+      const tkey = msg.t === 'tags' || msg.t === 'tagVote' ? PresenceLogic.lbKey(msg.key) : '';
+      if (tkey) {
+        const tu = this.presence.users.get(id), tr = tu && tu.pid ? this.presence.ranks.get(tu.pid) : null;
+        const loaded = this._tgLoaded || (this._tgLoaded = new Set()), lazy = !!(tr && tr._lazy && !tr.bests);
+        if (!loaded.has(tkey) || lazy) {
+          if (loaded.size > 20000) loaded.clear();
+          loaded.add(tkey);
+          Promise.all([
+            this.presence.tags.has(tkey) ? null : this.state.storage.get(`tg:${tkey}`).catch(() => null),
+            this.presence.boards.has(tkey) ? null : this.state.storage.get(`lb:${tkey}`).catch(() => null),
+            lazy ? this.ensureBests(tu.pid).catch(() => {}) : null,
+          ]).then(([tg, lb]) => {
+            if (tg && typeof tg === 'object' && !this.presence.tags.has(tkey)) this.presence.tags.set(tkey, tg);
+            if (!this.presence.boards.has(tkey)) this.presence.boards.set(tkey, Array.isArray(lb) ? lb : []);
+            if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
+          });
+          return;
+        }
+      }
       // (a board asked for by beatmap id: which board that is comes out of storage first)
       const bid = msg.t === 'lb' ? Math.floor(Number(msg.id) || 0) : 0;
       if (bid > 0 && !this.presence.boardIds.has(bid) && !(this._bidMiss || (this._bidMiss = new Set())).has(bid)) {
@@ -1480,6 +1536,7 @@ export class Matchmaker {
         setTimeout(() => backfill().catch(() => {}), 2000);
       };
       setTimeout(() => backfill().catch(() => {}), 5000);
+      this.presence.persistTags = (key, v) => { (Object.keys(v).length ? st.put(`tg:${key}`, v) : st.delete(`tg:${key}`)).catch(() => {}); };
       this.presence.persistFirsts = (pid, m) => { (Object.keys(m).length ? st.put(`f1:${pid}`, m) : st.delete(`f1:${pid}`)).catch(() => {}); };
       this.presence.persistPlaylist = p => { st.put(`pl:${p.id}`, p).catch(() => {}); };
       this.presence.persistBoardId = (bid, key) => { this._bidMiss && this._bidMiss.delete(bid); st.put(`lbid:${bid}`, key).catch(() => {}); };

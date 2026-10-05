@@ -4350,6 +4350,20 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
   .se-r { right: 0; width: 50%; border-left: 1px solid rgba(255, 255, 255, .06); }
   .se-hint { display: none; }
 }
+/* lazer's user tags: in song select's details (with their votes), and the voting panel on results */
+span.md-tag { cursor: default; }
+.md-tag.ut small { margin-left: 4px; font-size: 11px; opacity: .6; }
+.md-tag.ut.mine { color: #ffcc22; }
+.ut-panel { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 2px; }
+.ut-head { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.ut-head b { display: none; }
+.ut-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ut-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .8); font: inherit; font-size: 13px; cursor: pointer; transition: background 120ms, color 120ms; }
+.ut-chip:hover:not(:disabled) { background: rgba(255, 255, 255, .14); color: #fff; }
+.ut-chip:disabled { cursor: default; opacity: .55; }
+.ut-chip.voted { background: rgba(102, 204, 255, .14); color: #cdeeff; }
+.ut-chip.mine { background: #66ccff; color: #10202a; font-weight: 600; }
+.ut-chip small { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
 
 </style>
 </head>
@@ -12813,6 +12827,8 @@ const SongSelect = {
     this._lbKey = this._infoSet = this._infoMap = null; // (the leaderboard and wedges slide in each time the screen opens)
     this._unsub = [
       Bus.on('library:changed', () => this.rebuild(false, true)),
+      // (the selected beatmap's user tags came in)
+      Bus.on('tags', key => { const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.hash === key) { this._lbKey = null; this.updateInfo(); } }),
       Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
@@ -13684,7 +13700,7 @@ const SongSelect = {
         h('div.md-col', md('Creator', m.creator), md('Genre', name(typeof EXPLORE_GENRES !== 'undefined' ? EXPLORE_GENRES : [], set.genreId))),
         h('div.md-col', md('Source', m.source), md('Language', name(typeof EXPLORE_LANGUAGES !== 'undefined' ? EXPLORE_LANGUAGES : [], set.languageId))),
         h('div.md-col', md('Submitted', date(set.submittedDate)), md('Ranked', date(set.rankedDate)))),
-      md('User tags', ''),
+      h('div.md', h('div.md-k', 'User tags'), h('div.md-v', (UserTags.ask(m.hash), UserTags.chips(m.hash)) || '-')),
       h('div.md', h('div.md-k', 'Mapper tags'), h('div.md-v', tagEl)),
       this.onlinePanels(m, set));
   },
@@ -16519,6 +16535,9 @@ const ResultsScreen = {
       scatter.style.display = 'none';
     }
     col.append(h('div.st-pair', perf, hist));
+    // lazer's user tags: after your own pass, vote for what the beatmap is
+    const own = !s.player || s.player === ProfileManager.profile.name;
+    if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
     // Secondary graphs stay folded away to keep the screen simple.
     const more = h('details.res-more', h('summary', 'More statistics'));
     if (errs.length) more.append(scatter);
@@ -17485,6 +17504,7 @@ const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
     { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit on the main menu, or Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'The main menu\'s Edit has lazer\'s beatmap and skin editors (pick a skin in Settings → Skin)'] },
+    { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
@@ -20912,6 +20932,7 @@ const Presence = {
       else if (m.t === 'rankings') Bus.emit('rankings', m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'plList' || m.t === 'pl') Playlists.on(m);
+      else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
@@ -24304,6 +24325,69 @@ const Screenshot = {
   },
 };
 
+/* ===== 19l-user-tags.js ===== */
+/* osu!lazer's user tags: after playing a beatmap, players vote on what it is (jumpstream, long notes, technical…) from
+ * a fixed list; the tags with votes show in song select's details. The server keeps the votes, by the beatmap file's
+ * id, and only takes them from players with a score on it. */
+
+const UserTags = {
+  cache: new Map(), // key → { tags: [{tag, n, mine}], all, can, at }
+  get(key) { return this.cache.get(key) || null; },
+  /** Ask the server (at most every 20 s per beatmap unless `force`). */
+  ask(key, force = false) {
+    if (!key || typeof Presence === 'undefined') return;
+    const c = this.cache.get(key);
+    if (!force && c && Date.now() - c.at < 20000) return;
+    if (c) c.at = Date.now(); else this.cache.set(key, { tags: [], all: [], can: false, at: Date.now(), pending: true });
+    Presence.start();
+    Presence.send({ t: 'tags', key });
+  },
+  vote(key, tag, on) {
+    if (!Presence.ws) { Toast.err('Can\'t tag right now', 'You\'re not connected to the online service.'); return; }
+    // (shown straight away; the server's answer settles it)
+    const c = this.cache.get(key);
+    if (c) {
+      const t = c.tags.find(x => x.tag === tag);
+      if (on && !t) c.tags.push({ tag, n: 1, mine: true });
+      else if (t && t.mine !== on) { t.mine = on; t.n += on ? 1 : -1; if (t.n <= 0) c.tags = c.tags.filter(x => x !== t); }
+      Bus.emit('tags', key);
+    }
+    Presence.send({ t: 'tagVote', key, tag, on: !!on });
+  },
+  on(m) {
+    if (!m || !m.key) return;
+    this.cache.set(m.key, { tags: Array.isArray(m.tags) ? m.tags : [], all: Array.isArray(m.all) ? m.all : [], can: !!m.can, at: Date.now() });
+    if (m.err) Toast.show('Tag not added', m.err);
+    Bus.emit('tags', m.key);
+  },
+  /** The tags with votes, as chips (song select). */
+  chips(key, onClick) {
+    const c = this.get(key);
+    if (!c || !c.tags.length) return null;
+    return h('div.md-tags', ...c.tags.slice(0, 12).map(t => h(`${onClick ? 'button' : 'span'}.md-tag.ut${t.mine ? '.mine' : ''}`, { title: `${t.n} vote${t.n === 1 ? '' : 's'}`, onclick: onClick ? () => onClick(t.tag) : null }, t.tag, h('small', String(t.n)))));
+  },
+  /** lazer's results-screen panel: every tag, the ones with votes first; click to vote or take it back. */
+  panel(key) {
+    const el = h('div.ut-panel');
+    const paint = () => {
+      const c = this.get(key) || { tags: [], all: [], can: false };
+      const votes = new Map(c.tags.map(t => [t.tag, t])), all = [...new Set([...c.tags.map(t => t.tag), ...c.all])];
+      clearEl(el).append(
+        h('div.ut-head', h('b', 'Tags'), h('span.muted', c.can ? 'What is this beatmap? Vote for the tags that fit.' : c.pending ? 'Loading…' : 'Your score has to reach the server before you can tag the beatmap.')),
+        all.length ? h('div.ut-list', ...all.map(tag => {
+          const v = votes.get(tag);
+          return h(`button.ut-chip${v && v.mine ? '.mine' : ''}${v ? '.voted' : ''}`, { disabled: !c.can, onclick: () => { UISounds.click(); this.vote(key, tag, !(v && v.mine)); } }, tag, v ? h('small', String(v.n)) : null);
+        })) : null);
+    };
+    paint();
+    const off = Bus.on('tags', k => { if (k === key) { if (!document.body.contains(el)) off(); else paint(); } });
+    this.ask(key, true);
+    // (a score sent a moment ago may not have reached the server yet: ask again shortly)
+    setTimeout(() => { const c = this.get(key); if (c && !c.can && document.body.contains(el)) this.ask(key, true); }, 4000);
+    return el;
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -24358,7 +24442,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen, SkinEditor, HudLayout, Screenshot };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, Playlists, PlaylistsScreen, EditorScreen, SkinEditor, HudLayout, Screenshot, UserTags };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

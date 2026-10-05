@@ -1265,3 +1265,24 @@ test('auto start stops when nobody is ready any more', () => {
   r.message('b', { t: 'ready', ready: false });
   assert.equal(r.snapshot().autoLeft, 0);
 });
+
+test('lazer\'s user tags: only players with a play on the beatmap can tag it; votes count, can be taken back, and are kept', () => {
+  const p = new PresenceLogic(() => 1000), kept = new Map();
+  p.persistTags = (k, v) => kept.set(k, JSON.parse(JSON.stringify(v)));
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  const tags = (id, extra = {}) => { const o = p.message(id, { t: 'tagVote', key: K1, ...extra }); return o[0] && o[0].msg; };
+  assert.match(tags('a', { tag: 'jumpstream', on: true }).err, /score/, 'no play yet');
+  p.recordVerified('alicepid1', K1, judged({ pp: 100 }));
+  p.recordVerified('bobpid22', K1, judged({ pp: 90, score: 800000 }));
+  let m = tags('a', { tag: 'jumpstream', on: true });
+  assert.ok(!m.err && m.can);
+  assert.deepEqual(m.tags, [{ tag: 'jumpstream', n: 1, mine: true }]);
+  tags('b', { tag: 'jumpstream', on: true }); tags('b', { tag: 'stamina', on: true });
+  m = p.message('a', { t: 'tags', key: K1 })[0].msg;
+  assert.deepEqual(m.tags.map(x => [x.tag, x.n, x.mine]), [['jumpstream', 2, true], ['stamina', 1, false]]);
+  assert.equal(tags('a', { tag: 'not a tag', on: true }), undefined, 'only the listed tags');
+  tags('b', { tag: 'stamina', on: false });
+  assert.deepEqual(kept.get(K1), { jumpstream: ['alicepid1', 'bobpid22'] });
+  for (const t of PresenceLogic.USER_TAGS.slice(1, 12)) tags('a', { tag: t, on: true });
+  assert.match(tags('a', { tag: PresenceLogic.USER_TAGS[20], on: true }).err, /10 tags/);
+});

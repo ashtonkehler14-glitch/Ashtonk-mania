@@ -4331,3 +4331,17 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
   .se-r { right: 0; width: 50%; border-left: 1px solid rgba(255, 255, 255, .06); }
   .se-hint { display: none; }
 }
+/* lazer's user tags: in song select's details (with their votes), and the voting panel on results */
+span.md-tag { cursor: default; }
+.md-tag.ut small { margin-left: 4px; font-size: 11px; opacity: .6; }
+.md-tag.ut.mine { color: #ffcc22; }
+.ut-panel { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 2px; }
+.ut-head { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.ut-head b { display: none; }
+.ut-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ut-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .8); font: inherit; font-size: 13px; cursor: pointer; transition: background 120ms, color 120ms; }
+.ut-chip:hover:not(:disabled) { background: rgba(255, 255, 255, .14); color: #fff; }
+.ut-chip:disabled { cursor: default; opacity: .55; }
+.ut-chip.voted { background: rgba(102, 204, 255, .14); color: #cdeeff; }
+.ut-chip.mine { background: #66ccff; color: #10202a; font-weight: 600; }
+.ut-chip small { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
