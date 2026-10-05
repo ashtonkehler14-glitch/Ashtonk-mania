@@ -288,6 +288,7 @@ const SongSelect = {
     const sMin = +Settings.get('songselect.starsMin') || 0, sMax = +Settings.get('songselect.starsMax') || 10.1;
     const collId = Settings.get('songselect.collection');
     const coll = collId ? Collections.get(collId) : null;
+    const hidden = new Set(Settings.get('songselect.hidden') || []); // (lazer: difficulties you hid)
     const results = [];
     for (const set of BeatmapManager.sets) {
       const hay = `${set.artist} ${set.artistUnicode} ${set.title} ${set.titleUnicode} ${set.creator} ${set.source} ${set.tags}`;
@@ -304,6 +305,7 @@ const SongSelect = {
       }
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
+        if (hidden.has(m.hash)) return false;
         if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
@@ -1052,9 +1054,33 @@ const SongSelect = {
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
       { sep: true },
+      { label: 'Hide', icon: 'x', onClick: () => this.hideMap(m) },
+      ...((Settings.get('songselect.hidden') || []).length ? [{ label: 'Restore all hidden', icon: 'retry', onClick: () => this.restoreHidden() }] : []),
+      { label: 'Clear local scores', icon: 'trash', onClick: () => this.clearScores(m) },
+      { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
     ]);
+  },
+  /** lazer's carousel "Hide": the difficulty leaves the list until "Restore all hidden". */
+  hideMap(m) {
+    const list = Settings.get('songselect.hidden') || [];
+    if (!list.includes(m.hash)) Settings.set('songselect.hidden', [...list, m.hash]);
+    Toast.show(`Hid ${m.version}`, 'Bring it back with "Restore all hidden" in the beatmap options.');
+    this.rebuild(true);
+  },
+  restoreHidden() {
+    const n = (Settings.get('songselect.hidden') || []).length;
+    Settings.set('songselect.hidden', []);
+    Toast.show(`Restored ${plural(n, 'hidden difficulty', 'hidden difficulties')}`);
+    this.rebuild(true);
+  },
+  async clearScores(m) {
+    if (!ScoreManager.forMap(m.hash).length) { Toast.show('No local scores on this difficulty'); return; }
+    if (!(await Dialog.confirm('Clear local scores?', `Every score you've set on ${m.title} [${m.version}] goes for good.`, { ok: 'Clear', danger: true }))) return;
+    const n = await ScoreManager.clearMap(m.hash);
+    Toast.show(`Cleared ${plural(n, 'score', 'scores')}`);
+    this._lbKey = null; this.updateInfo();
   },
   /** lazer's FooterButtonOptions popover: above the Options button, "General", "For all difficulties" and "For
    *  selected difficulty", each with 265 × 50 rounded buttons (17px icon at 15px, the label at 40px); 1–9 press them. */
@@ -1073,7 +1099,10 @@ const SongSelect = {
       btn('Play', 'play', () => this.play()),
       btn('Practice', 'flag', () => this.play('practice')),
       btn('Watch Auto', 'film', () => this.play('auto')),
-      btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)));
+      btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)),
+      btn('Clear local scores', 'trash', () => this.clearScores(m)),
+      btn('Hide', 'x', () => this.hideMap(m)),
+      ...((Settings.get('songselect.hidden') || []).length ? [btn('Restore all hidden', 'retry', () => this.restoreHidden())] : []));
     $('#app').appendChild(el);
     const r = this.optionsBtn.getBoundingClientRect(), z = Zoom.z;
     el.style.left = `${Math.max(8, (r.left + r.width / 2) * z - el.offsetWidth / 2)}px`;

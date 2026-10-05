@@ -6770,7 +6770,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'none' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'mods.presets', d: [] },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'local' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
@@ -9741,6 +9741,13 @@ const ScoreManager = {
     await DB.put('scores', score);
     Bus.emit('scores:changed');
     return score;
+  },
+  /** lazer's "Clear local scores": every score on one difficulty, gone. */
+  async clearMap(hash) {
+    const gone = this.scores.filter(s => s.mapHash === hash);
+    for (const s of gone) await DB.del('scores', s.id);
+    this.scores = this.scores.filter(s => s.mapHash !== hash); this._reindex(); Bus.emit('scores:changed');
+    return gone.length;
   },
   async remove(id) {
     await DB.del('scores', id);
@@ -12721,6 +12728,7 @@ const SongSelect = {
     const sMin = +Settings.get('songselect.starsMin') || 0, sMax = +Settings.get('songselect.starsMax') || 10.1;
     const collId = Settings.get('songselect.collection');
     const coll = collId ? Collections.get(collId) : null;
+    const hidden = new Set(Settings.get('songselect.hidden') || []); // (lazer: difficulties you hid)
     const results = [];
     for (const set of BeatmapManager.sets) {
       const hay = `${set.artist} ${set.artistUnicode} ${set.title} ${set.titleUnicode} ${set.creator} ${set.source} ${set.tags}`;
@@ -12737,6 +12745,7 @@ const SongSelect = {
       }
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
+        if (hidden.has(m.hash)) return false;
         if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
@@ -13485,9 +13494,33 @@ const SongSelect = {
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
       { sep: true },
+      { label: 'Hide', icon: 'x', onClick: () => this.hideMap(m) },
+      ...((Settings.get('songselect.hidden') || []).length ? [{ label: 'Restore all hidden', icon: 'retry', onClick: () => this.restoreHidden() }] : []),
+      { label: 'Clear local scores', icon: 'trash', onClick: () => this.clearScores(m) },
+      { sep: true },
       { label: 'Export .osz', icon: 'download', onClick: () => BeatmapManager.exportOsz(set.id) },
       { label: 'Delete beatmap set…', icon: 'trash', danger: true, onClick: () => this.deleteSet(set) },
     ]);
+  },
+  /** lazer's carousel "Hide": the difficulty leaves the list until "Restore all hidden". */
+  hideMap(m) {
+    const list = Settings.get('songselect.hidden') || [];
+    if (!list.includes(m.hash)) Settings.set('songselect.hidden', [...list, m.hash]);
+    Toast.show(`Hid ${m.version}`, 'Bring it back with "Restore all hidden" in the beatmap options.');
+    this.rebuild(true);
+  },
+  restoreHidden() {
+    const n = (Settings.get('songselect.hidden') || []).length;
+    Settings.set('songselect.hidden', []);
+    Toast.show(`Restored ${plural(n, 'hidden difficulty', 'hidden difficulties')}`);
+    this.rebuild(true);
+  },
+  async clearScores(m) {
+    if (!ScoreManager.forMap(m.hash).length) { Toast.show('No local scores on this difficulty'); return; }
+    if (!(await Dialog.confirm('Clear local scores?', `Every score you've set on ${m.title} [${m.version}] goes for good.`, { ok: 'Clear', danger: true }))) return;
+    const n = await ScoreManager.clearMap(m.hash);
+    Toast.show(`Cleared ${plural(n, 'score', 'scores')}`);
+    this._lbKey = null; this.updateInfo();
   },
   /** lazer's FooterButtonOptions popover: above the Options button, "General", "For all difficulties" and "For
    *  selected difficulty", each with 265 × 50 rounded buttons (17px icon at 15px, the label at 40px); 1–9 press them. */
@@ -13506,7 +13539,10 @@ const SongSelect = {
       btn('Play', 'play', () => this.play()),
       btn('Practice', 'flag', () => this.play('practice')),
       btn('Watch Auto', 'film', () => this.play('auto')),
-      btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)));
+      btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)),
+      btn('Clear local scores', 'trash', () => this.clearScores(m)),
+      btn('Hide', 'x', () => this.hideMap(m)),
+      ...((Settings.get('songselect.hidden') || []).length ? [btn('Restore all hidden', 'retry', () => this.restoreHidden())] : []));
     $('#app').appendChild(el);
     const r = this.optionsBtn.getBoundingClientRect(), z = Zoom.z;
     el.style.left = `${Math.max(8, (r.left + r.width / 2) * z - el.offsetWidth / 2)}px`;
@@ -16937,6 +16973,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.5', title: 'Playlists', sections: [
     { icon: 'list', title: 'Playlists', items: ['New on the Play menu, like lazer: put up a list of up to 20 beatmaps for an hour to two weeks', 'Everyone can play them until it closes; each beatmap has its own leaderboard, and the playlist ranks everyone by their total'] },
+    { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },

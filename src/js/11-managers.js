@@ -74,6 +74,13 @@ const ScoreManager = {
     Bus.emit('scores:changed');
     return score;
   },
+  /** lazer's "Clear local scores": every score on one difficulty, gone. */
+  async clearMap(hash) {
+    const gone = this.scores.filter(s => s.mapHash === hash);
+    for (const s of gone) await DB.del('scores', s.id);
+    this.scores = this.scores.filter(s => s.mapHash !== hash); this._reindex(); Bus.emit('scores:changed');
+    return gone.length;
+  },
   async remove(id) {
     await DB.del('scores', id);
     this.scores = this.scores.filter(s => s.id !== id); this._reindex(); Bus.emit('scores:changed');
