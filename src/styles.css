@@ -4312,3 +4312,15 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
  * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
 .gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.hud-hfm):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
 .gp-hud.auto-hide.peek > * { opacity: 1 !important; }
+/* lazer's ProfileShowMoreButton and the Recent activity rows */
+.pf-more { align-self: center; display: inline-flex; align-items: center; gap: 6px; height: 30px; margin: 8px auto 2px; padding: 0 18px; border: 0; border-radius: 15px; background: var(--ob4, rgba(255, 255, 255, .08)); color: var(--oc2, #ddd); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms; }
+.pf-more:hover { background: var(--ob3, rgba(255, 255, 255, .14)); color: #fff; }
+.pf-more .ic { width: 14px; height: 14px; }
+.pf-acts { display: flex; flex-direction: column; gap: 2px; }
+.pf-act { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 4px 10px; border-radius: 6px; font-size: 13px; }
+.pf-act:hover { background: rgba(255, 255, 255, .04); }
+.pf-act > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-act-i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ob4, rgba(255, 255, 255, .08)); color: var(--ohl, #ffcc22); flex: none; }
+.pf-act-i .ic { width: 12px; height: 12px; }
+.pf-act-rank { color: #ffcc22; }
+.pf-act-t { flex: none; color: rgba(255, 255, 255, .45); font-size: 12px; }
