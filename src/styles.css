@@ -4036,3 +4036,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .bso-gscore:hover { background: rgba(255, 255, 255, .06); }
 .bso-gscore.me b { color: #ffd966; }
 .bso-mods { font-size: 11px; }
+
+/* lazer's results: the play's place on the global ranking */
+.res-grank { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 4px auto 0; padding: 3px 12px; border-radius: 99px; background: rgba(255, 204, 34, .12); color: #ffd966; font-size: 13px; animation: fadeIn 300ms ease; }
+.res-grank .i { width: 14px; height: 14px; }
+.res-grank b { color: #fff; }

@@ -73,7 +73,7 @@ const ResultsScreen = {
       fly(fresh.querySelector(`.cp[data-sid="${CSS.escape(String(oldScore.id))}"]`), oldRect);
     });
   },
-  leave() { MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  leave() { (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
@@ -179,6 +179,20 @@ const ResultsScreen = {
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null && Math.round(s.totalPpAfter) > 0) {
       const d = s.totalPpAfter - s.totalPpBefore;
       mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+    }
+    // lazer: where the play stands on the beatmap's global ranking, once the server has judged it
+    if (p.fresh && s.passed && !(s.mods || []).includes('AT') && typeof Verified !== 'undefined') {
+      const el = h('div.res-grank', { hidden: true });
+      const show = d => {
+        if (!d || d.key !== s.mapHash || !d.rank) return;
+        el.hidden = false;
+        clearEl(el).append(icon('trophy'), h('span', d.best ? 'Global rank ' : 'Your best is '), h('b', `#${fmtInt(d.rank)}`), h('span.muted', ` of ${fmtInt(d.of)}`));
+      };
+      const last = Verified.last;
+      if (last && Date.now() - last.at < 60000) show(last.d);
+      const off = Bus.on('verified', show);
+      (this._offs || (this._offs = [])).push(off);
+      mid.append(el);
     }
     if (s.isPB && p.fresh) mid.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) {

@@ -1172,3 +1172,10 @@ test('a beatmap\'s board can be asked for by its osu! beatmap id (lazer\'s beatm
   assert.equal(m.id, 111); assert.equal(m.key, K1); assert.equal(m.scores[0].score, 800000);
   assert.deepEqual(ids, [[111, K1]]);
 });
+
+test('a judged play says where the player\'s best now stands on the beatmap\'s board', () => {
+  const p = new PresenceLogic(() => 5000);
+  assert.deepEqual((({ rank, of, best }) => ({ rank, of, best }))(p.recordVerified('alicepid1', K1, judged({ score: 800000 }))), { rank: 1, of: 1, best: true });
+  assert.deepEqual((({ rank, of, best }) => ({ rank, of, best }))(p.recordVerified('bobpid22', K1, judged({ score: 900000 }))), { rank: 1, of: 2, best: true });
+  assert.deepEqual((({ rank, of, best }) => ({ rank, of, best }))(p.recordVerified('alicepid1', K1, judged({ score: 700000 }))), { rank: 2, of: 2, best: false });
+});

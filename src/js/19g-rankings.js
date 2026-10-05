@@ -51,6 +51,7 @@ const Verified = {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      this.last = { d, at: Date.now() };
       Bus.emit('verified', d);
       return d;
     } catch (e) { console.warn('score not sent', e); return null; }

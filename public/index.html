@@ -4056,6 +4056,11 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .bso-gscore.me b { color: #ffd966; }
 .bso-mods { font-size: 11px; }
 
+/* lazer's results: the play's place on the global ranking */
+.res-grank { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 4px auto 0; padding: 3px 12px; border-radius: 99px; background: rgba(255, 204, 34, .12); color: #ffd966; font-size: 13px; animation: fadeIn 300ms ease; }
+.res-grank .i { width: 14px; height: 14px; }
+.res-grank b { color: #fff; }
+
 </style>
 </head>
 <body>
@@ -15557,7 +15562,7 @@ const ResultsScreen = {
       fly(fresh.querySelector(`.cp[data-sid="${CSS.escape(String(oldScore.id))}"]`), oldRect);
     });
   },
-  leave() { MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  leave() { (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
@@ -15663,6 +15668,20 @@ const ResultsScreen = {
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null && Math.round(s.totalPpAfter) > 0) {
       const d = s.totalPpAfter - s.totalPpBefore;
       mid.append(h('div.muted.res-ppdelta', `Total ${fmtInt(s.totalPpAfter)}pp (${d >= 0.5 ? '+' + fmtInt(d) : d <= -0.5 ? fmtInt(d) : '±0'})`));
+    }
+    // lazer: where the play stands on the beatmap's global ranking, once the server has judged it
+    if (p.fresh && s.passed && !(s.mods || []).includes('AT') && typeof Verified !== 'undefined') {
+      const el = h('div.res-grank', { hidden: true });
+      const show = d => {
+        if (!d || d.key !== s.mapHash || !d.rank) return;
+        el.hidden = false;
+        clearEl(el).append(icon('trophy'), h('span', d.best ? 'Global rank ' : 'Your best is '), h('b', `#${fmtInt(d.rank)}`), h('span.muted', ` of ${fmtInt(d.of)}`));
+      };
+      const last = Verified.last;
+      if (last && Date.now() - last.at < 60000) show(last.d);
+      const off = Bus.on('verified', show);
+      (this._offs || (this._offs = [])).push(off);
+      mid.append(el);
     }
     if (s.isPB && p.fresh) mid.append(h('div.res-pb', '★ NEW PERSONAL BEST'));
     else if (s.prevBest && p.fresh && s.passed) {
@@ -16657,7 +16676,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -21872,6 +21891,7 @@ const Verified = {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      this.last = { d, at: Date.now() };
       Bus.emit('verified', d);
       return d;
     } catch (e) { console.warn('score not sent', e); return null; }

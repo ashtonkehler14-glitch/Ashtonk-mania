@@ -864,7 +864,9 @@ export class PresenceLogic {
       this.saveDaily();
       out.push(...[...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) })));
     }
-    return { out, entry, total: rec.pp };
+    // where the player's best stands on the board now, and whether this play set it (lazer's results)
+    const now = this.boards.get(key) || [], at = now.findIndex(x => x.pid === pid);
+    return { out, entry, total: rec.pp, rank: at < 0 ? null : at + 1, of: now.length, best: !prev || prev.score < entry.score };
   }
   /** A player's profile for someone looking at it: what their game shared, their place in the rankings, their daily
    *  challenge record and whether they're online. */
@@ -1351,9 +1353,9 @@ export class Matchmaker {
     if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, Array.isArray(v) ? v : []); }
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
     const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
-    const { out, entry, total } = this.presence.recordVerified(pid, key, r, { daily, playlist });
+    const { out, entry, total, rank, of, best } = this.presence.recordVerified(pid, key, r, { daily, playlist });
     this.send(out);
-    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total });
+    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best });
   }
   /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
   async loadFriends() {
