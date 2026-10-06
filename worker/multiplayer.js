@@ -989,8 +989,8 @@ export class PresenceLogic {
   }
   dailyNow() {
     const day = PresenceLogic.dayOf(this.now());
-    // (a challenge saved under a later day — from when days ran on UTC — stays until Central time reaches it)
-    if (this.daily.day !== day && !(this.daily.day > day)) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
+    // (a new challenge at 12am Central — one saved under any other day, including a UTC one from before, makes way)
+    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
     return this.daily;
   }
   saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
