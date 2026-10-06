@@ -121,7 +121,7 @@ const Onboarding = {
     this.o = null;
     o.close();
     if (Screens.currentName !== 'home') Screens.go('home');
-    if (first) Toast.show(`Welcome, ${p.name}!`, 'Change anything later in Settings (Ctrl+O).');
+    if (first) Toast.show(`Welcome, ${p.name}!`, kbHint('Change anything later in Settings (Ctrl+O).', 'Change anything later in Settings.'));
     this.resolve();
   },
 

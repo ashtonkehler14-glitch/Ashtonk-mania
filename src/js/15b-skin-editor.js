@@ -76,7 +76,7 @@ const SkinEditor = {
       this.boxesEl,
       h('div.se-top', h('div.se-title', icon('brush'), h('b', 'Skin editor'), h('span', `Currently editing: ${SkinManager.current ? SkinManager.current.name : 'skin'} — gameplay HUD`)),
         h('div.se-acts', btn('Undo', 'back', () => this.undoStep()), btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
-      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', 'Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.')),
+      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', kbHint('Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.', 'Drag a component to move it, its corner to scale it.'))),
       h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');

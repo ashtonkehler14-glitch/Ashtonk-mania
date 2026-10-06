@@ -176,7 +176,7 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', kbHint('Finish the map or press Esc to return to the room.', 'Finish the map or pause to return to the room.'));
         }
         Bus.emit('mp:changed');
         break;

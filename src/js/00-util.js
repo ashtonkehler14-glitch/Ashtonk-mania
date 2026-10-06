@@ -4,6 +4,8 @@
 const APP_NAME = 'Ashtonk!mania';
 const APP_VERSION = '0.1.0';
 
+/** A keyboard shortcut mentioned in text, left out on a phone or tablet (no keyboard to press it on). */
+const kbHint = (withKeys, without = '') => typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches ? without : withKeys;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 

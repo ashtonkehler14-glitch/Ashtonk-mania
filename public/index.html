@@ -4447,6 +4447,8 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 const APP_NAME = 'Ashtonk!mania';
 const APP_VERSION = '0.1.0';
 
+/** A keyboard shortcut mentioned in text, left out on a phone or tablet (no keyboard to press it on). */
+const kbHint = (withKeys, without = '') => typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches ? without : withKeys;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -7054,7 +7056,7 @@ const SETTINGS_SCHEMA = [
   // ── Graphics
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: 'Ctrl+F11 toggles it anywhere.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
@@ -7078,7 +7080,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
-  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: 'Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).' },
+  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).', 'Move, scale and hide the score, health, progress and the rest of the HUD.') },
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
@@ -16474,7 +16476,7 @@ const SkinEditor = {
       this.boxesEl,
       h('div.se-top', h('div.se-title', icon('brush'), h('b', 'Skin editor'), h('span', `Currently editing: ${SkinManager.current ? SkinManager.current.name : 'skin'} — gameplay HUD`)),
         h('div.se-acts', btn('Undo', 'back', () => this.undoStep()), btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
-      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', 'Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.')),
+      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', kbHint('Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.', 'Drag a component to move it, its corner to scale it.'))),
       h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');
@@ -17445,7 +17447,7 @@ const CollectionsScreen = {
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h('div.list');
-    if (!c.hashes.length) list.append(h('div.empty', h('div.big', 'Empty collection'), 'In song select, use the folder button or F3 → "Manage collections" to add difficulties.'));
+    if (!c.hashes.length) list.append(h('div.empty', h('div.big', 'Empty collection'), kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.')));
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);
@@ -18013,7 +18015,7 @@ const CHANGELOG = [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
     { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust', 'Profiles show how the total adds up: the best plays, each weighted 95% of the one above it (as in lazer: 100%, 95%, 90%…), plus the bonus for how many ranked plays — and other players\' profiles list only the plays checked to be ranked', 'Nobody drops off the rankings when the rules change: everyone is re-checked in the background, online or not'] },
-    { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)', 'The phone\'s Back button or swipe works like Esc, as in lazer on Android: it closes what\'s open, pauses a song and goes back a screen, instead of leaving the game', 'The pause menu is no longer covered by the replay controls when watching Auto or a replay', 'The install-the-app box fits a phone held sideways, Don\'t remind me again included'] },
+    { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)', 'The phone\'s Back button or swipe works like Esc, as in lazer on Android: it closes what\'s open, pauses a song and goes back a screen, instead of leaving the game', 'The pause menu is no longer covered by the replay controls when watching Auto or a replay', 'The install-the-app box fits a phone held sideways, Don\'t remind me again included', 'Hints and messages no longer tell you to press keys (Ctrl+O, F3, Esc…) on a phone, where there are none'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
@@ -20643,7 +20645,7 @@ const Onboarding = {
     this.o = null;
     o.close();
     if (Screens.currentName !== 'home') Screens.go('home');
-    if (first) Toast.show(`Welcome, ${p.name}!`, 'Change anything later in Settings (Ctrl+O).');
+    if (first) Toast.show(`Welcome, ${p.name}!`, kbHint('Change anything later in Settings (Ctrl+O).', 'Change anything later in Settings.'));
     this.resolve();
   },
 
@@ -21285,7 +21287,7 @@ const Multiplayer = {
         this.lastResults = m.results;
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
           const won = m.results.winner === this.me;
-          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', 'Finish the map or press Esc to return to the room.');
+          if (!this.isRP()) Toast.show(won ? 'Everyone else left — you win!' : 'Match ended', kbHint('Finish the map or press Esc to return to the room.', 'Finish the map or pause to return to the room.'));
         }
         Bus.emit('mp:changed');
         break;
@@ -23325,7 +23327,7 @@ const Spectate = {
       this.rkView = h('div.spec-rk-view');
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
       this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), h('span.spec-tap'));
-      this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('small', 'Esc to stop'), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
+      this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
       if (this._lastCur) this.onCur(this._lastCur);
     }

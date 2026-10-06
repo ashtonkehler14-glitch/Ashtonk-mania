@@ -102,7 +102,7 @@ const SETTINGS_SCHEMA = [
   // ── Graphics
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: 'Ctrl+F11 toggles it anywhere.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
@@ -126,7 +126,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
-  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: 'Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).' },
+  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).', 'Move, scale and hide the score, health, progress and the rest of the HUD.') },
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
