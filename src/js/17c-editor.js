@@ -95,6 +95,9 @@ const EditorScreen = {
     const buffer = await TrackCache.get(rec.setId, rec.audioFile);
     await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
     await Music.setRate(1, false);
+    // (the menu may have been playing this same song: the editor opens stopped where it was, as lazer's does — it
+    // used to keep running under a play button that said it was paused)
+    if (Music.playing) { if (!this.pos) this.pos = Music.time; Music.pause(); }
     this.duration = Music.duration || (this.notes.length ? this.notes[this.notes.length - 1].t + 2000 : 60000);
     // the song's waveform for the timeline (lazer shows it behind the timeline): the loudest sample in each slice
     try {
@@ -486,7 +489,7 @@ const EditorScreen = {
     if (Music.playing) Music.play(t); else this.pos = t;
   },
   togglePlay() {
-    if (Music.playing) { this.pos = Music.time; Music.pause(); }
+    if (Music.playing) { if (!this.pos) this.pos = Music.time; Music.pause(); }
     else { if (this.pos >= this.duration - 50) this.pos = 0; Music.play(this.pos); }
     clearEl(this.playBtn).append(icon(Music.playing ? 'pause' : 'play'));
   },
