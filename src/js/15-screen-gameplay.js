@@ -392,8 +392,10 @@ const GameplayScreen = {
     this.initAutoScale();
     // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
     this.healthMode = healthModeFor(layout);
-    // (phones: the stage spans the upright screen, so a bar beside it would be off-screen — lazer's bar at the top)
-    if (typeof Mobile !== 'undefined' && Mobile.touch && (this.healthMode === 'stage' || this.healthMode === 'skinstage' || this.healthMode === 'skin')) this.healthMode = 'lazer';
+    // (a phone held upright: the stage spans the screen, so a bar beside it would be off-screen — lazer's bar at the top;
+    // held sideways there's room, and the skin's own bar goes beside the stage as on a computer)
+    const upright = window.innerHeight > window.innerWidth;
+    if (typeof Mobile !== 'undefined' && Mobile.touch && upright && (this.healthMode === 'stage' || this.healthMode === 'skinstage' || this.healthMode === 'skin')) this.healthMode = 'lazer';
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
