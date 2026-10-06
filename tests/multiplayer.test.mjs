@@ -1055,11 +1055,11 @@ test('beatmap leaderboards hold only judged plays: each player\'s best per beatm
 });
 
 test('daily challenge: the first proposal sets the day\'s beatmap; only judged plays of that beatmap count, best per player; a new day starts fresh', () => {
-  const clock = { t: Date.parse('2026-10-04T10:00:00Z') };
+  const clock = { t: Date.parse('2026-10-04T10:00:00Z') }; // (5am in Chicago: days turn over at midnight Central time)
   const p = new PresenceLogic(() => clock.t);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   const first = p.message('a', { t: 'daily' })[0].msg;
-  assert.deepEqual([first.day, first.map, first.endsAt], ['2026-10-04', null, Date.parse('2026-10-05T00:00:00Z')]);
+  assert.deepEqual([first.day, first.map, first.endsAt], ['2026-10-04', null, Date.parse('2026-10-05T05:00:00Z')]);
   assert.deepEqual(p.message('a', { t: 'dailyPropose', map: { onlineSetId: 0, onlineId: 5, keys: 4 } }), [], 'invalid');
   p.message('a', { t: 'dailyPropose', map: { onlineSetId: 10, onlineId: 111, keys: 4, title: 'Song', stars: 4.567 } });
   p.message('b', { t: 'dailyPropose', map: { onlineSetId: 20, onlineId: 21, keys: 4 } });
@@ -1078,11 +1078,16 @@ test('daily challenge: the first proposal sets the day\'s beatmap; only judged p
   assert.deepEqual(board.scores.map(s => [s.rank, s.name, s.score]), [[1, 'Bob', 900000], [2, 'Alice', 800000]]);
   assert.deepEqual(board.stats, { plays: 1, current: 1, best: 1, last: '2026-10-04' });
   // the next day: a new beatmap to propose, no scores; a missed day breaks the streak
-  clock.t = Date.parse('2026-10-05T00:00:01Z');
+  clock.t = Date.parse('2026-10-05T04:59:59Z'); // (still the 4th in Chicago)
+  assert.equal(p.message('b', { t: 'daily' })[0].msg.day, '2026-10-04');
+  clock.t = Date.parse('2026-10-05T05:00:01Z');
   const next = p.message('b', { t: 'daily' })[0].msg;
   assert.deepEqual([next.day, next.map, next.total], ['2026-10-05', null, 0]);
-  clock.t = Date.parse('2026-10-07T00:00:01Z');
+  clock.t = Date.parse('2026-10-07T05:00:01Z');
   assert.equal(p.message('a', { t: 'daily' })[0].msg.stats.current, 0);
+  // winter: standard time, midnight at 06:00 UTC
+  assert.equal(PresenceLogic.dayEnd('2026-12-01'), Date.parse('2026-12-02T06:00:00Z'));
+  assert.equal(PresenceLogic.dayEnd('2026-11-01'), Date.parse('2026-11-02T06:00:00Z')); // (the day daylight saving ends)
 });
 
 test('profiles: shared by a player\'s game for others to open, with the server\'s rank and standing', () => {

@@ -766,7 +766,7 @@ export class PresenceLogic {
     this.chat = []; this.said = new Map();
     // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
     this.ranks = new Map(); this.persistRank = null;
-    // lazer's daily challenge: one beatmap a day (UTC), proposed by the first player to ask, and each player's best
+    // lazer's daily challenge: one beatmap a day (US Central time), proposed by the first player to ask, and each player's best
     // score on it; `persistDaily` keeps it
     this.daily = { day: '', map: null, scores: [] }; this.persistDaily = null;
     // each player's daily challenge record (lazer's profile box): days played, the current and best daily streak
@@ -955,21 +955,42 @@ export class PresenceLogic {
   dailyStatsOf(pid) {
     const v = this.dailyStats.get(pid);
     if (!v) return null;
-    const today = PresenceLogic.dayOf(this.now()), yesterday = PresenceLogic.dayOf(this.now() - 86400000);
+    const today = PresenceLogic.dayOf(this.now()), yesterday = PresenceLogic.prevDay(today);
     return { ...v, current: v.last === today || v.last === yesterday ? v.current : 0 };
   }
   countDailyDay(pid, day) {
     const v = this.dailyStats.get(pid) || { plays: 0, current: 0, best: 0, last: '' };
     if (v.last === day) return;
-    const yesterday = PresenceLogic.dayOf(Date.parse(day + 'T12:00:00Z') - 86400000);
+    const yesterday = PresenceLogic.prevDay(day);
     v.current = v.last === yesterday ? v.current + 1 : 1; v.best = Math.max(v.best, v.current); v.plays++; v.last = day;
     this.dailyStats.set(pid, v);
     if (this.persistDailyStats) this.persistDailyStats(pid, v);
   }
-  static dayOf(t) { return new Date(t).toISOString().slice(0, 10); }
+  /** The daily challenge's day, in US Central time (America/Chicago, daylight saving included): it turns over at
+   *  midnight there. */
+  static dayOf(t) {
+    const p = PresenceLogic._central(t);
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+  static _central(t) {
+    const fmt = PresenceLogic._fmt || (PresenceLogic._fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }));
+    const o = {}; for (const x of fmt.formatToParts(new Date(t))) o[x.type] = x.value;
+    return o;
+  }
+  /** The calendar day before `day` (YYYY-MM-DD). */
+  static prevDay(day) { return new Date(Date.parse(day + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10); }
+  /** When `day` ends: the next midnight in Central time, as a timestamp. */
+  static dayEnd(day) {
+    const next = new Date(Date.parse(day + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10), L = Date.parse(next + 'T00:00:00Z');
+    // (the zone's offset there, worked out from how Chicago shows that moment; twice, for the hours either side of a change)
+    const off = t => { const p = PresenceLogic._central(t); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - t; };
+    let u = L - off(L); u = L - off(u);
+    return u;
+  }
   dailyNow() {
     const day = PresenceLogic.dayOf(this.now());
-    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
+    // (a challenge saved under a later day — from when days ran on UTC — stays until Central time reaches it)
+    if (this.daily.day !== day && !(this.daily.day > day)) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
     return this.daily;
   }
   saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
@@ -981,7 +1002,7 @@ export class PresenceLogic {
   }
   dailyMsg(pid) {
     const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
-    const at = sorted.findIndex(s => s.pid === pid), end = Date.parse(d.day + 'T00:00:00Z') + 86400000;
+    const at = sorted.findIndex(s => s.pid === pid), end = PresenceLogic.dayEnd(d.day);
     // lazer's score breakdown (how many scores fall in each 100,000) and event feed (the newest scores, with their place)
     const bins = new Array(11).fill(0);
     for (const x of sorted) bins[Math.min(10, Math.floor((x.score || 0) / 100000))]++;

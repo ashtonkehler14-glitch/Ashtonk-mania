@@ -1,4 +1,4 @@
-/* osu!lazer's daily challenge: one beatmap for everyone each day (UTC), with a leaderboard of each player's best score
+/* osu!lazer's daily challenge: one beatmap for everyone each day (turning over at midnight US Central time, decided by the server), with a leaderboard of each player's best score
  * on it, reached from the Play menu. The server keeps the day's beatmap and scores; the first player of the day to
  * open it picks the beatmap (a ranked 4K beatmap of 3.5–5.5 stars from the online listing, at random) for everyone. */
 
