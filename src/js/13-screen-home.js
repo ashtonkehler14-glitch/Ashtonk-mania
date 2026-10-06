@@ -123,7 +123,8 @@ const HomeScreen = {
     };
     this.left.append(...d.left.map(mk));
     this.right.append(...d.right.map(mk));
-    window.addEventListener('pointerup', () => this.btns && this.btns.forEach(b => b.classList.remove('down')));
+    // (one listener for the whole menu, added once: one per visit used to pile up)
+    if (!this._upBound) { this._upBound = true; window.addEventListener('pointerup', () => this.btns && this.btns.forEach(b => b.classList.remove('down'))); }
   },
   /** lazer's MainMenuButton.trigger: the click sound, the action, and a white flash that fades over 800ms. */
   trigger(b) {
@@ -329,7 +330,7 @@ const HomeScreen = {
     const bw = S * 0.94 * Math.sqrt(2 * (1 - Math.cos(2 * Math.PI / N))) / 2;
     const cosA = new Float32Array(N * 5), sinA = new Float32Array(N * 5);
     for (let j = 0; j < 5; j++) for (let i = 0; i < N; i++) { const a = (i / N * 360 + j * 72) * Math.PI / 180; cosA[j * N + i] = Math.cos(a); sinA[j * N + i] = Math.sin(a); }
-    let visClear = false, winMs = 0, winN = 0, lastDraw = 0;
+    let visClear = false, winMs = 0, winN = 0, winLate = 0, lastDraw = 0;
     const t0 = performance.now();
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
@@ -339,10 +340,11 @@ const HomeScreen = {
       // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (!this._slow && now - t0 > 1500) {
-        if (document.hidden || dt >= 100) { winMs = winN = 0; } // (a hidden tab or a hitch isn't the device)
-        else if ((winMs += dt, ++winN, winMs >= 2000)) {
-          if (winMs / winN > 18.2) { this._slow = true; document.documentElement.classList.add('slow'); }
-          winMs = winN = 0;
+        if (document.hidden || dt >= 100) { winMs = winN = winLate = 0; } // (a hidden tab or a hitch isn't the device)
+        else if ((winMs += dt, ++winN, dt > 25 && winLate++, winMs >= 2000)) {
+          // (or stuttering: more than 5% of frames late keeps the average up but looks like a slow device)
+          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); }
+          winMs = winN = winLate = 0;
         }
       }
       const lite = this._slow || document.documentElement.classList.contains('perf');

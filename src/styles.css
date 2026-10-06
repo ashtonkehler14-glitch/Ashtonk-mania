@@ -3983,8 +3983,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 
 
 /* the storyboard, behind the stage and under the background dim (lazer) */
-.gp-sb { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 400ms; }
-.gp-sb.on { opacity: 1; }
+.gp-sb { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 400ms, visibility 0s 400ms; } /* (hidden when there's no storyboard: no empty full-screen layer to composite every frame) */
+.gp-sb.on { opacity: 1; visibility: visible; transition: opacity 400ms; }
 .gp-bg.sb-hide { opacity: 0; }
 
 .pl-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
