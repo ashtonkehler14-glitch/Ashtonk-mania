@@ -12519,6 +12519,9 @@ const HomeScreen = {
    *  fades, and in kiai a white flash and a brighter visualiser; the triangles get a push. */
   logoBeat(beatLength, adj, kiai) {
     if (!Settings.get('ui.animSpeed')) return;
+    // (not while a panel — settings, mod select, chat… — is open over the menu: the beat squeezing the logo and its
+    // visualiser together made the browser redo the whole page's layers every frame, and the panel stuttered)
+    if (Overlays.stack.length || SettingsPanel.o) return;
     const b = this.beatEl;
     b.getAnimations().forEach(a => a.cancel());
     b.animate([{ scale: 1, easing: 'cubic-bezier(.5, 1, .89, 1)' }, { scale: 1 - 0.02 * adj, offset: 60 / (60 + beatLength * 2), easing: 'cubic-bezier(.22, 1, .36, 1)' }, { scale: 1 }], { duration: 60 + beatLength * 2 });
