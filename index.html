@@ -973,7 +973,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 /* import status pill */
 .import-pill { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 91; max-width: min(560px, calc(100% - 32px)); padding: 10px 18px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--accent); display: flex; align-items: center; gap: 10px; font-weight: 600; box-shadow: var(--shadow); animation: toastIn var(--t-med) var(--ease-out); }
 .import-pill > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spinner { width: 16px; height: 16px; border-radius: 50%; border: 3px solid rgba(var(--accent-rgb), .25); border-top-color: var(--accent); animation: spin 700ms linear infinite; }
+.spinner { width: 16px; height: 16px; flex: none; }
 
 /* calibration */
 .calib { display: flex; flex-direction: column; gap: 12px; align-items: center; }
@@ -1653,7 +1653,6 @@ input[type=range].slider.setup-hue::-webkit-slider-thumb { margin-top: -4px; bor
 .pl-mods { display: flex; gap: 4px; margin-top: 12px; flex-wrap: wrap; }
 .pl-load { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 24px 16px; font-size: .85rem; font-weight: 600; color: var(--text-2); border-top: 1px solid rgba(255, 255, 255, .06); }
 .gp-loader.ready .pl-load { color: var(--good); }
-.gp-loader.ready .pl-load .spinner { animation: none; border-color: var(--good); }
 .pl-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .06); }
 .pl-bar i { display: block; height: 100%; width: 0; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width 250ms ease; }
 .gp-loader.ready .pl-bar i { background: var(--good); box-shadow: 0 0 10px var(--good); }
@@ -3587,8 +3586,6 @@ html.touch img { -webkit-user-drag: none; }
 }
 /* touch screens: keyboard hints mean nothing there */
 html.touch .pl-hint:has(.kbd) { visibility: hidden; }
-/* the loader's spinner: white on the dimmed cover, as lazer's */
-.pl-thumb .pl-load .spinner { border-color: rgba(255, 255, 255, .25); border-top-color: #fff; border-width: 2.5px; }
 /* osu!lazer's BeatmapSetOnlineStatusPill (title wedge: Caption1, padding 6×1; carousel set panels: Caption2, 4×0) */
 .status-pill { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 99px; font-size: 14px; line-height: 1.15; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
 .status-pill.sm { padding: 0 4px 1px; font-size: 12px; margin-right: 5px; }
@@ -4474,6 +4471,15 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .pf-ppop { font-size: 1.1rem; color: var(--text-3, rgba(255, 255, 255, .5)); }
 .pf-ppnote { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--text-3, rgba(255, 255, 255, .6)); }
 .pf-ppnote .i { width: 14px; height: 14px; color: #b3d944; flex: none; }
+.spinner { background: #fff; -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Cpath%20d%3D%22M288%2039.056v16.659c0%2010.804%207.281%2020.159%2017.686%2023.066C383.204%20100.434%20440%20171.518%20440%20256c0%20101.689-82.295%20184-184%20184-101.689%200-184-82.295-184-184%200-84.47%2056.786-155.564%20134.312-177.219C216.719%2075.874%20224%2066.517%20224%2055.712V39.064c0-15.709-14.834-27.153-30.046-23.234C86.603%2043.482%207.394%20141.206%208.003%20257.332c.72%20137.052%20111.477%20246.956%20248.531%20246.667C393.255%20503.711%20504%20392.788%20504%20256c0-115.633-79.14-212.779-186.211-240.236C302.678%2011.889%20288%2023.456%20288%2039.056z%22/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Cpath%20d%3D%22M288%2039.056v16.659c0%2010.804%207.281%2020.159%2017.686%2023.066C383.204%20100.434%20440%20171.518%20440%20256c0%20101.689-82.295%20184-184%20184-101.689%200-184-82.295-184-184%200-84.47%2056.786-155.564%20134.312-177.219C216.719%2075.874%20224%2066.517%20224%2055.712V39.064c0-15.709-14.834-27.153-30.046-23.234C86.603%2043.482%207.394%20141.206%208.003%20257.332c.72%20137.052%20111.477%20246.956%20248.531%20246.667C393.255%20503.711%20504%20392.788%20504%20256c0-115.633-79.14-212.779-186.211-240.236C302.678%2011.889%20288%2023.456%20288%2039.056z%22/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: lzSpin calc(2000ms * var(--anim, 1)) cubic-bezier(.77, 0, .175, 1) infinite; }
+/* lazer's LoadingSpinner: Font Awesome's circle-notch, a quarter turn on each beat (InOutQuart) */
+@keyframes lzSpin { 0% { rotate: 0deg; } 25% { rotate: 90deg; } 50% { rotate: 180deg; } 75% { rotate: 270deg; } 100% { rotate: 360deg; } }
+.gp-loader.ready .pl-load .spinner { background: var(--good); }
+.spinner { animation: lzSpin calc(2000ms * var(--anim, 1)) cubic-bezier(.77, 0, .175, 1) infinite, lzSpinIn calc(500ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
+.gp-loader.ready .pl-load .spinner { animation: none; }
+/* LoadingSpinner.PopIn: from 0.6 scale and transparent, OutQuint */
+@keyframes lzSpinIn { from { scale: .6; opacity: 0; } }
 
 </style>
 </head>
@@ -18172,7 +18178,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
-    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open'] },
+    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
