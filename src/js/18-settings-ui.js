@@ -384,7 +384,7 @@ const ModSelect = {
     this.disabled = new Set(disabled); this.disabledWhy = why;
     if (this.disabled.size) Settings.set('songselect.mods', (Settings.get('songselect.mods') || []).filter(x => !this.disabled.has(x)));
     const sheet = h('div.modsel', { role: 'dialog', 'aria-label': 'Mod select' });
-    this.sheet = sheet;
+    this.sheet = sheet; this.colsEl = null; this.footEl = null;
     this.build();
     this.render();
     this.o = makeOverlay(sheet, {
@@ -538,8 +538,16 @@ const ModSelect = {
     if (!this.custEnabled) this.setCust('closed');
     else if (!was && this.custEnabled) { this.cust.classList.remove('flash'); void this.cust.offsetWidth; this.cust.classList.add('flash'); }
     this.custBody.replaceChildren(...(cfgMods.length ? this.configRows(cfgMods) : []));
+    const opening = !this.colsEl;
     if (this.colsEl) this.colsEl.replaceWith(cols); else sheet.append(cols);
     this.colsEl = cols;
+    // lazer's ModSelectOverlay opening: the columns come in one after another (30ms apart), alternately from above
+    // and below, over 400ms OutQuint (only when it opens — not each time a mod is toggled)
+    if (opening && Settings.get('ui.animSpeed') !== 0) {
+      const d = Math.min(700, innerHeight * .9), k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1;
+      [...cols.children].forEach((c, i) => c.animate([{ translate: `0 ${i % 2 ? d : -d}px`, opacity: 0 }, { translate: '0 0', opacity: 1 }],
+        { duration: 400 * k, delay: i * 30 * k, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'backwards' }));
+    }
     // lazer's footer: the back button, a 200px sheared "Deselect all" (Backspace), and at the right the speed and score
     // multiplier in a sheared two-part box (ModFooterInformationDisplay)
     const info = (label, value, cls = '') => h(`div.ms-info${cls}`, h('span.ms-info-l', h('i', label)), h('span.ms-info-r', h('i', value)));

@@ -105,6 +105,14 @@ function starBadge(sr) {
 /** osu!lazer's tooltips (OsuTooltipContainer): a dark grey box with 5px corners following the cursor. Elements keep
  *  using the plain `title` attribute; on first hover it moves to data-tip so the browser's own tooltip never shows.
  *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */
+// lazer's OsuButton click flash, on every button (restarted on each click)
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('.btn');
+  if (!b || b.disabled) return;
+  b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
+}, true);
+document.addEventListener('animationend', e => { if (e.animationName === 'btnFlash') e.target.classList.remove('flash'); }, true);
+
 const Tooltip = {
   init() {
     this.el = h('div.lz-tip', { role: 'tooltip' });
@@ -119,7 +127,7 @@ const Tooltip = {
       const tip = t.dataset.tip;
       if (!tip || e.pointerType === 'touch' || document.getElementById('app').classList.contains('in-game')) { this.hide(); return; }
       // only for a pointer that's actually moving: a new screen appearing under a still mouse shows nothing
-      const show = () => { if (this.still) return; this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(); };
+      const show = () => { if (this.still) return; const was = this.visible; this.el.textContent = tip; this.el.classList.add('show'); this.visible = true; this.place(!was); };
       if (this.visible) show(); else this._t = setTimeout(show, 450);
     });
     document.addEventListener('pointermove', e => { if (this.still && this.x !== undefined && (Math.abs(e.clientX - this.x) > 2 || Math.abs(e.clientY - this.y) > 2)) this.still = false; this.x = e.clientX; this.y = e.clientY; if (this.visible) this.place(); }, { passive: true });
@@ -129,13 +137,26 @@ const Tooltip = {
     document.addEventListener('keydown', () => this.hide(), true);
   },
   hide() { clearTimeout(this._t); if (this.visible) { this.visible = false; this.el.classList.remove('show'); } },
-  place() {
+  /** lazer's tooltip trails the pointer (it eases to where the pointer is over 120ms OutQuint) instead of being stuck to
+   *  it; a tooltip that has just appeared starts right there. */
+  place(snap = false) {
     const r = this.el.getBoundingClientRect();
     let x = (this.x || 0) + 14, y = (this.y || 0) + 18;
     if (x + r.width > innerWidth - 6) x = innerWidth - r.width - 6;
     if (y + r.height > innerHeight - 6) y = (this.y || 0) - r.height - 10;
-    this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${(1 / Zoom.z).toFixed(3)})`;
+    this.tx = x; this.ty = y;
+    if (snap || this.px === undefined) { this.px = x; this.py = y; this.draw(); return; }
+    if (!this._raf) { this._last = performance.now(); this._raf = requestAnimationFrame(() => this.follow()); }
   },
+  follow() {
+    this._raf = 0;
+    const now = performance.now(), k = 1 - Math.exp(-(now - this._last) / 32); this._last = now; // (~OutQuint over 120ms)
+    this.px += (this.tx - this.px) * k; this.py += (this.ty - this.py) * k;
+    if (Math.abs(this.tx - this.px) < .3 && Math.abs(this.ty - this.py) < .3) { this.px = this.tx; this.py = this.ty; }
+    this.draw();
+    if (this.visible && (this.px !== this.tx || this.py !== this.ty)) this._raf = requestAnimationFrame(() => this.follow());
+  },
+  draw() { this.el.style.transform = `translate(${this.px.toFixed(1)}px, ${this.py.toFixed(1)}px) scale(${(1 / Zoom.z).toFixed(3)})`; },
 };
 
 /** osu!lazer's rank colours (OsuColour.ForRank) and the ink its rank pills (DrawableRank) write the letter in: gold for
@@ -295,7 +316,7 @@ const Dialog = {
 /** Context menu: items [{label, icon, onClick, checked, sep, header}] */
 /** A popup menu at (x, y); with { above: true } y is where its bottom edge goes (a menu opened from a footer button). */
 function showMenu(x, y, items, { above = false } = {}) {
-  const menu = h('div.menu', { role: 'menu' });
+  const menu = h(`div.menu${above ? '.up' : ''}`, { role: 'menu' });
   for (const it of items) {
     if (it.sep) { menu.appendChild(h('div.sep')); continue; }
     if (it.header) { menu.appendChild(h('div.hdr', it.header)); continue; }

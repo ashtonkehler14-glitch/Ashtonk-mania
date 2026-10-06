@@ -1,5 +1,6 @@
 /* ───────────────────────── Ashtonk!mania — client styles ───────────────────────── */
 :root {
+  --el-out: linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); /* osu!framework's OutElastic */
   --vw: 1vw; --vh: 1vh; /* one percent of the app's layout size (set by Zoom.update: it differs from the window when the app is scaled) */
   --ui-scale: 1;
   --anim: 1;
@@ -253,7 +254,12 @@ svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain 
   transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
 }
 .btn:hover { background: rgba(var(--accent-rgb), .14); border-color: rgba(var(--accent-rgb), .5); }
-.btn:active { transform: translateY(1px) scale(.97); }
+/* lazer's OsuButton: held, it slowly squeezes to 90% (4s OutQuint); let go, it springs back (1s OutElastic); clicked,
+   it flashes (500ms OutQuint) */
+.btn { scale: 1; transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast), scale calc(1000ms * var(--anim, 1)) var(--el-out); }
+.btn:active:not(:disabled) { scale: .9; transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast), scale 4000ms cubic-bezier(.22, 1, .36, 1); }
+@keyframes btnFlash { from { filter: brightness(1.55); } }
+.btn.flash { animation: btnFlash calc(500ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
 .btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(var(--accent-rgb), .35); }
 .btn.primary:hover { filter: brightness(1.1); box-shadow: 0 8px 26px rgba(var(--accent-rgb), .5); }
 .btn.gold { background: linear-gradient(180deg, #ffe07a, #f2b705); color: #2a1d00; border-color: transparent; }
@@ -375,8 +381,14 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .dialog h2 { margin: 0 0 8px; font-weight: 700; }
 .dialog .body { color: var(--text-2); margin-bottom: 18px; line-height: 1.5; }
 .dialog .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
-.menu { position: fixed; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 70; animation: menuIn var(--t-fast) var(--ease-out) both; }
-@keyframes menuIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.menu { position: fixed; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 70; animation: menuIn calc(300ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1) both; }
+/* lazer's OsuMenu: fades in over 280ms OutQuint while its height unrolls over 300ms OutQuint (from the top, or from the
+   bottom for one opened upwards); closing waits 50ms, then fades out */
+@keyframes menuIn { from { opacity: 0; clip-path: inset(0 0 100% 0 round 12px); } 60% { opacity: 1; } to { opacity: 1; clip-path: inset(0 0 0 0 round 12px); } }
+@keyframes menuInUp { from { opacity: 0; clip-path: inset(100% 0 0 0 round 12px); } 60% { opacity: 1; } to { opacity: 1; clip-path: inset(0 0 0 0 round 12px); } }
+@keyframes menuOut { to { opacity: 0; } }
+.menu.out { animation: menuOut 170ms cubic-bezier(.22, 1, .36, 1) 50ms both; pointer-events: none; }
+.menu.up { animation-name: menuInUp; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; font-weight: 700; font-size: .88rem; color: var(--text-2); }
 .menu button:hover, .menu button:focus-visible { background: rgba(var(--accent-rgb), .16); color: var(--text); outline: none; }
 .menu .sep { height: 1px; margin: 5px 6px; background: var(--line); }
@@ -417,10 +429,19 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .settings-panel .fbool { cursor: pointer; min-height: 52px; }
 .settings-panel .fbool .toggle, .settings-panel .fbool > .btn { flex: none; }
 /* SwitchButton: an outlined pill that fills in Highlight1 when on */
-.settings-panel .toggle { width: 44px; height: 22px; background: transparent; box-shadow: inset 0 0 0 2.5px var(--ol4); transition: background 200ms, box-shadow 200ms; }
-.settings-panel .toggle::after { top: 5px; left: 5px; width: 12px; height: 12px; background: var(--ol4); transition: transform 200ms var(--ease-out), background 200ms; }
-.settings-panel .toggle.on { background: var(--ohl); box-shadow: inset 0 0 0 2.5px var(--ohl); }
-.settings-panel .toggle.on::after { transform: translateX(22px); background: var(--ob5); }
+/* lazer's SwitchButton (FormCheckBox): a 56×16 pill with a 3.2px border (Light4; Highlight1 on hover) and no nub. Off,
+   it's 75% wide and empty; on, it fills with Highlight1 and springs out to full width (200ms OutElasticQuarter — back
+   in over 120ms OutExpo), the colours easing over 250ms OutQuint */
+.settings-panel .toggle { width: 56px; height: 16px; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+.settings-panel .toggle::after { content: ""; top: 0; left: 50%; width: 75%; height: 100%; translate: -50% 0; transform: none; box-sizing: border-box; border-radius: 8px;
+  border: 3.2px solid var(--ol4); background: transparent;
+  transition: width 120ms cubic-bezier(.16, 1, .3, 1), background 250ms cubic-bezier(.22, 1, .36, 1), border-color 250ms cubic-bezier(.22, 1, .36, 1); }
+.settings-panel .toggle.on::after { width: 100%; transform: none; background: color-mix(in srgb, var(--ohl) 90%, #000); border-color: color-mix(in srgb, var(--ohl) 90%, #000);
+  transition: width 200ms linear(0, 1.49, 1.626, 1.482, 1.21, .956, .807, .782, .847, .946, 1.03, 1.073, 1.074, 1.047, 1.012, .985, .973, .975, .986, .998, 1.007, 1.01, 1.008, 1.004, 1, .997, .997, .997, .999, 1, 1.001, 1.001, 1), background 250ms cubic-bezier(.22, 1, .36, 1), border-color 250ms cubic-bezier(.22, 1, .36, 1); }
+.settings-panel .set-row:hover .toggle::after, .settings-panel .toggle:focus-visible::after { border-color: var(--ohl); }
+.settings-panel .set-row:hover .toggle.on::after { background: var(--ohl); }
+.settings-panel .toggle:active::after { width: 75%; }
+.settings-panel .toggle.on:active::after { width: 100%; }
 /* FormSliderBar: caption and value on the left half, a 40px rounded track with a 10px nub on the right half */
 .settings-panel .frange { padding: 5px 5px 5px 9px; }
 .settings-panel .frange .fleft { width: 50%; flex: none; min-width: 0; padding: 4px 10px 4px 0; display: flex; flex-direction: column; gap: 4px; }
@@ -1858,7 +1879,12 @@ div.res-calib .i { color: var(--good); }
 .modcol-list { padding: 8px; gap: 5px; }
 .mod-p { min-height: 44px; padding: 0 12px 0 0; border-radius: 7px; overflow: hidden; background: hsl(var(--o-h) 10% 25%); transition: background 150ms, transform 150ms; }
 .mod-p:hover { background: hsl(var(--o-h) 10% 30%); }
-.mod-p:active { transform: scale(.97); }
+/* lazer's ModPanel: no squash — its switch (the acronym strip on the left) widens from 54 to 70px when the mod is on,
+   half-way while held (150ms OutQuint; 600ms while held), and hovering lightens the panel */
+.mod-p:active { transform: none; }
+.mod-p .mod-ac { width: 54px; transition: width 150ms cubic-bezier(.22, 1, .36, 1), background 150ms cubic-bezier(.22, 1, .36, 1); }
+.mod-p.on .mod-ac { width: 70px; }
+.mod-p:active:not(.unavail) .mod-ac { width: 62px; transition-duration: 600ms; }
 .mod-p .mod-ac { align-self: stretch; min-width: 52px; height: auto; margin: 0; border-radius: 0; display: grid; place-items: center; background: hsl(var(--o-h) 10% 15%); color: var(--c); transform: none; }
 .mod-p .mod-ac > span { display: inline-block; transform: skewX(11.31deg); }
 .mod-p.on { background: var(--c); }
@@ -1992,8 +2018,8 @@ body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-
 
 /* ── osu!lazer basic controls, everywhere */
 /* OsuTooltipContainer: Gray3 at 90%, 5px corners, regular 14px text, a soft shadow; it follows the cursor */
-.lz-tip { position: fixed; left: 0; top: 0; z-index: 200; max-width: 500px; padding: 5px 9px; border-radius: 5px; background: rgba(51, 51, 51, .9); color: #fff; font-size: .875rem; font-weight: 400; line-height: 1.35; white-space: pre-line; box-shadow: 0 2px 10px rgba(0, 0, 0, .16); pointer-events: none; opacity: 0; transition: opacity 150ms; }
-.lz-tip.show { opacity: 1; }
+.lz-tip { position: fixed; left: 0; top: 0; z-index: 200; max-width: 500px; padding: 5px 9px; border-radius: 5px; background: rgba(51, 51, 51, .9); color: #fff; font-size: .875rem; font-weight: 400; line-height: 1.35; white-space: pre-line; box-shadow: 0 2px 10px rgba(0, 0, 0, .16); pointer-events: none; opacity: 0; transition: opacity 300ms cubic-bezier(.22, 1, .36, 1) 150ms; }
+.lz-tip.show { opacity: 1; transition: opacity 300ms cubic-bezier(.22, 1, .36, 1); } /* (lazer: in over 300ms OutQuint; out after 150ms) */
 /* OsuScrollContainer: a 10px rounded scrollbar (3px margin), grey, white on hover */
 * { scrollbar-width: thin; scrollbar-color: #888 transparent; }
 ::-webkit-scrollbar { width: 16px; height: 16px; }
