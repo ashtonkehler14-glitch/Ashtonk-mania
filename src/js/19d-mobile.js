@@ -47,6 +47,22 @@ const Mobile = {
   init() {
     if (!this.touch) return;
     this.undoFnfSkin();
+    this.backKey();
+  },
+  /** The phone's own Back (button or swipe) works as Esc does, like lazer on Android: closes what's open, pauses a
+   *  play, goes back a screen — instead of leaving the game. At the main menu's big logo with nothing open, it
+   *  leaves as usual. */
+  backKey() {
+    const mark = () => { try { history.pushState({ amBack: 1 }, ''); } catch {} };
+    const atRoot = () => Screens.currentName === 'home' && HomeScreen.menuState === 'initial' && !Overlays.top() && !(typeof SettingsPanel !== 'undefined' && SettingsPanel.o);
+    mark();
+    addEventListener('popstate', () => {
+      if (atRoot()) { history.back(); return; }
+      mark();
+      const t = document.activeElement && document.activeElement !== document.body ? document.activeElement : document.body;
+      if (t.blur && /^(INPUT|TEXTAREA)$/.test(t.tagName)) t.blur(); // (Back puts the keyboard away first, as on Android)
+      else t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    });
   },
   /** An earlier version set the custom skin up as FNF's on phones (arrows, FNF colours and judgements): put back the
    *  skin's own defaults, once. The FNF part is how gameplay is laid out and played (ManiaRenderer, hitboxes), not a skin. */
