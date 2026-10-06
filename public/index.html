@@ -10885,15 +10885,15 @@ function icon(name, cls = '') {
   return t.cloneNode(true);
 }
 icon.cache = new Map();
-/** One CSS rule per lazer icon picture, made the first time it's used (the picture isn't repeated in every element). */
+/** One CSS rule per lazer icon picture (the picture isn't repeated in every element) — all made in one go the first
+ *  time any is used: adding them one by one as icons first appeared made the browser restyle the page each time. */
 icon.img = n => {
-  const id = n.replace(/[^a-zA-Z0-9-]/g, '_');
-  if (!(icon.made ||= new Set()).has(id)) {
-    icon.made.add(id);
-    const st = icon.sheet || (icon.sheet = document.head.appendChild(document.createElement('style')));
-    st.sheet.insertRule(`svg.lzi-${id} { --lzi: url("${ICON_IMG[n]}"); }`, st.sheet.cssRules.length);
+  if (!icon.sheet) {
+    icon.sheet = document.createElement('style');
+    icon.sheet.textContent = Object.keys(ICON_IMG).map(k => `svg.lzi-${k.replace(/[^a-zA-Z0-9-]/g, '_')} { --lzi: url("${ICON_IMG[k]}"); }`).join('\n');
+    document.head.appendChild(icon.sheet);
   }
-  return id;
+  return n.replace(/[^a-zA-Z0-9-]/g, '_');
 };
 
 /** Star rating colour ramp. */
