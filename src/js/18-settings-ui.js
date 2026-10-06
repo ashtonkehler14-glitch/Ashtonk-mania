@@ -103,12 +103,14 @@ const SettingsPanel = {
     let row;
     const rebuild = () => { const n = this.row(it); row.replaceWith(n); };
     const form = (cls, ...kids) => h(`div.set-row.form.${cls}`, ...kids, reset);
+    // (lazer's FormControlBackground.FlashOnCommit: a soft glow up from the bottom of the box as a value is set)
+    const flash = () => { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); };
     if (it.when && !it.when()) return h('div', { hidden: true });
     switch (it.t) {
       case 'bool': {
         const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: e => {
           e.stopPropagation();
-          const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset();
+          const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset(); flash();
         } });
         row = form('fbool', cap, t);
         row.addEventListener('click', () => t.click());
@@ -120,6 +122,7 @@ const SettingsPanel = {
         const upd = () => { const x = parseFloat(s.value); v.textContent = it.fmt ? it.fmt(x) : x; s.style.setProperty('--p', ((x - it.min) / (it.max - it.min) * 100) + '%'); };
         s.addEventListener('input', () => { Settings.set(it.k, parseFloat(s.value)); upd(); updReset(); });
         s.addEventListener('keydown', e => e.stopPropagation());
+        s.addEventListener('change', flash);
         upd();
         row = form('frange', h('div.fleft', cap, v,
           it.calibrate ? h('button.btn.sm.fcal', { onclick: () => Calibration.open() }, 'Calibrate') : null), h('div.fright', s));

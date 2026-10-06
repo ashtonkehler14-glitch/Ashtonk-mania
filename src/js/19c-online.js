@@ -647,20 +647,20 @@ const DashboardScreen = {
     if (!this.page) return;
     const keepFocus = document.activeElement && document.activeElement.classList.contains('dash-search');
     clearEl(this.tabsEl).append(...[['friends', 'friends'], ['online', 'currently online']].map(([k, l]) =>
-      h(`button.ov-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.tab = k; this.render(); } }, l)));
+      h(`button.ov-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this._fade = true; this.tab = k; this.render(); } }, l)));
     const online = this.users();
     const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => e.stopPropagation() });
     const style = this.style();
     const styleBtns = h('div.dash-styles', ...[['card', 'Card'], ['list', 'List'], ['brick', 'Brick']].map(([k, l]) =>
-      h(`button.dash-style${style === k ? '.on' : ''}`, { title: l, 'aria-label': `${l} view`, onclick: () => { UISounds.click(); Settings.set('ui.dashStyle', k); this.render(); } }, h(`span.dsi.${k}`))));
+      h(`button.dash-style${style === k ? '.on' : ''}`, { title: l, 'aria-label': `${l} view`, onclick: () => { UISounds.click(); this._fade = true; Settings.set('ui.dashStyle', k); this.render(); } }, h(`span.dsi.${k}`))));
     const sorts = h('div.dash-sorts', h('span.dash-sl', 'Sort by'), ...[['lastVisit', 'Last visit'], ['username', 'Username']].map(([k, l]) =>
-      h(`button.dash-sort${this.sort() === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('ui.dashSort', k); this.render(); } }, l)));
+      h(`button.dash-sort${this.sort() === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this._fade = true; Settings.set('ui.dashSort', k); this.render(); } }, l)));
     this.listEl = h('div.dash-list');
     if (this.tab === 'friends') {
       const friends = Friends.list().map(f => { const p = online.find(x => x.pid === f.pid); return p || { ...f, online: false, status: 'offline' }; });
       const counts = { all: friends.length, online: friends.filter(f => f.online).length, offline: friends.filter(f => !f.online).length };
       const stream = h('div.dash-stream', ...[['all', 'All', '#fff'], ['online', 'Online', '#b3d944'], ['offline', 'Offline', '#000']].map(([k, l, c]) =>
-        h(`button.dash-si${this.filter === k ? '.on' : ''}`, { style: { '--bar': c }, onclick: () => { UISounds.click(); this.filter = k; this.render(); } }, h('b', l), h('span', String(counts[k])), h('i'))));
+        h(`button.dash-si${this.filter === k ? '.on' : ''}`, { style: { '--bar': c }, onclick: () => { UISounds.click(); this._fade = true; this.filter = k; this.render(); } }, h('b', l), h('span', String(counts[k])), h('i'))));
       const reqs = Friends.requests;
       clearEl(this.page).append(
         h('div.dash-streamwrap', stream),
@@ -685,7 +685,8 @@ const DashboardScreen = {
     list = list.sort((a, b) => sort === 'username' ? a.name.localeCompare(b.name)
       : (b.online - a.online) || ((b.online ? Date.now() : LastSeen.get(b.pid)) - (a.online ? Date.now() : LastSeen.get(a.pid))) || a.name.localeCompare(b.name));
     const style = this.style();
-    this.listEl.className = `dash-list s-${style}`;
+    // (a new view — tab, filter, sort or style — fades in as lazer's lists do; presence updates just redraw)
+    this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
     if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? 'Connecting to the online service…' : 'Online play needs the game\'s server (open the game from its website).')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));

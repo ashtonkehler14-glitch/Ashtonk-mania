@@ -2071,6 +2071,7 @@ input[type=range].slider::-webkit-slider-runnable-track { height: 4px; border-ra
 input[type=range].slider::-webkit-slider-thumb { width: 26px; height: 15px; margin-top: -5.5px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), .5); }
 input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-radius: 7.5px; border: 3px solid #fff; background: var(--accent); }
 .settings-panel .toggle::after { content: ""; }
+.settings-panel .toggle.on { background: none; box-shadow: none; } /* (the pill is the ::after: the Nub fill above put a box around it) */
 
 /* ── gameplay HUD, blended in (osu!lazer's HUD): no boxes or bright pills over the playfield — soft white text with
    a shadow for contrast, one right-hand stack for the numbers, and a sheared, fading leaderboard at the left edge */
@@ -4464,3 +4465,12 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* a new search: the old results dim (lazer's LoadingLayer) until the new ones fade in */
 .ex-grid { transition: opacity calc(200ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
 .ex-grid.ex-dim { opacity: .5; pointer-events: none; transition-duration: calc(400ms * var(--anim, 1)); }
+.dash-list.fade { animation: dashFade calc(250ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
+@keyframes dashFade { from { opacity: 0; } }
+/* FormControlBackground.FlashOnCommit (Dark2, from the bottom, 800ms OutQuint) and the slider's hover colours */
+.settings-panel .set-row.form { isolation: isolate; }
+.settings-panel .set-row.form::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; opacity: 0; background: linear-gradient(transparent, hsl(var(--o-h) 20% 35%)); }
+.settings-panel .set-row.form.flash::after { animation: formFlash calc(800ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
+@keyframes formFlash { from { opacity: 1; } }
+.settings-panel input[type=range].slider::-webkit-slider-thumb { filter: brightness(.9); transition: filter 250ms cubic-bezier(.22, 1, .36, 1); }
+.settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
