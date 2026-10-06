@@ -6992,15 +6992,27 @@ const UISounds = {
     this.buffers.set(name, p);
     return p;
   },
-  async play(name, vol = 1) {
+  async play(name, vol = 1, rate = 1) {
     if (!Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
     const b = await this._get(name);
-    if (b) AudioManager.play(b, { bus: 'ui', volume: vol });
+    if (b) AudioManager.play(b, { bus: 'ui', volume: vol, rate });
   },
-  hover() { const now = performance.now(); if (now - (this._lh || 0) < 40) return; this._lh = now; this.play('click-short', 0.6); },
+  // (lazer's HoverSounds: each one pitched a little differently, 98–102%, so a row of them doesn't sound mechanical)
+  hover() { const now = performance.now(); if (now - (this._lh || 0) < 40) return; this._lh = now; this.play('click-short', 0.6, 0.98 + Math.random() * 0.04); },
   click() { this.play('click-short-confirm'); },
   back() { this.play('menuback'); },
   /** Song select: a beatmap set opening ('expand'), another difficulty ('difficulty') or a random pick ('random'). */
+  /** lazer's HoverClickSounds on everything clickable: a hover sound as the pointer comes onto a button, tab, menu item
+   *  or list entry (not for touch, and not in a song). */
+  initHover() {
+    const SEL = '.btn, .pm-btn, .menu button, .ov-tab, .sp-nb, .side-item, .mod-p, .lz-back, .sh-btn, .res-ab, .ss-foot button, .icon-btn, .pf-score, .setup-choice, .sk-step';
+    document.addEventListener('pointerover', e => {
+      if (e.pointerType === 'touch') return;
+      const b = e.target.closest && e.target.closest(SEL);
+      if (!b || b.disabled || b.contains(e.relatedTarget) || document.getElementById('app').classList.contains('in-game')) return;
+      this.hover();
+    }, { passive: true });
+  },
   select(kind) { const now = performance.now(); if (now - (this._ls || 0) < 45) return; this._ls = now; this.play('select-' + kind); }, // (an arrow key held down doesn't pile them up)
 };
 
@@ -25059,6 +25071,7 @@ const App = {
     Zoom.init();
     Toolbar.build();
     Tooltip.init();
+    UISounds.initHover();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);

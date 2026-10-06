@@ -30,6 +30,7 @@ const App = {
     Zoom.init();
     Toolbar.build();
     Tooltip.init();
+    UISounds.initHover();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);
