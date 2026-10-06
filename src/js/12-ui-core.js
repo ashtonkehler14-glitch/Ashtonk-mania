@@ -139,7 +139,7 @@ const FallingText = {
   drop(e) {
     const t = e.target;
     if (!(t instanceof HTMLInputElement) || !this.TYPES.has(t.type) || !e.inputType.startsWith('delete') || e.isComposing) return;
-    if (document.documentElement.classList.contains('slow') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
+    if (document.documentElement.classList.contains('slow') || document.documentElement.classList.contains('perf') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
     const v = t.value; let a = t.selectionStart, b = t.selectionEnd;
     if (a == null || !v) return;
     if (a === b) {
@@ -492,7 +492,7 @@ const Background = {
    *  same scale as gameplay's sliders; the player's own dim and blur only apply once gameplay starts. */
   MENU_DIM: 0.25, MENU_BLUR: 0.25,
   menuBlurPx() { return this.MENU_BLUR * 50 * innerWidth / 1920; },
-  set(url, { blur = this.menuBlurPx(), dim = this.MENU_DIM } = {}) {
+  set(url, { blur = Settings.get('graphics.performanceMode') ? 0 : this.menuBlurPx(), dim = this.MENU_DIM } = {}) { // (Performance mode: no blur, nothing to bake)
     if (url !== this.current) Bus.emit('bg:changed', url);
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);
@@ -1301,7 +1301,7 @@ const Screens = {
       if (transition === 'right') el.classList.add('from-right');
       if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
-      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow')) {
+      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow') && !document.documentElement.classList.contains('perf')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
         if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);

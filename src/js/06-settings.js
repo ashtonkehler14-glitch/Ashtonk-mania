@@ -105,7 +105,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
@@ -191,7 +191,7 @@ const SETTINGS_SCHEMA = [
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects']),
+  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -223,6 +223,12 @@ const Settings = {
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     // song select groups by key count by default; a list left ungrouped moves to it, once
     if (!v['migr.groupKeys']) { if (v['songselect.group'] === 'none') delete v['songselect.group']; v['migr.groupKeys'] = true; }
+    // (the setup's Performance choice used to switch Performance mode on; that now strips the menus too, so a player
+    // who picked it keeps what it meant then: lighter gameplay effects, menus as they were)
+    if (!v['migr.perfMenus']) {
+      if (v['graphics.performanceMode'] && v['setup.device'] === 'chromebook') Object.assign(v, { 'graphics.performanceMode': false, 'graphics.particles': false, 'gameplay.hitLighting': false, 'skin.effects': false, 'gameplay.comboEffects': false });
+      v['migr.perfMenus'] = true;
+    }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
@@ -235,6 +241,7 @@ const Settings = {
   },
   get(k) {
     if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
+    if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
     return s ? (typeof s.d === 'object' && s.d !== null ? structuredClone(s.d) : s.d) : undefined;
@@ -273,6 +280,8 @@ const Settings = {
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (gameplay only: the menus lighten by themselves on a slow device — see .slow)
+    // Performance mode: the lightest of everything, menus too — no animation, blur, glass, glow or moving backgrounds
+    // (without it the menus still lighten by themselves on a device that can't keep up — see .slow)
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode'));
   },
 };

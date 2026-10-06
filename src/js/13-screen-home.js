@@ -349,6 +349,13 @@ const HomeScreen = {
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
+      // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
+      if (Settings.get('graphics.performanceMode')) {
+        if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
+        if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
+        return;
+      }
+      if (this._perfClear) { this._perfClear = false; this._szAt = 0; this._ampS = null; }
       // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;

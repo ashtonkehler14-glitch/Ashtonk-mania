@@ -478,13 +478,15 @@ const ExplorerScreen = {
     this._mDirty = !(kids.length > cols && rowH > 0 && sc && sc.clientHeight);
     return { cols, rowH: rowH || (this._m && this._m.rowH) || 0, gridTop, vh };
   },
+  /** The lightest listing: Performance mode, or a device the menus found too slow for them. */
+  lite() { const c = document.documentElement.classList; return c.contains('perf') || c.contains('slow'); },
   /** A result's card, built the first time it's needed. */
   cardEl(e) {
     if (e.el) return e.el;
     const card = e.el = this.card(e.set);
     // a card new to the list fades in once (and drops the animation after) — not while scrolling, where it'd only
     // be a moving layer for the compositor to juggle
-    if (e.isNew && !this._scrolling) { e.isNew = false; card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
+    if (e.isNew && !this._scrolling && !this.lite()) { e.isNew = false; card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
     return card;
   },
   /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
@@ -512,9 +514,10 @@ const ExplorerScreen = {
       else [from, to] = range(vh * 2);
       // covers start loading five screens ahead (either way), so a card scrolling in already has its picture even
       // after a hard flick
-      const [pa, pb] = range(vh * 5);
+      const lite = this.lite();
+      const [pa, pb] = range(vh * (lite ? 3 : 5));
       // (the cards ahead are built a few a frame, so a new page of results never lands in one long frame)
-      let budget = 6, more = false;
+      let budget = lite ? 3 : 6, more = false;
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) {
         const e = all[i];
         if (!e.el && i >= from * cols && i < to * cols) this.cardEl(e); // (needed now)
@@ -563,6 +566,9 @@ const ExplorerScreen = {
       // (they fade in only on a card you're looking at; one that loads ahead of the screen or mid-scroll is simply
       // there — every fade is its own compositor layer for a moment, and dozens at once stuttered the scroll)
       const show = el => () => { if (this._scrolling || !el.isConnected) el.style.transition = 'none'; el.classList.add('loaded'); };
+      // (Performance mode, or a device found to be slow: the plain-size thumbnail alone — a quarter of the pixels to
+      // decode, and one picture per card instead of two)
+      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb)); return; }
       OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb));
       OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg));
     };

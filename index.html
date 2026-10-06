@@ -4499,6 +4499,22 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .spec-dl.out { opacity: 0; translate: -50% -10px; }
 @keyframes specDlIn { from { opacity: 0; translate: -50% -10px; } }
 
+/* ── Performance mode: the menus at their lightest — nothing moves by itself, no blur, glass or glow, no decoration
+   layers. (Gameplay's own effects are turned off by the settings it forces; the playfield itself is untouched.) */
+:root.perf *, :root.perf *::before, :root.perf *::after { transition: none !important; animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; scroll-behavior: auto !important; }
+:root.perf .lz-vis, :root.perf .lz-fountain, :root.perf .ov-waves, :root.perf .rkm-bgmap, :root.perf .up-cover { display: none !important; }
+:root.perf .panel.glass, :root.perf .bso-card { background-color: rgba(18, 16, 24, .94); }
+/* (big soft shadows are repainted with whatever moves under them) */
+:root.perf .settings-panel, :root.perf .np-panel, :root.perf .nf-panel, :root.perf .menu, :root.perf .dialog, :root.perf .toast, :root.perf .chat, :root.perf .tooltip { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4) !important; }
+:root.perf #bg-layer { transform: none !important; }
+:root.perf #bg-a, :root.perf #bg-b { will-change: auto; }
+/* the beatmap listing at its lightest: flat cards (no cover behind them, shade, shadow or hover lift) */
+:root.perf .ex-card, :root.slow .ex-card { box-shadow: none !important; transform: none !important; }
+:root.perf .ex-cardbg, :root.perf .ex-cardshade, :root.slow .ex-cardbg, :root.slow .ex-cardshade { display: none; }
+:root.perf .ex-card, :root.slow .ex-card { background: hsl(var(--o-h, 333) 10% 18%); }
+:root.perf .ex-thumb, :root.slow .ex-thumb { opacity: 1; transition: none; }
+:root.perf .ex-grid, :root.slow .ex-grid { transition: none; }
+
 </style>
 </head>
 <body>
@@ -7153,7 +7169,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, and the menus without animations, blur, glow or moving backgrounds.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
@@ -7239,7 +7255,7 @@ const SETTINGS_SCHEMA = [
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects']),
+  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -7271,6 +7287,12 @@ const Settings = {
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     // song select groups by key count by default; a list left ungrouped moves to it, once
     if (!v['migr.groupKeys']) { if (v['songselect.group'] === 'none') delete v['songselect.group']; v['migr.groupKeys'] = true; }
+    // (the setup's Performance choice used to switch Performance mode on; that now strips the menus too, so a player
+    // who picked it keeps what it meant then: lighter gameplay effects, menus as they were)
+    if (!v['migr.perfMenus']) {
+      if (v['graphics.performanceMode'] && v['setup.device'] === 'chromebook') Object.assign(v, { 'graphics.performanceMode': false, 'graphics.particles': false, 'gameplay.hitLighting': false, 'skin.effects': false, 'gameplay.comboEffects': false });
+      v['migr.perfMenus'] = true;
+    }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
@@ -7283,6 +7305,7 @@ const Settings = {
   },
   get(k) {
     if (this.values['graphics.performanceMode'] && Settings.PERF_OFF.has(k)) return false;
+    if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
     return s ? (typeof s.d === 'object' && s.d !== null ? structuredClone(s.d) : s.d) : undefined;
@@ -7321,7 +7344,9 @@ const Settings = {
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (gameplay only: the menus lighten by themselves on a slow device — see .slow)
+    // Performance mode: the lightest of everything, menus too — no animation, blur, glass, glow or moving backgrounds
+    // (without it the menus still lighten by themselves on a device that can't keep up — see .slow)
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode'));
   },
 };
 
@@ -11020,7 +11045,7 @@ const FallingText = {
   drop(e) {
     const t = e.target;
     if (!(t instanceof HTMLInputElement) || !this.TYPES.has(t.type) || !e.inputType.startsWith('delete') || e.isComposing) return;
-    if (document.documentElement.classList.contains('slow') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
+    if (document.documentElement.classList.contains('slow') || document.documentElement.classList.contains('perf') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
     const v = t.value; let a = t.selectionStart, b = t.selectionEnd;
     if (a == null || !v) return;
     if (a === b) {
@@ -11373,7 +11398,7 @@ const Background = {
    *  same scale as gameplay's sliders; the player's own dim and blur only apply once gameplay starts. */
   MENU_DIM: 0.25, MENU_BLUR: 0.25,
   menuBlurPx() { return this.MENU_BLUR * 50 * innerWidth / 1920; },
-  set(url, { blur = this.menuBlurPx(), dim = this.MENU_DIM } = {}) {
+  set(url, { blur = Settings.get('graphics.performanceMode') ? 0 : this.menuBlurPx(), dim = this.MENU_DIM } = {}) { // (Performance mode: no blur, nothing to bake)
     if (url !== this.current) Bus.emit('bg:changed', url);
     const app = $('#app');
     app.classList.toggle('bg-empty', !url);
@@ -12182,7 +12207,7 @@ const Screens = {
       if (transition === 'right') el.classList.add('from-right');
       if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
-      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow')) {
+      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow') && !document.documentElement.classList.contains('perf')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
         if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);
@@ -12564,6 +12589,13 @@ const HomeScreen = {
       const cv = this.vis;
       if (!cv.isConnected) return;
       const dt = Math.min(100, now - lastT); lastT = now;
+      // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
+      if (Settings.get('graphics.performanceMode')) {
+        if (!this._perfClear) { this._perfClear = true; cv.width = cv.height = 1; this.tris.width = this.tris.height = 1; if (this.ampEl) this.ampEl.style.scale = ''; }
+        if (this.menuState !== 'initial' && this.menuState !== 'entering' && now - this._idleAt > this.IDLE_MS && !Overlays.stack.length && !SettingsPanel.o && !NowPlaying.open) this.setState('initial');
+        return;
+      }
+      if (this._perfClear) { this._perfClear = false; this._szAt = 0; this._ampS = null; }
       // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
       if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;
@@ -18268,7 +18300,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
-    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why'] },
+    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare (the setup\'s Performance choice still keeps the menus looking their best)', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
@@ -18819,13 +18851,15 @@ const ExplorerScreen = {
     this._mDirty = !(kids.length > cols && rowH > 0 && sc && sc.clientHeight);
     return { cols, rowH: rowH || (this._m && this._m.rowH) || 0, gridTop, vh };
   },
+  /** The lightest listing: Performance mode, or a device the menus found too slow for them. */
+  lite() { const c = document.documentElement.classList; return c.contains('perf') || c.contains('slow'); },
   /** A result's card, built the first time it's needed. */
   cardEl(e) {
     if (e.el) return e.el;
     const card = e.el = this.card(e.set);
     // a card new to the list fades in once (and drops the animation after) — not while scrolling, where it'd only
     // be a moving layer for the compositor to juggle
-    if (e.isNew && !this._scrolling) { e.isNew = false; card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
+    if (e.isNew && !this._scrolling && !this.lite()) { e.isNew = false; card.classList.add('ex-new'); const done = () => card.classList.remove('ex-new'); card.addEventListener('animationend', done, { once: true }); setTimeout(done, 1000); }
     return card;
   },
   /** Only the cards on screen (and a screenful either side) are in the page; the rows above and below are just
@@ -18853,9 +18887,10 @@ const ExplorerScreen = {
       else [from, to] = range(vh * 2);
       // covers start loading five screens ahead (either way), so a card scrolling in already has its picture even
       // after a hard flick
-      const [pa, pb] = range(vh * 5);
+      const lite = this.lite();
+      const [pa, pb] = range(vh * (lite ? 3 : 5));
       // (the cards ahead are built a few a frame, so a new page of results never lands in one long frame)
-      let budget = 6, more = false;
+      let budget = lite ? 3 : 6, more = false;
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) {
         const e = all[i];
         if (!e.el && i >= from * cols && i < to * cols) this.cardEl(e); // (needed now)
@@ -18904,6 +18939,9 @@ const ExplorerScreen = {
       // (they fade in only on a card you're looking at; one that loads ahead of the screen or mid-scroll is simply
       // there — every fade is its own compositor layer for a moment, and dozens at once stuttered the scroll)
       const show = el => () => { if (this._scrolling || !el.isConnected) el.style.transition = 'none'; el.classList.add('loaded'); };
+      // (Performance mode, or a device found to be slow: the plain-size thumbnail alone — a quarter of the pixels to
+      // decode, and one picture per card instead of two)
+      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb)); return; }
       OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb));
       OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg));
     };
@@ -20817,7 +20855,8 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects while playing — the menus still look their best', icon: 'bolt',
-    values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
+    // (the gameplay effects off one by one — Performance mode itself also strips the menus, which this choice keeps)
+    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': false, 'gameplay.hitLighting': false, 'skin.effects': false, 'gameplay.comboEffects': false, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
