@@ -4511,3 +4511,16 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .se-box.se-hitline .se-label { left: auto; right: -1px; }
 .se-sep { height: 1px; margin: 4px 2px 6px; background: rgba(255, 255, 255, .1); }
 .se-note { margin: 0 0 10px; font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, .55); }
+/* the profile, simpler: a small rename pencil that shows when you point at the name */
+.pf-name .icon-btn { width: 26px; height: 26px; opacity: 0; transition: opacity 200ms; }
+.pf-name .icon-btn .i { width: 14px; height: 14px; }
+.pf-name:hover .icon-btn, .pf-name .icon-btn:focus-visible { opacity: .7; }
+.pf-name .icon-btn:hover { opacity: 1; }
+@media (hover: none) { .pf-name .icon-btn { opacity: .55; } }
+.pf-ppcalc { cursor: help; }
+.pf-top { height: 200px; }
+.pf-top-in > .pf-centre { flex: 1; justify-content: flex-end; min-width: 0; padding: 0 0 8px; background: none; }
+.pf-top-in > .pf-centre > .grow { display: none; }
+.pf-top-in > .pf-centre .pf-lvl-bar { width: 140px; }
+@media (max-width: 700px) { .pf-top-in > .pf-centre .pf-lvl { display: none; } }
+.pf-top-in > .pf-centre .pf-lvl-bar { background: rgba(255, 255, 255, .18); }

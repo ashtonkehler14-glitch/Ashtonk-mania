@@ -4530,6 +4530,19 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .se-box.se-hitline .se-label { left: auto; right: -1px; }
 .se-sep { height: 1px; margin: 4px 2px 6px; background: rgba(255, 255, 255, .1); }
 .se-note { margin: 0 0 10px; font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, .55); }
+/* the profile, simpler: a small rename pencil that shows when you point at the name */
+.pf-name .icon-btn { width: 26px; height: 26px; opacity: 0; transition: opacity 200ms; }
+.pf-name .icon-btn .i { width: 14px; height: 14px; }
+.pf-name:hover .icon-btn, .pf-name .icon-btn:focus-visible { opacity: .7; }
+.pf-name .icon-btn:hover { opacity: 1; }
+@media (hover: none) { .pf-name .icon-btn { opacity: .55; } }
+.pf-ppcalc { cursor: help; }
+.pf-top { height: 200px; }
+.pf-top-in > .pf-centre { flex: 1; justify-content: flex-end; min-width: 0; padding: 0 0 8px; background: none; }
+.pf-top-in > .pf-centre > .grow { display: none; }
+.pf-top-in > .pf-centre .pf-lvl-bar { width: 140px; }
+@media (max-width: 700px) { .pf-top-in > .pf-centre .pf-lvl { display: none; } }
+.pf-top-in > .pf-centre .pf-lvl-bar { background: rgba(255, 255, 255, .18); }
 
 </style>
 </head>
@@ -18069,9 +18082,8 @@ const ProfileScreen = {
         h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
+    // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
-      h('span.pf-chip', { title: 'Play count' }, icon('play', 'fill'), fmtInt(st.plays)),
-      h('span.pf-chip', { title: 'Play time' }, icon('clock'), fmtDuration(st.playtime)),
       this.dailyEl = h('div.pf-daily', { hidden: true }),
       h('div.grow'),
       h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` },
@@ -18093,12 +18105,13 @@ const ProfileScreen = {
         dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
     // sections, with lazer's sticky tab bar
     const secs = [];
-    const section = (id, title, ...kids) => { const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
-    const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count != null ? h('span.pf-count', fmtInt(count)) : null), ...kids);
+    // (a section with nothing in it is left out, tab and all: no wall of "nothing here yet")
+    const section = (id, title, ...kids) => { kids = kids.filter(Boolean); if (!kids.length) return null; const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
+    const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count ? h('span.pf-count', fmtInt(count)) : null), ...kids);
     const ppHist = d.ppHist || [], perDay = d.perDay || [];
-    const hist = section('historical', 'Historical',
+    const hist = () => section('historical', 'Historical',
       ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist, { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : h('div.pf-empty', 'Nothing here yet.'),
+      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : null,
       (d.mostPlayed || []).length ? sub('Most played beatmaps', d.mostPlayed.length, h('div.pf-most', ...d.mostPlayed.map(x => this.mostRow(x, own)))) : null);
     const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
     // lazer's ProfileShowMoreButton: a list starts with 5 and grows by 10 with each "show more"
@@ -18115,26 +18128,25 @@ const ProfileScreen = {
     // the one above it (100%, 95%, 90.25%…), plus the bonus for how many ranked plays there are
     const info = own ? { pp: d.pp || 0, n: ScoreManager.bestPpPerMap().length } : this.remote && this.remote.ppInfo;
     const n = info ? info.n || 0 : 0, bonus = OsuMath.bonusPp(n), total = info ? info.pp || 0 : d.pp || 0;
-    const calc = topPlays.length && total > 0 ? h('div.pf-ppcalc',
+    const calc = topPlays.length && total > 0 ? h('div.pf-ppcalc', { title: 'Only plays on ranked beatmaps count (checked on osu! by the server). Each play is weighted 95% of the one above it — 100%, 95%, 90%… — and a bonus is added for how many ranked beatmaps you have a play on.' },
       h('div.pf-ppc', h('small', 'best plays, weighted'), h('b', `${fmtInt(Math.max(0, total - bonus))}pp`)),
       h('span.pf-ppop', '+'),
       h('div.pf-ppc', h('small', `bonus · ${fmtInt(n)} ranked play${n === 1 ? '' : 's'}`), h('b', `${fmtInt(bonus)}pp`)),
       h('span.pf-ppop', '='),
-      h('div.pf-ppc.total', h('small', 'total'), h('b', `${fmtInt(total)}pp`)),
-      h('div.pf-ppnote', icon('check'), 'Only plays on ranked beatmaps count — checked on osu! by the server. Each play is weighted 95% of the one above it (100%, 95%, 90%…).')) : null;
-    const ranks = section('ranks', 'Ranks',
+      h('div.pf-ppc.total', h('small', 'total'), h('b', `${fmtInt(total)}pp`))) : null;
+    const ranks = () => section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, calc, topPlays.length
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')),
       // lazer: the beatmaps they're #1 on, on the global leaderboards
-      (f => sub('First place ranks', f.count, f.list.length ? more(f.list, (x, i) => row(x, i, false)) : h('div.pf-empty', own ? 'Not #1 on any beatmap yet.' : 'No first place ranks yet.')))((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [], count: 0 }));
+      (f => f.list.length ? sub('First place ranks', f.count, more(f.list, (x, i) => row(x, i, false))) : null)((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [], count: 0 }));
     const got = d.medals || {};
     const favs = d.favourites || [], made = d.made || [];
     const cards = list => (b => { b.className = 'pf-bcs'; return b; })(more(list, x => this.beatmapCard(x, own), 6));
-    const maps = section('beatmaps', 'Beatmaps',
-      sub('Favourite beatmaps', favs.length, favs.length ? cards(favs) : h('div.pf-empty', own ? 'No favourites yet — the heart on a beatmap in song select adds it here.' : 'No favourite beatmaps.')),
-      sub('Created beatmaps', made.length, made.length ? cards(made) : h('div.pf-empty', own ? 'Nothing yet — beatmaps you make in the editor show here.' : 'No beatmaps yet.')));
-    const medals = section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
+    const maps = () => section('beatmaps', 'Beatmaps',
+      favs.length ? sub('Favourite beatmaps', favs.length, cards(favs)) : null,
+      made.length ? sub('Created beatmaps', made.length, cards(made)) : null);
+    const medals = () => section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
     const recent = d.recent || [];
     // lazer's Recent activity: what happened, newest first — medals unlocked, #1 ranks achieved
     const firsts = ((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [] }).list || [];
@@ -18143,14 +18155,16 @@ const ProfileScreen = {
       ...firsts.filter(x => x.date).map(x => ({ at: x.date, ic: 'crown', el: h('span', 'Achieved rank ', h('b.pf-act-rank', '#1'), ' on ', h('b', `${x.artist ? x.artist + ' - ' : ''}${x.title} [${x.version}]`)) })),
     ].filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 50);
     const actRow = a => h('div.pf-act', h('span.pf-act-i', icon(a.ic)), a.el, h('span.pf-act-t', { title: new Date(a.at).toLocaleString() }, shortAgo(a.at)));
-    const rec = section('recent', 'Recent',
-      sub('Recent activity', null, acts.length ? (b => { b.className = 'pf-acts'; return b; })(more(acts, actRow, 6)) : h('div.pf-empty', 'No recent activity.')),
-      sub('Recent plays', recent.length, recent.length
-        ? more(recent, (x, i) => row(x, i, false))
-        : h('div.pf-empty', 'No recent plays.')));
+    const rec = () => section('recent', 'Recent',
+      acts.length ? sub('Recent activity', null, (b => { b.className = 'pf-acts'; return b; })(more(acts, actRow, 6))) : null,
+      recent.length ? sub('Recent plays', recent.length, more(recent, (x, i) => row(x, i, false))) : null);
+    // in osu!lazer's order: recent, ranks, historical, beatmaps, medals
+    const sections = [rec(), ranks(), hist(), maps(), medals()].filter(Boolean);
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, maps, medals, rec);
+    // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
+    top.querySelector('.pf-top-in').append(centre);
+    page.append(h('div.pf-header', top, detail), tabs, ...sections);
     this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
@@ -18406,7 +18420,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
-    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare — the setup\'s Performance choice turns it on, Graphics turns it off', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results', 'Smoother: the skins screen and the settings panel open with less of a hitch (the skin preview no longer works out a health drain it doesn\'t use; settings no longer lays its whole page out twice)', 'Online pages waiting on the server (rankings, profile, daily challenge, friends, the lounge) show lazer\'s spinner while they connect', 'Beatmap listing: scrolling does far less work — the cards move along a row at a time instead of a screen at a time, pictures go on in step with the screen, and where you\'ve scrolled to is read when it costs nothing', 'Skin editor: Hit position and Note offset at the top of the Components list — drag the yellow line on the stage up or down (or use the slider) to move where notes are judged, and set where notes are drawn against the receptors; undo and Reset all cover both', 'Hit position and Note offset are also regular settings now (Settings → Gameplay → Playfield)'] },
+    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare — the setup\'s Performance choice turns it on, Graphics turns it off', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results', 'Smoother: the skins screen and the settings panel open with less of a hitch (the skin preview no longer works out a health drain it doesn\'t use; settings no longer lays its whole page out twice)', 'Online pages waiting on the server (rankings, profile, daily challenge, friends, the lounge) show lazer\'s spinner while they connect', 'Beatmap listing: scrolling does far less work — the cards move along a row at a time instead of a screen at a time, pictures go on in step with the screen, and where you\'ve scrolled to is read when it costs nothing', 'Skin editor: Hit position and Note offset at the top of the Components list — drag the yellow line on the stage up or down (or use the slider) to move where notes are judged, and set where notes are drawn against the receptors; undo and Reset all cover both', 'Hit position and Note offset are also regular settings now (Settings → Gameplay → Playfield)', 'Profiles are simpler: sections with nothing in them are left out (tab and all), sections come in osu!lazer\'s order (recent, ranks, historical, beatmaps, medals), the level sits beside the name instead of on a strip of its own, play count and time aren\'t shown twice, the pp breakdown is one compact line (the details on hover), and the rename pencil only shows when you point at your name'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
