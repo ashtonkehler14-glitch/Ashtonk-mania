@@ -756,7 +756,8 @@ const GameplayScreen = {
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
-      !Mobile.touch && !s.spectate ? this.holdForMenu() : null,
+      // (no hold-for-menu button on a computer: it sat where song select's play logo is, so starting a song from the
+      // logo left the pointer on it and it showed up — Esc opens the pause menu)
     );
     // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
     this.errMeter = null;

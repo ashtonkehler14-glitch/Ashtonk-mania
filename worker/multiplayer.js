@@ -931,7 +931,11 @@ export class PresenceLogic {
       .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
-    const f1 = Object.values(this.firsts.get(pid) || {}).sort((a, b) => b.date - a.date);
+    // (a first place stored without its song — the backfill couldn't find which beatmap it was — takes the name from their
+    //  best plays if it can; one still without a name isn't listed: it showed as an empty row)
+    const bests = r && r.bests ? r.bests : {};
+    const f1 = Object.entries(this.firsts.get(pid) || {}).map(([k, v]) => v && !v.title && bests[k] && bests[k].title ? { ...v, title: bests[k].title, artist: bests[k].artist, version: bests[k].version } : v)
+      .filter(v => v && v.title).sort((a, b) => b.date - a.date);
     const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
     // (the best plays their profile lists: only the ones checked to be on ranked beatmaps — and when their standing is
     //  the plays judged here, those instead — with the numbers the total is made of: the bonus pp and how many plays)

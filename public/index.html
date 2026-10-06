@@ -15074,7 +15074,8 @@ const GameplayScreen = {
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
       // touch screens have no Escape key: a pause button only shows for coarse pointers
       s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
-      !Mobile.touch && !s.spectate ? this.holdForMenu() : null,
+      // (no hold-for-menu button on a computer: it sat where song select's play logo is, so starting a song from the
+      // logo left the pointer on it and it showed up — Esc opens the pause menu)
     );
     // osu!lazer's hit error meter, bottom centre (mania's legacy and default layouts both have it)
     this.errMeter = null;
@@ -17654,8 +17655,8 @@ const ProfileScreen = {
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
-        if (!this.remote && m.pid === Presence.pid()) { this.ownFirsts = { list: m.firsts || [], count: m.firstCount || 0 }; this.render(); return; }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: m.firsts || [], count: m.firstCount || 0 };
+        if (!this.remote && m.pid === Presence.pid()) { this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */ this.render(); return; }
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 };
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -18141,6 +18142,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer'] },
+    { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
     { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it', 'Fixed a crash: retrying from the results screen and then pressing Back could reopen an empty results screen', 'Back to a player\'s profile reopens theirs, not yours', 'The beatmap listing has a back button like every other page, and lines up with them'] },
@@ -18697,17 +18699,19 @@ const ExplorerScreen = {
     let from = 0, to = rows;
     if (sc && all.length > cols * 12) {
       const range = extra => [clamp(Math.floor((st - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((st - gridTop + vh + extra) / rowH), 0, rows)];
-      // what's in the page already is kept while it still covers the screen with a third of a screen to spare; past
-      // that, the window moves on to two thirds of a screen either side — a row or two at a time as you scroll, so no
-      // one frame has to lay out and paint dozens of new cards (that was a visible hitch on slow Chromebooks)
-      const [needA, needB] = range(vh / 3);
+      // what's in the page already is kept while it still covers the screen with a screen to spare; past that, the
+      // window moves on to two screens either side — a few rows at a time as you scroll
+      // (kept two screens either side — a fast flick on a phone moves a screen or more between frames, and a narrower
+      // window left the list empty where it hadn't caught up — moved on once less than a screen is left)
+      const [needA, needB] = range(vh);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(vh * 2 / 3);
-      // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
-      const [pa, pb] = range(vh * 3);
+      else [from, to] = range(vh * 2);
+      // covers start loading five screens ahead (either way), so a card scrolling in already has its picture even
+      // after a hard flick
+      const [pa, pb] = range(vh * 5);
       // (the cards ahead are built a few a frame, so a new page of results never lands in one long frame)
-      let budget = 4, more = false;
+      let budget = 6, more = false;
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) {
         const e = all[i];
         if (!e.el && i >= from * cols && i < to * cols) this.cardEl(e); // (needed now)

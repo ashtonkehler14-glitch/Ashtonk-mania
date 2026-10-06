@@ -485,17 +485,19 @@ const ExplorerScreen = {
     let from = 0, to = rows;
     if (sc && all.length > cols * 12) {
       const range = extra => [clamp(Math.floor((st - gridTop - extra) / rowH), 0, rows), clamp(Math.ceil((st - gridTop + vh + extra) / rowH), 0, rows)];
-      // what's in the page already is kept while it still covers the screen with a third of a screen to spare; past
-      // that, the window moves on to two thirds of a screen either side — a row or two at a time as you scroll, so no
-      // one frame has to lay out and paint dozens of new cards (that was a visible hitch on slow Chromebooks)
-      const [needA, needB] = range(vh / 3);
+      // what's in the page already is kept while it still covers the screen with a screen to spare; past that, the
+      // window moves on to two screens either side — a few rows at a time as you scroll
+      // (kept two screens either side — a fast flick on a phone moves a screen or more between frames, and a narrower
+      // window left the list empty where it hadn't caught up — moved on once less than a screen is left)
+      const [needA, needB] = range(vh);
       const w = this._win;
       if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(vh * 2 / 3);
-      // covers start loading three screens ahead (either way), so a card scrolling in already has its picture
-      const [pa, pb] = range(vh * 3);
+      else [from, to] = range(vh * 2);
+      // covers start loading five screens ahead (either way), so a card scrolling in already has its picture even
+      // after a hard flick
+      const [pa, pb] = range(vh * 5);
       // (the cards ahead are built a few a frame, so a new page of results never lands in one long frame)
-      let budget = 4, more = false;
+      let budget = 6, more = false;
       for (let i = pa * cols; i < Math.min(all.length, pb * cols); i++) {
         const e = all[i];
         if (!e.el && i >= from * cols && i < to * cols) this.cardEl(e); // (needed now)
