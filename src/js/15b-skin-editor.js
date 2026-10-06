@@ -65,7 +65,7 @@ const SkinEditor = {
   },
   attach() {
     if (this.on) return;
-    this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map();
+    this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map(); this._hitEl = null;
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.listEl = h('div.se-list');
@@ -76,7 +76,7 @@ const SkinEditor = {
       this.boxesEl,
       h('div.se-top', h('div.se-title', icon('brush'), h('b', 'Skin editor'), h('span', `Currently editing: ${SkinManager.current ? SkinManager.current.name : 'skin'} — gameplay HUD`)),
         h('div.se-acts', btn('Undo', 'back', () => this.undoStep()), btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
-      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', kbHint('Drag a component to move it, its corner to scale it. Ctrl+Z undoes, Esc closes.', 'Drag a component to move it, its corner to scale it.'))),
+      h('div.se-side.se-l', h('div.se-ph', 'Components'), this.listEl, h('p.se-hint', kbHint('Drag a component to move it, its corner to scale it, and the hit position line up or down. Ctrl+Z undoes, Esc closes.', 'Drag a component to move it, its corner to scale it, and the hit position line up or down.'))),
       h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');
@@ -115,8 +115,10 @@ const SkinEditor = {
 
   // ── the layout
   layout() { return JSON.parse(JSON.stringify(HudLayout.get())); },
+  /** What undo goes back to: the HUD layout and the hit position together. */
+  snapshot() { return JSON.stringify({ layout: Settings.get('hud.layout') || {}, stage: Object.fromEntries(this.STAGE.map(d => [d.key, this.stageVal(d)])) }); },
   commit(L) {
-    this.undo.push(JSON.stringify(Settings.get('hud.layout') || {}));
+    this.undo.push(this.snapshot());
     if (this.undo.length > 100) this.undo.shift();
     for (const k of Object.keys(L)) { const c = L[k]; if (!c.x && !c.y && (!c.s || c.s === 1) && !c.off) delete L[k]; }
     Settings.set('hud.layout', L);
@@ -128,12 +130,66 @@ const SkinEditor = {
   undoStep() {
     const prev = this.undo.pop();
     if (prev == null) return;
-    Settings.set('hud.layout', JSON.parse(prev));
+    const snap = JSON.parse(prev);
+    Settings.set('hud.layout', snap.layout || {});
+    for (const d of this.STAGE) { const v = (snap.stage || {})[d.key] || 0; if (this.stageVal(d) !== v) Settings.set(d.key, v); }
     HudLayout.apply(GameplayScreen.hud);
     this.paintList(); this.paintSettings();
   },
-  resetAll() { this.commit({}); Toast.show('HUD layout reset', 'Everything is back where the skin puts it.'); },
-  /** A component shown by a setting (the judgement counter, hit error meter, leaderboard): turning it on builds it. */
+  resetAll() {
+    this.commit({});
+    for (const d of this.STAGE) if (this.stageVal(d)) Settings.set(d.key, 0);
+    this.paintList(); this.paintSettings();
+    Toast.show('HUD layout reset', 'Everything is back where the skin puts it, the hit position and note offset too.');
+  },
+
+  // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
+  // or down) and where they're drawn against it (the note offset)
+  STAGE: [
+    { id: 'hitpos', key: 'gameplay.hitPositionOffset', name: 'Hit position', min: -120, max: 60, unit: '', redraw: true,
+      note: 'Where the notes are judged — the receptors. Drag the line on the stage, or slide it here: up is negative, down is positive.' },
+    { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', min: -40, max: 40, unit: 'px',
+      note: 'Where the notes are drawn against the receptors (only how they look — the timing stays the same). Negative draws them higher, positive lower.' },
+  ],
+  get HIT() { return this.STAGE[0]; },
+  stageDef(id) { return this.STAGE.find(d => d.id === id); },
+  stageVal(d) { return Settings.get(d.key) || 0; },
+  hitOffset() { return this.stageVal(this.HIT); },
+  /** Live while dragging or sliding (the stage drawn again at once); saved when you let go. */
+  preview(d, v) {
+    v = clamp(Math.round(v), d.min, d.max);
+    if (Settings.values[d.key] === v) return v;
+    Settings.values[d.key] = v;
+    const r = GameplayScreen.renderer; if (r && d.redraw) r.resize(true);
+    return v;
+  },
+  previewHit(v) { return this.preview(this.HIT, v); },
+  setStage(d, v, before) {
+    v = clamp(Math.round(v), d.min, d.max);
+    this.undo.push(before ?? this.snapshot());
+    Settings.values[d.key] = before != null ? (JSON.parse(before).stage || {})[d.key] || 0 : this.stageVal(d); // (so the change below is seen)
+    Settings.set(d.key, v);
+    this.paintList(); this.paintSettings();
+  },
+  setHit(v, before) { this.setStage(this.HIT, v, before); },
+  stagePanel(d) {
+    const fnf = d.redraw && GameplayScreen.renderer && GameplayScreen.renderer.fnf;
+    const v0 = this.stageVal(d);
+    const fmt = v => `${v > 0 ? '+' : ''}${v}${d.unit}`;
+    const val = h('b', fmt(v0));
+    const sl = h('input.slider', { type: 'range', min: d.min, max: d.max, step: 1, value: v0, disabled: fnf });
+    const paint = () => sl.style.setProperty('--p', ((sl.value - d.min) / (d.max - d.min) * 100) + '%');
+    let before = null;
+    sl.addEventListener('pointerdown', () => { before = this.snapshot(); });
+    sl.addEventListener('input', () => { if (before == null) before = this.snapshot(); const v = this.preview(d, +sl.value); val.textContent = fmt(v); paint(); });
+    sl.addEventListener('change', () => { this.setStage(d, +sl.value, before); before = null; });
+    paint();
+    return [
+      h('div.se-name', d.name),
+      h('p.se-note', fnf ? 'This skin style puts its receptors in a fixed place.' : d.note),
+      h('label.se-f', h('span', 'Offset', val), sl),
+      h('div.se-btns', h('button.btn.sm', { disabled: !v0, onclick: () => { UISounds.click(); this.setStage(d, 0); } }, icon('retry'), d.redraw ? 'Reset to the skin\'s' : 'Reset'))];
+  },
   setShown(p, on) {
     if (p.setting) {
       if (on && Settings.get(p.setting) && !(this.layout()[p.id] || {}).off) return;
@@ -148,7 +204,9 @@ const SkinEditor = {
   select(id) { this.sel = id; this.paintList(); this.paintSettings(); },
 
   paintList() {
-    clearEl(this.listEl).append(...HUD_PARTS.map(p => {
+    const stageItems = this.STAGE.map(d => { const v = this.stageVal(d); return h(`div.se-item.se-stage${this.sel === d.id ? '.on' : ''}`, { onclick: () => { UISounds.click(); this.select(d.id); } },
+      h('span', d.name, h('small', v ? `moved ${v > 0 ? '+' : ''}${v}${d.unit}` : 'as the skin has it'))); });
+    clearEl(this.listEl).append(...stageItems, h('div.se-sep'), ...HUD_PARTS.map(p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
       return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { onclick: () => { UISounds.click(); this.select(p.id); } },
         h('span', p.name, na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
@@ -156,6 +214,8 @@ const SkinEditor = {
     }));
   },
   paintSettings() {
+    const sd = this.stageDef(this.sel);
+    if (sd) { clearEl(this.setEl).append(...this.stagePanel(sd)); return; }
     const p = HUD_PARTS.find(x => x.id === this.sel);
     if (!p) { clearEl(this.setEl).append(h('p.se-none', 'Pick a component to change it.')); return; }
     const c = this.layout()[p.id] || {}, s = c.s || 1;
@@ -197,6 +257,7 @@ const SkinEditor = {
       if (g.style.translate !== tr || g.style.scale !== sc) { g.style.transformOrigin = '0 0'; g.style.translate = tr; g.style.scale = sc; }
       this._k = k;
     }
+    this.hitBox();
     if (!hud) return;
     const seen = new Set();
     for (const p of HUD_PARTS) {
@@ -223,6 +284,38 @@ const SkinEditor = {
     for (const [id, box] of this.boxEls) if (!seen.has(id)) { box.remove(); this.boxEls.delete(id); }
     const key = [...seen].join();
     if (key !== this._seenKey) { this._seenKey = key; this.present = seen; this.paintList(); }
+  },
+  /** The judgement line on the stage, as a thin box you drag up and down. */
+  hitBox() {
+    const r = GameplayScreen.renderer, cv = r && r.canvas;
+    if (!r || !cv || !cv.isConnected || !r.H || r.fnf) { if (this._hitEl) { this._hitEl.remove(); this._hitEl = null; } return; }
+    const cr = cv.getBoundingClientRect();
+    if (!cr.height) return;
+    const k = cr.height / r.H, yPx = (r.up ? r.H - r.hitY : r.hitY) * k;
+    const x0 = cr.left + ((r.stageX - (r.cropX || 0)) * cr.width / cv.width), w = r.stageW * cr.width / cv.width;
+    if (!this._hitEl) {
+      const box = this._hitEl = h('div.se-box.se-hitline', h('span.se-label', this.HIT.name));
+      box.addEventListener('pointerdown', e => {
+        if (e.button) return;
+        e.preventDefault(); e.stopPropagation();
+        this.select(this.HIT.id);
+        box.setPointerCapture(e.pointerId);
+        const rr = GameplayScreen.renderer, rect = rr.canvas.getBoundingClientRect(), unit = rr.s * rect.height / rr.H; // (screen px per skin unit)
+        const before = this.snapshot(), v0 = this.hitOffset(), y0 = e.clientY;
+        let v = v0;
+        const move = ev => { v = this.previewHit(v0 + (ev.clientY - y0) / unit * (rr.up ? -1 : 1)); this._dragging = true; this.frame(); };
+        const up = () => {
+          this._dragging = false;
+          box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
+          if (v !== v0) this.setHit(v, before); else this.paintSettings();
+        };
+        box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+      });
+      this.boxesEl.append(this._hitEl);
+    }
+    this._hitEl.classList.toggle('on', this.sel === this.HIT.id);
+    const st = `left:${x0.toFixed(1)}px;top:${(cr.top + yPx - 7).toFixed(1)}px;width:${w.toFixed(1)}px;height:14px`;
+    if (this._hitEl._st !== st) { this._hitEl._st = st; this._hitEl.style.cssText = st; }
   },
   makeBox(p) {
     const handle = h('i.se-handle');

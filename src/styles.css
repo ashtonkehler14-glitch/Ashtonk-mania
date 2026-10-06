@@ -4503,3 +4503,11 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .rk-empty, .dash-empty:has(> .spinner) { flex-direction: column; gap: 14px; }
 .dash-empty:has(> .spinner) { display: flex; align-items: center; }
 .rk-empty > .spinner, .dash-empty > .spinner { width: 32px; height: 32px; }
+/* the skin editor's hit position: a line across the stage you drag up or down */
+.se-box.se-hitline { border: 0; border-radius: 0; background: none; cursor: ns-resize; }
+.se-box.se-hitline::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed rgba(255, 255, 255, .5); translate: 0 -1px; }
+.se-box.se-hitline:hover::before { border-top-color: rgba(255, 204, 34, .8); }
+.se-box.se-hitline.on::before { border-top: 2px solid #ffcc22; }
+.se-box.se-hitline .se-label { left: auto; right: -1px; }
+.se-sep { height: 1px; margin: 4px 2px 6px; background: rgba(255, 255, 255, .1); }
+.se-note { margin: 0 0 10px; font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, .55); }
