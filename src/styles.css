@@ -4495,3 +4495,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.perf .ex-card, :root.slow .ex-card { background: hsl(var(--o-h, 333) 10% 18%); }
 :root.perf .ex-thumb, :root.slow .ex-thumb { opacity: 1; transition: none; }
 :root.perf .ex-grid, :root.slow .ex-grid { transition: none; }
+/* a Team Versus room in the lounge: a red and a blue chip before its type */
+.mp-rteams { display: inline-flex; gap: 2px; align-items: center; }
+.mp-rteams i { width: 8px; height: 8px; border-radius: 2px; }
+.mp-rteams i.red { background: #e24f4f; } .mp-rteams i.blue { background: #4f8fe2; }

@@ -1358,3 +1358,14 @@ test('last seen: the server notes when a friend goes offline (leaving or going i
   assert.equal(p.friendsMsg('alicepid1').list[0].seen, 90000, '…and leaving while invisible doesn\'t give it away');
   assert.deepEqual(saved, [['bobpid22', 90000]]);
 });
+
+test('lounge: a room created as Team Versus starts in teams, splits players between red and blue, and is listed as such', () => {
+  const r = new RoomLogic('TEAMS1');
+  r.join('a', 'Alice', true, { type: 'teams' });
+  r.join('b', 'Bob', false, {}); r.join('c', 'Cat', false, {});
+  assert.equal(r.settings.type, 'teams');
+  assert.deepEqual(r.players.map(p => p.team), [0, 1, 0]);
+  assert.equal(r.listing().type, 'teams');
+  const h = new RoomLogic('H2H001'); h.join('a', 'Alice', true, {});
+  assert.equal(h.settings.type, 'h2h'); assert.equal(h.players[0].team, null);
+});

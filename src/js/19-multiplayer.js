@@ -34,9 +34,9 @@ const Multiplayer = {
     return d;
   },
   /** Open a room: regular (osu!-style head to head, up to 16) or a Ranked Play duel (1v1, unrated), public or private. */
-  async create({ ranked = false, isPublic = true, keys = 4 } = {}) {
+  async create({ ranked = false, isPublic = true, keys = 4, type = 'h2h' } = {}) {
     const { code } = await this.api('api/mp/new');
-    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, ...RankedRating.hello() } : { public: isPublic, cid: clientId() });
+    return this.connect(code, true, false, false, ranked ? { mode: 'rp', keys, public: isPublic, ...RankedRating.hello() } : { public: isPublic, type, cid: clientId() });
   },
   join(code, want) { return this.connect(String(code).trim().toUpperCase(), false, false, false, { ...RankedRating.hello(), ...(want ? { want } : {}) }); },
 
@@ -651,20 +651,24 @@ const MultiplayerScreen = {
   /** Create a room in this lounge: the multiplayer lounge makes a regular room (head to head, up to 16); the Ranked
    *  Play lounge makes a 1v1 duel (pick 4K or 7K). Either can be public (listed) or private (code only). */
   openCreate(pre = {}) {
-    const st = { ranked: !!pre.ranked, isPublic: true, keys: pre.keys === 7 || (!pre.keys && Settings.get('mp.qpKeys') === 7) ? 7 : 4 };
+    const st = { ranked: !!pre.ranked, isPublic: true, type: Settings.get('mp.roomType') === 'teams' ? 'teams' : 'h2h', keys: pre.keys === 7 || (!pre.keys && Settings.get('mp.qpKeys') === 7) ? 7 : 4 };
     const body = h('div.mp-cr');
     const choice = (cls, key, v, ic, title, sub) => h(`button.mp-cr-card.${cls}${st[key] === v ? '.on' : ''}`, { dataset: { v: String(v) }, onclick: () => { UISounds.click(); st[key] = v; paint(); } },
       h('div.mp-cr-ico', icon(ic)), h('div', h('b', title), h('span', sub)));
     const paint = () => clearEl(body).append(...[
       st.ranked ? h('div.mp-cr-l', 'Key count') : null,
       st.ranked ? h('div.mp-cr-keys', h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
+      // lazer's match types: everyone for themselves, or red against blue (each team's total decides it)
+      st.ranked ? null : h('div.mp-cr-l', 'Match type'),
+      st.ranked ? null : h('div.mp-cr-row', choice('type', 'type', 'h2h', 'user', 'Head to Head', 'Everyone for themselves: the best score wins.'),
+        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: the team with the bigger total wins. Players can switch teams in the room.')),
       h('div.mp-cr-l', 'Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
     paint();
     const o = Dialog.custom(st.ranked ? 'Create a Ranked Play duel' : 'Create room', body, [
       { label: 'Cancel' },
-      { label: 'Create', primary: true, onClick: () => this._busy('Creating room…', () => Multiplayer.create(st)) }]);
+      { label: 'Create', primary: true, onClick: () => { if (!st.ranked) Settings.set('mp.roomType', st.type); return this._busy('Creating room…', () => Multiplayer.create(st)); } }]);
     return o;
   },
   /** Join by code, but only a room of this lounge's kind: Ranked Play rooms open from Ranked Play, others from the lounge. */
@@ -696,7 +700,7 @@ const MultiplayerScreen = {
     // rows that haven't changed since the last poll (every 3s) are kept as they are: rebuilding them replayed their
     // slide-in and reloaded their covers, so the whole list blinked
     const prevRows = this._roomRows || new Map(), nextRows = new Map();
-    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.ranked, r.keys, r.rating, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
+    const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.type, r.win, r.ranked, r.keys, r.rating, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
     const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
     if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     this._roomsSig = listSig;
@@ -716,7 +720,8 @@ const MultiplayerScreen = {
         h('div.mp-rbody', h('div.mp-rname', r.name),
           r.ranked ? h('div.mp-rmap', h('span', `1v1 Ranked Play duel · ${r.keys || 4}K${r.rating ? ` · host rating ${fmtInt(r.rating)}` : ''}`))
             : h('div.mp-rmap', r.map ? [starBadge(r.map.stars), h('span', `${r.map.artist} - ${r.map.title} [${r.map.version}]`), h('span.keys-tag', `${r.map.keys}K`)] : h('span.muted', 'No beatmap picked yet')),
-          h('div.mp-rmeta', h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : 'Head to Head · highest score wins'))),
+          h('div.mp-rmeta', r.type === 'teams' && !r.ranked ? h('span.mp-rteams', h('i.red'), h('i.blue')) : null,
+            h('span', r.ranked ? 'Beatmap cards · 1,000,000 life · unrated' : `${r.type === 'teams' ? 'Team Versus' : 'Head to Head'} · ${({ pp: 'most pp', score: 'highest score', accuracy: 'best accuracy', combo: 'longest combo' })[r.win] || 'highest score'} wins`))),
         h('div.mp-rplayers', Presence.avatarEl({ name: r.host, avatar: r.avatar }, 32), h('b', `${r.players}/${r.size}`)),
         h('span.mp-rjoin', full ? 'Full' : playing ? 'In a match' : 'Join'));
       row.addEventListener('pointerenter', () => UISounds.hover());

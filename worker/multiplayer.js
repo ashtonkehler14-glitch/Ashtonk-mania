@@ -187,6 +187,7 @@ export class RoomLogic {
         if (opts.size != null) this.settings.size = Math.round(num(opts.size, 2, MAX_PLAYERS, MAX_PLAYERS));
         if (opts.size != null && opts.size <= 2) this.settings.public = false; // quick 1v1 rooms aren't listed
         if (opts.public === false) this.settings.public = false;
+        if (opts.type === 'teams') this.settings.type = 'teams'; // (Team Versus from the lounge's Create room)
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,

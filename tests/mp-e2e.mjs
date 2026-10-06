@@ -647,6 +647,23 @@ await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null,
 check('Esc stops spectating; Bob stops streaming', await bob.evaluate(() => AshtonkMania.Spectate.host.watchers === 0));
 await bob.evaluate(() => AshtonkMania.Screens.go('home'));
 
+// the lounge's Create room offers Team Versus; the room starts in teams and shows as Team Versus in the lounge
+{
+  await alice.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
+  await bob.evaluate(() => { AshtonkMania.Multiplayer.leave(); AshtonkMania.Screens.go('multiplayer', { force: true }); });
+  await alice.waitForSelector('.mp-create', { timeout: 10000 });
+  await alice.click('.mp-create'); await alice.waitForSelector('.mp-cr');
+  const offered = await alice.evaluate(() => [...document.querySelectorAll('.mp-cr-card.type')].map(b => b.textContent));
+  await alice.click('.mp-cr-card.type[data-v="teams"]');
+  await alice.click('.mp-cr-card.vis[data-v="true"]');
+  await alice.click('.dialog .actions .btn.primary');
+  await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
+  const inTeams = await alice.evaluate(() => AshtonkMania.Multiplayer.room.settings.type === 'teams' && !!document.querySelector('.mp-teams'));
+  const listed = await bob.waitForFunction(() => [...document.querySelectorAll('.mp-room-row')].some(r => /Alice/.test(r.textContent) && /Team Versus/.test(r.textContent) && r.querySelector('.mp-rteams')), null, { timeout: 12000 }).then(() => true, () => false);
+  check('lounge: Create room offers Team Versus; the room starts red vs blue and the lounge lists it as Team Versus', offered.length === 2 && /Team Versus/.test(offered[1]) && inTeams && listed, JSON.stringify({ offered, inTeams, listed }));
+  await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
+}
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 // nobody at the keyboard: the game left open goes offline after a while (here 1 s), and comes back at the next key
 {
