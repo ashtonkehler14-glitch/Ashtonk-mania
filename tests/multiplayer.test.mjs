@@ -1006,9 +1006,11 @@ test('player ids belong to their key: the first key used with an id claims it; a
   assert.equal(p.users.get('a2').pid, 'alicepid1', 'the right key, another tab');
 });
 
-test('rankings: judged plays (best pp per beatmap, weighted), or what a player\'s game reports while that\'s higher; old records kept', () => {
-  const p = new PresenceLogic(() => 1000), saved = [];
+test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them, with the bonus pp; a game\'s own pp doesn\'t count; old records kept', () => {
+  const p = new PresenceLogic(() => 1000), saved = [], checked = [];
   p.persistRank = pid => saved.push(pid);
+  p.verifyTop = (pid, top) => checked.push([pid, top.length]);
+  const bonus = n => 416.6667 * (1 - 0.995 ** n), r2 = x => Math.round(x * 100) / 100;
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   // a stats message without a profile, or a leaderboard claim, changes nothing
   p.message('b', { t: 'stats', pp: 99999, acc: 1, plays: 9999, grades: { ss: 999 } });
@@ -1020,22 +1022,27 @@ test('rankings: judged plays (best pp per beatmap, weighted), or what a player\'
   p.recordVerified('alicepid1', K1, judged({ pp: 50, score: 500000 }));
   p.recordVerified('bobpid22', K1, judged({ pp: 150, grade: 'SS' }));
   const r = p.message('a', { t: 'rankings' })[0].msg;
-  assert.deepEqual(r.list.map(x => [x.rank, x.name, x.pp, x.plays]), [[1, 'Alice', 295, 3], [2, 'Bob', 150, 1]]);
+  assert.deepEqual(r.list.map(x => [x.rank, x.name, x.pp, x.plays]), [[1, 'Alice', r2(295 + bonus(2)), 3], [2, 'Bob', r2(150 + bonus(1)), 1]]);
   assert.ok(Math.abs(r.list[0].acc - (0.98 + 0.9 * 0.95) / 1.95) < 1e-9);
   assert.deepEqual([r.list[0].s, r.list[0].a, r.list[1].ss], [1, 1, 1]);
   assert.equal(r.list[0].bests, undefined, 'not each player\'s whole list');
   assert.equal(r.you.rank, 1);
-  // Bob's game reports 400pp from his own scores: higher than his judged 150, so it stands until judged plays pass it
-  p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 } } });
-  assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Bob', 400], ['Alice', 295]]);
-  // kept across a restart; records from before only ranked beatmaps gave pp start over (their game re-reports them)
-  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9 } });
+  // Bob's game says 400pp: not taken — its best plays go to be checked on osu! instead (verifyTop)
+  p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 }, top: [{ title: 'T', pp: 400, onlineId: 5 }] } });
+  assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))], ['Bob', r2(150 + bonus(1))]]);
+  assert.deepEqual(checked, [['bobpid22', 1]]);
+  // kept across a restart; records from before start over, and a game's word on its pp no longer counts
+  const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9, rep: { pp: 5000 } } });
   q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
-  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', 295]]);
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))]]);
   assert.equal(q.ranks.get('oldpid44').pp, 0);
   q.join('o', { name: 'Old', pid: 'oldpid44', key: 'key-oldpid44-0123456789' });
   q.message('o', { t: 'stats', profile: { pp: 120, avgAcc: 0.9, plays: 3, grades: {} } });
-  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', 295], ['Old', 120]]);
+  assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))]]);
+  // a record from policy 2 (judged plays, the old weighting): worked out again with lazer's, its game's own pp dropped
+  const old2 = { pid: 'twopid555', name: 'Two', pol: 2, plays: 1, v: { pp: 100 }, rep: { pp: 900 }, bests: { [K1]: { pp: 100, acc: 1, grade: 'S' } } };
+  const q2 = new PresenceLogic(); q2.loadRanks({ twopid555: old2 });
+  assert.equal(q2.ranks.get('twopid555').pp, r2(100 + bonus(1)));
 });
 
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {
@@ -1099,14 +1106,14 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   assert.deepEqual(saved, ['alicepid1']);
   p.recordVerified('alicepid1', K1, judged({ pp: 120 }));
   const m = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
-  // (the judged 120pp is higher than the 80 her game reports, so it's her standing; plays: the larger count)
-  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, 120, 13, true, 'a']);
+  // (her standing is her judged play's — 120pp and lazer's bonus for one play — not the 80 her game says)
+  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, Math.round((120 + 416.6667 * 0.005) * 100) / 100, 1, true, 'a']);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
   // the songs of their judged plays come with it, best first (for a profile their game hasn't sent)
   p.recordVerified('alicepid1', K2, judged({ pp: 300, title: 'Big Song', artist: 'Band', version: 'Insane' }));
   const tp = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg.top;
   assert.deepEqual(tp.map(x => [x.title, x.version, x.pp]), [['Big Song', 'Insane', 300]]);
-  p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(60000) } });
+  p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(100000) } });
   assert.equal(p.profiles.has('bobpid22'), false);
 });
 
@@ -1139,7 +1146,7 @@ test('multiplayer results are the server\'s judgement where it can judge; a play
 test('a standing from a profile\'s best plays counts only the ones on ranked beatmaps', () => {
   const top = [{ pp: 300, accuracy: 0.9, grade: 'A', ranked: false }, { pp: 200, accuracy: 1, grade: 'SS', ranked: true }, { pp: 100, accuracy: 0.95, grade: 'S', ranked: true }, { pp: 50, ranked: true, passed: false }];
   const r = PresenceLogic.rankFromTop(top, x => x.ranked);
-  assert.equal(r.pp, 295);
+  assert.equal(r.pp, Math.round((295 + 416.6667 * (1 - 0.995 ** 2)) * 100) / 100, 'lazer\'s weighting and bonus, over the two ranked plays');
   assert.deepEqual([r.ss, r.s, r.a], [1, 1, 0]);
   assert.equal(PresenceLogic.rankFromTop([{ pp: 300, ranked: false }], x => x.ranked), null);
 });

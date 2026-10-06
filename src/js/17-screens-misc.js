@@ -320,14 +320,17 @@ const ProfileScreen = {
     for (const s of ScoreManager.scores) if (s.passed && (!bestPerMap.has(s.mapHash) || ScoreManager.value(bestPerMap.get(s.mapHash)) < ScoreManager.value(s))) bestPerMap.set(s.mapHash, s);
     const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, creator: s.creator, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s,
       // (enough for other players to open it on the results screen)
-      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed, ranked: ScoreManager.isRanked(s) });
+      score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed, ranked: ScoreManager.isRanked(s),
+      ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : undefined }; })() });
     const day = 86400000, g = st.grades || {};
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
       rankedScore: [...bestPerMap.values()].filter(s => ScoreManager.isRanked(s)).reduce((a, s) => a + (s.score || 0), 0), pp: ScoreManager.totalPp().total,
       grades: { XH: g.XH || 0, SS: g.SS || 0, SH: g.SH || 0, S: g.S || 0, A: g.A || 0 },
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
-      top: ScoreManager.bestPpPerMap().slice(0, 20).map(tp => lite(tp.score, tp.pp)),
+      // (50: the server checks each of them is on a ranked beatmap, by its osu! ids, before it counts toward the rankings)
+      top: ScoreManager.bestPpPerMap().slice(0, 50).map(tp => lite(tp.score, tp.pp)),
+      rankedPlays: ScoreManager.bestPpPerMap().length,
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
       mostPlayed: this.mostPlayed(),
       ...this.beatmapLists(),
@@ -672,7 +675,7 @@ const CHANGELOG = [
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
-    { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only'] },
+    { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust'] },
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },

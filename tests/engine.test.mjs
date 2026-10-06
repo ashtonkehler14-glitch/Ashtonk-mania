@@ -219,8 +219,12 @@ test('accuracy and pp formulas', () => {
   assert.ok(OsuMath.pp(5, [1000, 0, 0, 0, 0, 0], ['NF']) < OsuMath.pp(5, [1000, 0, 0, 0, 0, 0], []));
   const t = OsuMath.totalPp([100, 100]);
   assert.equal(Math.round(t.weighted), 195);
-  assert.equal(OsuMath.totalPp([123.4]).total, 123.4, 'one play: the total is exactly its pp');
-  assert.equal(Math.round(t.total), 195);
+  // lazer's total: weighted 0.95^i, plus 416.6667 × (1 − 0.995^n) for the n plays (up to 1000)
+  assert.ok(Math.abs(t.bonus - 416.6667 * (1 - 0.995 ** 2)) < 1e-6);
+  assert.ok(Math.abs(t.total - (195 + 416.6667 * (1 - 0.995 ** 2))) < 1e-6);
+  assert.ok(Math.abs(OsuMath.totalPp([123.4]).total - (123.4 + 416.6667 * 0.005)) < 1e-6, 'one play: its pp and the bonus for one');
+  assert.ok(Math.abs(OsuMath.totalPp(new Array(1500).fill(1)).bonus - 416.6667 * (1 - 0.995 ** 1000)) < 1e-6, 'the bonus counts up to 1000 plays');
+  assert.equal(OsuMath.totalPp([0, -5]).total, 0, 'no pp plays: nothing, not even the bonus');
 });
 
 test('grades use osu!mania thresholds (SS needs no 200/100/50/miss)', () => {

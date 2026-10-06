@@ -1339,14 +1339,17 @@ const OsuMath = {
     if (mods.includes('EZ')) value *= 0.5;
     return value;
   },
-  /** Profile total pp: best score per map, weighted 0.95^i. */
+  /** Profile total pp, as osu!'s servers work it out for lazer (UserTotalPerformanceProcessor): the best score on each
+   *  ranked beatmap, highest first, the top 1000 of them weighted 0.95^i — plus the bonus for how many there are,
+   *  416.6667 × (1 − 0.995^n) (n up to 1000). */
   totalPp(ppList) {
-    const sorted = ppList.filter(p => p > 0).sort((a, b) => b - a);
-    let total = 0, w = 1;
-    for (const p of sorted) { total += p * w; w *= 0.95; }
-    // (no "bonus pp" for the number of scores: with one play the total is exactly that play's pp, as players expect)
-    return { total, weighted: total, bonus: 0 };
+    const sorted = ppList.filter(p => p > 0).sort((a, b) => b - a).slice(0, 1000);
+    let weighted = 0, w = 1;
+    for (const p of sorted) { weighted += p * w; w *= 0.95; }
+    const bonus = this.bonusPp(sorted.length);
+    return { total: weighted + bonus, weighted, bonus };
   },
+  bonusPp(n) { return n > 0 ? 416.6667 * (1 - Math.pow(0.995, Math.min(n, 1000))) : 0; },
 
   /** Letter grade (osu!lazer ManiaScoreProcessor.RankFromScore): SS = only MAX / 300 hits; then 95 / 90 / 80 / 70%
    *  and up for S / A / B / C. */
