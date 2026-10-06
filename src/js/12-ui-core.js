@@ -102,6 +102,21 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** lazer's StarRatingDisplay changing value: the number (and its colour) runs from the old rating to the new one over
+ *  100ms + 80ms per star of difference (at most 1s), OutQuint. `paint(stars)` is told each step (for colours around it). */
+function starBadgeRoll(from, to, paint) {
+  const el = starBadge(from == null ? to : from);
+  if (from == null || Math.abs(from - to) < 0.005 || !Settings.get('ui.animSpeed')) { if (paint) paint(to); return el; }
+  const txt = el.lastChild, D = Math.min(1000, 100 + 80 * Math.abs(to - from)), t0 = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - t0) / D), v = from + (to - from) * (1 - (1 - t) ** 5);
+    txt.nodeValue = v.toFixed(2); el.style.setProperty('--sc', starColour(v)); el.style.color = v >= 6.5 ? '#ffd966' : '#16101f';
+    if (paint) paint(v);
+    if (t < 1 && el.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  return el;
+}
 /** osu!lazer's tooltips (OsuTooltipContainer): a dark grey box with 5px corners following the cursor. Elements keep
  *  using the plain `title` attribute; on first hover it moves to data-tip so the browser's own tooltip never shows.
  *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */

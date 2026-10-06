@@ -10959,6 +10959,21 @@ function starBadge(sr) {
   const el = h('span.stars', { style: { '--sc': c, color: sr >= 6.5 ? '#ffd966' : '#16101f' } }, icon('star', 'fill'), sr.toFixed(2));
   return el;
 }
+/** lazer's StarRatingDisplay changing value: the number (and its colour) runs from the old rating to the new one over
+ *  100ms + 80ms per star of difference (at most 1s), OutQuint. `paint(stars)` is told each step (for colours around it). */
+function starBadgeRoll(from, to, paint) {
+  const el = starBadge(from == null ? to : from);
+  if (from == null || Math.abs(from - to) < 0.005 || !Settings.get('ui.animSpeed')) { if (paint) paint(to); return el; }
+  const txt = el.lastChild, D = Math.min(1000, 100 + 80 * Math.abs(to - from)), t0 = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - t0) / D), v = from + (to - from) * (1 - (1 - t) ** 5);
+    txt.nodeValue = v.toFixed(2); el.style.setProperty('--sc', starColour(v)); el.style.color = v >= 6.5 ? '#ffd966' : '#16101f';
+    if (paint) paint(v);
+    if (t < 1 && el.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  return el;
+}
 /** osu!lazer's tooltips (OsuTooltipContainer): a dark grey box with 5px corners following the cursor. Elements keep
  *  using the plain `title` attribute; on first hover it moves to data-tip so the browser's own tooltip never shows.
  *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */
@@ -14051,10 +14066,16 @@ const SongSelect = {
       h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('lzplay'), fmtInt(plays)), favBtn, collBtn,
         st('clock', 'Length', fmtTime(m.length / rate)), st('metronome', 'BPM', bpm))));
     const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
-    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
+    // (lazer's StatisticDifficulty: each bar slides from where it was to the new value, 300ms OutQuint — the panel is
+    // rebuilt for a new difficulty, so the bars start at the old widths and move on the next frame)
+    const prevW = this._wdW || {}, nextW = this._wdW = {};
+    const bar = (k, w) => { nextW[k] = w; const i = h('i', { style: { width: (prevW[k] ?? w) + '%' } }); if (prevW[k] != null && prevW[k] !== w) requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = w + '%'; })); else i.style.width = w + '%'; return i; };
+    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', bar(k, clamp(v / max * 100, 0, 100))), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
-    const diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
-      h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+    let diff = null;
+    diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
+      h('div.wd-name', (() => { const v = this.modStars(m) ?? m.stars, from = this._wdStars; this._wdStars = v;
+        return starBadgeRoll(from, v, x => { if (!diff) return; const c = starColour(x); diff.style.setProperty('--sc', c); diff.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); }); })(), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
@@ -17258,7 +17279,7 @@ const Charts = {
         const bx = pad.l + i * bw + (bw - bwid) / 2;
         x.fillStyle = colourAt((i - SIDE) * bin);
         // empty bins stay as faint dots so the shape of the window still reads
-        const hh = v ? Math.max(bwid, v / max * ph) : bwid;
+        const hh = v ? Math.max(bwid, v / max * ph * grow) : bwid;
         x.globalAlpha = !v ? 0.18 : hover === i ? 1 : 0.85;
         x.beginPath();
         x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, rad) : x.rect(bx, pad.t + ph - hh, bwid, hh);
@@ -17272,6 +17293,16 @@ const Charts = {
       x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Torus, Outfit, system-ui'; x.textAlign = 'center';
       x.fillText(`-${Math.round(range)}ms (early)`, pad.l + 44, H - 5); x.fillText('0', zx, H - 5); x.fillText(`+${Math.round(range)}ms (late)`, w - pad.r - 44, H - 5);
     };
+    // lazer's bars grow up into place (300ms OutQuint) the first time the graph comes into view
+    let grow = 0;
+    const io = new IntersectionObserver(es => {
+      if (!es.some(e => e.isIntersecting)) return;
+      io.disconnect();
+      const t0 = performance.now(), D = 300 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1);
+      const step = now => { const t = D > 0 ? Math.min(1, (now - t0) / D) : 1; grow = 1 - (1 - t) ** 5; draw(-1); if (t < 1 && cv.isConnected) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    io.observe(cv);
     requestAnimationFrame(() => draw(-1));
     new ResizeObserver(() => draw(-1)).observe(cv);
     cv.addEventListener('pointermove', e => {
@@ -18141,7 +18172,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
-    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer'] },
+    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },

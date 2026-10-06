@@ -478,7 +478,7 @@ const Charts = {
         const bx = pad.l + i * bw + (bw - bwid) / 2;
         x.fillStyle = colourAt((i - SIDE) * bin);
         // empty bins stay as faint dots so the shape of the window still reads
-        const hh = v ? Math.max(bwid, v / max * ph) : bwid;
+        const hh = v ? Math.max(bwid, v / max * ph * grow) : bwid;
         x.globalAlpha = !v ? 0.18 : hover === i ? 1 : 0.85;
         x.beginPath();
         x.roundRect ? x.roundRect(bx, pad.t + ph - hh, bwid, hh, rad) : x.rect(bx, pad.t + ph - hh, bwid, hh);
@@ -492,6 +492,16 @@ const Charts = {
       x.fillStyle = this._css('--muted') || '#999'; x.font = '700 11px Torus, Outfit, system-ui'; x.textAlign = 'center';
       x.fillText(`-${Math.round(range)}ms (early)`, pad.l + 44, H - 5); x.fillText('0', zx, H - 5); x.fillText(`+${Math.round(range)}ms (late)`, w - pad.r - 44, H - 5);
     };
+    // lazer's bars grow up into place (300ms OutQuint) the first time the graph comes into view
+    let grow = 0;
+    const io = new IntersectionObserver(es => {
+      if (!es.some(e => e.isIntersecting)) return;
+      io.disconnect();
+      const t0 = performance.now(), D = 300 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1);
+      const step = now => { const t = D > 0 ? Math.min(1, (now - t0) / D) : 1; grow = 1 - (1 - t) ** 5; draw(-1); if (t < 1 && cv.isConnected) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    io.observe(cv);
     requestAnimationFrame(() => draw(-1));
     new ResizeObserver(() => draw(-1)).observe(cv);
     cv.addEventListener('pointermove', e => {

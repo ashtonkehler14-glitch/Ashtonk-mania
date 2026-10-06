@@ -907,10 +907,16 @@ const SongSelect = {
       h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('lzplay'), fmtInt(plays)), favBtn, collBtn,
         st('clock', 'Length', fmtTime(m.length / rate)), st('metronome', 'BPM', bpm))));
     const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
-    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
+    // (lazer's StatisticDifficulty: each bar slides from where it was to the new value, 300ms OutQuint — the panel is
+    // rebuilt for a new difficulty, so the bars start at the old widths and move on the next frame)
+    const prevW = this._wdW || {}, nextW = this._wdW = {};
+    const bar = (k, w) => { nextW[k] = w; const i = h('i', { style: { width: (prevW[k] ?? w) + '%' } }); if (prevW[k] != null && prevW[k] !== w) requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = w + '%'; })); else i.style.width = w + '%'; return i; };
+    const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', bar(k, clamp(v / max * 100, 0, 100))), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
-    const diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
-      h('div.wd-name', starBadge(this.modStars(m) ?? m.stars), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
+    let diff = null;
+    diff = h(`div.wd${sameMap ? '.still' : ''}`, { style: { '--sc': sc, '--ink': ink } },
+      h('div.wd-name', (() => { const v = this.modStars(m) ?? m.stars, from = this._wdStars; this._wdStars = v;
+        return starBadgeRoll(from, v, x => { if (!diff) return; const c = starColour(x); diff.style.setProperty('--sc', c); diff.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); }); })(), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
         h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
