@@ -1785,10 +1785,13 @@ div.res-calib .i { color: var(--good); }
 .ov .side-item.active { background: var(--ob3); box-shadow: inset 3px 0 0 var(--ohl); color: #fff; }
 /* lazer's OverlayTabControl: 14px items, the active one bold with a Highlight1 bar */
 .ov-tab { position: relative; height: 47px; padding: 0; border: 0; background: none; color: var(--oc2); font-size: .875rem; cursor: pointer; }
-.ov-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--ohl); transform: scaleX(0); transition: transform 200ms var(--ease-out); }
-.ov-tab:hover::after { transform: scaleX(.6); opacity: .6; }
+/* lazer's OverlayTabControl: each tab's ExpandingBar — a full-width rounded bar on the bottom edge that springs open to
+   5px (400ms OutElastic) when the tab is hovered or chosen, and closes back to nothing (400ms Out) */
+.ov-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; border-radius: 3px; background: var(--ohl); translate: 0 50%; transform: scaleY(0); opacity: .5;
+  transition: transform 400ms cubic-bezier(0, 0, .58, 1), opacity 100ms cubic-bezier(.22, 1, .36, 1); }
+.ov-tab:hover::after, .ov-tab.on::after { transform: scaleY(1); opacity: 1; transition: transform 400ms var(--el-out), opacity 100ms cubic-bezier(.22, 1, .36, 1); }
+.ov-tab { transition: color 120ms cubic-bezier(.55, .085, .68, .53); }
 .ov-tab.on { color: #fff; font-weight: 700; }
-.ov-tab.on::after { transform: none; opacity: 1; }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ov-inner { padding: 0 16px; } .ov-content { padding: 16px 16px 90px; } .ov-sub { display: none; } }
 /* beatmap listing (explorer): lazer's BeatmapListingSearchControl — a full-width Dark6 band with the big search box
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
