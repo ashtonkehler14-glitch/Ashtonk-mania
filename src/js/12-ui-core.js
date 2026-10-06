@@ -107,11 +107,11 @@ function starBadge(sr) {
  *  The first tooltip waits a moment; moving on to the next element shows its tooltip straight away, as in lazer. */
 // lazer's OsuButton click flash, on every button (restarted on each click)
 document.addEventListener('click', e => {
-  const b = e.target && e.target.closest && e.target.closest('.btn');
+  const b = e.target && e.target.closest && e.target.closest('.btn, .pm-btn');
   if (!b || b.disabled) return;
   b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
 }, true);
-document.addEventListener('animationend', e => { if (e.animationName === 'btnFlash') e.target.classList.remove('flash'); }, true);
+document.addEventListener('animationend', e => { if (e.animationName === 'btnFlash') e.target.classList.remove('flash'); else if (e.animationName === 'pmFlash') e.target.closest('.pm-btn')?.classList.remove('flash'); }, true);
 
 const Tooltip = {
   init() {
@@ -192,11 +192,62 @@ const Toast = {
     el._arm = () => { clearTimeout(timer); if (timeout) timer = setTimeout(close, timeout); };
     el._close = close;
     el.addEventListener('pointerenter', () => clearTimeout(timer));
-    el.addEventListener('pointerleave', () => { if (timeout) timer = setTimeout(close, 1500); });
-    el.addEventListener('click', () => { if (onClick) onClick(); close(); });
+    el.addEventListener('pointerleave', () => { if (timeout && !el._drag) timer = setTimeout(close, 1500); });
+    el.addEventListener('click', () => { if (el._dragged) { el._dragged = false; return; } if (onClick) onClick(); close(); });
+    Toast.draggable(el, close);
     if (onClick) el.classList.add('act');
     el._arm();
     return close;
+  },
+  /** lazer's toasts can be dragged: rubber-banded (the pull eases off the further it goes), tilting as they go left;
+   *  thrown left (tilted past 10° or flicked) they fly off and fall away; pushed right they go to the notifications;
+   *  let go anywhere else they spring back (800ms OutElastic). */
+  draggable(el, close) {
+    let sx = 0, sy = 0, x = 0, y = 0, vx = 0, vy = 0, lt = 0, lx = 0, ly = 0, id = null;
+    const put = () => { el.style.translate = `${x}px ${y}px`; el.style.rotate = `${Math.min(0, x * 0.1)}deg`; };
+    el.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || el.classList.contains('out')) return;
+      id = e.pointerId; sx = e.clientX; sy = e.clientY; x = y = vx = vy = 0; lt = performance.now(); lx = ly = 0;
+      el.getAnimations().forEach(a => { if (a._spring) a.cancel(); });
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerId !== id) return;
+      let dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!el._drag) { if (Math.hypot(dx, dy) < 6) return; el._drag = true; el.setPointerCapture(id); el.classList.add('dragging'); }
+      const len = Math.hypot(dx, dy), k = len > 0 ? Math.pow(len, 0.8) / len : 0;
+      dx *= k; dy *= k;
+      if (dx >= 0) dy = 0;
+      else { const t = Math.min(1, -dx / 200); dy *= t < .5 ? 8 * t ** 4 : 1 - (-2 * t + 2) ** 4 / 2; } // (InOutQuart)
+      x = dx; y = dy; put();
+      const now = performance.now(), dt = Math.max(1, now - lt), a = 1 - Math.exp(-dt / 40);
+      vx += ((x - lx) / dt - vx) * a; vy += ((y - ly) / dt - vy) * a; lx = x; ly = y; lt = now;
+    });
+    const end = e => {
+      if (e.pointerId !== id) return;
+      id = null;
+      if (!el._drag) return;
+      el._drag = false; el._dragged = true; el.classList.remove('dragging');
+      if (Math.min(0, x * 0.1) < -10 || vx < -0.3) {
+        // flung: it keeps its speed and falls (lazer's fling), then it's gone
+        if (vx > -0.3) vx = -0.3 - 0.5 * Math.random();
+        let last = performance.now();
+        const fly = now => {
+          const dt = now - last; last = now;
+          vy += dt * 0.005; x += vx * dt; y += vy * dt; put();
+          if (y < innerHeight + 200 && x > -innerWidth) requestAnimationFrame(fly); else el.remove();
+        };
+        el.classList.add('flung');
+        requestAnimationFrame(fly);
+      } else if (x > 30 || vx > 0.3) close();
+      else {
+        const a = el.animate([{ translate: `${x}px ${y}px`, rotate: `${Math.min(0, x * 0.1)}deg` }, { translate: '0px 0px', rotate: '0deg' }],
+          { duration: 800, easing: getComputedStyle(document.documentElement).getPropertyValue('--el-out') || 'ease-out' });
+        a._spring = true;
+        x = y = 0; el.style.translate = ''; el.style.rotate = '';
+      }
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
   },
   /** lazer's ProgressNotification: a toast with a bar that stays until the work is done. Returns
    *  { set(fraction, text), done(title, body), fail(title, body) }. */

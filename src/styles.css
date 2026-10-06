@@ -1834,6 +1834,11 @@ div.res-calib .i { color: var(--good); }
 .toast .t-body { font-size: .8rem; color: hsl(255 40% 90%); opacity: .85; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(110%); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(110%); } }
+/* lazer's notification: a flash that fades over 2s (OutQuart) as it slides in; it can be dragged (and thrown away) */
+@keyframes toastFlash { from { filter: brightness(1.7); } }
+.toast:not(.out) { animation: toastIn calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both, toastFlash calc(2000ms * var(--anim)) cubic-bezier(.25, 1, .5, 1); touch-action: pan-y; }
+.toast.dragging, .toast.flung { cursor: grabbing; user-select: none; transition: none; }
+.toast.flung { pointer-events: none; }
 .toast.bump:not(.out) { animation: toastBump 320ms var(--ease-out); }
 @keyframes toastBump { 40% { transform: translateX(-6px); } }
 
@@ -3210,6 +3215,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .pm-btn:focus-visible .pm-band { filter: brightness(1.15); }
 .pm-btn .pm-band { left: 10%; right: 10%; border-radius: 5px; transform: skewX(-11.31deg); transition: left 200ms cubic-bezier(.22, 1, .36, 1), right 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
 .pm-btn:hover .pm-band { left: 5%; right: 5%; box-shadow: 0 0 12px var(--c); filter: none; transition: left 400ms cubic-bezier(.22, 1, .36, 1), right 400ms cubic-bezier(.22, 1, .36, 1), box-shadow 400ms; }
+/* lazer's DialogButton: held, the band narrows a little (to 98% of its hover width over 800ms OutQuad); clicked, it
+   flashes white (100ms) */
+.pm-btn:active .pm-band { left: 5.9%; right: 5.9%; transition: left 800ms cubic-bezier(.5, 1, .89, 1), right 800ms cubic-bezier(.5, 1, .89, 1), box-shadow 400ms; }
+@keyframes pmFlash { from { filter: brightness(2); } }
+.pm-btn.flash .pm-band { animation: pmFlash 160ms ease-out; }
+.pm-btn:hover .pm-label { scale: 1.02; transition: letter-spacing 400ms cubic-bezier(.22, 1, .36, 1), scale 400ms cubic-bezier(.22, 1, .36, 1); }
 .pm-btn .pm-label { letter-spacing: 0; }
 .pm-btn:hover .pm-label { letter-spacing: 1.4px; transition-duration: 400ms; }
 .pm-info { align-self: center; justify-self: center; text-align: center; font-size: 18px; line-height: 1.35; }
