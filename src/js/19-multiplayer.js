@@ -422,6 +422,13 @@ const Presence = {
           seen.set(x.pid, now);
         }
         this._listed = true;
+        // (friends online right now: last seen now — kept whether or not the dashboard is open)
+        if (typeof LastSeen !== 'undefined') {
+          LastSeen.touch(this.players.filter(x => x.pid && Friends.has(x.pid)).map(x => x.pid));
+          // (and a friend who just left the list was last seen this moment)
+          const still = new Set(this.players.map(x => x.pid));
+          LastSeen.merge([...before].filter(p => p && !still.has(p) && Friends.has(p)).map(p => [p, now]));
+        }
         Bus.emit('presence:changed');
       }
       else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);

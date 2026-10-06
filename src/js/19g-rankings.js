@@ -50,11 +50,17 @@ const Verified = {
     try {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
-      if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      if (!r.ok || !d || !d.ok) {
+        console.warn('score not counted online:', d && d.error);
+        if (daily) Toast.err('Your daily challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
+        return null;
+      }
+      if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
+      else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
       this.last = { d, at: Date.now() };
       Bus.emit('verified', d);
       return d;
-    } catch (e) { console.warn('score not sent', e); return null; }
+    } catch (e) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; }
   },
 };
 

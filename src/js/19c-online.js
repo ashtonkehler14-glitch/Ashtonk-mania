@@ -21,6 +21,7 @@ const Friends = {
   /** The server's list (on connecting, and whenever it changes). */
   sync(m) {
     this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name }));
+    LastSeen.merge((m.list || []).filter(f => f.seen > 0 && !f.online).map(f => [f.pid, f.seen])); // (the server saw them go)
     this.requests = m.requests || [];
     for (const f of this.server) this.sent.delete(f.pid);
     try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
@@ -363,7 +364,15 @@ const Spectate = {
     // (in gameplay only the fail and pause screens are copied — a song, its loading screen and its intro aren't: the
     // watchers have their own, and copying them would cost the player frames)
     const live = Screens.currentName === 'gameplay' && !(s && (s.failed || G.pauseEl));
-    if (live) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
+    if (live) {
+      if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); }
+      // (and nothing watches the page while the song plays: the HUD changes every frame, and each change woke the
+      // observer — the player's song stuttered at the start while someone watched)
+      if (this._mo) { this._mo.disconnect(); this._mo = null; this.hostCur(false); }
+      if (this._mirT) { clearTimeout(this._mirT); this._mirT = 0; }
+      return;
+    }
+    if (Screens.busy) { this.mirrorSoon(); return; } // (mid-transition: copied once the next screen is in)
     const app = $('#app');
     if (!app) return;
     // (copied as soon as something on screen changes — or a list is scrolled — at most every MIR_GAP ms)
@@ -557,6 +566,12 @@ const LastSeen = {
   KEY: 'am.lastSeen',
   map() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; } catch { return {}; } },
   get(pid) { return this.map()[pid] || 0; },
+  /** When the server last saw them, where that's later than what this browser knows. */
+  merge(pairs) {
+    const m = this.map(); let changed = false;
+    for (const [p, t] of pairs) if (p && t > (m[p] || 0) && t <= Date.now() + 60000) { m[p] = t; changed = true; }
+    if (changed) try { localStorage.setItem(this.KEY, JSON.stringify(m)); } catch { /* private mode */ }
+  },
   touch(pids) {
     const m = this.map(), t = Date.now();
     let changed = false;

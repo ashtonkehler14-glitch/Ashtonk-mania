@@ -12027,7 +12027,16 @@ const Notifications = {
   },
   close() { if (this.el) this.el.classList.remove('open'); Toolbar.sync(); },
   clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
-  ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 45 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; },
+  /** How long ago, in whole units rounded down (90 minutes is "1h ago", not "2h"; 59½ minutes isn't "60m"). */
+  ago(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000), f = (n, u) => `${Math.max(1, Math.floor(n))}${u} ago`;
+    if (s < 45) return 'just now';
+    if (s < 3600) return f(s / 60, 'm');
+    if (s < 86400) return f(s / 3600, 'h');
+    if (s < 30 * 86400) return f(s / 86400, 'd');
+    if (s < 365 * 86400) { const n = Math.max(1, Math.floor(s / (30 * 86400))); return `${n} month${n === 1 ? '' : 's'} ago`; }
+    const n = Math.floor(s / (365 * 86400)); return `${n} year${n === 1 ? '' : 's'} ago`;
+  },
   render() {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
@@ -18259,7 +18268,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
-    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online'] },
+    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
@@ -21807,6 +21816,13 @@ const Presence = {
           seen.set(x.pid, now);
         }
         this._listed = true;
+        // (friends online right now: last seen now — kept whether or not the dashboard is open)
+        if (typeof LastSeen !== 'undefined') {
+          LastSeen.touch(this.players.filter(x => x.pid && Friends.has(x.pid)).map(x => x.pid));
+          // (and a friend who just left the list was last seen this moment)
+          const still = new Set(this.players.map(x => x.pid));
+          LastSeen.merge([...before].filter(p => p && !still.has(p) && Friends.has(p)).map(p => [p, now]));
+        }
         Bus.emit('presence:changed');
       }
       else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
@@ -23411,6 +23427,7 @@ const Friends = {
   /** The server's list (on connecting, and whenever it changes). */
   sync(m) {
     this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name }));
+    LastSeen.merge((m.list || []).filter(f => f.seen > 0 && !f.online).map(f => [f.pid, f.seen])); // (the server saw them go)
     this.requests = m.requests || [];
     for (const f of this.server) this.sent.delete(f.pid);
     try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
@@ -23753,7 +23770,15 @@ const Spectate = {
     // (in gameplay only the fail and pause screens are copied — a song, its loading screen and its intro aren't: the
     // watchers have their own, and copying them would cost the player frames)
     const live = Screens.currentName === 'gameplay' && !(s && (s.failed || G.pauseEl));
-    if (live) { if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); } return; }
+    if (live) {
+      if (this._mirOn) { this._mirOn = false; this._mirHtml = null; Presence.send({ t: 'rkview', html: null }); }
+      // (and nothing watches the page while the song plays: the HUD changes every frame, and each change woke the
+      // observer — the player's song stuttered at the start while someone watched)
+      if (this._mo) { this._mo.disconnect(); this._mo = null; this.hostCur(false); }
+      if (this._mirT) { clearTimeout(this._mirT); this._mirT = 0; }
+      return;
+    }
+    if (Screens.busy) { this.mirrorSoon(); return; } // (mid-transition: copied once the next screen is in)
     const app = $('#app');
     if (!app) return;
     // (copied as soon as something on screen changes — or a list is scrolled — at most every MIR_GAP ms)
@@ -23947,6 +23972,12 @@ const LastSeen = {
   KEY: 'am.lastSeen',
   map() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; } catch { return {}; } },
   get(pid) { return this.map()[pid] || 0; },
+  /** When the server last saw them, where that's later than what this browser knows. */
+  merge(pairs) {
+    const m = this.map(); let changed = false;
+    for (const [p, t] of pairs) if (p && t > (m[p] || 0) && t <= Date.now() + 60000) { m[p] = t; changed = true; }
+    if (changed) try { localStorage.setItem(this.KEY, JSON.stringify(m)); } catch { /* private mode */ }
+  },
   touch(pids) {
     const m = this.map(), t = Date.now();
     let changed = false;
@@ -24854,11 +24885,17 @@ const Verified = {
     try {
       const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
-      if (!r.ok || !d || !d.ok) { console.warn('score not counted online:', d && d.error); return null; }
+      if (!r.ok || !d || !d.ok) {
+        console.warn('score not counted online:', d && d.error);
+        if (daily) Toast.err('Your daily challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
+        return null;
+      }
+      if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
+      else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
       this.last = { d, at: Date.now() };
       Bus.emit('verified', d);
       return d;
-    } catch (e) { console.warn('score not sent', e); return null; }
+    } catch (e) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; }
   },
 };
 

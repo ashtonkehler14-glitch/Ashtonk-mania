@@ -778,6 +778,8 @@ export class PresenceLogic {
     this.boardIds = new Map(); this.persistBoardId = null;
     // lazer's "First place ranks": the beatmaps each player is #1 on (f1:<pid>), kept as the boards change
     this.firsts = new Map(); this.persistFirsts = null;
+    // when each player was last online (for friends' "Last seen …"): set as they go offline; `persistSeen` keeps it
+    this.seen = new Map(); this.persistSeen = null;
     // players' keys, by public id (only the key's SHA-256 is kept): pid → hash
     this.auth = new Map(); this.persistAuth = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
@@ -910,7 +912,8 @@ export class PresenceLogic {
     }
     // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
     const d = this.dailyNow();
-    if (daily && d.map && daily.day === d.day && r.beatmapId === d.map.onlineId) {
+    const dailyOk = !!(daily && d.map && daily.day === d.day && r.beatmapId === d.map.onlineId);
+    if (dailyOk) {
       this.countDailyDay(pid, d.day);
       const ds = { pid, name, avatar, score: entry.score, acc: entry.acc, combo: entry.combo, grade: entry.grade, mods: entry.mods, at: t };
       const was = d.scores.find(x => x.pid === pid);
@@ -920,7 +923,8 @@ export class PresenceLogic {
     }
     // where the player's best stands on the board now, and whether this play set it (lazer's results)
     const now = this.boards.get(key) || [], at = now.findIndex(x => x.pid === pid);
-    return { out, entry, total: rec.pp, rank: at < 0 ? null : at + 1, of: now.length, best: !prev || prev.score < entry.score };
+    return { out, entry, total: rec.pp, rank: at < 0 ? null : at + 1, of: now.length, best: !prev || prev.score < entry.score,
+      daily: !daily ? null : dailyOk ? 'ok' : !d.map || daily.day !== d.day ? 'day' : 'map' };
   }
   /** A player's profile for someone looking at it: what their game shared, their place in the rankings, their daily
    *  challenge record and whether they're online. */
@@ -1121,7 +1125,7 @@ export class PresenceLogic {
   byPid(pid) { return [...this.users.entries()].filter(([, u]) => u.pid && u.pid === pid).map(([id]) => id); }
   friendsMsg(pid) {
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
-    return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ pid: p, name, online: online.has(p) })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => ({ pid: p, name })) };
+    return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ pid: p, name, online: online.has(p), seen: this.seen.get(p) || 0 })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => ({ pid: p, name })) };
   }
   /** Tell both sides (every tab of each) their friends changed. */
   friendsOut(...pids) { return pids.flatMap(p => this.byPid(p).map(id => ({ to: id, msg: this.friendsMsg(p) }))); }
@@ -1163,9 +1167,11 @@ export class PresenceLogic {
     const out = [];
     for (const w of u.watchers) { const wu = this.users.get(w); if (wu && wu.watching === id) wu.watching = null; out.push({ to: w, msg: { t: 'specEnd', id, gone: true } }); }
     if (u.watching) out.push(...this.unwatch(id, u.watching));
+    if (u.pid && u.vis !== 'offline') this.markSeen(u.pid);
     this.users.delete(id); this.lastInvite.delete(id); this.said.delete(id);
     return out;
   }
+  markSeen(pid) { const t = this.now(); this.seen.set(pid, t); if (this.persistSeen) this.persistSeen(pid, t); }
   leave(id) { if (!this.users.has(id)) return []; const out = this.forget(id); return [...out, this.broadcast()]; }
   broadcast() { return { to: 'all', msg: { t: 'online', players: this.list() } }; }
   watcherNames(u) { return [...u.watchers].map(w => this.users.get(w)?.name).filter(Boolean); }
@@ -1308,6 +1314,7 @@ export class PresenceLogic {
     if (msg.t === 'vis') {
       const v = cleanVis(msg.v);
       if (v === u.vis) return [];
+      if (v === 'offline' && u.pid) this.markSeen(u.pid);
       u.vis = v;
       const out = [];
       // (gone offline to everyone else: nobody can keep watching)
@@ -1551,9 +1558,9 @@ export class Matchmaker {
     const daily = body.daily && typeof body.daily === 'object' ? { day: String(body.daily.day || '') } : null;
     const playlist = body.playlist && typeof body.playlist === 'object' ? { id: String(body.playlist.id || '').slice(0, 12) } : null;
     await this.ensureBests(pid);
-    const { out, entry, total, rank, of, best } = this.presence.recordVerified(pid, key, r, { daily, playlist });
+    const { out, entry, total, rank, of, best, daily: dailyRes } = this.presence.recordVerified(pid, key, r, { daily, playlist });
     this.send(out);
-    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best });
+    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best, daily: dailyRes });
   }
   /** Friends and friend requests live in this object's storage (fr:<pid>, fq:<pid>), loaded once before anyone connects. */
   async loadFriends() {
@@ -1577,6 +1584,7 @@ export class Matchmaker {
         this.presence.loadPlaylists(pl);
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
         // (#lobby's last lines outlive the server restarting: it used to come back empty, and wiped everyone's chat)
+        for (const [k, v] of await st.list({ prefix: 'ls:' })) if (typeof v === 'number') this.presence.seen.set(k.slice(3), v);
         const ch = await st.get('chat'); if (Array.isArray(ch)) this.presence.chat = ch.slice(-PresenceLogic.CHAT_KEEP);
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
@@ -1595,6 +1603,7 @@ export class Matchmaker {
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      this.presence.persistSeen = (pid, t) => { st.put(`ls:${pid}`, t).catch(() => {}); };
       // (written at most every couple of seconds however busy the lobby is)
       this.presence.persistChat = c => { if (this._chatT) return; this._chatT = setTimeout(() => { this._chatT = null; st.put('chat', this.presence.chat).catch(() => {}); }, 2000); };
       // (once: the first places on boards set before they were kept — each board's #1, named from their best there;
@@ -1868,6 +1877,11 @@ export async function handleMultiplayer(request, env, url) {
       const { status: st, setId } = await beatmapStatus(j.r, j.md5, env);
       if (setId > 0 && !(j.r.beatmapSetId > 0)) j.r = { ...j.r, beatmapSetId: setId };
       if (st !== 'ranked' && st !== 'approved') j.r = { ...j.r, pp: 0, unranked: true };
+    }
+    // (a daily challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
+    // or it could never match the day's beatmap)
+    if (j.r && !j.r.error && j.body.daily && !(j.r.beatmapId > 0) && /^[a-f0-9]{32}$/.test(j.md5 || '')) {
+      try { const b = await officialGet(`beatmaps/lookup?checksum=${j.md5}`, env, fetch, 7 * 86400000); if (b && b.id > 0) j.r = { ...j.r, beatmapId: b.id }; } catch { /* not found */ }
     }
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL('/judged-score', url), { method: 'POST', body: JSON.stringify({ pid: j.body.pid, key: j.body.key, daily: j.body.daily, playlist: j.body.playlist, hash: j.hash, r: j.r }), headers: { 'content-type': 'application/json' } }));

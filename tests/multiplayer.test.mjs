@@ -1079,10 +1079,10 @@ test('daily challenge: the first proposal sets the day\'s beatmap; only judged p
   p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 111, score: 1e7 });
   assert.equal(p.daily.scores.length, 0);
   // judged plays: another beatmap, or yesterday's, don't count
-  p.recordVerified('alicepid1', K1, judged({ beatmapId: 999, score: 1e6 }), { daily: { day: '2026-10-04' } });
-  p.recordVerified('alicepid1', K1, judged({ score: 1e6 }), { daily: { day: '2026-10-03' } });
+  assert.equal(p.recordVerified('alicepid1', K1, judged({ beatmapId: 999, score: 1e6 }), { daily: { day: '2026-10-04' } }).daily, 'map');
+  assert.equal(p.recordVerified('alicepid1', K1, judged({ score: 1e6 }), { daily: { day: '2026-10-03' } }).daily, 'day');
   assert.equal(p.daily.scores.length, 0);
-  p.recordVerified('alicepid1', K1, judged({ score: 800000 }), { daily: { day: '2026-10-04' } });
+  assert.equal(p.recordVerified('alicepid1', K1, judged({ score: 800000 }), { daily: { day: '2026-10-04' } }).daily, 'ok');
   p.recordVerified('bobpid22', K1, judged({ score: 900000 }), { daily: { day: '2026-10-04' } });
   p.recordVerified('alicepid1', K1, judged({ score: 700000 }), { daily: { day: '2026-10-04' } });
   const board = p.message('a', { t: 'daily' })[0].msg;
@@ -1340,4 +1340,21 @@ test('lazer\'s Score rankings: ranked score is the best score on each ranked bea
   assert.equal(perf.mode, 'performance'); assert.deepEqual(perf.list.map(r => r.name), ['Alice', 'Bob']);
   assert.equal(sc.mode, 'score'); assert.deepEqual(sc.list.map(r => [r.name, r.rscore]), [['Bob', 1600000], ['Alice', 800000]]);
   assert.equal(sc.you.rank, 2);
+});
+
+test('last seen: the server notes when a friend goes offline (leaving or going invisible) and sends it with the friends list', () => {
+  const clock = { t: 1000 };
+  const p = new PresenceLogic(() => clock.t);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  p.message('a', { t: 'friendReq', to: 'b' }); p.message('b', { t: 'friendAnswer', pid: 'alicepid1', yes: true });
+  assert.equal(p.friendsMsg('alicepid1').list[0].seen, 0);
+  clock.t = 50000; p.leave('b');
+  assert.deepEqual((({ online, seen }) => ({ online, seen }))(p.friendsMsg('alicepid1').list[0]), { online: false, seen: 50000 });
+  const saved = []; p.persistSeen = (pid, t) => saved.push([pid, t]);
+  p.join('b2', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
+  clock.t = 90000; p.message('b2', { t: 'vis', v: 'offline' });
+  assert.equal(p.friendsMsg('alicepid1').list[0].seen, 90000, 'going invisible counts as going offline');
+  clock.t = 120000; p.leave('b2');
+  assert.equal(p.friendsMsg('alicepid1').list[0].seen, 90000, '…and leaving while invisible doesn\'t give it away');
+  assert.deepEqual(saved, [['bobpid22', 90000]]);
 });

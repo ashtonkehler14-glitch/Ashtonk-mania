@@ -1146,7 +1146,16 @@ const Notifications = {
   },
   close() { if (this.el) this.el.classList.remove('open'); Toolbar.sync(); },
   clear() { this.list = []; this.render(); Bus.emit('notif:changed'); },
-  ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 45 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; },
+  /** How long ago, in whole units rounded down (90 minutes is "1h ago", not "2h"; 59½ minutes isn't "60m"). */
+  ago(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000), f = (n, u) => `${Math.max(1, Math.floor(n))}${u} ago`;
+    if (s < 45) return 'just now';
+    if (s < 3600) return f(s / 60, 'm');
+    if (s < 86400) return f(s / 3600, 'h');
+    if (s < 30 * 86400) return f(s / 86400, 'd');
+    if (s < 365 * 86400) { const n = Math.max(1, Math.floor(s / (30 * 86400))); return `${n} month${n === 1 ? '' : 's'} ago`; }
+    const n = Math.floor(s / (365 * 86400)); return `${n} year${n === 1 ? '' : 's'} ago`;
+  },
   render() {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
