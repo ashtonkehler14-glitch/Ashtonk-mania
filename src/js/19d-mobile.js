@@ -226,7 +226,7 @@ const Orientation = {
   },
 };
 
-// ── phones on the website (not the installed app) ─────────────────────────────
+// ── phones and tablets (the website and the installed app) ─────────────────────
 if (Mobile.touch) {
   /** The keyboard opens only when you tap a text box yourself: a box the game focuses on its own (song select's
    *  search, the settings' search, the chat…) stays unfocused on a phone unless your tap was on or around it. */
@@ -240,16 +240,24 @@ if (Mobile.touch) {
       return focus.apply(this, a);
     };
   }
-  /** The website goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
-   *  way the game wants it (sideways; upright in gameplay). The installed app is fullscreen already. */
+  /** The game goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
+   *  way the game wants it (sideways; upright in gameplay). The installed app too: it opens fullscreen, but the phone's
+   *  own panels (Samsung's pull-down, the edge panel) take it out of that, and it came back with the status bar and a
+   *  black strip by the camera — now the next tap puts it back. */
   // (outside fullscreen the browser leaves a black strip by the camera cutout, so a tap in the menus puts it back when
   // it was lost — but never during a song: each time a page goes fullscreen the browser shows its own "to exit full
   // screen…" notice, which no page can hide, and it covered the song)
   const full = () => {
-    if (App.installed || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
     if (document.querySelector('.mob-inst')) return; // (not while the install prompt is up)
     if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') return;
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => Orientation.lock(Orientation.wanted()), () => {});
   };
   document.addEventListener('pointerup', full, true);
+  // (back from the phone's own panels or another app: the layout is fitted to the whole screen again — the browser
+  // reports the new size late, after the bars have gone — and the next tap restores fullscreen)
+  const refit = () => { for (const ms of [0, 250, 700]) setTimeout(() => window.dispatchEvent(new Event('resize')), ms); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refit(); });
+  window.addEventListener('focus', refit);
+  document.addEventListener('fullscreenchange', refit);
 }

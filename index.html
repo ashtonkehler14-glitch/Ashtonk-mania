@@ -17928,7 +17928,7 @@ const CHANGELOG = [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
     { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust'] },
-    { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes'] },
+    { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },
@@ -23951,7 +23951,7 @@ const Orientation = {
   },
 };
 
-// ── phones on the website (not the installed app) ─────────────────────────────
+// ── phones and tablets (the website and the installed app) ─────────────────────
 if (Mobile.touch) {
   /** The keyboard opens only when you tap a text box yourself: a box the game focuses on its own (song select's
    *  search, the settings' search, the chat…) stays unfocused on a phone unless your tap was on or around it. */
@@ -23965,18 +23965,26 @@ if (Mobile.touch) {
       return focus.apply(this, a);
     };
   }
-  /** The website goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
-   *  way the game wants it (sideways; upright in gameplay). The installed app is fullscreen already. */
+  /** The game goes fullscreen on your first tap (and again after you leave it), with the screen's turn locked the
+   *  way the game wants it (sideways; upright in gameplay). The installed app too: it opens fullscreen, but the phone's
+   *  own panels (Samsung's pull-down, the edge panel) take it out of that, and it came back with the status bar and a
+   *  black strip by the camera — now the next tap puts it back. */
   // (outside fullscreen the browser leaves a black strip by the camera cutout, so a tap in the menus puts it back when
   // it was lost — but never during a song: each time a page goes fullscreen the browser shows its own "to exit full
   // screen…" notice, which no page can hide, and it covered the song)
   const full = () => {
-    if (App.installed || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+    if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
     if (document.querySelector('.mob-inst')) return; // (not while the install prompt is up)
     if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') return;
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => Orientation.lock(Orientation.wanted()), () => {});
   };
   document.addEventListener('pointerup', full, true);
+  // (back from the phone's own panels or another app: the layout is fitted to the whole screen again — the browser
+  // reports the new size late, after the bars have gone — and the next tap restores fullscreen)
+  const refit = () => { for (const ms of [0, 250, 700]) setTimeout(() => window.dispatchEvent(new Event('resize')), ms); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refit(); });
+  window.addEventListener('focus', refit);
+  document.addEventListener('fullscreenchange', refit);
 }
 
 /* ===== 19e-mp-results.js ===== */
