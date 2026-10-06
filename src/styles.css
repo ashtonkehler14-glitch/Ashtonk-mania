@@ -3451,7 +3451,7 @@ html.touch .gameplay .pause-menu, html.touch .gameplay .pause-menu * { touch-act
 html.touch :focus:not(input):not(textarea):not(select) { outline: none !important; }
 html.touch img { -webkit-user-drag: none; }
 /* phones: the install-the-app recommendation, shown as the game opens in a browser */
-.mob-inst { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 16px; background: rgba(8, 8, 12, .82); font-size: 14px; animation: mobFade 250ms ease both; overflow: auto; }
+.mob-inst { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: safe center; padding: 16px; background: rgba(8, 8, 12, .82); font-size: 14px; animation: mobFade 250ms ease both; overflow: auto; }
 .mob-inst.out { opacity: 0; transition: opacity 250ms; }
 .mob-inst-box { width: min(420px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 20px 16px; border-radius: 18px; background: #24222c; color: #fff; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
 .mob-inst-box img { width: 64px; height: 64px; border-radius: 16px; }
@@ -3459,6 +3459,8 @@ html.touch img { -webkit-user-drag: none; }
 .mob-inst-box p { margin: 0; color: var(--text-2); line-height: 1.45; }
 .mob-inst-box .mob-inst-warn { color: #ffcc22; font-weight: 700; }
 .mob-inst-how { align-self: stretch; margin: 2px 0 0; padding: 10px 14px 10px 32px; border-radius: 10px; background: rgba(255, 255, 255, .06); text-align: left; line-height: 1.6; }
+/* (a phone held sideways: tighter, so the whole box — Don't remind me included — fits without scrolling) */
+@media (max-height: 500px) { .mob-inst { padding: 8px; } .mob-inst-box { gap: 6px; padding: 12px 18px 10px; } .mob-inst-box img, .mob-inst-box .mob-inst-logo { width: 40px; height: 40px; } .mob-inst-box h2 { font-size: 17px; } .mob-inst-how { line-height: 1.4; padding-top: 6px; padding-bottom: 6px; } .mob-inst-box:has(.mob-inst-how:not([hidden])) > p:not(.mob-inst-warn) { display: none; } .mob-inst-box .btn.primary { min-height: 0; padding-top: 8px; padding-bottom: 8px; } .mob-inst-skip { padding: 4px; } }
 .mob-inst-btns { align-self: stretch; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .mob-inst-btns .btn { justify-content: center; height: 46px; font-size: 15px; }
 .mob-inst-skip { border: 0; background: none; padding: 10px; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
