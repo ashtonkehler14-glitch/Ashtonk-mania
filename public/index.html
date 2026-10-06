@@ -2310,10 +2310,11 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* skin viewer: the Custom skin's options beside its live preview */
 .sk-custom-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
 .sk-custom-wrap .skin-preview { height: 520px; }
+@media (max-width: 1100px) { .sk-custom-wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 260px); } }
 .sk-custom-rows .set-row { min-width: 0; max-width: 100%; }
 /* the preview plays on a dimmed version of the menu background, as the stage does in game, instead of plain black */
 .skin-preview { background: radial-gradient(120% 90% at 50% 0%, #2a1a40, #120c1c 60%, #0a0710); }
-.sk-custom { display: flex; flex-direction: column; max-height: 520px; border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
+.sk-custom { display: flex; flex-direction: column; max-height: var(--sk-pv-h, 520px); border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
 .sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-custom-h .btn { margin-left: auto; }
 .sk-custom-rows { position: static; width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
@@ -3563,8 +3564,13 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
 .spec-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
 .spec-cur { position: absolute; left: 0; top: 0; z-index: 1; transform-origin: 0 0; pointer-events: none; transition: transform 34ms linear; will-change: transform; }
-.spec-cur img { display: block; width: 26px; height: 26px; margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; }
+.spec-cur img { display: block; width: 46.8px; height: 66.3px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; } /* (lazer's 312×442 texture at 0.15×, unstretched) */
 .spec-cur.down img { filter: drop-shadow(0 0 6px rgba(255, 102, 171, .9)); }
+.spec-tap { display: none; }
+.spec-cur.touch { transition: transform 34ms linear, opacity 250ms; }
+.spec-cur.touch img { display: none; }
+.spec-cur.touch .spec-tap { display: block; position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 102, 171, .35); box-shadow: 0 0 10px rgba(255, 102, 171, .8), 0 1px 3px rgba(0, 0, 0, .5); transition: scale 120ms, opacity 200ms; }
+.spec-cur.touch:not(.down) .spec-tap { scale: 1.25; opacity: 0; transition: scale 250ms, opacity 250ms; }
 /* MultiplayerResultsScreen: every player's contracted ScorePanel (130 × 385: #444 with 20px corners, the avatar,
    name, judgements, combo and accuracy, mods; the score and grade below), winner first, yours lifted and outlined */
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }
@@ -17308,6 +17314,16 @@ const BeatmapsScreen = {
     this.refresh();
     return el;
   },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
+  },
   leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
   async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
   async renderSummary() {
@@ -17389,6 +17405,16 @@ const CollectionsScreen = {
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];
     this.render();
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
@@ -17508,6 +17534,16 @@ const ProfileScreen = {
     if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
     else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
@@ -17778,6 +17814,16 @@ const ReplaysScreen = {
     this.render();
     return el;
   },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
+  },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
@@ -17880,12 +17926,24 @@ const SkinsScreen = {
     this.sel = this.sel || SkinManager.current.id;
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
-    this._unsub = [Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
+    const onResize = () => { cancelAnimationFrame(this._fitRaf); this._fitRaf = requestAnimationFrame(() => this.fit()); };
+    window.addEventListener('resize', onResize);
+    this._unsub = [() => window.removeEventListener('resize', onResize), Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
       // customising the Custom skin redraws the preview (debounced: sliders send many changes)
       Bus.on('settings:changed', k => { if (!(k.startsWith('skin.c.') || k.startsWith('wom.') || ['skin.noteStyle', 'skin.hue', 'skin.darkerHolds', 'ui.theme'].includes(k)) || !this.preview || !this.previewSkin) return;
         clearTimeout(this._pvT); this._pvT = setTimeout(() => { this.previewSkin.layoutCache.clear(); this.preview.show(this.previewSkin, this.keys); }, 120); })];
     this.render();
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
@@ -17935,6 +17993,8 @@ const SkinsScreen = {
         h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
+    // (again once the screen's entrance animation has settled: it moves the page while it plays)
+    this._pv = pv; requestAnimationFrame(() => this.fit()); clearTimeout(this._fitT); this._fitT = setTimeout(() => this.fit(), 500);
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     this.previewSkin = skin;
@@ -17952,6 +18012,8 @@ const CHANGELOG = [
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
     { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust', 'Profiles show how the total adds up: the best plays, each weighted 95% of the one above it (as in lazer: 100%, 95%, 90%…), plus the bonus for how many ranked plays — and other players\' profiles list only the plays checked to be ranked', 'Nobody drops off the rankings when the rules change: everyone is re-checked in the background, online or not'] },
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)'] },
+    { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
+    { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },
@@ -23087,7 +23149,7 @@ const Friends = {
   },
 };
 
-const SPEC_DELAY = 1500; // ms of song time the watcher stays behind the player (enough for the stream's chunks)
+const SPEC_DELAY = 600; // ms of song time the watcher stays behind the player (key presses stream 20 times a second)
 
 const Spectate = {
   target: null, // { id, name }: who we're watching (we follow them from play to play)
@@ -23254,7 +23316,8 @@ const Spectate = {
     if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
-      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }));
+      // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
+      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('small', 'Esc to stop'), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
       if (this._lastCur) this.onCur(this._lastCur);
@@ -23291,14 +23354,18 @@ const Spectate = {
     if (f.getAttribute('style') !== st) f.setAttribute('style', st);
     this._fit = { vw, vh, k, x, y };
   },
-  /** Their pointer, where it is on their screen. */
+  /** Their pointer, where it is on their screen — or, for a player on a phone or tablet, their taps: a mark where
+   *  the finger touches, fading when it lifts (a finger has no pointer between taps). */
   onCur(m) {
     this._lastCur = m;
     const c = this.rkCur, f = this._fit;
     if (!c || !f) return;
-    c.hidden = false;
-    c.style.transform = `translate(${f.x + m.x * f.vw * f.k}px,${f.y + m.y * f.vh * f.k}px) scale(${(m.d ? 0.9 : 1) * Math.max(0.5, f.k)})`;
+    const touch = !!m.p, k = Math.max(0.5, f.k);
+    c.classList.toggle('touch', touch);
+    c.hidden = touch && !m.d && !c.classList.contains('down');
+    c.style.transform = `translate(${f.x + m.x * f.vw * f.k}px,${f.y + m.y * f.vh * f.k}px) scale(${touch ? k : (m.d ? 0.9 : 1) * k})`;
     c.classList.toggle('down', !!m.d);
+    if (touch && !m.d) { clearTimeout(this._tapT); this._tapT = setTimeout(() => { if (this.rkCur === c && !c.classList.contains('down')) c.hidden = true; }, 250); }
   },
   /** Make `el`'s children match `src`'s: same elements kept (their attributes and text brought up to date), others
    *  added or removed. */
@@ -23386,7 +23453,7 @@ const Spectate = {
       const send = () => { tm = 0; last = performance.now(); if (pend && this._curOn) Presence.send({ t: 'rkcur', ...pend }); pend = null; };
       const move = e => {
         if (e.type === 'pointerdown') down = true; else if (e.type === 'pointerup' || e.type === 'pointercancel') down = false;
-        pend = { x: e.clientX / innerWidth, y: e.clientY / innerHeight, d: down };
+        pend = { x: e.clientX / innerWidth, y: e.clientY / innerHeight, d: down, p: e.pointerType === 'touch' ? 1 : 0 };
         if (tm) return;
         const gap = 33 - (performance.now() - last);
         if (gap <= 0 || e.type !== 'pointermove') send(); else tm = setTimeout(send, gap);
@@ -23501,7 +23568,7 @@ const Spectate = {
     const H = this.host;
     if (H.s !== s || !H.watchers || s.finished) return;
     const t = performance.now();
-    if (t - H.lastSend < 200) return;
+    if (t - H.lastSend < 50) return; // (20 times a second: watchers stay close behind)
     H.lastSend = t;
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100);
     H.sent = s.events.length;

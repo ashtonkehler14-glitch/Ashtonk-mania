@@ -2291,10 +2291,11 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 /* skin viewer: the Custom skin's options beside its live preview */
 .sk-custom-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
 .sk-custom-wrap .skin-preview { height: 520px; }
+@media (max-width: 1100px) { .sk-custom-wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 260px); } }
 .sk-custom-rows .set-row { min-width: 0; max-width: 100%; }
 /* the preview plays on a dimmed version of the menu background, as the stage does in game, instead of plain black */
 .skin-preview { background: radial-gradient(120% 90% at 50% 0%, #2a1a40, #120c1c 60%, #0a0710); }
-.sk-custom { display: flex; flex-direction: column; max-height: 520px; border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
+.sk-custom { display: flex; flex-direction: column; max-height: var(--sk-pv-h, 520px); border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
 .sk-custom-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-weight: 700; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-custom-h .btn { margin-left: auto; }
 .sk-custom-rows { position: static; width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; height: auto; transform: none; box-shadow: none; background: none; overflow: auto; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 4px; animation: none; }
@@ -3544,8 +3545,13 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
 .spec-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
 .spec-cur { position: absolute; left: 0; top: 0; z-index: 1; transform-origin: 0 0; pointer-events: none; transition: transform 34ms linear; will-change: transform; }
-.spec-cur img { display: block; width: 26px; height: 26px; margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; }
+.spec-cur img { display: block; width: 46.8px; height: 66.3px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: filter 120ms; } /* (lazer's 312×442 texture at 0.15×, unstretched) */
 .spec-cur.down img { filter: drop-shadow(0 0 6px rgba(255, 102, 171, .9)); }
+.spec-tap { display: none; }
+.spec-cur.touch { transition: transform 34ms linear, opacity 250ms; }
+.spec-cur.touch img { display: none; }
+.spec-cur.touch .spec-tap { display: block; position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 102, 171, .35); box-shadow: 0 0 10px rgba(255, 102, 171, .8), 0 1px 3px rgba(0, 0, 0, .5); transition: scale 120ms, opacity 200ms; }
+.spec-cur.touch:not(.down) .spec-tap { scale: 1.25; opacity: 0; transition: scale 250ms, opacity 250ms; }
 /* MultiplayerResultsScreen: every player's contracted ScorePanel (130 × 385: #444 with 20px corners, the avatar,
    name, judgements, combo and accuracy, mods; the score and grade below), winner first, yours lifted and outlined */
 .mpr { position: absolute; inset: var(--toolbar-h) 0 0; display: flex; flex-direction: column; }

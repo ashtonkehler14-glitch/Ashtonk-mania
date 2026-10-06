@@ -51,7 +51,7 @@ const Friends = {
   },
 };
 
-const SPEC_DELAY = 1500; // ms of song time the watcher stays behind the player (enough for the stream's chunks)
+const SPEC_DELAY = 600; // ms of song time the watcher stays behind the player (key presses stream 20 times a second)
 
 const Spectate = {
   target: null, // { id, name }: who we're watching (we follow them from play to play)
@@ -218,7 +218,8 @@ const Spectate = {
     if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
-      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }));
+      // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
+      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), h('small', 'Esc to stop'), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
       if (this._lastCur) this.onCur(this._lastCur);
@@ -255,14 +256,18 @@ const Spectate = {
     if (f.getAttribute('style') !== st) f.setAttribute('style', st);
     this._fit = { vw, vh, k, x, y };
   },
-  /** Their pointer, where it is on their screen. */
+  /** Their pointer, where it is on their screen — or, for a player on a phone or tablet, their taps: a mark where
+   *  the finger touches, fading when it lifts (a finger has no pointer between taps). */
   onCur(m) {
     this._lastCur = m;
     const c = this.rkCur, f = this._fit;
     if (!c || !f) return;
-    c.hidden = false;
-    c.style.transform = `translate(${f.x + m.x * f.vw * f.k}px,${f.y + m.y * f.vh * f.k}px) scale(${(m.d ? 0.9 : 1) * Math.max(0.5, f.k)})`;
+    const touch = !!m.p, k = Math.max(0.5, f.k);
+    c.classList.toggle('touch', touch);
+    c.hidden = touch && !m.d && !c.classList.contains('down');
+    c.style.transform = `translate(${f.x + m.x * f.vw * f.k}px,${f.y + m.y * f.vh * f.k}px) scale(${touch ? k : (m.d ? 0.9 : 1) * k})`;
     c.classList.toggle('down', !!m.d);
+    if (touch && !m.d) { clearTimeout(this._tapT); this._tapT = setTimeout(() => { if (this.rkCur === c && !c.classList.contains('down')) c.hidden = true; }, 250); }
   },
   /** Make `el`'s children match `src`'s: same elements kept (their attributes and text brought up to date), others
    *  added or removed. */
@@ -350,7 +355,7 @@ const Spectate = {
       const send = () => { tm = 0; last = performance.now(); if (pend && this._curOn) Presence.send({ t: 'rkcur', ...pend }); pend = null; };
       const move = e => {
         if (e.type === 'pointerdown') down = true; else if (e.type === 'pointerup' || e.type === 'pointercancel') down = false;
-        pend = { x: e.clientX / innerWidth, y: e.clientY / innerHeight, d: down };
+        pend = { x: e.clientX / innerWidth, y: e.clientY / innerHeight, d: down, p: e.pointerType === 'touch' ? 1 : 0 };
         if (tm) return;
         const gap = 33 - (performance.now() - last);
         if (gap <= 0 || e.type !== 'pointermove') send(); else tm = setTimeout(send, gap);
@@ -465,7 +470,7 @@ const Spectate = {
     const H = this.host;
     if (H.s !== s || !H.watchers || s.finished) return;
     const t = performance.now();
-    if (t - H.lastSend < 200) return;
+    if (t - H.lastSend < 50) return; // (20 times a second: watchers stay close behind)
     H.lastSend = t;
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100);
     H.sent = s.events.length;

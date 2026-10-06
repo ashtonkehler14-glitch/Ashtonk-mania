@@ -44,6 +44,16 @@ const BeatmapsScreen = {
     this.refresh();
     return el;
   },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
+  },
   leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
   async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
   async renderSummary() {
@@ -125,6 +135,16 @@ const CollectionsScreen = {
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];
     this.render();
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
@@ -244,6 +264,16 @@ const ProfileScreen = {
     if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
     else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
@@ -514,6 +544,16 @@ const ReplaysScreen = {
     this.render();
     return el;
   },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
+  },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
@@ -616,12 +656,24 @@ const SkinsScreen = {
     this.sel = this.sel || SkinManager.current.id;
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
-    this._unsub = [Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
+    const onResize = () => { cancelAnimationFrame(this._fitRaf); this._fitRaf = requestAnimationFrame(() => this.fit()); };
+    window.addEventListener('resize', onResize);
+    this._unsub = [() => window.removeEventListener('resize', onResize), Bus.on('skins:changed', () => this.render()), Bus.on('skin:changed', () => this.render()),
       // customising the Custom skin redraws the preview (debounced: sliders send many changes)
       Bus.on('settings:changed', k => { if (!(k.startsWith('skin.c.') || k.startsWith('wom.') || ['skin.noteStyle', 'skin.hue', 'skin.darkerHolds', 'ui.theme'].includes(k)) || !this.preview || !this.previewSkin) return;
         clearTimeout(this._pvT); this._pvT = setTimeout(() => { this.previewSkin.layoutCache.clear(); this.preview.show(this.previewSkin, this.keys); }, 120); })];
     this.render();
     return el;
+  },
+  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
+   *  bottom, where its receptors were out of sight. */
+  fit() {
+    const pv = this._pv;
+    if (!pv || !pv.isConnected) return;
+    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
+    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
+    const room = (window.innerHeight - r.top - 12) / k;
+    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._customOff) { this._customOff(); this._customOff = null; } this.preview && this.preview.stop(); },
   CUSTOM_KEYS: ['skin.noteStyle', 'skin.c.palette', 'skin.hue', 'skin.c.pattern', 'skin.c.noteSize', 'skin.c.round', 'skin.c.receptor', 'skin.c.keyArea', 'skin.c.hold', 'skin.darkerHolds', 'skin.c.glow', 'skin.c.lines', 'skin.c.border'],
@@ -671,6 +723,8 @@ const SkinsScreen = {
         h('span.muted.sk-khint', meta.builtin ? '' : borrowed.includes(this.keys) ? "built from the skin's 4K layout" : supported.includes(this.keys) ? 'configured in skin.ini' : 'fallback layout')),
       meta.builtin ? h('div.sk-custom-wrap', pv, this.customPanel(true)) : pv,
       h('div.muted', { style: { marginTop: '10px', fontSize: '.85rem' } }, `by ${skin.author || 'unknown'}`));
+    // (again once the screen's entrance animation has settled: it moves the page while it plays)
+    this._pv = pv; requestAnimationFrame(() => this.fit()); clearTimeout(this._fitT); this._fitT = setTimeout(() => this.fit(), 500);
     this.preview && this.preview.stop();
     this.preview = new SkinPreview(canvas);
     this.previewSkin = skin;
@@ -688,6 +742,8 @@ const CHANGELOG = [
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
     { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust', 'Profiles show how the total adds up: the best plays, each weighted 95% of the one above it (as in lazer: 100%, 95%, 90%…), plus the bonus for how many ranked plays — and other players\' profiles list only the plays checked to be ranked', 'Nobody drops off the rankings when the rules change: everyone is re-checked in the background, online or not'] },
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)'] },
+    { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
+    { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },

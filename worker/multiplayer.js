@@ -1385,7 +1385,7 @@ export class PresenceLogic {
     if (msg.t === 'rkcur') {
       if (!u.watchers.size) return [];
       const c = v => Math.min(1, Math.max(0, Number(v) || 0));
-      const cur = { t: 'specCur', id, x: Math.round(c(msg.x) * 10000) / 10000, y: Math.round(c(msg.y) * 10000) / 10000, d: !!msg.d };
+      const cur = { t: 'specCur', id, x: Math.round(c(msg.x) * 10000) / 10000, y: Math.round(c(msg.y) * 10000) / 10000, d: !!msg.d, p: msg.p ? 1 : 0 }; // (p: a touch screen)
       return [...u.watchers].map(w => ({ to: w, msg: cur }));
     }
     if (msg.t === 'play') {
