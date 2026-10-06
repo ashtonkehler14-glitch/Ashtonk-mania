@@ -18694,8 +18694,8 @@ const ExplorerScreen = {
     // (the grid only growing — another page of results — changes nothing measured: its columns, row height and where it
     // starts stay the same, so the page isn't measured again for it; a different width or header does)
     this._paintRing = paintRing; this._scroller = scroller;
-    this._ringRO = new ResizeObserver(es => { maxScroll = scroller.scrollHeight - scroller.clientHeight; if (es.some(e => e.target !== this.grid || e.contentRect.width !== this._gw)) { this._gw = this.grid.clientWidth; this._mDirty = true; } paintRing(); this._wantWin = true; this.schedule(); });
-    this._ringRO.observe(this.grid); this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
+    this._ringRO = new ResizeObserver(es => { maxScroll = scroller.scrollHeight - scroller.clientHeight; if (es.some(e => e.target !== this.grid || e.borderBoxSize?.[0]?.inlineSize !== this._gw)) { this._gw = es.find(e => e.target === this.grid)?.borderBoxSize?.[0]?.inlineSize ?? this._gw; this._mDirty = true; } paintRing(); this._wantWin = true; this.schedule(); });
+    this._ringRO.observe(this.grid, { box: 'border-box' }); // (its outer size: rows swapped for padding as the list scrolls don't change it) this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
     this._st = undefined; this._m = null; this._mDirty = true; this._ringV = null; // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
