@@ -501,7 +501,8 @@ await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
 const rows = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
-check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 42, String(rows));
+// (room for the hit position and note offset, asked to be regular settings)
+check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 46, String(rows));
 check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Renderer scale|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
