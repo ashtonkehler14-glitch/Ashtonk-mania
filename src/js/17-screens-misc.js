@@ -625,6 +625,7 @@ const SkinsScreen = {
     const { el, page } = pageShell('Skins', null, [
       h('button.btn.primary', { onclick: () => importViaPicker('.osk') }, icon('upload'), 'Import .osk')], { icon: 'brush', hue: 'orange' });
     this.sel = this.sel || SkinManager.current.id;
+    this._entering = true;
     this.side = h('div.side-list'); this.main = h('div');
     page.append(h('div.split', this.side, this.main));
     const onResize = () => { cancelAnimationFrame(this._fitRaf); this._fitRaf = requestAnimationFrame(() => this.fit()); };
@@ -697,9 +698,12 @@ const SkinsScreen = {
     // (again once the screen's entrance animation has settled: it moves the page while it plays)
     this._pv = pv; requestAnimationFrame(() => this.fit()); clearTimeout(this._fitT); this._fitT = setTimeout(() => this.fit(), 500);
     this.preview && this.preview.stop();
-    this.preview = new SkinPreview(canvas);
+    const pv1 = this.preview = new SkinPreview(canvas);
     this.previewSkin = skin;
-    requestAnimationFrame(() => this.preview.show(skin, this.keys));
+    // (opening the screen: the preview starts once the screen has come in — loading the skin during the entrance cost
+    // slow devices a dropped frame or two; picking another skin shows it straight away)
+    const go = () => { if (this.preview === pv1) pv1.show(skin, this.keys); };
+    if (this._entering) { this._entering = false; setTimeout(() => whenIdle(go), 250); } else requestAnimationFrame(go);
   },
 };
 
