@@ -4493,6 +4493,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 @keyframes formFlash { from { opacity: 1; } }
 .settings-panel input[type=range].slider::-webkit-slider-thumb { filter: brightness(.9); transition: filter 250ms cubic-bezier(.22, 1, .36, 1); }
 .settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
+.fall-text { position: fixed; z-index: 10000; white-space: pre; pointer-events: none; line-height: 1.2; }
 
 </style>
 </head>
@@ -11003,6 +11004,56 @@ document.addEventListener('click', e => {
   b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
 }, true);
 document.addEventListener('animationend', e => { if (e.animationName === 'btnFlash') e.target.classList.remove('flash'); else if (e.animationName === 'pmFlash') e.target.closest('.pm-btn')?.classList.remove('flash'); }, true);
+
+/** lazer's OsuTextBox draws each letter as a FallingDownContainer: one you delete doesn't just vanish, it drops out of
+ *  the box and fades (200ms, InExpo). A native input can't move its letters, so a copy of what was deleted is laid over
+ *  the spot it left and dropped from there. */
+const FallingText = {
+  TYPES: new Set(['text', 'search', 'url', 'email']),
+  init() {
+    document.addEventListener('beforeinput', e => { try { this.drop(e); } catch { /* only decoration */ } });
+  },
+  drop(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement) || !this.TYPES.has(t.type) || !e.inputType.startsWith('delete') || e.isComposing) return;
+    if (document.documentElement.classList.contains('slow') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
+    const v = t.value; let a = t.selectionStart, b = t.selectionEnd;
+    if (a == null || !v) return;
+    if (a === b) {
+      if (e.inputType === 'deleteContentBackward') a = Math.max(0, a - 1);
+      else if (e.inputType === 'deleteContentForward') b = Math.min(v.length, b + 1);
+      else if (e.inputType === 'deleteWordBackward') a = v.slice(0, a).search(/\S*\s*$/);
+      else return;
+    }
+    const gone = v.slice(a, b);
+    if (!gone.trim() || gone.length > 60) return;
+    const cs = getComputedStyle(t), r = t.getBoundingClientRect();
+    // (measured by a hidden copy of the text beside the box: it gets the box's font and any scaling of the page around it)
+    const m = document.createElement('span');
+    m.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;white-space:pre;pointer-events:none';
+    Object.assign(m.style, { font: cs.font, letterSpacing: cs.letterSpacing, fontKerning: cs.fontKerning });
+    t.after(m);
+    const w = s => { m.textContent = s; return m.getBoundingClientRect().width; };
+    const k = t.offsetWidth ? r.width / t.offsetWidth : 1; // (the page's scale here)
+    const left = r.left + (parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)) * k;
+    const inner = r.width - (parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)) * k;
+    const all = w(v), slack = Math.max(0, inner - all);
+    const align = cs.textAlign === 'center' ? slack / 2 : cs.textAlign === 'right' || cs.textAlign === 'end' ? slack : 0;
+    const x = left + align + w(v.slice(0, a)) - t.scrollLeft * k, gw = w(gone);
+    m.remove();
+    if (x < r.left - 2 || x > r.right) return;
+    const el = document.createElement('span');
+    el.className = 'fall-text';
+    el.textContent = gone;
+    const size = (parseFloat(cs.fontSize) || 14) * k;
+    Object.assign(el.style, { left: x + 'px', top: (r.top + r.height / 2) + 'px', font: cs.font, fontSize: size + 'px', color: cs.color, letterSpacing: cs.letterSpacing, clipPath: `inset(-100vh ${Math.max(0, x + gw - r.right)}px -100vh 0)` });
+    document.body.append(el);
+    const d = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1;
+    const anim = el.animate([{ transform: 'translateY(-50%)', opacity: 1 }, { transform: `translateY(calc(-50% + ${size}px))`, opacity: 0 }],
+      { duration: 200 * d, easing: 'cubic-bezier(.7, 0, .84, 0)' });
+    anim.onfinish = anim.oncancel = () => el.remove();
+  },
+};
 
 const Tooltip = {
   init() {
@@ -18191,7 +18242,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
-    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view'] },
+    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
@@ -25152,6 +25203,7 @@ const App = {
     Toolbar.build();
     Tooltip.init();
     UISounds.initHover();
+    FallingText.init();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);

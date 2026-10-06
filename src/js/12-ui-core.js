@@ -128,6 +128,56 @@ document.addEventListener('click', e => {
 }, true);
 document.addEventListener('animationend', e => { if (e.animationName === 'btnFlash') e.target.classList.remove('flash'); else if (e.animationName === 'pmFlash') e.target.closest('.pm-btn')?.classList.remove('flash'); }, true);
 
+/** lazer's OsuTextBox draws each letter as a FallingDownContainer: one you delete doesn't just vanish, it drops out of
+ *  the box and fades (200ms, InExpo). A native input can't move its letters, so a copy of what was deleted is laid over
+ *  the spot it left and dropped from there. */
+const FallingText = {
+  TYPES: new Set(['text', 'search', 'url', 'email']),
+  init() {
+    document.addEventListener('beforeinput', e => { try { this.drop(e); } catch { /* only decoration */ } });
+  },
+  drop(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement) || !this.TYPES.has(t.type) || !e.inputType.startsWith('delete') || e.isComposing) return;
+    if (document.documentElement.classList.contains('slow') || document.getElementById('app').classList.contains('in-game')) return; // (not mid-song)
+    const v = t.value; let a = t.selectionStart, b = t.selectionEnd;
+    if (a == null || !v) return;
+    if (a === b) {
+      if (e.inputType === 'deleteContentBackward') a = Math.max(0, a - 1);
+      else if (e.inputType === 'deleteContentForward') b = Math.min(v.length, b + 1);
+      else if (e.inputType === 'deleteWordBackward') a = v.slice(0, a).search(/\S*\s*$/);
+      else return;
+    }
+    const gone = v.slice(a, b);
+    if (!gone.trim() || gone.length > 60) return;
+    const cs = getComputedStyle(t), r = t.getBoundingClientRect();
+    // (measured by a hidden copy of the text beside the box: it gets the box's font and any scaling of the page around it)
+    const m = document.createElement('span');
+    m.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;white-space:pre;pointer-events:none';
+    Object.assign(m.style, { font: cs.font, letterSpacing: cs.letterSpacing, fontKerning: cs.fontKerning });
+    t.after(m);
+    const w = s => { m.textContent = s; return m.getBoundingClientRect().width; };
+    const k = t.offsetWidth ? r.width / t.offsetWidth : 1; // (the page's scale here)
+    const left = r.left + (parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)) * k;
+    const inner = r.width - (parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)) * k;
+    const all = w(v), slack = Math.max(0, inner - all);
+    const align = cs.textAlign === 'center' ? slack / 2 : cs.textAlign === 'right' || cs.textAlign === 'end' ? slack : 0;
+    const x = left + align + w(v.slice(0, a)) - t.scrollLeft * k, gw = w(gone);
+    m.remove();
+    if (x < r.left - 2 || x > r.right) return;
+    const el = document.createElement('span');
+    el.className = 'fall-text';
+    el.textContent = gone;
+    const size = (parseFloat(cs.fontSize) || 14) * k;
+    Object.assign(el.style, { left: x + 'px', top: (r.top + r.height / 2) + 'px', font: cs.font, fontSize: size + 'px', color: cs.color, letterSpacing: cs.letterSpacing, clipPath: `inset(-100vh ${Math.max(0, x + gw - r.right)}px -100vh 0)` });
+    document.body.append(el);
+    const d = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1;
+    const anim = el.animate([{ transform: 'translateY(-50%)', opacity: 1 }, { transform: `translateY(calc(-50% + ${size}px))`, opacity: 0 }],
+      { duration: 200 * d, easing: 'cubic-bezier(.7, 0, .84, 0)' });
+    anim.onfinish = anim.oncancel = () => el.remove();
+  },
+};
+
 const Tooltip = {
   init() {
     this.el = h('div.lz-tip', { role: 'tooltip' });

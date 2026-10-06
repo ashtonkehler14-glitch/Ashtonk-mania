@@ -31,6 +31,7 @@ const App = {
     Toolbar.build();
     Tooltip.init();
     UISounds.initHover();
+    FallingText.init();
     Screens.register('home', HomeScreen);
     Screens.register('songselect', SongSelect);
     Screens.register('gameplay', GameplayScreen);

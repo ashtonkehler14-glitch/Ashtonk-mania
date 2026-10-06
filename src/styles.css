@@ -4474,3 +4474,4 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 @keyframes formFlash { from { opacity: 1; } }
 .settings-panel input[type=range].slider::-webkit-slider-thumb { filter: brightness(.9); transition: filter 250ms cubic-bezier(.22, 1, .36, 1); }
 .settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
+.fall-text { position: fixed; z-index: 10000; white-space: pre; pointer-events: none; line-height: 1.2; }
