@@ -237,7 +237,7 @@ const ProfileScreen = {
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
-        else { const v = m.verified || {}; m.data = { name: m.name || this.remote.name, pp: v.pp || 0, avgAcc: v.acc || 0, plays: v.plays || 0, grades: { SS: v.ss || 0, S: v.s || 0, A: v.a || 0 }, top: m.top || [] }; } Object.assign(this.remote, { data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
+        else { const v = m.verified || {}; m.data = { name: m.name || this.remote.name, pp: v.pp || 0, avgAcc: v.acc || 0, plays: v.plays || 0, grades: { SS: v.ss || 0, S: v.s || 0, A: v.a || 0 }, top: m.top || [] }; } Object.assign(this.remote, { ppInfo: m.verified || null, data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
       Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
       Bus.on('rankings', d => { if (this.remote || d.mode === 'score') return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
@@ -423,8 +423,19 @@ const ProfileScreen = {
       return box;
     };
     const topPlays = d.top || [];
+    // how the total is made, as osu! adds it up for lazer: the best play on each ranked beatmap, each weighted 95% of
+    // the one above it (100%, 95%, 90.25%…), plus the bonus for how many ranked plays there are
+    const info = own ? { pp: d.pp || 0, n: ScoreManager.bestPpPerMap().length } : this.remote && this.remote.ppInfo;
+    const n = info ? info.n || 0 : 0, bonus = OsuMath.bonusPp(n), total = info ? info.pp || 0 : d.pp || 0;
+    const calc = topPlays.length && total > 0 ? h('div.pf-ppcalc',
+      h('div.pf-ppc', h('small', 'best plays, weighted'), h('b', `${fmtInt(Math.max(0, total - bonus))}pp`)),
+      h('span.pf-ppop', '+'),
+      h('div.pf-ppc', h('small', `bonus · ${fmtInt(n)} ranked play${n === 1 ? '' : 's'}`), h('b', `${fmtInt(bonus)}pp`)),
+      h('span.pf-ppop', '='),
+      h('div.pf-ppc.total', h('small', 'total'), h('b', `${fmtInt(total)}pp`)),
+      h('div.pf-ppnote', icon('check'), 'Only plays on ranked beatmaps count — checked on osu! by the server. Each play is weighted 95% of the one above it (100%, 95%, 90%…).')) : null;
     const ranks = section('ranks', 'Ranks',
-      sub('Best performance', topPlays.length, topPlays.length
+      sub('Best performance', topPlays.length, calc, topPlays.length
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')),
       // lazer: the beatmaps they're #1 on, on the global leaderboards
@@ -675,7 +686,7 @@ const CHANGELOG = [
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
     { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
-    { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust'] },
+    { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust', 'Profiles show how the total adds up: the best plays, each weighted 95% of the one above it (as in lazer: 100%, 95%, 90%…), plus the bonus for how many ranked plays — and other players\' profiles list only the plays checked to be ranked', 'Nobody drops off the rankings when the rules change: everyone is re-checked in the background, online or not'] },
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },

@@ -1110,8 +1110,17 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   assert.deepEqual(saved, ['alicepid1']);
   p.recordVerified('alicepid1', K1, judged({ pp: 120 }));
   const m = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
-  // (her standing is her judged play's — 120pp and lazer's bonus for one play — not the 80 her game says)
-  assert.deepEqual([m.data.top[0].title, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], ['Song', 1, Math.round((120 + 416.6667 * 0.005) * 100) / 100, 1, true, 'a']);
+  // (her standing is her judged play's — 120pp and lazer's bonus for one play — not the 80 her game says; the plays
+  //  shown are then the judged ones, and her game's list (not checked to be ranked) isn't)
+  const b1 = Math.round(416.6667 * 0.005 * 100) / 100;
+  assert.deepEqual([m.data.top.length, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], [0, 1, Math.round((120 + 416.6667 * 0.005) * 100) / 100, 1, true, 'a']);
+  assert.deepEqual([m.verified.n, m.verified.bonus, m.verified.src], [1, b1, 'judged']);
+  // a profile whose plays were checked: only the ones found ranked are shown
+  p.ranks.get('alicepid1').okh = [PresenceLogic.playId({ title: 'Song', version: 'Hard' })];
+  p.ranks.get('alicepid1').src = 'profile';
+  p.message('a', { t: 'stats', profile: { ...prof, top: [...prof.top, { title: 'Loved Song', version: 'X', pp: 500, ranked: true }] } });
+  const m2 = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
+  assert.deepEqual(m2.data.top.map(x => x.title), ['Song']);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
   // the songs of their judged plays come with it, best first (for a profile their game hasn't sent)
   p.recordVerified('alicepid1', K2, judged({ pp: 300, title: 'Big Song', artist: 'Band', version: 'Insane' }));

@@ -4374,3 +4374,13 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* long pages: the parts well off screen aren't laid out or painted until they come near (opening a profile or the
    settings laid out every section at once — a dropped frame or two on a slow device) */
 .pf-sec, .sp-section { content-visibility: auto; contain-intrinsic-size: auto 500px; }
+
+/* how a profile's pp adds up (Best performance): best plays weighted + bonus = total */
+.pf-ppcalc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--ob4, rgba(255, 255, 255, .04)); }
+.pf-ppc { display: flex; flex-direction: column; gap: 1px; }
+.pf-ppc small { font-size: .7rem; color: var(--text-3, rgba(255, 255, 255, .55)); text-transform: lowercase; }
+.pf-ppc b { font-size: 1.05rem; font-weight: 700; }
+.pf-ppc.total b { color: #ffcc22; }
+.pf-ppop { font-size: 1.1rem; color: var(--text-3, rgba(255, 255, 255, .5)); }
+.pf-ppnote { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--text-3, rgba(255, 255, 255, .6)); }
+.pf-ppnote .i { width: 14px; height: 14px; color: #b3d944; flex: none; }

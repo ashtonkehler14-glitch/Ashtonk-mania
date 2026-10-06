@@ -893,7 +893,7 @@ export class PresenceLogic {
     const g = list.map(([, x]) => x.grade);
     // (ranked score: the best score on each ranked beatmap, added up — lazer's Score rankings)
     const rscore = list.reduce((a, [, x]) => a + (x.pp > 0 ? x.score || 0 : 0), 0);
-    rec.v = { pp: Math.round(pp * 100) / 100, acc: wSum ? accW / wSum : 0, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length, rscore };
+    rec.v = { pp: Math.round(pp * 100) / 100, n: (rec.rk || []).length, acc: wSum ? accW / wSum : 0, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length, rscore };
     PresenceLogic.settleRank(rec);
     this.ranks.set(pid, rec);
     if (this.persistRank) this.persistRank(pid, rec);
@@ -933,8 +933,17 @@ export class PresenceLogic {
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     const f1 = Object.values(this.firsts.get(pid) || {}).sort((a, b) => b.date - a.date);
     const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
-    return { t: 'profile', pid, data, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+    // (the best plays their profile lists: only the ones checked to be on ranked beatmaps — and when their standing is
+    //  the plays judged here, those instead — with the numbers the total is made of: the bonus pp and how many plays)
+    let shown = data;
+    if (data && Array.isArray(data.top)) {
+      const ok = r && r.okh ? new Set(r.okh) : null;
+      const vt = r && r.src === 'judged' && top.length ? [] : data.top.filter(x => x && x.pp > 0 && x.passed !== false && (ok ? ok.has(PresenceLogic.playId(x)) : x.ranked === true));
+      shown = { ...data, top: vt, pp: r ? r.pp : data.pp };
+    }
+    const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
+    return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
+      rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   setFirst(pid, key, v) {
     const m = this.firsts.get(pid) || {};
@@ -1053,7 +1062,7 @@ export class PresenceLogic {
     if (!list.length) return null;
     const { pp, acc } = PresenceLogic.weigh(list, list.length);
     const g = list.map(x => x.grade);
-    return { pp, acc, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+    return { pp, acc, n: list.length, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
   }
   /** Total pp and accuracy as osu!'s servers work them out for lazer (UserTotalPerformanceProcessor): the best play on
    *  each ranked beatmap, highest pp first, the top 1000 weighted 0.95^i, plus 416.6667 × (1 − 0.995^n) for how many
@@ -1066,12 +1075,16 @@ export class PresenceLogic {
     if (count > 0) pp += 416.6667 * (1 - 0.995 ** count);
     return { pp: Math.round(pp * 100) / 100, acc: wSum ? accW / wSum : 0 };
   }
+  /** A profile play's id, to remember it was checked: its beatmap file's hash, else its song and difficulty. */
+  static playId(x) { return x && x.mapHash ? 'h' + String(x.mapHash).slice(0, 12) : `t${String(x && x.title || '').slice(0, 40)}|${String(x && x.version || '').slice(0, 30)}`.toLowerCase(); }
+  /** The ids of the plays found to be on ranked beatmaps. */
+  static okIds(top, flags) { return top.filter((x, i) => flags[i] === true && x && x.pp > 0).map(PresenceLogic.playId).slice(0, 50); }
   /** A record's totals again from its best plays (after the way they're added up changed). */
   static revalue(rec) {
     const list = Object.values(rec.bests || {});
     if (!rec.rk) rec.rk = Object.entries(rec.bests || {}).filter(([, x]) => x && x.pp > 0).map(([k]) => k.slice(0, 10));
     const { pp, acc } = PresenceLogic.weigh(list, rec.rk.length), g = list.map(x => x.grade);
-    rec.v = { ...(rec.v || {}), pp: list.some(x => x.pp > 0) ? pp : 0, acc, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+    rec.v = { ...(rec.v || {}), pp: list.some(x => x.pp > 0) ? pp : 0, n: rec.rk.length, acc, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
     PresenceLogic.settleRank(rec);
     return rec;
   }
@@ -1079,6 +1092,8 @@ export class PresenceLogic {
     const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
     const use = rep.pp > v.pp ? rep : v;
     r.pp = use.pp; r.acc = use.acc; r.ss = use.ss; r.s = use.s; r.a = use.a;
+    // (how many ranked plays the total counts, for its bonus pp, and where it came from: plays judged here, or their profile's plays checked on osu!)
+    r.n = use.n || 0; r.src = use === rep ? 'profile' : 'judged';
     r.rscore = Math.max(v.rscore || 0, rep.rscore || 0);
     return r;
   }
@@ -1089,7 +1104,7 @@ export class PresenceLogic {
     const all = [...this.ranks.values()].filter(r => byScore ? r.rscore > 0 : r.pp > 0).sort(byScore ? (a, b) => b.rscore - a.rscore || b.pp - a.pp : (a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
-    const pub = ({ bests, v, rep, _lazy, sb, ...r }) => r; // (not each player's whole list of plays)
+    const pub = ({ bests, v, rep, _lazy, sb, okh, rk, ...r }) => r; // (not each player's whole list of plays)
     return { t: 'rankings', mode: byScore ? 'score' : 'performance', total: all.length, you: at < 0 ? null : { ...pub(all[at]), rank: at + 1 }, list: all.slice(0, 50).map((r, i) => ({ ...pub(r), rank: i + 1, online: online.has(r.pid) })) };
   }
   load(friends, requests) {
@@ -1682,6 +1697,7 @@ export class Matchmaker {
     if (!rec && !rep) return;
     if (!rec) { rec = { pid, name: who.name || 'Player', avatar: who.avatar || '', plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY }; P.ranks.set(pid, rec); }
     rec.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+    rec.okh = PresenceLogic.okIds(top, flags);
     PresenceLogic.settleRank(rec);
     if (P.persistRank) P.persistRank(pid, rec);
     const next = this._vtNext && this._vtNext.get(pid);
@@ -1711,6 +1727,7 @@ export class Matchmaker {
           const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
           r.restored = true;
           r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+          r.okh = PresenceLogic.okIds(data.top.slice(0, 50), flags);
           PresenceLogic.settleRank(r);
           P.ranks.set(pid, r);
           if (P.persistRank) P.persistRank(pid, r);
