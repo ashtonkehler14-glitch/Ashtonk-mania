@@ -296,7 +296,7 @@ const ExplorerScreen = {
         h('button.btn.sm', { onclick: () => Screens.go('multiplayer', {}, { replace: true }) }, icon('back'), 'Back to room')) : null,
       h('div.ex-searchwrap', icon('search'), this.searchInput),
       this.filters);
-    const scroller = h('div.screen-body.ex-body', overlayHeader('Beatmap listing', { icon: 'download', sub: 'osu!mania beatmaps, downloaded straight into your library' }),
+    const scroller = h('div.screen-body.ex-body', overlayHeader('Beatmap listing', { icon: 'beatmap', sub: 'osu!mania beatmaps, downloaded straight into your library' }),
       h('div.ov-content', h('div.page', header, this.grid, this.status, this.sentinel, this.shield = h('div.ex-shield'))));
     // "back to top" appears once you've scrolled a good way down
     // (a ring around it fills as you near the bottom of what's loaded, as lazer's does)

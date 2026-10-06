@@ -1,78 +1,7 @@
 /* UIManager: icons, toasts, dialogs, menus, background, toolbar and the ScreenManager. */
 
-const ICONS = {
-  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
-  play: '<path d="M7 4l13 8-13 8z" class="fillme"/>',
-  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
-  folder: '<path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
-  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-7 8-7s7 2.5 8 7"/>',
-  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-  film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
-  brush: '<path d="M14 4l6 6-9 9H5v-6z"/><path d="M12 6l6 6"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
-  fullscreen: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
-  unfullscreen: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>',
-  star: '<path d="M12 2l3 6.9 7.5.6-5.7 5 1.8 7.4L12 18l-6.6 3.9 1.8-7.4-5.7-5 7.5-.6z" class="fillme"/>',
-  ghost: '<path d="M12 2.5c-4.4 0-7.5 3.3-7.5 7.8v10.4c0 .6.7.9 1.1.5l1.6-1.5 1.7 1.6c.3.3.7.3 1 0l1.6-1.6 1.6 1.6c.3.3.7.3 1 0l1.6-1.6 1.7 1.6c.3.3.7.3 1 0l1.6-1.5c.4.4 1.1.1 1.1-.5V10.3c0-4.5-3.1-7.8-7.5-7.8z" class="fillme"/><circle cx="9.3" cy="10.5" r="1.5" fill="#000" stroke="none" opacity=".55"/><circle cx="14.7" cy="10.5" r="1.5" fill="#000" stroke="none" opacity=".55"/>',
-  heart: '<path d="M12 21s-7.5-4.6-9.5-9.2C1 8.1 3.4 4 7.2 4c2.1 0 3.6 1.1 4.8 2.7C13.2 5.1 14.7 4 16.8 4 20.6 4 23 8.1 21.5 11.8 19.5 16.4 12 21 12 21z"/>',
-  shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
-  mods: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
-  x: '<path d="M6 6l12 12M18 6L6 18"/>',
-  back: '<path d="M15 5l-7 7 7 7"/>',
-  chevron: '<path d="M9 5l7 7-7 7"/>',
-  pc: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
-  laptop: '<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 19h19l-2.2-4H4.7z"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  down: '<path d="M6 9l6 6 6-6"/>',
-  up: '<path d="M6 15l6-6 6 6"/>',
-  send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-  download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
-  upload: '<path d="M12 20V9M7 14l5-5 5 5M4 4h16"/>',
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
-  question: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.4v.6M12 16.6v.5"/>',
-  pause: '<path d="M8 5v14M16 5v14"/>',
-  keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h0M10 10h0M14 10h0M18 10h0M7 14h10"/>',
-  volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/>',
-  retry: '<path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/>',
-  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
-  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-  save: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
-  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
-  multi: '<circle cx="8" cy="9" r="3"/><circle cx="17" cy="9" r="3"/><path d="M2 20c.8-3.4 3.2-5 6-5s5.2 1.6 6 5M14 15.5c.9-.4 1.9-.5 3-.5 2.8 0 5.2 1.6 6 5"/>',
-  database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
-  sparkle: '<path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" class="fillme"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z" class="fillme"/>',
-  skip: '<path d="M5 5l9 7-9 7zM17 5v14"/>',
-  prev: '<path d="M19 5l-9 7 9 7zM7 5v14"/>',
-  bug: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 7V4M4 11h3M17 11h3M4 17h3M17 17h3M8 4l2 3M16 4l-2 3"/>',
-  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z" class="fillme"/>',
-  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 14.5h3v3h-3z" fill="currentColor"/>',
-  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
-  bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
-  mania: '<circle cx="12" cy="12" r="9"/><path d="M8.5 8v8M12 8v8M15.5 8v8"/>',
-  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
-  social: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.4c1.9.8 3.1 2.8 3.5 5.6"/>',
-  mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>',
-  npprev: '<path d="M5.5 5h2.6v14H5.5z" class="fillme"/><path d="M19 5.4v13.2L8.6 12z" class="fillme"/>',
-  npnext: '<path d="M15.9 5h2.6v14h-2.6z" class="fillme"/><path d="M5 5.4v13.2L15.4 12z" class="fillme"/>',
-  npplay: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M10 8.1v7.8l6.1-3.9z" class="fillme"/>',
-  nppause: '<circle cx="12" cy="12" r="9.6" stroke-width="1.9"/><path d="M9.2 8.3h2v7.4h-2zM12.8 8.3h2v7.4h-2z" class="fillme"/>',
-  bars: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-  backcircle: '<circle cx="12" cy="12" r="9.5"/><path d="M13.6 8.2L9.8 12l3.8 3.8"/>',
-  osulogo: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.2"/>',
-  editcircle: '<circle cx="12" cy="12" r="9.5"/><path d="M8.3 15.7l.7-2.8 5.1-5.1 2.1 2.1-5.1 5.1z"/>',
-  beatmap: '<circle cx="12" cy="12" r="9.5"/><path d="M10.6 15.4V8.6l4.6-1.1v6.1"/><circle cx="9.2" cy="15.4" r="1.5" class="fillme"/><circle cx="13.8" cy="13.6" r="1.5" class="fillme"/>',
-  couch: '<path d="M5.5 11V8.6A2.6 2.6 0 018.1 6h7.8a2.6 2.6 0 012.6 2.6V11"/><path d="M3 13a1.5 1.5 0 013 0v1.5h12V13a1.5 1.5 0 013 0v5H3z"/><path d="M5.5 18v2M18.5 18v2"/>',
-  crown: '<path d="M3.5 8.5l4.6 3.9L12 6l3.9 6.4 4.6-3.9-1.9 9.5H5.4z"/>',
-  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0012 3z"/>',
-  trophy: '<path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 21h8M9 17h6v4H9z"/>',
-};
+// (every icon is one of lazer's: 12-icons.js)
+const ICONS = {};
 function icon(name, cls = '') {
   // (each icon is parsed once and copied after that: lists build hundreds of them, and parsing the markup every
   // time was a good part of what a long list cost to draw)
@@ -80,13 +9,35 @@ function icon(name, cls = '') {
   let t = icon.cache.get(key);
   if (!t) {
     t = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    t.setAttribute('viewBox', '0 0 24 24'); t.setAttribute('class', `i ${cls}`); t.setAttribute('aria-hidden', 'true');
-    t.innerHTML = (ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"');
+    t.setAttribute('aria-hidden', 'true');
+    // lazer's own icons first (12-icons.js): the filled version where there is one ("heart" / "heart-fill")
+    const src = (/\bfill\b/.test(cls) && ICON_SRC[name + '-fill']) || ICON_SRC[name];
+    if (src && src[0] === 'L') {
+      // an osu!lazer icon texture, drawn as a mask in the text colour (like lazer tints its white icons)
+      t.setAttribute('viewBox', '0 0 24 24'); t.setAttribute('class', `i lzi lzi-${icon.img(src[1])} ${cls}`);
+    } else if (src) {
+      // Font Awesome 5, as osu!framework draws it: the glyph filling its box
+      t.setAttribute('viewBox', `0 0 ${src[1]} ${src[2]}`); t.setAttribute('class', `i fai ${cls}`);
+      t.innerHTML = `<path d="${src[3]}" style="fill:currentColor;stroke:none"/>`;
+    } else {
+      t.setAttribute('viewBox', '0 0 24 24'); t.setAttribute('class', `i ${cls}`);
+      t.innerHTML = (ICONS[name] || '').replace(/class="fillme"/g, 'fill="currentColor" stroke="none"');
+    }
     icon.cache.set(key, t);
   }
   return t.cloneNode(true);
 }
 icon.cache = new Map();
+/** One CSS rule per lazer icon picture, made the first time it's used (the picture isn't repeated in every element). */
+icon.img = n => {
+  const id = n.replace(/[^a-zA-Z0-9-]/g, '_');
+  if (!(icon.made ||= new Set()).has(id)) {
+    icon.made.add(id);
+    const st = icon.sheet || (icon.sheet = document.head.appendChild(document.createElement('style')));
+    st.sheet.insertRule(`svg.lzi-${id} { --lzi: url("${ICON_IMG[n]}"); }`, st.sheet.cssRules.length);
+  }
+  return id;
+};
 
 /** Star rating colour ramp. */
 function starColour(sr) {
@@ -515,7 +466,7 @@ const Toolbar = {
         // lazer's ToolbarChangelogButton
         btn('sparkle', 'changelog', 'track recent dev updates in Ashtonk!mania', () => WhatsNew.show(), { right: true, cls: '.tb-changelog' }),
         btn('trophy', 'rankings', 'find out who\'s the best right now', this.pages.rankings, { right: true, dataset: { tab: 'rankings' } }),
-        btn('download', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
+        btn('beatmap', 'beatmap listing', 'browse for new beatmaps', this.pages.explore, { key: 'Ctrl+B', right: true, dataset: { tab: 'explore' } }),
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
@@ -834,7 +785,7 @@ const NowPlaying = {
 
 /** osu!lazer-style back button (pink, slanted, bottom-left). */
 function backButton(onClick) {
-  const b = h('button.lz-back', { onclick: () => { UISounds.back(); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('back'), 'back'));
+  const b = h('button.lz-back', { onclick: () => { UISounds.back(); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); onClick(); }, title: 'Back (Esc)', 'aria-label': 'Back' }, h('span.lz-back-inner', icon('leftcircle'), 'back'));
   b.addEventListener('pointerenter', () => UISounds.hover());
   return b;
 }

@@ -11,7 +11,7 @@ const MEDALS = [
   { id: 'first', group: 'Skill', icon: 'star', name: 'First Steps', desc: 'Pass your first beatmap.', test: s => s.passed && !(s.mods || []).includes('AT') },
   ...MEDAL_PASS.map((name, i) => ({ id: `pass${i + 1}`, group: 'Skill', icon: 'star', stars: i + 1, name, desc: `Pass a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 })),
   ...MEDAL_FC.map((name, i) => ({ id: `fc${i + 1}`, group: 'Skill', icon: 'target', stars: i + 1, name, desc: `Full combo a ${i + 1}★ beatmap without mods that make it easier.`, test: s => s.passed && !medalEasy(s) && s.stars >= i + 1 && s.counts && s.counts[5] === 0 })),
-  { id: 'ss', group: 'Skill', icon: 'sparkle', name: 'Perfectionist', desc: 'Get an SS: nothing below a 300.', test: s => s.passed && !medalEasy(s) && (s.grade === 'SS' || s.grade === 'XH') },
+  { id: 'ss', group: 'Skill', icon: 'magic', name: 'Perfectionist', desc: 'Get an SS: nothing below a 300.', test: s => s.passed && !medalEasy(s) && (s.grade === 'SS' || s.grade === 'XH') },
   { id: 'combo500', group: 'Skill', icon: 'bolt', name: 'Combo Chain', desc: 'Reach a 500x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 500 },
   { id: 'combo1000', group: 'Skill', icon: 'bolt', name: 'Thousand Strong', desc: 'Reach a 1,000x combo.', test: s => !(s.mods || []).includes('AT') && s.maxCombo >= 1000 },
   { id: 'hidden', group: 'Mod Introduction', icon: 'ghost', name: 'In the Dark', desc: 'Pass a 3★ beatmap with Hidden or Fade In.', test: s => s.passed && !medalEasy(s) && s.stars >= 3 && (s.mods || []).some(m => m === 'HD' || m === 'FI') },

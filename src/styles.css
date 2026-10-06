@@ -67,6 +67,8 @@ a { color: var(--accent); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 svg.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
 svg.i.fill { fill: currentColor; stroke: none; }
+/* lazer's own icons (12-icons.js): its white icon pictures as masks, in the text colour */
+svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain no-repeat; mask: var(--lzi) center / contain no-repeat; stroke: none; }
 
 /* (inside the phone's safe area: not under a notch, a rounded corner or the gesture bar) */
 /* edge to edge, as lazer draws on phones: no black bars kept clear for a camera cutout */

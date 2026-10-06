@@ -1,6 +1,6 @@
 /* Settings panel (schema-driven), key configuration, offset calibration and the mod select overlay. */
 
-const SECTION_ICONS = { Gameplay: 'target', Audio: 'volume', Graphics: 'sparkle', Input: 'keyboard', 'User Interface': 'home', Skin: 'brush', Maintenance: 'database' };
+const SECTION_ICONS = { Gameplay: 'sec-gameplay', Audio: 'sec-audio', Graphics: 'sec-graphics', Input: 'sec-input', 'User Interface': 'sec-ui', Skin: 'sec-skin', Maintenance: 'sec-maintenance', Online: 'sec-online' }; // (lazer's section icons)
 
 /** The settings shown by default; everything else sits behind "Show all settings" (search always finds it). */
 const SettingsPanel = {

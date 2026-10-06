@@ -128,7 +128,7 @@ const SongSelect = {
       backButton(() => Screens.back()),
       this.modBtn = (() => { const b = fb('Mods', '#b2ff66', 'mods', () => this.openMods(), 'F1 · right-click to deselect all'); b.classList.add('fb-mods'); b.append(this.modBar, this.unrankedEl); b.addEventListener('contextmenu', e => { e.preventDefault(); if ((Settings.get('songselect.mods') || []).length) { UISounds.click(); Settings.set('songselect.mods', []); Bus.emit('mods:changed'); } }); return b; })(),
       (() => { const b = fb('Random', '#66ccff', 'shuffle', () => this.random(), 'F2 · right-click or Shift+F2 to rewind'); b.addEventListener('contextmenu', e => { e.preventDefault(); this.randomRewind(); }); return b; })(),
-      this.optionsBtn = fb('Options', '#8c66ff', 'gear', e => this.options(e), 'F3'),
+      this.optionsBtn = fb('Options', '#8c66ff', 'cog', e => this.options(e), 'F3'),
       h('div.grow'), this.practiceMode ? h('span.tag.goldtag', 'Practice') : null, this.mpPick ? h('span.tag.accent', 'Choose the match beatmap') : null, this.playBtn);
 
     el.append(h('div.ss-main', this.info, right), footer);
@@ -890,8 +890,8 @@ const SongSelect = {
     const wedge = h(`div.wedge${sameSet ? '.still' : ''}`, h('div.w-body',
       h('div.w-top', statusPill((BeatmapManager.setById.get(m.setId) || {}).status), m.problems.length ? h('span.tag.warn', 'Unplayable') : null),
       h('div.w-title', m.title), h('div.w-artist', m.artist),
-      h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('play', 'fill'), fmtInt(plays)), favBtn, collBtn,
-        st('clock', 'Length', fmtTime(m.length / rate)), st('music', 'BPM', bpm))));
+      h('div.w-stats', h('span.w-plays', { title: 'Your plays' }, icon('lzplay'), fmtInt(plays)), favBtn, collBtn,
+        st('clock', 'Length', fmtTime(m.length / rate)), st('metronome', 'BPM', bpm))));
     const sc = starColour(m.stars), ink = m.stars >= 6.5 ? '#ffd966' : sc;
     const stat = (k, v, max, text) => h('div.wd-stat', { title: `${k}: ${text ?? v}` }, h('div.wd-bar', h('i', { style: { width: clamp(v / max * 100, 0, 100) + '%' } })), h('div.wd-k', k), h('div.wd-v', text ?? (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(1)) : v)));
     const objs = Math.max(1, m.objectCount || m.noteCount + m.lnCount);
@@ -1054,10 +1054,10 @@ const SongSelect = {
       { label: 'Play', icon: 'play', onClick: () => this.play() },
       { label: 'Practice', icon: 'flag', onClick: () => this.play('practice') },
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
-      { label: 'Edit', icon: 'editcircle', onClick: () => Screens.go('editor', { mapId: m.id }) },
+      { label: 'Edit', icon: 'edit', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'folder', onClick: () => ManageCollections.open() },
+      { label: 'Manage collections…', icon: 'book', onClick: () => ManageCollections.open() },
       { sep: true },
       { label: 'Hide', icon: 'x', onClick: () => this.hideMap(m) },
       ...((Settings.get('songselect.hidden') || []).length ? [{ label: 'Restore all hidden', icon: 'retry', onClick: () => this.restoreHidden() }] : []),

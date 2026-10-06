@@ -259,10 +259,10 @@ const EditorScreen = {
         this.tapPanel(paint),
         h('h3.ed-h3', 'Kiai time'),
         h('p.muted', 'The song\'s chorus: the playfield glows. It starts and stops on an effect point.'),
-        h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('sparkle'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
+        h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('magic'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
           h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(a); paint(); } }, icon('target')),
           h('button.btn.sm.danger', { title: 'Remove', onclick: () => { for (const p of [...this.red, ...this.green]) if (p.time >= a - 1 && p.time < b) p.effects = (p.effects || 0) & ~1; this.setDirty(true); paint(); } }, icon('trash'))))),
-        h('div.ed-row2', h('button.btn', { onclick: () => { this.toggleKiai(); paint(); } }, icon('sparkle'), `${this.kiaiAt(this.snap(now)) ? 'End' : 'Start'} kiai at ${fmtTime(Math.max(0, this.snap(now)))}`),
+        h('div.ed-row2', h('button.btn', { onclick: () => { this.toggleKiai(); paint(); } }, icon('magic'), `${this.kiaiAt(this.snap(now)) ? 'End' : 'Start'} kiai at ${fmtTime(Math.max(0, this.snap(now)))}`),
           h('button.btn', { onclick: () => { this.setPreview(); paint(); } }, icon('music'), this.preview >= 0 ? `Preview point: ${fmtTime(this.preview)} — set to now` : 'Set the preview point to now')));
     };
     paint();
@@ -833,7 +833,7 @@ const EditorScreen = {
       { label: 'Set preview point to current time', icon: 'music', onClick: () => this.setPreview() },
       { label: 'Add bookmark (Ctrl+B)', icon: 'flag', onClick: () => this.toggleBookmark(false) },
       { label: 'Remove closest bookmark (Ctrl+Shift+B)', icon: 'trash', onClick: () => this.toggleBookmark(true) },
-      { label: this.kiaiAt(this.snap(this.now())) ? 'End kiai here' : 'Start kiai here', icon: 'sparkle', onClick: () => this.toggleKiai() },
+      { label: this.kiaiAt(this.snap(this.now())) ? 'End kiai here' : 'Start kiai here', icon: 'magic', onClick: () => this.toggleKiai() },
     ]);
   },
   /** The difficulty as an .osu file: the original, with its [Metadata], [Difficulty], [TimingPoints] and

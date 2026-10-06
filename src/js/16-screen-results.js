@@ -300,7 +300,7 @@ const ResultsScreen = {
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)
-      const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('folder'));
+      const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('book'));
       const paintColl = () => coll.classList.toggle('green', Collections.list.some(c => c.hashes.includes(map.hash)));
       paintColl();
       const off = Bus.on('collections:changed', () => { if (coll.isConnected) paintColl(); else off(); });

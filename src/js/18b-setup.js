@@ -12,7 +12,7 @@ const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects while playing — the menus still look their best', icon: 'bolt',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
-  pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sparkle',
+  pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.bgQuality': 'high', 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };

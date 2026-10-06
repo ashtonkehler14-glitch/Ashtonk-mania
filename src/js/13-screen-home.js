@@ -92,7 +92,7 @@ const HomeScreen = {
         ['lounge', 'lounge', 'couch', '#5e3fba', ['KeyL', 'KeyM'], 'multi', 'multi', 'l', () => this.enterMode(() => Screens.go('multiplayer'))],
         ['ranked', 'ranked play', 'crown', '#5e3fba', ['KeyR'], 'multi', 'multi', null, () => this.enterMode(() => Screens.go('multiplayer', { ranked: true }))],
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
-        ['multi', 'multi', 'globe', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
+        ['multi', 'multi', 'online', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
         // lazer's DailyChallengeButton: (94, 63, 186), D
         ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // your beatmaps: import them, extract them (.osz) and edit collections
