@@ -1740,7 +1740,7 @@ div.res-calib .i { color: var(--good); }
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
 .explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
 /* lazer's listing keeps wide margins either side: the content is centred at a readable width (3 columns) */
-.explorer.ov .ov-content, .explorer.ov .ov-inner { max-width: none; padding-left: max(80px, calc((100% - 1260px) / 2)); padding-right: max(80px, calc((100% - 1260px) / 2)); }
+.explorer.ov .ov-content, .explorer.ov .ov-inner { max-width: none; padding-left: max(50px, calc((100% - 1260px) / 2)); padding-right: max(50px, calc((100% - 1260px) / 2)); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .explorer.ov .ov-content, .explorer.ov .ov-inner { padding-left: 16px; padding-right: 16px; } }
 .explorer.ov .ex-search { background: var(--ob4); border-color: transparent; border-radius: 8px; }
 .explorer.ov .ex-search:focus { border-color: var(--ohl); box-shadow: none; }

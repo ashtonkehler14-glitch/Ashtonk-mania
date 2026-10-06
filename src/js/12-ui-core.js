@@ -1195,6 +1195,7 @@ const Screens = {
         }
       }
       this.current = next; this.currentName = name;
+      if (next.keepParams) next._lastParams = params; // (Back returns to the same one: someone's profile, not yours)
       const el = await next.enter(params);
       next.el = el;
       el.classList.add('screen', 'enter');
@@ -1228,6 +1229,7 @@ const Screens = {
     let prev = this.history.pop();
     while (prev && (prev === this.currentName || this.registry[prev]?.transient)) prev = this.history.pop();
     UISounds.back();
-    this.go(prev || 'home', {}, { replace: true });
+    const to = prev || 'home', r = this.registry[to];
+    this.go(to, r && r.keepParams && r._lastParams ? { ...r._lastParams, force: true } : {}, { replace: true });
   },
 };

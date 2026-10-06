@@ -325,7 +325,7 @@ const ExplorerScreen = {
       this._scrolling = true;
       this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => { this._scrolling = false; this.shield.classList.remove('on'); }, 160);
     }, { passive: true });
-    el.append(scroller, this.topBtn);
+    el.append(scroller, this.topBtn, h('div.page-back', backButton(() => Screens.back()))); // (back, as on every other page — a phone has no Esc)
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { root: scroller, rootMargin: '0px 0px 3000px 0px' });
     this.io.observe(this.sentinel);
     // back online after an offline error: search again by itself

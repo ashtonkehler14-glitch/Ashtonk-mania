@@ -1759,7 +1759,7 @@ div.res-calib .i { color: var(--good); }
    and the filter rows (label on the left, text tabs; the active one bold with a Highlight1 underline) */
 .explorer.ov .ex-header { margin: -24px 0 22px; padding: 20px 0 16px; border: 0; background: var(--od6); box-shadow: 0 0 0 100vmax var(--od6); clip-path: inset(0 -100vmax); }
 /* lazer's listing keeps wide margins either side: the content is centred at a readable width (3 columns) */
-.explorer.ov .ov-content, .explorer.ov .ov-inner { max-width: none; padding-left: max(80px, calc((100% - 1260px) / 2)); padding-right: max(80px, calc((100% - 1260px) / 2)); }
+.explorer.ov .ov-content, .explorer.ov .ov-inner { max-width: none; padding-left: max(50px, calc((100% - 1260px) / 2)); padding-right: max(50px, calc((100% - 1260px) / 2)); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .explorer.ov .ov-content, .explorer.ov .ov-inner { padding-left: 16px; padding-right: 16px; } }
 .explorer.ov .ex-search { background: var(--ob4); border-color: transparent; border-radius: 8px; }
 .explorer.ov .ex-search:focus { border-color: var(--ohl); box-shadow: none; }
@@ -11965,6 +11965,7 @@ const Screens = {
         }
       }
       this.current = next; this.currentName = name;
+      if (next.keepParams) next._lastParams = params; // (Back returns to the same one: someone's profile, not yours)
       const el = await next.enter(params);
       next.el = el;
       el.classList.add('screen', 'enter');
@@ -11998,7 +11999,8 @@ const Screens = {
     let prev = this.history.pop();
     while (prev && (prev === this.currentName || this.registry[prev]?.transient)) prev = this.history.pop();
     UISounds.back();
-    this.go(prev || 'home', {}, { replace: true });
+    const to = prev || 'home', r = this.registry[to];
+    this.go(to, r && r.keepParams && r._lastParams ? { ...r._lastParams, force: true } : {}, { replace: true });
   },
 };
 
@@ -16653,9 +16655,14 @@ const SkinEditor = {
  * personal-best tracking and replay actions. */
 
 const ResultsScreen = {
+  // (never gone back to: it shows one play, and Back from a screen opened after it — a retry, your profile — used to
+  // reopen it without its score and crash the game)
+  transient: true,
   // (the top bar marks where you came from: song select, or the profile or replays a score was opened from)
   get tab() { const b = this.p && this.p.back; return b && b.name !== 'results' ? b.name : 'songselect'; },
   enter(p) {
+    // (nothing to show — opened without a score: song select instead of a crash)
+    if (!p || !p.score) { this.p = { score: {} }; const out = () => Screens.busy ? setTimeout(out, 30) : Screens.go('songselect', {}, { replace: true }); setTimeout(out, 0); return h('div.results'); }
     this.p = p;
     const s = p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -17509,6 +17516,7 @@ const ManageCollections = {
 
 // ─────────────────────────────── Profile (osu!lazer user profile layout; includes statistics) ───────────────────────────────
 const ProfileScreen = {
+  keepParams: true,
   /** Your profile, or (params.pid) another player's — lazer's UserProfileOverlay either way; theirs comes from the
    *  server (what their game last shared). */
   enter(params = {}) {
@@ -18001,7 +18009,7 @@ const CHANGELOG = [
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys'] },
-    { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it'] },
+    { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it', 'Fixed a crash: retrying from the results screen and then pressing Back could reopen an empty results screen', 'Back to a player\'s profile reopens theirs, not yours', 'The beatmap listing has a back button like every other page, and lines up with them'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },
@@ -18395,7 +18403,7 @@ const ExplorerScreen = {
       this._scrolling = true;
       this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => { this._scrolling = false; this.shield.classList.remove('on'); }, 160);
     }, { passive: true });
-    el.append(scroller, this.topBtn);
+    el.append(scroller, this.topBtn, h('div.page-back', backButton(() => Screens.back()))); // (back, as on every other page — a phone has no Esc)
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { root: scroller, rootMargin: '0px 0px 3000px 0px' });
     this.io.observe(this.sentinel);
     // back online after an offline error: search again by itself

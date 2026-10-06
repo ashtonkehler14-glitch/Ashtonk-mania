@@ -2,9 +2,14 @@
  * personal-best tracking and replay actions. */
 
 const ResultsScreen = {
+  // (never gone back to: it shows one play, and Back from a screen opened after it — a retry, your profile — used to
+  // reopen it without its score and crash the game)
+  transient: true,
   // (the top bar marks where you came from: song select, or the profile or replays a score was opened from)
   get tab() { const b = this.p && this.p.back; return b && b.name !== 'results' ? b.name : 'songselect'; },
   enter(p) {
+    // (nothing to show — opened without a score: song select instead of a crash)
+    if (!p || !p.score) { this.p = { score: {} }; const out = () => Screens.busy ? setTimeout(out, 30) : Screens.go('songselect', {}, { replace: true }); setTimeout(out, 0); return h('div.results'); }
     this.p = p;
     const s = p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
