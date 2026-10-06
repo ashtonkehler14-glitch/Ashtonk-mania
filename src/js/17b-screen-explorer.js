@@ -371,7 +371,11 @@ const ExplorerScreen = {
   async newSearch() {
     const st = this.state;
     if (st.sort === 'relevance' && !st.q) { st.sort = 'ranked'; st.dir = 'desc'; this.renderFilters && this.renderFilters(); }
-    this.page = 0; this.results = []; this.cursor = null; this.hasMore = false; this.token = {}; this.renderResults(); await this.loadMore();
+    this.page = 0; this.cursor = null; this.hasMore = false; this.token = {};
+    // as lazer's listing: the old results stay, dimmed under the spinner, until the new ones are in to fade in over them
+    // (emptying the list first blanked the page and jumped it up for every letter typed)
+    if (this.results.length && this.grid) { this._replace = true; this.grid.classList.add('ex-dim'); } else { this.results = []; this.renderResults(); }
+    await this.loadMore();
   },
   async loadMore() {
     const tok = this.token || (this.token = {});
@@ -381,6 +385,7 @@ const ExplorerScreen = {
       const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw, extra: st.extra || [] });
       if (tok !== this.token) return;
       // pages come in osu!'s own order, one after another (as Web-Osu-Mania lists them)
+      if (this._replace) this.results = [];
       const seen = new Set(this.results.map(s => s.id));
       this.results = [...this.results, ...d.sets.filter(s => !seen.has(s.id))];
       this.hasMore = d.hasMore;
@@ -389,9 +394,11 @@ const ExplorerScreen = {
       this.error = null;
     } catch (e) {
       if (tok !== this.token) return;
+      if (this._replace) this.results = [];
       this.error = e.message || String(e); this.errorStatus = e.status || 0; this.hasMore = false;
     } finally {
       if (tok === this.token) {
+        if (this._replace) this.endReplace();
         this.loading = false; this.renderResults();
         // the end of the list is still in view (a page that added nothing): the observer won't fire again, so load on
         if (this.hasMore && this.sentinel && this.sentinel.isConnected) requestAnimationFrame(() => {
@@ -401,6 +408,16 @@ const ExplorerScreen = {
         });
       }
     }
+  },
+  /** A new search's first page is in: undim, and bring the top of the results into view if they were scrolled past. */
+  endReplace() {
+    this._replace = false;
+    if (!this.grid) return;
+    this.grid.classList.remove('ex-dim');
+    const sc = this.grid.closest('.screen-body');
+    if (sc) { const gt = this.grid.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 60; if (sc.scrollTop > gt) sc.scrollTo({ top: Math.max(0, gt), behavior: 'instant' }); }
+    // every card is new: they fade in together
+    this._cards = null;
   },
   /** Beatmap sets you've liked in the listing (kept in this browser). */
   liked() { if (!this._liked) { try { this._liked = new Set(JSON.parse(localStorage.getItem('am.likedSets') || '[]')); } catch { this._liked = new Set(); } } return this._liked; },

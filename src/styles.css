@@ -4410,9 +4410,9 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 .ov-waves i:nth-child(3) { --r: 4deg; background: hsl(var(--o-h) 20% 20%); animation-delay: calc(110ms * var(--anim)); }
 .ov-waves i:nth-child(4) { --r: -2deg; background: hsl(var(--o-h) 20% 25%); animation-delay: calc(165ms * var(--anim)); }
 @keyframes ovWave { 0% { transform: translateY(110%) rotate(var(--r)); } 100% { transform: translateY(-150%) rotate(var(--r)); } }
-.ov.screen.enter > .screen-body { animation: ovBodyIn calc(700ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) calc(120ms * var(--anim)) both; }
+.ov.screen.enter > .screen-body, .ov.screen.enter > .mp-body { animation: ovBodyIn calc(700ms * var(--anim)) cubic-bezier(.23, 1, .32, 1) calc(120ms * var(--anim)) both; }
 @keyframes ovBodyIn { from { transform: translateY(80px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body, .ov.screen.enter > .mp-body { animation: none; } }
 /* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
 html:not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
 @keyframes ovBgIn { from { background-color: transparent; } }
@@ -4461,3 +4461,6 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .gp-loader.ready .pl-load .spinner { animation: none; }
 /* LoadingSpinner.PopIn: from 0.6 scale and transparent, OutQuint */
 @keyframes lzSpinIn { from { scale: .6; opacity: 0; } }
+/* a new search: the old results dim (lazer's LoadingLayer) until the new ones fade in */
+.ex-grid { transition: opacity calc(200ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); }
+.ex-grid.ex-dim { opacity: .5; pointer-events: none; transition-duration: calc(400ms * var(--anim, 1)); }
