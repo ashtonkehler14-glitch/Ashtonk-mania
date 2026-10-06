@@ -19809,7 +19809,9 @@ const SettingsPanel = {
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
     search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
-    scroll.addEventListener('scroll', () => this.syncNav());
+    // (once a frame at most: a touchpad sends scroll events faster than the screen draws)
+    let navRaf = 0;
+    scroll.addEventListener('scroll', () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; if (this.scrollEl) this.syncNav(); }); }, { passive: true });
     // picking another skin shows or hides the Custom skin's options
     const offSkin = Bus.on('skin:changed', () => { if (this.o && this.scrollEl) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; } });
     this.o = makeOverlay(panel, { onClose: () => { offSkin(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
