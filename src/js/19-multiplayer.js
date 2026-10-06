@@ -63,11 +63,13 @@ const Multiplayer = {
         this.onMessage(m);
       };
       ws.onerror = () => fail('Couldn\'t reach the multiplayer server.');
-      ws.onclose = () => {
+      ws.onclose = ev => {
         fail('Connection closed.');
         if (this.ws !== ws) return; // left on purpose
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
+        // this browser's seat was taken by a newer connection (the room opened in another tab): don't fight it for it
+        if (ev && ev.code === 4003) { this.leave(); Toast.show('The room was opened in another tab', 'You\'re playing it there now.'); return; }
         // dropped: quietly keep trying to get back in (the only notice is "Reconnected")
         if (wasIn) { this.startReconnect(); Bus.emit('mp:changed'); }
       };

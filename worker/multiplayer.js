@@ -155,8 +155,10 @@ export class RoomLogic {
   join(id, name, create, opts = {}) {
     opts = opts && typeof opts === 'object' ? opts : {};
     if (!this.created && !create) return { ok: false, error: 'Room not found — check the code.' };
-    // a player whose connection dropped mid-match comes back as themselves (same browser)
-    const back = opts.cid ? this.players.find(p => p.away && p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
+    // a player whose connection dropped mid-match comes back as themselves (same browser) — also when the server hasn't
+    // noticed the old connection die yet (a network change leaves it looking open for minutes): this new one takes over,
+    // instead of being turned away as a newcomer mid-match or counted as someone else
+    const back = opts.cid ? this.players.find(p => p.cid && p.cid === String(opts.cid).slice(0, 40)) : null;
     if (back) {
       back.away = false; back.awayUntil = 0;
       // catch them up: everyone's latest live score (so the in-game leaderboard fills straight back in), and the
@@ -212,9 +214,12 @@ export class RoomLogic {
   disconnect(id) {
     const p = this.get(id);
     if (!p) return [];
-    const midMatch = (this.state === 'playing' && p.playing && !p.finished) || (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage));
-    if (midMatch && p.cid && !p.leaving) {
-      p.away = true; p.awayUntil = this.now() + RP.AWAY;
+    // (finished and waiting for the others counts too: their result stays in the match; and just after a match, a
+    // short wait — long enough for a quick reconnect to get the results with everyone in them)
+    const midMatch = (this.state === 'playing' && p.playing) || (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage));
+    const justPlayed = !midMatch && this.state === 'lobby' && this.lastResults && this.now() - this.lastResults.at < 120000 && this.lastResults.rows.some(r => r.id === p.id);
+    if ((midMatch || justPlayed) && p.cid && !p.leaving) {
+      p.away = true; p.awayUntil = this.now() + (midMatch ? RP.AWAY : 20000);
       return [this.system(`${p.name} lost connection — waiting for them to come back`), this.roomMsg()];
     }
     return this.leave(id);
@@ -362,7 +367,7 @@ export class RoomLogic {
         if (this.qp && this.qp.phase === 'load' && this.state === 'lobby') return [...this.qpMaybeStart(), this.roomMsg()];
         if (this.rp) return [...this.rp.mapState(), this.roomMsg()];
         // the host already pressed Start: it begins as soon as the last download is in
-        if (this.pendingStart && this.canBegin()) { this.pendingStart = false; return this.beginMatch(this.players); }
+        if (this.pendingStart && this.canBegin()) { this.pendingStart = false; return this.beginMatch(this.here()); }
         return [this.roomMsg()];
       case 'ready':
         // (ready before the beatmap has finished downloading: it installs in the background, nobody sees it)
@@ -373,12 +378,14 @@ export class RoomLogic {
         return [this.roomMsg()];
       case 'start': {
         if (!host || this.state !== 'lobby') return [];
-        if (this.players.length < 2) return [{ to: id, msg: { t: 'error', msg: 'Wait for an opponent to join.' } }];
-        if (!this.map || !this.players.every(x => x.ready)) return [{ to: id, msg: { t: 'error', msg: 'Everyone needs to be ready.' } }];
+        // (someone who dropped just after the last match isn't waited for: the match starts without them)
+        const here = this.players.filter(x => !x.away);
+        if (here.length < 2) return [{ to: id, msg: { t: 'error', msg: 'Wait for an opponent to join.' } }];
+        if (!this.map || !here.every(x => x.ready)) return [{ to: id, msg: { t: 'error', msg: 'Everyone needs to be ready.' } }];
         if (this.vote) return [{ to: id, msg: { t: 'error', msg: 'Everyone has to accept (or decline) the speed mod first.' } }];
         // someone's beatmap is still downloading in the background: start the moment it's in
-        if (!this.players.every(x => x.hasMap)) { this.pendingStart = true; return [this.roomMsg()]; }
-        return this.beginMatch(this.players);
+        if (!here.every(x => x.hasMap)) { this.pendingStart = true; return [this.roomMsg()]; }
+        return this.beginMatch(here);
       }
       case 'skip': {
         // the intro is only skipped once every player still playing has asked to
@@ -411,7 +418,9 @@ export class RoomLogic {
     return [];
   }
 
-  canBegin() { return this.state === 'lobby' && !!this.map && !this.vote && this.players.length >= 2 && this.players.every(x => x.ready && x.hasMap); }
+  canBegin() { const here = this.here(); return this.state === 'lobby' && !!this.map && !this.vote && here.length >= 2 && here.every(x => x.ready && x.hasMap); }
+  /** The players connected right now (not someone whose connection dropped and is being waited for). */
+  here() { return this.players.filter(x => !x.away); }
   /** Start a match for `list` (everyone in a custom room; whoever loaded the beatmap in Quick Play). */
   /** lazer's auto start: the countdown runs while anyone's ready (and stops when nobody is). */
   armAuto() {

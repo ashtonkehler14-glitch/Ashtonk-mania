@@ -1369,3 +1369,38 @@ test('lounge: a room created as Team Versus starts in teams, splits players betw
   const h = new RoomLogic('H2H001'); h.join('a', 'Alice', true, {});
   assert.equal(h.settings.type, 'h2h'); assert.equal(h.players[0].team, null);
 });
+
+test('dropped connections: a stale one is taken over, a player who finished keeps their result, and a quick reconnect after the match gets the results', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('SYNC01', () => clock.t);
+  r.join('a', 'Alice', true, { cid: 'ca' }); r.join('b', 'Bob', false, { cid: 'cb' });
+  r.message('a', { t: 'map', map: MAP }); r.message('b', { t: 'hasMap', has: true });
+  r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
+  r.message('a', { t: 'start' });
+  r.message('a', { t: 'score', score: 222222, acc: 0.97, combo: 10, maxCombo: 10, hp: 1, pp: 5 });
+  // Bob's network changed: the server still thinks his old connection is open, and a new one arrives
+  const take = r.join('b2', 'Bob', false, { cid: 'cb' });
+  assert.ok(take.ok, 'not turned away as a newcomer mid-match'); assert.equal(take.as, 'b', 'he is himself, not a new player');
+  assert.ok(take.out.some(o => o.to === 'b' && o.msg.t === 'opp' && o.msg.score === 222222), 'and gets Alice\'s score straight back');
+  assert.equal(r.players.length, 2);
+  // Bob finishes, then his connection drops while Alice is still playing: his result stays in the match
+  fin(r, 'b', { score: 800000 });
+  r.disconnect('b');
+  assert.equal(r.players.length, 2); assert.equal(r.get('b').away, true);
+  const res = msgs(fin(r, 'a', { score: 600000 }), 'results')[0].msg.results;
+  assert.deepEqual(res.rows.map(x => [x.id, x.score, !!x.left]), [['b', 800000, false], ['a', 600000, false]]);
+  assert.equal(res.winner, 'b');
+  // back after the match ended: he's himself and gets the results, with both players in them
+  const back = r.join('b3', 'Bob', false, { cid: 'cb' });
+  const got = back.out.find(o => o.msg.t === 'results');
+  assert.ok(got && got.to === 'b' && got.msg.results.rows.length === 2);
+  // dropping in the room just after a match: a short wait to come back, and the next match doesn't wait for him
+  r.disconnect('b');
+  assert.equal(r.get('b').away, true);
+  r.join('c', 'Cat', false, { cid: 'cc' }); r.message('c', { t: 'hasMap', has: true });
+  r.message('a', { t: 'ready', ready: true }); r.message('c', { t: 'ready', ready: true });
+  r.message('a', { t: 'start' });
+  assert.equal(r.state, 'playing'); assert.equal(r.get('b').playing, false);
+  clock.t += 21000; r.tick();
+  assert.equal(r.get('b'), undefined, 'gone once the wait is over');
+});
