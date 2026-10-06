@@ -684,6 +684,7 @@ check('pp is tracked from passed scores on ranked beatmaps only', ppInfo.total >
     const withStd = SM.scores.filter(s => s.scoreStd != null);
     const hash = withStd[0].mapHash;
     const std = SM.forMap(hash).map(s => SM.value(s));
+    A.Settings.set('songselect.lbScope', 'local'); // (your own scores: the Local leaderboard)
     A.Screens.go('songselect', { mapId: SM.forMap(hash)[0].mapId });
     await new Promise(r => setTimeout(r, 900));
     const shown = [...document.querySelectorAll('.lbs-score, .score-row .sc, .nums .sc')].map(e => e.textContent.replace(/\D/g, '')).filter(Boolean).map(Number);
