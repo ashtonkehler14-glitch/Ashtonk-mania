@@ -82,7 +82,7 @@ const RankingsScreen = {
   render() {
     if (!this.page) return;
     const d = this.data;
-    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
+    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));

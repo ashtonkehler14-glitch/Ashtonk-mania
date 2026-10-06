@@ -82,13 +82,13 @@ class ScoreSystem {
 
 /** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null } = {}) {
     this.value = 1;
     this.lazer = rules >= 2;
     const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
     // osu!lazer uses the drain rate after mods for everything; rules 1 used the unmodified one for the changes
     this.rawHp = this.lazer ? hpMod : (mods.includes('DA') && hpOverride != null ? hpOverride : hp);
-    this.mult = computeHpMultiplier(notes, hpMod, breaks, this.rawHp);
+    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp); // (a fixed one for previews: working it out simulates the whole map)
     this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
@@ -126,7 +126,7 @@ class GameplayEngine {
    * @param {number} o.rate playback rate (map-time windows = real * rate)
    * @param {number} o.rules judging rules (see top of file)
    */
-  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES }) {
+  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES, hpMult = null }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.rules = rules; this.lazer = rules >= 2;
     // No Release (osu!lazer ManiaModNoRelease): a hold still held when its end arrives is a MAX (a 50 if it broke)
@@ -144,7 +144,7 @@ class GameplayEngine {
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
     this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules, hpMult });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;

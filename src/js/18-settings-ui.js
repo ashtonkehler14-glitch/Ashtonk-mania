@@ -29,7 +29,9 @@ const SettingsPanel = {
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
     // (it used to fall through to whatever screen was behind, e.g. song select's search)
-    search.focus({ preventScroll: true });
+    // (a frame later: focusing at once made the browser lay the whole new panel out there and then, on top of the
+    // frame's own layout — the longest stall of opening settings)
+    requestAnimationFrame(() => { if (this.o && search.isConnected) search.focus({ preventScroll: true }); });
     this._type = e => {
       const t = e.target;
       if (Overlays.top() !== this.o || t === search || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable || KeyConfig.listening) return;

@@ -55,7 +55,7 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;

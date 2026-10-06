@@ -4499,3 +4499,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-rteams { display: inline-flex; gap: 2px; align-items: center; }
 .mp-rteams i { width: 8px; height: 8px; border-radius: 2px; }
 .mp-rteams i.red { background: #e24f4f; } .mp-rteams i.blue { background: #4f8fe2; }
+/* lazer's LoadingLayer while an online page waits: the spinner, larger, above what it's waiting for */
+.rk-empty, .dash-empty:has(> .spinner) { flex-direction: column; gap: 14px; }
+.dash-empty:has(> .spinner) { display: flex; align-items: center; }
+.rk-empty > .spinner, .dash-empty > .spinner { width: 32px; height: 32px; }

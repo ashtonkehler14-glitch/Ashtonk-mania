@@ -732,7 +732,7 @@ const MultiplayerScreen = {
       row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
-    }) : [h('div.mp-rooms-empty', rooms ? (this.mode === 'ranked' ? 'No duels open right now — create one and it shows up here for everyone.' : 'No open rooms right now — create one and it shows up here for everyone.') : 'Can\'t reach the multiplayer server right now — trying again…')]));
+    }) : [h('div.mp-rooms-empty', rooms ? (this.mode === 'ranked' ? 'No duels open right now — create one and it shows up here for everyone.' : 'No open rooms right now — create one and it shows up here for everyone.') : [h('span.spinner'), 'Can\'t reach the multiplayer server right now — trying again…'])]));
     this._roomRows = nextRows;
     this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);

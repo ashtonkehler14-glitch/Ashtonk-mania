@@ -4518,6 +4518,10 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-rteams { display: inline-flex; gap: 2px; align-items: center; }
 .mp-rteams i { width: 8px; height: 8px; border-radius: 2px; }
 .mp-rteams i.red { background: #e24f4f; } .mp-rteams i.blue { background: #4f8fe2; }
+/* lazer's LoadingLayer while an online page waits: the spinner, larger, above what it's waiting for */
+.rk-empty, .dash-empty:has(> .spinner) { flex-direction: column; gap: 14px; }
+.dash-empty:has(> .spinner) { display: flex; align-items: center; }
+.rk-empty > .spinner, .dash-empty > .spinner { width: 32px; height: 32px; }
 
 </style>
 </head>
@@ -8088,13 +8092,13 @@ class ScoreSystem {
 
 /** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null } = {}) {
     this.value = 1;
     this.lazer = rules >= 2;
     const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
     // osu!lazer uses the drain rate after mods for everything; rules 1 used the unmodified one for the changes
     this.rawHp = this.lazer ? hpMod : (mods.includes('DA') && hpOverride != null ? hpOverride : hp);
-    this.mult = computeHpMultiplier(notes, hpMod, breaks, this.rawHp);
+    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp); // (a fixed one for previews: working it out simulates the whole map)
     this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
@@ -8132,7 +8136,7 @@ class GameplayEngine {
    * @param {number} o.rate playback rate (map-time windows = real * rate)
    * @param {number} o.rules judging rules (see top of file)
    */
-  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES }) {
+  constructor({ notes, keys, windows, rate = 1, mods = [], hp = 5, accuracyMode = 'v2', noFail = false, breaks = [], modConfig = {}, rules = RULES, hpMult = null }) {
     this.keys = keys; this.rate = rate; this.mods = mods;
     this.rules = rules; this.lazer = rules >= 2;
     // No Release (osu!lazer ManiaModNoRelease): a hold still held when its end arrives is a MAX (a 50 if it broke)
@@ -8150,7 +8154,7 @@ class GameplayEngine {
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
     this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules, hpMult });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -17936,7 +17940,7 @@ const ProfileScreen = {
     clearEl(page);
     if (this.remote) {
       const d = this.remote.data;
-      if (!d) { page.append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading profile…' : 'Profiles need the online server — trying to connect…')); return; }
+      if (!d) { page.append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading profile…' : 'Profiles need the online server — trying to connect…')); return; }
       this.renderData(page, d, false);
       return;
     }
@@ -18175,7 +18179,7 @@ class SkinPreview {
     if (!this.running) { this.running = true; this.loop(); }
   }
   reset() {
-    this.engine = new GameplayEngine({ notes: this.notes, keys: this.keys, windows: timingWindows({ od: 8 }), noFail: true });
+    this.engine = new GameplayEngine({ notes: this.notes, keys: this.keys, windows: timingWindows({ od: 8 }), noFail: true, hpMult: 1 });
     this.engine.onEvent(e => { if (e.type === 'judgement') this.renderer.onJudgement(e, performance.now()); });
     this.feed = generateAutoInputs(this.engine.notes, this.keys);
     this.fi = 0; this.held = new Array(this.keys).fill(false); this.t0 = performance.now();
@@ -18304,7 +18308,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
-    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare (the setup\'s Performance choice still keeps the menus looking their best)', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results'] },
+    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare (the setup\'s Performance choice still keeps the menus looking their best)', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results', 'Smoother: the skins screen and the settings panel open with less of a hitch (the skin preview no longer works out a health drain it doesn\'t use; settings no longer lays its whole page out twice)', 'Online pages waiting on the server (rankings, profile, daily challenge, friends, the lounge) show lazer\'s spinner while they connect'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
@@ -20269,7 +20273,9 @@ const SettingsPanel = {
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too
     // (it used to fall through to whatever screen was behind, e.g. song select's search)
-    search.focus({ preventScroll: true });
+    // (a frame later: focusing at once made the browser lay the whole new panel out there and then, on top of the
+    // frame's own layout — the longest stall of opening settings)
+    requestAnimationFrame(() => { if (this.o && search.isConnected) search.focus({ preventScroll: true }); });
     this._type = e => {
       const t = e.target;
       if (Overlays.top() !== this.o || t === search || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable || KeyConfig.listening) return;
@@ -22169,7 +22175,7 @@ const MultiplayerScreen = {
       row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
-    }) : [h('div.mp-rooms-empty', rooms ? (this.mode === 'ranked' ? 'No duels open right now — create one and it shows up here for everyone.' : 'No open rooms right now — create one and it shows up here for everyone.') : 'Can\'t reach the multiplayer server right now — trying again…')]));
+    }) : [h('div.mp-rooms-empty', rooms ? (this.mode === 'ranked' ? 'No duels open right now — create one and it shows up here for everyone.' : 'No open rooms right now — create one and it shows up here for everyone.') : [h('span.spinner'), 'Can\'t reach the multiplayer server right now — trying again…'])]));
     this._roomRows = nextRows;
     this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);
@@ -24206,7 +24212,7 @@ const DashboardScreen = {
     const style = this.style();
     // (a new view — tab, filter, sort or style — fades in as lazer's lists do; presence updates just redraw)
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
-    if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? 'Connecting to the online service…' : 'Online play needs the game\'s server (open the game from its website).')); return; }
+    if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? [h('span.spinner'), 'Connecting to the online service…'] : 'Online play needs the game\'s server (open the game from its website).')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
   },
@@ -24967,7 +24973,7 @@ const RankingsScreen = {
   render() {
     if (!this.page) return;
     const d = this.data;
-    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
+    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
@@ -25048,7 +25054,7 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      clearEl(this.page).append(h('div.rk-empty', Presence.ws ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
