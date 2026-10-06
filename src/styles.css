@@ -2294,6 +2294,9 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .sk-custom-wrap .skin-preview { height: 520px; }
 @media (max-width: 1100px) { .sk-custom-wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 260px); } }
 .sk-custom-rows .set-row { min-width: 0; max-width: 100%; }
+/* (a narrow Customise panel — a phone held sideways — puts each control under its name instead of squeezing the text) */
+.sk-custom { container-type: inline-size; }
+@container (max-width: 320px) { .sk-custom-rows .set-row.form { flex-direction: column; align-items: stretch; gap: 6px; } .sk-custom-rows .set-row.form > .ctl, .sk-custom-rows .set-row.form > :not(.lbl):not(.reset) { width: 100%; } }
 /* the preview plays on a dimmed version of the menu background, as the stage does in game, instead of plain black */
 .skin-preview { background: radial-gradient(120% 90% at 50% 0%, #2a1a40, #120c1c 60%, #0a0710); }
 .sk-custom { display: flex; flex-direction: column; max-height: var(--sk-pv-h, 520px); border-radius: 12px; background: var(--ob4, var(--panel-solid)); overflow: hidden; }
@@ -3148,6 +3151,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .res-ab.wide { width: 300px; }
 .res-ab.green { background: #88b300; }
 .res-ab .i { width: 13px; height: 13px; stroke-width: 3; }
+.res-ab.dl { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700; } /* (Download: icon and word side by side) */
 .res-ab::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0; mix-blend-mode: plus-lighter; transition: opacity 500ms cubic-bezier(.22, 1, .36, 1); }
 .res-ab:hover::after { opacity: .1; }
 .res-ab:active { transform: scale(.75); transition: transform 2000ms cubic-bezier(.22, 1, .36, 1); }
