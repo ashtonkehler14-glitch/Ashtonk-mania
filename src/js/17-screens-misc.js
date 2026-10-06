@@ -44,16 +44,6 @@ const BeatmapsScreen = {
     this.refresh();
     return el;
   },
-  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
-   *  bottom, where its receptors were out of sight. */
-  fit() {
-    const pv = this._pv;
-    if (!pv || !pv.isConnected) return;
-    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
-    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
-    const room = (window.innerHeight - r.top - 12) / k;
-    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
-  },
   leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
   async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
   async renderSummary() {
@@ -135,16 +125,6 @@ const CollectionsScreen = {
     this._unsub = [Bus.on('collections:changed', () => this.render()), Bus.on('library:changed', () => this.render())];
     this.render();
     return el;
-  },
-  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
-   *  bottom, where its receptors were out of sight. */
-  fit() {
-    const pv = this._pv;
-    if (!pv || !pv.isConnected) return;
-    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
-    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
-    const room = (window.innerHeight - r.top - 12) / k;
-    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
@@ -246,7 +226,8 @@ const ProfileScreen = {
    *  server (what their game last shared). */
   enter(params = {}) {
     const other = params.pid && params.pid !== (typeof Presence !== 'undefined' && Presence.pid());
-    this.remote = other ? { pid: params.pid, name: params.name, avatar: params.avatar, data: null } : null;
+    // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
+    this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
     const { el, page } = pageShell(other ? `${params.name || 'player'}'s profile` : 'Profile', null, [], { icon: 'user', hue: 'pink', wide: true });
     this.page = page;
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
@@ -261,19 +242,10 @@ const ProfileScreen = {
       Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
       Bus.on('rankings', d => { if (this.remote || d.mode === 'score') return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
     this.render();
+    if (params.scroll) requestAnimationFrame(() => { const sc = this.scroller(); if (sc) sc.scrollTop = params.scroll; });
     if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
     else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
     return el;
-  },
-  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
-   *  bottom, where its receptors were out of sight. */
-  fit() {
-    const pv = this._pv;
-    if (!pv || !pv.isConnected) return;
-    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
-    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
-    const room = (window.innerHeight - r.top - 12) / k;
-    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
@@ -515,19 +487,27 @@ const ProfileScreen = {
       sync();
     });
   },
+  scroller() { let sc = this.page; while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement; return sc && sc !== document.body ? sc : null; },
+  /** Where to come back to: this profile, at this scroll position. */
+  backParams() {
+    const sc = this.scroller(), scroll = sc ? sc.scrollTop : 0, r = this.remote;
+    return r ? { pid: r.pid, name: r.name, avatar: r.avatar, cache: r, scroll, force: true } : { scroll, force: true };
+  },
   /** lazer's DrawableProfileScore: rank pill, title / artist, difficulty and date, mods, accuracy, and the pp in a
    *  sheared block on the right (with the weighting for best performance). */
   scoreRow(s, pp, weight = null, weighted = null) {
     return h(`button.pf-score${s.remote ? '.remote' : ''}`, { onclick: () => {
       UISounds.click();
-      if (!s.remote) { Screens.go('results', { score: s, fromList: true }); return; }
+      // (back from the score comes back here — this profile, scrolled where it was — not to song select)
+      const back = { name: 'profile', params: this.backParams() };
+      if (!s.remote) { Screens.go('results', { score: s, fromList: true, back }, { transition: 'right' }); return; }
       const r = this.remote || {};
-      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, watched: 'online' }, { transition: 'right' });
+      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, watched: 'online', back }, { transition: 'right' });
     } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
       h('span.pf-mods', ...(s.mods || []).map(m => ModSystem.badge(m, true))),
-      h('div.pf-acc', fmtAcc(s.accuracy)),
+      // (no accuracy here: next to the weighting it read as the play's weight)
       weight ? h('div.pf-weight', h('b', `${weighted}pp`), h('span', weight)) : null,
       h(`div.pf-ppblock${pp == null ? '.failed' : ''}`, pp == null ? h('span', 'failed') : h('span', pp, h('small', 'pp'))));
   },
@@ -544,16 +524,6 @@ const ReplaysScreen = {
     this.render();
     return el;
   },
-  /** The preview fits under the header on a short screen (a phone held sideways) instead of running off the
-   *  bottom, where its receptors were out of sight. */
-  fit() {
-    const pv = this._pv;
-    if (!pv || !pv.isConnected) return;
-    pv.style.height = ''; pv.parentElement.style.removeProperty('--sk-pv-h');
-    const r = pv.getBoundingClientRect(), css = pv.offsetHeight, k = css ? r.height / css : 1;
-    const room = (window.innerHeight - r.top - 12) / k;
-    if (room < css) { const hh = Math.max(200, Math.floor(room)) + 'px'; pv.style.height = hh; pv.parentElement.style.setProperty('--sk-pv-h', hh); }
-  },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
@@ -564,7 +534,7 @@ const ReplaysScreen = {
     for (const r of ReplayManager.list) {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
-      const watch = () => { if (map) { UISounds.click(); Game.launch({ mapId: map.id, mode: 'replay', replay: r }); } };
+      const watch = () => { if (map) { UISounds.click(); Game.launch({ mapId: map.id, mode: 'replay', replay: r, back: { name: 'replays' } }); } };
       const act = (ic, title, f, cls = '') => h(`button.rp-act${cls}`, { title, 'aria-label': title, disabled: !map && cls !== '.del' && ic !== 'download', onclick: e => { e.stopPropagation(); f(e); } }, icon(ic));
       rows.append(h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
         rankPill(sm.grade || 'D'),
@@ -744,6 +714,7 @@ const CHANGELOG = [
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys'] },
+    { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },

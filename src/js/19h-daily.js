@@ -126,6 +126,6 @@ const DailyScreen = {
       if (!local) { Toast.err('Couldn\'t find the daily beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
       if (Screens.currentName !== 'daily') return;
     }
-    Game.launch({ mapId: local.id, mods: (Settings.get('songselect.mods') || []).filter(x => x !== 'AT'), daily: { day: d.day, onlineId: m.onlineId } });
+    Game.launch({ mapId: local.id, mods: (Settings.get('songselect.mods') || []).filter(x => x !== 'AT'), daily: { day: d.day, onlineId: m.onlineId }, back: { name: 'daily' } });
   },
 };

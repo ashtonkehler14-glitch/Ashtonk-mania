@@ -2,13 +2,17 @@
  * personal-best tracking and replay actions. */
 
 const ResultsScreen = {
-  tab: 'songselect',
+  // (the top bar marks where you came from: song select, or the profile or replays a score was opened from)
+  get tab() { const b = this.p && this.p.back; return b && b.name !== 'results' ? b.name : 'songselect'; },
   enter(p) {
     this.p = p;
     const s = p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
     const el = this._el = h('div.results');
+    // (a score on a beatmap you don't have — someone else's, from their profile — shows that beatmap's cover from osu!,
+    // never the background of the song that happens to be playing)
     if (map) BeatmapManager.bgURL(map).then(u => Background.set(u));
+    else if (!p.mp) { Background.set(s.onlineSetId > 0 ? OnlineBeatmaps.coverURL(s.onlineSetId, 'cover@2x') : null); this._foreignBg = true; }
     const body = h('div.res-body');
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
     const grid = h('div.res-grid');
@@ -73,7 +77,10 @@ const ResultsScreen = {
       fly(fresh.querySelector(`.cp[data-sid="${CSS.escape(String(oldScore.id))}"]`), oldRect);
     });
   },
-  leave() { (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
+  leave() {
+    // (that cover was only for this score: the screen you go back to shows the playing song's background again)
+    if (this._foreignBg) { this._foreignBg = false; const mm = Music.meta && BeatmapManager.maps.get(Music.meta.mapId); if (mm) BeatmapManager.bgURL(mm).then(u => { if (Screens.currentName !== 'results') Background.set(u); }); }
+    (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
@@ -98,13 +105,13 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.editor) Screens.go('editor', this.p.editor, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.back) Screens.go(this.p.back.name, this.p.back.params, { replace: true }); else if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.editor) Screens.go('editor', this.p.editor, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
     if (!map) { Toast.err('Beatmap not found', 'This beatmap is no longer in your library.'); return; }
     UISounds.click();
-    Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), mode: 'play' });
+    Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), mode: 'play', back: this.p.back && this.p.back.name !== 'results' ? this.p.back : null, daily: this.p.daily || undefined }); // (a retry still counts for the daily challenge)
   },
   /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
    *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
@@ -158,7 +165,7 @@ const ResultsScreen = {
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();
-    const pp = ScoreManager.ppOf(s);
+    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s); // (someone else's play: the pp their profile lists)
     const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
     // lazer's ExpandedPanelMiddleContent: title and artist, the accuracy circle 40px below, the score, the star rating
@@ -222,7 +229,7 @@ const ResultsScreen = {
     const total = (s.counts || []).reduce((a, b) => a + b, 0);
     let maxPp = 0;
     try { maxPp = total && s.stars ? OsuMath.pp(s.stars, [total, 0, 0, 0, 0, 0], (s.mods || []).filter(m => m !== 'AT')) : 0; } catch { maxPp = 0; }
-    const got = s.passed ? ScoreManager.ppOf(s) || s.pp || 0 : 0;
+    const got = s.passed ? (s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s) || s.pp || 0) : 0;
     const pct = maxPp > 0 ? clamp(got / maxPp, 0, 1) : 0;
     const perf = item('Performance Breakdown',
       h('div.st-pp', h('div.st-pp-l', h('span', 'Achieved PP'), h('b', fmtInt(Math.round(got)))), h('div.st-pp-r', h('span', 'Maximum'), h('b', fmtInt(Math.round(maxPp))))),
@@ -302,7 +309,16 @@ const ResultsScreen = {
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
     bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));
-    if (!map) bar.append(h('span.muted', 'Beatmap no longer in library'));
+    // (someone else's score on a beatmap you don't have: get it from here, then the screen offers retry and the rest)
+    if (!map && s.onlineSetId > 0) {
+      const dl = h('button.res-ab.wide', { title: 'download this beatmap', 'aria-label': 'Download beatmap', onclick: async () => {
+        UISounds.click(); dl.disabled = true;
+        try { await OnlineBeatmaps.downloadAndImport({ id: s.onlineSetId, title: s.title, artist: s.artist }); } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
+        if (Screens.current === this && this.p === p && BeatmapManager.mapByHash(s.mapHash)) Screens.go('results', { ...p, force: true }, { replace: true });
+        else dl.disabled = false;
+      } }, icon('download'), h('span', 'Download'));
+      bar.append(dl);
+    } else if (!map) bar.append(h('span.muted', s.online ? 'Beatmap not in your library' : 'Beatmap no longer in library'));
 
     return bar;
   },
@@ -372,7 +388,7 @@ const ShareCard = {
     // score and stats
     text(fmtScore(ScoreManager.value(s)), 76, 300, { w: 800, xPos: 380 });
     const stat = (k, v, i) => { const sx = 380 + i * 190; text(k, 17, 350, { w: 600, color: 'rgba(255,255,255,.6)', xPos: sx }); text(v, 34, 390, { w: 700, xPos: sx }); };
-    const pp = ScoreManager.ppOf(s);
+    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s); // (someone else's play: the pp their profile lists)
     stat('Accuracy', fmtAcc(s.accuracy), 0); stat('Max combo', fmtInt(s.maxCombo) + 'x', 1); stat('pp', fmtInt(pp), 2);
     if (s.unstableRate) stat('UR', s.unstableRate.toFixed(1), 3);
     // judgements
