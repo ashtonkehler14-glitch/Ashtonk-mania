@@ -3,6 +3,18 @@
  * bar around it: settings on its left; play (→ solo / multi → lounge / ranked play), edit and browse on its right.
  * Six idle seconds bring the big logo back. Behind it is lazer's triangle artwork in the colour of the playing song. */
 
+/** A device that's known to be slow starts the menus light (see HomeScreen.loop): one found slow before (remembered
+ *  for two weeks), or one whose hardware says so — a Chromebook with 4 cores and 4 GB or less, or anything with 2 GB
+ *  or less — instead of dropping frames for the two seconds it takes to notice. */
+const LowEnd = {
+  known() {
+    try { const t = +localStorage.getItem('am.slowMenus'); if (t && Date.now() - t < 14 * 864e5) return true; } catch { /* private mode */ }
+    const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 8;
+    return mem <= 2 || (/\bCrOS\b/.test(navigator.userAgent) && cores <= 4 && mem <= 4);
+  },
+};
+if (LowEnd.known()) document.documentElement.classList.add('slow');
+
 const HomeScreen = {
   tab: 'home',
   menuState: 'initial',
@@ -339,11 +351,12 @@ const HomeScreen = {
       const dt = Math.min(100, now - lastT); lastT = now;
       // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
+      if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;
       if (!this._slow && now - t0 > 1500) {
         if (document.hidden || dt >= 100) { winMs = winN = winLate = 0; } // (a hidden tab or a hitch isn't the device)
         else if ((winMs += dt, ++winN, dt > 25 && winLate++, winMs >= 2000)) {
           // (or stuttering: more than 5% of frames late keeps the average up but looks like a slow device)
-          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); }
+          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ } }
           winMs = winN = winLate = 0;
         }
       }

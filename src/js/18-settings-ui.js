@@ -41,7 +41,12 @@ const SettingsPanel = {
   scrollTo(sec) {
     const sc = this.scrollEl, el = sc && sc.querySelector(`[data-section="${sec}"]`);
     // measured on screen (offsetTop counts from the panel, not the list, and overshot past the section's heading)
-    if (el) sc.scrollTo({ top: sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) * Zoom.z - 8, behavior: 'smooth' });
+    if (!el) return;
+    const want = () => sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) * Zoom.z - 8;
+    sc.scrollTo({ top: want(), behavior: 'smooth' });
+    // (sections are only laid out near the screen — content-visibility — so the ones passed on the way can turn out
+    // taller or shorter than guessed: once the scroll settles it lands on the section exactly)
+    settleOn(sc, () => { const t = want(); if (Math.abs(t - sc.scrollTop) > 4) sc.scrollTo({ top: t }); });
   },
   /** Highlight the section being read. (Measured on screen: before the panel is shown every section sits at 0,
    *  which used to light up the last icon.) */

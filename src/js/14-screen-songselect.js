@@ -35,7 +35,7 @@ const SongSelect = {
   tab: 'songselect',
   query: '',
   selectedId: null, expandedSet: null,
-  rows: [], ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
+  rows: [], pool: new Map(), ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
@@ -147,7 +147,9 @@ const SongSelect = {
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
     this.renderMods();
-    requestAnimationFrame(() => { this.rebuild(); this.scrollToSelected(false); });
+    // (the list a frame after the screen: both in the same frame was the slow part of opening song select on a slow
+    // device; the screen is still fading in, so the list joining a frame later doesn't show)
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (Screens.current !== this) return; this.rebuild(); this.scrollToSelected(false); }));
     this.beatLoop();
     return el;
   },

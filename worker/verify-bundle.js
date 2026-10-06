@@ -289,6 +289,13 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   URL.revokeObjectURL(img.src);
   return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
 }
+/** Run `fn` once a smooth scroll of `sc` has finished (scrollend where the browser has it, else after a moment). */
+function settleOn(sc, fn) {
+  let done = false;
+  const go = () => { if (done) return; done = true; sc.removeEventListener('scrollend', go); fn(); };
+  if ('onscrollend' in sc) sc.addEventListener('scrollend', go, { once: true });
+  setTimeout(go, 900);
+}
 /** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
 const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
 

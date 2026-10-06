@@ -4390,6 +4390,10 @@ html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(2
 .lib-row { content-visibility: auto; contain-intrinsic-size: auto 72px; }
 .lib-more { height: 1px; }
 
+/* long pages: the parts well off screen aren't laid out or painted until they come near (opening a profile or the
+   settings laid out every section at once — a dropped frame or two on a slow device) */
+.pf-sec, .sp-section { content-visibility: auto; contain-intrinsic-size: auto 500px; }
+
 </style>
 </head>
 <body>
@@ -4702,6 +4706,13 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   URL.revokeObjectURL(img.src);
   return new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
+}
+/** Run `fn` once a smooth scroll of `sc` has finished (scrollend where the browser has it, else after a moment). */
+function settleOn(sc, fn) {
+  let done = false;
+  const go = () => { if (done) return; done = true; sc.removeEventListener('scrollend', go); fn(); };
+  if ('onscrollend' in sc) sc.addEventListener('scrollend', go, { once: true });
+  setTimeout(go, 900);
 }
 /** Run `fn` when the browser has a moment to spare (not in the middle of scrolling or an animation). */
 const whenIdle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
@@ -11978,6 +11989,18 @@ const Screens = {
  * bar around it: settings on its left; play (→ solo / multi → lounge / ranked play), edit and browse on its right.
  * Six idle seconds bring the big logo back. Behind it is lazer's triangle artwork in the colour of the playing song. */
 
+/** A device that's known to be slow starts the menus light (see HomeScreen.loop): one found slow before (remembered
+ *  for two weeks), or one whose hardware says so — a Chromebook with 4 cores and 4 GB or less, or anything with 2 GB
+ *  or less — instead of dropping frames for the two seconds it takes to notice. */
+const LowEnd = {
+  known() {
+    try { const t = +localStorage.getItem('am.slowMenus'); if (t && Date.now() - t < 14 * 864e5) return true; } catch { /* private mode */ }
+    const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 8;
+    return mem <= 2 || (/\bCrOS\b/.test(navigator.userAgent) && cores <= 4 && mem <= 4);
+  },
+};
+if (LowEnd.known()) document.documentElement.classList.add('slow');
+
 const HomeScreen = {
   tab: 'home',
   menuState: 'initial',
@@ -12314,11 +12337,12 @@ const HomeScreen = {
       const dt = Math.min(100, now - lastT); lastT = now;
       // a slow device (under 55fps over two seconds, once the menu has settled): from then on the lighter drawing of
       // Performance mode, by itself — the visualiser at half resolution, both canvases at ~30fps, lighter menus (.slow)
+      if (this._slow === undefined) this._slow = document.documentElement.classList.contains('slow') || undefined;
       if (!this._slow && now - t0 > 1500) {
         if (document.hidden || dt >= 100) { winMs = winN = winLate = 0; } // (a hidden tab or a hitch isn't the device)
         else if ((winMs += dt, ++winN, dt > 25 && winLate++, winMs >= 2000)) {
           // (or stuttering: more than 5% of frames late keeps the average up but looks like a slow device)
-          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); }
+          if (winMs / winN > 18.2 || winLate / winN > 0.05) { this._slow = true; document.documentElement.classList.add('slow'); try { localStorage.setItem('am.slowMenus', String(Date.now())); } catch { /* private mode */ } }
           winMs = winN = winLate = 0;
         }
       }
@@ -13020,7 +13044,7 @@ const SongSelect = {
   tab: 'songselect',
   query: '',
   selectedId: null, expandedSet: null,
-  rows: [], ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
+  rows: [], pool: new Map(), ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
 
   enter(params = {}) {
     this.practiceMode = !!params.practice;
@@ -13132,7 +13156,9 @@ const SongSelect = {
     this._ro = new ResizeObserver(() => this.renderVisible());
     this._ro.observe(this.scroller);
     this.renderMods();
-    requestAnimationFrame(() => { this.rebuild(); this.scrollToSelected(false); });
+    // (the list a frame after the screen: both in the same frame was the slow part of opening song select on a slow
+    // device; the screen is still fading in, so the list joining a frame later doesn't show)
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (Screens.current !== this) return; this.rebuild(); this.scrollToSelected(false); }));
     this.beatLoop();
     return el;
   },
@@ -17666,7 +17692,7 @@ const ProfileScreen = {
         ? more(recent, (x, i) => row(x, i, false))
         : h('div.pf-empty', 'No recent plays.')));
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
-    const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
+    const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     page.append(h('div.pf-header', top, centre, detail), tabs, hist, ranks, maps, medals, rec);
     this.paintDaily();
     // lazer lights the tab of the section you're reading
@@ -17893,7 +17919,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Slow devices: once the menus have found a device slow, they start light straight away the next time (and low-end Chromebooks from the start); opening song select, settings and profiles drops fewer frames', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
@@ -19831,7 +19857,12 @@ const SettingsPanel = {
   scrollTo(sec) {
     const sc = this.scrollEl, el = sc && sc.querySelector(`[data-section="${sec}"]`);
     // measured on screen (offsetTop counts from the panel, not the list, and overshot past the section's heading)
-    if (el) sc.scrollTo({ top: sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) * Zoom.z - 8, behavior: 'smooth' });
+    if (!el) return;
+    const want = () => sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) * Zoom.z - 8;
+    sc.scrollTo({ top: want(), behavior: 'smooth' });
+    // (sections are only laid out near the screen — content-visibility — so the ones passed on the way can turn out
+    // taller or shorter than guessed: once the scroll settles it lands on the section exactly)
+    settleOn(sc, () => { const t = want(); if (Math.abs(t - sc.scrollTop) > 4) sc.scrollTo({ top: t }); });
   },
   /** Highlight the section being read. (Measured on screen: before the panel is shown every section sits at 0,
    *  which used to light up the last icon.) */

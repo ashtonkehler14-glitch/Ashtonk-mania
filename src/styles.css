@@ -4370,3 +4370,7 @@ html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(2
 /* the beatmap library's rows: off-screen ones aren't laid out or painted (a big library scrolls like a small one) */
 .lib-row { content-visibility: auto; contain-intrinsic-size: auto 72px; }
 .lib-more { height: 1px; }
+
+/* long pages: the parts well off screen aren't laid out or painted until they come near (opening a profile or the
+   settings laid out every section at once — a dropped frame or two on a slow device) */
+.pf-sec, .sp-section { content-visibility: auto; contain-intrinsic-size: auto 500px; }
