@@ -3304,9 +3304,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rkm-stage.st-stars { display: flex; }
 
 /* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
-.perf .neru-img, .slow .neru-img { animation: none; filter: none; }
-.perf .neru.hop .neru-img, .slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
-.perf .settings-panel, .perf .np-panel, .perf .nf-panel, .slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.slow .neru-img { animation: none; filter: none; }
+.slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
+.slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 
 .spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
 .spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
@@ -4346,10 +4346,10 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @keyframes ovBodyIn { from { transform: translateY(80px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body { animation: none; } }
 /* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
-html:not(.perf):not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
+html:not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
 @keyframes ovBgIn { from { background-color: transparent; } }
 /* (and closing: lazer's waves drop away — the overlay sinks as it fades) */
-html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
+html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
 @keyframes ovOut { to { transform: translateY(18%); opacity: 0; } }
 /* lazer's BeatmapCard on the profile: the cover behind, the details over a dark gradient */
 .pf-bcs { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }

@@ -9,7 +9,7 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
-  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects and backgrounds', icon: 'bolt',
+  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects while playing — the menus still look their best', icon: 'bolt',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sparkle',

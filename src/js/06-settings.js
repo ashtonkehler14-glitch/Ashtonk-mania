@@ -105,7 +105,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: 'Ctrl+F11 toggles it anywhere.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting, stage light and UI blur for low-end devices.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
@@ -191,7 +191,7 @@ const SETTINGS_SCHEMA = [
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'audio.uiSounds']),
+  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -273,6 +273,6 @@ const Settings = {
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (lighter menus: see .perf in the styles)
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (gameplay only: the menus lighten by themselves on a slow device — see .slow)
   },
 };

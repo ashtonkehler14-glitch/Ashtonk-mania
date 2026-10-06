@@ -3323,9 +3323,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rkm-stage.st-stars { display: flex; }
 
 /* Performance (Chromebook) mode: lighter menus — no idle sway or soft shadows on Neru, no glow shadows on big panels */
-.perf .neru-img, .slow .neru-img { animation: none; filter: none; }
-.perf .neru.hop .neru-img, .slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
-.perf .settings-panel, .perf .np-panel, .perf .nf-panel, .slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.slow .neru-img { animation: none; filter: none; }
+.slow .neru.hop .neru-img { animation: neruHop 620ms linear; }
+.slow .settings-panel, .slow .np-panel, .slow .nf-panel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
 
 .spec-pill { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: hsl(255 10% 15% / .95); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); color: #fff; max-width: calc(100 * var(--vw) - 24px); }
 .spec-pill-t { display: flex; flex-direction: column; min-width: 0; }
@@ -4365,10 +4365,10 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 @keyframes ovBodyIn { from { transform: translateY(80px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ov-waves { display: none; } .ov.screen.enter > .screen-body { animation: none; } }
 /* (the overlay doesn't fade in as a whole: its waves are solid, and its own background comes in behind them) */
-html:not(.perf):not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
+html:not(.slow) .ov.screen.enter:not(.zoom):not(.from-right) { animation: ovBgIn calc(240ms * var(--anim)) ease both; }
 @keyframes ovBgIn { from { background-color: transparent; } }
 /* (and closing: lazer's waves drop away — the overlay sinks as it fades) */
-html:not(.perf):not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
+html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(--anim)) cubic-bezier(.55, 0, 1, .45) both; z-index: 5; }
 @keyframes ovOut { to { transform: translateY(18%); opacity: 0; } }
 /* lazer's BeatmapCard on the profile: the cover behind, the details over a dark gradient */
 .pf-bcs { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
@@ -7034,7 +7034,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: 'Ctrl+F11 toggles it anywhere.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: true, hint: 'When a beatmap can\'t keep up (under ~45 fps), the playfield is drawn at a lower resolution until it can, and the device remembers it. After a smooth play it tries a little higher again.' },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting, stage light and UI blur for low-end devices.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Turns off particles, hit lighting and stage light while playing, for low-end devices. The menus keep their looks (they lighten by themselves only if the device can\'t keep up).' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.bgQuality', l: 'Background quality', t: 'select', d: 'high', o: [['high', 'Full resolution'], ['low', 'Thumbnail (fast)']] },
@@ -7120,7 +7120,7 @@ const SETTINGS_SCHEMA = [
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'audio.uiSounds']),
+  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -7202,7 +7202,7 @@ const Settings = {
     r.dataset.theme = 'kori';
     r.classList.toggle('no-effects', !this.get('graphics.effects'));
     r.classList.toggle('no-anim', sp <= 0);
-    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (lighter menus: see .perf in the styles)
+    r.classList.toggle('perf', !!this.get('graphics.performanceMode')); // (gameplay only: the menus lighten by themselves on a slow device — see .slow)
   },
 };
 
@@ -11954,7 +11954,7 @@ const Screens = {
       if (transition === 'right') el.classList.add('from-right');
       if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
-      if (el.classList.contains('ov') && !document.documentElement.matches('.perf, .slow')) {
+      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
         if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);
@@ -12346,7 +12346,8 @@ const HomeScreen = {
           winMs = winN = winLate = 0;
         }
       }
-      const lite = this._slow || document.documentElement.classList.contains('perf');
+      // (Performance mode is about gameplay: the menus keep their looks unless this device is actually too slow for them)
+      const lite = !!this._slow;
       const draw = !lite || now - lastDraw > 30;
       if (draw) lastDraw = now;
       const an = AudioManager.analyser, playing = an && Music.playing;
@@ -17922,7 +17923,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Slow devices: once the menus have found a device slow, they start light straight away the next time (and low-end Chromebooks from the start); opening song select, settings and profiles drops fewer frames', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
+    { icon: 'sparkle', title: 'Performance', items: ['The main menu runs much lighter: the logo\'s visualiser is drawn at the size it\'s shown, the background picture is drawn once instead of every frame, and the star fountains take no time when they\'re not playing', 'On slow devices (Chromebooks) the menus notice they\'re running under 55fps and switch to lighter effects by themselves — no need to turn on Performance mode', 'The beatmap listing scrolls much more smoothly: cards are built as they come into view, screens no longer keep hundreds of cards on separate layers after opening, and covers only fade in on cards you\'re looking at', 'Sharper pictures: song cards in song select are made at 1280px (older ones are remade as you see them), profile pictures other players see are 160px instead of 64px, and the beatmap listing always uses the high-resolution covers', 'Ranked score is gone: rankings and profiles are by pp only', 'Choosing Performance in setup (or Performance mode) only lightens gameplay now: the menus keep Neru\'s sway, the overlay waves, the full visualiser and the click sounds, and lighten by themselves only on a device that can\'t keep up — with a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth', 'Slow devices: once the menus have found a device slow, they start light straight away the next time (and low-end Chromebooks from the start); opening song select, settings and profiles drops fewer frames', 'No more freezes on slow devices: the beatmap library shows a big library a page at a time (it froze for most of a second), the main menu\'s background and the blurred song backgrounds are made off the main thread, card pictures are remade only when the game is idle, skin previews reuse their prepared sprites, and the skin editor no longer measures the screen every frame', 'Phones: sending a chat message puts the keyboard away; the typing bar shows the channel you\'re talking in, a send button that lights up once there\'s something to send, and the characters left near the limit'] },
     { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
     { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
     { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
@@ -20426,7 +20427,7 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
-  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects and backgrounds', icon: 'bolt',
+  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects while playing — the menus still look their best', icon: 'bolt',
     values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sparkle',

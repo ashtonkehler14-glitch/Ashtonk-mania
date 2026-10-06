@@ -1203,7 +1203,7 @@ const Screens = {
       if (transition === 'right') el.classList.add('from-right');
       if (this._popOut) { this._popOut = false; if (!el.classList.contains('ov')) UISounds.play('overlay-big-pop-out', 0.5); }
       // lazer's WaveOverlayContainer: an overlay screen opens with four waves in its colours sweeping up through it
-      if (el.classList.contains('ov') && !document.documentElement.matches('.perf, .slow')) {
+      if (el.classList.contains('ov') && !document.documentElement.classList.contains('slow')) {
         const old = el.querySelector(':scope > .ov-waves'); if (old) old.remove();
         const waves = h('div.ov-waves', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
         if (!(prev && prev.el && prev.el.classList.contains('ov'))) UISounds.play('overlay-big-pop-in', 0.6);

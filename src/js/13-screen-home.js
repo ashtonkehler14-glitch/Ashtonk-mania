@@ -360,7 +360,8 @@ const HomeScreen = {
           winMs = winN = winLate = 0;
         }
       }
-      const lite = this._slow || document.documentElement.classList.contains('perf');
+      // (Performance mode is about gameplay: the menus keep their looks unless this device is actually too slow for them)
+      const lite = !!this._slow;
       const draw = !lite || now - lastDraw > 30;
       if (draw) lastDraw = now;
       const an = AudioManager.analyser, playing = an && Music.playing;
