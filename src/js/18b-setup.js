@@ -9,9 +9,8 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
-  chromebook: { label: 'Performance', sub: 'Smoothest play: lighter effects while playing — the menus still look their best', icon: 'bolt',
-    // (the gameplay effects off one by one — Performance mode itself also strips the menus, which this choice keeps)
-    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': false, 'gameplay.hitLighting': false, 'skin.effects': false, 'gameplay.comboEffects': false, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
+  chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
+    values: () => ({ 'graphics.performanceMode': true, 'graphics.bgQuality': 'low', 'gameplay.video': false, 'graphics.renderScale': lowEndRenderScale(),
       'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,

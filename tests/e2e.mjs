@@ -933,7 +933,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
-  check('setup: Performance turns the gameplay effects off but not Performance mode (which strips the menus too), and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === false && AshtonkMania.Settings.get('graphics.particles') === false && AshtonkMania.Settings.get('gameplay.hitLighting') === false && AshtonkMania.Settings.get('graphics.menuBlur') === 12 && !document.documentElement.classList.contains('perf')));
+  check('setup: Performance turns Performance mode on (menus and all) and moves on', await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true && AshtonkMania.Settings.get('graphics.particles') === false && document.documentElement.classList.contains('perf')));
   check('setup: no colour question (as in lazer); size is a slider', !(await sp.$('.setup-swatch')) && !!(await sp.$('.setup-step-look input.slider')));
   await sp.click('.setup-next'); await sp.waitForSelector('.setup-step-gameplay');
   await sp.waitForTimeout(600);
@@ -973,7 +973,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await sp.reload();
   await sp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await sp.waitForTimeout(600);
-  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('graphics.particles') === false));
+  check('setup: choices persist and the wizard does not return', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Settings.get('graphics.performanceMode') === true));
   await sp.evaluate(() => AshtonkMania.Settings.set('graphics.performanceMode', true));
   const pm = await sp.evaluate(() => ({ cls: document.documentElement.classList.contains('perf'), anim: AshtonkMania.Settings.get('ui.animSpeed'), noAnim: document.documentElement.classList.contains('no-anim'), glass: getComputedStyle(document.querySelector('#toolbar')).backdropFilter, parallax: AshtonkMania.Settings.get('ui.parallax') }));
   await sp.evaluate(() => AshtonkMania.Settings.set('graphics.performanceMode', false));

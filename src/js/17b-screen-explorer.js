@@ -203,7 +203,7 @@ const OnlineBeatmaps = {
     return this.fill(tpl, id, kind);
   },
   /** Load a set's cover into `el` as its background, trying each size in turn (older sets lack the @2x ones). */
-  loadCover(el, id, kinds, done) {
+  loadCover(el, id, kinds, done, queue = null) {
     const urls = [...new Set(kinds.map(k => this.coverURL(id, k)))]; // (sources with one cover size give one URL)
     // a cover that has loaded before goes straight in, so rebuilt cards don't fade in again
     const known = this._covers.get(urls.join('|'));
@@ -212,7 +212,9 @@ const OnlineBeatmaps = {
       if (i >= urls.length) return;
       const img = new Image();
       // (decoded off the main thread before it's shown, so a card scrolling in doesn't stall a frame decoding it)
-      img.onload = () => { const show = () => { this._covers.set(urls.join('|'), img.src); el.style.backgroundImage = `url("${img.src}")`; done && done(img); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
+      // (`queue`: the picture goes on in the page's next frame along with everything else, not the moment it's decoded —
+      // a change between frames made the next scroll wait while the browser worked the page out again)
+      img.onload = () => { const put = () => { el.style.backgroundImage = `url("${img.src}")`; done && done(img); }; const show = () => { this._covers.set(urls.join('|'), img.src); if (queue) queue(put); else put(); }; (img.decode ? img.decode() : Promise.resolve()).then(show, show); };
       img.onerror = () => next(i + 1);
       img.src = urls[i];
     };
@@ -311,19 +313,19 @@ const ExplorerScreen = {
     const paintRing = () => { const p = maxScroll > 0 ? clamp((this._st ?? 0) / maxScroll, 0, 1) : 0; const v = (C * (1 - p)).toFixed(2); if (v !== this._ringV) { this._ringV = v; fg.setAttribute('stroke-dashoffset', v); } };
     // (and when the page's size settles — the screen sliding in, the header taking its height — the cards in view
     // are worked out again: before, the first results could sit unloaded until you scrolled)
-    this._ringRO = new ResizeObserver(() => { maxScroll = scroller.scrollHeight - scroller.clientHeight; this._mDirty = true; paintRing(); if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); }); });
+    // (the grid only growing — another page of results — changes nothing measured: its columns, row height and where it
+    // starts stay the same, so the page isn't measured again for it; a different width or header does)
+    this._paintRing = paintRing; this._scroller = scroller;
+    this._ringRO = new ResizeObserver(es => { maxScroll = scroller.scrollHeight - scroller.clientHeight; if (es.some(e => e.target !== this.grid || e.contentRect.width !== this._gw)) { this._gw = this.grid.clientWidth; this._mDirty = true; } paintRing(); this._wantWin = true; this.schedule(); });
     this._ringRO.observe(this.grid); this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
     this._st = undefined; this._m = null; this._mDirty = true; this._ringV = null; // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
     scroller.addEventListener('scroll', () => {
-      this._st = scroller.scrollTop; // (read here, where the page is already laid out, and used by the frame after)
-      if (!this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); });
-      // (the ring once a frame, after the window has moved: measuring the page in the scroll event made the browser
-      // lay it out again in the middle of every scroll)
-      if (!this._ringRaf) this._ringRaf = requestAnimationFrame(() => { this._ringRaf = 0; paintRing(); this.topBtn.classList.toggle('show', this._st > 600); });
-      this._scrolling = true;
-      this.shield.classList.add('on'); clearTimeout(this._scrollT); this._scrollT = setTimeout(() => { this._scrolling = false; this.shield.classList.remove('on'); }, 160);
+      // (nothing read or changed here: the frame does it all — see frame())
+      this._scrolled = true; this._wantWin = true; this._wantRing = true;
+      this._scrolling = true; this.schedule();
+      clearTimeout(this._scrollT); this._scrollT = setTimeout(() => { this._scrolling = false; this._shieldOff = true; this.schedule(); }, 160);
     }, { passive: true });
     el.append(scroller, this.topBtn, h('div.page-back', backButton(() => Screens.back()))); // (back, as on every other page — a phone has no Esc)
     this.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && this.hasMore && !this.loading) this.loadMore(); }, { root: scroller, rootMargin: '0px 0px 3000px 0px' });
@@ -339,7 +341,7 @@ const ExplorerScreen = {
     if (!this.results.length) this.newSearch(); else this.renderResults();
     return el;
   },
-  leave() { this.io && this.io.disconnect(); this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
+  leave() { cancelAnimationFrame(this._fr); this._fr = 0; this._q = []; clearTimeout(this._scrollT); this.io && this.io.disconnect(); this._ringRO && this._ringRO.disconnect(); (this._unsub || []).forEach(f => f()); this.stopPreview(); this.closeSet(); },
   /** One track with two handles (minimum and maximum stars); the label follows the handles while dragging. */
   starSliders() {
     const st = this.state;
@@ -423,7 +425,34 @@ const ExplorerScreen = {
   liked() { if (!this._liked) { try { this._liked = new Set(JSON.parse(localStorage.getItem('am.likedSets') || '[]')); } catch { this._liked = new Set(); } } return this._liked; },
   toggleLike(id) { const l = this.liked(); l.has(id) ? l.delete(id) : l.add(id); try { localStorage.setItem('am.likedSets', JSON.stringify([...l])); } catch { /* private mode */ } },
   imported: new Map(), // online set id -> local set ids it was imported as (an archive may carry other ids inside)
-  owned(id) { return BeatmapManager.sets.find(s => s.onlineId === id) || (this.imported.get(id) || []).map(x => BeatmapManager.setById.get(x)).find(Boolean) || null; },
+  owned(id) { return this.ownedIndex().get(id) || (this.imported.get(id) || []).map(x => BeatmapManager.setById.get(x)).find(Boolean) || null; },
+  /** The library by osu! set id, built again only when the library changes (searching it card by card made every
+   *  new page of results cost a frame or more with a big library). */
+  ownedIndex() {
+    const sets = BeatmapManager.sets, o = this._ownIdx;
+    if (o && o.sets === sets && o.n === sets.length) return o.map;
+    const map = new Map();
+    for (const s of sets) if (s.onlineId > 0 && !map.has(s.onlineId)) map.set(s.onlineId, s);
+    this._ownIdx = { sets, n: sets.length, map };
+    return map;
+  },
+  /** Everything the list does, once a frame and in this order: where it's scrolled to is read first — the page is
+   *  still as the browser last laid it out, so that costs nothing — then the covers that came in are put on, the
+   *  window of cards moves, and the ring and the scroll shield update. One layout a frame, however busy. */
+  schedule() { if (!this._fr) this._fr = requestAnimationFrame(() => { this._fr = 0; this.frame(); }); },
+  frame() {
+    const sc = this._scroller;
+    if (!sc || !sc.isConnected) { this._q = []; return; }
+    if (this._scrolled) { this._scrolled = false; this._st = sc.scrollTop; }
+    const q = this._q || []; this._q = [];
+    for (const f of q) f();
+    if (this._wantWin) { this._wantWin = false; this.renderWindow(); }
+    if (this._wantRing) { this._wantRing = false; this._paintRing && this._paintRing(); this.topBtn.classList.toggle('show', (this._st || 0) > 600); }
+    if (this._scrolling) this.shield.classList.add('on');
+    if (this._shieldOff) { this._shieldOff = false; if (!this._scrolling) this.shield.classList.remove('on'); }
+  },
+  /** A change to make in the next frame (see frame()). */
+  later(f) { (this._q || (this._q = [])).push(f); this.schedule(); },
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
@@ -438,7 +467,9 @@ const ExplorerScreen = {
     if (!this.grid) return;
     // keep the scroll position: re-rendering (more results, a finished download) must not jump to the top
     const scroller = this.grid.closest('.screen-body');
-    const top = scroller ? scroller.scrollTop : 0;
+    // (where the list is scrolled to, as last read in a scroll event: reading it here, with the page just changed,
+    // made the browser lay the whole page out in the middle of every new page of results)
+    const top = this._st ?? (scroller ? scroller.scrollTop : 0);
     const list = this.state.hideOwned ? this.results.filter(s => !this.owned(s.id)) : this.results;
     // cards that haven't changed are kept as they are (rebuilding every card made the whole page flash
     // each time another page of results came in)
@@ -452,10 +483,10 @@ const ExplorerScreen = {
     });
     this._cards = next;
     this._all = entries;
-    this._mDirty = true; this._st = top;
+    if (!this._m) this._mDirty = true;
+    this._st = top;
     this.renderWindow();
     this.renderStatus();
-    if (scroller) scroller.scrollTop = top;
     // once more after layout (the first row's height, and where the grid sits, are only known then)
     requestAnimationFrame(() => requestAnimationFrame(() => this.renderWindow()));
   },
@@ -508,10 +539,9 @@ const ExplorerScreen = {
       // window moves on to two screens either side — a few rows at a time as you scroll
       // (kept two screens either side — a fast flick on a phone moves a screen or more between frames, and a narrower
       // window left the list empty where it hadn't caught up — moved on once less than a screen is left)
-      const [needA, needB] = range(vh);
-      const w = this._win;
-      if (w && w.cols === cols && w.n === all.length && w.from <= needA && w.to >= needB) { from = w.from; to = w.to; }
-      else [from, to] = range(vh * 2);
+      // (it moves a row at a time as you scroll — a row in at one end, a row out at the other — rather than a whole
+      // screen of cards at once now and then: the same work, spread evenly, so no single frame is heavy)
+      [from, to] = range(vh * 1.25);
       // covers start loading five screens ahead (either way), so a card scrolling in already has its picture even
       // after a hard flick
       const lite = this.lite();
@@ -524,7 +554,7 @@ const ExplorerScreen = {
         else if (!e.el) { if (budget-- > 0) this.cardEl(e); else { more = true; continue; } }
         const f = e.el._loadCovers; if (f) { e.el._loadCovers = null; f(); }
       }
-      if (more && !this._winRaf) this._winRaf = requestAnimationFrame(() => { this._winRaf = 0; this.renderWindow(); });
+      if (more) { this._wantWin = true; this.schedule(); }
       // and the next page is asked for long before the end of the list comes into view
       if (this.hasMore && !this.loading && !this.error && pb >= rows - 2) this.loadMore();
     } else for (const e of all) { const c = this.cardEl(e), f = c._loadCovers; if (f) { c._loadCovers = null; f(); } }
@@ -568,9 +598,10 @@ const ExplorerScreen = {
       const show = el => () => { if (this._scrolling || !el.isConnected) el.style.transition = 'none'; el.classList.add('loaded'); };
       // (Performance mode, or a device found to be slow: the plain-size thumbnail alone — a quarter of the pixels to
       // decode, and one picture per card instead of two)
-      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb)); return; }
-      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb));
-      OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg));
+      const q = f => this.later(f);
+      if (this.lite()) { OnlineBeatmaps.loadCover(thumb, set.id, ['list', 'card'], show(thumb), q); return; }
+      OnlineBeatmaps.loadCover(thumb, set.id, ['list@2x', 'list', 'card'], show(thumb), q);
+      OnlineBeatmaps.loadCover(bg, set.id, ['card@2x', 'card', 'cover'], show(bg), q);
     };
     const keys = [...new Set(set.diffs.map(d => d.keys))].sort((a, b) => a - b);
     const len = Math.max(...set.diffs.map(d => d.length));

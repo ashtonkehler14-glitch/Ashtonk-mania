@@ -223,12 +223,9 @@ const Settings = {
     if (!v['migr.womDl']) { if (v['online.downloadSource'] === 'auto') delete v['online.downloadSource']; delete v['online.proxyDownloads']; v['migr.womDl'] = true; }
     // song select groups by key count by default; a list left ungrouped moves to it, once
     if (!v['migr.groupKeys']) { if (v['songselect.group'] === 'none') delete v['songselect.group']; v['migr.groupKeys'] = true; }
-    // (the setup's Performance choice used to switch Performance mode on; that now strips the menus too, so a player
-    // who picked it keeps what it meant then: lighter gameplay effects, menus as they were)
-    if (!v['migr.perfMenus']) {
-      if (v['graphics.performanceMode'] && v['setup.device'] === 'chromebook') Object.assign(v, { 'graphics.performanceMode': false, 'graphics.particles': false, 'gameplay.hitLighting': false, 'skin.effects': false, 'gameplay.comboEffects': false });
-      v['migr.perfMenus'] = true;
-    }
+    // (…and back again: the Performance choice is Performance mode, menus and all, as the player asked)
+    if (v['migr.perfMenus'] && !v['migr.perfBack'] && v['setup.device'] === 'chromebook') v['graphics.performanceMode'] = true;
+    v['migr.perfBack'] = true;
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {
