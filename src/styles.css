@@ -1798,13 +1798,18 @@ div.res-calib .i { color: var(--good); }
 .dialog { border-radius: 20px; background: #221a21; box-shadow: 0 0 30px rgba(0, 0, 0, .35); }
 .dialog.popup { width: min(500px, calc(calc(100 * var(--vw)) - 32px)); padding: 44px 0 26px; text-align: center; overflow: hidden;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='220'%3E%3Cg fill='%23000'%3E%3Cpath opacity='.12' d='M30 200 80 113l50 87z'/%3E%3Cpath opacity='.1' d='M150 110l35-61 35 61z'/%3E%3Cpath opacity='.08' d='M-20 90l30-52 30 52z'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.025' d='M190 220l45-78 45 78z'/%3E%3Cpath opacity='.03' d='M90 60l22-38 22 38z'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #271e26, #1e171e);
-  animation: pdIn calc(500ms * var(--anim)) var(--ease-out) both; }
-.dialog.popup.out { animation: pdOut calc(200ms * var(--anim)) ease both; }
-@keyframes pdIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
-@keyframes pdOut { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
-.pd-ring { width: 100px; height: 100px; margin: 0 auto 30px; border-radius: 50%; border: 5px solid #fff; display: grid; place-items: center; animation: pdRing calc(750ms * var(--anim)) var(--ease-out) both; }
+  animation: pdIn calc(750ms * var(--anim)) linear(0, .254, .517, .75, .931, 1.055, 1.125, 1.152, 1.148, 1.125, 1.093, 1.06, 1.031, 1.009, .993, .984, .981, .982, .984, .988, .992, .996, .999, 1.001, 1.002, 1.002, 1.002, 1.002, 1.001, 1.001, 1) both,
+    pdFade calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
+/* lazer's PopupDialog: in, it grows from 70% with a springy settle (750ms OutElasticHalf) as it fades in (500ms OutQuint);
+   out, it shrinks back towards 70% as it fades */
+.dialog.popup.out { animation: pdOut calc(210ms * var(--anim)) ease-out both; }
+@keyframes pdIn { from { transform: translate(-50%, -50%) scale(.7); } to { transform: translate(-50%, -50%) scale(1); } }
+@keyframes pdFade { from { opacity: 0; } }
+@keyframes pdOut { to { opacity: 0; transform: translate(-50%, -50%) scale(.75); } }
+.pd-ring { width: 100px; height: 100px; margin: 0 auto 30px; border-radius: 50%; border: 5px solid #fff; display: grid; place-items: center; animation: pdRing calc(750ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
 .pd-ring .i { width: 48px; height: 48px; stroke-width: 1.6; }
-@keyframes pdRing { from { transform: scale(.2); } }
+@keyframes pdRing { from { transform: scale(0); } } /* (the ring opens out over 750ms OutQuint; its icon follows 100ms later) */
+.pd-ring .i { animation: pdRing calc(750ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) 100ms both; }
 .dialog.popup h2 { margin: 0; padding: 0 15px 10px; font-size: 1.5625rem; font-weight: 400; line-height: 1.25; }
 .dialog.popup .body { margin: 0; padding: 0 22px; font-size: 1.125rem; color: #fff; line-height: 1.35; }
 .dialog.popup .pd-input { width: 100%; margin-top: 4px; text-align: center; font-size: 1.05rem; background: rgba(0, 0, 0, .35); }
