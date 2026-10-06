@@ -1031,7 +1031,7 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 }, top: [{ title: 'T', pp: 400, onlineId: 5 }] } });
   assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))], ['Bob', r2(150 + bonus(1))]]);
   assert.deepEqual(checked, [['bobpid22', 1]]);
-  // kept across a restart; records from before start over, and a game's word on its pp no longer counts
+  // kept across a restart; records from before judged plays (policy 1) start over, and a game's word on its pp no longer counts
   const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9, rep: { pp: 5000 } } });
   q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
   assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))]]);
@@ -1039,10 +1039,14 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   q.join('o', { name: 'Old', pid: 'oldpid44', key: 'key-oldpid44-0123456789' });
   q.message('o', { t: 'stats', profile: { pp: 120, avgAcc: 0.9, plays: 3, grades: {} } });
   assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))]]);
-  // a record from policy 2 (judged plays, the old weighting): worked out again with lazer's, its game's own pp dropped
+  // a record from policy 2: its judged plays worked out again with lazer's weighting, and nobody dropped off the
+  // rankings for it — what their game reported stays until their profile has been checked again (restoreRanks)
   const old2 = { pid: 'twopid555', name: 'Two', pol: 2, plays: 1, v: { pp: 100 }, rep: { pp: 900 }, bests: { [K1]: { pp: 100, acc: 1, grade: 'S' } } };
   const q2 = new PresenceLogic(); q2.loadRanks({ twopid555: old2 });
-  assert.equal(q2.ranks.get('twopid555').pp, r2(100 + bonus(1)));
+  assert.equal(q2.ranks.get('twopid555').v.pp, r2(100 + bonus(1)));
+  assert.equal(q2.ranks.get('twopid555').pp, 900);
+  q2.join('t', { name: 'Two', pid: 'twopid555', key: 'key-twopid555-0123456789' });
+  assert.deepEqual(q2.message('t', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Two', 900]]);
 });
 
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {

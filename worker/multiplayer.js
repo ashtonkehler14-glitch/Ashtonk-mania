@@ -1032,8 +1032,10 @@ export class PresenceLogic {
       }
       // (policy 3: a game's own word on its pp no longer counts — only plays checked to be on ranked beatmaps, the ones
       //  judged here and the ones on the profile looked up on osu! — and totals are lazer's, with the bonus pp)
+      //  — but nobody's standing is taken away for it: what they had stays until their profile has been checked again,
+      //  in the background, from what the server already holds (restoreRanks), without them having to come online
       if (r.pol < 3) {
-        r.rep = { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }; r.pol = 3; r.reset = true; r.rew = 1;
+        r.pol = 3; r.reset = true; r.rew = 1;
         if (r.bests) { PresenceLogic.revalue(r); delete r.rew; }
       }
       PresenceLogic.settleRank(r);
@@ -1660,6 +1662,9 @@ export class Matchmaker {
       statusOf.set(id, found);
     }
     const v = statusOf.get(id);
+    // (osu! had nothing to match a play shared by an older game without its ids: what that game found when it looked
+    //  the beatmap up itself stands)
+    if (v === '' && !(+x.onlineId > 0) && !(+x.onlineSetId > 0)) return x.ranked === true;
     return v === 'ranked' || v === 'approved';
   }
   /** A player's profile plays, checked (see rankedEntry): their standing from the ones on ranked beatmaps. */
@@ -1670,6 +1675,8 @@ export class Matchmaker {
     this._vt.set(pid, Date.now());
     const budget = { n: 60 };
     const flags = await Promise.all(top.map(x => x && typeof x === 'object' ? this.rankedEntry(x, budget) : false));
+    // (a lookup that couldn't be done now: their standing stays as it is, and it's tried again in a minute)
+    if (flags.some(f => f === null)) { this._vt.delete(pid); setTimeout(() => this.verifyTop(pid, top, who).catch(() => {}), 60000); return; }
     const P = this.presence, rep = PresenceLogic.rankFromTop(top.filter((x, i) => flags[i] === true), () => true);
     let rec = P.ranks.get(pid);
     if (!rec && !rep) return;
@@ -1686,32 +1693,35 @@ export class Matchmaker {
     const st = this.state.storage, P = this.presence;
     const budget = { n: 300 };
     const ranked = x => this.rankedEntry(x, budget);
-    // (a few profiles at a time, a little apart, so it never holds the server up; done once)
-    const state = await st.get('rr2').catch(() => null);
+    // (a few profiles at a time, a little apart, so it never holds the server up; once for each change of the rules)
+    const state = await st.get('rr3').catch(() => null);
     if (state === true) return;
     const opts = { prefix: 'pf:', limit: 20 };
     if (typeof state === 'string') opts.startAfter = state;
     const page = await st.list(opts);
-    let lastKey = null;
+    let done = typeof state === 'string' ? state : null, deferred = false; // (done: the last profile fully dealt with)
     for (const [k, data] of page) {
-      lastKey = k;
       const pid = k.slice(3), rec = P.ranks.get(pid);
-      if (!data || typeof data !== 'object' || !Array.isArray(data.top) || !data.top.length) continue;
-      if ([...P.users.values()].some(u => u.pid === pid)) continue; // (online: their game's profile is checked as it comes)
-      const flags = await Promise.all(data.top.slice(0, 50).map(x => x && typeof x === 'object' ? ranked(x) : false));
-      if (budget.n <= 0) break;
-      const rep = PresenceLogic.rankFromTop(data.top.slice(0, 50).filter((x, i) => flags[i] === true), () => true);
-      if (!rec && !rep) continue;
-      const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
-      r.restored = true;
-      r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
-      PresenceLogic.settleRank(r);
-      P.ranks.set(pid, r);
-      if (P.persistRank) P.persistRank(pid, r);
+      if (data && typeof data === 'object' && Array.isArray(data.top) && data.top.length) {
+        const flags = await Promise.all(data.top.slice(0, 50).map(x => x && typeof x === 'object' ? ranked(x) : false));
+        // (lookups used up or failing: this player's standing stays as it is, and they're checked again next round)
+        if (flags.some(f => f === null)) { deferred = true; break; }
+        const rep = PresenceLogic.rankFromTop(data.top.slice(0, 50).filter((x, i) => flags[i] === true), () => true);
+        if (rec || rep) {
+          const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
+          r.restored = true;
+          r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+          PresenceLogic.settleRank(r);
+          P.ranks.set(pid, r);
+          if (P.persistRank) P.persistRank(pid, r);
+        }
+      }
+      done = k;
     }
-    if (budget.n <= 0) return; // (the osu! lookups for this start are used up: the rest next time)
-    if (page.size < 20 || !lastKey) { st.put('rr2', true).catch(() => {}); return; }
-    await st.put('rr2', lastKey);
+    if (done) await st.put('rr3', done);
+    // (this round's osu! lookups used up: carry on in a minute with a fresh allowance — not at the next restart)
+    if (deferred) { setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 60000); return; }
+    if (page.size < 20) { st.put('rr3', true).catch(() => {}); return; }
     setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 1500);
   }
   closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
