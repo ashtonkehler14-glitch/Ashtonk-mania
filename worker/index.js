@@ -307,6 +307,23 @@ export async function handleProxyDownload(url, fetchImpl = fetch) {
   } catch (e) { return json({ error: `Proxy fetch failed - ${e.message}` }, 500); }
 }
 
+/** One difficulty's .osu file (osu.ppy.sh/osu/<id>, else a mirror) — a few KB, so a spectator can see someone's play
+ *  straight away while the whole beatmap set (with its song) is still downloading. */
+export async function handleOsuFile(url, fetchImpl = fetch) {
+  const id = url.searchParams.get('id') || '';
+  if (!/^[1-9][0-9]{0,9}$/.test(id)) return json({ error: 'Missing or invalid "id".' }, 400);
+  for (const src of [`https://osu.ppy.sh/osu/${id}`, `https://catboy.best/osu/${id}`]) {
+    try {
+      const r = await fetchImpl(src, { headers: UA, redirect: 'follow' });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text.length > 4 * 1024 * 1024 || !/^\s*(\ufeff)?osu file format/.test(text)) continue;
+      return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' } });
+    } catch { /* the next source */ }
+  }
+  return json({ error: 'That difficulty couldn\'t be fetched.' }, 502);
+}
+
 /** Per-visitor limit on listing requests (Web-Osu-Mania allows 25 a minute; paging is cheap here, so 40), kept per isolate. */
 const searchHits = new Map();
 export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) {
@@ -336,6 +353,7 @@ export default {
       return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
     }
     if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
+    if (url.pathname === '/api/osuFile') return handleOsuFile(url);
     if (url.pathname === '/api/lookupBeatmap') return handleLookupBeatmap(url, env);
     const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
     if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');

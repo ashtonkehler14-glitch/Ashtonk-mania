@@ -614,6 +614,15 @@ const bobT = await bob.evaluate(() => AshtonkMania.Music.time);
 clearInterval(mash);
 check('spectating: Alice watches Bob\'s play live, a little behind him, from what he presses', sp.feed > 30 && sp.judged > 5 && sp.synced && sp.pill && sp.t < bobT && bobT - sp.t < 6000, JSON.stringify({ ...sp, bobT }));
 const st = await bob.evaluate(() => (AshtonkMania.Presence.players.find(p => p.name === 'Alice') || {}).status);
+{
+  // the notes played before Alice started watching are judged from Bob's own presses (not all perfect)
+  const aLog = await alice.evaluate(() => AshtonkMania.GameplayScreen.s.engine.judgementLog.map(x => [Math.round(x.t), x.j, x.col]));
+  const upTo = aLog.length ? aLog[aLog.length - 1][0] - 200 : 0;
+  const bLog = await bob.evaluate(T => AshtonkMania.GameplayScreen.s.engine.judgementLog.filter(x => x.t <= T).map(x => [Math.round(x.t), x.j, x.col]), upTo);
+  const a2 = aLog.filter(x => x[0] <= upTo);
+  const same = a2.length === bLog.length && a2.every((x, i) => x[1] === bLog[i][1] && x[2] === bLog[i][2]);
+  check('spectating: notes from before you started watching are judged as the player played them', same && a2.length > 5, JSON.stringify({ a: a2.slice(0, 12), b: bLog.slice(0, 12), na: a2.length, nb: bLog.length }));
+}
 check('…and shows as spectating on the online list', st === 'watching', st);
 const seen = await bob.evaluate(() => [...document.querySelectorAll('.spec-list')].map(e => e.textContent).join());
 check('Bob sees who\'s spectating him on his HUD', /Spectators \(1\)/.test(seen) && /Alice/.test(seen), seen);

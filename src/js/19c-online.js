@@ -117,12 +117,25 @@ const Spectate = {
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.show(`${m.name} started a song`, 'Finish yours, then spectate again from the online list.'); return; }
     const c = this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, pause: m.paused ?? null };
     this.paintPill(`${m.head.artist} - ${m.head.title} [${m.head.version}]`);
-    let map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+    let map = this.findMap(m.head);
     if (!map && m.head.onlineSetId > 0) {
-      Toast.show(`Getting the beatmap ${m.name} is playing…`, `${m.head.artist} - ${m.head.title}`);
-      try { await OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true }); } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
+      // not in your library: their play starts straight away from the difficulty alone (a few KB), on a silent clock and
+      // with no picture, while the whole set downloads behind it — the song, background and video come in once it's here
+      const dl = OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true })
+        .catch(e => { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); });
+      const temp = m.head.onlineId > 0 ? await this.tempMap(m.head).catch(() => null) : null;
       if (this.cur !== c) return;
-      map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+      if (temp) {
+        c.temp = true;
+        dl.then(() => this.upgrade(c));
+        this._launching = true;
+        Game.launch({ mapId: temp.rec.id, temp, mode: 'replay', replay: { ...m.head, events: c.feed, player: m.name, mapId: temp.rec.id, summary: null }, spectate: c });
+        return;
+      }
+      Toast.show(`Getting the beatmap ${m.name} is playing…`, `${m.head.artist} - ${m.head.title}`);
+      await dl;
+      if (this.cur !== c) return;
+      map = this.findMap(m.head);
     }
     if (!map) { Toast.err(`Can't spectate ${m.name}'s song`, 'That beatmap isn\'t in your library and couldn\'t be downloaded.'); return; }
     if (this.cur !== c) return;
@@ -130,12 +143,47 @@ const Spectate = {
     this._launching = true;
     Game.launch({ mapId: map.id, mode: 'replay', replay, spectate: c });
   },
+  findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
+  /** The difficulty they're playing, on its own (not imported): enough to show their play. */
+  async tempMap(head) {
+    const r = await fetch('api/osuFile?id=' + head.onlineId);
+    if (!r.ok) throw new Error(`osu file ${r.status}`);
+    const bm = BeatmapParser.parse(await r.text());
+    const notes = BeatmapParser.toManiaNotes(bm);
+    if (BeatmapParser.keyCount(bm) !== head.keys) throw new Error('not the same difficulty');
+    const rec = { id: 'spec-' + head.onlineId, setId: null, hash: head.mapHash, onlineId: head.onlineId, title: head.title, artist: head.artist, version: head.version, creator: head.creator, keys: head.keys, stars: 0, srVersion: -1, audioFile: null, bgFile: null, temp: true };
+    return { rec, set: null, bm, notes };
+  },
+  /** The set has finished downloading while their play goes on: its song comes in where the play is, with the
+   *  background, video and storyboard. */
+  async upgrade(c) {
+    const scr = GameplayScreen, s = scr.s;
+    const map = this.findMap(c.head);
+    if (!map || !s || s.spectate !== c || s.rec.setId) return;
+    const buf = await TrackCache.get(map.setId, map.audioFile).catch(() => null);
+    const key = `${map.setId}/${map.audioFile}`;
+    if (buf && s.preserve && Math.abs(s.rate - 1) > 1e-3) await TimeStretch.stretch(buf, s.rate, key).catch(() => null); // (ready before the swap)
+    if (!buf || scr.s !== s || s.finished) return;
+    const playing = Music.playing, pos = Music.time, t0 = performance.now();
+    await Music.load(buf, key, { setId: map.setId, mapId: map.id });
+    await Music.setRate(s.rate, s.preserve);
+    if (scr.s !== s) return;
+    const at = playing ? pos + (performance.now() - t0) * s.rate : pos;
+    Music.pausedPos = at;
+    if (playing && s.running) Music.play(at, { fadeIn: 400 });
+    s.rec = map; scr.bgRec = map; scr.params.mapId = map.id;
+    scr.applyBackground();
+    Toolbar.setNowPlaying(map);
+  },
 
   /** Called by the watcher's gameplay every frame: start a little behind the player, and wait for the stream
    *  whenever playback catches up with it. */
   tick(screen, s, now) {
     const c = s.spectate;
     if (!c || s.finished) return;
+    // (the song still on its way: a note saying so, at the top of the screen)
+    if (c.temp && !s.rec.setId) { if (!c.dlEl && screen.hud) { c.dlEl = h('div.spec-dl', h('span.spinner'), 'Downloading the song…'); screen.hud.append(c.dlEl); } }
+    else if (c.dlEl) { const el = c.dlEl; c.dlEl = null; el.classList.add('out'); setTimeout(() => el.remove(), 400); }
     if (c.quit) return;
     if (!c.synced) {
       if (!c.ready) { if (s.running) this.buffer(screen, s, true); return; }

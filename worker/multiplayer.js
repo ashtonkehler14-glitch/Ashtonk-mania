@@ -1294,6 +1294,7 @@ export class PresenceLogic {
       if (msg.t === 'say') {
         const line = { ch: '#lobby', from, text, at: t };
         this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
+        if (this.persistChat) this.persistChat(this.chat);
         return [{ to: 'all', msg: { t: 'say', ...line } }];
       }
       const to = String(msg.to || '');
@@ -1575,6 +1576,8 @@ export class Matchmaker {
         if (plOld.length) st.delete(plOld.slice(0, 128)).catch(() => {}); // (long-closed playlists go for good)
         this.presence.loadPlaylists(pl);
         const dc = await st.get('daily'); if (dc && typeof dc === 'object' && Array.isArray(dc.scores)) this.presence.daily = dc;
+        // (#lobby's last lines outlive the server restarting: it used to come back empty, and wiped everyone's chat)
+        const ch = await st.get('chat'); if (Array.isArray(ch)) this.presence.chat = ch.slice(-PresenceLogic.CHAT_KEEP);
       } catch { /* storage unavailable: start empty */ }
       this.presence.load(fr, fq);
       // (a player's totals and their best plays are kept apart: the totals load with the server, the plays when needed)
@@ -1592,6 +1595,8 @@ export class Matchmaker {
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
+      // (written at most every couple of seconds however busy the lobby is)
+      this.presence.persistChat = c => { if (this._chatT) return; this._chatT = setTimeout(() => { this._chatT = null; st.put('chat', this.presence.chat).catch(() => {}); }, 2000); };
       // (once: the first places on boards set before they were kept — each board's #1, named from their best there;
       //  a few boards at a time, a little apart, so it never holds the server up)
       const backfill = async () => {

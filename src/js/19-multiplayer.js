@@ -394,7 +394,7 @@ const Presence = {
     try { ws = new WebSocket(u); } catch { this.later(); return; }
     this.ws = ws;
     ws.onopen = () => {
-      this.retry = 0;
+      this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
@@ -411,8 +411,16 @@ const Presence = {
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
-        // a friend coming online (as lazer tells you)
-        if (this._listed) for (const x of this.players) if (x.pid && !before.has(x.pid) && x.id !== this.me && Friends.has(x.pid)) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+        // a friend coming online (as lazer tells you) — but not everyone who was already on: after a dropped connection
+        // (or the server restarting) the list fills back up a player at a time as each reconnects, and none of them is
+        // news. So: someone seen in the last few minutes isn't announced, and nobody is for a little while after we connect.
+        const now = Date.now(), seen = this._seen || (this._seen = new Map());
+        const settled = this._listed && now - (this._openAt || 0) > 20000;
+        for (const x of this.players) {
+          if (!x.pid || x.id === this.me) continue;
+          if (settled && !before.has(x.pid) && Friends.has(x.pid) && now - (seen.get(x.pid) || 0) > 180000) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+          seen.set(x.pid, now);
+        }
         this._listed = true;
         Bus.emit('presence:changed');
       }
@@ -435,6 +443,7 @@ const Presence = {
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;

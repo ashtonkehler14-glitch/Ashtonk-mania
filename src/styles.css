@@ -4475,3 +4475,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .settings-panel input[type=range].slider::-webkit-slider-thumb { filter: brightness(.9); transition: filter 250ms cubic-bezier(.22, 1, .36, 1); }
 .settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
 .fall-text { position: fixed; z-index: 10000; white-space: pre; pointer-events: none; line-height: 1.2; }
+/* spectating a song that's still downloading */
+.spec-dl { position: absolute; top: 14px; left: 50%; translate: -50% 0; z-index: 6; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; animation: specDlIn calc(400ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); transition: opacity 400ms, translate 400ms cubic-bezier(.22, 1, .36, 1); }
+.spec-dl.out { opacity: 0; translate: -50% -10px; }
+@keyframes specDlIn { from { opacity: 0; translate: -50% -10px; } }

@@ -4,6 +4,16 @@
  *                audio clock, so judgement never depends on frame timing.
  *  Rendering follows the clock at whatever refresh rate the display runs (optional limiter). */
 
+/** A silent track as long as a beatmap's notes (and a little more): the clock for a play whose song isn't here yet.
+ *  (Low sample rate: it's never heard, only counted.) */
+function silentTrack(notes) {
+  AudioManager.init();
+  let end = 0; for (const n of notes || []) end = Math.max(end, n.end || n.time || 0);
+  const secs = Math.max(5, end / 1000 + 6);
+  for (const sr of [3000, 8000, 22050]) { try { return AudioManager.ctx.createBuffer(1, Math.ceil(secs * sr), sr); } catch { /* the next rate */ } }
+  return AudioManager.ctx.createBuffer(1, Math.ceil(secs * 44100), 44100);
+}
+
 const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
@@ -241,7 +251,7 @@ const GameplayScreen = {
     this.params = params;
     this._tok = {};
     if (!params.quick) this.retryCount = 0;
-    this.bgRec = BeatmapManager.maps.get(params.mapId) || null;
+    this.bgRec = BeatmapManager.maps.get(params.mapId) || (params.temp && params.temp.rec) || null;
     el.classList.add('loading');
     this.loaderGone = false; this.loaderHold = false; this.loaderSkip = false;
     this.loaderEl = this.buildLoader(params);
@@ -364,7 +374,8 @@ const GameplayScreen = {
   async start(p) {
     const tok = this._tok;
     this.loaderStatus('Loading beatmap…', 0.1);
-    const loaded = await BeatmapManager.load(p.mapId);
+    // (spectating a song you don't have yet: just its difficulty, fetched on its own — see Spectate.start)
+    const loaded = p.temp || await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
@@ -380,13 +391,14 @@ const GameplayScreen = {
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     const skin = SkinManager.current;
     this.loaderStatus('Loading audio…', 0.3);
-    const [layout, buffer] = await Promise.all([skin.mania(keys), TrackCache.get(rec.setId, rec.audioFile)]);
+    const silent = !rec.setId; // (no song yet: a silent track of the right length keeps time until it's in)
+    const [layout, buffer] = await Promise.all([skin.mania(keys), silent ? silentTrack(loaded.notes) : TrackCache.get(rec.setId, rec.audioFile)]);
     if (this._tok !== tok) return;
     Music.stop(0);
     this.loaderStatus('Decoding audio…', 0.6);
-    await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
+    await Music.load(buffer, silent ? `silent/${rec.id}` : `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
     if (this._tok !== tok) return;
-    await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
+    await Music.setRate(rate, preserve && !silent, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
     this.initAutoScale();
@@ -445,7 +457,7 @@ const GameplayScreen = {
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
-    Toolbar.setNowPlaying(rec);
+    if (rec.setId) Toolbar.setNowPlaying(rec); // (not a song still downloading: the menus would try to play it)
     document.title = `${APP_NAME} - ${rec.artist} - ${rec.title} [${rec.version}]`; // (as osu! titles its window while playing)
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -469,7 +481,7 @@ const GameplayScreen = {
     const rec = this.bgRec;
     const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
     const cover = h('div.pl-cover');
-    if (rec) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
+    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
     this.plStatus = h('span', 'Loading…');
     this.plBar = h('i');
     // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the
@@ -620,7 +632,7 @@ const GameplayScreen = {
 
   applyBackground() {
     const s = this.s, rec = s ? s.rec : this.bgRec;
-    if (!rec) return;
+    if (!rec || !rec.setId) return; // (a song still downloading has no picture yet)
     const show = Settings.get('gameplay.showBackground');
     // the loader keeps the menus' look (25% dim and blur); your dim and blur take over when the song starts — or
     // while you're adjusting them on the loader, as a preview (lazer)

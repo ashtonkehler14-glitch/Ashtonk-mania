@@ -188,6 +188,16 @@ test('Web-Osu-Mania\'s /api/downloadBeatmap: passes a provider\'s file through, 
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://osu.direct/api/d/5')), async () => res('nope', 404, 'text/plain'))).status, 404);
 });
 
+test('/api/osuFile: one difficulty\'s .osu for spectating, from osu! or else a mirror; nothing else passes', async () => {
+  const { handleOsuFile } = await import('../worker/index.js');
+  const calls = [];
+  const r = await handleOsuFile(new URL('https://x/api/osuFile?id=42'), async u => { calls.push(u); return u.includes('osu.ppy.sh') ? res('nope', 404, 'text/plain') : res('osu file format v14\n[General]', 200, 'text/plain'); });
+  assert.equal(r.status, 200); assert.match(await r.text(), /^osu file format/);
+  assert.deepEqual(calls, ['https://osu.ppy.sh/osu/42', 'https://catboy.best/osu/42']);
+  assert.equal((await handleOsuFile(new URL('https://x/api/osuFile?id=4x'), async () => res('x'))).status, 400);
+  assert.equal((await handleOsuFile(new URL('https://x/api/osuFile?id=7'), async () => res('<html>', 200, 'text/html'))).status, 502);
+});
+
 test('osu! login: one token for many searches; a 429 on the login backs off instead of asking on every search', async () => {
   resetOsuLogin();
   let logins = 0, searches = 0, limit = true;

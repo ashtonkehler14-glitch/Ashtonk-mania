@@ -4494,6 +4494,10 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .settings-panel input[type=range].slider::-webkit-slider-thumb { filter: brightness(.9); transition: filter 250ms cubic-bezier(.22, 1, .36, 1); }
 .settings-panel .set-row.form:hover input[type=range].slider::-webkit-slider-thumb, .settings-panel input[type=range].slider:active::-webkit-slider-thumb, .settings-panel input[type=range].slider:focus-visible::-webkit-slider-thumb { filter: none; }
 .fall-text { position: fixed; z-index: 10000; white-space: pre; pointer-events: none; line-height: 1.2; }
+/* spectating a song that's still downloading */
+.spec-dl { position: absolute; top: 14px; left: 50%; translate: -50% 0; z-index: 6; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; animation: specDlIn calc(400ms * var(--anim, 1)) cubic-bezier(.22, 1, .36, 1); transition: opacity 400ms, translate 400ms cubic-bezier(.22, 1, .36, 1); }
+.spec-dl.out { opacity: 0; translate: -50% -10px; }
+@keyframes specDlIn { from { opacity: 0; translate: -50% -10px; } }
 
 </style>
 </head>
@@ -14413,6 +14417,16 @@ const SongSelect = {
  *                audio clock, so judgement never depends on frame timing.
  *  Rendering follows the clock at whatever refresh rate the display runs (optional limiter). */
 
+/** A silent track as long as a beatmap's notes (and a little more): the clock for a play whose song isn't here yet.
+ *  (Low sample rate: it's never heard, only counted.) */
+function silentTrack(notes) {
+  AudioManager.init();
+  let end = 0; for (const n of notes || []) end = Math.max(end, n.end || n.time || 0);
+  const secs = Math.max(5, end / 1000 + 6);
+  for (const sr of [3000, 8000, 22050]) { try { return AudioManager.ctx.createBuffer(1, Math.ceil(secs * sr), sr); } catch { /* the next rate */ } }
+  return AudioManager.ctx.createBuffer(1, Math.ceil(secs * 44100), 44100);
+}
+
 const Game = {
   /** Launch gameplay. opts: {mapId, mods, mode: 'play'|'practice'|'replay', replay} */
   launch(opts) {
@@ -14650,7 +14664,7 @@ const GameplayScreen = {
     this.params = params;
     this._tok = {};
     if (!params.quick) this.retryCount = 0;
-    this.bgRec = BeatmapManager.maps.get(params.mapId) || null;
+    this.bgRec = BeatmapManager.maps.get(params.mapId) || (params.temp && params.temp.rec) || null;
     el.classList.add('loading');
     this.loaderGone = false; this.loaderHold = false; this.loaderSkip = false;
     this.loaderEl = this.buildLoader(params);
@@ -14773,7 +14787,8 @@ const GameplayScreen = {
   async start(p) {
     const tok = this._tok;
     this.loaderStatus('Loading beatmap…', 0.1);
-    const loaded = await BeatmapManager.load(p.mapId);
+    // (spectating a song you don't have yet: just its difficulty, fetched on its own — see Spectate.start)
+    const loaded = p.temp || await BeatmapManager.load(p.mapId);
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
@@ -14789,13 +14804,14 @@ const GameplayScreen = {
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     const skin = SkinManager.current;
     this.loaderStatus('Loading audio…', 0.3);
-    const [layout, buffer] = await Promise.all([skin.mania(keys), TrackCache.get(rec.setId, rec.audioFile)]);
+    const silent = !rec.setId; // (no song yet: a silent track of the right length keeps time until it's in)
+    const [layout, buffer] = await Promise.all([skin.mania(keys), silent ? silentTrack(loaded.notes) : TrackCache.get(rec.setId, rec.audioFile)]);
     if (this._tok !== tok) return;
     Music.stop(0);
     this.loaderStatus('Decoding audio…', 0.6);
-    await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
+    await Music.load(buffer, silent ? `silent/${rec.id}` : `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
     if (this._tok !== tok) return;
-    await Music.setRate(rate, preserve, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
+    await Music.setRate(rate, preserve && !silent, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
     this.renderer.setLayout(layout);
     this.initAutoScale();
@@ -14854,7 +14870,7 @@ const GameplayScreen = {
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
-    Toolbar.setNowPlaying(rec);
+    if (rec.setId) Toolbar.setNowPlaying(rec); // (not a song still downloading: the menus would try to play it)
     document.title = `${APP_NAME} - ${rec.artist} - ${rec.title} [${rec.version}]`; // (as osu! titles its window while playing)
     Music.onEnded = null;
     const mpWait = s.mp ? this.mpWait(s) : null; // the synchronised countdown runs under the loader
@@ -14878,7 +14894,7 @@ const GameplayScreen = {
     const rec = this.bgRec;
     const mods = p.replay ? p.replay.mods : ModSystem.normalize(p.mods || []);
     const cover = h('div.pl-cover');
-    if (rec) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
+    if (rec && rec.setId) BeatmapManager.bgURL(rec).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('on'); } }).catch(() => {});
     this.plStatus = h('span', 'Loading…');
     this.plBar = h('i');
     // lazer's BeatmapMetadataDisplay: the logo, the title and artist in italics, a 300×60 cover strip that shows the
@@ -15029,7 +15045,7 @@ const GameplayScreen = {
 
   applyBackground() {
     const s = this.s, rec = s ? s.rec : this.bgRec;
-    if (!rec) return;
+    if (!rec || !rec.setId) return; // (a song still downloading has no picture yet)
     const show = Settings.get('gameplay.showBackground');
     // the loader keeps the menus' look (25% dim and blur); your dim and blur take over when the song starts — or
     // while you're adjusting them on the loader, as a preview (lazer)
@@ -18242,7 +18258,8 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
     { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
-    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer'] },
+    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
+    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
     { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
@@ -21762,7 +21779,7 @@ const Presence = {
     try { ws = new WebSocket(u); } catch { this.later(); return; }
     this.ws = ws;
     ws.onopen = () => {
-      this.retry = 0;
+      this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
@@ -21779,8 +21796,16 @@ const Presence = {
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
-        // a friend coming online (as lazer tells you)
-        if (this._listed) for (const x of this.players) if (x.pid && !before.has(x.pid) && x.id !== this.me && Friends.has(x.pid)) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+        // a friend coming online (as lazer tells you) — but not everyone who was already on: after a dropped connection
+        // (or the server restarting) the list fills back up a player at a time as each reconnects, and none of them is
+        // news. So: someone seen in the last few minutes isn't announced, and nobody is for a little while after we connect.
+        const now = Date.now(), seen = this._seen || (this._seen = new Map());
+        const settled = this._listed && now - (this._openAt || 0) > 20000;
+        for (const x of this.players) {
+          if (!x.pid || x.id === this.me) continue;
+          if (settled && !before.has(x.pid) && Friends.has(x.pid) && now - (seen.get(x.pid) || 0) > 180000) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+          seen.set(x.pid, now);
+        }
         this._listed = true;
         Bus.emit('presence:changed');
       }
@@ -21803,6 +21828,7 @@ const Presence = {
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
@@ -23481,12 +23507,25 @@ const Spectate = {
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.show(`${m.name} started a song`, 'Finish yours, then spectate again from the online list.'); return; }
     const c = this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, pause: m.paused ?? null };
     this.paintPill(`${m.head.artist} - ${m.head.title} [${m.head.version}]`);
-    let map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+    let map = this.findMap(m.head);
     if (!map && m.head.onlineSetId > 0) {
-      Toast.show(`Getting the beatmap ${m.name} is playing…`, `${m.head.artist} - ${m.head.title}`);
-      try { await OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true }); } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
+      // not in your library: their play starts straight away from the difficulty alone (a few KB), on a silent clock and
+      // with no picture, while the whole set downloads behind it — the song, background and video come in once it's here
+      const dl = OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true })
+        .catch(e => { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); });
+      const temp = m.head.onlineId > 0 ? await this.tempMap(m.head).catch(() => null) : null;
       if (this.cur !== c) return;
-      map = BeatmapManager.mapByHash(m.head.mapHash) || (m.head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === m.head.onlineId) : null);
+      if (temp) {
+        c.temp = true;
+        dl.then(() => this.upgrade(c));
+        this._launching = true;
+        Game.launch({ mapId: temp.rec.id, temp, mode: 'replay', replay: { ...m.head, events: c.feed, player: m.name, mapId: temp.rec.id, summary: null }, spectate: c });
+        return;
+      }
+      Toast.show(`Getting the beatmap ${m.name} is playing…`, `${m.head.artist} - ${m.head.title}`);
+      await dl;
+      if (this.cur !== c) return;
+      map = this.findMap(m.head);
     }
     if (!map) { Toast.err(`Can't spectate ${m.name}'s song`, 'That beatmap isn\'t in your library and couldn\'t be downloaded.'); return; }
     if (this.cur !== c) return;
@@ -23494,12 +23533,47 @@ const Spectate = {
     this._launching = true;
     Game.launch({ mapId: map.id, mode: 'replay', replay, spectate: c });
   },
+  findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
+  /** The difficulty they're playing, on its own (not imported): enough to show their play. */
+  async tempMap(head) {
+    const r = await fetch('api/osuFile?id=' + head.onlineId);
+    if (!r.ok) throw new Error(`osu file ${r.status}`);
+    const bm = BeatmapParser.parse(await r.text());
+    const notes = BeatmapParser.toManiaNotes(bm);
+    if (BeatmapParser.keyCount(bm) !== head.keys) throw new Error('not the same difficulty');
+    const rec = { id: 'spec-' + head.onlineId, setId: null, hash: head.mapHash, onlineId: head.onlineId, title: head.title, artist: head.artist, version: head.version, creator: head.creator, keys: head.keys, stars: 0, srVersion: -1, audioFile: null, bgFile: null, temp: true };
+    return { rec, set: null, bm, notes };
+  },
+  /** The set has finished downloading while their play goes on: its song comes in where the play is, with the
+   *  background, video and storyboard. */
+  async upgrade(c) {
+    const scr = GameplayScreen, s = scr.s;
+    const map = this.findMap(c.head);
+    if (!map || !s || s.spectate !== c || s.rec.setId) return;
+    const buf = await TrackCache.get(map.setId, map.audioFile).catch(() => null);
+    const key = `${map.setId}/${map.audioFile}`;
+    if (buf && s.preserve && Math.abs(s.rate - 1) > 1e-3) await TimeStretch.stretch(buf, s.rate, key).catch(() => null); // (ready before the swap)
+    if (!buf || scr.s !== s || s.finished) return;
+    const playing = Music.playing, pos = Music.time, t0 = performance.now();
+    await Music.load(buf, key, { setId: map.setId, mapId: map.id });
+    await Music.setRate(s.rate, s.preserve);
+    if (scr.s !== s) return;
+    const at = playing ? pos + (performance.now() - t0) * s.rate : pos;
+    Music.pausedPos = at;
+    if (playing && s.running) Music.play(at, { fadeIn: 400 });
+    s.rec = map; scr.bgRec = map; scr.params.mapId = map.id;
+    scr.applyBackground();
+    Toolbar.setNowPlaying(map);
+  },
 
   /** Called by the watcher's gameplay every frame: start a little behind the player, and wait for the stream
    *  whenever playback catches up with it. */
   tick(screen, s, now) {
     const c = s.spectate;
     if (!c || s.finished) return;
+    // (the song still on its way: a note saying so, at the top of the screen)
+    if (c.temp && !s.rec.setId) { if (!c.dlEl && screen.hud) { c.dlEl = h('div.spec-dl', h('span.spinner'), 'Downloading the song…'); screen.hud.append(c.dlEl); } }
+    else if (c.dlEl) { const el = c.dlEl; c.dlEl = null; el.classList.add('out'); setTimeout(() => el.remove(), 400); }
     if (c.quit) return;
     if (!c.synced) {
       if (!c.ready) { if (s.running) this.buffer(screen, s, true); return; }
@@ -24529,8 +24603,14 @@ const Chat = {
   /** From the presence server. */
   on(m) {
     if (m.t === 'chatHist') {
+      // merged with what we already have, never swapped for it: a reconnect (or the server having restarted, with
+      // less or nothing to send) used to wipe the chat
       const lobby = this.channels.get('#lobby');
-      lobby.lines = (Array.isArray(m.list) ? m.list : []).slice(-100);
+      const sig = l => `${l.at}|${(l.from && (l.from.pid || l.from.name)) || ''}|${l.text}`;
+      const all = new Map();
+      for (const l of [...lobby.lines, ...(Array.isArray(m.list) ? m.list : [])]) if (l && l.text) all.set(sig(l), l);
+      lobby.lines = [...all.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-200);
+      this.save();
       this.paint();
       return;
     }
@@ -24551,6 +24631,26 @@ const Chat = {
       }
     }
   },
+  /** The chat is kept in this browser too (#lobby and your conversations), so a reload or a dropped connection
+   *  doesn't empty it. */
+  save() {
+    clearTimeout(this._sv);
+    this._sv = setTimeout(() => {
+      try { localStorage.setItem('am.chat', JSON.stringify([...this.channels.values()].map(c => ({ key: c.key, name: c.name, pid: c.pid, pm: c.pm, lines: c.lines.slice(-200) })))); } catch { /* full or private */ }
+    }, 500);
+  },
+  restore() {
+    try {
+      const d = JSON.parse(localStorage.getItem('am.chat') || 'null');
+      if (!Array.isArray(d)) return;
+      for (const c of d) {
+        if (!c || typeof c.key !== 'string' || !Array.isArray(c.lines)) continue;
+        if (c.key !== '#lobby' && !/^pm:/.test(c.key)) continue;
+        const ex = this.channels.get(c.key);
+        if (ex) ex.lines = c.lines; else this.channels.set(c.key, { key: c.key, name: String(c.name || c.key), pid: c.pid, pm: !!c.pm, lines: c.lines, unread: 0 });
+      }
+    } catch { /* nothing kept */ }
+  },
   /** Does this message say your name (as a word)? */
   mentions(text) {
     const n = (ProfileManager.profile.name || '').trim();
@@ -24561,6 +24661,7 @@ const Chat = {
     const c = this.channels.get(key);
     c.lines.push({ from: line.from || {}, text: String(line.text || ''), at: line.at || Date.now() });
     if (c.lines.length > 200) c.lines.shift();
+    this.save();
     const looking = this.o && this.cur === key && !document.hidden;
     if (!looking && !(line.from && line.from.pid === Presence.pid())) c.unread++;
     if (this.o && this.cur === key) this.appendLine(c.lines[c.lines.length - 1]);
@@ -24683,7 +24784,7 @@ const Chat = {
     const item = c => h(`button.ch-item${c.key === this.cur ? '.on' : ''}${c.unread ? '.unread' : ''}`, { onclick: () => { UISounds.click(); this.cur = c.key; this.paint(); this.input.focus({ preventScroll: true }); } },
       c.pm ? h('span.ch-dot', { style: { background: this.colour({ pid: c.pid, name: c.name }) } }) : null,
       h('span.ch-iname', c.name), c.unread ? h('span.ch-count', String(Math.min(99, c.unread))) : null,
-      c.pm ? h('span.ch-x', { title: 'Close', onclick: e => { e.stopPropagation(); this.channels.delete(c.key); if (this.cur === c.key) this.cur = '#lobby'; this.paint(); } }, icon('x')) : null);
+      c.pm ? h('span.ch-x', { title: 'Close', onclick: e => { e.stopPropagation(); this.channels.delete(c.key); this.save(); if (this.cur === c.key) this.cur = '#lobby'; this.paint(); } }, icon('x')) : null);
     const all = [...this.channels.values()], pub = all.filter(c => !c.pm), pms = all.filter(c => c.pm);
     clearEl(this.list).append(
       h('div.ch-group', h('span', 'CHANNELS'), icon('globe')), ...pub.map(item),
@@ -24698,6 +24799,7 @@ const Chat = {
     Toolbar.chatCount.classList.toggle('show', n > 0);
   },
 };
+Chat.restore();
 
 /* ===== 19g-rankings.js ===== */
 /* osu!lazer's RankingsOverlay (Green colour scheme), performance rankings: everyone who has played, by their total pp.

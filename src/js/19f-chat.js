@@ -14,8 +14,14 @@ const Chat = {
   /** From the presence server. */
   on(m) {
     if (m.t === 'chatHist') {
+      // merged with what we already have, never swapped for it: a reconnect (or the server having restarted, with
+      // less or nothing to send) used to wipe the chat
       const lobby = this.channels.get('#lobby');
-      lobby.lines = (Array.isArray(m.list) ? m.list : []).slice(-100);
+      const sig = l => `${l.at}|${(l.from && (l.from.pid || l.from.name)) || ''}|${l.text}`;
+      const all = new Map();
+      for (const l of [...lobby.lines, ...(Array.isArray(m.list) ? m.list : [])]) if (l && l.text) all.set(sig(l), l);
+      lobby.lines = [...all.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-200);
+      this.save();
       this.paint();
       return;
     }
@@ -36,6 +42,26 @@ const Chat = {
       }
     }
   },
+  /** The chat is kept in this browser too (#lobby and your conversations), so a reload or a dropped connection
+   *  doesn't empty it. */
+  save() {
+    clearTimeout(this._sv);
+    this._sv = setTimeout(() => {
+      try { localStorage.setItem('am.chat', JSON.stringify([...this.channels.values()].map(c => ({ key: c.key, name: c.name, pid: c.pid, pm: c.pm, lines: c.lines.slice(-200) })))); } catch { /* full or private */ }
+    }, 500);
+  },
+  restore() {
+    try {
+      const d = JSON.parse(localStorage.getItem('am.chat') || 'null');
+      if (!Array.isArray(d)) return;
+      for (const c of d) {
+        if (!c || typeof c.key !== 'string' || !Array.isArray(c.lines)) continue;
+        if (c.key !== '#lobby' && !/^pm:/.test(c.key)) continue;
+        const ex = this.channels.get(c.key);
+        if (ex) ex.lines = c.lines; else this.channels.set(c.key, { key: c.key, name: String(c.name || c.key), pid: c.pid, pm: !!c.pm, lines: c.lines, unread: 0 });
+      }
+    } catch { /* nothing kept */ }
+  },
   /** Does this message say your name (as a word)? */
   mentions(text) {
     const n = (ProfileManager.profile.name || '').trim();
@@ -46,6 +72,7 @@ const Chat = {
     const c = this.channels.get(key);
     c.lines.push({ from: line.from || {}, text: String(line.text || ''), at: line.at || Date.now() });
     if (c.lines.length > 200) c.lines.shift();
+    this.save();
     const looking = this.o && this.cur === key && !document.hidden;
     if (!looking && !(line.from && line.from.pid === Presence.pid())) c.unread++;
     if (this.o && this.cur === key) this.appendLine(c.lines[c.lines.length - 1]);
@@ -168,7 +195,7 @@ const Chat = {
     const item = c => h(`button.ch-item${c.key === this.cur ? '.on' : ''}${c.unread ? '.unread' : ''}`, { onclick: () => { UISounds.click(); this.cur = c.key; this.paint(); this.input.focus({ preventScroll: true }); } },
       c.pm ? h('span.ch-dot', { style: { background: this.colour({ pid: c.pid, name: c.name }) } }) : null,
       h('span.ch-iname', c.name), c.unread ? h('span.ch-count', String(Math.min(99, c.unread))) : null,
-      c.pm ? h('span.ch-x', { title: 'Close', onclick: e => { e.stopPropagation(); this.channels.delete(c.key); if (this.cur === c.key) this.cur = '#lobby'; this.paint(); } }, icon('x')) : null);
+      c.pm ? h('span.ch-x', { title: 'Close', onclick: e => { e.stopPropagation(); this.channels.delete(c.key); this.save(); if (this.cur === c.key) this.cur = '#lobby'; this.paint(); } }, icon('x')) : null);
     const all = [...this.channels.values()], pub = all.filter(c => !c.pm), pms = all.filter(c => c.pm);
     clearEl(this.list).append(
       h('div.ch-group', h('span', 'CHANNELS'), icon('globe')), ...pub.map(item),
@@ -183,3 +210,4 @@ const Chat = {
     Toolbar.chatCount.classList.toggle('show', n > 0);
   },
 };
+Chat.restore();
