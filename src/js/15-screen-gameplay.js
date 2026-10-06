@@ -946,8 +946,11 @@ const GameplayScreen = {
     const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
     a.times.length = 0; a.t0 = realNow; a.windows++;
     const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
-    a.bad = med > target * 1.33 ? a.bad + 1 : 0;           // slower than ~45 fps
-    if (med < target * 1.08) a.smooth++;                    // comfortably at full speed
+    // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
+    let late = 0; for (const x of t) if (x > target * 1.5) late++;
+    const stutter = late / t.length;
+    a.bad = med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0; // slower than ~45 fps, or dropping frames
+    if (med < target * 1.08 && stutter < 0.02) a.smooth++;           // comfortably at full speed
     if (a.bad >= 2 && a.scale > this.AUTO_SCALE_MIN + 1e-6) {
       a.bad = 0;
       a.scale = Math.max(this.AUTO_SCALE_MIN, Math.round((a.scale - 0.1) * 100) / 100);
