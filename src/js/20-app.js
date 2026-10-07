@@ -109,7 +109,8 @@ const App = {
 
   /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
   // v: bump when the shipped copy changes; installed copies then get its skin.ini (v2: Chemuss 4K hit position 448)
-  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit', v: 2 }],
+  // (none any more: Chemuss no longer comes with the game — it can still be imported like any skin)
+  EXTRA_SKINS: [],
   async installExtraSkins() {
     if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {

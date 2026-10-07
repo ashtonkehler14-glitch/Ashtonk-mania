@@ -614,7 +614,6 @@ const Toolbar = {
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
-        btn('question', 'help', 'every keyboard shortcut, screen by screen', () => Shortcuts.open(), { key: '?', right: true, cls: '.tb-help' }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },

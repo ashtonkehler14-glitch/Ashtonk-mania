@@ -3201,7 +3201,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rs-ring { width: 230px; height: 230px; margin: 40px 0 0; }
 .rs .res-score { margin: 0 0 5px; font-size: 60px; font-weight: 300; line-height: 66px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .rs-diff { margin: 0; gap: 5px; font-size: 13px; }
-.rs-diff .rs-mods { scale: .5; margin: -10px -40px; }
+.rs-diff .rs-mods { zoom: .5; margin: 0; flex-wrap: nowrap; } /* (zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
 .rs-dv { margin-top: 4px; }
 .rs-version { font-size: 16px; font-weight: 600; line-height: 20px; max-width: 340px; }
 .rs-mapper { margin-top: 0; font-size: 12px; line-height: 15px; }
@@ -9212,6 +9212,37 @@ class ManiaRenderer {
         }
       }
     } catch (e) { console.warn('sprite prewarm', e); } // (drawn on demand instead)
+    this.upload();
+  }
+  /** Draw every picture the stage will use once, tiny and wiped straight away, while the loader is up: the browser
+   *  hands an image to the graphics chip the first time it's drawn, and doing that for all of a skin's notes, keys,
+   *  lighting and hold bodies in the song's first frames made the start of every song hitch. */
+  upload() {
+    const x = this.ctx;
+    if (!x) return;
+    const seen = new Set(), put = img => {
+      if (!img || seen.has(img) || !(img.width || img.naturalWidth)) return;
+      seen.add(img);
+      try { x.drawImage(img, 0, 0, 1, 1); } catch { /* not drawable (yet) */ }
+    };
+    // (every image in the skin's layout — textures, their animation frames, tinted copies — however it's nested)
+    const walk = (v, d = 0) => {
+      if (!v || d > 4 || typeof v !== 'object') return;
+      if (v instanceof HTMLImageElement || v instanceof HTMLCanvasElement || (typeof ImageBitmap !== 'undefined' && v instanceof ImageBitmap)) { put(v); return; }
+      if (Array.isArray(v)) { for (const e of v) walk(e, d + 1); return; }
+      if (v.img) put(v.img);
+      if (Array.isArray(v.frames)) for (const f of v.frames) put(f);
+      if (d < 3) for (const k in v) if (k !== 'img' && k !== 'frames') walk(v[k], d + 1);
+    };
+    try {
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1;
+      const L = this.layout;
+      if (L) { walk(L.tex); walk(L.tinted); }
+      for (const m of this._spr.values()) for (const c of m.values()) put(c);
+      for (const m of this._crop.values()) for (const v of m.values()) put(v && v.c);
+      x.clearRect(0, 0, 2, 2);
+      x.restore();
+    } catch (e) { console.warn('texture upload', e); }
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {
@@ -11691,7 +11722,6 @@ const Toolbar = {
         this.chatBtn = btn('chat', 'chat', 'join the real-time discussion', () => Chat.toggle(), { key: 'F8', right: true, dataset: { ov: 'chat' } }),
         btn('social', 'dashboard', 'view your friends and who\'s online', () => OnlinePanel.toggle(), { right: true, dataset: { tab: 'dashboard' } }),
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
-        btn('question', 'help', 'every keyboard shortcut, screen by screen', () => Shortcuts.open(), { key: '?', right: true, cls: '.tb-help' }),
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
         this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
@@ -14735,6 +14765,9 @@ function blurredImage(url, amount) {
   const key = url + '|' + amount;
   if (_blurCache.has(key)) return _blurCache.get(key);
   const p = (async () => {
+    // (in the picture worker where it can: blurring a full background here, as the song started, made it hitch)
+    const done = await ImageWorker.run({ op: 'blur', url, W: 960, r: amount * 25 * (960 / 1920) * 2 }).catch(() => null);
+    if (done && done.blob) return URL.createObjectURL(done.blob);
     const img = new Image(); img.src = url; await img.decode();
     const scale = Math.min(1, 960 / Math.max(1, img.naturalWidth)); // blurred anyway: half-ish resolution is plenty
     const w = Math.max(1, Math.round(img.naturalWidth * scale)), hh = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -15287,6 +15320,10 @@ const GameplayScreen = {
     const blur = menuLook ? Background.MENU_BLUR : cinema ? 0 : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.bgThumbURL(rec) : BeatmapManager.bgURL(rec)).then(async u => {
+      // while the loader shows the menus' look, your gameplay blur is made ready behind it, so the song doesn't
+      // start with the picture being blurred
+      const play = s && !s.mods.includes('CN') ? Settings.get('gameplay.bgBlur') : 0;
+      if (u && menuLook && play > 0) blurredImage(u, play).catch(() => {});
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
       if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
       if (this._bgTok === tok && this._tok) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';
@@ -18551,13 +18588,14 @@ const CHANGELOG = [
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
     { icon: 'film', title: 'Spectating', items: ['When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note'] },
+    { icon: 'brush', title: 'Skins and top bar', items: ['Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
     { icon: 'music', title: 'Song select', items: ['Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
     { icon: 'edit', title: 'Editor', items: ['The top bar is laid out like lazer\'s: File and Edit on the left, Setup, Compose, Timing and Verify on the right'] },
-    { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise'] },
+    { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
   ] },
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
@@ -21390,15 +21428,13 @@ const Onboarding = {
     const paint = () => {
       const cur = SkinManager.current.id;
       const kori = SkinManager.skins.find(s => /kori/i.test(s.name));
-      // the skins that come with the game first (Kori, then Chemuss), then Custom, then the player's own
-      const chemuss = SkinManager.skins.find(s => /chemuss/i.test(s.name));
-      const others = SkinManager.skins.filter(s => s !== kori && s !== chemuss);
+      // the skin that comes with the game first, then Custom, then the player's own
+      const others = SkinManager.skins.filter(s => s !== kori);
       const card = (id, name, sub, ic) => h(`button.setup-skinitem${cur === id ? '.on' : ''}`, { dataset: { id }, onclick: () => choose(id) },
         h('span.setup-skin-ic', icon(ic)), h('span.setup-skin-t', h('b', name), h('small', sub)), h('span.setup-check', icon('check')));
       clearEl(side).append(
         h('div.setup-skins',
           kori ? card(kori.id, 'Kori', 'The default skin', 'star') : null,
-          chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'star') : null,
           card('default', 'Custom', 'Pick the note type, judgements and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
@@ -25839,7 +25875,8 @@ const App = {
 
   /** Other skins that ship with the game (installed once, not selected; deleting one is respected). */
   // v: bump when the shipped copy changes; installed copies then get its skin.ini (v2: Chemuss 4K hit position 448)
-  EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit', v: 2 }],
+  // (none any more: Chemuss no longer comes with the game — it can still be imported like any skin)
+  EXTRA_SKINS: [],
   async installExtraSkins() {
     if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {

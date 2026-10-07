@@ -274,6 +274,37 @@ class ManiaRenderer {
         }
       }
     } catch (e) { console.warn('sprite prewarm', e); } // (drawn on demand instead)
+    this.upload();
+  }
+  /** Draw every picture the stage will use once, tiny and wiped straight away, while the loader is up: the browser
+   *  hands an image to the graphics chip the first time it's drawn, and doing that for all of a skin's notes, keys,
+   *  lighting and hold bodies in the song's first frames made the start of every song hitch. */
+  upload() {
+    const x = this.ctx;
+    if (!x) return;
+    const seen = new Set(), put = img => {
+      if (!img || seen.has(img) || !(img.width || img.naturalWidth)) return;
+      seen.add(img);
+      try { x.drawImage(img, 0, 0, 1, 1); } catch { /* not drawable (yet) */ }
+    };
+    // (every image in the skin's layout — textures, their animation frames, tinted copies — however it's nested)
+    const walk = (v, d = 0) => {
+      if (!v || d > 4 || typeof v !== 'object') return;
+      if (v instanceof HTMLImageElement || v instanceof HTMLCanvasElement || (typeof ImageBitmap !== 'undefined' && v instanceof ImageBitmap)) { put(v); return; }
+      if (Array.isArray(v)) { for (const e of v) walk(e, d + 1); return; }
+      if (v.img) put(v.img);
+      if (Array.isArray(v.frames)) for (const f of v.frames) put(f);
+      if (d < 3) for (const k in v) if (k !== 'img' && k !== 'frames') walk(v[k], d + 1);
+    };
+    try {
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1;
+      const L = this.layout;
+      if (L) { walk(L.tex); walk(L.tinted); }
+      for (const m of this._spr.values()) for (const c of m.values()) put(c);
+      for (const m of this._crop.values()) for (const v of m.values()) put(v && v.c);
+      x.clearRect(0, 0, 2, 2);
+      x.restore();
+    } catch (e) { console.warn('texture upload', e); }
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {

@@ -91,6 +91,9 @@ function blurredImage(url, amount) {
   const key = url + '|' + amount;
   if (_blurCache.has(key)) return _blurCache.get(key);
   const p = (async () => {
+    // (in the picture worker where it can: blurring a full background here, as the song started, made it hitch)
+    const done = await ImageWorker.run({ op: 'blur', url, W: 960, r: amount * 25 * (960 / 1920) * 2 }).catch(() => null);
+    if (done && done.blob) return URL.createObjectURL(done.blob);
     const img = new Image(); img.src = url; await img.decode();
     const scale = Math.min(1, 960 / Math.max(1, img.naturalWidth)); // blurred anyway: half-ish resolution is plenty
     const w = Math.max(1, Math.round(img.naturalWidth * scale)), hh = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -643,6 +646,10 @@ const GameplayScreen = {
     const blur = menuLook ? Background.MENU_BLUR : cinema ? 0 : Settings.get('gameplay.bgBlur');
     const tok = this._bgTok = {};
     (Settings.get('graphics.bgQuality') === 'low' ? BeatmapManager.bgThumbURL(rec) : BeatmapManager.bgURL(rec)).then(async u => {
+      // while the loader shows the menus' look, your gameplay blur is made ready behind it, so the song doesn't
+      // start with the picture being blurred
+      const play = s && !s.mods.includes('CN') ? Settings.get('gameplay.bgBlur') : 0;
+      if (u && menuLook && play > 0) blurredImage(u, play).catch(() => {});
       // the blur is baked into a copy of the image once, so the GPU doesn't re-blur it every frame
       if (u && blur > 0) u = await blurredImage(u, blur).catch(() => u);
       if (this._bgTok === tok && this._tok) this.bgEl.style.backgroundImage = show && u ? `url("${u}")` : 'none';

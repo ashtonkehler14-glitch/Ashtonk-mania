@@ -55,19 +55,27 @@ await waitBoot();
 check('boots to home screen', await page.evaluate(() => AshtonkMania.Screens.currentName === 'home'));
 check('first launch asks for a name', await page.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Tester' && AshtonkMania.ProfileManager.profile.onboarded));
 check('Kori 3.0 is preinstalled and selected', await page.evaluate(() => /Kori 3\.0/.test(AshtonkMania.SkinManager.current.name)), await page.evaluate(() => AshtonkMania.SkinManager.current.name));
-await page.waitForFunction(() => AshtonkMania.SkinManager.skins.some(s => /chemuss/i.test(s.name)), null, { timeout: 20000 }).catch(() => {});
+await page.waitForTimeout(1500);
+check('Chemuss no longer comes with the game (only Kori is installed)', await page.evaluate(() => !AshtonkMania.SkinManager.skins.some(s => /chemuss/i.test(s.name))));
 {
-  const ch = await page.evaluate(async () => {
-    const A = AshtonkMania, SM = A.SkinManager, meta = SM.skins.find(s => /chemuss/i.test(s.name));
+  // the skin-parsing checks still run on Chemuss, imported like any player's .osk
+  const osk = readFileSync(new URL('./fixtures/chemuss.osk', import.meta.url)).toString('base64');
+  const ch = await page.evaluate(async b64 => {
+    const A = AshtonkMania, SM = A.SkinManager;
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), cur = SM.current.id;
+    await SM.importOsk(new File([bytes], 'chemuss.osk'));
+    if (SM.current.id !== cur) await SM.select(cur, { silent: true });
+    const meta = SM.skins.find(s => /chemuss/i.test(s.name));
     if (!meta) return { missing: true };
     const sk = SM.instance(meta.id), L = await sk.mania(4);
     // where the orb's centre is at the moment it's hit vs the centre of the ring receptor (ring spans 2–217 of the
     // 325-px key image, drawn at its own height from the bottom), in osu!'s 480-unit space
     const k = L.tex.key[0], n = L.tex.note[0], noteH = L.columnWidth[0] * n.h / n.w;
     const keyH = k.h / 1.6, ringC = 480 - keyH + keyH * (109.5 / 325), noteC = L.hitPosition - noteH / 2;
-    return { name: sk.name, stillKori: /Kori/.test(SM.current.name), col: L.columnWidth.join(), lines: L.columnLineWidth.join(), hit: L.hitPosition, note: n && n.w, light: !!L.tex.lightingN, max: L.judgement['300g'] && L.judgement['300g'].w, body: L.tex.noteL[0] && L.tex.noteL[0].frames[0].height, off: +(noteC - ringC).toFixed(2) };
-  });
-  check('Chemuss mixed edit ships as a second skin (Kori stays selected)', ch.name === 'Chemuss mixed edit' && ch.stillKori, JSON.stringify(ch));
+    const out = { name: sk.name, col: L.columnWidth.join(), lines: L.columnLineWidth.join(), hit: L.hitPosition, note: n && n.w, light: !!L.tex.lightingN, max: L.judgement['300g'] && L.judgement['300g'].w, body: L.tex.noteL[0] && L.tex.noteL[0].frames[0].height, off: +(noteC - ringC).toFixed(2) };
+    await SM.remove(meta.id);
+    return out;
+  }, osk);
   check('Chemuss 4K: its complete [Mania] section wins, repeated lists fill in, "null" hides lighting, giant textures are capped',
     ch.col === '70,70,70,70' && ch.lines === '0,0,0,0,0' && ch.note === 150 && ch.light === false && ch.max === 1 && ch.body === 8192, JSON.stringify(ch));
   check('Chemuss 4K: notes are hit centred on the ring receptors (hit position 448)', ch.hit === 448 && Math.abs(ch.off) < 1.5, JSON.stringify({ hit: ch.hit, offsetUnits: ch.off }));
@@ -946,7 +954,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await sp.waitForSelector('.setup-custom');
   await sp.click('.setup-custom .setup-seg >> nth=0 >> button >> nth=2');
   await sp.selectOption('.setup-custom select', 'fnf');
-  check('setup: skins are Kori / Chemuss / Custom / Import; Custom has note type, colour and judgement options', /^Kori,(Chemuss mixed edit,)?Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('wom.style') === 'arrows' && AshtonkMania.Settings.get('wom.judgements') === 'fnf'), skinNames);
+  check('setup: skins are Kori / Custom / Import; Custom has note type, colour and judgement options', /^Kori,Custom,.*Import a skin$/.test(skinNames) && await sp.evaluate(() => AshtonkMania.SkinManager.current.id === 'default' && AshtonkMania.Settings.get('wom.style') === 'arrows' && AshtonkMania.Settings.get('wom.judgements') === 'fnf'), skinNames);
   await sp.click('.setup-next'); await sp.waitForTimeout(600);
   check('setup: Finish closes it and lands on the main menu', !(await sp.$('.setup')) && await sp.evaluate(() => AshtonkMania.Screens.currentName === 'home' && AshtonkMania.ProfileManager.profile.onboarded && AshtonkMania.ProfileManager.profile.name === 'Newbie'));
   await sp.waitForFunction(() => { const i = document.querySelector('.home .neru:not([hidden]) img'); return i && /neru\.png$/.test(i.src); }, null, { timeout: 5000 });

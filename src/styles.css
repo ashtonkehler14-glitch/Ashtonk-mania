@@ -3182,7 +3182,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rs-ring { width: 230px; height: 230px; margin: 40px 0 0; }
 .rs .res-score { margin: 0 0 5px; font-size: 60px; font-weight: 300; line-height: 66px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .rs-diff { margin: 0; gap: 5px; font-size: 13px; }
-.rs-diff .rs-mods { scale: .5; margin: -10px -40px; }
+.rs-diff .rs-mods { zoom: .5; margin: 0; flex-wrap: nowrap; } /* (zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
 .rs-dv { margin-top: 4px; }
 .rs-version { font-size: 16px; font-weight: 600; line-height: 20px; max-width: 340px; }
 .rs-mapper { margin-top: 0; font-size: 12px; line-height: 15px; }
