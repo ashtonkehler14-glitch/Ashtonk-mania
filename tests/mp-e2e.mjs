@@ -218,6 +218,20 @@ await bob.press('.mp-tabpane input', 'Enter');
 await alice.waitForFunction(() => [...document.querySelectorAll('.mp-msg')].some(m => m.textContent.includes('glhf')), null, { timeout: 5000 });
 check('chat messages reach the other player', true);
 
+// a dropped connection in the room (no "bye": the network went): Alice comes back on her own as herself, still
+// the host — the room kept her seat instead of handing the host to Bob and taking her back as a newcomer
+{
+  const was = await alice.evaluate(() => ({ me: AshtonkMania.Multiplayer.me, host: AshtonkMania.Multiplayer.room.host }));
+  await alice.evaluate(() => { const ws = AshtonkMania.Multiplayer.ws; ws.close(4000, 'network drop'); });
+  await alice.waitForFunction(() => AshtonkMania.Multiplayer.reconnecting, null, { timeout: 3000 }).catch(() => {});
+  await alice.waitForFunction(() => !AshtonkMania.Multiplayer.reconnecting && AshtonkMania.Multiplayer.ws && AshtonkMania.Multiplayer.ws.readyState === 1, null, { timeout: 15000 });
+  await bob.waitForTimeout(500);
+  const now = await alice.evaluate(() => ({ me: AshtonkMania.Multiplayer.me, host: AshtonkMania.Multiplayer.room.host, n: AshtonkMania.Multiplayer.room.players.length }));
+  const bobSees = await bob.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return { n: r.players.length, host: r.host, away: r.players.some(p => p.away) }; });
+  check('a dropped connection in the room comes back as the same player, still the host (the seat is kept)',
+    now.me === was.me && now.host === was.me && now.n === 2 && bobSees.n === 2 && bobSees.host === was.me && !bobSees.away, JSON.stringify({ was, now, bobSees }));
+}
+
 // Alice picks the beatmap through song select (pick mode)
 await alice.click('.mp-map-actions .btn');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect' && AshtonkMania.SongSelect.mpPick, null, { timeout: 5000 });

@@ -107,7 +107,7 @@ const BeatmapManager = {
     if (!rec) throw new Error('Beatmap not found');
     const blob = await this.getFile(rec.setId, rec.osuPath);
     if (!blob) throw new Error('Beatmap file missing from storage');
-    const bm = BeatmapParser.parse(await blob.text());
+    const bm = BeatmapParser.parse(decodeIniText(new Uint8Array(await blob.arrayBuffer()))); // (as it was read at import)
     return { rec, set: this.setById.get(rec.setId), bm, notes: BeatmapParser.toManiaNotes(bm) };
   },
 
@@ -183,8 +183,22 @@ const BeatmapManager = {
     let zip;
     try { zip = new ZipReader(await file.arrayBuffer()); }
     catch (e) { throw new Error(`Corrupt archive (${e.message})`); }
-    const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e) }));
-    return this._importEntries(entries, file.name.replace(/\.osz$/i, ''), report);
+    const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e) }))
+      .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name));
+    const base = file.name.replace(/\.(osz|zip)$/i, '');
+    // an archive with everything inside a folder (a zipped song folder, or a .zip of several): each folder that has
+    // difficulties is a beatmap folder of its own, its files' paths taken from there (the audio and background
+    // names in the .osu files are relative to it — read from the archive's top they were all "missing")
+    const dirOf = n => n.includes('/') ? n.slice(0, n.lastIndexOf('/')) : '';
+    const dirs = [...new Set(entries.filter(e => /\.osu$/i.test(e.name)).map(e => dirOf(e.name)))];
+    if (!dirs.length || dirs.includes('')) return this._importEntries(entries, base, report);
+    const out = [];
+    for (const d of dirs) {
+      const sub = entries.filter(e => e.name.startsWith(d + '/')).map(e => ({ ...e, name: e.name.slice(d.length + 1) }));
+      try { out.push(...await this._importEntries(sub, dirs.length > 1 ? d.split('/').pop() : base, report)); }
+      catch (e) { if (dirs.length === 1) throw e; if (report) report.errors.push(`${base} / ${d}: ${friendlyError(e)}`); }
+    }
+    return out;
   },
 
   /** Core import: entries = [{name, size, read()}] relative to the beatmap folder. */
@@ -198,7 +212,8 @@ const BeatmapManager = {
     for (const e of osuEntries) {
       try {
         const bytes = await e.read();
-        const text = new TextDecoder('utf-8').decode(bytes);
+        // (UTF-8 as osu! writes them; UTF-16 from Windows Notepad and Latin-1 from old editors are read too)
+        const text = decodeIniText(bytes);
         const bm = BeatmapParser.parse(text);
         parsed.push({ entry: e, text, bm, hash: await hashHex(bytes) });
       } catch (err) {

@@ -154,6 +154,19 @@ await shot('02-songselect');
     r.sets === 1 && r.kept.join() === 'mania-note1.png' && r.has && r.own === 64 && r.other && r.baseNote !== 64 && r.setting === true, JSON.stringify(r));
 }
 
+// an .osz / .zip with the song folder inside it: the .osu files' audio and background are found next to them
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, zr = new ZipReader(await (await fetch('/tests/fixtures/test-set.osz')).arrayBuffer());
+    const files = [];
+    for (const e of zr.entries) files.push({ name: 'Songs/123 The Test Suite - Ashtonk Test Anthem/' + e.name, data: new Uint8Array(await zr.read(e)) });
+    await A.App.importFiles([new File([writeZip(files)], 'folder inside.zip')]);
+    return { sets: A.BeatmapManager.sets.length, warnings: A.App.lastReport.warnings, errors: A.App.lastReport.errors };
+  });
+  check('import: an archive with the song folder inside it finds each difficulty\'s audio (only the broken one is reported)',
+    r.sets === 1 && !r.errors.length && r.warnings.length === 1 && /missing\.mp3/.test(r.warnings[0]), JSON.stringify(r));
+}
+
 // corrupt / non-mania archives
 await dropFiles(['corrupt.osz', 'standard.osz']);
 await page.waitForTimeout(1500);
