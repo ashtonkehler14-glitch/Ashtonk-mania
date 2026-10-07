@@ -85,6 +85,8 @@ const Chat = {
     if (this.o) { this.paint(); return; }
     UISounds.click();
     Presence.start();
+    // (connecting / offline / back online: the empty channel says which)
+    if (!this._pres) this._pres = Bus.on('presence:changed', () => { if (this.o && this.lines && !this.lines.querySelector('.ch-line')) this.paint(); });
     this.list = h('div.ch-list');
     this.lines = h('div.ch-lines');
     this.talk = h('span.ch-talk');
@@ -152,7 +154,7 @@ const Chat = {
     this.talk.textContent = c.pm ? `talking with ${c.name}` : `talking in ${c.name}`;
     this.input.dataset.kbLabel = c.name; // (the phone's typing bar shows where it goes)
     clearEl(this.lines);
-    if (!c.lines.length) this.lines.append(h('div.ch-empty', c.pm ? `Say hi to ${c.name}!` : Presence.ws ? 'Nobody has said anything yet.' : 'Connecting…'));
+    if (!c.lines.length) this.lines.append(!Presence.ws ? offlineState('Chat', { compact: true }) : h('div.ch-empty', c.pm ? `Say hi to ${c.name}!` : 'Nobody has said anything yet.'));
     for (const l of c.lines) this.appendLine(l, false);
     this.lines.scrollTop = this.lines.scrollHeight;
     this.paintList(); this.badge();

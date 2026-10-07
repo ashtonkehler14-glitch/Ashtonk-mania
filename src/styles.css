@@ -4550,3 +4550,4 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }
 .off-state.compact.connecting { margin: 26px 0; }
 .dash-list .off-state { grid-column: 1 / -1; }
+.ch-lines > .off-state { margin: 16px auto; max-width: 460px; }
