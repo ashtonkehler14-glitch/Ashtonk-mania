@@ -93,7 +93,9 @@ const OnlineBeatmaps = {
   async search(p) {
     p = { status: 'leaderboard', keys: [], minStars: 0, maxStars: 20, nsfw: true, ...p };
     if (navigator.onLine === false) throw new Error('You\'re offline. Connect to the internet to browse and download beatmaps — this page searches again by itself once you\'re back online.');
-    if (!await this.checkApi()) throw new Error('Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or drag .osz files onto the window to add songs.');
+    if (!await this.checkApi()) throw Object.assign(new Error(Multiplayer.available()
+      ? 'Beatmaps will show up as soon as it\'s back. You can still drag .osz files onto the window to add songs.'
+      : 'Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or drag .osz files onto the window to add songs.'), { server: true });
     const lo = p.minStars > 0 ? p.minStars : null, hi = p.maxStars < 20 ? p.maxStars : null;
     const q = [lo !== null && `stars>=${lo}`, hi !== null && `stars<=${hi}`, p.keys.map(k => `key=${k}`).join(' '), p.q].filter(Boolean).join(' ');
     const params = new URLSearchParams();
@@ -397,7 +399,7 @@ const ExplorerScreen = {
     } catch (e) {
       if (tok !== this.token) return;
       if (this._replace) this.results = [];
-      this.error = e.message || String(e); this.errorStatus = e.status || 0; this.hasMore = false;
+      this.error = e.message || String(e); this.errorStatus = e.status || 0; this.errorServer = !!e.server; this.hasMore = false;
     } finally {
       if (tok === this.token) {
         if (this._replace) this.endReplace();
@@ -458,7 +460,9 @@ const ExplorerScreen = {
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
     else if (this.error) {
       const more = !!this.results.length;
-      this.status.append(stateCard('globe', navigator.onLine === false ? 'You\'re offline' : more ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.', [h('p', this.error),
+      // (the game's own server not answering reads as on every other online page; osu! refusing keeps WOM's words)
+      const title = navigator.onLine === false ? 'You\'re offline' : this.errorServer ? (Multiplayer.available() ? 'Can\'t reach the server' : 'Offline') : more ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.';
+      this.status.append(stateCard('globe', title, [h('p', this.error),
         // (Web-Osu-Mania's note for a 429)
         this.errorStatus === 429 ? h('p', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null],
       { slash: true, cls: `.ex-error${more ? '.compact' : ''}`, action: h('button.btn.sm.ex-retry', { onclick: () => more ? this.loadMore() : this.newSearch() }, icon('retry'), more ? 'Retry' : 'Try again') }));
