@@ -117,8 +117,9 @@ const EditorScreen = {
     this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
     this.editBtn = h('button.ed-menu', { onclick: e => this.editMenu(e) }, 'edit');
     this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing', 'verify'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
-    const top = h('div.ed-top', this.fileBtn, this.editBtn, this.tabsEl,
-      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
+    // lazer's editor bar: the menus on the left, the screens (setup, compose, timing, verify) in the top right
+    const top = h('div.ed-top', this.fileBtn, this.editBtn,
+      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'), this.tabsEl);
     const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
     this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
     this.divEl = h('div.ed-div');

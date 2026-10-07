@@ -4615,6 +4615,14 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .coll-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lib-card .stars { font-size: .72rem; }
 .lib-card.missing { opacity: .6; }
+/* the editor's bar as lazer's: flat menu words, the beatmap's name after them, the screen tabs on the right */
+.ed-top { gap: 4px; }
+.ed-top .ed-menu { background: none; color: rgba(255, 255, 255, .85); }
+.ed-top .ed-menu:hover, .ed-top .ed-menu.open { background: rgba(255, 255, 255, .1); color: #fff; }
+.ed-top .ed-title { text-align: left; margin-left: 10px; color: rgba(255, 255, 255, .5); }
+.ed-top .ed-tabs { margin-left: 12px; }
+.ed-top .ed-tab { height: 40px; border-radius: 0; padding: 0 16px; transition: color 150ms; }
+.ed-top .ed-tab:hover { color: #fff; }
 
 </style>
 </head>
@@ -19680,8 +19688,9 @@ const EditorScreen = {
     this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
     this.editBtn = h('button.ed-menu', { onclick: e => this.editMenu(e) }, 'edit');
     this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing', 'verify'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
-    const top = h('div.ed-top', this.fileBtn, this.editBtn, this.tabsEl,
-      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'));
+    // lazer's editor bar: the menus on the left, the screens (setup, compose, timing, verify) in the top right
+    const top = h('div.ed-top', this.fileBtn, this.editBtn,
+      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'), this.tabsEl);
     const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
     this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
     this.divEl = h('div.ed-div');

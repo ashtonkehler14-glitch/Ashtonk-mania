@@ -4596,3 +4596,11 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .coll-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lib-card .stars { font-size: .72rem; }
 .lib-card.missing { opacity: .6; }
+/* the editor's bar as lazer's: flat menu words, the beatmap's name after them, the screen tabs on the right */
+.ed-top { gap: 4px; }
+.ed-top .ed-menu { background: none; color: rgba(255, 255, 255, .85); }
+.ed-top .ed-menu:hover, .ed-top .ed-menu.open { background: rgba(255, 255, 255, .1); color: #fff; }
+.ed-top .ed-title { text-align: left; margin-left: 10px; color: rgba(255, 255, 255, .5); }
+.ed-top .ed-tabs { margin-left: 12px; }
+.ed-top .ed-tab { height: 40px; border-radius: 0; padding: 0 16px; transition: color 150ms; }
+.ed-top .ed-tab:hover { color: #fff; }
