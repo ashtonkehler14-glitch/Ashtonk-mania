@@ -1671,6 +1671,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.failedScore = score; this.failedReplay = this._unsavedReplay;
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, this.failedReplay); }, 1600); return; }
     }
+    // (watching someone: their fail screen is theirs — you see it as they do, with their pointer, and can't press it)
+    if (s.spectate) { setTimeout(() => { if (this.s === s) Spectate.failed(this, s); }, 900); return; }
     if (Settings.get('gameplay.retryOnFail') && s.mode === 'play') { setTimeout(() => { if (this.s === s) this.retry(); }, 1400); return; }
     setTimeout(() => { if (this.s === s) this.showPause('Failed', true); }, 900);
   },

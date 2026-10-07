@@ -433,6 +433,20 @@ await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom() && AshtonkMani
 check('clicking an open room joins it', await alice.evaluate(() => AshtonkMania.Multiplayer.room.code) === await bob.evaluate(() => AshtonkMania.Multiplayer.room.code));
 check('regular rooms play by osu!\'s rules: head to head, highest score wins, up to 16', await bob.evaluate(() => { const st = AshtonkMania.Multiplayer.room.settings; return st.type === 'h2h' && st.win === 'score' && st.size === 16 && !document.querySelector('.mp-settings-btn'); }));
 
+// lazer's participant panel: the host hands the room over (and back), and kicks a player between matches
+{
+  await alice.click('.mp-player:not(.empty) .mp-pact:not(.kick)');
+  const handed = await bob.waitForFunction(() => AshtonkMania.Multiplayer.isHost() && !!document.querySelector('.mp-pact'), null, { timeout: 5000 }).then(() => true, () => false);
+  await bob.evaluate(() => AshtonkMania.Multiplayer.send({ t: 'giveHost', id: AshtonkMania.Multiplayer.room.players.find(p => p.id !== AshtonkMania.Multiplayer.me).id }));
+  await alice.waitForFunction(() => AshtonkMania.Multiplayer.isHost(), null, { timeout: 5000 });
+  await alice.click('.mp-pact.kick'); await alice.click('.dialog .pd-btn.danger, .dialog button.danger');
+  const kicked = await bob.waitForFunction(() => !AshtonkMania.Multiplayer.inRoom(), null, { timeout: 5000 }).then(() => true, () => false);
+  const left = await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1, null, { timeout: 5000 }).then(() => true, () => false);
+  check('host: Give host hands the room over (crown button), Kick removes a player (they\'re told and back in the lounge)', handed && kicked && left, JSON.stringify({ handed, kicked, left }));
+  await bob.evaluate(c => AshtonkMania.Multiplayer.join(c), await alice.evaluate(() => AshtonkMania.Multiplayer.room.code));
+  await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 8000 });
+}
+
 // invites: the Invite button copies (or shares) a link; opening it joins the room directly
 await bob.evaluate(() => AshtonkMania.Multiplayer.leave());
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 1, null, { timeout: 5000 });
@@ -640,6 +654,18 @@ const held = await alice.evaluate(t => Math.abs(AshtonkMania.Music.time - t) < 5
 await bob.click('.pause-menu .pm-btn.primary');
 const resumed = await alice.waitForFunction(() => !document.querySelector('.spec-pause') && AshtonkMania.GameplayScreen.s.running, null, { timeout: 6000 }).then(() => true, () => false);
 check('spectating: the player pausing shows the watcher the pause screen, held there, and it carries on when they continue', sawPause && held && resumed, JSON.stringify({ sawPause, held, resumed }));
+// Bob fails: Alice's playback fails at the same moment — she gets no menu of her own (its Retry / Quit would be
+// hers), but Bob's fail screen as he sees it, with his pointer, that she can't press
+{
+  await bob.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
+  await alice.evaluate(() => AshtonkMania.GameplayScreen.fail(AshtonkMania.GameplayScreen.gameTime()));
+  await alice.waitForTimeout(1300);
+  const own = await alice.evaluate(() => ({ buttons: [...document.querySelectorAll('.pause-menu .pm-btn')].filter(b => !b.closest('.spec-rk')).length, failed: !!document.querySelector('.spec-failed') }));
+  const mirrored = await alice.waitForSelector('.spec-rk .pause-menu', { timeout: 6000 }).then(() => true, () => false);
+  const inert = await alice.evaluate(() => getComputedStyle(document.querySelector('.spec-rk-view')).pointerEvents === 'none');
+  await shot(alice, 'mp-spec-failed');
+  check('spectating a fail: no Retry / Quit of the watcher\'s own — the player\'s fail screen, as they see it, can\'t be pressed', own.buttons === 0 && own.failed && mirrored && inert, JSON.stringify({ ...own, mirrored, inert }));
+}
 await alice.keyboard.press('Escape');
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName !== 'gameplay' && !document.querySelector('.spec-pill'), null, { timeout: 8000 });
 await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});

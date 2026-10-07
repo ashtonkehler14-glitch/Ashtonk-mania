@@ -219,6 +219,20 @@ const Spectate = {
     screen.el.classList.add('show-cursor');
     this.showRk(this._rk);
   },
+  /** The watched play ran out of health: no menu of your own (its Retry / Quit would be yours, not theirs) — their
+   *  screen instead, copied as they see it with their pointer on it, so you watch what they pick. Until the first copy
+   *  arrives, the fail screen with no buttons. */
+  failed(screen, s) {
+    const c = s.spectate;
+    if (!c || c !== this.cur) return;
+    if (c.buffering) this.buffer(screen, s, false);
+    c.failed = true;
+    c.failEl = h('div.pause-menu.spec-pause.spec-failed', h('div.pause-box',
+      h('div.pm-head', h('h2.failed', 'failed')),
+      h('div.spec-pause-sub', `${c.name} failed — you'll see what they pick.`)));
+    screen.el.appendChild(c.failEl);
+    this.showRk(this._rk);
+  },
   hidePause(screen, s) {
     const c = s && s.spectate;
     if (!c || !c.pauseShown) return;
@@ -261,7 +275,7 @@ const Spectate = {
    *  first: no scripts, event handlers, frames or links, and only https/data images. */
   /** Watching their song but it can't go on (they failed, paused or stopped, so no more key presses come): their
    *  screen is shown over it. */
-  stalled() { const c = this.cur; return !!(c && (c.buffering || c.pauseShown || c.ended)); },
+  stalled() { const c = this.cur; return !!(c && (c.buffering || c.pauseShown || c.ended || c.failed)); },
   showRk(html) {
     this._rk = html || null;
     if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }

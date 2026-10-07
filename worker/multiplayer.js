@@ -37,7 +37,7 @@ export const WIN_CONDITIONS = ['pp', 'score', 'accuracy', 'combo'];
 /** Quick Play phase lengths (ms), rounds and placement points. */
 export const QP = { GATHER: 20000, FULL: 3000, POOL: 15000, PICK: 25000, REVEAL: 5000, LOAD: 90000, STANDINGS: 12000, ROUNDS: 5 };
 export const QP_POINTS = [8, 6, 5, 4, 3, 2, 1, 0];
-const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'settings', 'team'];
+const QP_BLOCKED = ['map', 'mods', 'rate', 'vote', 'diff', 'ready', 'start', 'settings', 'team', 'kick', 'giveHost'];
 
 export function makeCode(len = 6, rnd = Math.random) {
   let s = '';
@@ -284,6 +284,18 @@ export class RoomLogic {
         if (!changes.length) return [];
         for (const x of this.players) x.ready = false;
         return [this.roomMsg(), this.system(`Room settings: ${changes.join(', ')}`)];
+      }
+      // lazer's participant panel, for the host: kick a player (between matches), or hand the room to them
+      case 'kick': {
+        const t = this.get(String(m.id || ''));
+        if (!host || !t || t === p || this.state !== 'lobby') return [];
+        return [{ to: t.id, msg: { t: 'kicked' } }, this.system(`${t.name} was removed from the room`), ...this.leave(t.id)];
+      }
+      case 'giveHost': {
+        const t = this.get(String(m.id || ''));
+        if (!host || !t || t === p) return [];
+        this.hostId = t.id;
+        return [this.system(`${t.name} is now the host`), this.roomMsg()];
       }
       case 'team':
         if (this.state !== 'lobby' || this.settings.type !== 'teams') return [];

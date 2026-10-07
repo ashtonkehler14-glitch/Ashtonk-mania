@@ -1404,3 +1404,17 @@ test('dropped connections: a stale one is taken over, a player who finished keep
   clock.t += 21000; r.tick();
   assert.equal(r.get('b'), undefined, 'gone once the wait is over');
 });
+
+test('the host can hand the room over and kick players between matches (lazer\'s participant panel)', () => {
+  const r = new RoomLogic('K');
+  r.join('a', 'Alice', true, { size: 4 }); r.join('b', 'Bob', false); r.join('c', 'Cat', false);
+  assert.deepEqual(r.message('b', { t: 'kick', id: 'c' }), [], 'only the host kicks');
+  assert.deepEqual(r.message('a', { t: 'kick', id: 'a' }), [], 'not yourself');
+  const out = r.message('a', { t: 'kick', id: 'c' });
+  assert.deepEqual(out[0], { to: 'c', msg: { t: 'kicked' } });
+  assert.deepEqual(r.players.map(p => p.id), ['a', 'b']);
+  assert.deepEqual(r.message('b', { t: 'giveHost', id: 'b' }), [], 'only the host hands it over');
+  assert.equal(msgs(r.message('a', { t: 'giveHost', id: 'b' }), 'room').length, 1);
+  assert.equal(r.hostId, 'b');
+  assert.deepEqual(r.message('a', { t: 'kick', id: 'b' }), [], 'Alice is no longer the host');
+});

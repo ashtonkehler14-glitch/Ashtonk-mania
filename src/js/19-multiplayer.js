@@ -183,6 +183,7 @@ const Multiplayer = {
         Bus.emit('mp:changed');
         break;
       case 'error': Toast.err(m.msg); break;
+      case 'kicked': { const code = this.room && this.room.code; this.leave(); Toast.show('Removed from the room', code ? `The host removed you from ${code}.` : 'The host removed you from the room.'); break; }
       // Ranked Play: the opponent left mid-song — the match is over, so you're taken off the song to the match screen
       case 'rpAbort':
         if (Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp && !GameplayScreen.s.finished) {
@@ -895,7 +896,13 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : 'check')), state) : null));
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : 'check')), state) : null,
+        // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
+        host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
+        host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
+          UISounds.click();
+          if (await Dialog.confirm(`Kick ${p.name}?`, 'They\'re removed from the room (they can join again with the code).', { ok: 'Kick', danger: true })) Multiplayer.send({ t: 'kick', id: p.id });
+        } }, icon('user-times')) : null));
     };
     const open = r.players.length < st.size ? slot(null) : null;
     if (st.type === 'teams') {
