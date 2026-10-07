@@ -1037,6 +1037,34 @@ const rnd = await page.evaluate(async () => {
 });
 check('random picks a different beatmap set, and Shift+F2 rewinds to the previous one', (rnd.sets < 2 || rnd.otherSet) && rnd.back, JSON.stringify(rnd));
 
+// song select: a set's panel that stayed on screen while another set opened still opens when clicked (it kept the
+// row it was drawn with, still marked open, and ignored the click), and a panel rebuilt or slid away between press
+// and release still takes the click — once (not select-then-play)
+{
+  await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(900);
+  const at = key => page.evaluate(k => { const el = AshtonkMania.SongSelect.pool.get(k); if (!el) return null; const r = el.firstChild.getBoundingClientRect(); return { x: r.left + 160, y: r.top + r.height / 2 }; }, key);
+  const was = await page.evaluate(() => AshtonkMania.SongSelect.selectedId);
+  const sets = await page.evaluate(() => [...AshtonkMania.SongSelect.pool.keys()].filter(k => k.startsWith('s:')));
+  const cur = await page.evaluate(() => 's:' + AshtonkMania.SongSelect.expandedSet), other = sets.find(k => k !== cur);
+  const out = { sets: sets.length };
+  if (other) {
+    let b = await at(other); await page.mouse.click(b.x, b.y); await page.waitForTimeout(600);
+    out.toOther = await page.evaluate(() => 's:' + AshtonkMania.SongSelect.expandedSet) === other;
+    b = await at(cur); if (b) { await page.mouse.click(b.x, b.y); await page.waitForTimeout(600); }
+    out.back = await page.evaluate(() => 's:' + AshtonkMania.SongSelect.expandedSet) === cur;
+  }
+  const d = await page.evaluate(() => { const S = AshtonkMania.SongSelect; return [...S.pool.keys()].find(k => k.startsWith('d:') && k !== 'd:' + S.selectedId) || null; });
+  if (d) {
+    const b = await at(d); await page.mouse.move(b.x, b.y); await page.mouse.down();
+    await page.evaluate(() => AshtonkMania.SongSelect.renderVisible(true)); await page.mouse.up(); await page.waitForTimeout(400);
+    out.rebuilt = await page.evaluate(k => 'd:' + AshtonkMania.SongSelect.selectedId === k, d);
+    out.stillHere = await page.evaluate(() => AshtonkMania.Screens.currentName === 'songselect');
+  }
+  await page.evaluate(id => AshtonkMania.SongSelect.select(id), was); await page.waitForTimeout(500);
+  check('song select: clicking songs always works — a set that stayed on screen reopens, a panel rebuilt under the pointer takes the click once',
+    (!other || (out.toOther && out.back)) && (!d || (out.rebuilt && out.stillHere)) && (other || d), JSON.stringify(out));
+}
+
 // song select: clicking a difficulty must not slide the whole list sideways (the panels run past the right edge)
 await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(900);
 await page.click('.diff-panel >> nth=1'); await page.waitForTimeout(500);

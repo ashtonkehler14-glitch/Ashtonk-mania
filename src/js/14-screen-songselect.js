@@ -104,6 +104,26 @@ const SongSelect = {
       sc.addEventListener('pointermove', to); sc.addEventListener('pointerup', up); sc.addEventListener('pointercancel', up);
       to(e);
     });
+    // a click on a panel that slid (or was rebuilt) under the pointer between press and release still counts: the
+    // browser only clicks when both land on the same element, and panels glide for 400 ms after every selection
+    let press = null, synth = -1e9;
+    const PANEL = '.set-panel, .diff-panel, .group-panel';
+    this.scroller.addEventListener('pointerdown', e => {
+      const p = e.button === 0 && e.target.closest(PANEL);
+      press = p ? { el: p, key: p.parentNode._key, x: e.clientX, y: e.clientY, t: performance.now() } : null;
+    });
+    this.scroller.addEventListener('pointerup', e => {
+      const d = press; press = null;
+      if (!d || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10 || performance.now() - d.t > 700) return;
+      const wrap = this.pool && this.pool.get(d.key), p = wrap && wrap.isConnected && wrap.firstChild;
+      if (!p) return;
+      if (p === d.el && p.contains(e.target)) return; // (an ordinary click: the browser has it)
+      synth = performance.now();
+      p.click();
+    });
+    this.scroller.addEventListener('pointercancel', () => { press = null; });
+    // (and the browser's own click, if it sends one too, isn't a second click: that would select, then play)
+    this.scroller.addEventListener('click', e => { if (e.isTrusted && performance.now() - synth < 100) e.stopPropagation(); }, true);
     // (the viewport height, kept by a ResizeObserver: reading clientHeight right after re-rendering rows forced a layout)
     this._vh = 0;
     new ResizeObserver(es => { this._vh = es[0].contentRect.height; }).observe(this.scroller);
@@ -580,6 +600,7 @@ const SongSelect = {
         const fresh = !el && !force;
         if (el) el.remove();
         el = this.renderRow(row);
+        el._key = key;
         this.pool.set(key, el);
         // a set that just opened: its difficulties slide out from under its panel (lazer), rather than popping up
         // at their places while the panel is still moving there. (Placed before it joins the page, so it doesn't
@@ -610,6 +631,7 @@ const SongSelect = {
   },
   /** A row that's already on screen only needs its selection state (and height) brought up to date. */
   refreshRow(el, row) {
+    el._row = row;
     const hh = row.h + 'px';
     if (el.style.height !== hh) el.style.height = hh;
     const b = el.firstChild;
@@ -619,6 +641,7 @@ const SongSelect = {
   },
   renderRow(row) {
     const wrap = h(`div.c-item${row.type === 'set' ? '.set' : row.type === 'group' ? '.grp' : ''}`, { style: { height: row.h + 'px' } });
+    wrap._row = row;
     if (row.type === 'diff') wrap._setId = row.m.setId;
     if (row.type === 'group') {
       // lazer's PanelGroup: a dark panel with triangles, the title (a star rating, rank or status shown as such), the
@@ -655,7 +678,8 @@ const SongSelect = {
       BeatmapManager.thumbURL(set).then(u => { if (u) bg.style.backgroundImage = `url("${u}")`; });
       const btn = h(`button.set-panel${row.open ? '.expanded' : ''}${broken ? '.broken' : ''}`, {
         onclick: () => {
-          if (row.open) return;
+          // (the row as it is now: this panel stays on screen while other sets open and close)
+          if (wrap._row.open) return;
           UISounds.select('expand');
           const pick = this.pickDiff(maps);
           this.select(pick.id);

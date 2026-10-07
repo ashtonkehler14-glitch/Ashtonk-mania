@@ -682,8 +682,9 @@ const ManiaLayout = {
   list(v, n, d) {
     const out = new Array(n).fill(d);
     if (v == null) return out;
+    // (an entry that isn't a number counts as 0, as in osu!stable and lazer: "30,x,30" is 30, 0, 30)
     const p = String(v).split(',').map(s => parseFloat(s));
-    for (let i = 0; i < n; i++) if (isFinite(p[i])) out[i] = p[i];
+    for (let i = 0; i < Math.min(n, p.length); i++) out[i] = isFinite(p[i]) ? p[i] : 0;
     return out;
   },
   defaultColumnWidth(keys) { return keys <= 4 ? 52 : keys <= 6 ? 48 : keys <= 7 ? 45 : keys <= 8 ? 42 : keys <= 9 ? 39 : 35; },
@@ -712,7 +713,8 @@ const ManiaLayout = {
       comboPosition: n(get('ComboPosition'), isDefault ? 170 : 111),
       barlineHeight: n(get('BarlineHeight'), 1.2),
       widthForNoteHeightScale: n(get('WidthForNoteHeightScale'), 0),
-      lightFPS: n(get('LightFramePerSecond'), 30),
+      // (lazer: 60 unless given; 0 or less is 24)
+      lightFPS: (v => v > 0 ? v : 24)(n(get('LightFramePerSecond'), 60)),
       judgementLine: (get('JudgementLine') ?? (isDefault ? '0' : '1')) !== '0',
       keysUnderNotes: get('KeysUnderNotes') === '1',
       upsideDown: get('UpsideDown') === '1',
@@ -735,7 +737,10 @@ const ManiaLayout = {
       L.flip.note.push(nn); L.flip.head.push(flag(`NoteFlipWhenUpsideDown${i}H`, nn));
       L.flip.body.push(flag(`NoteFlipWhenUpsideDown${i}L`, nn)); L.flip.tail.push(flag(`NoteFlipWhenUpsideDown${i}T`, nn));
     }
-    const nbs = parseInt(get('NoteBodyStyle') ?? '1', 10);
+    // hold bodies stretch (0) or repeat; unset, lazer stretches them for skins older than version 2.5 (no Version
+    // means 1.0) and repeats them from the bottom (3) for newer ones
+    const ver = /^latest$/i.test(String(skin.ini.general.Version || '').trim()) ? 2.7 : parseFloat(skin.ini.general.Version) || 1;
+    const nbs = parseInt(get('NoteBodyStyle') ?? (ver < 2.5 ? '0' : '3'), 10);
     for (let i = 0; i < keys; i++) L.noteBodyStyle.push(parseInt(get(`NoteBodyStyle${i}`) ?? nbs, 10) || 0);
     const col = (k, d) => parseColour(get(k), d);
     L.colours.column = []; L.colours.light = [];
@@ -783,17 +788,29 @@ const ManiaLayout = {
       L.tex.key[i] = await load(`KeyImage${i}`, `mania-key${T}`);
       L.tex.keyD[i] = await load(`KeyImage${i}D`, `mania-key${T}D`);
       L.tex.note[i] = await load(`NoteImage${i}`, `mania-note${T}`);
-      L.tex.noteH[i] = (await load(`NoteImage${i}H`, get(`NoteImage${i}`) ? null : `mania-note${T}H`)) || L.tex.note[i];
       L.tex.noteL[i] = await load(`NoteImage${i}L`, `mania-note${T}L`);
-      L.tex.noteT[i] = (await load(`NoteImage${i}T`, get(`NoteImage${i}`) ? null : `mania-note${T}T`)) || null;
+      if (!L.tex.note[i] || L.tex.note[i].fromDefault) {
+        // (a skin without notes of its own plays the built-in ones, with their own heads and tails)
+        L.tex.noteH[i] = (await load(`NoteImage${i}H`, `mania-note${T}H`)) || L.tex.note[i];
+        L.tex.noteT[i] = (await load(`NoteImage${i}T`, `mania-note${T}T`)) || null;
+        continue;
+      }
+      // lazer's hold head and tail: the skin's own image (named in skin.ini, else osu!'s name for it); without one
+      // the head is the note, and the tail the head (or the note), drawn turned over at the end of the hold
+      const own = async (k, name) => { const v = get(k); return (v && await skin.texture(v)) || await skin.texture(name); };
+      const head = await own(`NoteImage${i}H`, `mania-note${T}H`);
+      L.tex.noteH[i] = head || L.tex.note[i];
+      L.tex.noteT[i] = (await own(`NoteImage${i}T`, `mania-note${T}T`)) || head || L.tex.note[i];
     }
     L.tex.stageLeft = await load('StageLeft', 'mania-stage-left');
     L.tex.stageRight = await load('StageRight', 'mania-stage-right');
     L.tex.stageBottom = await load('StageBottom', 'mania-stage-bottom');
     L.tex.stageHint = await load('StageHint', 'mania-stage-hint');
     // (the Custom skin lights its column in the pressed key texture itself; the stage light is for skins that lack one)
-    L.tex.stageLight = isDefault ? null : await load('StageLight', 'mania-stage-light');
-    L.tex.lightingN = await load('LightingN', 'lightingN', { fps: L.lightFPS });
+    L.tex.stageLight = isDefault ? null : await load('StageLight', 'mania-stage-light', { fps: L.lightFPS });
+    // hit and hold lighting play at lazer's pace: the whole animation in 170 ms, at most 60 frames a second
+    const pace = t => { if (t && !isDefault && t.frames.length > 1) t.fps = Math.min(60, t.frames.length / 0.17); return t; };
+    L.tex.lightingN = pace(await load('LightingN', 'lightingN', { fps: L.lightFPS }));
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
       const tx = n => skin.texture(n).catch(() => null);
@@ -818,7 +835,7 @@ const ManiaLayout = {
       }
       L.scorebarNewStyle = !!L.tex.scorebarMarker;
     }
-    L.tex.lightingL = await load('LightingL', 'lightingL', { fps: L.lightFPS });
+    L.tex.lightingL = pace(await load('LightingL', 'lightingL', { fps: L.lightFPS }));
     for (const [j, name] of [['300g', 'Hit300g'], ['300', 'Hit300'], ['200', 'Hit200'], ['100', 'Hit100'], ['50', 'Hit50'], ['0', 'Hit0']]) {
       L.judgement[j] = await load(name, `mania-hit${j}`, { fps: 20 });
     }

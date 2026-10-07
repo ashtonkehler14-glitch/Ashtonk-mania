@@ -215,11 +215,13 @@ class ManiaRenderer {
     { const own = (L.columnWidth[0] || 1) * s * lw; this.colScale = this.narrow && own > 0 ? this.colW[0] / own : 1; }
     // fill styles, built once per layout / settings change instead of every frame
     const op = Settings.get('gameplay.stageOpacity');
-    this._colFill = L.colours.column.slice(0, L.keys).map(c => rgba(c, op));
+    // (lazer draws a skin.ini skin's column and line colours at double their alpha, as osu!stable showed them)
+    const dbl = c => this.legacy && c ? { ...c, a: Math.min(1, (c.a ?? 1) * 2) } : c;
+    this._colFill = L.colours.column.slice(0, L.keys).map(c => rgba(dbl(c), op));
     while (this._colFill.length < L.keys) this._colFill.push('transparent');
     const dim = Settings.get('skin.dim');
     this._dimFill = dim > 0 ? `rgba(0,0,0,${dim})` : null;
-    this._lineFill = rgba(L.colours.columnLine, 0.5);
+    this._lineFill = this.legacy ? rgba(dbl(L.colours.columnLine)) : rgba(L.colours.columnLine, 0.5);
     this._hasLines = L.columnLineWidth.some(w => w > 0);
     this._bands = null;
     const pos = Settings.get('gameplay.stagePosition');
@@ -270,7 +272,7 @@ class ManiaRenderer {
         const tn = L.tinted.lightingN[c];
         if (tn) {
           const w0 = this._lightW(tn, c, L.lightingNWidth), multi = tn.frames.length > 1;
-          for (let k = 0; k <= (multi ? 0 : 4); k++) { const sc = 1 + k / 16; for (const f of frames(tn)) this._cropSprite(f, w0 * sc, tn.h * (w0 / tn.w) * sc, this.up); }
+          for (let k = 0; k <= (multi || this.legacy ? 0 : 4); k++) { const sc = 1 + k / 16; for (const f of frames(tn)) this._cropSprite(f, w0 * sc, tn.h * (w0 / tn.w) * sc, this.up); }
         }
       }
     } catch (e) { console.warn('sprite prewarm', e); } // (drawn on demand instead)
@@ -423,7 +425,8 @@ class ManiaRenderer {
     if (this._hasLines) {
       ctx.fillStyle = this._lineFill;
       for (let i = 0; i <= K; i++) {
-        const w = (L.columnLineWidth[i] || 0) * s * 0.5;
+        // (lazer: a skin.ini skin's ColumnLineWidth in its 768-unit space, drawn at 0.74 of that)
+        const w = (L.columnLineWidth[i] || 0) * (this.legacy ? this.u * 0.74 : s * 0.5);
         if (w <= 0) continue;
         const x = i < K ? this.colX[i] : this.stageW;
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
@@ -436,11 +439,13 @@ class ManiaRenderer {
       for (let i = 0; i < K; i++) {
         const t = L.tinted.stageLight[i];
         if (!t) continue;
+        // (lazer's LegacyColumnBackground: on release it fades out over 250 ms while shrinking down to its bottom)
+        const out = this.legacy ? 250 : 120;
         let a = 0;
-        if (g.held[i]) a = 1; else { const dt = Math.max(0, realNow - this.keyLight[i]); if (dt < 120) a = 1 - dt / 120; }
+        if (g.held[i]) a = 1; else { const dt = Math.max(0, realNow - this.keyLight[i]); if (dt < out) a = 1 - dt / out; }
         if (a <= 0) continue;
         ctx.globalAlpha = a;
-        const h = t.h * (this.legacy ? this.u : s);
+        const h = t.h * (this.legacy ? this.u * (g.held[i] ? 1 : a) : s);
         const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
         this._cropImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h, this.up);
         ctx.globalAlpha = 1;
@@ -448,11 +453,19 @@ class ManiaRenderer {
     }
     // stage hint
     if (L.tex.stageHint) {
-      const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u : s);
+      const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u * 0.9 * 1.6025 : s); // (lazer's LegacyHitTarget)
       this._img(t.img, 0, this.hitY - h / 2, this.stageW, h, this.up);
     }
-    if (L.keysUnderNotes) this._drawKeys(g);
+    if (L.keysUnderNotes) this._drawKeys(g, realNow);
 
+    // when each column's hold began and ended (its light and its body's animation start from there)
+    if (g.engine) {
+      const hs = this._holdFx || (this._holdFx = []);
+      for (let c = 0; c < K; c++) {
+        const on = !!g.engine.holding[c], h = hs[c] || (hs[c] = { on: false, t0: -1e9, t1: -1e9 });
+        if (on !== h.on) { h.on = on; if (on) h.t0 = realNow; else h.t1 = realNow; }
+      }
+    }
     // bar lines (under the notes), then the notes
     if (g.bars) this._drawBars(g);
     if (g.engine) this._drawNotes(g, realNow);
@@ -462,13 +475,13 @@ class ManiaRenderer {
       ctx.fillStyle = rgba(L.colours.judgementLine, 0.9);
       this._rect(0, this.hitY - Math.max(1, s * 0.5), this.stageW, Math.max(1, s * 0.5));
     }
-    if (!L.keysUnderNotes) this._drawKeys(g);
+    if (!L.keysUnderNotes) this._drawKeys(g, realNow);
     // stage sides / bottom
     const us = this.legacy ? this.u : s;
     if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; ctx.drawImage(t.img, -w, 0, w, H); }
     if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; ctx.drawImage(t.img, this.stageW, 0, w, H); }
     if (L.tex.stageBottom) {
-      const t = L.tex.stageBottom, w = t.w * us, h = t.h * us;
+      const t = L.tex.stageBottom, k = this.legacy ? 1.6 : 1, w = t.w * us * k, h = t.h * us * k; // (lazer: 1.6×)
       this._img(t.img, (this.stageW - w) / 2, H - h, w, h, this.up);
     }
     // lighting
@@ -529,10 +542,11 @@ class ManiaRenderer {
     ctx.fillStyle = gr;
     ctx.fillRect(0, y0, this.stageW, y1 - y0);
   }
-  _drawKeys(g) {
+  _drawKeys(g, realNow = performance.now()) {
     const L = this.layout, K = L.keys, H = this.H;
     for (let i = 0; i < K; i++) {
-      const down = g.held[i] && L.tex.keyD[i];
+      // (lazer's LegacyKeyArea: the pressed image stays 80 ms after the key is let go)
+      const down = (g.held[i] || (this.legacy && realNow - this.keyLight[i] < 80)) && L.tex.keyD[i];
       const t = down ? L.tex.keyD[i] : L.tex.key[i];
       if (!t) continue;
       const flip = down ? this.fl.keyD[i] : this.fl.key[i];
@@ -604,6 +618,8 @@ class ManiaRenderer {
           if (yHead < top && yTail < top) break;
           if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
           const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
+          // (lazer: a hold's body animates only while it's held, 30 ms a frame, and rests on its first frame otherwise)
+          this._bodyT = n.state === NS.HOLDING && this.legacy ? realNow - ((this._holdFx && this._holdFx[c] && this._holdFx[c].t0) || realNow) : null;
           if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, realNow); ctx.globalAlpha = 1; continue; }
           const n0 = yTail - (texT ? this._noteH(texT, c) : 0), n1 = yHead;
           for (const [b0, b1, a] of bands) {
@@ -662,7 +678,7 @@ class ManiaRenderer {
     if (texH || texN) this._noteImg((texH || texN).frameAt(realNow), x, yHead - hh, w, hh, texH ? this.fl.head[c] : this.fl.note[c]);
   }
   _drawBody(tex, x, w, top, bottom, style, realNow, flip = false) {
-    const img = tex.frameAt(realNow);
+    const img = !this.legacy || tex.frames.length < 2 ? tex.frameAt(realNow) : this._bodyT == null ? tex.frames[0] : tex.frames[Math.floor(this._bodyT / 30) % tex.frames.length];
     const len = bottom - top;
     if (style === 0) { this._img(img, x, top, w, len, flip); return; }
     const th = Math.max(2, tex.h * (w / tex.w));
@@ -919,13 +935,22 @@ class ManiaRenderer {
     ctx.globalCompositeOperation = 'lighter';
     // hold lighting
     const eng = g.engine;
-    if (eng) for (let c = 0; c < L.keys; c++) {
-      if (!eng.holding[c]) continue;
+    // (lazer's LegacyBodyPiece: a skin.ini skin's light starts from its first frame as the hold begins, fading in
+    // over 80 ms, and fades out over 120 ms when it ends)
+    const hs = this._holdFx;
+    if (eng && hs) for (let c = 0; c < L.keys; c++) {
+      const on = !!eng.holding[c], h = hs[c];
+      if (!h) continue;
       const t = L.tinted.lightingL[c];
       if (!t) continue;
+      let a = on ? 1 : 0;
+      if (this.legacy) a = on ? Math.min(1, (realNow - h.t0) / 80) : Math.max(0, 1 - (realNow - h.t1) / 120) * Math.min(1, (h.t1 - h.t0) / 80);
+      if (a <= 0) continue;
       const w = this._lightW(t, c, L.lightingLWidth), hh = t.h * (w / t.w);
       const cx = this.colX[c] + this.colW[c] / 2;
-      this._cropImg(t.frameAt(realNow), cx - w / 2, this._lightY(c) - hh / 2, w, hh, this.up);
+      ctx.globalAlpha = a;
+      this._cropImg(t.frameAt(this.legacy ? realNow - h.t0 : realNow), cx - w / 2, this._lightY(c) - hh / 2, w, hh, this.up);
+      ctx.globalAlpha = 1;
     }
     // hit lighting (effects are compacted in place: no new array every frame)
     let keep = 0;
@@ -938,12 +963,13 @@ class ManiaRenderer {
       if (!t) continue;
       const el = Math.max(0, realNow - e.t0);
       const multi = t.frames.length > 1;
-      const dur = multi ? t.frames.length / t.fps * 1000 : 180;
+      // (lazer's LegacyHitExplosion for a skin.ini skin: from its first frame, fading in over 80 ms then out over 120)
+      const dur = this.legacy ? 200 : multi ? t.frames.length / t.fps * 1000 : 180;
       if (el > dur) continue;
       const w0 = this._lightW(t, e.col, L.lightingNWidth);
-      const sc = multi ? 1 : 1 + Math.round(el / dur * 4) / 16; // (grows in 1/16 steps: each size is cached)
+      const sc = multi || this.legacy ? 1 : 1 + Math.round(el / dur * 4) / 16; // (grows in 1/16 steps: each size is cached)
       const w = w0 * sc, hh = t.h * (w0 / t.w) * sc;
-      ctx.globalAlpha = multi ? 1 : 1 - el / dur;
+      ctx.globalAlpha = this.legacy ? (el < 80 ? el / 80 : 1 - (el - 80) / 120) : multi ? 1 : 1 - el / dur;
       const cx = this.colX[e.col] + this.colW[e.col] / 2;
       this._cropImg(t.frameAt(el, false), cx - w / 2, this._lightY(e.col) - hh / 2, w, hh, this.up);
       ctx.globalAlpha = 1;
@@ -1029,7 +1055,7 @@ class ManiaRenderer {
     const k = (this.legacy ? this.u : this.s * 0.8) * Settings.get('skin.scale') * sc;
     const w = t.w * k, hh = t.h * k;
     const y = L.scorePosition * this.s, yy = this.up ? this.H - y : y, cx = this.stageW / 2;
-    const img = t.frames.length > 1 ? t.frames[Math.min(t.frames.length - 1, Math.floor(el / 50))] : t.frames[0];
+    const img = t.frames[Math.floor(el / 50) % t.frames.length]; // (lazer: 20 frames a second, looping)
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
     if (rot) { ctx.save(); ctx.translate(cx, yy); ctx.rotate(rot); ctx.drawImage(img, -w / 2, -hh / 2, w, hh); ctx.restore(); }
