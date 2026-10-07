@@ -16453,6 +16453,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, editor: this.params.editor || null, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
+      // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
+      if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }
       const score = this.buildScore(true, summary);
       setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode, back: this.params.back || (this.params.returnTo ? { name: 'results', params: this.params.returnTo } : null) }, { replace: true, transition: 'zoom' }); }, 600);
     }
@@ -18654,7 +18656,7 @@ const CHANGELOG = [
       'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
-    { icon: 'film', title: 'Spectating', items: ['When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
+    { icon: 'film', title: 'Spectating', items: ['Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
     { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
@@ -24022,6 +24024,15 @@ const Spectate = {
     }
     if (m.t === 'specEnd') {
       if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      // watching from a multiplayer room: their song is over, so is watching — back to the room (once the play you're
+      // shown has caught up with its end, a moment behind theirs)
+      if (Multiplayer.inRoom()) {
+        const c = this.cur;
+        if (c) { c.ended = true; c.quit = !!m.quit; }
+        if (!this.watchingNow() || m.quit) { this.stop({ quiet: true }); return; }
+        setTimeout(() => { if (this.cur === c && this.target) this.stop({ quiet: true }); }, (SPEC_DELAY + 2500));
+        return;
+      }
       if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; this.showRk(this._rk); }
       if (m.quit && this.watchingNow()) { Toast.show(`${this.target.name} quit the song`, 'Waiting for their next one…'); Screens.go('home'); }
       this.paintPill(`waiting for ${this.target.name}'s next song…`);

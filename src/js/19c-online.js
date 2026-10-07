@@ -108,6 +108,15 @@ const Spectate = {
     }
     if (m.t === 'specEnd') {
       if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      // watching from a multiplayer room: their song is over, so is watching — back to the room (once the play you're
+      // shown has caught up with its end, a moment behind theirs)
+      if (Multiplayer.inRoom()) {
+        const c = this.cur;
+        if (c) { c.ended = true; c.quit = !!m.quit; }
+        if (!this.watchingNow() || m.quit) { this.stop({ quiet: true }); return; }
+        setTimeout(() => { if (this.cur === c && this.target) this.stop({ quiet: true }); }, (SPEC_DELAY + 2500));
+        return;
+      }
       if (this.cur) { this.cur.ended = true; this.cur.quit = !!m.quit; this.showRk(this._rk); }
       if (m.quit && this.watchingNow()) { Toast.show(`${this.target.name} quit the song`, 'Waiting for their next one…'); Screens.go('home'); }
       this.paintPill(`waiting for ${this.target.name}'s next song…`);

@@ -678,7 +678,7 @@ const CHANGELOG = [
       'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
-    { icon: 'film', title: 'Spectating', items: ['When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
+    { icon: 'film', title: 'Spectating', items: ['Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
     { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
