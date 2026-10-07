@@ -242,10 +242,13 @@ const BeatmapManager = {
       }
       for (const ho of d.bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) needed.add(normPath(f).toLowerCase()); }
     }
+    let skinBytes = 0;
     for (const e of entries) {
       const n = e.name.toLowerCase(), ext = fileExt(n);
       if (ext === 'osb') storyboard = true;
       if (['wav', 'ogg', 'mp3'].includes(ext) && !n.includes('/') && e.size < 2e6) needed.add(n);
+      // the beatmap's own skin pictures (osu!'s names, beside the .osu files), used over your skin as lazer does
+      if (BEATMAP_SKIN_FILE.test(n) && !/@2x\./.test(n) && e.size < 4e6 && (skinBytes += e.size) < 24e6) needed.add(n);
     }
     // the storyboard: the .osb and the pictures it (and each difficulty's own [Events]) uses, up to 40MB of them
     if (storyboard) {

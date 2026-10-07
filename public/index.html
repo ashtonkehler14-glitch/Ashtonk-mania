@@ -5855,13 +5855,15 @@ class Skin {
   get author() { return this.ini.general.Author || this.meta.author || 'Unknown'; }
   get version() { return this.ini.general.Version || this.meta.version || 'latest'; }
 
-  _key(name) { return normPath(name).toLowerCase().replace(/\.(png|jpe?g|wav|ogg|mp3)$/, ''); }
+  // (a name in skin.ini may carry "@2x" — "Hit300: mania/hit300@2x" — which osu! strips before looking it up)
+  _key(name) { return normPath(name).toLowerCase().replace(/\.(png|jpe?g|wav|ogg|mp3)$/, '').replace(/@2x$/, ''); }
   has(name) { const k = this._key(name); return this.index.has(k) || this.index.has(k + '-0'); }
 
   async _blob(path) { return DB.get('files', `skin:${this.id}/${path}`); }
 
-  /** Load a texture by skin-relative name (extension-less). Handles @2x and -N animation frames. */
-  async texture(name, { fps = 30 } = {}) {
+  /** Load a texture by skin-relative name (extension-less). Handles @2x and -N animation frames. Animations play at
+   *  lazer's default 60 frames a second unless a part has its own pace. */
+  async texture(name, { fps = 60 } = {}) {
     if (!name) return null;
     const key = this._key(name);
     if (this.texCache.has(key)) return this.texCache.get(key);
@@ -6021,6 +6023,48 @@ class Skin {
   dispose() {
     for (const p of this.texCache.values()) Promise.resolve(p).then(t => t && t.frames.forEach(f => f.close && f.close()));
     this.texCache.clear(); this.soundCache.clear(); this.layoutCache.clear();
+  }
+}
+
+/** lazer's LegacyBeatmapSkin: pictures a beatmap carries under osu!'s skin names (mania-note1.png, lightingN.png,
+ *  score-0.png…) are used over the player's skin while that beatmap plays. As in osu!, only those pictures: the
+ *  layout and every setting still come from the player's skin, and a beatmap's "@2x" files aren't used. */
+const BEATMAP_SKIN_FILE = /^(mania-[^/]+|lighting[nl](-\d+)?|score-[^/]+|scorebar-[^/]+)\.(png|jpe?g)$/i;
+class BeatmapSkin extends Skin {
+  constructor(base, set) {
+    super({ ...base.meta, files: [] });
+    this.base = base; this.set = set; this.id = `${base.id}|${set.id}`;
+    this.ini = base.ini;
+    this.own = new Map(); // lookup key -> the beatmap's file name
+    for (const [low, real] of Object.entries(set.fileIndex || {})) {
+      if (!BEATMAP_SKIN_FILE.test(low) || /@2x\./.test(low)) continue;
+      this.own.set(low.replace(/\.(png|jpe?g)$/, ''), real);
+    }
+  }
+  static has(set) { return Object.keys((set && set.fileIndex) || {}).some(f => BEATMAP_SKIN_FILE.test(f) && !/@2x\./.test(f)); }
+  get builtin() { return this.base.builtin; }
+  get name() { return this.base.name; }
+  _mine(key) { return this.own.has(key) || this.own.has(key + '-0'); }
+  has(name) { const k = this._key(name); return this._mine(k) || this.base.has(name); }
+  async texture(name, opts = {}) {
+    const key = this._key(name || '');
+    if (!name || !this._mine(key)) return this.base.texture(name, opts);
+    if (this.texCache.has(key)) return this.texCache.get(key);
+    const p = (async () => {
+      const read = async real => decodeImage(await DB.get('files', `${this.set.id}/${real}`));
+      const frames = [];
+      for (let i = 0; i < 240 && this.own.has(`${key}-${i}`); i++) { const img = await read(this.own.get(`${key}-${i}`)); if (!img) break; frames.push(img); }
+      if (!frames.length && this.own.has(key)) { const img = await read(this.own.get(key)); if (img) frames.push(img); }
+      return frames.length ? new Texture(frames, 1, opts.fps || 60) : this.base.texture(name, opts);
+    })();
+    this.texCache.set(key, p);
+    return p;
+  }
+  sound(name) { return this.base.sound(name); }
+  dispose() {
+    // (only its own pictures: the player's skin goes on being used)
+    for (const [k, p] of this.texCache) if (this._mine(k)) Promise.resolve(p).then(t => t && t.frames.forEach(f => f.close && f.close()));
+    this.texCache.clear(); this.layoutCache.clear();
   }
 }
 
@@ -6453,6 +6497,7 @@ const ManiaLayout = {
     // means 1.0) and repeats them from the bottom (3) for newer ones
     const ver = /^latest$/i.test(String(skin.ini.general.Version || '').trim()) ? 2.7 : parseFloat(skin.ini.general.Version) || 1;
     const nbs = parseInt(get('NoteBodyStyle') ?? (ver < 2.5 ? '0' : '3'), 10);
+    L.version = ver;
     for (let i = 0; i < keys; i++) L.noteBodyStyle.push(parseInt(get(`NoteBodyStyle${i}`) ?? nbs, 10) || 0);
     const col = (k, d) => parseColour(get(k), d);
     L.colours.column = []; L.colours.light = [];
@@ -6526,7 +6571,12 @@ const ManiaLayout = {
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
       const tx = n => skin.texture(n).catch(() => null);
-      L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
+      // (lazer: the skin's AnimationFramerate, or the whole animation once a second)
+      L.tex.scorebarColour = await skin.texture('scorebar-colour').catch(() => null);
+      if (L.tex.scorebarColour && L.tex.scorebarColour.frames.length > 1) {
+        const r = parseFloat(skin.ini.general.AnimationFramerate);
+        L.tex.scorebarColour.fps = r > 0 ? r : L.tex.scorebarColour.frames.length;
+      }
       if (L.tex.scorebarColour) {
         L.tex.scorebarBg = await tx('scorebar-bg');
         // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
@@ -6617,6 +6667,13 @@ const SkinManager = {
     if (!this._retireHook) this._retireHook = Bus.on('screen:changed', () => {
       for (const k of this._retired) if (k !== this.current) { k.dispose(); this._retired.delete(k); }
     });
+  },
+  /** The skin with a beatmap's own skin pictures over it (one kept at a time). */
+  forBeatmap(skin, set) {
+    const id = `${skin.id}|${set.id}`;
+    if (this._bm && this._bm.id === id && this._bm.base === skin) return this._bm;
+    if (this._bm) this._bm.dispose();
+    return (this._bm = new BeatmapSkin(skin, set));
   },
   async select(id, { silent = false } = {}) {
     const skin = this.instance(id) || this.defaultSkin;
@@ -6727,7 +6784,8 @@ const SkinManager = {
       const t = await skin.texture(`${prefix}-${nm}`);
       if (t) { glyphs[ch] = t; found++; }
     }
-    return found >= 10 ? { glyphs, overlap } : null;
+    // (lazer: a skin has the font when its "-0" is there; any other glyph it lacks just isn't drawn)
+    return glyphs['0'] ? { glyphs, overlap } : null;
   },
 
   /** The current skin's score font (for the HUD and results), or null. */
@@ -7394,6 +7452,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
+  { s: 'Skin', g: 'Skin', k: 'skin.beatmapSkins', l: 'Beatmap skins', t: 'bool', d: true, hint: 'A beatmap that comes with its own skin pictures (notes, keys, lighting…) plays with them over your skin, as in lazer.' },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
   { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 0.7, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },
@@ -7792,10 +7851,13 @@ const BeatmapManager = {
       }
       for (const ho of d.bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) needed.add(normPath(f).toLowerCase()); }
     }
+    let skinBytes = 0;
     for (const e of entries) {
       const n = e.name.toLowerCase(), ext = fileExt(n);
       if (ext === 'osb') storyboard = true;
       if (['wav', 'ogg', 'mp3'].includes(ext) && !n.includes('/') && e.size < 2e6) needed.add(n);
+      // the beatmap's own skin pictures (osu!'s names, beside the .osu files), used over your skin as lazer does
+      if (BEATMAP_SKIN_FILE.test(n) && !/@2x\./.test(n) && e.size < 4e6 && (skinBytes += e.size) < 24e6) needed.add(n);
     }
     // the storyboard: the .osb and the pictures it (and each difficulty's own [Events]) uses, up to 40MB of them
     if (storyboard) {
@@ -9382,9 +9444,18 @@ class ManiaRenderer {
     // column lines
     if (this._hasLines) {
       ctx.fillStyle = this._lineFill;
-      for (let i = 0; i <= K; i++) {
-        // (lazer: a skin.ini skin's ColumnLineWidth in its 768-unit space, drawn at 0.74 of that)
-        const w = (L.columnLineWidth[i] || 0) * (this.legacy ? this.u * 0.74 : s * 0.5);
+      if (this.legacy) {
+        // lazer's LegacyStageBackground: each column draws its left line just inside its left edge and its right
+        // line just past its right edge (skins from version 2.4 on; older ones only the last column's), widths from
+        // ColumnLineWidth in the 768-unit space at 0.74 of that — so columns set apart by ColumnSpacing each get both
+        const u = this.u * 0.74, lw = L.columnLineWidth, modern = (L.version || 1) >= 2.4;
+        for (let i = 0; i < K; i++) {
+          const l = (lw[i] || 0) * u, r = (lw[i + 1] || 0) * u;
+          if (l > 0) ctx.fillRect(this.colX[i], 0, l, this.hitY);
+          if (r > 0 && (modern || i === K - 1)) ctx.fillRect(this.colX[i] + this.colW[i], 0, r, this.hitY);
+        }
+      } else for (let i = 0; i <= K; i++) {
+        const w = (L.columnLineWidth[i] || 0) * s * 0.5;
         if (w <= 0) continue;
         const x = i < K ? this.colX[i] : this.stageW;
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
@@ -9528,6 +9599,11 @@ class ManiaRenderer {
     }
   }
 
+  /** Can this canvas draw through a CSS filter (not before Safari 18)? */
+  _filterOK() {
+    if (this._fOK == null) { try { const x = document.createElement('canvas').getContext('2d'); x.filter = 'brightness(0.5)'; this._fOK = x.filter === 'brightness(0.5)'; } catch { this._fOK = false; } }
+    return this._fOK;
+  }
   /** Hidden / Fade In lane cover: `coverage` is the fraction of the lane (above the receptors) that is covered. */
   _noteAlpha(y, hidden) {
     if (!hidden) return 1;
@@ -9570,30 +9646,36 @@ class ManiaRenderer {
         this._snapC = g.snapRed ? (n._snap === undefined ? (n._snap = BeatmapParser.snapColour(n.time, g.snapRed)) : n._snap) : null;
         let yHead = y0 - n._hp * ppm;
         if (yHead < top && !n.isLN) break;
+        // (lazer: an animated note plays from when it comes on screen, each note on its own, 60 frames a second)
+        const at = this.legacy ? (g.now ?? realNow) - n.time + this.hitY / ppm : realNow;
         if (n.isLN) {
           const yTail = y0 - n._tp * ppm;
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
           if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
-          const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
+          // (lazer: a missed hold turns dark grey; where the canvas can't do that, it fades instead)
+          const missed = n.state === NS.DROPPED || n.state === NS.MISSED, dim = missed && this.legacy && this._filterOK();
+          const mult = missed && !dim ? 0.45 : 1;
           // (lazer: a hold's body animates only while it's held, 30 ms a frame, and rests on its first frame otherwise)
           this._bodyT = n.state === NS.HOLDING && this.legacy ? realNow - ((this._holdFx && this._holdFx[c] && this._holdFx[c].t0) || realNow) : null;
-          if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, realNow); ctx.globalAlpha = 1; continue; }
+          if (dim) ctx.filter = 'brightness(0.663)';
+          if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, at); ctx.globalAlpha = 1; if (dim) ctx.filter = 'none'; continue; }
           const n0 = yTail - (texT ? this._noteH(texT, c) : 0), n1 = yHead;
           for (const [b0, b1, a] of bands) {
             const lo = Math.max(b0, n0), hi = Math.min(b1, n1);
             if (hi <= lo || a <= 0) continue;
             ctx.save();
             ctx.beginPath(); ctx.rect(x - 1, this.up ? this.H - b1 : b0, w + 2, b1 - b0); ctx.clip();
-            ctx.globalAlpha = a * mult; this._drawLN(c, x, w, yHead, yTail, realNow);
+            ctx.globalAlpha = a * mult; this._drawLN(c, x, w, yHead, yTail, at);
             ctx.restore();
           }
+          if (dim) ctx.filter = 'none';
         } else {
           if (yHead > this.H + 60) continue;
           const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
           if (a <= 0) continue;
           ctx.globalAlpha = a;
-          if (texN) this._noteImg(texN.frameAt(realNow), x, yHead - nh, w, nh, this.fl.note[c]);
+          if (texN) this._noteImg(texN.frameAt(at), x, yHead - nh, w, nh, this.fl.note[c]);
           ctx.globalAlpha = 1;
         }
       }
@@ -15136,7 +15218,10 @@ const GameplayScreen = {
     let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
-    const skin = SkinManager.current;
+    let skin = SkinManager.current;
+    // (lazer's Beatmap skins: the beatmap's own skin pictures over your skin's)
+    const bmSet = rec.setId && BeatmapManager.setById.get(rec.setId);
+    if (bmSet && !skin.builtin && Settings.get('skin.beatmapSkins') && BeatmapSkin.has(bmSet)) skin = SkinManager.forBeatmap(skin, bmSet);
     this.loaderStatus('Loading audio…', 0.3);
     const silent = !rec.setId; // (no song yet: a silent track of the right length keeps time until it's in)
     const [layout, buffer] = await Promise.all([skin.mania(keys), silent ? silentTrack(loaded.notes) : TrackCache.get(rec.setId, rec.audioFile)]);
@@ -18665,6 +18750,8 @@ const CHANGELOG = [
     { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
+      'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
+      'Animated skin parts play at lazer\'s speed (60 frames a second, each note from when it comes on screen), missed long notes turn dark grey, skin.ini names ending in "@2x" are found, and skins with only some score digits still use their own font',
       'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },

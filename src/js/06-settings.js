@@ -130,6 +130,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
+  { s: 'Skin', g: 'Skin', k: 'skin.beatmapSkins', l: 'Beatmap skins', t: 'bool', d: true, hint: 'A beatmap that comes with its own skin pictures (notes, keys, lighting…) plays with them over your skin, as in lazer.' },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.extend4K', l: 'Play 4K skins at every key count', t: 'bool', d: true, hint: 'A skin made only for 4K lends its four columns to other key counts in mirrored patterns (7K plays as 1 2 1 2 4 3 4).' },
   { x: 1, s: 'User Interface', g: 'General', k: 'ui.lazerCursor', l: 'Use the osu!lazer cursor', t: 'bool', d: true },
   { s: 'User Interface', g: 'General', k: 'ui.cursorSize', l: 'Menu cursor size', t: 'range', d: 0.7, min: 0.5, max: 2, step: 0.05, fmt: v => `${v.toFixed(2)}x` },

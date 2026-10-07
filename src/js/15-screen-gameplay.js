@@ -392,7 +392,10 @@ const GameplayScreen = {
     let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
-    const skin = SkinManager.current;
+    let skin = SkinManager.current;
+    // (lazer's Beatmap skins: the beatmap's own skin pictures over your skin's)
+    const bmSet = rec.setId && BeatmapManager.setById.get(rec.setId);
+    if (bmSet && !skin.builtin && Settings.get('skin.beatmapSkins') && BeatmapSkin.has(bmSet)) skin = SkinManager.forBeatmap(skin, bmSet);
     this.loaderStatus('Loading audio…', 0.3);
     const silent = !rec.setId; // (no song yet: a silent track of the right length keeps time until it's in)
     const [layout, buffer] = await Promise.all([skin.mania(keys), silent ? silentTrack(loaded.notes) : TrackCache.get(rec.setId, rec.audioFile)]);

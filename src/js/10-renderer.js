@@ -424,9 +424,18 @@ class ManiaRenderer {
     // column lines
     if (this._hasLines) {
       ctx.fillStyle = this._lineFill;
-      for (let i = 0; i <= K; i++) {
-        // (lazer: a skin.ini skin's ColumnLineWidth in its 768-unit space, drawn at 0.74 of that)
-        const w = (L.columnLineWidth[i] || 0) * (this.legacy ? this.u * 0.74 : s * 0.5);
+      if (this.legacy) {
+        // lazer's LegacyStageBackground: each column draws its left line just inside its left edge and its right
+        // line just past its right edge (skins from version 2.4 on; older ones only the last column's), widths from
+        // ColumnLineWidth in the 768-unit space at 0.74 of that — so columns set apart by ColumnSpacing each get both
+        const u = this.u * 0.74, lw = L.columnLineWidth, modern = (L.version || 1) >= 2.4;
+        for (let i = 0; i < K; i++) {
+          const l = (lw[i] || 0) * u, r = (lw[i + 1] || 0) * u;
+          if (l > 0) ctx.fillRect(this.colX[i], 0, l, this.hitY);
+          if (r > 0 && (modern || i === K - 1)) ctx.fillRect(this.colX[i] + this.colW[i], 0, r, this.hitY);
+        }
+      } else for (let i = 0; i <= K; i++) {
+        const w = (L.columnLineWidth[i] || 0) * s * 0.5;
         if (w <= 0) continue;
         const x = i < K ? this.colX[i] : this.stageW;
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
@@ -570,6 +579,11 @@ class ManiaRenderer {
     }
   }
 
+  /** Can this canvas draw through a CSS filter (not before Safari 18)? */
+  _filterOK() {
+    if (this._fOK == null) { try { const x = document.createElement('canvas').getContext('2d'); x.filter = 'brightness(0.5)'; this._fOK = x.filter === 'brightness(0.5)'; } catch { this._fOK = false; } }
+    return this._fOK;
+  }
   /** Hidden / Fade In lane cover: `coverage` is the fraction of the lane (above the receptors) that is covered. */
   _noteAlpha(y, hidden) {
     if (!hidden) return 1;
@@ -612,30 +626,36 @@ class ManiaRenderer {
         this._snapC = g.snapRed ? (n._snap === undefined ? (n._snap = BeatmapParser.snapColour(n.time, g.snapRed)) : n._snap) : null;
         let yHead = y0 - n._hp * ppm;
         if (yHead < top && !n.isLN) break;
+        // (lazer: an animated note plays from when it comes on screen, each note on its own, 60 frames a second)
+        const at = this.legacy ? (g.now ?? realNow) - n.time + this.hitY / ppm : realNow;
         if (n.isLN) {
           const yTail = y0 - n._tp * ppm;
           if (yTail > this.H + 50 && n.state !== NS.HOLDING) continue;
           if (yHead < top && yTail < top) break;
           if (n.state === NS.HOLDING) yHead = Math.min(yHead, this.hitY);
-          const mult = n.state === NS.DROPPED || n.state === NS.MISSED ? 0.45 : 1;
+          // (lazer: a missed hold turns dark grey; where the canvas can't do that, it fades instead)
+          const missed = n.state === NS.DROPPED || n.state === NS.MISSED, dim = missed && this.legacy && this._filterOK();
+          const mult = missed && !dim ? 0.45 : 1;
           // (lazer: a hold's body animates only while it's held, 30 ms a frame, and rests on its first frame otherwise)
           this._bodyT = n.state === NS.HOLDING && this.legacy ? realNow - ((this._holdFx && this._holdFx[c] && this._holdFx[c].t0) || realNow) : null;
-          if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, realNow); ctx.globalAlpha = 1; continue; }
+          if (dim) ctx.filter = 'brightness(0.663)';
+          if (!bands) { ctx.globalAlpha = mult; this._drawLN(c, x, w, yHead, yTail, at); ctx.globalAlpha = 1; if (dim) ctx.filter = 'none'; continue; }
           const n0 = yTail - (texT ? this._noteH(texT, c) : 0), n1 = yHead;
           for (const [b0, b1, a] of bands) {
             const lo = Math.max(b0, n0), hi = Math.min(b1, n1);
             if (hi <= lo || a <= 0) continue;
             ctx.save();
             ctx.beginPath(); ctx.rect(x - 1, this.up ? this.H - b1 : b0, w + 2, b1 - b0); ctx.clip();
-            ctx.globalAlpha = a * mult; this._drawLN(c, x, w, yHead, yTail, realNow);
+            ctx.globalAlpha = a * mult; this._drawLN(c, x, w, yHead, yTail, at);
             ctx.restore();
           }
+          if (dim) ctx.filter = 'none';
         } else {
           if (yHead > this.H + 60) continue;
           const a = this._noteAlpha(yHead, g.hidden) * (n.state === NS.MISSED ? 0.5 : 1);
           if (a <= 0) continue;
           ctx.globalAlpha = a;
-          if (texN) this._noteImg(texN.frameAt(realNow), x, yHead - nh, w, nh, this.fl.note[c]);
+          if (texN) this._noteImg(texN.frameAt(at), x, yHead - nh, w, nh, this.fl.note[c]);
           ctx.globalAlpha = 1;
         }
       }

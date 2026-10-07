@@ -143,13 +143,15 @@ class Skin {
   get author() { return this.ini.general.Author || this.meta.author || 'Unknown'; }
   get version() { return this.ini.general.Version || this.meta.version || 'latest'; }
 
-  _key(name) { return normPath(name).toLowerCase().replace(/\.(png|jpe?g|wav|ogg|mp3)$/, ''); }
+  // (a name in skin.ini may carry "@2x" — "Hit300: mania/hit300@2x" — which osu! strips before looking it up)
+  _key(name) { return normPath(name).toLowerCase().replace(/\.(png|jpe?g|wav|ogg|mp3)$/, '').replace(/@2x$/, ''); }
   has(name) { const k = this._key(name); return this.index.has(k) || this.index.has(k + '-0'); }
 
   async _blob(path) { return DB.get('files', `skin:${this.id}/${path}`); }
 
-  /** Load a texture by skin-relative name (extension-less). Handles @2x and -N animation frames. */
-  async texture(name, { fps = 30 } = {}) {
+  /** Load a texture by skin-relative name (extension-less). Handles @2x and -N animation frames. Animations play at
+   *  lazer's default 60 frames a second unless a part has its own pace. */
+  async texture(name, { fps = 60 } = {}) {
     if (!name) return null;
     const key = this._key(name);
     if (this.texCache.has(key)) return this.texCache.get(key);
@@ -309,6 +311,48 @@ class Skin {
   dispose() {
     for (const p of this.texCache.values()) Promise.resolve(p).then(t => t && t.frames.forEach(f => f.close && f.close()));
     this.texCache.clear(); this.soundCache.clear(); this.layoutCache.clear();
+  }
+}
+
+/** lazer's LegacyBeatmapSkin: pictures a beatmap carries under osu!'s skin names (mania-note1.png, lightingN.png,
+ *  score-0.png…) are used over the player's skin while that beatmap plays. As in osu!, only those pictures: the
+ *  layout and every setting still come from the player's skin, and a beatmap's "@2x" files aren't used. */
+const BEATMAP_SKIN_FILE = /^(mania-[^/]+|lighting[nl](-\d+)?|score-[^/]+|scorebar-[^/]+)\.(png|jpe?g)$/i;
+class BeatmapSkin extends Skin {
+  constructor(base, set) {
+    super({ ...base.meta, files: [] });
+    this.base = base; this.set = set; this.id = `${base.id}|${set.id}`;
+    this.ini = base.ini;
+    this.own = new Map(); // lookup key -> the beatmap's file name
+    for (const [low, real] of Object.entries(set.fileIndex || {})) {
+      if (!BEATMAP_SKIN_FILE.test(low) || /@2x\./.test(low)) continue;
+      this.own.set(low.replace(/\.(png|jpe?g)$/, ''), real);
+    }
+  }
+  static has(set) { return Object.keys((set && set.fileIndex) || {}).some(f => BEATMAP_SKIN_FILE.test(f) && !/@2x\./.test(f)); }
+  get builtin() { return this.base.builtin; }
+  get name() { return this.base.name; }
+  _mine(key) { return this.own.has(key) || this.own.has(key + '-0'); }
+  has(name) { const k = this._key(name); return this._mine(k) || this.base.has(name); }
+  async texture(name, opts = {}) {
+    const key = this._key(name || '');
+    if (!name || !this._mine(key)) return this.base.texture(name, opts);
+    if (this.texCache.has(key)) return this.texCache.get(key);
+    const p = (async () => {
+      const read = async real => decodeImage(await DB.get('files', `${this.set.id}/${real}`));
+      const frames = [];
+      for (let i = 0; i < 240 && this.own.has(`${key}-${i}`); i++) { const img = await read(this.own.get(`${key}-${i}`)); if (!img) break; frames.push(img); }
+      if (!frames.length && this.own.has(key)) { const img = await read(this.own.get(key)); if (img) frames.push(img); }
+      return frames.length ? new Texture(frames, 1, opts.fps || 60) : this.base.texture(name, opts);
+    })();
+    this.texCache.set(key, p);
+    return p;
+  }
+  sound(name) { return this.base.sound(name); }
+  dispose() {
+    // (only its own pictures: the player's skin goes on being used)
+    for (const [k, p] of this.texCache) if (this._mine(k)) Promise.resolve(p).then(t => t && t.frames.forEach(f => f.close && f.close()));
+    this.texCache.clear(); this.layoutCache.clear();
   }
 }
 
@@ -741,6 +785,7 @@ const ManiaLayout = {
     // means 1.0) and repeats them from the bottom (3) for newer ones
     const ver = /^latest$/i.test(String(skin.ini.general.Version || '').trim()) ? 2.7 : parseFloat(skin.ini.general.Version) || 1;
     const nbs = parseInt(get('NoteBodyStyle') ?? (ver < 2.5 ? '0' : '3'), 10);
+    L.version = ver;
     for (let i = 0; i < keys; i++) L.noteBodyStyle.push(parseInt(get(`NoteBodyStyle${i}`) ?? nbs, 10) || 0);
     const col = (k, d) => parseColour(get(k), d);
     L.colours.column = []; L.colours.light = [];
@@ -814,7 +859,12 @@ const ManiaLayout = {
     // the skin's own health bar (osu! scorebar-bg / scorebar-colour, animated or not); built-in skins have none
     if (!skin.builtin) {
       const tx = n => skin.texture(n).catch(() => null);
-      L.tex.scorebarColour = await skin.texture('scorebar-colour', { fps: 20 }).catch(() => null);
+      // (lazer: the skin's AnimationFramerate, or the whole animation once a second)
+      L.tex.scorebarColour = await skin.texture('scorebar-colour').catch(() => null);
+      if (L.tex.scorebarColour && L.tex.scorebarColour.frames.length > 1) {
+        const r = parseFloat(skin.ini.general.AnimationFramerate);
+        L.tex.scorebarColour.fps = r > 0 ? r : L.tex.scorebarColour.frames.length;
+      }
       if (L.tex.scorebarColour) {
         L.tex.scorebarBg = await tx('scorebar-bg');
         // "new style" skins have a scorebar-marker; older ones use the ki sprites (osu!lazer LegacyHealthDisplay)
@@ -905,6 +955,13 @@ const SkinManager = {
     if (!this._retireHook) this._retireHook = Bus.on('screen:changed', () => {
       for (const k of this._retired) if (k !== this.current) { k.dispose(); this._retired.delete(k); }
     });
+  },
+  /** The skin with a beatmap's own skin pictures over it (one kept at a time). */
+  forBeatmap(skin, set) {
+    const id = `${skin.id}|${set.id}`;
+    if (this._bm && this._bm.id === id && this._bm.base === skin) return this._bm;
+    if (this._bm) this._bm.dispose();
+    return (this._bm = new BeatmapSkin(skin, set));
   },
   async select(id, { silent = false } = {}) {
     const skin = this.instance(id) || this.defaultSkin;
@@ -1015,7 +1072,8 @@ const SkinManager = {
       const t = await skin.texture(`${prefix}-${nm}`);
       if (t) { glyphs[ch] = t; found++; }
     }
-    return found >= 10 ? { glyphs, overlap } : null;
+    // (lazer: a skin has the font when its "-0" is there; any other glyph it lacks just isn't drawn)
+    return glyphs['0'] ? { glyphs, overlap } : null;
   },
 
   /** The current skin's score font (for the HUD and results), or null. */

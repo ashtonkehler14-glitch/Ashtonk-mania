@@ -132,6 +132,28 @@ check('each difficulty shows its own background and plays its own song file (son
 }));
 await shot('02-songselect');
 
+// lazer's Beatmap skins: a beatmap carrying its own skin pictures (here a red mania-note1.png) plays with them over
+// your skin's — only those pictures, not @2x copies, and not when the setting is off
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, zr = new ZipReader(await (await fetch('/tests/fixtures/test-set.osz')).arrayBuffer());
+    const files = [];
+    for (const e of zr.entries) files.push({ name: e.name, data: new Uint8Array(await zr.read(e)) });
+    const c = document.createElement('canvas'); c.width = 64; c.height = 16; const x = c.getContext('2d'); x.fillStyle = '#f00'; x.fillRect(0, 0, 64, 16);
+    const png = new Uint8Array(await (await new Promise(res => c.toBlob(res))).arrayBuffer());
+    files.push({ name: 'mania-note1.png', data: png }, { name: 'mania-note1@2x.png', data: png });
+    await A.App.importFiles([new File([writeZip(files)], 'bmskin.osz')]);
+    const set = A.BeatmapManager.sets[0], base = A.SkinManager.current;
+    const kept = Object.keys(set.fileIndex).filter(f => /^mania-/.test(f));
+    const wrap = A.SkinManager.forBeatmap(base, set);
+    const own = await wrap.texture('mania-note1'), other = await wrap.texture('mania-key1'), baseOther = await base.texture('mania-key1');
+    const baseNote = await base.texture('mania-note1');
+    return { sets: A.BeatmapManager.sets.length, kept, has: BeatmapSkin.has(set), own: own && own.w, other: other === baseOther, baseNote: baseNote ? baseNote.w : null, setting: A.Settings.get('skin.beatmapSkins') };
+  });
+  check('beatmap skins: a beatmap\'s own skin pictures are kept and used over your skin\'s (not @2x copies), the rest still comes from your skin',
+    r.sets === 1 && r.kept.join() === 'mania-note1.png' && r.has && r.own === 64 && r.other && r.baseNote !== 64 && r.setting === true, JSON.stringify(r));
+}
+
 // corrupt / non-mania archives
 await dropFiles(['corrupt.osz', 'standard.osz']);
 await page.waitForTimeout(1500);
