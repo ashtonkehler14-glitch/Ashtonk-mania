@@ -953,7 +953,10 @@ const MultiplayerScreen = {
     const seen = this._resSeen === res; this._resSeen = res;
     return h(`div.mp-results.${cls}${seen ? '.still' : ''}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
-      teamBar, ...res.rows.map(row));
+      teamBar, ...(res.teams
+        // Team Versus: each team's players together, one above the other — the winning team first (red first on a draw)
+        ? (res.winnerTeam === 1 ? [1, 0] : [0, 1]).map(t => { const rows = res.rows.filter(x => x.team === t); return rows.length ? h(`div.mp-res-team.${t ? 'blue' : 'red'}`, h('div.mp-res-team-h', t ? 'Blue team' : 'Red team', h('b', fmtT(res.teams[t].total))), ...rows.map(row)) : null; })
+        : res.rows.map(row)));
   },
 
   /** Match settings (osu!lazer's MatchSettingsOverlay, host only): match type, win condition, room size, queue mode.

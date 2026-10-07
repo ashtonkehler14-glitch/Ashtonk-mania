@@ -659,8 +659,10 @@ await bob.evaluate(() => AshtonkMania.Screens.go('home'));
   await alice.click('.dialog .actions .btn.primary');
   await alice.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
   const inTeams = await alice.evaluate(() => AshtonkMania.Multiplayer.room.settings.type === 'teams' && !!document.querySelector('.mp-teams'));
+  await bob.evaluate(() => {}); await shot(alice, 'mp-teams');
+  const stacked = await alice.evaluate(() => { const t = [...document.querySelectorAll('.mp-teams > .mp-team')].map(e => e.getBoundingClientRect()); return t.length === 2 && t[1].top >= t[0].bottom - 1; });
   const listed = await bob.waitForFunction(() => [...document.querySelectorAll('.mp-room-row')].some(r => /Alice/.test(r.textContent) && /Team Versus/.test(r.textContent) && r.querySelector('.mp-rteams')), null, { timeout: 12000 }).then(() => true, () => false);
-  check('lounge: Create room offers Team Versus; the room starts red vs blue and the lounge lists it as Team Versus', offered.length === 2 && /Team Versus/.test(offered[1]) && inTeams && listed, JSON.stringify({ offered, inTeams, listed }));
+  check('lounge: Create room offers Team Versus; the room starts red vs blue (stacked, red above blue) and the lounge lists it as Team Versus', offered.length === 2 && /Team Versus/.test(offered[1]) && inTeams && stacked && listed, JSON.stringify({ offered, inTeams, stacked, listed }));
   await alice.evaluate(() => AshtonkMania.Multiplayer.leave());
 }
 

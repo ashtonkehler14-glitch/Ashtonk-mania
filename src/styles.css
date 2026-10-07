@@ -2127,14 +2127,13 @@ input[type=range].slider::-moz-range-thumb { width: 20px; height: 9px; border-ra
 .mp-rule .i { width: 13px; height: 13px; }
 .mp-player.red { box-shadow: inset -3px 0 0 var(--team-red-l); }
 .mp-player.blue { box-shadow: inset -3px 0 0 var(--team-blue-l); }
-.mp-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mp-teams { display: grid; grid-template-columns: 1fr; gap: 10px; } /* (red above blue: the teams stacked) */
 .mp-team { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; }
 .mp-team.red { background: linear-gradient(180deg, rgba(170, 20, 20, .22), rgba(170, 20, 20, .06)); }
 .mp-team.blue { background: linear-gradient(180deg, rgba(20, 98, 170, .22), rgba(20, 98, 170, .06)); }
 .mp-team-h { display: flex; align-items: center; gap: 8px; padding: 2px 4px; font-weight: 700; font-size: .85rem; }
 .mp-team.red .mp-team-h > span:first-child { color: var(--team-red-l); }
 .mp-team.blue .mp-team-h > span:first-child { color: var(--team-blue-l); }
-@media (max-width: 900px) and (hover: none) and (orientation: portrait) { .mp-teams { grid-template-columns: 1fr; } }
 
 .mp-set { display: flex; flex-direction: column; gap: 16px; width: min(560px, calc(80 * var(--vw))); max-width: 100%; min-width: 0; }
 .mp-set-row { display: flex; flex-direction: column; gap: 7px; }
@@ -4524,3 +4523,11 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .pf-top-in > .pf-centre .pf-lvl-bar { width: 140px; }
 @media (max-width: 700px) { .pf-top-in > .pf-centre .pf-lvl { display: none; } }
 .pf-top-in > .pf-centre .pf-lvl-bar { background: rgba(255, 255, 255, .18); }
+/* Team Versus results: each team's players grouped under its name and total, one team above the other */
+.mp-res-team { display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 10px; }
+.mp-res-team + .mp-res-team { margin-top: 6px; }
+.mp-res-team.red { background: linear-gradient(180deg, rgba(170, 20, 20, .18), rgba(170, 20, 20, .04)); }
+.mp-res-team.blue { background: linear-gradient(180deg, rgba(20, 98, 170, .18), rgba(20, 98, 170, .04)); }
+.mp-res-team-h { display: flex; justify-content: space-between; padding: 2px 6px; font-size: .78rem; font-weight: 700; }
+.mp-res-team.red .mp-res-team-h { color: var(--team-red-l); }
+.mp-res-team.blue .mp-res-team-h { color: var(--team-blue-l); }
