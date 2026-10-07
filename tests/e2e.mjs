@@ -1119,6 +1119,24 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('Manage collections (lazer\'s dialog): typing in "Create a new collection" makes one, Esc closes it', mc.made && !mc.open, JSON.stringify(mc));
   await page.evaluate(async () => { const c = AshtonkMania.Collections.list.find(c => c.name === 'Dialog made'); if (c) await AshtonkMania.Collections.remove(c.id); });
 }
+// song select's right-click menu: "Add to collection…" lists the collections, ticking one adds the difficulty
+{
+  const r = await page.evaluate(async () => {
+    const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => !x.problems.length);
+    const c = await AshtonkMania.Collections.create('Right-click made');
+    await AshtonkMania.Screens.go('songselect', { mapId: m.id }); await new Promise(r => setTimeout(r, 600));
+    AshtonkMania.SongSelect.options({ clientX: 700, clientY: 300 }, m);
+    const pick = label => [...document.querySelectorAll('.menu button')].find(b => b.textContent.includes(label));
+    const add = pick('Add to collection'); if (!add) return { add: false };
+    add.click(); await new Promise(r => setTimeout(r, 300));
+    const item = pick('Right-click made'); if (!item) return { add: true, item: false };
+    item.click(); await new Promise(r => setTimeout(r, 300));
+    const inIt = c.hashes.includes(m.hash);
+    await AshtonkMania.Collections.remove(c.id);
+    return { add: true, item: true, inIt };
+  });
+  check('song select right-click: "Add to collection…" lists the collections and adds the difficulty', r.add && r.item && r.inIt, JSON.stringify(r));
+}
 // results: picking another score's panel swaps it into the middle; leaving afterwards leaves nothing behind
 {
   const ok = await page.evaluate(async () => { const SM = AshtonkMania.ScoreManager, s = SM.scores.find(x => x.passed && SM.forMap(x.mapHash).filter(y => y.passed).length > 1);

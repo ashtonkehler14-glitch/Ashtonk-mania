@@ -1079,7 +1079,8 @@ const SongSelect = {
       { label: 'Edit', icon: 'edit', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'book', onClick: () => ManageCollections.open() },
+      // (lazer's carousel menu: straight to the collections, ticked where this difficulty already is)
+      { label: 'Add to collection…', icon: 'folder', onClick: () => this.collectionMenu({ currentTarget: { getBoundingClientRect: () => ({ left: x, top: y, bottom: y + 10 }) } }, m) },
       { sep: true },
       { label: 'Hide', icon: 'x', onClick: () => this.hideMap(m) },
       ...((Settings.get('songselect.hidden') || []).length ? [{ label: 'Restore all hidden', icon: 'retry', onClick: () => this.restoreHidden() }] : []),

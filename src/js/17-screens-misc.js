@@ -146,7 +146,7 @@ const CollectionsScreen = {
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h('div.list');
-    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
+    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, right-click a difficulty → "Add to collection…", or use the folder button.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);

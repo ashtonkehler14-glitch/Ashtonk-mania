@@ -14447,7 +14447,8 @@ const SongSelect = {
       { label: 'Edit', icon: 'edit', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
-      { label: 'Manage collections…', icon: 'book', onClick: () => ManageCollections.open() },
+      // (lazer's carousel menu: straight to the collections, ticked where this difficulty already is)
+      { label: 'Add to collection…', icon: 'folder', onClick: () => this.collectionMenu({ currentTarget: { getBoundingClientRect: () => ({ left: x, top: y, bottom: y + 10 }) } }, m) },
       { sep: true },
       { label: 'Hide', icon: 'x', onClick: () => this.hideMap(m) },
       ...((Settings.get('songselect.hidden') || []).length ? [{ label: 'Restore all hidden', icon: 'retry', onClick: () => this.restoreHidden() }] : []),
@@ -17915,7 +17916,7 @@ const CollectionsScreen = {
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h('div.list');
-    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
+    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, right-click a difficulty → "Add to collection…", or use the folder button.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);
