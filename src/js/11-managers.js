@@ -227,9 +227,9 @@ const ProfileManager = {
     else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
   },
-  /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 160 px, sharp
-   *  wherever it's shown (it was 64 px, blurry in profiles and on high-density screens), smaller only if it has to be
-   *  to fit what the server takes. */
+  /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 256 px (the size
+   *  of the bundled ones), sharp on profiles and high-density screens; a little more compressed, or smaller, only if it
+   *  has to be to fit what the server takes. */
   sharedAvatar: '',
   AVATAR_MAX: 24000, // (the server's limit, worker/multiplayer.js cleanAvatar)
   async makeSharedAvatar() {
@@ -238,7 +238,7 @@ const ProfileManager = {
     if (a !== 'custom' || !this.avatarURL) return '';
     const img = new Image(); img.src = this.avatarURL; await img.decode();
     const sz = Math.min(img.naturalWidth, img.naturalHeight);
-    for (const [px, q] of [[160, 0.88], [160, 0.75], [128, 0.75], [96, 0.75], [64, 0.8]]) {
+    for (const [px, q] of [[256, 0.86], [256, 0.74], [256, 0.62], [192, 0.75], [160, 0.75], [128, 0.75], [96, 0.75], [64, 0.8]]) {
       const c = document.createElement('canvas'); c.width = c.height = px;
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
       x.drawImage(img, (img.naturalWidth - sz) / 2, (img.naturalHeight - sz) / 2, sz, sz, 0, 0, px, px);

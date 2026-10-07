@@ -1321,9 +1321,15 @@ const Screens = {
       // once it has come in, the screen's entrance animations are let go: one held on its last frame (fill: both)
       // keeps the screen on a compositor layer of its own, and then everything in it that overlaps — every card of a
       // long list — gets a layer too (hundreds of them, which made scrolling stutter on slow Chromebooks)
+      // (one sweep for a burst of them: a list's cards each end their slide-in, and a sweep of the whole screen per card
+      // — forty of them on a page of the library — took tens of milliseconds on a slow device)
+      let sweep = 0;
       el.addEventListener('animationend', e => {
-        if (!this.ENTRANCES.has(e.animationName)) return;
-        for (const a of el.getAnimations({ subtree: true })) if (a.playState === 'finished' && this.ENTRANCES.has(a.animationName)) a.cancel();
+        if (!this.ENTRANCES.has(e.animationName) || sweep) return;
+        sweep = setTimeout(() => {
+          sweep = 0;
+          for (const a of el.getAnimations({ subtree: true })) if (a.playState === 'finished' && this.ENTRANCES.has(a.animationName)) a.cancel();
+        }, 120);
       });
       $('#screens').appendChild(el);
       Toolbar.setActive(next.tab || name);

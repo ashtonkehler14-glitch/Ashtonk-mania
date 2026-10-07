@@ -96,7 +96,7 @@ const BeatmapsScreen = {
    *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
     const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-    BeatmapManager.thumbURL(set, true).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+    BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
     const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
     const broken = maps.filter(m => m.problems.length);
     const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
@@ -180,7 +180,7 @@ const CollectionsScreen = {
       const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
       const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
-      if (set) BeatmapManager.thumbURL(set, true).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      if (set) BeatmapManager.thumbURL(set).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
       const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
       const open = () => m && Screens.go('songselect', { mapId: m.id });
       list.append(h(`div.ex-card.lib-card${m ? '' : '.missing'}`, { tabindex: '0', role: 'button', onclick: open, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); open(); } } },
@@ -301,57 +301,6 @@ const ProfileScreen = {
         h('div', h('span', 'Current daily streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
         h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
   },
-  mostRow(x, own) {
-    const cover = h('div.pf-most-cover');
-    if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['list@2x', 'list', 'card']);
-    else if (own) { const m = BeatmapManager.mapByHash(x.mapHash); if (m) BeatmapManager.bgThumbURL(m).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
-    const local = own && BeatmapManager.mapByHash(x.mapHash);
-    return h(`div.pf-most-row${local ? '.click' : ''}`, { onclick: local ? () => { UISounds.click(); Screens.go('songselect', { mapId: local.id }); } : null },
-      cover,
-      h('div.pf-most-t', h('div.pf-most-title', x.title, h('span', ` by ${x.artist}`)), h('div.pf-most-meta', starBadge(x.stars || 0), h('span.keys-tag', `${x.keys}K`), h('span', x.version), x.creator ? h('span.muted', `mapped by ${x.creator}`) : null)),
-      h('div.pf-most-n', icon('play'), h('b', fmtInt(x.count))));
-  },
-  /** lazer's profile Beatmaps section: your favourite beatmaps, and the ones you made (in the editor, under your name). */
-  beatmapLists() {
-    const lite = set => {
-      const maps = set.mapIds.map(id => BeatmapManager.maps.get(id)).filter(Boolean), stars = maps.map(m => m.stars || 0);
-      return { title: set.title, artist: set.artist, creator: set.creator, status: set.status || '', onlineSetId: set.onlineId > 0 ? set.onlineId : 0, setId: set.id,
-        diffs: maps.length, keys: [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b), lo: stars.length ? Math.min(...stars) : 0, hi: stars.length ? Math.max(...stars) : 0 };
-    };
-    const me = (ProfileManager.profile.name || '').trim().toLowerCase();
-    return {
-      favourites: [...Favorites.set].map(id => BeatmapManager.setById.get(id)).filter(Boolean).slice(0, 50).map(lite),
-      made: me ? BeatmapManager.sets.filter(st => (st.creator || '').trim().toLowerCase() === me).slice(0, 50).map(lite) : [],
-    };
-  },
-  /** lazer's BeatmapCard: the cover, the title and artist, the mapper, the status and the difficulties. */
-  beatmapCard(x, own) {
-    const cover = h('div.pf-bc-cover');
-    if (x.onlineSetId > 0) OnlineBeatmaps.loadCover(cover, x.onlineSetId, ['card@2x', 'card', 'cover']);
-    else if (own) { const st = BeatmapManager.setById.get(x.setId); if (st) BeatmapManager.thumbURL(st, true).then(u => { if (u) cover.style.backgroundImage = `url("${u}")`; }).catch(() => {}); }
-    const local = own && BeatmapManager.setById.get(x.setId);
-    const open = () => {
-      UISounds.click();
-      if (local && local.mapIds.length) Screens.go('songselect', { mapId: local.mapIds[0] });
-      else if (x.onlineSetId > 0) OnlineBeatmaps.getSet(x.onlineSetId).then(full => full && ExplorerScreen.openSet(full)).catch(() => {});
-    };
-    return h(`div.pf-bc${local || x.onlineSetId > 0 ? '.click' : ''}`, { onclick: open },
-      cover,
-      h('div.pf-bc-in',
-        h('div.pf-bc-title', x.title), h('div.pf-bc-artist', `by ${x.artist}`),
-        h('div.pf-bc-meta', x.creator ? h('span', 'mapped by ', h('b', x.creator)) : null),
-        h('div.pf-bc-foot', statusPill(x.status) || h('span.pf-bc-local', 'local'), starBadge(x.lo || 0), x.hi > x.lo + 0.05 ? h('span.muted', `– ${(x.hi || 0).toFixed(2)}`) : null,
-          h('span.muted', `${x.diffs} diff${x.diffs === 1 ? '' : 's'} · ${(x.keys || []).map(k => k + 'K').join(' ')}`))));
-  },
-  /** lazer's "Most played beatmaps": your plays counted per difficulty, the most first. */
-  mostPlayed() {
-    const by = new Map();
-    for (const s of ScoreManager.scores) { const e = by.get(s.mapHash); if (e) { e.count++; if (s.date > e.last) e.last = s.date; } else by.set(s.mapHash, { s, count: 1, last: s.date }); }
-    return [...by.values()].sort((a, b) => b.count - a.count || b.last - a.last).slice(0, 10).map(({ s, count }) => {
-      const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId);
-      return { title: s.title, artist: s.artist, version: s.version, creator: s.creator, stars: s.stars, keys: s.keys, count, mapHash: s.mapHash, onlineSetId: set && set.onlineId > 0 ? set.onlineId : 0 };
-    });
-  },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
   localData() {
@@ -362,28 +311,25 @@ const ProfileScreen = {
       // (enough for other players to open it on the results screen)
       score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed, ranked: ScoreManager.isRanked(s),
       ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : undefined }; })() });
-    const day = 86400000, g = st.grades || {};
+    const g = st.grades || {}, best = ScoreManager.bestPpPerMap();
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
       rankedScore: [...bestPerMap.values()].filter(s => ScoreManager.isRanked(s)).reduce((a, s) => a + (s.score || 0), 0), pp: ScoreManager.totalPp().total,
       grades: { XH: g.XH || 0, SS: g.SS || 0, SH: g.SH || 0, S: g.S || 0, A: g.A || 0 },
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
       // (50: the server checks each of them is on a ranked beatmap, by its osu! ids, before it counts toward the rankings)
-      top: ScoreManager.bestPpPerMap().slice(0, 50).map(tp => lite(tp.score, tp.pp)),
-      rankedPlays: ScoreManager.bestPpPerMap().length,
+      top: best.slice(0, 50).map(tp => lite(tp.score, tp.pp)),
+      rankedPlays: best.length,
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
-      mostPlayed: this.mostPlayed(),
-      ...this.beatmapLists(),
       medals: Medals.unlocked(),
-      ppHist: ScoreManager.ppHistory().slice(-60).map(x => ({ y: Math.round(x.pp), tip: `${fmtInt(x.pp)}pp after ${x.title} [${x.version}] · ${new Date(x.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}` })),
-      perDay: st.perDay.map(d => ({ label: new Date(d.day * day).toLocaleDateString([], { month: 'short', day: 'numeric' }), value: d.plays, tip: `${new Date(d.day * day).toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${d.plays} play${d.plays === 1 ? '' : 's'}` })),
+      // (only what the profile shows: the pp history, plays per day, most played and beatmap lists it used to have
+      // were still worked out — dates formatted one by one — every time it opened, and sent with it)
     };
   },
   /** The same, for sending: without the local score objects. */
   summary() {
     const d = this.localData(), strip = a => a.map(({ _s, ...x }) => x);
-    // (20 of each beatmap list: the profile has to fit what the server keeps)
-    return { ...d, top: strip(d.top), recent: strip(d.recent), favourites: (d.favourites || []).slice(0, 20), made: (d.made || []).slice(0, 20) };
+    return { ...d, top: strip(d.top), recent: strip(d.recent) };
   },
   render() {
     const page = this.page;

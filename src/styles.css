@@ -4666,3 +4666,12 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .hud-jc .jc-item { min-width: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
 .hud-jc .jc-n { font-size: 16px; font-weight: 600; line-height: 16px; text-shadow: none; }
 .hud-jc .jc-name { margin-top: 1px; font-size: 8px; font-weight: 600; line-height: 9px; letter-spacing: .02em; text-transform: none; opacity: 1; }
+/* a device found (or known) to be slow keeps the menus' animations but drops what costs its graphics chip the most,
+   as Performance mode does: the blur behind glass panels, big soft shadows, the background's parallax, and the
+   overlay waves and fountains */
+:root.slow .panel.glass, :root.slow .bso-card, :root.slow .pl-group { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+:root.slow .panel.glass, :root.slow .bso-card { background-color: rgba(18, 16, 24, .94); }
+:root.slow .menu, :root.slow .dialog, :root.slow .toast, :root.slow .chat, :root.slow .tooltip, :root.slow .ex-card, :root.slow .mp-room-row, :root.slow .mp-roompanel { box-shadow: 0 0 0 1px rgba(0, 0, 0, .4) !important; }
+:root.slow .lz-fountain, :root.slow .ov-waves { display: none !important; }
+:root.slow #bg-layer { transform: none !important; }
+:root.slow #bg-a, :root.slow #bg-b { will-change: auto; }
