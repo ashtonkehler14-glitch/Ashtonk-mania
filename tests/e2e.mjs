@@ -1170,6 +1170,13 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('phone: a paused song shows "Tap to resume" (no pause menu), and a tap carries on', tapUp.tap && !tapUp.menu && !tapUp.running && await mp.evaluate(() => !document.querySelector('.gp-tap')), JSON.stringify(tapUp));
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the on-screen pause button pauses', !!(await mp.$('.pause-menu')));
+  // ...and it's there in every kind of play (Auto here), even with the HUD hidden
+  await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); });
+  await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
+  await mp.evaluate(() => AshtonkMania.GameplayScreen.hud.classList.add('hidden-hud')); await mp.waitForTimeout(300);
+  const autoPause = await mp.evaluate(() => { const b = document.querySelector('.hud-touch-pause'); if (!b) return null; const r = b.getBoundingClientRect(); return { vis: getComputedStyle(b).visibility, w: r.width, top: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b }; });
+  await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
+  check('phone: the pause button is there in Auto too, with the HUD hidden, and pauses', !!(autoPause && autoPause.vis === 'visible' && autoPause.w > 20 && autoPause.top) && !!(await mp.$('.pause-menu')), JSON.stringify(autoPause));
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
   check('phone: the whole app fits the visible screen (its bottom isn\'t cut off)', await mp.evaluate(() => { const r = document.querySelector('#app').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && Math.abs(r.right - innerWidth) < 2; }));
@@ -1305,13 +1312,28 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.keyboard.press('Control+Shift+KeyS');
   await page.waitForSelector('.se-box', { timeout: 20000 });
   await page.waitForTimeout(800);
-  const box = await page.evaluate(() => { const b = [...document.querySelectorAll('.se-box')].find(b => b.textContent.startsWith('Score')); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, scale: +AshtonkMania.GameplayScreen.el.style.scale }; });
+  const boxOf = name => page.evaluate(n => { const b = [...document.querySelectorAll('.se-box')].find(b => b.querySelector('.se-label').textContent === n); if (!b) return null; const r = b.getBoundingClientRect(); const hd = b.querySelector('.se-handle').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, hx: hd.x + hd.width / 2, hy: hd.y + hd.height / 2, scale: +AshtonkMania.GameplayScreen.el.style.scale }; }, name);
+  const box = await boxOf('Score');
   await page.mouse.move(box.x, box.y); await page.mouse.down(); await page.mouse.move(box.x - 120, box.y + 90, { steps: 6 }); await page.mouse.up();
-  const L = await page.evaluate(() => AshtonkMania.Settings.get('hud.layout').score || {});
+  const L = await page.evaluate(() => AshtonkMania.Settings.get('hud.layout'));
+  // the combo counter (drawn with the stage) has its own box too: moved, then made bigger from its corner
+  await page.waitForFunction(() => [...document.querySelectorAll('.se-box .se-label')].some(l => l.textContent === 'Combo counter'), null, { timeout: 15000 }).catch(() => {});
+  const cb = await boxOf('Combo counter');
+  if (cb) {
+    await page.mouse.move(cb.x, cb.y); await page.mouse.down(); await page.mouse.move(cb.x + 60, cb.y + 40, { steps: 5 }); await page.mouse.up();
+    const cb2 = await boxOf('Combo counter');
+    await page.mouse.move(cb2.hx, cb2.hy); await page.mouse.down(); await page.mouse.move(cb2.hx + 40, cb2.hy + 30, { steps: 5 }); await page.mouse.up();
+  }
+  const C = await page.evaluate(() => AshtonkMania.Settings.get('hud.layout').combo || null);
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await page.waitForTimeout(1200);
   const back = await page.evaluate(() => [AshtonkMania.Screens.currentName, !!document.querySelector('.se')]);
-  check('skin editor: the game shrinks, dragging the score moves it, and Esc closes back', box.scale > 0.3 && box.scale < 1 && L.x < -0.05 && L.y > 0.05 && back[0] !== 'gameplay' && !back[1], JSON.stringify({ box, L, back }));
+  check('skin editor: the game shrinks, dragging the score moves only the score (accuracy, pp and mods stay), and Esc closes back',
+    box.scale > 0.3 && box.scale < 1 && L.sc && L.sc.x < -0.05 && L.sc.y > 0.05 && !L.acc && !L.pp && !L.mods && back[0] !== 'gameplay' && !back[1], JSON.stringify({ box, L, back }));
+  check('skin editor: the combo counter can be moved and resized on its own', !!(C && C.x > 0.01 && C.y > 0.01 && C.s > 1), JSON.stringify(C));
+  // a layout saved when score, accuracy, pp and mods moved as one block: each of the four takes its place
+  const mig = await page.evaluate(() => { const S = AshtonkMania.Settings; S.set('hud.layout', { score: { x: 0.1, s: 1.2 } }); const L = AshtonkMania.HudLayout.get(); return { keys: Object.keys(L).sort().join(), sc: L.sc, mods: L.mods, saved: Object.keys(S.get('hud.layout')).sort().join() }; });
+  check('skin editor: an older layout (score block) becomes the four separate parts', mig.keys === 'acc,mods,pp,sc' && mig.sc.x === 0.1 && mig.mods.s === 1.2 && mig.saved === 'acc,mods,pp,sc', JSON.stringify(mig));
   await page.evaluate(() => AshtonkMania.Settings.set('hud.layout', {}));
 }
 

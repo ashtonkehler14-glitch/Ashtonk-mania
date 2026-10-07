@@ -3485,9 +3485,16 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .hud-touch-pause { display: none; }
 @media (pointer: coarse) {
   .gameplay { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .hud-touch-pause { display: flex; gap: 6px; align-items: center; justify-content: center; position: absolute; left: 14px; top: 14px; width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .45); pointer-events: auto; z-index: 5; }
-  .hud-touch-pause i { width: 6px; height: 18px; border-radius: 2px; background: #fff; }
 }
+/* (on any touch screen — some phones and the installed app don't report a coarse pointer — clear of a rounded corner
+   or notch, and in front of everything else on the HUD) */
+@media (pointer: coarse), (any-pointer: coarse) { .hud-touch-pause { display: flex; } }
+html.touch .hud-touch-pause { display: flex; }
+.hud-touch-pause { gap: 7px; align-items: center; justify-content: center; position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top)); width: 58px; height: 58px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .5); box-shadow: 0 0 0 1px rgba(255, 255, 255, .12); pointer-events: auto; z-index: 30; }
+.hud-touch-pause i { width: 7px; height: 22px; border-radius: 2px; background: #fff; }
+.hud-touch-pause.stop .i { width: 24px; height: 24px; color: #fff; }
+.hud-touch-pause:active { scale: .92; background: rgba(0, 0, 0, .7); }
+.gp-hud.hidden-hud > .hud-touch-pause { visibility: visible; }
 /* phones held upright: a smaller play button, narrower footer buttons and toasts that fit */
 @media (max-width: 600px) and (hover: none) and (orientation: portrait) {
   .ss-footer .ss-cookie { width: 120px; height: 120px; right: 40px; bottom: 30px; }
@@ -4281,8 +4288,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .ed-empty-b .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── lazer's skin editor: the HUD layout over a shrunk game ── */
-.gp-hud > .hl-off { visibility: hidden !important; }
-body.se-open .gp-hud > .hl-off { visibility: visible !important; opacity: .25; }
+.gp-hud .hl-off { visibility: hidden !important; }
+body.se-open .gp-hud .hl-off { visibility: visible !important; opacity: .25; }
 body.se-open { background: #121116; }
 body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 10px 40px rgba(0, 0, 0, .5); overflow: hidden; }
 .se { position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Torus, Outfit, system-ui, sans-serif; color: #fff; }

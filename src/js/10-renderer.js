@@ -110,7 +110,8 @@ class ManiaRenderer {
       this._dpr = dpr; this.W = w; this.H = hh;
       this._geom();
       let x0 = 0, x1 = w;
-      if (this.layout && Number.isFinite(this.stageX)) {
+      // (nothing cropped while the skin editor is open: the combo counter can be dragged anywhere)
+      if (this.layout && Number.isFinite(this.stageX) && !(typeof SkinEditor !== 'undefined' && SkinEditor.on)) {
         // (a Web-Osu-Mania skin's judgements can be wider than its stage)
         const extra = this.layout.wom ? Math.max(0, 200 * this.womD - this.stageW / 2) : 0;
         const [ml, mr] = this._cropMargins();
@@ -175,7 +176,14 @@ class ManiaRenderer {
     if (hm === 'stage') right = Math.max(right, 10 * s);
     if (hm === 'skinstage') right = Math.max(right, 70 * s);
     if (Settings.get('input.keyOverlay')) right = Math.max(right, 48 * s);
-    return [Math.ceil(Math.max(sideL, light, 4 * s) + 2), Math.ceil(right + 2)];
+    let left = Math.max(sideL, light, 4 * s);
+    // (a combo counter moved sideways in the skin editor: the canvas reaches it)
+    const cl = typeof HudLayout !== 'undefined' ? HudLayout.combo() : null;
+    if (cl && cl.x && !cl.off) {
+      const reach = Math.abs(cl.x) * this.W + 160 * s * (cl.s || 1) - this.stageW / 2;
+      if (cl.x < 0) left = Math.max(left, reach); else right = Math.max(right, reach);
+    }
+    return [Math.ceil(left + 2), Math.ceil(right + 2)];
   }
   _geom() {
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
@@ -1111,19 +1119,26 @@ class ManiaRenderer {
       C.shown = Math.round(C.roll.from * (1 - p));
       if (p >= 1) C.roll = null;
     }
-    const L = this.layout, ctx = this.ctx, y = L.comboPosition * this.s, cx = this.stageW / 2;
-    const yy = this.up ? this.H - y : y;
+    // (where the skin editor put it, and its size: offsets are fractions of the screen; hidden, it's only shown —
+    // faintly — while the editor is open)
+    const cl = typeof HudLayout !== 'undefined' ? HudLayout.combo() : null, editing = typeof SkinEditor !== 'undefined' && SkinEditor.on;
+    if (cl && cl.off && !editing) return;
+    const ks = cl && cl.s > 0 ? cl.s : 1, ka = cl && cl.off ? 0.25 : 1;
+    const L = this.layout, ctx = this.ctx, y = L.comboPosition * this.s, cx = this.stageW / 2 + (cl ? (cl.x || 0) * this.W : 0);
+    const yy = (this.up ? this.H - y : y) + (cl ? (cl.y || 0) * this.H : 0);
     // the count that broke, popping out
     const pe = realNow - C.tPop;
     if (pe < 200 && C.pop > 0) {
       ctx.globalCompositeOperation = 'lighter';
-      this._comboText(String(C.pop), cx, yy, 1 + 3 * pe / 200, 1 + 3 * pe / 200, 0.8 * (1 - pe / 200), rgba(L.colours.break));
+      this._comboText(String(C.pop), cx, yy, (1 + 3 * pe / 200) * ks, (1 + 3 * pe / 200) * ks, 0.8 * (1 - pe / 200) * ka, rgba(L.colours.break));
       ctx.globalCompositeOperation = 'source-over';
     }
     if (C.shown <= 0) return;
     const se = realNow - C.tStretch, sy = se < 300 ? 1 + 0.4 * (1 - se / 300) ** 2 : 1;
     const milestone = Settings.get('gameplay.comboEffects') && combo > 0 && combo % 100 === 0 && C.shown === combo;
-    this._comboText(String(C.shown), cx, yy, 1, sy, this._cmbAlpha(realNow), milestone ? '#ffd54a' : null);
+    const box = this._comboText(String(C.shown), cx, yy, ks, sy * ks, this._cmbAlpha(realNow) * ka, milestone ? '#ffd54a' : null);
+    // (where it was drawn, for the skin editor's box: in the full screen's pixels)
+    if (box) this._cmbRect = { x: this.stageX + cx - box.w * ks / 2, y: yy - box.h * ks / 2, w: box.w * ks, h: box.h * ks };
   }
   _cmbAlpha(now) { const C = this._cmb; if (!C) return 0; const p = C.aMs > 0 ? Math.min(1, (now - C.ta) / C.aMs) : 1; return C.a0 + (C.aTo - C.a0) * p; }
   /** The combo in the skin's combo font (or the UI font), centred on (cx, cy), scaled about its centre. tint: a
@@ -1144,13 +1159,18 @@ class ManiaRenderer {
       let x = -total / 2;
       glyphs.forEach((gl, k) => { ctx.drawImage(tint ? this._tint(gl.img, tint) : gl.img, x, -hh / 2, widths[k], hh); x += widths[k] - ov; });
       ctx.restore();
+      ctx.globalAlpha = 1;
+      return { w: total, h: hh };
     } else {
       const size = Math.round(26 * s * sk);
       ctx.save(); ctx.translate(cx, cy); ctx.scale(sx, sy);
       ctx.font = `800 ${size}px Torus, Outfit, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = Math.max(2, size / 8); ctx.strokeStyle = 'rgba(0,0,0,.7)'; if (!tint) ctx.strokeText(text, 0, 0);
       ctx.fillStyle = tint || (L.skin.builtin ? '#efe6ff' : '#fff'); ctx.fillText(text, 0, 0);
+      const w = ctx.measureText(text).width;
       ctx.restore();
+      ctx.globalAlpha = 1;
+      return { w, h: size };
     }
     ctx.globalAlpha = 1;
   }

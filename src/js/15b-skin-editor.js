@@ -5,18 +5,39 @@
  * offset as a fraction of the screen, its scale, and whether it's hidden) and every play uses it. */
 
 const HUD_PARTS = [
-  { id: 'score', name: 'Score, accuracy & pp', sel: '.hud-score', origin: 'top right' },
+  // (score, accuracy, pp and mods are placed and sized each on its own, as lazer's separate HUD components)
+  { id: 'sc', name: 'Score', sel: '.hud-score > .sc', origin: 'top right' },
+  { id: 'acc', name: 'Accuracy', sel: '.hud-score > .hud-accrow', origin: 'top right' },
+  { id: 'pp', name: 'Performance (pp)', sel: '.hud-score > .hud-pp', origin: 'top right' },
+  { id: 'mods', name: 'Mods', sel: '.hud-score > .hud-mods', origin: 'top right' },
+  // (drawn with the stage, on the canvas, at the skin's ComboPosition: moved and sized from there)
+  { id: 'combo', name: 'Combo counter', canvas: true, origin: 'center center' },
   { id: 'hp', name: 'Health display', sel: '.hud-hp, .hud-skinhp', origin: 'top left' },
   { id: 'progress', name: 'Song progress', sel: '.hud-sp, .hud-progress', origin: 'bottom center' },
   { id: 'error', name: 'Hit error meter', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
   { id: 'jc', name: 'Judgement counter', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
   { id: 'lb', name: 'Leaderboard', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
+  { id: 'badge', name: 'Auto / replay badge', sel: '.hud-replay', origin: 'top center' },
 ];
 
 const HudLayout = {
   override: null,
-  get() { if (this.override) return this.override; const v = Settings.get('hud.layout'); return v && typeof v === 'object' ? v : {}; },
-  els(hud, p) { return hud ? [...hud.children].filter(el => el.matches(p.sel)) : []; },
+  get() {
+    if (this.override) return this.override;
+    let v = Settings.get('hud.layout');
+    if (!v || typeof v !== 'object') return {};
+    // (a layout from when score, accuracy, pp and mods moved as one block: each of the four takes its place)
+    if (v.score) { const c = v.score; v = { sc: c, acc: c, pp: c, mods: c, ...v }; delete v.score; Settings.set('hud.layout', v); }
+    return v;
+  },
+  /** One part's elements on the HUD (not one inside another that's already in the list). */
+  els(hud, p) {
+    if (!hud || !p.sel) return [];
+    const all = [...hud.querySelectorAll(p.sel)];
+    return all.length > 1 ? all.filter(el => !all.some(o => o !== el && o.contains(el))) : all;
+  },
+  /** The combo counter's place, size and visibility ({ x, y, s, off }), for the stage renderer. */
+  combo() { return this.get().combo || null; },
   /** "x y" from a computed `translate` (the CSS one the element already has: the offset goes on top of it). */
   split(t) {
     if (!t || t === 'none') return ['0px', '0px'];
@@ -66,6 +87,7 @@ const SkinEditor = {
   attach() {
     if (this.on) return;
     this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map(); this._hitEl = null;
+    { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.listEl = h('div.se-list');
@@ -96,6 +118,7 @@ const SkinEditor = {
     window.removeEventListener('keydown', this._key, true);
     if (this.el) this.el.remove();
     document.body.classList.remove('se-open');
+    { const r = GameplayScreen.renderer; if (r) r.resize(true); }
     const g = GameplayScreen.el; if (g) { g.style.translate = ''; g.style.scale = ''; g.style.transformOrigin = ''; }
     UISounds.back();
     if (Screens.currentName === 'gameplay' && GameplayScreen.params && GameplayScreen.params.skinEditor) {
@@ -262,7 +285,7 @@ const SkinEditor = {
     const seen = new Set();
     for (const p of HUD_PARTS) {
       const els = HudLayout.els(hud, p);
-      let r = null;
+      let r = p.canvas ? this.canvasRect(p) : null;
       for (const el of els) {
         const b0 = el.getBoundingClientRect();
         if (!b0.width && !b0.height) continue;
@@ -284,6 +307,16 @@ const SkinEditor = {
     for (const [id, box] of this.boxEls) if (!seen.has(id)) { box.remove(); this.boxEls.delete(id); }
     const key = [...seen].join();
     if (key !== this._seenKey) { this._seenKey = key; this.present = seen; this.paintList(); }
+  },
+  /** Where a part drawn on the stage canvas (the combo counter) is on screen, from where it was last drawn. */
+  canvasRect(p) {
+    const rr = GameplayScreen.renderer, cv = rr && rr.canvas, b = p.id === 'combo' && rr && rr._cmbRect;
+    if (!b || !cv || !cv.isConnected) return null;
+    const cr = cv.getBoundingClientRect();
+    if (!cr.width || !cr.height) return null;
+    const kx = cr.width / cv.width, ky = cr.height / cv.height, x = b.x - (rr.cropX || 0);
+    const pad = 4;
+    return { l: cr.left + x * kx - pad, t: cr.top + b.y * ky - pad, r: cr.left + (x + b.w) * kx + pad, b: cr.top + (b.y + b.h) * ky + pad };
   },
   /** The judgement line on the stage, as a thin box you drag up and down. */
   hitBox() {

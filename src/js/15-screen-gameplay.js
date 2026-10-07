@@ -777,7 +777,10 @@ const GameplayScreen = {
       h('div.hud-score', this.scoreEl, h('div.hud-accrow', (pd === 'pie' || pd === 'both') ? this.pieEl : null, this.accEl), this.ppEl,
         s.mods.length ? h('div.hud-mods', ...s.mods.map(m => modIcon(m, 42))) : null),
       // touch screens have no Escape key: a pause button only shows for coarse pointers
-      s.mode === 'play' ? h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')) : null,
+      // (in every kind of play — your own, practice, Auto, a replay, a multiplayer match (it asks before quitting) and
+      // spectating (where it stops watching) — and whatever the HUD's visibility: it's the only way out on a phone)
+      s.spectate ? h('button.hud-touch-pause.stop', { 'aria-label': 'Stop watching', onclick: e => { e.stopPropagation(); this.onBack(); } }, icon('x'))
+        : h('button.hud-touch-pause', { 'aria-label': 'Pause', onclick: e => { e.stopPropagation(); this.onBack(); } }, h('i'), h('i')),
       // (no hold-for-menu button on a computer: it sat where song select's play logo is, so starting a song from the
       // logo left the pointer on it and it showed up — Esc opens the pause menu)
     );
