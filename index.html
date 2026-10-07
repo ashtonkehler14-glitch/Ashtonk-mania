@@ -1344,6 +1344,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-pstate.ready i { background: #aadd00; }
 .mp-pstate.playing i { background: #8fd4ff; }
 .mp-pstate.finished i { background: #ffcc22; }
+.mp-pstate.reconnecting { color: #ffb3bb; }
+.mp-pstate.reconnecting i { background: #ff8a8a; }
+.mp-pstate.reconnecting i .i { animation: spin 1.2s linear infinite; }
 .mp-state { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: var(--text-2); }
 .mp-state.on { background: #88b300; color: #fff; }
 .mp-state.warn { background: rgba(255, 204, 34, .15); color: #ffcc22; }
@@ -18653,6 +18656,8 @@ const CHANGELOG = [
       'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
       'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
       'Team Versus scores each team\'s average, so uneven teams are fair — a team\'s score is out of 1,000,000 however many are on it',
+      'A dropped connection comes back properly: a reconnect that hangs is retried instead of waiting forever, losing your connection in the room keeps your seat (host, ready, team) for 30 seconds, and others see you as "reconnecting" meanwhile',
+      'The online service notices a connection that died quietly (a Wi-Fi or mobile network change) and reconnects, and tries again straight away when your network or the tab comes back',
       'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
@@ -21888,20 +21893,26 @@ const Multiplayer = {
     return new Promise((resolve, reject) => {
       const u = new URL(`api/mp/room/${encodeURIComponent(code)}`, location.href);
       u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      // (a reconnect attempt still under way is dropped first: two at once would take the seat from each other, and
+      // the loser would read that as the room being opened in another tab)
+      if (rejoin && this.ws) { const old = this.ws; this.ws = null; old.onclose = old.onmessage = old.onerror = null; try { old.close(1000, 'retry'); } catch { /* closed */ } }
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
       this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
       if (!rejoin) this.opps = new Map(); // (a reconnect keeps the other players' last scores on screen)
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
-      const fail = msg => { if (!settled) { settled = true; reject(new Error(msg)); } };
+      const fail = msg => { if (!settled) { settled = true; clearTimeout(slow); reject(new Error(msg)); } };
+      // a connection that neither opens nor fails (a half-dead network) would leave a reconnect waiting forever:
+      // no welcome in 10 s, give up on it (and try again)
+      const slow = setTimeout(() => { if (settled) return; fail('Couldn\'t reach the multiplayer server.'); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
       // cid (this browser) on every join, not just rooms you made: a dropped connection then comes back as the same
       // player — still in the match, scores syncing — instead of as a newcomer the match doesn't count
       ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '', create, sr: this.skillSR(), pid: Presence.pid(), cid: clientId(), ...opts })); this.ping(); };
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') { clearTimeout(slow); this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -22253,6 +22264,8 @@ const Presence = {
     let ws;
     try { ws = new WebSocket(u); } catch { this.later(); return; }
     this.ws = ws;
+    // (one that hasn't opened in 10 s won't: closing it tries again)
+    setTimeout(() => { if (this.ws === ws && ws.readyState === 0) { try { ws.close(); } catch { /* closed */ } } }, 10000);
     ws.onopen = () => {
       this.retry = 0; this._openAt = Date.now();
       this._sent = this.status(); this._name = ProfileManager.profile.name; this._av = ProfileManager.sharedAvatar || '';
@@ -22263,9 +22276,17 @@ const Presence = {
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
-      clearInterval(this._ping); this._ping = setInterval(() => this.send({ t: this.watching() ? 'list' : 'ping' }), 10000);
+      // (and a connection that answers nothing for 25 s has died without closing — a Wi-Fi or mobile handover —
+      // so it's dropped and opened again, instead of sitting there offline while looking online)
+      this._heard = Date.now();
+      clearInterval(this._ping); this._ping = setInterval(() => {
+        if (this.ws !== ws) return;
+        if (!document.hidden && Date.now() - this._heard > 25000) { this.dropDead(ws); return; }
+        this.send({ t: this.watching() ? 'list' : 'ping' });
+      }, 10000);
     };
     ws.onmessage = ev => {
+      this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
@@ -22334,7 +22355,23 @@ const Presence = {
   },
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
-  later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
+  later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(15000, 1000 * 2 ** this.retry++)); },
+  /** A connection that went silent: close it and connect again now (as if it had closed). */
+  dropDead(ws) {
+    if (this.ws !== ws) return;
+    const close = ws.onclose;
+    ws.onmessage = ws.onerror = null;
+    try { ws.close(4004, 'dead'); } catch { /* closed */ }
+    this.retry = 0;
+    if (close) { ws.onclose = null; close(); }
+  },
+  /** The network or the tab is back: if the connection is down, try again now rather than at the next retry. */
+  wake() {
+    if (!this.started || this.away || this.ws || !Multiplayer.available()) return;
+    if (this.health === 'checking') return;
+    if (this.health !== 'ok') { this.tryNow(true); return; }
+    clearTimeout(this._t); this.retry = 0; this.connect();
+  },
   /** The game left in the background (another tab, another app, the phone locked) for 30s goes offline, so nobody
    *  sees it as online while no one is there — unless it's in a room, spectating or being watched; it's back online
    *  the moment it comes to the front. */
@@ -22726,7 +22763,9 @@ const MultiplayerScreen = {
       // they're playing and their mods, and on the right their state ("ready" with a lime tick, "playing")
       if (!p) return h('div.mp-slot', h('span.mp-crown'), h('div.mp-player.empty', h('span.mp-empty-t', r.players.length < 2 ? 'Waiting for an opponent…' : `empty slot${st.size - r.players.length > 1 ? ` (${st.size - r.players.length} open)` : ''}`), r.players.length < 2 ? h('span.spinner') : null));
       const isMe = p.id === Multiplayer.me;
-      const state = p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : ''; // (a beatmap still downloading isn't shown: it installs in the background)
+      // (a beatmap still downloading isn't shown: it installs in the background; a dropped connection is, while the
+      // room keeps their seat for them to come back)
+      const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
         h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
@@ -22739,7 +22778,7 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
-        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : 'check')), state) : null,
+        state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
         host && !isMe && !r.players.some(x => x.playing) ? h('button.mp-pact.kick', { title: `Kick ${p.name}`, 'aria-label': `Kick ${p.name}`, onclick: async () => {
@@ -23000,13 +23039,13 @@ const MultiplayerScreen = {
 
 // the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
 // check a connection that may have died while the tab was in the background)
-addEventListener('online', () => { if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+addEventListener('online', () => { Presence.wake(); if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
 for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => Presence.input(), { capture: true, passive: true });
 addEventListener('pointermove', () => { if (Presence.away || performance.now() - Presence.lastInput > 5000) Presence.input(); }, { capture: true, passive: true });
 setInterval(() => Presence.idleCheck(), 30000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { Presence.hidden(); return; }
-  Presence.shown();
+  Presence.shown(); Presence.wake();
   if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now();
   else if (Multiplayer.ws) Multiplayer.ping();
 });

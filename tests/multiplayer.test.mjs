@@ -827,6 +827,30 @@ test('a dropped connection mid-song keeps the player\'s place until they reconne
   assert.equal(msgs(now, 'results')[0].msg.results.winner, 'a');
 });
 
+test('a dropped connection in the room keeps the seat (host, ready, difficulty) for 30 s; then the player is gone', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('LOBBY', () => clock.t);
+  r.join('a', 'Alice', true, { cid: 'ca' }); r.join('b', 'Bob', false, { cid: 'cb' });
+  r.message('a', { t: 'map', map: MAP }); r.message('a', { t: 'ready', ready: true });
+  // Alice (the host) drops in the lobby: still in the room, still the host, shown as away
+  r.disconnect('a');
+  assert.equal(r.players.length, 2); assert.equal(r.get('a').away, true); assert.equal(r.hostId, 'a');
+  assert.equal(r.snapshot('b').players.find(p => p.id === 'a').away, true);
+  clock.t += 20000; r.tick();
+  assert.ok(r.get('a'), 'still waited for after 20 s');
+  // back (same browser): herself, host and ready as before
+  const back = r.join('a2', 'Alice', false, { cid: 'ca' });
+  assert.equal(back.as, 'a'); assert.equal(r.get('a').away, false); assert.equal(r.hostId, 'a'); assert.equal(r.get('a').ready, true);
+  // drops again and doesn't come back: after 30 s she's gone and Bob is the host
+  r.disconnect('a');
+  clock.t += 30001; r.tick();
+  assert.equal(r.get('a'), undefined); assert.equal(r.hostId, 'b');
+  // leaving on purpose is at once
+  r.join('c', 'Cat', false, { cid: 'cc' });
+  r.message('c', { t: 'bye' }); r.disconnect('c');
+  assert.equal(r.get('c'), undefined);
+});
+
 test('Ranked Play: both choose a star rating; one who doesn\'t in time takes the other\'s, and the deck follows it', () => {
   const clock = { t: 0 };
   const r = new RoomLogic('ST', () => clock.t, () => 0.25);

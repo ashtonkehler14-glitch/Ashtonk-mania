@@ -1325,6 +1325,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-pstate.ready i { background: #aadd00; }
 .mp-pstate.playing i { background: #8fd4ff; }
 .mp-pstate.finished i { background: #ffcc22; }
+.mp-pstate.reconnecting { color: #ffb3bb; }
+.mp-pstate.reconnecting i { background: #ff8a8a; }
+.mp-pstate.reconnecting i .i { animation: spin 1.2s linear infinite; }
 .mp-state { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: var(--text-2); }
 .mp-state.on { background: #88b300; color: #fff; }
 .mp-state.warn { background: rgba(255, 204, 34, .15); color: #ffcc22; }

@@ -675,6 +675,8 @@ const CHANGELOG = [
       'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
       'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
       'Team Versus scores each team\'s average, so uneven teams are fair — a team\'s score is out of 1,000,000 however many are on it',
+      'A dropped connection comes back properly: a reconnect that hangs is retried instead of waiting forever, losing your connection in the room keeps your seat (host, ready, team) for 30 seconds, and others see you as "reconnecting" meanwhile',
+      'The online service notices a connection that died quietly (a Wi-Fi or mobile network change) and reconnects, and tries again straight away when your network or the tab comes back',
       'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },

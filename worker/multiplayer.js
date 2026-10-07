@@ -249,8 +249,11 @@ export class RoomLogic {
     // short wait — long enough for a quick reconnect to get the results with everyone in them)
     const midMatch = (this.state === 'playing' && p.playing) || (this.rp && !['waitjoin', 'ended'].includes(this.rp.stage));
     const justPlayed = !midMatch && this.state === 'lobby' && this.lastResults && this.now() - this.lastResults.at < 120000 && this.lastResults.rows.some(r => r.id === p.id);
-    if ((midMatch || justPlayed) && p.cid && !p.leaving) {
-      p.away = true; p.awayUntil = this.now() + (midMatch ? RP.AWAY : 20000);
+    // (and in a room's lobby: a dropped connection keeps its seat — host, ready, team, difficulty — for 30 s, so a
+    // blip in the network comes back as the same player instead of someone who left and joined again)
+    const lobbyDrop = !midMatch && !justPlayed && this.state === 'lobby' && !this.qp && !this.rp;
+    if ((midMatch || justPlayed || lobbyDrop) && p.cid && !p.leaving) {
+      p.away = true; p.awayUntil = this.now() + (midMatch ? RP.AWAY : justPlayed ? 20000 : 30000);
       return [this.system(`${p.name} lost connection — waiting for them to come back`), this.roomMsg()];
     }
     return this.leave(id);
