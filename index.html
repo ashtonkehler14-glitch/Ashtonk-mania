@@ -4652,6 +4652,40 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 @container (max-width: 400px) { .mp-pdiff { display: none; } }
 @container (max-width: 330px) { .mp-pstate { font-size: 0; gap: 0; } .mp-spec { font-size: 0; gap: 0; padding: 0 8px; } }
 
+/* ── the in-game leaderboard as lazer's DrawableGameplayLeaderboardScore, in Kori's colours: 38px panels sheared like
+   lazer's (11.31°, corners of 10), the place in a left layer (57px) of the panel's colour at 20→50%, the avatar on the
+   seam, then the name and accuracy over the score and combo on a 10→30% layer, edged 20%→100%. The colour says who it
+   is — lime for first (as lazer), Kori purple for you (lazer's orange), Kori lilac for everyone else (lazer's blue);
+   team colours in Team Versus, grey (with a red name) for someone who left */
+.hud-mp { gap: 3px; width: 268px; }
+.hud-mp-row { --pc: #b9a4ff; --sk: -11.31deg; height: 38px; margin-left: 0; padding: 0; border: 1.5px solid transparent; border-radius: 10px; opacity: 1; transform: skewX(var(--sk));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 10%, rgb(16 12 26 / .55)), color-mix(in srgb, var(--pc) 30%, rgb(16 12 26 / .55))) padding-box,
+    linear-gradient(90deg, color-mix(in srgb, var(--pc) 20%, transparent), var(--pc)) border-box;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .3); transition: opacity 300ms, filter 300ms; }
+.hud-mp-row::before { content: none; }
+.hud-mp-row.first { --pc: #99eb47; }
+.hud-mp-row.me { --pc: #b366ff; margin-left: 0; box-shadow: 0 2px 14px rgba(0, 0, 0, .35), 0 0 14px color-mix(in srgb, var(--pc) 35%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 10%, rgb(16 12 26 / .6)), color-mix(in srgb, var(--pc) 30%, rgb(16 12 26 / .6))) padding-box, linear-gradient(90deg, color-mix(in srgb, var(--pc) 20%, transparent), var(--pc)) border-box; }
+.hud-mp-row.me.first { --pc: #99eb47; }
+.hud-mp-row.red { --pc: #e24f4f; } .hud-mp-row.blue { --pc: #4f8fe2; }
+.hud-mp-row.away { --pc: #8a8a8a; opacity: .6; }
+.hud-mp-row.away .nm { color: #ff6680; }
+.hud-mp-row:not(.me) { filter: saturate(.9); }
+.mpl-left { width: 57px; height: 100%; padding: 0 19px 0 0; justify-content: center; background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 20%, transparent), color-mix(in srgb, var(--pc) 50%, transparent)); }
+.mpl-left .pos, .hud-mp-row:not(.first):not(.me) .mpl-left .pos { display: block; transform: skewX(calc(-1 * var(--sk))); font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.mpl-av { position: relative; z-index: 1; width: 38px; height: 38px; margin: 0 9px 0 -19px; border-radius: 9px; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--pc) 70%, transparent), 0 2px 6px rgba(0, 0, 0, .35); }
+.mpl-av > * { font-size: 16px !important; }
+.mpl-right { transform: skewX(calc(-1 * var(--sk))); padding-right: 12px; gap: 0; }
+.mpl-right .nm { font-size: 12px; font-weight: 600; color: #fff; }
+.mpl-right .acc, .mpl-right .cmb { font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, .8); }
+.mpl-right .sc { font-size: 15px; font-weight: 400; color: #fff; letter-spacing: 0; }
+
+/* ── the judgement counter as lazer's JudgementCounterDisplay: no panel — each judgement's count (16px, fixed-width
+   digits) over its name (8px), in its HitResult colour, 10px apart; a soft shadow keeps them readable over anything */
+.hud-jc { gap: 10px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.hud-jc .jc-item { min-width: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
+.hud-jc .jc-n { font-size: 16px; font-weight: 600; line-height: 16px; text-shadow: none; }
+.hud-jc .jc-name { margin-top: 1px; font-size: 8px; font-weight: 600; line-height: 9px; letter-spacing: .02em; text-transform: none; opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -18558,7 +18592,16 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.7', title: 'Cleaner pages', sections: [
-    { icon: 'multi', title: 'Multiplayer', items: ['The lounge has one bar: Create room, search and join by code side by side'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['The lounge has one bar: Create room, search and join by code side by side',
+      'The room is laid out like lazer\'s: the room\'s card across the top and a wide Ready / Start button in the middle',
+      'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
+      'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
+      'Team Versus scores each team\'s average, so uneven teams are fair — a team\'s score is out of 1,000,000 however many are on it',
+      'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
+      'The participants list never scrolls sideways: long names shorten instead',
+      '"You win!" on the match results is no longer hidden under the top bar'] },
+    { icon: 'film', title: 'Spectating', items: ['When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
     { icon: 'music', title: 'Song select', items: ['Right-click a difficulty → Add to collection… to tick the collections it goes in'] },

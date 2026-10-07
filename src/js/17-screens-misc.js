@@ -724,7 +724,16 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.7', title: 'Cleaner pages', sections: [
-    { icon: 'multi', title: 'Multiplayer', items: ['The lounge has one bar: Create room, search and join by code side by side'] },
+    { icon: 'multi', title: 'Multiplayer', items: ['The lounge has one bar: Create room, search and join by code side by side',
+      'The room is laid out like lazer\'s: the room\'s card across the top and a wide Ready / Start button in the middle',
+      'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
+      'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
+      'Team Versus scores each team\'s average, so uneven teams are fair — a team\'s score is out of 1,000,000 however many are on it',
+      'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
+      'The participants list never scrolls sideways: long names shorten instead',
+      '"You win!" on the match results is no longer hidden under the top bar'] },
+    { icon: 'film', title: 'Spectating', items: ['When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
     { icon: 'music', title: 'Song select', items: ['Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
