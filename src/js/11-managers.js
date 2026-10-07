@@ -152,9 +152,13 @@ const MapOffsets = {
     await DB.kvSet('map.offsets', this.map);
   },
   /** The offset change the last play on `hash` suggests (its mean hit error), or null if there isn't enough data. */
-  suggestion(hash) {
+  suggestion(hash, { sure = false } = {}) {
     const l = this.last;
     if (!l || l.hash !== hash || l.hits < 30 || Math.abs(l.mean) < 2) return null;
+    // `sure` (the results screen's nudge): only an offset the play really shows — at least 5 ms, and well beyond what
+    // the scatter of the hits alone would give (twice the mean's standard error): a 2 ms "late" on a play with a wide
+    // spread is just noise, and following it moves the offset back and forth
+    if (sure && (Math.abs(l.mean) < 5 || (l.sd && Math.abs(l.mean) < 2 * l.sd / Math.sqrt(l.hits)))) return null;
     return Math.round(l.mean);
   },
 };

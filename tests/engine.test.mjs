@@ -559,3 +559,13 @@ test('timing-based note colouring: each note by its beat snap, as osu!\'s beat s
   assert.deepEqual([c(1000), c(1250), c(1125), c(1062.5), c(1000 + 500 / 3), c(1000 + 500 / 6), c(1031.25), c(1017)],
     ['#ffffff', '#ed1121', '#66ccff', '#ffcc22', '#aa88ff', '#ff9a3c', '#6644cc', '#a0a0a0']);
 });
+
+test('results only suggest a beatmap offset the play really shows (not a few ms of noise)', () => {
+  const { MapOffsets } = load(['00-util.js', '11-managers.js']);
+  const sug = (mean, sd, hits) => { MapOffsets.last = { hash: 'm', mean, sd, hits }; return [MapOffsets.suggestion('m'), MapOffsets.suggestion('m', { sure: true })]; };
+  assert.deepEqual(sug(2.4, 40.7, 48), [2, null]); // 2 ms late with a wide spread: the loader's slider still offers it, the results don't
+  assert.deepEqual(sug(14, 20, 300), [14, 14]); // clearly late on a steady play
+  assert.deepEqual(sug(7, 60, 40), [7, null]); // 7 ms, but the hits scatter too much to tell
+  assert.deepEqual(sug(-9, 15, 200), [-9, -9]);
+  assert.deepEqual(sug(20, 10, 20), [null, null]); // too few hits
+});

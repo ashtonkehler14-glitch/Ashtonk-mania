@@ -10461,9 +10461,13 @@ const MapOffsets = {
     await DB.kvSet('map.offsets', this.map);
   },
   /** The offset change the last play on `hash` suggests (its mean hit error), or null if there isn't enough data. */
-  suggestion(hash) {
+  suggestion(hash, { sure = false } = {}) {
     const l = this.last;
     if (!l || l.hash !== hash || l.hits < 30 || Math.abs(l.mean) < 2) return null;
+    // `sure` (the results screen's nudge): only an offset the play really shows — at least 5 ms, and well beyond what
+    // the scatter of the hits alone would give (twice the mean's standard error): a 2 ms "late" on a play with a wide
+    // spread is just noise, and following it moves the offset back and forth
+    if (sure && (Math.abs(l.mean) < 5 || (l.sd && Math.abs(l.mean) < 2 * l.sd / Math.sqrt(l.hits)))) return null;
     return Math.round(l.mean);
   },
 };
@@ -16239,7 +16243,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.releaseAll();
     const summary = s.engine.summary();
     if (s.mode === 'play') {
-      MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
+      MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, sd: (summary.unstableRate || 0) / 10, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       // (a multiplayer play that ran out of health is a failed score: shown to the room, not recorded)
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }
@@ -17325,7 +17329,7 @@ const ResultsScreen = {
       mid.append(h('div.muted.res-prev', `Personal best: ${fmtScore(best)} (${me >= best ? '+' : ''}${fmtInt(me - best)})`));
     }
     // osu!lazer: calibrate this beatmap's offset from the play you just finished
-    const sug = p.fresh ? MapOffsets.suggestion(s.mapHash) : null;
+    const sug = p.fresh ? MapOffsets.suggestion(s.mapHash, { sure: true }) : null;
     if (sug != null) {
       const cur = MapOffsets.get(s.mapHash);
       mid.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
@@ -17372,7 +17376,8 @@ const ResultsScreen = {
     col.append(h('div.st-pair', perf, hist));
     // lazer's user tags: after your own pass, vote for what the beatmap is
     const own = !s.player || s.player === ProfileManager.profile.name;
-    if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
+    // (tags live on the server: no panel when there isn't one to reach)
+    if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined' && Multiplayer.available() && Presence.health !== 'none') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
     // Secondary graphs stay folded away to keep the screen simple.
     const more = h('details.res-more', h('summary', 'More statistics'));
     if (errs.length) more.append(scatter);

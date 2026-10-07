@@ -1693,7 +1693,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.releaseAll();
     const summary = s.engine.summary();
     if (s.mode === 'play') {
-      MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, hits: s.engine.hitErrors.filter(e => !e.tail).length };
+      MapOffsets.last = { hash: s.rec.hash, mean: summary.meanError || 0, sd: (summary.unstableRate || 0) / 10, hits: s.engine.hitErrors.filter(e => !e.tail).length };
       // (a multiplayer play that ran out of health is a failed score: shown to the room, not recorded)
       const { score, replay } = await this.saveScore(!s.mpFailed, { store: !s.mpFailed });
       try { Medals.check(score, { mp: !!s.mp, daily: !!(this.params.daily && score.passed) }); } catch (e) { console.warn('medals', e); }

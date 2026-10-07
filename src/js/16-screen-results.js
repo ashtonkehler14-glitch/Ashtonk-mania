@@ -212,7 +212,7 @@ const ResultsScreen = {
       mid.append(h('div.muted.res-prev', `Personal best: ${fmtScore(best)} (${me >= best ? '+' : ''}${fmtInt(me - best)})`));
     }
     // osu!lazer: calibrate this beatmap's offset from the play you just finished
-    const sug = p.fresh ? MapOffsets.suggestion(s.mapHash) : null;
+    const sug = p.fresh ? MapOffsets.suggestion(s.mapHash, { sure: true }) : null;
     if (sug != null) {
       const cur = MapOffsets.get(s.mapHash);
       mid.append(h('button.btn.sm.res-calib', { title: 'Shifts this beatmap\'s offset by your average hit error', onclick: async e => {
@@ -259,7 +259,8 @@ const ResultsScreen = {
     col.append(h('div.st-pair', perf, hist));
     // lazer's user tags: after your own pass, vote for what the beatmap is
     const own = !s.player || s.player === ProfileManager.profile.name;
-    if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
+    // (tags live on the server: no panel when there isn't one to reach)
+    if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined' && Multiplayer.available() && Presence.health !== 'none') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
     // Secondary graphs stay folded away to keep the screen simple.
     const more = h('details.res-more', h('summary', 'More statistics'));
     if (errs.length) more.append(scatter);
