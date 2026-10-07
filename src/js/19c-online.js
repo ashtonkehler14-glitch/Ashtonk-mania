@@ -750,7 +750,7 @@ const DashboardScreen = {
     const style = this.style();
     // (a new view — tab, filter, sort or style — fades in as lazer's lists do; presence updates just redraw)
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
-    if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? [h('span.spinner'), 'Connecting to the online service…'] : 'Online play needs the game\'s server (open the game from its website).')); return; }
+    if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
   },

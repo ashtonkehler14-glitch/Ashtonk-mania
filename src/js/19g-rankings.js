@@ -71,7 +71,7 @@ const RankingsScreen = {
     this.mode = 'performance'; // (by total pp)
     const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) this.ask(); })];
+    this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) { this.ask(); this.render(); } })];
     this.ask();
     this._tick = setInterval(() => this.ask(), 30000);
     this.render();
@@ -82,7 +82,7 @@ const RankingsScreen = {
   render() {
     if (!this.page) return;
     const d = this.data;
-    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
+    if (!d) { clearEl(this.page).append(!Presence.ws ? offlineState('The rankings') : h('div.rk-empty', h('span.spinner'), 'Loading rankings…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));

@@ -33,7 +33,7 @@ const DailyScreen = {
   enter() {
     const { el, page } = pageShell('daily challenge', 'a new beatmap every day — set your best score on it', [], { icon: 'calendar', hue: 'plum', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) Daily.ask(); })];
+    this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) { Daily.ask(); this.render(); } })];
     Daily.ask();
     this._tick = setInterval(() => this.tickTime(), 1000);
     this._poll = setInterval(() => Daily.ask(), 30000);
@@ -55,7 +55,7 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge') : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;

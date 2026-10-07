@@ -141,6 +141,8 @@ const SongSelect = {
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
+      // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
+      Bus.on('presence:changed', () => { const on = !!Presence.ws; if (on !== this._lbOnline) { this._lbOnline = on; if (this.info && this.info.querySelector('.off-state, .lb-loading')) { this._lbKey = null; this.updateInfo(); } } }),
       // an online leaderboard arriving for the beatmap on show
       Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
@@ -994,7 +996,7 @@ const SongSelect = {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list');
-    if (!Presence.ws) { list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'Can\'t reach the server for online leaderboards.')); return list; }
+    if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
     const me = Presence.pid(), who = ProfileManager.profile.name;

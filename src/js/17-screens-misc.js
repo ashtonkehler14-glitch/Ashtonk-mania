@@ -353,7 +353,7 @@ const ProfileScreen = {
     clearEl(page);
     if (this.remote) {
       const d = this.remote.data;
-      if (!d) { page.append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading profile…' : 'Profiles need the online server — trying to connect…')); return; }
+      if (!d) { page.append(!Presence.ws ? offlineState('This profile') : h('div.rk-empty', h('span.spinner'), 'Loading profile…')); return; }
       this.renderData(page, d, false);
       return;
     }

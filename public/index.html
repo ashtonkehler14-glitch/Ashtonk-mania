@@ -4551,6 +4551,25 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-res-team.red .mp-res-team-h { color: var(--team-red-l); }
 .mp-res-team.blue .mp-res-team-h { color: var(--team-blue-l); }
 
+/* the offline / connecting state of online pages (rankings, daily challenge, dashboard, profiles, song select's
+   online leaderboard): one calm card instead of a spinner that never stops */
+.off-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; margin: 56px auto; max-width: 440px; padding: 30px 32px 28px; border-radius: 16px; text-align: center;
+  background: hsl(var(--o-h, 255) 12% 14% / .7); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); animation: fadeIn calc(300ms * var(--anim)) ease-out both; }
+.off-state.connecting { background: none; box-shadow: none; gap: 14px; }
+.off-state .spinner { width: 30px; height: 30px; }
+.off-ico { position: relative; width: 58px; height: 58px; margin-bottom: 4px; border-radius: 50%; display: grid; place-items: center; color: hsl(var(--o-h, 255) 40% 78%); background: hsl(var(--o-h, 255) 30% 30% / .45); }
+.off-ico .i { width: 28px; height: 28px; }
+.off-ico i { position: absolute; width: 3px; height: 42px; border-radius: 2px; background: #ff6680; transform: rotate(-45deg); box-shadow: 0 0 0 3px hsl(var(--o-h, 255) 12% 14%); }
+.off-t { font-size: 1.15rem; font-weight: 700; color: #fff; }
+.off-sub { font-size: .88rem; line-height: 1.45; color: hsl(var(--o-h, 255) 10% 70%); }
+.off-retry { margin-top: 8px; gap: 6px; }
+.off-retry .i { width: 14px; height: 14px; }
+.off-state.compact { margin: 18px 22px; padding: 18px 20px; max-width: none; gap: 6px; background: rgba(0, 0, 0, .28); }
+.off-state.compact .off-ico { width: 40px; height: 40px; margin: 0; } .off-state.compact .off-ico .i { width: 20px; height: 20px; } .off-state.compact .off-ico i { height: 30px; }
+.off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }
+.off-state.compact.connecting { margin: 26px 0; }
+.dash-list .off-state { grid-column: 1 / -1; }
+
 </style>
 </head>
 <body>
@@ -13448,6 +13467,8 @@ const SongSelect = {
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
+      // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
+      Bus.on('presence:changed', () => { const on = !!Presence.ws; if (on !== this._lbOnline) { this._lbOnline = on; if (this.info && this.info.querySelector('.off-state, .lb-loading')) { this._lbKey = null; this.updateInfo(); } } }),
       // an online leaderboard arriving for the beatmap on show
       Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
@@ -14301,7 +14322,7 @@ const SongSelect = {
       if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list');
-    if (!Presence.ws) { list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), 'Can\'t reach the server for online leaderboards.')); return list; }
+    if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
     if (!fresh) { list.append(h('div.lb-empty.lb-loading', h('span.spinner'))); return list; }
     const sel = [...(Settings.get('songselect.mods') || [])].filter(x => x !== 'AT').sort().join();
     const me = Presence.pid(), who = ProfileManager.profile.name;
@@ -18058,7 +18079,7 @@ const ProfileScreen = {
     clearEl(page);
     if (this.remote) {
       const d = this.remote.data;
-      if (!d) { page.append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading profile…' : 'Profiles need the online server — trying to connect…')); return; }
+      if (!d) { page.append(!Presence.ws ? offlineState('This profile') : h('div.rk-empty', h('span.spinner'), 'Loading profile…')); return; }
       this.renderData(page, d, false);
       return;
     }
@@ -21946,13 +21967,29 @@ const Multiplayer = {
 
 /** Who's online, for invites: one WebSocket to the Worker (/api/mp/presence) for the whole session, which
  *  reconnects on its own. Players show as in the menus, in a room or playing. */
+/** What an online page shows with no connection: "Connecting…" while the server is being reached, otherwise a calm
+ *  card — the server can't be reached, what's missing, and Try again (it also keeps retrying by itself). `what` says
+ *  what will appear once it's back; compact for small panels (song select's leaderboard). */
+function offlineState(what, { compact = false } = {}) {
+  const cls = `div.off-state${compact ? '.compact' : ''}`;
+  if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
+  const local = !Multiplayer.available();
+  return h(cls,
+    h('div.off-ico', icon('globe'), h('i')),
+    h('div.off-t', local ? 'Offline' : 'Can\'t reach the server'),
+    h('div.off-sub', local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`),
+    local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again'));
+}
+
 const Presence = {
   ws: null, me: null, players: [], retry: 0, started: false,
   start() {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
-    // only where the Worker serves multiplayer (a plain static copy has no /api)
-    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
+    this.health = 'checking';
+    const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
+    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -22052,6 +22089,22 @@ const Presence = {
       this.later();
     };
   },
+  /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
+  tryNow(quiet = false) {
+    if (!Multiplayer.available() || this.ws) return;
+    this.retry = 0; clearTimeout(this._t); clearTimeout(this._hT);
+    if (this.health === 'ok') this.connect();
+    else {
+      this.health = 'checking';
+      fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && d.multiplayer) { this.health = 'ok'; this.connect(); return; }
+        this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000);
+      }).catch(() => { this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000); });
+    }
+    if (!quiet) Bus.emit('presence:changed');
+  },
+  /** Still finding out whether the server is there (the first look, or the first connection attempt). */
+  connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
   later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
   /** The game left in the background (another tab, another app, the phone locked) for 30s goes offline, so nobody
    *  sees it as online while no one is there — unless it's in a room, spectating or being watched; it's back online
@@ -24364,7 +24417,7 @@ const DashboardScreen = {
     const style = this.style();
     // (a new view — tab, filter, sort or style — fades in as lazer's lists do; presence updates just redraw)
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
-    if (!Presence.ws) { clearEl(this.listEl).append(h('div.dash-empty', Multiplayer.available() ? [h('span.spinner'), 'Connecting to the online service…'] : 'Online play needs the game\'s server (open the game from its website).')); return; }
+    if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
       : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
   },
@@ -25114,7 +25167,7 @@ const RankingsScreen = {
     this.mode = 'performance'; // (by total pp)
     const { el, page } = pageShell('rankings', 'find out who\'s the best right now', [], { icon: 'trophy', hue: 'green', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) this.ask(); })];
+    this._unsub = [Bus.on('rankings', d => { if ((d.mode || 'performance') !== this.mode) return; this.data = d; this.render(); }), Bus.on('presence:changed', () => { if (!this.data) { this.ask(); this.render(); } })];
     this.ask();
     this._tick = setInterval(() => this.ask(), 30000);
     this.render();
@@ -25125,7 +25178,7 @@ const RankingsScreen = {
   render() {
     if (!this.page) return;
     const d = this.data;
-    if (!d) { clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, Presence.ws ? 'Loading rankings…' : 'Rankings need the online server — trying to connect…')); return; }
+    if (!d) { clearEl(this.page).append(!Presence.ws ? offlineState('The rankings') : h('div.rk-empty', h('span.spinner'), 'Loading rankings…')); return; }
     if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
@@ -25184,7 +25237,7 @@ const DailyScreen = {
   enter() {
     const { el, page } = pageShell('daily challenge', 'a new beatmap every day — set your best score on it', [], { icon: 'calendar', hue: 'plum', wide: true });
     this.page = page;
-    this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) Daily.ask(); })];
+    this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) { Daily.ask(); this.render(); } })];
     Daily.ask();
     this._tick = setInterval(() => this.tickTime(), 1000);
     this._poll = setInterval(() => Daily.ask(), 30000);
@@ -25206,7 +25259,7 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      clearEl(this.page).append(h('div.rk-empty', Presence.ws || Multiplayer.available() ? h('span.spinner') : null, !Presence.ws ? 'The daily challenge needs the online server — trying to connect…' : d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge') : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;

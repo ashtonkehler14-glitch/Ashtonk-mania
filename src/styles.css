@@ -4531,3 +4531,22 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-res-team-h { display: flex; justify-content: space-between; padding: 2px 6px; font-size: .78rem; font-weight: 700; }
 .mp-res-team.red .mp-res-team-h { color: var(--team-red-l); }
 .mp-res-team.blue .mp-res-team-h { color: var(--team-blue-l); }
+
+/* the offline / connecting state of online pages (rankings, daily challenge, dashboard, profiles, song select's
+   online leaderboard): one calm card instead of a spinner that never stops */
+.off-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; margin: 56px auto; max-width: 440px; padding: 30px 32px 28px; border-radius: 16px; text-align: center;
+  background: hsl(var(--o-h, 255) 12% 14% / .7); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); animation: fadeIn calc(300ms * var(--anim)) ease-out both; }
+.off-state.connecting { background: none; box-shadow: none; gap: 14px; }
+.off-state .spinner { width: 30px; height: 30px; }
+.off-ico { position: relative; width: 58px; height: 58px; margin-bottom: 4px; border-radius: 50%; display: grid; place-items: center; color: hsl(var(--o-h, 255) 40% 78%); background: hsl(var(--o-h, 255) 30% 30% / .45); }
+.off-ico .i { width: 28px; height: 28px; }
+.off-ico i { position: absolute; width: 3px; height: 42px; border-radius: 2px; background: #ff6680; transform: rotate(-45deg); box-shadow: 0 0 0 3px hsl(var(--o-h, 255) 12% 14%); }
+.off-t { font-size: 1.15rem; font-weight: 700; color: #fff; }
+.off-sub { font-size: .88rem; line-height: 1.45; color: hsl(var(--o-h, 255) 10% 70%); }
+.off-retry { margin-top: 8px; gap: 6px; }
+.off-retry .i { width: 14px; height: 14px; }
+.off-state.compact { margin: 18px 22px; padding: 18px 20px; max-width: none; gap: 6px; background: rgba(0, 0, 0, .28); }
+.off-state.compact .off-ico { width: 40px; height: 40px; margin: 0; } .off-state.compact .off-ico .i { width: 20px; height: 20px; } .off-state.compact .off-ico i { height: 30px; }
+.off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }
+.off-state.compact.connecting { margin: 26px 0; }
+.dash-list .off-state { grid-column: 1 / -1; }

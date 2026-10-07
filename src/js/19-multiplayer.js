@@ -354,13 +354,29 @@ const Multiplayer = {
 
 /** Who's online, for invites: one WebSocket to the Worker (/api/mp/presence) for the whole session, which
  *  reconnects on its own. Players show as in the menus, in a room or playing. */
+/** What an online page shows with no connection: "Connecting…" while the server is being reached, otherwise a calm
+ *  card — the server can't be reached, what's missing, and Try again (it also keeps retrying by itself). `what` says
+ *  what will appear once it's back; compact for small panels (song select's leaderboard). */
+function offlineState(what, { compact = false } = {}) {
+  const cls = `div.off-state${compact ? '.compact' : ''}`;
+  if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
+  const local = !Multiplayer.available();
+  return h(cls,
+    h('div.off-ico', icon('globe'), h('i')),
+    h('div.off-t', local ? 'Offline' : 'Can\'t reach the server'),
+    h('div.off-sub', local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`),
+    local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again'));
+}
+
 const Presence = {
   ws: null, me: null, players: [], retry: 0, started: false,
   start() {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
-    // only where the Worker serves multiplayer (a plain static copy has no /api)
-    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
+    this.health = 'checking';
+    const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
+    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -460,6 +476,22 @@ const Presence = {
       this.later();
     };
   },
+  /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
+  tryNow(quiet = false) {
+    if (!Multiplayer.available() || this.ws) return;
+    this.retry = 0; clearTimeout(this._t); clearTimeout(this._hT);
+    if (this.health === 'ok') this.connect();
+    else {
+      this.health = 'checking';
+      fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && d.multiplayer) { this.health = 'ok'; this.connect(); return; }
+        this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000);
+      }).catch(() => { this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000); });
+    }
+    if (!quiet) Bus.emit('presence:changed');
+  },
+  /** Still finding out whether the server is there (the first look, or the first connection attempt). */
+  connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
   later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(60000, 2000 * 2 ** this.retry++)); },
   /** The game left in the background (another tab, another app, the phone locked) for 30s goes offline, so nobody
    *  sees it as online while no one is there — unless it's in a room, spectating or being watched; it's back online
