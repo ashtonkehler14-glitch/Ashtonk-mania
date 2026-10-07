@@ -138,8 +138,7 @@ await alice.click('.rk-table .rk-row:not(.rk-head)');
 await alice.waitForFunction(() => document.querySelector('.pf-name') && /Bob/.test(document.querySelector('.pf-name').textContent), null, { timeout: 5000 });
 check('rankings: clicking a player opens their full profile (rank, pp, play count, sections)', await alice.evaluate(pp => /#1/.test(document.querySelector('.pf-global').textContent) && document.querySelector('.pf-header').textContent.includes(`${Math.round(pp + 416.6667 * 0.005)}pp`) && !!document.querySelector('.pf-sec[data-sec="ranks"]') && !!document.querySelector('.pf-sec[data-sec="medals"]') /* (empty sections are left out) */ && !document.querySelector('.pf-avatar[title]'), bobScore.pp), await alice.evaluate(() => document.querySelector('.pf-header').textContent.slice(0, 200)), bobScore.pp);
 await shot(alice, 'mp-profile-other');
-const f1 = await alice.evaluate(() => { const h = [...document.querySelectorAll('.pf-subsec h3')].find(x => /First place ranks/.test(x.textContent)); return h ? h.textContent : null; });
-check('lazer\'s "First place ranks": Bob is #1 on the beatmap he played', /First place ranks\s*1$/.test(f1 || ''), f1);
+check('profiles are kept simple: best performance, recent plays and medals — no first place ranks', await alice.evaluate(() => !/First place ranks/.test(document.querySelector('.screen-body').textContent) && [...document.querySelectorAll('.pf-tabs .ov-tab')].every(t => /^(ranks|recent|medals)$/.test(t.textContent))));
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'rankings', null, { timeout: 5000 });
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 // lazer's daily challenge: one beatmap a day for everyone, and a leaderboard of each player's best score

@@ -392,7 +392,8 @@ const ProfileScreen = {
         h('div.pf-hex', h('span', String(xp.level))),
         h('div.pf-lvl', h('div.pf-lvl-bar', h('i', { style: { width: (xp.progress * 100).toFixed(1) + '%' } })), h('span', `${Math.floor(xp.progress * 100)}%`))));
     const grades = st.grades || {};
-    const rank = g => h('div.pf-rank', rankPill(g), h('span', fmtInt(grades[g] || 0)));
+    // SS, S and A (the Hidden silver ones counted in): three pills, not five near-identical ones
+    const rank = (g, ...also) => h('div.pf-rank', rankPill(g), h('span', fmtInt([g, ...also].reduce((n, x) => n + (grades[x] || 0), 0))));
     const dl = (k, v) => h('div.pf-dl', h('span', k), h('b', v));
     const globalRank = own ? this.globalRank : this.remote.rank;
     const detail = h('div.pf-detail',
@@ -401,7 +402,7 @@ const ProfileScreen = {
           // lazer's Global Ranking: the place in the rankings (from the server; — until it answers or offline)
           this.globalEl = h('div.pf-big.pf-global', { title: 'Place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', globalRank ? `#${fmtInt(globalRank)}` : '—')),
           h('div.pf-big', { title: 'The best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
-        h('div.pf-ranks', rank('XH'), rank('SS'), rank('SH'), rank('S'), rank('A'))),
+        h('div.pf-ranks', rank('SS', 'XH', 'X'), rank('S', 'SH'), rank('A'))),
       h('div.pf-detail-r',
         dl('Play count', fmtInt(st.plays)),
         dl('Play time', fmtDuration(st.playtime)), dl('Total hits', fmtInt(st.notes)), dl('Maximum combo', fmtInt(st.highestCombo) + 'x')));
@@ -410,11 +411,6 @@ const ProfileScreen = {
     // (a section with nothing in it is left out, tab and all: no wall of "nothing here yet")
     const section = (id, title, ...kids) => { kids = kids.filter(Boolean); if (!kids.length) return null; const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
     const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count ? h('span.pf-count', fmtInt(count)) : null), ...kids);
-    const ppHist = d.ppHist || [], perDay = d.perDay || [];
-    const hist = () => section('historical', 'Historical',
-      ppHist.length > 1 ? sub('Performance', null, h('div.pf-chart', Charts.line(ppHist, { fmtY: v => Math.round(v) + 'pp', yMin: 0, height: 160, dots: false }))) : null,
-      st.plays && perDay.length ? sub('Play history', null, h('div.pf-chart', Charts.bars(perDay))) : null,
-      (d.mostPlayed || []).length ? sub('Most played beatmaps', d.mostPlayed.length, h('div.pf-most', ...d.mostPlayed.map(x => this.mostRow(x, own)))) : null);
     const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
     // lazer's ProfileShowMoreButton: a list starts with 5 and grows by 10 with each "show more"
     const more = (items, mk, first = 5) => {
@@ -426,42 +422,17 @@ const ProfileScreen = {
       return box;
     };
     const topPlays = d.top || [];
-    // how the total is made, as osu! adds it up for lazer: the best play on each ranked beatmap, each weighted 95% of
-    // the one above it (100%, 95%, 90.25%…), plus the bonus for how many ranked plays there are
-    const info = own ? { pp: d.pp || 0, n: ScoreManager.bestPpPerMap().length } : this.remote && this.remote.ppInfo;
-    const n = info ? info.n || 0 : 0, bonus = OsuMath.bonusPp(n), total = info ? info.pp || 0 : d.pp || 0;
-    const calc = topPlays.length && total > 0 ? h('div.pf-ppcalc', { title: 'Only plays on ranked beatmaps count (checked on osu! by the server). Each play is weighted 95% of the one above it — 100%, 95%, 90%… — and a bonus is added for how many ranked beatmaps you have a play on.' },
-      h('div.pf-ppc', h('small', 'best plays, weighted'), h('b', `${fmtInt(Math.max(0, total - bonus))}pp`)),
-      h('span.pf-ppop', '+'),
-      h('div.pf-ppc', h('small', `bonus · ${fmtInt(n)} ranked play${n === 1 ? '' : 's'}`), h('b', `${fmtInt(bonus)}pp`)),
-      h('span.pf-ppop', '='),
-      h('div.pf-ppc.total', h('small', 'total'), h('b', `${fmtInt(total)}pp`))) : null;
     const ranks = () => section('ranks', 'Ranks',
-      sub('Best performance', topPlays.length, calc, topPlays.length
+      sub('Best performance', topPlays.length, topPlays.length
         ? more(topPlays, (x, i) => row(x, i, true))
-        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')),
-      // lazer: the beatmaps they're #1 on, on the global leaderboards
-      (f => f.list.length ? sub('First place ranks', f.count, more(f.list, (x, i) => row(x, i, false))) : null)((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [], count: 0 }));
+        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')));
     const got = d.medals || {};
-    const favs = d.favourites || [], made = d.made || [];
-    const cards = list => (b => { b.className = 'pf-bcs'; return b; })(more(list, x => this.beatmapCard(x, own), 6));
-    const maps = () => section('beatmaps', 'Beatmaps',
-      favs.length ? sub('Favourite beatmaps', favs.length, cards(favs)) : null,
-      made.length ? sub('Created beatmaps', made.length, cards(made)) : null);
     const medals = () => section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
     const recent = d.recent || [];
-    // lazer's Recent activity: what happened, newest first — medals unlocked, #1 ranks achieved
-    const firsts = ((own ? this.ownFirsts : this.remote && this.remote.firsts) || { list: [] }).list || [];
-    const acts = [
-      ...Object.entries(got).filter(([, t]) => t).map(([id, t]) => { const m = Medals.all.find(x => x.id === id); return m && { at: +t, ic: m.icon, el: h('span', 'Unlocked the ', h('b', `"${m.name}"`), ' medal!') }; }),
-      ...firsts.filter(x => x.date).map(x => ({ at: x.date, ic: 'crown', el: h('span', 'Achieved rank ', h('b.pf-act-rank', '#1'), ' on ', h('b', `${x.artist ? x.artist + ' - ' : ''}${x.title} [${x.version}]`)) })),
-    ].filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 50);
-    const actRow = a => h('div.pf-act', h('span.pf-act-i', icon(a.ic)), a.el, h('span.pf-act-t', { title: new Date(a.at).toLocaleString() }, shortAgo(a.at)));
     const rec = () => section('recent', 'Recent',
-      acts.length ? sub('Recent activity', null, (b => { b.className = 'pf-acts'; return b; })(more(acts, actRow, 6))) : null,
       recent.length ? sub('Recent plays', recent.length, more(recent, (x, i) => row(x, i, false))) : null);
-    // in osu!lazer's order: recent, ranks, historical, beatmaps, medals
-    const sections = [rec(), ranks(), hist(), maps(), medals()].filter(Boolean);
+    // kept simple: your best plays, what you played lately and your medals
+    const sections = [ranks(), rec(), medals()].filter(Boolean);
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
