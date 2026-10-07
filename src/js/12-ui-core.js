@@ -1031,7 +1031,7 @@ const LazerCursor = {
   /** CSS linear() easings for osu!framework's elastic curves. */
   ease(fn) { const pts = []; for (let i = 0; i <= 48; i++) pts.push(fn(i / 48).toFixed(4)); return `linear(${pts.join(', ')})`; },
   apply() {
-    const on = Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
+    const on = !this.missing && Settings.get('ui.lazerCursor') !== false && matchMedia('(hover: hover)').matches;
     document.body.classList.toggle('lz-cursor', on);
     if (!on) { if (this.el) this.el.hidden = true; return; }
     if (!this.el) this.build();
@@ -1042,7 +1042,10 @@ const LazerCursor = {
     const OUT_ELASTIC_QUARTER = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((0.25 * t - 0.075) * (2 * Math.PI) / 0.3 * 4) + 1;
     this.EL = this.ease(OUT_ELASTIC); this.ELQ = this.ease(OUT_ELASTIC_QUARTER);
     this.add = h('span.lzc-add');
-    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), this.add);
+    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false',
+      // (no picture — index.html opened on its own, without the lazer/ folder next to it: the system cursor, rather
+      // than a broken-image box following the mouse)
+      onerror: () => { this.missing = true; this.apply(); } }), this.add);
     this.rotEl = h('span.lzc-rot', this.scaleEl);
     this.el = h('div#lz-cur', { hidden: true, 'aria-hidden': 'true' }, this.rotEl);
     document.body.appendChild(this.el);
