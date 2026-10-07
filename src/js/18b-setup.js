@@ -148,7 +148,7 @@ const Onboarding = {
     } }, h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
     const out = [
       h('p.setup-lead', 'Did you play Web-Osu-Mania before?'),
-      h('div.setup-choices.two', choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'sparkle', 'No', 'I\'m new here'))];
+      h('div.setup-choices.two', choice('yes', 'upload', 'Yes', 'Bring my keybinds and beatmaps'), choice('no', 'user-plus', 'No', 'I\'m new here'))];
     if (yes) out.push(h('div.setup-wom',
       this.womDone
         ? h('div.setup-wom-done', icon('check'), h('span', `Imported ${this.womDone}. Your keybinds and settings are in place — check them on the next pages.`))
@@ -248,8 +248,8 @@ const Onboarding = {
         h('span.setup-skin-ic', icon(ic)), h('span.setup-skin-t', h('b', name), h('small', sub)), h('span.setup-check', icon('check')));
       clearEl(side).append(
         h('div.setup-skins',
-          kori ? card(kori.id, 'Kori', 'The default skin', 'sparkle') : null,
-          chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'sparkle') : null,
+          kori ? card(kori.id, 'Kori', 'The default skin', 'star') : null,
+          chemuss ? card(chemuss.id, 'Chemuss mixed edit', 'Orb notes, made for 4K', 'star') : null,
           card('default', 'Custom', 'Pick the note type, judgements and colour', 'brush'),
           ...others.map(s => card(s.id, s.name, 'Imported', 'brush')),
           h('button.setup-skinitem.import', { onclick: () => this.importSkins(paint, show) }, h('span.setup-skin-ic', icon('upload')), h('span.setup-skin-t', h('b', 'Import a skin'), h('small', '.osk file from osu!')))),
