@@ -462,7 +462,9 @@ const ProfileScreen = {
     const ranks = () => section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
         ? more(topPlays, (x, i) => row(x, i, true))
-        : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')));
+        : h('div.pf-empty', !own ? 'No performance records yet.'
+          // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
+          : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')));
     const got = d.medals || {};
     const medals = () => section('medals', 'Medals', sub('Unlocked', `${fmtInt(Medals.all.filter(m => got[m.id]).length)} / ${fmtInt(Medals.all.length)}`, ...Medals.section(got)));
     const recent = d.recent || [];
