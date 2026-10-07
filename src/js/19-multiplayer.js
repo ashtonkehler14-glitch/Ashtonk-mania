@@ -803,7 +803,7 @@ const MultiplayerScreen = {
     // the room's rules at a glance (lazer's match settings); the host can change them
     const WIN = { pp: 'pp', score: 'Score', accuracy: 'Accuracy', combo: 'Max combo' };
     const rules = h('div.mp-rules',
-      h('span.mp-rule', icon('user'), 'Head to Head'),
+      st.type === 'teams' ? h('span.mp-rule.teams', h('span.mp-rteams', h('i.red'), h('i.blue')), 'Team Versus') : h('span.mp-rule', icon('user'), 'Head to Head'),
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
       h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));

@@ -1442,3 +1442,22 @@ test('a finished player\'s pp reaches everyone in the room straight away (not 0 
   const room = msgs(out, 'room').pop().msg.room;
   assert.equal(room.players.find(p => p.id === 'p1').fin.pp, 123.4);
 });
+
+test('Team Versus: someone who drops out and comes back is put back on their own team, and gets the last results as theirs', () => {
+  const r = new RoomLogic('T');
+  r.join('a', 'Alice', true, { size: 4, type: 'teams', cid: 'cid-alice' });
+  r.join('b', 'Bob', false, { cid: 'cid-bob' });
+  r.message('b', { t: 'team', team: 0 }); // Bob moves to red
+  r.message('a', { t: 'map', map: MAP }); for (const id of ['a', 'b']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
+  r.message('a', { t: 'start' });
+  fin(r, 'a', { score: 900000 }); fin(r, 'b', { score: 800000 });
+  assert.ok(r.lastResults);
+  r.leave('b'); // Bob's connection drops in the room, too long to keep his seat
+  const back = r.join('b2', 'Bob', false, { cid: 'cid-bob' });
+  assert.ok(back.ok);
+  assert.equal(r.get('b2').team, 0, 'back on red, not the smaller (empty) blue team');
+  const res = msgs(back.out, 'results')[0];
+  assert.equal(res.to, 'b2');
+  assert.ok(res.msg.results.rows.some(x => x.id === 'b2' && x.score === 800000), 'his row is his again');
+  assert.equal(res.msg.results.rows.length, 2, 'and everyone else\'s is still there');
+});

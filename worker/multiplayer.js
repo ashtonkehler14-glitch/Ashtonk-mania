@@ -104,7 +104,7 @@ const defaultSettings = () => ({ type: 'h2h', win: 'score', size: MAX_PLAYERS, q
 export class RoomLogic {
   constructor(code, now = () => Date.now(), rnd = Math.random) {
     this.code = code; this.now = now; this.rnd = rnd;
-    this.players = []; this.hostId = null; this.created = false;
+    this.players = []; this.hostId = null; this.created = false; this.resultCid = new Map(); this.departedCid = new Map();
     this.map = null; this.mods = []; this.modConfig = null; this.vote = null;
     this.state = 'lobby'; this.deadline = 0; this.lastResults = null; this.departed = []; this.skipped = false;
     this.mode = 'custom'; this.settings = defaultSettings(); this.qp = null; this.rp = null;
@@ -159,6 +159,20 @@ export class RoomLogic {
   roomMsg() { return { to: 'all', msg: { t: 'room', room: this.snapshot() }, each: this.rp ? id => ({ t: 'room', room: this.snapshot(id) }) : null }; }
   system(text) { return { to: 'all', msg: { t: 'chat', from: null, name: '', text, ts: this.now() } }; }
 
+  /** Who was on which team, by browser (cid) and player (pid): someone who drops out and comes back is put back on
+   *  their own team, not whichever is smaller. */
+  remember(p) {
+    if (p.team == null) return;
+    if (!this.teamMem) this.teamMem = new Map();
+    if (p.cid) this.teamMem.set('c:' + p.cid, p.team);
+    if (p.pid) this.teamMem.set('p:' + p.pid, p.team);
+    if (this.teamMem.size > 64) this.teamMem.delete(this.teamMem.keys().next().value);
+  }
+  teamFor(opts) {
+    const m = this.teamMem, cid = str(opts.cid, 40), pid = String(opts.pid || '');
+    const t = m && ((cid && m.get('c:' + cid)) ?? (pid && m.get('p:' + pid)));
+    return t === 0 || t === 1 ? t : this.smallerTeam();
+  }
   join(id, name, create, opts = {}) {
     opts = opts && typeof opts === 'object' ? opts : {};
     if (!this.created && !create) return { ok: false, error: 'Room not found — check the code.' };
@@ -200,13 +214,23 @@ export class RoomLogic {
       }
     }
     const p = { id, name: str(name, 24) || 'Player', avatar: cleanAvatar(opts.avatar), ready: false, hasMap: false, playing: false, finished: null, live: null, diff: null, mods: [], skip: false,
-      team: this.settings.type === 'teams' ? this.smallerTeam() : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), pid: /^[a-z0-9]{6,24}$/.test(String(opts.pid || '')) ? String(opts.pid) : '', away: false, awayUntil: 0,
+      team: this.settings.type === 'teams' ? this.teamFor(opts) : null, sr: num(opts.sr, 0, 15, 0), cid: str(opts.cid, 40), pid: /^[a-z0-9]{6,24}$/.test(String(opts.pid || '')) ? String(opts.pid) : '', away: false, awayUntil: 0,
       token: newToken() }; // (for this player's plays sent to be judged: see verify)
     this.players.push(p);
+    // back after their connection dropped for too long to keep their seat: the last match's results are theirs again
+    // (their row, under their new id, so "You win" / "You lose" and everyone else's scores show as before)
+    const mine = this.lastResults && p.cid ? this.lastResults.rows.find(r => this.resultCid.get(r.id) === p.cid) : null;
+    if (mine) {
+      const was = mine.id;
+      for (const r of this.lastResults.rows) if (r.id === was) r.id = id;
+      if (this.lastResults.winner === was) this.lastResults.winner = id;
+      this.resultCid.delete(was); this.resultCid.set(id, p.cid);
+    }
     if (!this.hostId) this.hostId = id;
     if (this.restoredHost && p.pid === this.restoredHost) { this.hostId = id; this.restoredHost = ''; } // (the host back after a restart)
     if (this.qp) { this.qp.points[id] = 0; this.qpGather(); }
     const out = [{ to: id, msg: { t: 'welcome', you: id, token: p.token, room: this.snapshot(id) } }, this.roomMsg(), this.system(`${p.name} joined the room`)];
+    if (mine && this.state === 'lobby') out.splice(1, 0, { to: id, msg: { t: 'results', results: this.lastResults } });
     if (this.rp) {
       this.rp.addUser(p, opts);
       out[0].msg.room = this.snapshot(id);
@@ -238,9 +262,10 @@ export class RoomLogic {
     if (this.rp) out.push(...this.rp.leave(id));
     if (this.state === 'playing' && p.playing) {
       if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
-      this.departed.push({ id: p.id, name: p.name, diff: p.diff, ...p.finished, left: true });
+      this.departed.push({ id: p.id, name: p.name, diff: p.diff, team: p.team, ...p.finished, left: true }); if (p.cid) this.departedCid.set(p.id, p.cid);
     }
     this.players = this.players.filter(x => x !== p);
+    this.remember(p);
     if (this.qp) delete this.qp.points[id];
     if (this.state === 'playing') out.push(...this.checkFinished(true));
     if (!this.players.length) { this.reset(); return out; }
@@ -276,7 +301,7 @@ export class RoomLogic {
         const st = this.settings, o = m.settings && typeof m.settings === 'object' ? m.settings : {}, changes = [];
         if (['h2h', 'teams'].includes(o.type) && o.type !== st.type) {
           st.type = o.type;
-          this.players.forEach((x, i) => { x.team = st.type === 'teams' ? i % 2 : null; });
+          this.players.forEach((x, i) => { x.team = st.type === 'teams' ? i % 2 : null; this.remember(x); });
           changes.push(st.type === 'teams' ? 'Team Versus' : 'Head to Head');
         }
         if (WIN_CONDITIONS.includes(o.win) && o.win !== st.win) { st.win = o.win; changes.push(`win by ${o.win === 'combo' ? 'max combo' : o.win}`); }
@@ -306,7 +331,7 @@ export class RoomLogic {
       }
       case 'team':
         if (this.state !== 'lobby' || this.settings.type !== 'teams') return [];
-        p.team = m.team ? 1 : 0;
+        p.team = m.team ? 1 : 0; this.remember(p);
         return [this.roomMsg()];
       case 'pool': {
         if (this.rp) return Array.isArray(m.maps) ? this.rp.setDeck(id, m.maps.slice(0, RP.DECK).map(cleanSuggestion).filter(Boolean)) : [];
@@ -452,7 +477,7 @@ export class RoomLogic {
     this.state = 'playing'; this.skipped = false;
     this.deadline = this.now() + START_DELAY + (this.map.length || 600000) / rateOf(this.mods, this.modConfig) + 60000;
     for (const x of this.players) { x.playing = list.includes(x); x.finished = null; x.live = null; x.skip = false; }
-    this.departed = [];
+    this.departed = []; this.departedCid = new Map();
     const g = this.qp;
     if (g) { g.phase = 'playing'; g.deadline = 0; }
     const playerMods = g || this.rp ? {} : Object.fromEntries(list.map(x => [x.id, x.mods]));
@@ -631,6 +656,8 @@ export class RoomLogic {
       winner = null;
     }
     this.lastResults = { rows, winner, teams, winnerTeam, type: this.settings.type, win, map: this.map, mods: this.mods, at: this.now() };
+    // (whose browser each row is: kept here, never sent — see join)
+    this.resultCid = new Map([...this.departedCid, ...this.players.filter(x => x.cid && x.playing).map(x => [x.id, x.cid])]); this.departedCid = new Map();
     this.state = 'lobby'; this.deadline = 0; this.departed = [];
     for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; p.claimed = null; }
     const out = [];

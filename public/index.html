@@ -4641,6 +4641,16 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-pact .i { width: 14px; height: 14px; }
 .mp-pact:hover { color: #f7e65d; background: rgba(255, 255, 255, .08); }
 .mp-pact.kick:hover { color: #ff6680; }
+/* the participants list never scrolls sideways: every row fits its column — long names shorten with "…", and on a
+   narrow column the difficulty text goes first, then the state's word (its tick stays) */
+.mp-col .mp-players { overflow-x: hidden; container-type: inline-size; }
+.mp-teams, .mp-team, .mp-slot, .mp-slot > .mp-player { min-width: 0; }
+.mp-slot > .mp-player { overflow: hidden; }
+.mp-pname { flex: 0 1 auto; min-width: 48px; max-width: 55%; }
+.mp-pdiff { flex: 1 1 0; } /* (only what the name leaves over) */
+.mp-pmods, .mp-pstate, .mp-pact, .mp-spec { flex: none; }
+@container (max-width: 400px) { .mp-pdiff { display: none; } }
+@container (max-width: 330px) { .mp-pstate { font-size: 0; gap: 0; } .mp-spec { font-size: 0; gap: 0; padding: 0 8px; } }
 
 </style>
 </head>
@@ -22536,7 +22546,7 @@ const MultiplayerScreen = {
     // the room's rules at a glance (lazer's match settings); the host can change them
     const WIN = { pp: 'pp', score: 'Score', accuracy: 'Accuracy', combo: 'Max combo' };
     const rules = h('div.mp-rules',
-      h('span.mp-rule', icon('user'), 'Head to Head'),
+      st.type === 'teams' ? h('span.mp-rule.teams', h('span.mp-rteams', h('i.red'), h('i.blue')), 'Team Versus') : h('span.mp-rule', icon('user'), 'Head to Head'),
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
       h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));
