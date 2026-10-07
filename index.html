@@ -18176,7 +18176,7 @@ const ProfileScreen = {
     const secs = [];
     // (a section with nothing in it is left out, tab and all: no wall of "nothing here yet")
     const section = (id, title, ...kids) => { kids = kids.filter(Boolean); if (!kids.length) return null; const el = h('section.pf-sec', { dataset: { sec: id } }, h('h2', title), ...kids); secs.push([id, title, el]); return el; };
-    const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count ? h('span.pf-count', fmtInt(count)) : null), ...kids);
+    const sub = (title, count, ...kids) => h('div.pf-subsec', h('h3', title, count ? h('span.pf-count', typeof count === 'number' ? fmtInt(count) : count) : null), ...kids);
     const row = (x, i, weighted) => this.scoreRow(x._s || { ...x, remote: true }, x.pp == null ? null : fmtInt(x.pp), weighted ? `weighted ${Math.round(Math.pow(0.95, i) * 100)}%` : null, weighted ? fmtInt(x.pp * Math.pow(0.95, i)) : null);
     // lazer's ProfileShowMoreButton: a list starts with 5 and grows by 10 with each "show more"
     const more = (items, mk, first = 5) => {
@@ -18193,7 +18193,7 @@ const ProfileScreen = {
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', own ? 'No performance records. Pass a map to earn pp.' : 'No performance records yet.')));
     const got = d.medals || {};
-    const medals = () => section('medals', 'Medals', sub('Medals', Medals.all.filter(m => got[m.id]).length, ...Medals.section(got)));
+    const medals = () => section('medals', 'Medals', sub('Unlocked', `${fmtInt(Medals.all.filter(m => got[m.id]).length)} / ${fmtInt(Medals.all.length)}`, ...Medals.section(got)));
     const recent = d.recent || [];
     const rec = () => section('recent', 'Recent',
       recent.length ? sub('Recent plays', recent.length, more(recent, (x, i) => row(x, i, false))) : null);
