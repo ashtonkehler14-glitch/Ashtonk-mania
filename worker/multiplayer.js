@@ -12,7 +12,7 @@
 // qpPool {round, keys, sr} (to the Quick Play host: send this round's beatmap pool).
 //
 // Room settings (host, like lazer's match settings): match type Head to Head or Team Versus (red/blue; the team with
-// the bigger total wins), the win condition (pp, score, accuracy or max combo), room size (2-8) and queue mode (the
+// the higher team average wins), the win condition (pp, score, accuracy or max combo), room size (2-8) and queue mode (the
 // host picks every map, or the host role passes to the next player after each match).
 //
 // Quick Play (osu!lazer's matchmaking mode): the matchmaker fills a lobby of up to 8 for 4K or 7K. Once two or more
@@ -78,6 +78,13 @@ function cleanSuggestion(m) {
 const VERIFY_WAIT = 20000; // ms a finished play has to come in to be judged
 const newToken = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, '0')).join(''); };
 
+/** A team's value in Team Versus: the average of its players' (so 2 against 3 is fair: either side's score tops out
+ *  at 1,000,000). Scores and combos are whole numbers. */
+export function teamValue(vals, whole = false) {
+  if (!vals.length) return 0;
+  const v = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return whole ? Math.round(v) : v;
+}
 function cleanResult(r) {
   r = r && typeof r === 'object' ? r : {};
   const counts = Array.isArray(r.counts) ? r.counts.slice(0, 6).map(c => Math.round(num(c, 0, 1e6))) : [];
@@ -131,7 +138,7 @@ export class RoomLogic {
       vote: this.vote ? { mods: this.vote.mods, by: this.vote.by, yes: [...this.vote.yes] } : null,
       starting: !!this.pendingStart, players: this.players.map(p => ({ id: p.id, pid: p.pid, name: p.name, avatar: p.avatar, ready: p.ready, hasMap: p.hasMap, playing: p.playing, diff: p.diff, mods: p.mods, team: p.team, away: !!p.away,
         // (their song's over: what they got — judged, or as their game reported it while the judge checks it)
-        fin: this.state === 'playing' && p.playing && (p.finished || p.claimed) ? (({ score, accuracy, maxCombo, counts, grade, passed, forfeit }) => ({ score, accuracy, maxCombo, counts, grade, passed, forfeit, checked: !!p.finished }))(p.finished || p.claimed) : null })),
+        fin: this.state === 'playing' && p.playing && (p.finished || p.claimed) ? (({ score, accuracy, maxCombo, counts, grade, passed, forfeit, pp }) => ({ score, accuracy, maxCombo, counts, grade, passed, forfeit, pp: pp || 0, checked: !!p.finished }))(p.finished || p.claimed) : null })),
     };
   }
   /** What the lobby's room list shows (null: not listed — private, Quick Play / Ranked Play, or empty). */
@@ -614,11 +621,11 @@ export class RoomLogic {
     let winner = rows.length === 1 ? rows[0].id : rows.length > 1 && order(rows[0], rows[1]) !== 0 ? rows[0].id : null;
     let teams = null, winnerTeam = null;
     if (this.settings.type === 'teams') {
-      // Team Versus: totals (accuracy averages), the bigger total wins
+      // Team Versus: each team's value is its players' average (score, pp, accuracy or combo), so uneven teams are
+      // even — a team's score is out of 1,000,000 however many are on it; the higher average wins
       teams = [0, 1].map(t => {
         const m = rows.filter(r => r.team === t), vals = m.map(key);
-        const total = !vals.length ? 0 : win === 'accuracy' ? vals.reduce((a, b) => a + b, 0) / vals.length : vals.reduce((a, b) => a + b, 0);
-        return { total, players: m.length };
+        return { total: teamValue(vals, win === 'score' || win === 'combo'), players: m.length };
       });
       winnerTeam = teams[0].total === teams[1].total ? null : teams[0].total > teams[1].total ? 0 : 1;
       winner = null;

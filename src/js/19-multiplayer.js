@@ -691,10 +691,10 @@ const MultiplayerScreen = {
     const paint = () => clearEl(body).append(...[
       st.ranked ? h('div.mp-cr-l', 'Key count') : null,
       st.ranked ? h('div.mp-cr-keys', h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
-      // lazer's match types: everyone for themselves, or red against blue (each team's total decides it)
+      // lazer's match types: everyone for themselves, or red against blue (each team's average decides it)
       st.ranked ? null : h('div.mp-cr-l', 'Match type'),
       st.ranked ? null : h('div.mp-cr-row', choice('type', 'type', 'h2h', 'user', 'Head to Head', 'Everyone for themselves: the best score wins.'),
-        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: the team with the bigger total wins. Players can switch teams in the room.')),
+        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
       h('div.mp-cr-l', 'Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -1028,7 +1028,7 @@ const MultiplayerScreen = {
       size.addEventListener('change', () => { UISounds.click(); Multiplayer.setSettings({ size: +size.value }); });
       size.addEventListener('keydown', e => e.stopPropagation());
       clearEl(body).append(
-        seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, totals win']]),
+        seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, team averages win']]),
         seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
         seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
         seg('Visibility', 'public', [[true, 'Public', 'listed in the lobby'], [false, 'Private', 'join with the code']]),

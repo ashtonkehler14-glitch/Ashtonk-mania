@@ -307,7 +307,7 @@ test('room settings are the host\'s; win conditions rank by pp, score, accuracy 
   assert.equal(res.win, 'accuracy');
 });
 
-test('Team Versus: balanced teams, switching, team totals decide the winner', () => {
+test('Team Versus: balanced teams, switching, team averages decide the winner', () => {
   const r = bigRoom(4);
   r.message('p0', { t: 'settings', settings: { type: 'teams', win: 'score' } });
   assert.deepEqual(r.players.map(p => p.team), [0, 1, 0, 1]);
@@ -318,10 +318,10 @@ test('Team Versus: balanced teams, switching, team totals decide the winner', ()
   r.leave('p4');
   for (const p of r.players) { r.message(p.id, { t: 'ready', ready: true }); }
   r.message('p0', { t: 'start' });
-  fin(r, 'p0', { score: 900000 }); fin(r, 'p2', { score: 100000 }); // red 1,000,000
+  fin(r, 'p0', { score: 900000 }); fin(r, 'p2', { score: 100000 }); // red: average 500,000
   fin(r, 'p1', { score: 600000 });
-  const res = msgs(fin(r, 'p3', { score: 500000 }), 'results')[0].msg.results; // blue 1,100,000
-  assert.deepEqual(res.teams.map(t => t.total), [1000000, 1100000]);
+  const res = msgs(fin(r, 'p3', { score: 500000 }), 'results')[0].msg.results; // blue: average 550,000
+  assert.deepEqual(res.teams.map(t => t.total), [500000, 550000]);
   assert.equal(res.winnerTeam, 1);
   assert.equal(res.winner, null);
   assert.equal(res.rows[0].id, 'p0', 'individual placements still listed');
@@ -1417,4 +1417,28 @@ test('the host can hand the room over and kick players between matches (lazer\'s
   assert.equal(msgs(r.message('a', { t: 'giveHost', id: 'b' }), 'room').length, 1);
   assert.equal(r.hostId, 'b');
   assert.deepEqual(r.message('a', { t: 'kick', id: 'b' }), [], 'Alice is no longer the host');
+});
+
+test('Team Versus with uneven teams: each side is its players\' average, so a team of three can\'t win on numbers alone', () => {
+  const r = bigRoom(5);
+  r.message('p0', { t: 'settings', settings: { type: 'teams', win: 'score' } });
+  assert.deepEqual(r.players.map(p => p.team), [0, 1, 0, 1, 0]); // red 3, blue 2
+  for (const p of r.players) r.message(p.id, { t: 'ready', ready: true });
+  r.message('p0', { t: 'start' });
+  // red: three players at 700,000 (2,100,000 added up) — blue: two at 900,000 (1,800,000 added up)
+  fin(r, 'p0', { score: 700000 }); fin(r, 'p2', { score: 700000 }); fin(r, 'p4', { score: 700000 }); fin(r, 'p1', { score: 900000 });
+  const res = msgs(fin(r, 'p3', { score: 900000 }), 'results')[0].msg.results;
+  assert.deepEqual(res.teams.map(t => [t.total, t.players]), [[700000, 3], [900000, 2]]);
+  assert.equal(res.winnerTeam, 1, 'the better players win, not the bigger team');
+  assert.ok(res.teams.every(t => t.total <= 1000000), 'a team\'s score is out of 1,000,000');
+});
+
+test('a finished player\'s pp reaches everyone in the room straight away (not 0 until the match ends)', () => {
+  const r = bigRoom(3);
+  r.message('p0', { t: 'settings', settings: { win: 'pp' } });
+  for (const p of r.players) r.message(p.id, { t: 'ready', ready: true });
+  r.message('p0', { t: 'start' });
+  const out = fin(r, 'p1', { score: 800000, pp: 123.4 });
+  const room = msgs(out, 'room').pop().msg.room;
+  assert.equal(room.players.find(p => p.id === 'p1').fin.pp, 123.4);
 });

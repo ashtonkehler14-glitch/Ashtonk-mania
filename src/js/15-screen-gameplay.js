@@ -1224,7 +1224,8 @@ const GameplayScreen = {
       if (r._cmb !== cmb) { r._cmb = cmb; setText(r.combo, cmb); }
     });
     if (this.mpTeams) {
-      const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
+      // (each team's average, as the server decides it: uneven teams stay even)
+      const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : v.reduce((a, b) => a + b, 0) / v.length; };
       const red = tot(0), blue = tot(1), T = this.mpTeams;
       T.red.textContent = fmt(red); T.blue.textContent = fmt(blue);
       const f = red + blue > 0 ? red / (red + blue) : 0.5;

@@ -42,15 +42,15 @@ const MpResults = {
     const res = Multiplayer.lastResults;
     if (res) return { res, rows: res.rows };
     const room = Multiplayer.room, rows = [];
-    if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, mods: this.my.mods, done: true });
+    if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, pp: this.my.pp || 0, mods: this.my.mods, done: true });
     // (everyone in the match: those with live scores, and any that haven't sent one)
     const opps = Multiplayer.opps || new Map(), ids = new Set([...opps.keys(), ...(room ? room.players.filter(x => x.playing).map(x => x.id) : [])]);
     for (const id of ids) {
       const p = room && room.players.find(x => x.id === id), o = opps.get(id) || {};
       if (!p || id === Multiplayer.me) continue;
       // (their song's over: their result, as the server has it — still being checked, or judged — not "still playing")
-      if (p.fin) rows.push({ id, name: p.name, score: p.fin.score, accuracy: p.fin.accuracy, maxCombo: p.fin.maxCombo, counts: p.fin.counts, grade: p.fin.forfeit ? 'F' : p.fin.grade, mods: p.mods || [], done: true });
-      else rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, counts: null, grade: null, mods: [], pending: true });
+      if (p.fin) rows.push({ id, name: p.name, score: p.fin.score, accuracy: p.fin.accuracy, maxCombo: p.fin.maxCombo, counts: p.fin.counts, grade: p.fin.forfeit ? 'F' : p.fin.grade, pp: p.fin.pp || 0, mods: p.mods || [], done: true });
+      else rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, pp: o.pp || 0, counts: null, grade: null, mods: [], pending: true });
     }
     rows.sort((a, b) => b.score - a.score);
     rows.forEach((r, i) => { r.place = i + 1; });

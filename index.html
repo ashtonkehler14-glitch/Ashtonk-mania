@@ -15820,7 +15820,8 @@ const GameplayScreen = {
       if (r._cmb !== cmb) { r._cmb = cmb; setText(r.combo, cmb); }
     });
     if (this.mpTeams) {
-      const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : win === 'accuracy' ? v.reduce((a, b) => a + b, 0) / v.length : v.reduce((a, b) => a + b, 0); };
+      // (each team's average, as the server decides it: uneven teams stay even)
+      const tot = team => { const v = this._mpRows.filter(r => r.team === team).map(r => r.shown); return !v.length ? 0 : v.reduce((a, b) => a + b, 0) / v.length; };
       const red = tot(0), blue = tot(1), T = this.mpTeams;
       T.red.textContent = fmt(red); T.blue.textContent = fmt(blue);
       const f = red + blue > 0 ? red / (red + blue) : 0.5;
@@ -22423,10 +22424,10 @@ const MultiplayerScreen = {
     const paint = () => clearEl(body).append(...[
       st.ranked ? h('div.mp-cr-l', 'Key count') : null,
       st.ranked ? h('div.mp-cr-keys', h('div.qp-keys', ...[4, 7].map(k => h(`button.qp-key${st.keys === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); st.keys = k; Settings.set('mp.qpKeys', k); paint(); } }, `${k}K`)))) : null,
-      // lazer's match types: everyone for themselves, or red against blue (each team's total decides it)
+      // lazer's match types: everyone for themselves, or red against blue (each team's average decides it)
       st.ranked ? null : h('div.mp-cr-l', 'Match type'),
       st.ranked ? null : h('div.mp-cr-row', choice('type', 'type', 'h2h', 'user', 'Head to Head', 'Everyone for themselves: the best score wins.'),
-        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: the team with the bigger total wins. Players can switch teams in the room.')),
+        choice('type', 'type', 'teams', 'social', 'Team Versus', 'Red against blue: each team scores its players\' average, so uneven teams are fair — the higher average wins. Players can switch teams in the room.')),
       h('div.mp-cr-l', 'Who can join'),
       h('div.mp-cr-row', choice('vis', 'isPublic', true, 'globe', 'Public', `Listed in the ${st.ranked ? 'Ranked Play' : 'multiplayer'} lounge for anyone to join.`),
         choice('vis', 'isPublic', false, 'lock', 'Private', 'Only people with the room code (or an invite) can join.'))].filter(Boolean));
@@ -22760,7 +22761,7 @@ const MultiplayerScreen = {
       size.addEventListener('change', () => { UISounds.click(); Multiplayer.setSettings({ size: +size.value }); });
       size.addEventListener('keydown', e => e.stopPropagation());
       clearEl(body).append(
-        seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, totals win']]),
+        seg('Match type', 'type', [['h2h', 'Head to Head', 'everyone for themselves'], ['teams', 'Team Versus', 'red vs blue, team averages win']]),
         seg('Win condition', 'win', [['pp', 'pp', 'fair across difficulties'], ['score', 'Score'], ['accuracy', 'Accuracy'], ['combo', 'Max combo']]),
         seg('Queue mode', 'queue', [['host', 'Host picks'], ['rotate', 'Host rotates', 'after each match']]),
         seg('Visibility', 'public', [[true, 'Public', 'listed in the lobby'], [false, 'Private', 'join with the code']]),
@@ -24923,15 +24924,15 @@ const MpResults = {
     const res = Multiplayer.lastResults;
     if (res) return { res, rows: res.rows };
     const room = Multiplayer.room, rows = [];
-    if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, mods: this.my.mods, done: true });
+    if (this.my) rows.push({ id: Multiplayer.me, name: ProfileManager.profile.name, score: this.my.scoreStd ?? this.my.score, accuracy: this.my.accuracy, maxCombo: this.my.maxCombo, counts: this.my.counts, grade: this.my.grade, pp: this.my.pp || 0, mods: this.my.mods, done: true });
     // (everyone in the match: those with live scores, and any that haven't sent one)
     const opps = Multiplayer.opps || new Map(), ids = new Set([...opps.keys(), ...(room ? room.players.filter(x => x.playing).map(x => x.id) : [])]);
     for (const id of ids) {
       const p = room && room.players.find(x => x.id === id), o = opps.get(id) || {};
       if (!p || id === Multiplayer.me) continue;
       // (their song's over: their result, as the server has it — still being checked, or judged — not "still playing")
-      if (p.fin) rows.push({ id, name: p.name, score: p.fin.score, accuracy: p.fin.accuracy, maxCombo: p.fin.maxCombo, counts: p.fin.counts, grade: p.fin.forfeit ? 'F' : p.fin.grade, mods: p.mods || [], done: true });
-      else rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, counts: null, grade: null, mods: [], pending: true });
+      if (p.fin) rows.push({ id, name: p.name, score: p.fin.score, accuracy: p.fin.accuracy, maxCombo: p.fin.maxCombo, counts: p.fin.counts, grade: p.fin.forfeit ? 'F' : p.fin.grade, pp: p.fin.pp || 0, mods: p.mods || [], done: true });
+      else rows.push({ id, name: p.name, score: o.score || 0, accuracy: o.acc || 0, maxCombo: o.maxCombo || 0, pp: o.pp || 0, counts: null, grade: null, mods: [], pending: true });
     }
     rows.sort((a, b) => b.score - a.score);
     rows.forEach((r, i) => { r.place = i + 1; });
