@@ -806,7 +806,20 @@ const MultiplayerScreen = {
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
       h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick 1v1' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, rules, h('div.grow'), invite, copy].filter(Boolean));
+    // lazer's MultiplayerRoomPanel: the room as its lounge card across the top — the beatmap's cover faded behind, the
+    // room's state, its name and rules, and the code with Invite and Copy code on the right
+    const hostP = r.players.find(p => p.id === r.host), playing = r.players.some(p => p.playing);
+    const panelBg = h('div.mp-rbg');
+    {
+      const m = r.map, lm = m ? Multiplayer.localMap(m) : null;
+      if (lm) BeatmapManager.bgURL(lm).then(u => u && (panelBg.style.backgroundImage = `url("${u}")`));
+      else if (m && m.onlineSetId > 0) panelBg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
+    }
+    clearEl(this.headEl).append(h('div.mp-roompanel', panelBg, h('div.mp-rshade'),
+      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
+      h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
+      h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
+      invite, copy));
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -918,7 +931,8 @@ const MultiplayerScreen = {
       if (!b || !this._autoEnd) { clearInterval(this._autoT); this._autoT = null; return; }
       b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
     }, 250);
-    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn);
+    // lazer's MultiplayerMatchFooter: the ready / start button wide in the middle (600 at most), the countdown beside it
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */

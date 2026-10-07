@@ -212,8 +212,9 @@ const Osr = {
     for (let i = 0; i < ev.length; i += 3) {
       const t = Math.round(ev[i]), bitv = 1 << ev[i + 1];
       keys = ev[i + 2] === 1 ? keys | bitv : keys & ~bitv;
-      if (frames.length && frames[frames.length - 1][0] === t) frames[frames.length - 1][1] = keys;
-      else frames.push([t, keys]);
+      // (every change gets its own frame, even in the same millisecond as the last: merging them lost a press and
+      // release of one key within a millisecond, and put same-millisecond keys back in column order)
+      frames.push([t, keys]);
     }
     return frames;
   },

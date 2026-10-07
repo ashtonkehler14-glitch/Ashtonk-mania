@@ -51,9 +51,15 @@ const ResultsScreen = {
       shown = true;
       const cs = getComputedStyle(body);
       const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      // (a multiplayer results screen has its title and the match's lines above the panels: they take their room)
+      let others = 0;
+      for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
+      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
       const k = Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight);
-      grid.style.scale = k < 0.995 ? k.toFixed(4) : '';
+      const on = k < 0.995;
+      grid.style.scale = on ? k.toFixed(4) : '';
+      // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
+      if (others) { grid.style.transformOrigin = on ? '50% 0' : ''; grid.style.marginBottom = on ? `${(-grid.offsetHeight * (1 - k)).toFixed(1)}px` : ''; }
     };
     ro.observe(body); ro.observe(grid);
   },

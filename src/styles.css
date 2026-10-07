@@ -4604,3 +4604,17 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .ed-top .ed-tabs { margin-left: 12px; }
 .ed-top .ed-tab { height: 40px; border-radius: 0; padding: 0 16px; transition: color 150ms; }
 .ed-top .ed-tab:hover { color: #fff; }
+
+/* the room as lazer's MultiplayerRoomPanel (its lounge card) across the top, and the match footer's wide button */
+.mp-head > .mp-roompanel { flex: 1; min-width: 0; }
+.mp-roompanel { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-areas: "state code invite copy" "body code invite copy"; align-content: center; align-items: center; column-gap: 14px; row-gap: 4px; min-height: 84px; padding: 12px 20px; border-radius: 10px; background: hsl(var(--o-h, 333) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+.mp-roompanel .mp-rname { display: flex; align-items: center; gap: 12px; font-size: 1.25rem; }
+.mp-roompanel .mp-rules { margin: 6px 0 0; }
+.mp-roompanel-code { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.mp-roompanel-code small { font-size: .7rem; color: rgba(255, 255, 255, .55); }
+.mp-roompanel-code .mp-room-code { font-size: 1.35rem; }
+.mp-footer .mp-ready { width: min(600px, 50%); }
+.mp-roompanel-code { grid-area: code; margin-right: 6px; }
+.mp-roompanel > .mp-invite { grid-area: invite; }
+.mp-roompanel > .btn:last-child { grid-area: copy; }
+.mp-roompanel .mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h, 333) 10% 15%) 25%, hsl(var(--o-h, 333) 10% 15% / .45)); }

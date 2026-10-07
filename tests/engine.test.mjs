@@ -569,3 +569,10 @@ test('results only suggest a beatmap offset the play really shows (not a few ms 
   assert.deepEqual(sug(-9, 15, 200), [-9, -9]);
   assert.deepEqual(sug(20, 10, 20), [null, null]); // too few hits
 });
+
+test('.osr replay frames keep every key change, in order, even several in the same millisecond', () => {
+  const { Osr } = load(['00-util.js', '11c-osr.js']);
+  // col 3 down, col 1 down and col 3 up within one millisecond, then col 1 up
+  const ev = [100.2, 3, 1, 100.4, 1, 1, 100.45, 3, 0, 140, 1, 0];
+  assert.equal(JSON.stringify(Osr.eventsFromFrames(Osr.framesFromEvents(ev), 4)), JSON.stringify([100, 3, 1, 100, 1, 1, 100, 3, 0, 140, 1, 0]));
+});

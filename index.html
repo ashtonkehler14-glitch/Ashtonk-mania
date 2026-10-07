@@ -4624,6 +4624,20 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .ed-top .ed-tab { height: 40px; border-radius: 0; padding: 0 16px; transition: color 150ms; }
 .ed-top .ed-tab:hover { color: #fff; }
 
+/* the room as lazer's MultiplayerRoomPanel (its lounge card) across the top, and the match footer's wide button */
+.mp-head > .mp-roompanel { flex: 1; min-width: 0; }
+.mp-roompanel { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-areas: "state code invite copy" "body code invite copy"; align-content: center; align-items: center; column-gap: 14px; row-gap: 4px; min-height: 84px; padding: 12px 20px; border-radius: 10px; background: hsl(var(--o-h, 333) 10% 16%); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+.mp-roompanel .mp-rname { display: flex; align-items: center; gap: 12px; font-size: 1.25rem; }
+.mp-roompanel .mp-rules { margin: 6px 0 0; }
+.mp-roompanel-code { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.mp-roompanel-code small { font-size: .7rem; color: rgba(255, 255, 255, .55); }
+.mp-roompanel-code .mp-room-code { font-size: 1.35rem; }
+.mp-footer .mp-ready { width: min(600px, 50%); }
+.mp-roompanel-code { grid-area: code; margin-right: 6px; }
+.mp-roompanel > .mp-invite { grid-area: invite; }
+.mp-roompanel > .btn:last-child { grid-area: copy; }
+.mp-roompanel .mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h, 333) 10% 15%) 25%, hsl(var(--o-h, 333) 10% 15% / .45)); }
+
 </style>
 </head>
 <body>
@@ -10936,8 +10950,9 @@ const Osr = {
     for (let i = 0; i < ev.length; i += 3) {
       const t = Math.round(ev[i]), bitv = 1 << ev[i + 1];
       keys = ev[i + 2] === 1 ? keys | bitv : keys & ~bitv;
-      if (frames.length && frames[frames.length - 1][0] === t) frames[frames.length - 1][1] = keys;
-      else frames.push([t, keys]);
+      // (every change gets its own frame, even in the same millisecond as the last: merging them lost a press and
+      // release of one key within a millisecond, and put same-millisecond keys back in column order)
+      frames.push([t, keys]);
     }
     return frames;
   },
@@ -17195,9 +17210,15 @@ const ResultsScreen = {
       shown = true;
       const cs = getComputedStyle(body);
       const aw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      // (a multiplayer results screen has its title and the match's lines above the panels: they take their room)
+      let others = 0;
+      for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
+      const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
       const k = Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight);
-      grid.style.scale = k < 0.995 ? k.toFixed(4) : '';
+      const on = k < 0.995;
+      grid.style.scale = on ? k.toFixed(4) : '';
+      // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
+      if (others) { grid.style.transformOrigin = on ? '50% 0' : ''; grid.style.marginBottom = on ? `${(-grid.offsetHeight * (1 - k)).toFixed(1)}px` : ''; }
     };
     ro.observe(body); ro.observe(grid);
   },
@@ -22511,7 +22532,20 @@ const MultiplayerScreen = {
       h('span.mp-rule', icon('trophy'), `Highest ${WIN[st.win] || 'score'} wins`),
       h('span.mp-rule', `${r.players.length}/${st.size} players`),
       h('span.mp-rule', icon(st.public === false ? 'lock' : 'globe'), st.public === false ? 'Private' : 'Public'));
-    clearEl(this.headEl).append(...[h('div', h('div.mp-room-label', Multiplayer.quick ? 'Quick 1v1' : 'Room'), h('div.mp-room-code', r.code)), reconnecting, rules, h('div.grow'), invite, copy].filter(Boolean));
+    // lazer's MultiplayerRoomPanel: the room as its lounge card across the top — the beatmap's cover faded behind, the
+    // room's state, its name and rules, and the code with Invite and Copy code on the right
+    const hostP = r.players.find(p => p.id === r.host), playing = r.players.some(p => p.playing);
+    const panelBg = h('div.mp-rbg');
+    {
+      const m = r.map, lm = m ? Multiplayer.localMap(m) : null;
+      if (lm) BeatmapManager.bgURL(lm).then(u => u && (panelBg.style.backgroundImage = `url("${u}")`));
+      else if (m && m.onlineSetId > 0) panelBg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
+    }
+    clearEl(this.headEl).append(h('div.mp-roompanel', panelBg, h('div.mp-rshade'),
+      h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
+      h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
+      h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
+      invite, copy));
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;
@@ -22623,7 +22657,8 @@ const MultiplayerScreen = {
       if (!b || !this._autoEnd) { clearInterval(this._autoT); this._autoT = null; return; }
       b.textContent = fmtTime(Math.max(0, this._autoEnd - Date.now()));
     }, 250);
-    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn);
+    // lazer's MultiplayerMatchFooter: the ready / start button wide in the middle (600 at most), the countdown beside it
+    clearEl(this.footEl).append(h('div.grow'), this.autoEl, readyBtn, h('div.grow'));
   },
 
   /** The mod select, for this player's mods in the room; a speed mod picked there is proposed to the room. */
