@@ -37,7 +37,7 @@ const BeatmapsScreen = {
     const search = h('input.input', { placeholder: 'Filter library…', value: this.q, style: { flex: '1', maxWidth: '420px' } });
     search.addEventListener('input', () => { this.q = search.value.toLowerCase(); this.renderList(); });
     search.addEventListener('keydown', e => e.stopPropagation());
-    this.list = h('div.list');
+    this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
     this.report = h('div');
     page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list);
     this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport())];
@@ -91,28 +91,55 @@ const BeatmapsScreen = {
     for (const set of sets.slice(from, to)) frag.append(this.row(set));
     more.before(frag);
   },
+  /** One beatmap set as lazer's beatmap card (as in the beatmap listing): the cover faded behind, its picture on the
+   *  left, title, artist and mapper, the difficulties as coloured bars, and Play / Extract / Delete sliding in on the
+   *  right on hover. Clicking it opens its difficulties underneath, across the whole row. */
   row(set) {
-    const thumb = h('div.mini-thumb', { style: { width: '84px', height: '52px' } });
-    BeatmapManager.thumbURL(set, true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
-    const broken = set.maps.filter(m => m.problems.length);
-    const details = h('div', { hidden: true, style: { width: '100%', paddingTop: '8px' } });
-    const fill = () => {
-      if (details.firstChild) return;
-      details.append(h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
-          ...set.maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', m.stars.toFixed(2)), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
+    const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
+    BeatmapManager.thumbURL(set, true).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+    const maps = [...set.maps].sort((a, b) => a.keys - b.keys || a.stars - b.stars);
+    const broken = maps.filter(m => m.problems.length);
+    const keys = [...new Set(maps.map(m => m.keys))].sort((a, b) => a - b);
+    const len = Math.max(0, ...maps.map(m => m.length || 0));
+    const title = Settings.get('ui.unicodeMetadata') && set.titleUnicode ? set.titleUnicode : set.title;
+    const artist = Settings.get('ui.unicodeMetadata') && set.artistUnicode ? set.artistUnicode : set.artist;
+    const playable = maps.find(m => !m.problems.length) || maps[0];
+    const spectrum = maps.length > 10
+      ? h('span.ex-spec-more', h('i', { style: { '--sc': starColour(Math.max(...maps.map(m => m.stars))) } }), `${maps.length}`)
+      : h('span.ex-spec', ...maps.map(m => h('i', { style: { '--sc': m.problems.length ? '#555' : starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })));
+    let details = null;
+    const toggle = () => {
+      UISounds.click();
+      if (details) { details.remove(); details = null; card.classList.remove('open'); return; }
+      card.classList.add('open');
+      details = h('div.lib-details',
+        h('table.table', h('tr', h('th', 'Difficulty'), h('th', 'Keys'), h('th', 'Stars'), h('th', 'Notes / LNs'), h('th', 'Length'), h('th', 'Status')),
+          ...maps.map(m => h('tr', h('td', m.version), h('td', m.keys + 'K'), h('td', h('span.lib-star', { style: { '--sc': starColour(m.stars) } }, icon('star'), m.stars.toFixed(2))), h('td', `${m.noteCount} / ${m.lnCount}`), h('td', fmtTime(m.length)),
             h('td', m.problems.length ? h('span', { style: { color: '#ffb3bb' } }, m.problems.join('; ')) : m.warnings.length ? h('span.muted', m.warnings.join('; ')) : h('span', { style: { color: 'var(--good)' } }, 'OK'))))),
-        h('div.muted', { style: { fontSize: '.78rem', marginTop: '6px' } }, `Files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
+        h('div.muted.lib-files', `Added ${fmtDate(set.added)} · files stored: ${Object.keys(set.fileIndex).length}${set.storyboard ? ' · storyboard' : ''}${set.video ? ' · video skipped' : ''} · source: ${set.sourceName || '—'}`));
+      card.after(details);
     };
-    return h('div.list-row.lib-row', { style: { flexWrap: 'wrap' } },
-      thumb,
-      h('div.main', h('div.t', `${set.artist} — ${set.title}`), h('div.s', `mapped by ${set.creator} · ${plural(set.maps.length, 'difficulty', 'difficulties')} · ${[...new Set(set.maps.map(m => m.keys))].sort((a, b) => a - b).map(k => k + 'K').join(', ')} · added ${fmtDate(set.added)}`)),
-      broken.length ? h('span.tag.warn', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} unplayable`) : null,
-      Favorites.has(set.id) ? h('span.gold', icon('heart', 'fill')) : null,
-      h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: (set.maps.find(m => !m.problems.length) || set.maps[0]).id }) }, icon('play'), 'Open'),
-      h('button.icon-btn', { title: 'Details', onclick: () => { fill(); details.hidden = !details.hidden; } }, icon('info')),
-      h('button.icon-btn', { title: 'Extract (.osz)', 'aria-label': 'Extract (.osz)', onclick: () => BeatmapManager.exportOsz(set.id) }, icon('download')),
-      h('button.icon-btn', { title: 'Delete', onclick: () => SongSelect.deleteSet(set) }, icon('trash')),
-      details);
+    const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); e.currentTarget.blur(); fn(); } }, icon(ic));
+    const card = h('div.ex-card.lib-card', { tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: toggle,
+      onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); toggle(); } } },
+      bg, h('div.ex-cardshade'),
+      h('div.ex-thumbwrap', thumb),
+      h('div.ex-cb',
+        h('div.ex-cb-top', h('div.ex-titles', h('div.ex-t', { title }, h('span.ex-tt', title)), h('div.ex-a', { title: artist }, artist)),
+          Favorites.has(set.id) ? h('span.lib-fav', { title: 'Favourite' }, icon('heart', 'fill')) : null),
+        h('div.ex-m', 'mapped by ', h('b', set.creator)),
+        h('div.ex-foot',
+          broken.length ? h('span.ex-statuspill.lib-broken', { title: broken.map(m => `[${m.version}] ${m.problems.join('; ')}`).join('\n') }, `${broken.length} UNPLAYABLE`) : null,
+          spectrum,
+          h('span.ex-keys', keys.length > 3 ? `${keys[0]}–${keys[keys.length - 1]}K` : keys.map(k => k + 'K').join(' ')),
+          h('span.grow'),
+          h('span.ex-length', icon('clock'), fmtTime(len)))),
+      h('div.ex-side',
+        side('.play', 'play', 'Play', () => Screens.go('songselect', { mapId: playable.id })),
+        side('', 'download', 'Extract (.osz)', () => BeatmapManager.exportOsz(set.id)),
+        side('.del', 'trash', 'Delete', () => SongSelect.deleteSet(set))));
+    card.addEventListener('pointerenter', () => UISounds.hover());
+    return card;
   },
 };
 
@@ -145,19 +172,27 @@ const CollectionsScreen = {
       h('button.btn', { disabled: !c.hashes.length, onclick: () => { Settings.set('songselect.collection', c.id); Screens.go('songselect'); } }, icon('play'), 'Play from collection'),
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
-    const list = h('div.list');
+    const list = h(`div${c.hashes.length ? '.ex-grid.lib-grid.coll-grid' : ''}`);
     if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, right-click a difficulty → "Add to collection…", or use the folder button.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
+    // each difficulty as lazer's beatmap card (the library's): the set's picture faded behind, title and artist, the
+    // difficulty with its star rating, your grade, and Play / Remove sliding in on hover
     for (const hash of c.hashes) {
-      const m = BeatmapManager.mapByHash(hash);
+      const m = BeatmapManager.mapByHash(hash), set = m && BeatmapManager.setById.get(m.setId);
       const best = ScoreManager.best(hash);
-      // the set's picture (like the Beatmaps page) instead of an empty slot where a grade goes; your grade by the title
-      const thumb = h('div.mini-thumb', { style: { width: '68px', height: '42px' } });
-      if (m) BeatmapManager.thumbURL(BeatmapManager.setById.get(m.setId), true).then(u => u && (thumb.style.backgroundImage = `url("${u}")`));
-      list.append(h('div.list-row', thumb,
-        h('div.main', h('div.t', m ? `${m.artist} — ${m.title}` : 'Missing beatmap', best ? h('span', { style: { marginLeft: '8px', verticalAlign: '2px' } }, rankPill(best.grade)) : null), h('div.s', m ? `[${m.version}] · ${m.keys}K · ${m.creator}` : `hash ${hash.slice(0, 12)}… (not in library)`)),
-        m ? starBadge(m.stars) : null,
-        m ? h('button.btn.sm', { onclick: () => Screens.go('songselect', { mapId: m.id }) }, icon('play'), 'Open') : null,
-        h('button.icon-btn', { title: 'Remove from collection', onclick: () => Collections.toggle(c.id, hash) }, icon('x'))));
+      const thumb = h('div.ex-thumb'), bg = h('div.ex-cardbg');
+      if (set) BeatmapManager.thumbURL(set, true).then(u => { if (!u) return; for (const el of [thumb, bg]) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } });
+      const side = (cls, ic, label, fn) => h(`button.ex-side-btn${cls}`, { title: label, 'aria-label': label, onclick: e => { e.stopPropagation(); fn(); } }, icon(ic));
+      const open = () => m && Screens.go('songselect', { mapId: m.id });
+      list.append(h(`div.ex-card.lib-card${m ? '' : '.missing'}`, { tabindex: '0', role: 'button', onclick: open, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); open(); } } },
+        bg, h('div.ex-cardshade'), h('div.ex-thumbwrap', thumb),
+        h('div.ex-cb',
+          h('div.ex-cb-top', h('div.ex-titles', h('div.ex-t', h('span.ex-tt', m ? m.title : 'Missing beatmap')), h('div.ex-a', m ? m.artist : `not in your library (${hash.slice(0, 10)}…)`)),
+            best ? rankPill(best.grade) : null),
+          m ? h('div.ex-m', h('b', m.version), ' mapped by ', h('b', m.creator)) : null,
+          m ? h('div.ex-foot', starBadge(m.stars), h('span.ex-keys', m.keys + 'K'), h('span.grow'), h('span.ex-length', icon('clock'), fmtTime(m.length))) : null),
+        h('div.ex-side',
+          m ? side('.play', 'play', 'Play', open) : null,
+          side('.del', 'x', 'Remove from collection', () => Collections.toggle(c.id, hash)))));
     }
     this.main.append(list);
   },

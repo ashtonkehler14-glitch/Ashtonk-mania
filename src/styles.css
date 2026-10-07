@@ -4578,3 +4578,21 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .lib-report-x { flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--text-2); cursor: pointer; transition: background 150ms, color 150ms; }
 .lib-report-x:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .lib-report-x .i { width: 13px; height: 13px; }
+
+/* the beatmap library as lazer's beatmap cards (the listing's), two columns; a card opens its difficulties under it */
+.lib-grid { grid-auto-flow: row dense; }
+.lib-grid > .off-state, .lib-grid > .lib-more { grid-column: 1 / -1; }
+.lib-card.open { box-shadow: 0 0 0 2px hsl(var(--o-h) 70% 65% / .7), 0 6px 18px rgba(0, 0, 0, .45); }
+.lib-card .ex-side { justify-content: stretch; }
+.ex-side-btn.del:hover { background: #ed1121; color: #fff; }
+.lib-fav { flex: none; color: #ff66ab; }
+.lib-fav .i { width: 14px; height: 14px; }
+.lib-broken { background: #ed1121; color: #fff; }
+.lib-details { grid-column: 1 / -1; padding: 6px 14px 12px; border-radius: 10px; background: hsl(var(--o-h) 10% 14%); animation: rowIn 250ms var(--ease-out) both; }
+.lib-details .table { width: 100%; }
+.lib-star { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 99px; background: var(--sc); color: #000; font-size: .78rem; font-weight: 700; }
+.lib-star .i { width: 11px; height: 11px; }
+.lib-files { margin-top: 6px; font-size: .78rem; }
+.coll-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lib-card .stars { font-size: .72rem; }
+.lib-card.missing { opacity: .6; }
