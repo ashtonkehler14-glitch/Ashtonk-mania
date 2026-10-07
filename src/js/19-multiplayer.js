@@ -425,6 +425,7 @@ const Presence = {
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
       ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key(), vis: Settings.get('online.status') || 'online' }));
       this._song = null; this.pushStatus();
+      { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
@@ -484,7 +485,7 @@ const Presence = {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
-      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
+      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); this._q = null;
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
@@ -559,7 +560,12 @@ const Presence = {
     this.away = false; this.retry = 0;
     if (this.started && !this.ws) this.connect();
   },
-  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
+  send(m) {
+    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return; }
+    // (asked while the connection is still opening — a leaderboard, a profile, a friend request: it goes out the moment
+    // it's open instead of being lost, which left song select's online leaderboard spinning)
+    if (this.ws && this.ws.readyState === 0 && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
+  },
   pushStatus() {
     const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
     if (st === this._sent && name === this._name && av === this._av && sk === this._song) return;

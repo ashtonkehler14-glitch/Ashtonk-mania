@@ -253,6 +253,7 @@ class ManiaRenderer {
     if (!L || !this.colW) return;
     const s = this.s, K = L.keys, frames = t => t ? t.frames : [];
     const effects = Settings.get('skin.effects'), lighting = Settings.get('gameplay.hitLighting');
+    this._made = [];
     try {
       for (let c = 0; c < K; c++) {
         const w = this.colW[c], texN = L.tex.note[c], texH = L.tex.noteH[c], texT = L.tex.noteT[c];
@@ -302,11 +303,11 @@ class ManiaRenderer {
       x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1;
       const L = this.layout;
       if (L) { walk(L.tex); walk(L.tinted); }
-      for (const m of this._spr.values()) for (const c of m.values()) put(c);
-      for (const m of this._crop.values()) for (const v of m.values()) put(v && v.c);
+      // (and the pre-scaled sprites prewarm just made: the caches holding them can't be listed)
+      for (const c of this._made || []) put(c);
       x.clearRect(0, 0, 2, 2);
-      x.restore();
     } catch (e) { console.warn('texture upload', e); }
+    finally { this._made = null; try { x.restore(); } catch { /* not saved */ } }
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {
@@ -341,6 +342,7 @@ class ManiaRenderer {
       if (flip) { x.translate(0, Hh); x.scale(1, -1); }
       x.drawImage(img, 0, 0, W, Hh);
       m.set(key, c);
+      if (this._made) this._made.push(c);
       if (m.size > 24) m.delete(m.keys().next().value);
     }
     return c;
@@ -369,6 +371,7 @@ class ManiaRenderer {
       if (flip) { x.translate(-x0, Hh - y0); x.scale(1, -1); } else x.translate(-x0, -y0);
       x.drawImage(img, 0, 0, W, Hh);
       m = { c, dx: x0, dy: y0 };
+      if (this._made) this._made.push(c);
     }
     cache.set(key, m);
     if (cache.size > 24) cache.delete(cache.keys().next().value);

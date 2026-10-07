@@ -9273,6 +9273,7 @@ class ManiaRenderer {
     if (!L || !this.colW) return;
     const s = this.s, K = L.keys, frames = t => t ? t.frames : [];
     const effects = Settings.get('skin.effects'), lighting = Settings.get('gameplay.hitLighting');
+    this._made = [];
     try {
       for (let c = 0; c < K; c++) {
         const w = this.colW[c], texN = L.tex.note[c], texH = L.tex.noteH[c], texT = L.tex.noteT[c];
@@ -9322,11 +9323,11 @@ class ManiaRenderer {
       x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1;
       const L = this.layout;
       if (L) { walk(L.tex); walk(L.tinted); }
-      for (const m of this._spr.values()) for (const c of m.values()) put(c);
-      for (const m of this._crop.values()) for (const v of m.values()) put(v && v.c);
+      // (and the pre-scaled sprites prewarm just made: the caches holding them can't be listed)
+      for (const c of this._made || []) put(c);
       x.clearRect(0, 0, 2, 2);
-      x.restore();
     } catch (e) { console.warn('texture upload', e); }
+    finally { this._made = null; try { x.restore(); } catch { /* not saved */ } }
   }
   /** Map a down-scroll rect to the actual direction and draw an image. */
   _img(img, x, yTop, w, h, flipY = false) {
@@ -9361,6 +9362,7 @@ class ManiaRenderer {
       if (flip) { x.translate(0, Hh); x.scale(1, -1); }
       x.drawImage(img, 0, 0, W, Hh);
       m.set(key, c);
+      if (this._made) this._made.push(c);
       if (m.size > 24) m.delete(m.keys().next().value);
     }
     return c;
@@ -9389,6 +9391,7 @@ class ManiaRenderer {
       if (flip) { x.translate(-x0, Hh - y0); x.scale(1, -1); } else x.translate(-x0, -y0);
       x.drawImage(img, 0, 0, W, Hh);
       m = { c, dx: x0, dy: y0 };
+      if (this._made) this._made.push(c);
     }
     cache.set(key, m);
     if (cache.size > 24) cache.delete(cache.keys().next().value);
@@ -17718,7 +17721,7 @@ const ResultsScreen = {
       const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('book'));
       const paintColl = () => coll.classList.toggle('green', Collections.list.some(c => c.hashes.includes(map.hash)));
       paintColl();
-      const off = Bus.on('collections:changed', () => { if (coll.isConnected) paintColl(); else off(); });
+      (this._offs || (this._offs = [])).push(Bus.on('collections:changed', paintColl)); // (removed as the screen goes)
       bar.append(coll);
       const fav = h('button.res-ab', { 'aria-label': 'Favourite' });
       const paint = () => { const on = Favorites.has(map.setId); fav.classList.toggle('green', on); fav.title = on ? 'Unfavourite this beatmapset' : 'Favourite this beatmapset'; fav.replaceChildren(icon('heart', on ? 'fill' : '')); };
@@ -18747,7 +18750,7 @@ const CHANGELOG = [
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
@@ -18755,7 +18758,7 @@ const CHANGELOG = [
       'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
-    { icon: 'music', title: 'Song select', items: ['Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
+    { icon: 'music', title: 'Song select', items: ['The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
     { icon: 'edit', title: 'Editor', items: ['The top bar is laid out like lazer\'s: File and Edit on the left, Setup, Compose, Timing and Verify on the right'] },
     { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
@@ -22360,6 +22363,7 @@ const Presence = {
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
       ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid: this.pid(), key: this.key(), vis: Settings.get('online.status') || 'online' }));
       this._song = null; this.pushStatus();
+      { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
       // looking at who's online, asks for the list again
@@ -22419,7 +22423,7 @@ const Presence = {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
-      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping);
+      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); this._q = null;
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
@@ -22494,7 +22498,12 @@ const Presence = {
     this.away = false; this.retry = 0;
     if (this.started && !this.ws) this.connect();
   },
-  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); },
+  send(m) {
+    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return; }
+    // (asked while the connection is still opening — a leaderboard, a profile, a friend request: it goes out the moment
+    // it's open instead of being lost, which left song select's online leaderboard spinning)
+    if (this.ws && this.ws.readyState === 0 && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
+  },
   pushStatus() {
     const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
     if (st === this._sent && name === this._name && av === this._av && sk === this._song) return;

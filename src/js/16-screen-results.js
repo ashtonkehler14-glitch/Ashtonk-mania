@@ -310,7 +310,7 @@ const ResultsScreen = {
       const coll = h('button.res-ab', { onclick: e => { UISounds.click(); SongSelect.collectionMenu(e, map); }, title: 'collections', 'aria-label': 'Collections' }, icon('book'));
       const paintColl = () => coll.classList.toggle('green', Collections.list.some(c => c.hashes.includes(map.hash)));
       paintColl();
-      const off = Bus.on('collections:changed', () => { if (coll.isConnected) paintColl(); else off(); });
+      (this._offs || (this._offs = [])).push(Bus.on('collections:changed', paintColl)); // (removed as the screen goes)
       bar.append(coll);
       const fav = h('button.res-ab', { 'aria-label': 'Favourite' });
       const paint = () => { const on = Favorites.has(map.setId); fav.classList.toggle('green', on); fav.title = on ? 'Unfavourite this beatmapset' : 'Favourite this beatmapset'; fav.replaceChildren(icon('heart', on ? 'fill' : '')); };
