@@ -56,19 +56,21 @@ const BeatmapsScreen = {
     clearEl(this.report);
     const r = App.lastReport;
     if (!r) return;
-    const lines = [...r.errors.map(e => '✖ ' + e), ...r.warnings.map(w => '⚠ ' + w)];
+    const lines = [...r.errors.map(e => h('li.err', e)), ...r.warnings.map(w => h('li', w))];
     if (!lines.length) return;
-    this.report.append(h('div.panel', { style: { padding: '14px 16px', marginBottom: '14px', borderColor: 'rgba(255,74,92,.35)' } },
-      h('div.row', h('b', 'Last import: problems found'), h('span.grow'), h('button.btn.sm.ghost', { onclick: () => { App.lastReport = null; this.renderReport(); } }, 'Dismiss')),
-      h('div.muted', { style: { fontSize: '.84rem', whiteSpace: 'pre-line', marginTop: '6px', maxHeight: '160px', overflow: 'auto' } }, lines.join('\n'))));
+    // (one calm notice: a warning icon in the import's colour, what went wrong as a list, and a close button)
+    this.report.append(h(`div.lib-report${r.errors.length ? '.has-err' : ''}`,
+      h('div.lib-report-ico', icon('warn')),
+      h('div.lib-report-body', h('b', 'Last import: problems found'), h('ul', ...lines)),
+      h('button.lib-report-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { UISounds.click(); App.lastReport = null; this.renderReport(); } }, icon('x'))));
   },
   renderList() {
     clearEl(this.list);
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
     if (!sets.length) {
-      this.list.append(h('div.empty', h('div.big', BeatmapManager.sets.length ? 'No matches' : 'No beatmaps yet'),
-        'Drop .osz archives or beatmap folders anywhere on the window.'));
+      this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain' })
+        : stateCard('beatmap', 'No beatmaps yet', 'Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', { cls: '.plain' }));
       return;
     }
     // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
@@ -138,13 +140,13 @@ const CollectionsScreen = {
     if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favourite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
     clearEl(this.main);
     const c = Collections.get(this.sel);
-    if (!c) { this.main.append(h('div.empty', h('div.big', 'No collections'), 'Create one to start organizing.')); return; }
+    if (!c) { this.main.append(stateCard('folder', 'No collections', 'Create one to start organizing.', { cls: '.plain' })); return; }
     this.main.append(h('div.row', { style: { marginBottom: '14px' } }, h('h2', { style: { margin: 0, fontWeight: 900 } }, c.name), h('span.grow'),
       h('button.btn', { disabled: !c.hashes.length, onclick: () => { Settings.set('songselect.collection', c.id); Screens.go('songselect'); } }, icon('play'), 'Play from collection'),
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h('div.list');
-    if (!c.hashes.length) list.append(h('div.empty', h('div.big', 'Empty collection'), kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.')));
+    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);
@@ -500,7 +502,7 @@ const ReplaysScreen = {
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
-    if (!ReplayManager.list.length) { this.list.append(h('div.empty', h('div.big', 'No replays saved'), 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.')); return; }
+    if (!ReplayManager.list.length) { this.list.append(stateCard('film', 'No replays saved', 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.', { cls: '.plain' })); return; }
     // (lazer's DrawableProfileScore, as on the profile: rank pill, title by artist, difficulty · player · date, mods,
     // accuracy — and the replay's buttons in the slanted block where the pp would be)
     const rows = h('div.pf-scores.rp-list');

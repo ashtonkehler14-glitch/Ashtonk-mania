@@ -1118,10 +1118,10 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 @media (max-width: 700px) and (hover: none) and (orientation: portrait) { .ex-set-body { grid-template-columns: 1fr; } .ex-set-t { font-size: 1.35rem; } }
 .ex-status { padding: 18px 0 30px; text-align: center; }
 .ex-loading { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-2); }
-.ex-error { text-align: left; padding: 16px 18px; border-color: rgba(255, 74, 92, .45); max-width: 760px; margin: 0 auto; }
+.off-state.ex-error { max-width: 560px; margin-top: 36px; }
+.off-state.ex-error.compact { max-width: 560px; margin: 18px auto; }
 .ex-error pre { white-space: pre-wrap; color: var(--text-2); font-size: .8rem; margin: 8px 0 0; }
-.ex-error .ex-retry { margin-top: 12px; }
-.ex-error p { margin: 8px 0 0; color: var(--text-2); }
+.ex-error p { margin: 0; } .ex-error p + p { margin-top: 6px; }
 .ex-error details { margin-top: 10px; font-size: .8rem; color: var(--text-3, var(--text-2)); }
 .ex-error summary { cursor: pointer; }
 .ex-source { font-size: .8rem; }
@@ -4578,7 +4578,25 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-lounge-bar .mp-search.mp-search-top { width: 100%; height: 48px; margin: 0; padding-left: 40px; border-radius: 8px; }
 .mp-lounge-bar .mp-joinbox { margin-left: 0; }
 .mp-roomlist > .off-state { margin-top: 30px; }
+/* an empty list ("No replays saved", "Empty collection"…): the same icon and words, without the card behind them */
+.off-state.plain { background: none; box-shadow: none; margin: 48px auto; max-width: 520px; }
+.off-state.plain .off-ico { color: hsl(var(--o-h, 255) 30% 72%); background: hsl(var(--o-h, 255) 22% 26% / .55); }
 @media (max-width: 760px) { .mp-lounge-bar { flex-wrap: wrap; } .mp-lounge-bar .mp-searchbox { order: 3; flex-basis: 100%; } }
+
+/* the library's "Last import: problems found" notice */
+.lib-report { --c: 45 95% 62%; display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; padding: 14px 12px 14px 16px; border-radius: 10px;
+  background: linear-gradient(90deg, hsl(var(--c) / .1), hsl(var(--c) / .03) 60%), rgba(0, 0, 0, .18); box-shadow: inset 3px 0 0 hsl(var(--c)); animation: fadeIn calc(250ms * var(--anim)) ease-out both; }
+.lib-report.has-err { --c: 352 100% 68%; }
+.lib-report-ico { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: hsl(var(--c)); background: hsl(var(--c) / .14); }
+.lib-report-ico .i { width: 17px; height: 17px; }
+.lib-report-body { flex: 1; min-width: 0; padding-top: 1px; }
+.lib-report-body b { display: block; color: #fff; font-size: .95rem; }
+.lib-report-body ul { margin: 6px 0 0; padding: 0; list-style: none; max-height: 160px; overflow: auto; font-size: .84rem; line-height: 1.5; color: var(--text-2); }
+.lib-report-body li { overflow-wrap: anywhere; }
+.lib-report-body li.err { color: hsl(352 100% 80%); }
+.lib-report-x { flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--text-2); cursor: pointer; transition: background 150ms, color 150ms; }
+.lib-report-x:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.lib-report-x .i { width: 13px; height: 13px; }
 
 </style>
 </head>
@@ -10967,6 +10985,13 @@ const ICON_SRC = {"home":["L","home"],"gear":["L","settings"],"mania":["L","Rule
 
 /* ===== 12-ui-core.js ===== */
 /* UIManager: icons, toasts, dialogs, menus, background, toolbar and the ScreenManager. */
+
+/** A page's "nothing here" card: an icon in a circle, a title, a line of help and maybe a button — so empty lists,
+ *  offline pages and failed searches all look alike. `slash` strikes the icon through (can't reach / failed);
+ *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels). */
+function stateCard(ic, title, sub, { slash = false, action = null, cls = '' } = {}) {
+  return h(`div.off-state${cls}`, h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
+}
 
 // (every icon is one of lazer's: 12-icons.js)
 const ICONS = {};
@@ -17792,19 +17817,21 @@ const BeatmapsScreen = {
     clearEl(this.report);
     const r = App.lastReport;
     if (!r) return;
-    const lines = [...r.errors.map(e => '✖ ' + e), ...r.warnings.map(w => '⚠ ' + w)];
+    const lines = [...r.errors.map(e => h('li.err', e)), ...r.warnings.map(w => h('li', w))];
     if (!lines.length) return;
-    this.report.append(h('div.panel', { style: { padding: '14px 16px', marginBottom: '14px', borderColor: 'rgba(255,74,92,.35)' } },
-      h('div.row', h('b', 'Last import: problems found'), h('span.grow'), h('button.btn.sm.ghost', { onclick: () => { App.lastReport = null; this.renderReport(); } }, 'Dismiss')),
-      h('div.muted', { style: { fontSize: '.84rem', whiteSpace: 'pre-line', marginTop: '6px', maxHeight: '160px', overflow: 'auto' } }, lines.join('\n'))));
+    // (one calm notice: a warning icon in the import's colour, what went wrong as a list, and a close button)
+    this.report.append(h(`div.lib-report${r.errors.length ? '.has-err' : ''}`,
+      h('div.lib-report-ico', icon('warn')),
+      h('div.lib-report-body', h('b', 'Last import: problems found'), h('ul', ...lines)),
+      h('button.lib-report-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { UISounds.click(); App.lastReport = null; this.renderReport(); } }, icon('x'))));
   },
   renderList() {
     clearEl(this.list);
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
     if (!sets.length) {
-      this.list.append(h('div.empty', h('div.big', BeatmapManager.sets.length ? 'No matches' : 'No beatmaps yet'),
-        'Drop .osz archives or beatmap folders anywhere on the window.'));
+      this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain' })
+        : stateCard('beatmap', 'No beatmaps yet', 'Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', { cls: '.plain' }));
       return;
     }
     // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
@@ -17874,13 +17901,13 @@ const CollectionsScreen = {
     if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favourite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
     clearEl(this.main);
     const c = Collections.get(this.sel);
-    if (!c) { this.main.append(h('div.empty', h('div.big', 'No collections'), 'Create one to start organizing.')); return; }
+    if (!c) { this.main.append(stateCard('folder', 'No collections', 'Create one to start organizing.', { cls: '.plain' })); return; }
     this.main.append(h('div.row', { style: { marginBottom: '14px' } }, h('h2', { style: { margin: 0, fontWeight: 900 } }, c.name), h('span.grow'),
       h('button.btn', { disabled: !c.hashes.length, onclick: () => { Settings.set('songselect.collection', c.id); Screens.go('songselect'); } }, icon('play'), 'Play from collection'),
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h('div.list');
-    if (!c.hashes.length) list.append(h('div.empty', h('div.big', 'Empty collection'), kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.')));
+    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, use the folder button or F3 → "Manage collections" to add difficulties.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
     for (const hash of c.hashes) {
       const m = BeatmapManager.mapByHash(hash);
       const best = ScoreManager.best(hash);
@@ -18236,7 +18263,7 @@ const ReplaysScreen = {
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
-    if (!ReplayManager.list.length) { this.list.append(h('div.empty', h('div.big', 'No replays saved'), 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.')); return; }
+    if (!ReplayManager.list.length) { this.list.append(stateCard('film', 'No replays saved', 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.', { cls: '.plain' })); return; }
     // (lazer's DrawableProfileScore, as on the profile: rank pill, title by artist, difficulty · player · date, mods,
     // accuracy — and the replay's buttons in the slanted block where the pp would be)
     const rows = h('div.pf-scores.rp-list');
@@ -18958,11 +18985,13 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : this.results.length ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.'), h('p', this.error),
-      // (Web-Osu-Mania's note for a 429)
-      this.errorStatus === 429 ? h('p.muted', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null,
-      h('button.btn.sm.ex-retry', { onclick: () => this.results.length ? this.loadMore() : this.newSearch() }, icon('retry'), this.results.length ? 'Retry' : 'Try again')));
-    else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
+    else if (this.error) {
+      const more = !!this.results.length;
+      this.status.append(stateCard('globe', navigator.onLine === false ? 'You\'re offline' : more ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.', [h('p', this.error),
+        // (Web-Osu-Mania's note for a 429)
+        this.errorStatus === 429 ? h('p', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null],
+      { slash: true, cls: `.ex-error${more ? '.compact' : ''}`, action: h('button.btn.sm.ex-retry', { onclick: () => more ? this.loadMore() : this.newSearch() }, icon('retry'), more ? 'Retry' : 'Try again') }));
+    } else if (!this.results.length) this.status.append(stateCard('search', 'No beatmaps found', 'Try a different search or loosen the filters.', { cls: '.plain' }));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.hasMore ? '' : ' · No more beatmaps.'}`));
   },
   renderResults() {
@@ -21955,11 +21984,9 @@ function offlineState(what, { compact = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
   const local = !Multiplayer.available();
-  return h(cls,
-    h('div.off-ico', icon('globe'), h('i')),
-    h('div.off-t', local ? 'Offline' : 'Can\'t reach the server'),
-    h('div.off-sub', local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`),
-    local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again'));
+  return stateCard('globe', local ? 'Offline' : 'Can\'t reach the server',
+    local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`,
+    { slash: true, cls: compact ? '.compact' : '', action: local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
 }
 
 const Presence = {

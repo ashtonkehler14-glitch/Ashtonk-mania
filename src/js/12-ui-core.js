@@ -1,5 +1,12 @@
 /* UIManager: icons, toasts, dialogs, menus, background, toolbar and the ScreenManager. */
 
+/** A page's "nothing here" card: an icon in a circle, a title, a line of help and maybe a button — so empty lists,
+ *  offline pages and failed searches all look alike. `slash` strikes the icon through (can't reach / failed);
+ *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels). */
+function stateCard(ic, title, sub, { slash = false, action = null, cls = '' } = {}) {
+  return h(`div.off-state${cls}`, h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
+}
+
 // (every icon is one of lazer's: 12-icons.js)
 const ICONS = {};
 function icon(name, cls = '') {

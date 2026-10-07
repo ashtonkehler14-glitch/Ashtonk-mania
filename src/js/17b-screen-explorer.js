@@ -456,11 +456,13 @@ const ExplorerScreen = {
   renderStatus() {
     clearEl(this.status);
     if (this.loading) this.status.append(h('div.ex-loading', h('span.spinner'), 'Searching…'));
-    else if (this.error) this.status.append(h('div.panel.ex-error', h('b', navigator.onLine === false ? 'You\'re offline' : this.results.length ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.'), h('p', this.error),
-      // (Web-Osu-Mania's note for a 429)
-      this.errorStatus === 429 ? h('p.muted', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null,
-      h('button.btn.sm.ex-retry', { onclick: () => this.results.length ? this.loadMore() : this.newSearch() }, icon('retry'), this.results.length ? 'Retry' : 'Try again')));
-    else if (!this.results.length) this.status.append(h('div.empty', h('div.big', 'No beatmaps found'), 'Try a different search or loosen the filters.'));
+    else if (this.error) {
+      const more = !!this.results.length;
+      this.status.append(stateCard('globe', navigator.onLine === false ? 'You\'re offline' : more ? 'Failed to load more beatmaps.' : 'Failed to fetch beatmaps.', [h('p', this.error),
+        // (Web-Osu-Mania's note for a 429)
+        this.errorStatus === 429 ? h('p', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null],
+      { slash: true, cls: `.ex-error${more ? '.compact' : ''}`, action: h('button.btn.sm.ex-retry', { onclick: () => more ? this.loadMore() : this.newSearch() }, icon('retry'), more ? 'Retry' : 'Try again') }));
+    } else if (!this.results.length) this.status.append(stateCard('search', 'No beatmaps found', 'Try a different search or loosen the filters.', { cls: '.plain' }));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.hasMore ? '' : ' · No more beatmaps.'}`));
   },
   renderResults() {

@@ -361,11 +361,9 @@ function offlineState(what, { compact = false } = {}) {
   const cls = `div.off-state${compact ? '.compact' : ''}`;
   if (Presence.connecting()) return h(`${cls}.connecting`, h('span.spinner'), h('div.off-sub', 'Connecting…'));
   const local = !Multiplayer.available();
-  return h(cls,
-    h('div.off-ico', icon('globe'), h('i')),
-    h('div.off-t', local ? 'Offline' : 'Can\'t reach the server'),
-    h('div.off-sub', local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`),
-    local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again'));
+  return stateCard('globe', local ? 'Offline' : 'Can\'t reach the server',
+    local ? `${what} needs the game's server — open Ashtonk!mania from its website.` : `${what} will show up as soon as it's back.`,
+    { slash: true, cls: compact ? '.compact' : '', action: local ? null : h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Presence.tryNow(); } }, icon('sync'), 'Try again') });
 }
 
 const Presence = {
