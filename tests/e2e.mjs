@@ -1297,6 +1297,17 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForSelector('.ob-name', { timeout: 30000 }); await mp.fill('.ob-name', 'Phone'); await mp.keyboard.press('Enter'); await mp.waitForTimeout(300);
   await mp.evaluate(() => AshtonkMania.Onboarding.finish()); await mp.waitForFunction(() => !document.querySelector('.setup'));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
+  {
+    // a long press is a right-click (iOS sends no contextmenu for one, and the press ended as a tap that started the song)
+    await mp.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await mp.waitForTimeout(1500);
+    const at = await mp.evaluate(() => { const r = document.querySelector('.diff-panel').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; });
+    const cdp0 = await mctx.newCDPSession(mp);
+    await cdp0.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: at[0], y: at[1], id: 1 }] }); await mp.waitForTimeout(800);
+    await cdp0.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await mp.waitForTimeout(500);
+    const lp = await mp.evaluate(() => ({ menu: /Practice/.test(document.querySelector('.menu')?.textContent || ''), scr: AshtonkMania.Screens.currentName }));
+    check('phone: a long press on a beatmap opens its options (like a right-click), and doesn\'t start the song', lp.menu && lp.scr === 'songselect', JSON.stringify(lp));
+    await mp.keyboard.press('Escape'); await mp.waitForTimeout(300);
+  }
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
   // sideways: the song plays as it is (no prompt), the screen's width split evenly between the columns for touches

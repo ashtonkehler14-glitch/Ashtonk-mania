@@ -13,6 +13,7 @@ const Mobile = {
   early() {
     if (!this.touch) return;
     this.noZoom();
+    this.longPress();
     Orientation.init();
     // (once a visit: not again on every reload — and never over a multiplayer match the reload is taking you back into)
     let quiet = false, again = false;
@@ -24,6 +25,41 @@ const Mobile = {
     } catch { /* private mode */ }
     if (!App.installed && !quiet && !again) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
+  },
+  /** A long press is a right-click, everywhere the game has a right-click menu (song select's beatmaps, scores, players,
+   *  key bindings…). Android sends a contextmenu event for one, iOS doesn't — there the press ended as a tap, which
+   *  started the song. So: held still for half a second, the element under the finger gets a contextmenu event (only
+   *  one — the browser's own, if it comes first), and the tap that lifting the finger makes is swallowed. Never in
+   *  gameplay, where holding a column is a long note. */
+  longPress() {
+    let timer = 0, start = null, held = false, firedAt = -1e9, swallowUntil = 0;
+    const cancel = () => { clearTimeout(timer); timer = 0; start = null; };
+    document.addEventListener('pointerdown', e => {
+      swallowUntil = 0; // (a new touch is a new tap)
+      if (e.pointerType !== 'touch' || !e.isPrimary || !e.target.closest || e.target.closest('.gameplay, input, textarea, select')) { cancel(); return; }
+      cancel(); held = false;
+      start = { x: e.clientX, y: e.clientY, t: e.target };
+      timer = setTimeout(() => {
+        const s = start; timer = 0; start = null;
+        if (!s || !s.t.isConnected) return;
+        held = true; firedAt = performance.now();
+        const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: s.x, clientY: s.y, button: 2, buttons: 2 });
+        ev.__longPress = true;
+        s.t.dispatchEvent(ev);
+      }, 500);
+    }, { capture: true, passive: true });
+    document.addEventListener('pointermove', e => { if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel(); }, { capture: true, passive: true });
+    for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, () => {
+      if (timer) cancel();
+      if (held) { held = false; swallowUntil = performance.now() + 600; }
+    }, { capture: true, passive: true });
+    // the browser's own long-press menu (Android): whichever comes first is the one
+    document.addEventListener('contextmenu', e => {
+      if (e.__longPress) return;
+      if (timer) { cancel(); held = true; firedAt = performance.now(); return; }
+      if (performance.now() - firedAt < 1500) { e.preventDefault(); e.stopImmediatePropagation(); }
+    }, true);
+    document.addEventListener('click', e => { if (performance.now() < swallowUntil) { swallowUntil = 0; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   },
   /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
    *  user-scalable=no, so its gestures are stopped here) and double-tapping. */
