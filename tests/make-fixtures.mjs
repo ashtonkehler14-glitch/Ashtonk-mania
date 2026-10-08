@@ -125,7 +125,16 @@ writeFileSync(new URL('test-set.osz', out), set);
 const online = (v, id) => osu(4, v, pattern).replace(/Title(Unicode)?:.*/g, m => m.split(':')[0] + ':Online Anthem').replace('BeatmapID:0', `BeatmapID:${id}`).replace('BeatmapSetID:-1', 'BeatmapSetID:424242');
 writeFileSync(new URL('online-set.osz', out), zip([['Online [Easy].osu', online('Online Easy', 4242420)], ['Online [Hard].osu', online('Online Hard', 4242421)], ['audio.wav', wav(20, BPM)]]));
 writeFileSync(new URL('corrupt.osz', out), Buffer.from('this is not a zip file at all'));
-writeFileSync(new URL('standard.osz', out), zip([['std.osu', osu(4, 'Std', pattern).replace('Mode: 3', 'Mode: 0').replace(/Title:.*/g, 'Title:Standard Only')], ['audio.wav', wav(1, 120)]]));
+// an osu! (standard) map — circles, sliders and a spinner — that plays as a lazer convert, and an osu!taiko one
+// that can't be played
+const stdObjs = [];
+for (let i = 0; i < 24; i++) stdObjs.push(`${(i * 97) % 512},${(i * 53) % 384},${1200 + i * beat / 2},${i % 4 ? 1 : 5},${i % 8 ? 0 : 4},0:0:0:0:`);
+for (let i = 0; i < 6; i++) stdObjs.push(`${64 + i * 70},192,${6400 + i * beat * 2},2,${i % 2 ? 8 : 0},B|${120 + i * 70}:150,${1 + (i % 3)},100`);
+stdObjs.push('256,192,11600,12,0,13200,0:0:0:0:');
+for (let i = 0; i < 8; i++) stdObjs.push(`${(i * 131) % 512},${(i * 71) % 384},${13600 + i * beat / 2},1,0,0:0:0:0:`);
+const stdText = osu(4, 'Std', pattern).replace('Mode: 3', 'Mode: 0').replace(/Title:.*/g, 'Title:Standard Only').replace(/\[HitObjects\][\s\S]*$/, `[HitObjects]\n${stdObjs.join('\n')}\n`);
+writeFileSync(new URL('standard.osz', out), zip([['std.osu', stdText], ['audio.wav', wav(16, BPM)]]));
+writeFileSync(new URL('taiko.osz', out), zip([['taiko.osu', stdText.replace('Mode: 0', 'Mode: 1').replace(/Title:.*/g, 'Title:Taiko Only')], ['audio.wav', wav(1, 120)]]));
 
 // ── Kori-style skin (stand-in: same structure/conventions, generated art)
 const purple = [170, 110, 255, 255], black = [8, 6, 12, 255];

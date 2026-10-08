@@ -167,13 +167,36 @@ await shot('02-songselect');
     r.sets === 1 && !r.errors.length && r.warnings.length === 1 && /missing\.mp3/.test(r.warnings[0]), JSON.stringify(r));
 }
 
-// corrupt / non-mania archives
-await dropFiles(['corrupt.osz', 'standard.osz']);
+// corrupt / unplayable archives
+await dropFiles(['corrupt.osz', 'taiko.osz']);
 await page.waitForTimeout(1500);
 const rep = await page.evaluate(() => AshtonkMania.App.lastReport);
 check('corrupt archive reported', rep.errors.some(e => /corrupt\.osz/.test(e)), rep.errors.join(' | '));
-check('non-mania archive is rejected (nothing unplayable is added)', rep.errors.some(e => /no playable osu!mania/.test(e)) && !(await page.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => /Standard/.test(s.title)))), rep.errors.join(' | '));
-await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => m.mode === 0)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+check('an osu!taiko archive is rejected (nothing unplayable is added)', rep.errors.some(e => /no playable difficulties/.test(e)) && !(await page.evaluate(() => AshtonkMania.BeatmapManager.sets.some(s => /Taiko/.test(s.title)))), rep.errors.join(' | '));
+// an osu! (standard) map plays converted, as lazer converts it; song select's "Show converted beatmaps" hides it
+await dropFiles(['standard.osz']);
+await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.some(s => /Standard/.test(s.title)), null, { timeout: 15000 });
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, s = A.BeatmapManager.sets.find(x => /Standard/.test(x.title)), m = s.maps[0];
+    const { notes } = await A.BeatmapManager.load(m.id);
+    const listed = () => A.SongSelect.results.some(x => x.set.id === s.id);
+    A.SongSelect.rebuild(true);
+    const shown = listed();
+    A.Settings.set('songselect.converts', false); A.SongSelect.rebuild(true);
+    const hidden = !listed();
+    A.Settings.set('songselect.converts', true); A.SongSelect.rebuild(true);
+    return { mode: m.mode, keys: m.keys, stars: m.stars, notes: notes.length, lns: notes.filter(n => n.isLN).length, shown, hidden, back: listed() };
+  });
+  check('an osu! (standard) map imports as a converted osu!mania difficulty (lazer\'s columns, notes and holds), listed in song select and hidden with "Show converted beatmaps" off',
+    r.mode === 0 && r.keys === 7 && r.notes === 71 && r.lns === 7 && r.stars > 0 && r.shown && r.hidden && r.back, JSON.stringify(r));
+  await page.evaluate(() => { const m = AshtonkMania.BeatmapManager.sets.find(x => /Standard/.test(x.title)).maps[0]; AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); });
+  await page.waitForFunction(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine && s.engine.score.judged > 8; }, null, { timeout: 20000 }).catch(() => {});
+  const play = await page.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine ? { keys: s.keys, judged: s.engine.score.judged, misses: s.engine.score.counts[5] } : null; });
+  check('a converted map plays (Auto hits its notes)', play && play.keys === 7 && play.judged > 8 && play.misses === 0, JSON.stringify(play));
+  await page.evaluate(async () => { AshtonkMania.Screens.go('songselect', {}, { replace: true }); const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => m.mode === 0)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+  await page.waitForTimeout(400);
+}
 
 // search & sort
 await page.keyboard.type('9K');

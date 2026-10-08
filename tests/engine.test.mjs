@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './load.mjs';
-const M = load(['00-util.js', '03-beatmap-parser.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js']);
+const M = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js']);
 const { GameplayEngine, BeatmapParser, J, timingWindows, generateAutoInputs, prepareNotes, DifficultyCalculator, OsuMath, ScoreSystem } = M;
 
 function osu(objects, { keys = 4, od = 8, extraTP = '' } = {}) {
@@ -524,7 +524,7 @@ test('parser reads the epilepsy warning flag (lazer\'s player loader disclaimer)
 });
 
 test('score verification: the server judges a play from its key presses — not from what the player says it scored', () => {
-  const V = load(['00-util.js', '03-beatmap-parser.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
+  const V = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
   const text = osu([note(0, 1000), note(1, 1500), ln(2, 2000, 2600), note(3, 3000)]);
   const bm = V.BeatmapParser.parse(text), keys = V.BeatmapParser.keyCount(bm);
   const notes = V.prepareNotes(V.BeatmapParser.toManiaNotes(bm), keys, [], 1);

@@ -320,7 +320,7 @@ const BeatmapManager = {
     }
     if (!mapRecords.length && !existing) {
       await DB.delPrefix('files', `${setId}/`);
-      throw new Error(`${md.Title || sourceName}: no playable osu!mania difficulties`);
+      throw new Error(`${md.Title || sourceName}: no playable difficulties`);
     }
     // thumbnail from first background available
     let thumb = existing?.thumb || false;

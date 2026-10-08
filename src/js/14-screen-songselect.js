@@ -159,6 +159,7 @@ const SongSelect = {
       Bus.on('tags', key => { const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.hash === key) { this._lbKey = null; this.updateInfo(); } }),
       Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
+      Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
@@ -329,6 +330,7 @@ const SongSelect = {
     const collId = Settings.get('songselect.collection');
     const coll = collId ? Collections.get(collId) : null;
     const hidden = new Set(Settings.get('songselect.hidden') || []); // (lazer: difficulties you hid)
+    const converts = Settings.get('songselect.converts') !== false; // (lazer: Show converted beatmaps)
     const results = [];
     for (const set of BeatmapManager.sets) {
       const hay = `${set.artist} ${set.artistUnicode} ${set.title} ${set.titleUnicode} ${set.creator} ${set.source} ${set.tags}`;
@@ -346,6 +348,7 @@ const SongSelect = {
       const maps = set.maps.filter(m => {
         if (m.problems.length) return false; // difficulties that can't be played (other modes, missing audio…) aren't listed
         if (hidden.has(m.hash)) return false;
+        if (m.mode === 0 && !converts) return false;
         if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
         if (keys.length && !keys.includes(m.keys)) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;

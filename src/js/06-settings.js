@@ -124,6 +124,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
+  { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
   { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).', 'Move, scale and hide the score, health, progress and the rest of the HUD.') },

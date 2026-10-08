@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './load.mjs';
-const M = load(['00-util.js', '03-beatmap-parser.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '10-renderer.js']);
+const M = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '10-renderer.js']);
 const { BeatmapParser, BeatmapError, GameplayEngine, timingWindows, generateAutoInputs, prepareNotes, DifficultyCalculator, ScrollMap } = M;
 
 let seed = 12345; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };

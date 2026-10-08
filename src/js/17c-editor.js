@@ -86,7 +86,9 @@ const EditorScreen = {
     this.diffSet = { hp: +(df.HPDrainRate ?? 5), od: +(df.OverallDifficulty ?? 5) };
     this.origMeta = { ...this.meta }; this.newBg = null;
     this.red = this.red.map(r => ({ ...r }));
-    this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t }));
+    // (a converted osu! map's green lines are slider speeds, which don't scroll it: saved, it becomes an osu!mania
+    // difficulty, so they're kept at 1× — their kiai and volume stay)
+    this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t, ...(bm.mode === 0 ? { beatLength: -100 } : {}) }));
     // lazer's bookmarks ([Editor] Bookmarks) and the song select preview point ([General] PreviewTime)
     const bk = /^Bookmarks[ \t]*:(.*)$/m.exec(this.text);
     this.bookmarks = bk ? bk[1].split(',').map(x => parseInt(x, 10)).filter(x => Number.isFinite(x) && x >= 0).sort((a, b) => a - b) : [];
@@ -850,7 +852,7 @@ const EditorScreen = {
     let text = this.text.replace(/\r\n/g, '\n');
     text = EditorScreen.setKeys(text, 'Metadata', meta);
     text = EditorScreen.setKeys(text, 'Difficulty', { HPDrainRate: +this.diffSet.hp.toFixed(1), OverallDifficulty: +this.diffSet.od.toFixed(1), CircleSize: this.keys });
-    text = EditorScreen.setKeys(text, 'General', { PreviewTime: Math.round(this.preview) });
+    text = EditorScreen.setKeys(text, 'General', { PreviewTime: Math.round(this.preview), Mode: 3 });
     if (this.bookmarks.length || /^\[Editor\]/m.test(text)) {
       // (osu! keeps [Editor] between [General] and [Metadata])
       if (!/^\[Editor\]/m.test(text)) text = /^\[Metadata\]/m.test(text) ? text.replace(/^\[Metadata\]/m, '[Editor]\n\n[Metadata]') : text;

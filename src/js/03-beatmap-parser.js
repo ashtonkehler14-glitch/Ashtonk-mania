@@ -18,6 +18,8 @@ const BeatmapParser = {
       timingPoints: [], hitObjects: [], colours: {},
     };
     if (!vm && !/\[HitObjects\]/i.test(text)) throw new BeatmapError('Invalid .osu file (missing header and [HitObjects])');
+    // (files older than format v5 were timed 24ms early: osu! moves everything in them later by that much)
+    const off = bm.formatVersion < 5 ? 24 : 0;
     let section = '';
     for (let raw of lines) {
       const line = raw.trim();
@@ -35,7 +37,7 @@ const BeatmapParser = {
         case 'timingpoints': {
           const p = line.split(',');
           if (p.length < 2) break;
-          const time = parseFloat(p[0]), beatLength = parseFloat(p[1]);
+          const time = parseFloat(p[0]) + off, beatLength = parseFloat(p[1]);
           if (!isFinite(time) || !isFinite(beatLength) || Math.abs(time) > MAX_MAP_TIME) break;
           bm.timingPoints.push({
             time, beatLength,
@@ -52,16 +54,16 @@ const BeatmapParser = {
         case 'hitobjects': {
           const p = line.split(',');
           if (p.length < 4) break;
-          const x = parseFloat(p[0]), y = parseFloat(p[1]), time = parseInt(p[2], 10), type = parseInt(p[3], 10);
+          const x = parseFloat(p[0]), y = parseFloat(p[1]), time = parseInt(p[2], 10) + off, type = parseInt(p[3], 10);
           if (!isFinite(x) || !isFinite(time) || !isFinite(type) || Math.abs(time) > MAX_MAP_TIME) break;
           const ho = { x, y, time, type, hitSound: parseInt(p[4], 10) || 0, endTime: 0, sample: null, raw: p };
           if (type & 128) {
             // Mania hold: endTime:hitSample
             const ex = (p[5] || '').split(':');
-            ho.endTime = parseInt(ex[0], 10) || time;
+            ho.endTime = (parseInt(ex[0], 10) + off) || time;
             ho.sample = ex.slice(1);
           } else if (type & 8) {
-            ho.endTime = parseInt(p[5], 10) || time;
+            ho.endTime = (parseInt(p[5], 10) + off) || time;
             ho.sample = (p[6] || '').split(':');
           } else if (type & 2) {
             ho.slider = { slides: parseInt(p[6], 10) || 1, length: parseFloat(p[7]) || 0 };
@@ -80,6 +82,8 @@ const BeatmapParser = {
     bm.mode = parseInt(g.Mode || '0', 10);
     bm.audioFile = g.AudioFilename ? normPath(g.AudioFilename) : '';
     bm.previewTime = parseInt(g.PreviewTime ?? '-1', 10);
+    if (off && bm.previewTime !== -1) bm.previewTime += off;
+    if (off) for (const b of bm.events.breaks) { b.start += off; b.end += off; }
     bm.audioLeadIn = parseInt(g.AudioLeadIn || '0', 10) || 0;
     bm.epilepsyWarning = g.EpilepsyWarning === '1';
     bm.sampleSetName = (g.SampleSet || 'Normal').toLowerCase();
@@ -107,22 +111,34 @@ const BeatmapParser = {
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
 
-  /** Key count for a mania map (CircleSize). */
+  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania. */
   keyCount(bm) {
+    if (bm.mode === 0) return ManiaConvert.columnCount(bm);
     const k = Math.round(bm.cs);
     if (!Number.isFinite(k)) throw new BeatmapError('The key count (CircleSize) isn\'t a number');
     return clamp(k, 1, 18);
   },
 
-  /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time. */
+  /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
+   *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
   toManiaNotes(bm) {
-    if (bm.mode !== 3) throw new BeatmapError(`Not a mania beatmap (mode ${bm.mode}); only osu!mania difficulties are playable`);
+    if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
     const keys = this.keyCount(bm);
-    const notes = [];
-    for (const ho of bm.hitObjects) {
+    let notes = [], spin = null, slide = null;
+    if (bm.mode === 0) {
+      try { notes = ManiaConvert.convert(bm).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
+    } else for (const ho of bm.hitObjects) {
+      // a spinner in a mania map is a hold in a column lazer picks (by its seeded random numbers)
+      if (ho.type & 8 && !(ho.type & 128)) {
+        const o = (spin = spin || ManiaConvert.spinners(bm, keys))(ho);
+        notes.push({ col: o.col, time: ho.time, end: o.end, isLN: o.end > ho.time, hs: ho.hitSound, sample: ho.sample || [] });
+        continue;
+      }
       const col = clamp(Math.floor(ho.x * keys / 512), 0, keys - 1);
-      const isLN = !!(ho.type & 128) && ho.endTime > ho.time;
-      notes.push({ col, time: ho.time, end: isLN ? ho.endTime : ho.time, isLN, hs: ho.hitSound, sample: ho.sample || [] });
+      // (a slider in a mania map — old maps have them — is a hold as long as the slider, as lazer plays it)
+      const end = ho.type & 128 ? ho.endTime : ho.type & 2 ? ho.time + (slide = slide || ManiaConvert.sliderDurations(bm))(ho) : ho.time;
+      const isLN = end > ho.time;
+      notes.push({ col, time: ho.time, end: isLN ? end : ho.time, isLN, hs: ho.hitSound, sample: ho.sample || [] });
     }
     notes.sort((a, b) => a.time - b.time || a.col - b.col);
     // Drop exact duplicates in the same column (broken maps), and trim overlapping LNs.
@@ -202,6 +218,8 @@ const BeatmapParser = {
    *  a red line scrolls at mostCommonBeatLength / beatLength; a green line multiplies the last red line's
    *  speed by 100 / -beatLength. No clamping, so teleports and stops behave as mapped. */
   scrollSegments(bm, { useSV = true, useBPM = true } = {}) {
+    // (a converted osu! map's green lines are slider speeds: lazer scrolls it by its BPM alone)
+    if (bm.mode === 0) useSV = false;
     const tps = bm.timingPoints;
     const red = this.timing(bm).red;
     const common = this.mostCommonBeatLength(bm, red);
@@ -257,7 +275,7 @@ const DifficultyCalculator = {
 /** BeatmapValidator: explain what is wrong with a difficulty instead of crashing. */
 function validateBeatmap(bm, availableFiles) {
   const problems = [], warnings = [];
-  if (bm.mode !== 3) problems.push(`Not an osu!mania difficulty (mode ${bm.mode})`);
+  if (bm.mode !== 3 && bm.mode !== 0) problems.push(`Not an osu!mania or osu! difficulty (mode ${bm.mode})`);
   if (!bm.hitObjects.length) problems.push('No hit objects');
   if (!bm.timingPoints.some(t => t.uninherited && t.beatLength > 0)) problems.push('Missing timing points');
   if (!bm.audioFile) problems.push('No audio file specified');
