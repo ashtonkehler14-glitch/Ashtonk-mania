@@ -518,9 +518,10 @@ const SongSelect = {
     const cur = this.groups.find(g => g.key === this.expandedGroup);
     if (has(cur) || (keepClosed && this.expandedGroup === null)) return false;
     const g = this.groups.find(has);
-    const key = g ? g.key : null;
-    if (key === this.expandedGroup) return false;
-    this.expandedGroup = key;
+    // (filtered out for now — a search with no matches: the open group stays as it was. Null would read as "the player
+    // closed it", and the list stayed folded up once the search was cleared)
+    if (!g || g.key === this.expandedGroup) return false;
+    this.expandedGroup = g.key;
     return true;
   },
   toggleGroup(key) {

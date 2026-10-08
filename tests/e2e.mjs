@@ -242,10 +242,16 @@ const grouped = await page.evaluate(() => {
   const heads = [...document.querySelectorAll('.group-panel')].map(e => e.textContent);
   const sel = AshtonkMania.BeatmapManager.maps.get(s.selectedId);
   const open = s.expandedGroup, diffs = s.rows.filter(r => r.type === 'diff').length;
+  // a search that matches nothing, then cleared: the selected difficulty's group is open again (it stayed folded up)
+  s.searchInput.value = 'zzqx'; s.query = 'zzqx'; s.rebuild(true);
+  s.searchInput.value = ''; s.query = ''; s.rebuild(true);
+  const reopen = { open: s.expandedGroup, diffs: s.rows.filter(r => r.type === 'diff').length };
   S.set('songselect.group', 'none'); s.rebuild();
-  return { ranged, heads, open, want: sel && `${sel.keys}K`, diffs };
+  return { ranged, heads, open, want: sel && `${sel.keys}K`, diffs, reopen };
 });
 check('song select: the star range filters difficulties (the count is of songs), and Group lists them under lazer\'s group headers', grouped.ranged.n === 3 && grouped.ranged.count === '1 match' && grouped.heads.length === 4 && grouped.open === grouped.want && grouped.diffs === 1, JSON.stringify(grouped));
+
+check('song select: a search that matches nothing, once cleared, leaves the selected difficulty\'s group open', grouped.reopen.open === grouped.want && grouped.reopen.diffs === 1, JSON.stringify(grouped.reopen));
 
 // favorite
 await page.evaluate(async () => { await AshtonkMania.Favorites.toggle(AshtonkMania.BeatmapManager.sets[0].id); });
