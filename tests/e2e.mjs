@@ -1373,6 +1373,18 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     const nine = await hpFor('9K Expert'), four = await hpFor('4K Normal');
     check('touch screen: a stage spanning the screen gets lazer\'s health bar at the top (the skin\'s beside it would be off the edge)', nine.hm === 'lazer' && !nine.off && four.hm !== 'lazer' && !four.off, JSON.stringify({ nine, four }));
   }
+  {
+    // practice on a touch screen: the tools sat over the first column — while the song plays a touch there is the
+    // column's; paused, the tools are above the pause screen to use
+    await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(400);
+    await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], mode: 'practice', force: true }); });
+    await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running && document.querySelector('.practice-bar'), null, { timeout: 20000 });
+    const hit = () => mp.evaluate(() => { const b = [...document.querySelectorAll('.practice-bar button')].find(x => /Set A/.test(x.textContent)), r = b.getBoundingClientRect(); return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); });
+    const playing = await hit();
+    await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(500);
+    const paused = await hit();
+    check('phone practice: the tools let touches through to the column while the song plays, and are there to use when paused', !playing && paused, JSON.stringify({ playing, paused }));
+  }
   await mctx.close();
 }
 

@@ -818,6 +818,11 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .practice-bar.top { bottom: auto; top: 14px; }
 .practice-bar.docked .pr-controls, .practice-bar.docked .speed-group { flex-wrap: wrap; }
 .practice-bar:hover { opacity: 1; }
+/* on a touch screen each quarter of the screen is a column, and the practice tools sat over the first: while the song
+   plays they let every touch through to the column (faded); pause, and they're above the pause screen to use */
+html.touch .gameplay:not(:has(.pause-menu)) .practice-bar { pointer-events: none; opacity: .3; }
+html.touch .gameplay:has(.pause-menu) .practice-bar { z-index: 2; opacity: 1; }
+html.touch .practice-bar .kbd { display: none; }
 .pr-timeline { position: relative; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, .04); cursor: pointer; overflow: hidden; }
 .pr-timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pr-loop { position: absolute; top: 0; bottom: 0; background: rgba(var(--accent-rgb), .22); border-left: 2px solid var(--accent); border-right: 2px solid var(--gold); pointer-events: none; }
