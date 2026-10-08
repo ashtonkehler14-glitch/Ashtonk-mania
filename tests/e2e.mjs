@@ -218,6 +218,11 @@ await page.keyboard.type('9K');
 await page.waitForTimeout(300);
 const searched = await page.evaluate(() => AshtonkMania.SongSelect.results.map(r => r.maps.map(m => m.version)));
 check('search filters difficulties', JSON.stringify(searched) === JSON.stringify([['9K Expert']]), JSON.stringify(searched));
+// typed into the search box, Enter still plays the pick (the box hands Enter on)
+await page.evaluate(() => { const s = AshtonkMania.SongSelect; window.__ssPlay = s.play; window.__played = null; s.play = mode => { window.__played = mode; }; });
+await page.keyboard.press('Enter'); await page.waitForTimeout(150);
+const typedEnter = await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.play = window.__ssPlay; return { mode: window.__played, scr: AshtonkMania.Screens.currentName }; });
+check('typing a search, then Enter plays the selected difficulty (as in lazer)', typedEnter.mode === 'play' && typedEnter.scr === 'songselect', JSON.stringify(typedEnter));
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = 'keys>=8'; s.query = 'keys>=8'; s.rebuild(true); });
 const syntax = await page.evaluate(() => AshtonkMania.SongSelect.results[0].maps.map(m => m.keys));
 check('filter syntax (keys>=8)', JSON.stringify(syntax) === '[8,9]', JSON.stringify(syntax));
@@ -1359,6 +1364,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const cb = await boxOf('Combo counter');
   if (cb) {
     await page.mouse.move(cb.x, cb.y); await page.mouse.down(); await page.mouse.move(cb.x + 60, cb.y + 40, { steps: 5 }); await page.mouse.up();
+    await page.waitForTimeout(200); // (the box is drawn where it went on the next frames: its handle is read from there)
     const cb2 = await boxOf('Combo counter');
     await page.mouse.move(cb2.hx, cb2.hy); await page.mouse.down(); await page.mouse.move(cb2.hx + 40, cb2.hy + 30, { steps: 5 }); await page.mouse.up();
   }

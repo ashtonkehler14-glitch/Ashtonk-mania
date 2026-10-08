@@ -730,7 +730,7 @@ const SongSelect = {
     }
     return wrap;
   },
-  select(id, { scroll = true } = {}) {
+  select(id, { scroll = true, regroup: opened = false } = {}) {
     const m = BeatmapManager.maps.get(id);
     if (!m) return;
     const setChanged = this.expandedSet !== m.setId;
@@ -738,7 +738,7 @@ const SongSelect = {
     this.selectedId = id;
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
-    const regroup = this.expandGroupOf(id);
+    const regroup = this.expandGroupOf(id) || opened; // (`regroup`: the caller opened another group itself)
     this.layoutRows();
     // rows already on screen are updated in place (only their selection changes); new ones are built once, after
     // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices). Another
@@ -761,30 +761,37 @@ const SongSelect = {
     this.renderVisible(force);
   },
   // keyboard navigation
-  /** The sets the arrow keys go through: those listed (with groups, the open group's). */
+  /** The sets the arrow keys go through, each with its group: those listed — with groups, every group's in turn, so
+   *  going past the open group's last one opens the next group (as lazer's carousel), rather than stopping there. */
   navList() {
-    if (!this.groups) return this.results || [];
-    const g = this.groups.find(x => x.key === this.expandedGroup);
-    return g ? g.items : [];
+    if (!this.groups) return (this.results || []).map(r => ({ r, g: undefined }));
+    return this.groups.flatMap(g => g.items.map(r => ({ r, g: g.key })));
   },
-  flatMaps() { return this.navList().flatMap(r => r.maps); },
+  /** Select a difficulty from the arrow keys, opening the group it was reached in (a song can be in more than one). */
+  navTo(id, g) {
+    const regroup = g !== undefined && g !== this.expandedGroup;
+    if (regroup) this.expandedGroup = g;
+    this.select(id, { regroup });
+  },
   moveDiff(d) {
-    const flat = this.flatMaps();
+    const flat = this.navList().flatMap(({ r, g }) => r.maps.map(m => ({ m, g })));
     if (!flat.length) return;
-    const i = flat.findIndex(m => m.id === this.selectedId);
+    const here = x => x.m.id === this.selectedId;
+    const i = Math.max(flat.findIndex(x => here(x) && x.g === this.expandedGroup), flat.findIndex(here));
     const n = flat[clamp(i + d, 0, flat.length - 1)];
-    if (n && n.id !== this.selectedId) { UISounds.select(n.setId === this.expandedSet ? 'difficulty' : 'expand'); this.select(n.id); }
+    if (n && !here(n)) { UISounds.select(n.m.setId === this.expandedSet ? 'difficulty' : 'expand'); this.navTo(n.m.id, n.g); }
   },
   moveSet(d) {
     const list = this.navList();
     if (!list.length) return;
-    const i = list.findIndex(r => r.set.id === this.expandedSet);
-    const r = list[clamp(i + d, 0, list.length - 1)];
-    if (!r || r.set.id === this.expandedSet) return;
-    const cur = BeatmapManager.maps.get(this.selectedId);
+    const here = x => x.r.set.id === this.expandedSet;
+    const i = Math.max(list.findIndex(x => here(x) && x.g === this.expandedGroup), list.findIndex(here));
+    const n = list[clamp(i + d, 0, list.length - 1)];
+    if (!n || here(n) && n.g === this.expandedGroup) return;
+    const cur = BeatmapManager.maps.get(this.selectedId), maps = n.r.maps;
     // (the difficulty last played from that song; one never played opens on the one nearest the current star rating)
-    const target = this.pickDiff(r.maps, cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : null);
-    UISounds.select('expand'); this.select(target.id);
+    const target = this.pickDiff(maps, cur ? maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, maps[0]) : null);
+    UISounds.select('expand'); this.navTo(target.id, n.g);
   },
   /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
    *  picks are remembered so Shift+F2 / right-click can rewind them. */
@@ -814,7 +821,12 @@ const SongSelect = {
     this.select(id);
   },
   onKey(e) {
-    if (e.target === this.searchInput) return false;
+    // (the keys the search box hands on — it lets go of them — work as anywhere else: type a search, Enter plays the
+    // pick, ↑ / ↓ move it, Esc on an empty box leaves; everything else stays the box's own)
+    if (e.target === this.searchInput) {
+      if (e.key === 'Escape') { Screens.back(); return true; }
+      if (!['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key)) return false;
+    }
     switch (e.key) {
       case 'ArrowDown': if (e.ctrlKey || e.metaKey) this.changeSpeed(-0.05); else this.moveDiff(1); return true;
       case 'ArrowUp': if (e.ctrlKey || e.metaKey) this.changeSpeed(0.05); else this.moveDiff(-1); return true;

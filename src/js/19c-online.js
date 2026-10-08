@@ -64,7 +64,8 @@ const Spectate = {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
-    this.target = { id: p.id, name: p.name };
+    clearTimeout(this._lostT);
+    this.target = { id: p.id, name: p.name, pid: p.pid || '' };
     this.cur = null; this._mirShown = null; this._mirIn = null; // (a new watch: no screen of theirs seen yet)
     Presence.send({ t: 'watch', to: p.id });
     this.paintPill();
@@ -72,7 +73,7 @@ const Spectate = {
   },
   stop({ quiet = false } = {}) {
     if (!this.target) return;
-    this._lastCur = null; this._fit = null; this._mirShown = null; this._mirIn = null;
+    this._lastCur = null; this._fit = null; this._mirShown = null; this._mirIn = null; clearTimeout(this._lostT);
     Presence.send({ t: 'unwatch', to: this.target.id });
     const name = this.target.name;
     this.target = null; this.cur = null;
@@ -81,6 +82,20 @@ const Spectate = {
     if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home'); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', name);
     Presence.pushStatus();
+  },
+  /** The player you were watching went offline for good. */
+  lost(t) {
+    clearTimeout(this._lostT);
+    this.target = null; this.cur = null; this.showRk(null); this.paintPill();
+    Toast.show(`${t.name} went offline`, 'Stopped spectating.');
+    Presence.pushStatus();
+  },
+  /** Back online (under a new id): watch them again. */
+  relink() {
+    const t = this.target;
+    if (!t || !t.lost) return;
+    const p = Presence.players.find(x => x.pid === t.pid && x.id !== t.id);
+    if (p) this.watch(p);
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
   on(m) {
@@ -107,7 +122,22 @@ const Spectate = {
       return;
     }
     if (m.t === 'specEnd') {
-      if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      if (m.gone) {
+        const t = this.target;
+        this.cur = null; this.showRk(null);
+        if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home');
+        // (gone from the online list — often only their page reloading, or a moment without signal — they come back
+        // under a new id and watching carries on; half a minute without them, it stops)
+        if (t.pid && !t.lost) {
+          t.lost = true;
+          this.paintPill(`${t.name} went offline — waiting for them to come back…`);
+          this._lostT = setTimeout(() => { if (this.target === t && t.lost) this.lost(t); }, 30000);
+          this.relink();
+          return;
+        }
+        this.lost(t);
+        return;
+      }
       // watching from a multiplayer room: their song is over, so is watching — back to the room (once the play you're
       // shown has caught up with its end, a moment behind theirs)
       if (Multiplayer.inRoom()) {
@@ -827,6 +857,8 @@ Bus.on('screen:changed', name => Spectate.onScreen(name));
 
 // (being watched: your screen goes to your spectators as it changes — nothing happens while nobody watches)
 setInterval(() => { try { Spectate.mirrorTick(); } catch (e) { /* the next tick tries again */ } }, 250);
+// (someone you were watching back online: watching picks up again)
+Bus.on('presence:changed', () => Spectate.relink());
 // watching someone's screen: it's theirs, so your keys don't reach your own menus underneath — Esc stops watching
 addEventListener('keydown', e => {
   if (!Spectate.rkEl || !Spectate.target) return;

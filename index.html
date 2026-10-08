@@ -14983,7 +14983,7 @@ const SongSelect = {
     }
     return wrap;
   },
-  select(id, { scroll = true } = {}) {
+  select(id, { scroll = true, regroup: opened = false } = {}) {
     const m = BeatmapManager.maps.get(id);
     if (!m) return;
     const setChanged = this.expandedSet !== m.setId;
@@ -14991,7 +14991,7 @@ const SongSelect = {
     this.selectedId = id;
     this.expandedSet = m.setId;
     Settings.set('last.map', id);
-    const regroup = this.expandGroupOf(id);
+    const regroup = this.expandGroupOf(id) || opened; // (`regroup`: the caller opened another group itself)
     this.layoutRows();
     // rows already on screen are updated in place (only their selection changes); new ones are built once, after
     // scrolling (rebuilding every visible row, twice, made each change of beatmap stutter on slow devices). Another
@@ -15014,30 +15014,37 @@ const SongSelect = {
     this.renderVisible(force);
   },
   // keyboard navigation
-  /** The sets the arrow keys go through: those listed (with groups, the open group's). */
+  /** The sets the arrow keys go through, each with its group: those listed — with groups, every group's in turn, so
+   *  going past the open group's last one opens the next group (as lazer's carousel), rather than stopping there. */
   navList() {
-    if (!this.groups) return this.results || [];
-    const g = this.groups.find(x => x.key === this.expandedGroup);
-    return g ? g.items : [];
+    if (!this.groups) return (this.results || []).map(r => ({ r, g: undefined }));
+    return this.groups.flatMap(g => g.items.map(r => ({ r, g: g.key })));
   },
-  flatMaps() { return this.navList().flatMap(r => r.maps); },
+  /** Select a difficulty from the arrow keys, opening the group it was reached in (a song can be in more than one). */
+  navTo(id, g) {
+    const regroup = g !== undefined && g !== this.expandedGroup;
+    if (regroup) this.expandedGroup = g;
+    this.select(id, { regroup });
+  },
   moveDiff(d) {
-    const flat = this.flatMaps();
+    const flat = this.navList().flatMap(({ r, g }) => r.maps.map(m => ({ m, g })));
     if (!flat.length) return;
-    const i = flat.findIndex(m => m.id === this.selectedId);
+    const here = x => x.m.id === this.selectedId;
+    const i = Math.max(flat.findIndex(x => here(x) && x.g === this.expandedGroup), flat.findIndex(here));
     const n = flat[clamp(i + d, 0, flat.length - 1)];
-    if (n && n.id !== this.selectedId) { UISounds.select(n.setId === this.expandedSet ? 'difficulty' : 'expand'); this.select(n.id); }
+    if (n && !here(n)) { UISounds.select(n.m.setId === this.expandedSet ? 'difficulty' : 'expand'); this.navTo(n.m.id, n.g); }
   },
   moveSet(d) {
     const list = this.navList();
     if (!list.length) return;
-    const i = list.findIndex(r => r.set.id === this.expandedSet);
-    const r = list[clamp(i + d, 0, list.length - 1)];
-    if (!r || r.set.id === this.expandedSet) return;
-    const cur = BeatmapManager.maps.get(this.selectedId);
+    const here = x => x.r.set.id === this.expandedSet;
+    const i = Math.max(list.findIndex(x => here(x) && x.g === this.expandedGroup), list.findIndex(here));
+    const n = list[clamp(i + d, 0, list.length - 1)];
+    if (!n || here(n) && n.g === this.expandedGroup) return;
+    const cur = BeatmapManager.maps.get(this.selectedId), maps = n.r.maps;
     // (the difficulty last played from that song; one never played opens on the one nearest the current star rating)
-    const target = this.pickDiff(r.maps, cur ? r.maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, r.maps[0]) : null);
-    UISounds.select('expand'); this.select(target.id);
+    const target = this.pickDiff(maps, cur ? maps.reduce((a, m) => Math.abs(m.stars - cur.stars) < Math.abs(a.stars - cur.stars) ? m : a, maps[0]) : null);
+    UISounds.select('expand'); this.navTo(target.id, n.g);
   },
   /** lazer's random: a different beatmap set each time, going through every set before one comes up again; the
    *  picks are remembered so Shift+F2 / right-click can rewind them. */
@@ -15067,7 +15074,12 @@ const SongSelect = {
     this.select(id);
   },
   onKey(e) {
-    if (e.target === this.searchInput) return false;
+    // (the keys the search box hands on — it lets go of them — work as anywhere else: type a search, Enter plays the
+    // pick, ↑ / ↓ move it, Esc on an empty box leaves; everything else stays the box's own)
+    if (e.target === this.searchInput) {
+      if (e.key === 'Escape') { Screens.back(); return true; }
+      if (!['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key)) return false;
+    }
     switch (e.key) {
       case 'ArrowDown': if (e.ctrlKey || e.metaKey) this.changeSpeed(-0.05); else this.moveDiff(1); return true;
       case 'ArrowUp': if (e.ctrlKey || e.metaKey) this.changeSpeed(0.05); else this.moveDiff(-1); return true;
@@ -17201,7 +17213,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
       if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }
       const score = this.buildScore(true, summary);
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode, back: this.params.back || (this.params.returnTo ? { name: 'results', params: this.params.returnTo } : null) }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode, spectated: !!s.spectate, back: this.params.back || (this.params.returnTo ? { name: 'results', params: this.params.returnTo } : null) }, { replace: true, transition: 'zoom' }); }, 600);
     }
   },
   buildScore(passed, summary) {
@@ -18233,7 +18245,7 @@ const ResultsScreen = {
     const av = (mine || s.own) && s.player === ProfileManager.profile.name ? ProfileManager.avatarEl(80) : s.online ? Presence.avatarEl({ name: s.player, avatar: s.avatar }, 80) : h('span.rs-initial', (s.player || '?')[0].toUpperCase());
     // lazer's ExpandedPanelTopContent: an 80px picture (corners of 20) straddling the top of the panel, the name under it
     const top = h('div.rs-top', h('div.rs-av', av), h('div.rs-name', s.player || 'Player'),
-      p.watched && p.watched !== 'online' ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null);
+      p.watched && p.watched !== 'online' && !p.spectated ? h('span.rs-tag', p.watched === 'auto' ? 'AUTO' : 'REPLAY') : null); // (a play you watched live isn't a replay)
     // accuracy circle (lazer's AccuracyCircle): the accuracy fills the thick outer ring; just inside it the grade
     // thresholds are coloured segments (SS shown as a virtual 1% so it's visible); each rank's badge pops in when the
     // fill passes it, so only the ranks you reached show up. Positions and sizes follow lazer's relative values.
@@ -19441,8 +19453,8 @@ const CHANGELOG = [
       'Ranked Play: your own corner shows "Reconnecting…" while your connection is down, and the stage timer no longer jumps back when the screen updates',
       'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
       'On a phone on its side the room scrolls, instead of the chat covering the beatmap; leaving or quitting asks with a warning sign, not a bin'] },
-    { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Spectating someone again after they reloaded the page shows their screen (it stayed blank)', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
+    { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
@@ -24873,7 +24885,8 @@ const Spectate = {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
-    this.target = { id: p.id, name: p.name };
+    clearTimeout(this._lostT);
+    this.target = { id: p.id, name: p.name, pid: p.pid || '' };
     this.cur = null; this._mirShown = null; this._mirIn = null; // (a new watch: no screen of theirs seen yet)
     Presence.send({ t: 'watch', to: p.id });
     this.paintPill();
@@ -24881,7 +24894,7 @@ const Spectate = {
   },
   stop({ quiet = false } = {}) {
     if (!this.target) return;
-    this._lastCur = null; this._fit = null; this._mirShown = null; this._mirIn = null;
+    this._lastCur = null; this._fit = null; this._mirShown = null; this._mirIn = null; clearTimeout(this._lostT);
     Presence.send({ t: 'unwatch', to: this.target.id });
     const name = this.target.name;
     this.target = null; this.cur = null;
@@ -24890,6 +24903,20 @@ const Spectate = {
     if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home'); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', name);
     Presence.pushStatus();
+  },
+  /** The player you were watching went offline for good. */
+  lost(t) {
+    clearTimeout(this._lostT);
+    this.target = null; this.cur = null; this.showRk(null); this.paintPill();
+    Toast.show(`${t.name} went offline`, 'Stopped spectating.');
+    Presence.pushStatus();
+  },
+  /** Back online (under a new id): watch them again. */
+  relink() {
+    const t = this.target;
+    if (!t || !t.lost) return;
+    const p = Presence.players.find(x => x.pid === t.pid && x.id !== t.id);
+    if (p) this.watch(p);
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
   on(m) {
@@ -24916,7 +24943,22 @@ const Spectate = {
       return;
     }
     if (m.t === 'specEnd') {
-      if (m.gone) { const n = this.target.name; this.target = null; this.cur = null; this.showRk(null); this.paintPill(); if (this.watchingNow()) Screens.go('home'); Toast.show(`${n} went offline`, 'Stopped spectating.'); Presence.pushStatus(); return; }
+      if (m.gone) {
+        const t = this.target;
+        this.cur = null; this.showRk(null);
+        if (this.watchingNow()) Screens.go(Multiplayer.inRoom() ? 'multiplayer' : 'home');
+        // (gone from the online list — often only their page reloading, or a moment without signal — they come back
+        // under a new id and watching carries on; half a minute without them, it stops)
+        if (t.pid && !t.lost) {
+          t.lost = true;
+          this.paintPill(`${t.name} went offline — waiting for them to come back…`);
+          this._lostT = setTimeout(() => { if (this.target === t && t.lost) this.lost(t); }, 30000);
+          this.relink();
+          return;
+        }
+        this.lost(t);
+        return;
+      }
       // watching from a multiplayer room: their song is over, so is watching — back to the room (once the play you're
       // shown has caught up with its end, a moment behind theirs)
       if (Multiplayer.inRoom()) {
@@ -25636,6 +25678,8 @@ Bus.on('screen:changed', name => Spectate.onScreen(name));
 
 // (being watched: your screen goes to your spectators as it changes — nothing happens while nobody watches)
 setInterval(() => { try { Spectate.mirrorTick(); } catch (e) { /* the next tick tries again */ } }, 250);
+// (someone you were watching back online: watching picks up again)
+Bus.on('presence:changed', () => Spectate.relink());
 // watching someone's screen: it's theirs, so your keys don't reach your own menus underneath — Esc stops watching
 addEventListener('keydown', e => {
   if (!Spectate.rkEl || !Spectate.target) return;

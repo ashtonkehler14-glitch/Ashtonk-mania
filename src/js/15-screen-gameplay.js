@@ -1724,7 +1724,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
       if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }
       const score = this.buildScore(true, summary);
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode, back: this.params.back || (this.params.returnTo ? { name: 'results', params: this.params.returnTo } : null) }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay: s.mode === 'replay' ? s.replay : null, fresh: false, watched: s.mode, spectated: !!s.spectate, back: this.params.back || (this.params.returnTo ? { name: 'results', params: this.params.returnTo } : null) }, { replace: true, transition: 'zoom' }); }, 600);
     }
   },
   buildScore(passed, summary) {
