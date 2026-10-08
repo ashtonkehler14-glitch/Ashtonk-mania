@@ -197,6 +197,7 @@ const RankedMatch = {
     const leave = h('button.rkm-leave', { title: 'Leave the match', 'aria-label': 'Leave the match', onclick: () => this.confirmLeave() }, icon('back'), h('span', 'Leave'));
     this.root.append(this.bg, this.bgMap, this.main, this.top, this.cornerMe, this.cornerOpp, this.chat, leave, this.ov);
     s.el.appendChild(this.root);
+    this.fit();
     s.el.classList.add('rkm-on');
     $('#app').classList.add('hide-toolbar');
     this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {}; this.timerEl = null; // (the header is built in this new frame)
@@ -205,9 +206,23 @@ const RankedMatch = {
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
       Bus.on('mp:opp', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
+      Bus.on('ui:scaled', () => this.fit()),
     ];
+    const onResize = () => this.fit();
+    addEventListener('resize', onResize);
+    this._subs.push(() => removeEventListener('resize', onResize));
     const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
+  },
+  /** As lazer's fixed layout: a screen shorter than the match's (a phone on its side, a big interface size) shows all
+   *  of it, smaller, instead of the hands, the stage text and the chat running into each other. (Upright, a phone has
+   *  its own narrow layout.) */
+  fit() {
+    const r = this.root, p = r && r.parentElement;
+    if (!p || !p.clientHeight) return;
+    const k = p.clientWidth < p.clientHeight ? 1 : Math.min(1, p.clientHeight / 800, p.clientWidth / 1200);
+    const z = k > 0.97 ? '' : String(Math.round(k * 1000) / 1000);
+    if (r.style.zoom !== z) r.style.zoom = z;
   },
   unmount() {
     if (!this.root) return;
@@ -296,7 +311,8 @@ const RankedMatch = {
     this.top.classList.toggle('none', !head);
     const cap = this.caption(g);
     if (this.capEl.textContent !== cap) this.capEl.textContent = cap;
-    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal'].includes(g.stage) ? `Round ${g.round}` : '';
+    // (not on the results: they have the round as their title)
+    const round = g.round > 0 && !['ended', 'waitjoin', 'stars', 'deal', 'results'].includes(g.stage) ? `Round ${g.round}` : '';
     if (this.multEl.textContent !== round) this.multEl.textContent = round;
   },
   caption(g) {

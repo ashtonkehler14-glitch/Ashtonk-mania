@@ -282,7 +282,7 @@ const Multiplayer = {
       this.saveTemp();
       f.done = true;
       if (this.fetch === f) Bus.emit('mp:changed');
-    }).catch(e => { f.error = e.message; if (this.fetch === f) Bus.emit('mp:changed'); });
+    }).catch(e => { f.error = friendlyError(e); if (this.fetch === f) Bus.emit('mp:changed'); });
   },
   isTemp(map = this.room && this.room.map) { const l = this.localMap(map); return !!(l && this.temp.has(l.setId)); },
   keepTemp() { const l = this.localMap(); if (l) { this.temp.delete(l.setId); this.saveTemp(); Toast.ok('Kept in your library', `${l.artist} - ${l.title}`); Bus.emit('mp:changed'); } },
@@ -746,7 +746,7 @@ const MultiplayerScreen = {
     const busy = async (label, fn) => {
       clearEl(status).append(h('span.spinner'), label);
       $$('button', this.body).forEach(b => b.disabled = true);
-      try { await fn(); } catch (e) { clearEl(status).append(h('span.mp-err', e.message)); $$('button', this.body).forEach(b => b.disabled = false); }
+      try { await fn(); } catch (e) { clearEl(status).append(h('span.mp-err', friendlyError(e))); $$('button', this.body).forEach(b => b.disabled = false); }
     };
     this._busy = busy;
     const code = h('input.input.mp-code', { placeholder: 'ROOM CODE', maxlength: 8, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Room code' });
@@ -1063,7 +1063,7 @@ const MultiplayerScreen = {
           if (!local && map.onlineSetId > 0) { pick.textContent = 'Downloading…'; await OnlineBeatmaps.downloadAndImport({ id: map.onlineSetId, title: map.title, artist: map.artist }); local = Multiplayer.localMap(map); }
           if (!local) throw new Error('Beatmap not available.');
           Multiplayer.selectMap(local, Settings.get('songselect.mods') || []);
-        } catch (e) { Toast.err('Couldn\'t pick that beatmap', e.message); }
+        } catch (e) { Toast.err('Couldn\'t pick that beatmap', friendlyError(e)); }
         pick.disabled = false; pick.textContent = 'Pick';
       } }, 'Pick') : null;
       el = h('div.mp-msg.suggest', h('b', m.name), h('span', 'recommended ', h('i', `${map.artist} - ${map.title} [${map.version}]`)), pick);

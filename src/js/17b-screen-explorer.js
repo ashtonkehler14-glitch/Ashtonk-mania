@@ -857,7 +857,7 @@ const ExplorerScreen = {
         Toast.show('Recommended to the host', `${set.title} [${d.version}]`);
       }
       Screens.go('multiplayer', {}, { replace: true });
-    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t recommend that beatmap', e.message); }
+    } catch (e) { Toast.err(host ? 'Couldn\'t pick that beatmap' : 'Couldn\'t recommend that beatmap', friendlyError(e)); }
   },
   /** Download progress, written into the card and the info page as they are: rebuilding them for every tick made
    *  the card under the pointer jitter (its hover lift and side panel restarted each time). */

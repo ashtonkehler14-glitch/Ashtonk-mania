@@ -14,8 +14,15 @@ const Mobile = {
     if (!this.touch) return;
     this.noZoom();
     Orientation.init();
-    let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
-    if (!App.installed && !quiet) this.showInstall();
+    // (once a visit: not again on every reload — and never over a multiplayer match the reload is taking you back into)
+    let quiet = false, again = false;
+    try {
+      quiet = localStorage.getItem('am.noInstallPrompt') === '1';
+      const r = JSON.parse(sessionStorage.getItem('mp.rejoin') || 'null');
+      again = sessionStorage.getItem('am.instShown') === '1' || !!(r && Date.now() - r.at < 60000);
+      sessionStorage.setItem('am.instShown', '1');
+    } catch { /* private mode */ }
+    if (!App.installed && !quiet && !again) this.showInstall();
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
   /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
