@@ -65,14 +65,14 @@ const Spectate = {
     if (Multiplayer.inRoom() && Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     this.target = { id: p.id, name: p.name };
-    this.cur = null;
+    this.cur = null; this._mirShown = null; this._mirIn = null; // (a new watch: no screen of theirs seen yet)
     Presence.send({ t: 'watch', to: p.id });
     this.paintPill();
     Presence.pushStatus();
   },
   stop({ quiet = false } = {}) {
     if (!this.target) return;
-    this._lastCur = null; this._fit = null;
+    this._lastCur = null; this._fit = null; this._mirShown = null; this._mirIn = null;
     Presence.send({ t: 'unwatch', to: this.target.id });
     const name = this.target.name;
     this.target = null; this.cur = null;
@@ -305,8 +305,12 @@ const Spectate = {
         const n = a.name.toLowerCase();
         if (n.startsWith('on') || n === 'href' || n === 'srcdoc' || n === 'formaction' || n === 'action' || n === 'xlink:href') el.removeAttribute(a.name);
         else if ((n === 'src' || n === 'srcset') && !ok(a.value)) el.removeAttribute(a.name);
-        else if (n === 'style' && /url\(\s*['"]?\s*(?!https:|data:image\/)/i.test(a.value)) el.setAttribute('style', a.value.replace(/url\([^)]*\)/gi, 'none'));
-        else if (n === 'style' && /expression|javascript:/i.test(a.value)) el.removeAttribute('style');
+        // (each url() on its own: a picture over https or a data: image stays, anything else goes — browsers write
+        // these quoted, and a check over the whole value took the quote for the start of an address and dropped them all)
+        else if (n === 'style') {
+          const v = a.value.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (all, q, u) => ok(u) ? all : 'none');
+          if (/expression|javascript:/i.test(v)) el.removeAttribute('style'); else if (v !== a.value) el.setAttribute('style', v);
+        }
       }
     }
     // (updated in place — only what changed — so nothing on their screen restarts or flickers between updates)
@@ -403,6 +407,8 @@ const Spectate = {
       this._mo = new MutationObserver(recs => { if (recs.some(r => r.attributeName !== 'data-ss' && !(r.target.closest && r.target.closest('.spec-rk')))) this.mirrorSoon(); });
       this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true });
       this.hostCur(true);
+      // (lists already scrolled before anyone watched — a chat at its newest lines — go at their place too)
+      for (const el of app.querySelectorAll('*')) if ((el.scrollTop || el.scrollLeft) && !el.closest('.spec-rk')) (this._scrolled ||= new Set()).add(el);
       this._dirty = true;
     }
     this.mirrorFlush();
@@ -456,6 +462,15 @@ const Spectate = {
       if (el.getAttribute('data-ss') !== v) el.setAttribute('data-ss', v);
     }
     const c = app.cloneNode(true);
+    // (pictures only this browser has — a beatmap's own background or card art, your avatar — go as small copies, sized
+    // as they're shown: the watcher's browser can't open them)
+    const B = 'img[src^="blob:"], [style*="blob:"]', liveB = [...app.querySelectorAll(B)];
+    [...c.querySelectorAll(B)].forEach((el, i) => {
+      const live = liveB[i], w = live ? Math.min(480, Math.round(live.clientWidth)) : 0;
+      const swap = u => { if (w < 16) return null; const k = `${u}|${w}`, d = this._blobs && this._blobs.get(k); if (d === undefined) this.blobSoon(u, w, k); return d || null; };
+      if (el.tagName === 'IMG') { const d = swap(el.getAttribute('src')); if (d) el.setAttribute('src', d); else el.removeAttribute('src'); return; }
+      el.setAttribute('style', el.getAttribute('style').replace(/url\((["']?)(blob:[^"')]+)\1\)/g, (_, q, u) => { const d = swap(u); return d ? `url("${d}")` : 'none'; }));
+    });
     for (const el of c.querySelectorAll('.spec-rk, .cursor, #cursor, .kb-bar')) el.remove();
     for (const el of c.querySelectorAll('input, textarea')) { const src = el.id && app.querySelector('#' + CSS.escape(el.id)); el.setAttribute('value', el.value || (src && src.value) || ''); }
     // (a canvas carries nothing as HTML: each one — the stage under a fail or pause screen, the menu's triangles —
@@ -483,6 +498,26 @@ const Spectate = {
     const cls = [...app.classList].filter(x => x !== 'zoomfix').join(' ');
     return `<div id="app" class="spec-frame ${cls}" data-st="${(app.getAttribute('style') || '').replace(/"/g, '&quot;')}" data-vw="${app.offsetWidth || innerWidth}" data-vh="${app.offsetHeight || innerHeight}">${c.innerHTML}</div>`;
   },
+  /** A small copy of one of this browser's own pictures, for the mirror (made once, then kept). */
+  blobSoon(u, w, k) {
+    const q = this._blobQ || (this._blobQ = new Set()), cache = this._blobs || (this._blobs = new Map());
+    if (q.has(k)) return;
+    q.add(k);
+    (async () => {
+      let d = '';
+      try {
+        const bmp = await createImageBitmap(await (await fetch(u)).blob());
+        const sc = Math.min(1, w / bmp.width), t = document.createElement('canvas');
+        t.width = Math.max(1, Math.round(bmp.width * sc)); t.height = Math.max(1, Math.round(bmp.height * sc));
+        t.getContext('2d').drawImage(bmp, 0, 0, t.width, t.height);
+        if (bmp.close) bmp.close();
+        d = t.toDataURL('image/webp', 0.6);
+      } catch { /* gone, or not a picture: left out */ }
+      q.delete(k); cache.set(k, d);
+      if (cache.size > 80) cache.delete(cache.keys().next().value);
+      if (d && this.host.watchers) this.mirrorSoon();
+    })();
+  },
   snapSoon(live) {
     const q = this._snapQ || (this._snapQ = new Set());
     if (q.has(live)) return;
@@ -500,7 +535,8 @@ const Spectate = {
     }, 60);
   },
   async sendMirror(html) {
-    const seq = this._mirSeq = (this._mirSeq || 0) + 1;
+    // (counted on from the time this page opened: after a reload the player's screens still count up, never back)
+    const seq = this._mirSeq = (this._mirSeq || Date.now()) + 1;
     try {
       const buf = new Uint8Array(await new Response(new Blob([html]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
       if (seq !== this._mirSeq) return; // (a newer screen is on its way)

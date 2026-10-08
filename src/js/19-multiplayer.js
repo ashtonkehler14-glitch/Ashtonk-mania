@@ -819,6 +819,9 @@ const MultiplayerScreen = {
     let rooms = null;
     try { const r = await fetch('api/mp/rooms', { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
+    // one request that didn't make it (a network blip) keeps the list as it was, rather than flashing "offline"
+    if (rooms) this._roomsMiss = 0;
+    else if (navigator.onLine !== false && el.childNodes.length && typeof this._roomsSig === 'string' && this._roomsSig !== 'x' && (this._roomsMiss = (this._roomsMiss || 0) + 1) < 3) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     const left = Multiplayer.lastLeft;
     if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));
     // rows that haven't changed since the last poll (every 3s) are kept as they are: rebuilding them replayed their
