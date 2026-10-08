@@ -365,6 +365,10 @@ await page.waitForFunction(() => document.querySelector('.share-card').naturalWi
 const card = await page.evaluate(() => { const i = document.querySelector('.share-card'); return [i.naturalWidth, i.naturalHeight]; });
 const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('.dialog button:text-is("Save PNG")')]);
 check('results: Share makes a 1200×630 result card to copy or save as PNG', card[0] === 1200 && card[1] === 630 && /\.png$/.test(dl.suggestedFilename()), `${card} ${dl.suggestedFilename()}`);
+// a dialog nobody answered, still open as a song starts (a match beginning under it): closed, and the keys are the song's
+await page.evaluate(() => { AshtonkMania.Dialog.confirm('Left open', 'Nobody answered this'); });
+const underDlg = await livePlay({ version: '4K Normal', errorMs: 25 }); // (a little late: a score of its own, not a copy of the first)
+check('a dialog still open when a song starts is closed, and the song gets every key press', underDlg.counts[5] === 0 && underDlg.acc > 0.95 && !(await page.evaluate(() => !!document.querySelector('.dialog'))), JSON.stringify(underDlg.counts));
 const late = await livePlay({ version: '4K Normal', errorMs: 50, missEvery: 7 });
 check('late hits + skipped notes: misses counted, mean offset positive', late.counts[5] > 0 && late.mean > 25, JSON.stringify(late));
 check('worse run is not a new PB', late.pb === false);

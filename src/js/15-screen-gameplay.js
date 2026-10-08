@@ -222,6 +222,9 @@ const GameplayScreen = {
   s: null, // session
 
   enter(params) {
+    // (as lazer: a song starts with nothing over it — a dialog still open when the match began (a friend request,
+    // "Leave the match?") would take every key press of the song for itself)
+    Overlays.closeAll();
     const el = h('div.gameplay');
     this.el = el; this.speedEl = null;
     this.bgEl = h('div.gp-bg'); this.dimEl = h('div.gp-dim');

@@ -210,7 +210,14 @@ const App = {
       if (e.target.closest && e.target.closest('input, textarea, select')) return;
     }
     // global shortcuts
-    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
+    // (not in the middle of your own song, as lazer: the settings would take the keys while the notes kept coming —
+    // paused, or watching Auto or a replay, they open)
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') {
+      e.preventDefault();
+      const s = Screens.current === GameplayScreen && GameplayScreen.s;
+      if (!(s && s.running && s.mode === 'play' && !s.mods.includes('AT'))) SettingsPanel.toggle();
+      return;
+    }
     // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
     // lazer's F12: a screenshot
