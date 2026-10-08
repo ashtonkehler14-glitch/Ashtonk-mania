@@ -173,6 +173,9 @@ const SongSelect = {
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
       Bus.on('presence:changed', () => { const on = !!Presence.ws; if (on !== this._lbOnline) { this._lbOnline = on; if (this.info && this.info.querySelector('.off-state, .lb-loading')) { this._lbKey = null; this.updateInfo(); } } }),
+      // your play on the beatmap on show was just counted by the server: its online leaderboard asks again (one fetched
+      // while the play was still being checked stayed without it for half a minute)
+      Bus.on('verified', d => { const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
       // an online leaderboard arriving for the beatmap on show
       Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
@@ -1046,8 +1049,11 @@ const SongSelect = {
   onlineBoard(m, scope, modsOn) {
     const d = this._online;
     const fresh = d && d.key === m.hash && d.scope === scope;
+    // (a play of yours on it counted since the board was asked for — you played it and came straight back: asked again)
+    const v = Verified.last;
+    if (v && v.d && v.d.key === m.hash && v.at > (this._onlineAskedAt || 0)) { this._onlineFor = null; this._onlineAsked = 0; }
     if (!fresh || performance.now() - (this._onlineAsked || 0) > 30000 || this._onlineFor !== m.hash + scope) {
-      if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
+      if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list');
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }

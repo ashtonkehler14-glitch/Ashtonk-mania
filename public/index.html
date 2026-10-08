@@ -14283,6 +14283,9 @@ const SongSelect = {
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
       Bus.on('presence:changed', () => { const on = !!Presence.ws; if (on !== this._lbOnline) { this._lbOnline = on; if (this.info && this.info.querySelector('.off-state, .lb-loading')) { this._lbKey = null; this.updateInfo(); } } }),
+      // your play on the beatmap on show was just counted by the server: its online leaderboard asks again (one fetched
+      // while the play was still being checked stayed without it for half a minute)
+      Bus.on('verified', d => { const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
       // an online leaderboard arriving for the beatmap on show
       Bus.on('lb', d => { if (d.id) return; this._online = d; /* (one asked for by beatmap id is the beatmap overlay's) */ const m = this.selectedId && BeatmapManager.maps.get(this.selectedId); if (m && d.key === m.hash) { this._lbKey = null; this.updateInfo(); } }),
     ];
@@ -15156,8 +15159,11 @@ const SongSelect = {
   onlineBoard(m, scope, modsOn) {
     const d = this._online;
     const fresh = d && d.key === m.hash && d.scope === scope;
+    // (a play of yours on it counted since the board was asked for — you played it and came straight back: asked again)
+    const v = Verified.last;
+    if (v && v.d && v.d.key === m.hash && v.at > (this._onlineAskedAt || 0)) { this._onlineFor = null; this._onlineAsked = 0; }
     if (!fresh || performance.now() - (this._onlineAsked || 0) > 30000 || this._onlineFor !== m.hash + scope) {
-      if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
+      if (this._onlineFor !== m.hash + scope || performance.now() - (this._onlineAsked || 0) > 2000) { this._onlineFor = m.hash + scope; this._onlineAsked = performance.now(); this._onlineAskedAt = Date.now(); Presence.start(); Presence.send({ t: 'lb', key: m.hash, scope }); }
     }
     const list = h('div.lb-list');
     if (!Presence.ws) { list.append(offlineState('The online leaderboard', { compact: true })); return list; }
@@ -19346,7 +19352,7 @@ const CHANGELOG = [
       'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['A play whose score couldn\'t be sent (the network dropped as the song ended) is sent again for two minutes — at once when you\'re back online — instead of never reaching the leaderboards and rankings', 'When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
-    { icon: 'music', title: 'Song select', items: ['The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
+    { icon: 'music', title: 'Song select', items: ['The online leaderboard shows your new score as soon as the server has counted it (going back to song select straight after a song showed the old board for half a minute)', 'The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Deleting the beatmap set whose song is playing moves the music on to another song, or with none left stops it (the deleted song could still be played from the now playing panel)', 'An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
     { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
   ] },
