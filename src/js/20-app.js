@@ -293,9 +293,28 @@ const App = {
   /** Installable, offline-capable app: the service worker (public/sw.js) keeps the game for offline play,
    *  the manifest lets browsers install it, and the installed app opens .osz / .osk / .amr files directly. */
   installPrompt: null,
+  /** lazer's UpdateManager: a new version put up while the game is open — an installed app can sit in the background
+   *  for days — is noticed (every half hour, and on coming back to the game), and a notification offers to restart
+   *  into it. (every build's service worker is different, so the browser's own update check is what finds it) */
+  watchUpdates(reg) {
+    const sw = navigator.serviceWorker;
+    let had = !!sw.controller, last = Date.now();
+    const check = () => { last = Date.now(); reg.update().catch(() => {}); };
+    setInterval(check, 30 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 5 * 60e3) check(); });
+    sw.addEventListener('controllerchange', () => {
+      if (!had) { had = true; return; } // (the first install taking over isn't an update)
+      if (this._updateReady) return;
+      this._updateReady = true;
+      const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
+      // (as lazer holds notifications while you play, it waits for the song to be over)
+      if (Screens.currentName !== 'gameplay') notify();
+      else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }
+    });
+  },
   initPWA() {
     if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
-      navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+      navigator.serviceWorker.register('sw.js').then(reg => this.watchUpdates(reg)).catch(e => console.warn('service worker', e));
     if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
     window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });

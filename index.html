@@ -3303,6 +3303,7 @@ html.touch .nf-clear { padding: 10px 12px; margin: -10px -12px; }
 .nf-list { gap: 0; padding: 0 20px 5px; }
 .nf-item { align-items: stretch; gap: 0; min-height: 60px; margin: 3px 0; padding: 0; border-radius: 6px; overflow: hidden; background: hsl(255 10% 25%); transition: background 200ms cubic-bezier(.22, 1, .36, 1); }
 .nf-item:hover { background: hsl(255 10% 30%); }
+.nf-item.act { cursor: pointer; }
 .nf-ico, .nf-item.ok .nf-ico, .nf-item.err .nf-ico { width: 40px; height: auto; border-radius: 0; background: hsl(255 10% 15%); color: #fff; }
 .nf-item.ok .nf-ico { color: #88b300; } .nf-item.err .nf-ico { color: #ff5a5a; } .nf-item.info .nf-ico { color: #66ccff; }
 .nf-body { padding: 10px; }
@@ -11988,7 +11989,7 @@ const Toast = {
     // the same message again while it's still up refreshes that toast instead of stacking a copy
     const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
     if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
-    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
+    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type, { onClick });
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     el._key = key;
     box.appendChild(el);
@@ -12873,9 +12874,10 @@ const LazerCursor = {
 const Notifications = {
   list: [], unread: 0, el: null,
   /** (`prog` makes it a live progress entry — Toast.progress's — which goes when the work is done and isn't counted:
-   *  the finished or failed notice that replaces it is) */
-  add(title, body, type = 'info', { prog = null, onCancel = null } = {}) {
-    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel };
+   *  the finished or failed notice that replaces it is. `onClick`: as in lazer, clicking the entry does what clicking
+   *  its toast did — opens the chat, the daily challenge… — and it's done with) */
+  add(title, body, type = 'info', { prog = null, onCancel = null, onClick = null } = {}) {
+    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel, onClick };
     this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
     if (!this.isOpen() && prog == null) this.unread++;
@@ -12931,7 +12933,8 @@ const Notifications = {
   render() {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
-    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
+    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}${n.onClick ? '.act' : ''}`,
+      { onclick: n.onClick ? e => { if (e.target.closest('.nf-x')) return; UISounds.click(); this.list = this.list.filter(x => x !== n); this.close(); n.onClick(); } : null },
       h('div.nf-ico', icon(n.prog != null ? 'download' : ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
       h('div.nf-body', h('div.nf-t', n.title), n.body || n.prog != null ? (n.bodyEl = h('div.nf-b', n.body)) : null,
         n.prog != null ? h('div.nf-bar', n.barEl = h('i', { style: { width: (n.prog * 100).toFixed(1) + '%' } })) : h('div.nf-time', this.ago(n.at))),
@@ -19381,6 +19384,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.7', title: 'Cleaner pages', sections: [
+    { icon: 'sparkle', title: 'Updates and notifications', items: ['When a new version of the game goes live while it\'s open (an installed app can sit in the background for days), you get lazer\'s "Update ready to install" — click it to restart into it; it waits until your song is over', 'Clicking an entry in the notifications does what clicking its toast did, as in lazer: a message opens the chat, the daily challenge notice opens the challenge'] },
     { icon: 'multi', title: 'Multiplayer', items: ['Mods a match can\'t judge (Muted, Wind Up / Down, Adaptive Speed, Cinema) can\'t be picked in a room, and one still on from solo play is left out — a play with them used to count as an F with no score', 'Reloading the page (or a phone reloading the tab) in a room takes you straight back in as yourself — still the host, still in the match — with the room\'s recent chat', 'A dropped connection is noticed in seconds on both sides: the others see you as reconnecting, and you\'re back the moment your network is', 'A play that ends while your connection is down still counts: it\'s sent and checked once you\'re back, instead of being marked unchecked', 'A host who loses connection for more than a few seconds hands the host on, so the room isn\'t stuck waiting', 'Participants show their difficulty and stars under their name (it was cut off once they were ready)', 'After a match the room\'s results take less space, so the room and its chat stay on screen', '"Checking the scores…" while the server checks everyone\'s play, instead of "Waiting for the others" when nobody is still playing', 'Song select\'s "Choose the match beatmap" note is no longer hidden behind the logo', 'The lounge has one bar: Create room, search and join by code side by side',
       'The room is laid out like lazer\'s: the room\'s card across the top and a wide Ready / Start button in the middle',
       'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
@@ -26181,9 +26185,28 @@ const App = {
   /** Installable, offline-capable app: the service worker (public/sw.js) keeps the game for offline play,
    *  the manifest lets browsers install it, and the installed app opens .osz / .osk / .amr files directly. */
   installPrompt: null,
+  /** lazer's UpdateManager: a new version put up while the game is open — an installed app can sit in the background
+   *  for days — is noticed (every half hour, and on coming back to the game), and a notification offers to restart
+   *  into it. (every build's service worker is different, so the browser's own update check is what finds it) */
+  watchUpdates(reg) {
+    const sw = navigator.serviceWorker;
+    let had = !!sw.controller, last = Date.now();
+    const check = () => { last = Date.now(); reg.update().catch(() => {}); };
+    setInterval(check, 30 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 5 * 60e3) check(); });
+    sw.addEventListener('controllerchange', () => {
+      if (!had) { had = true; return; } // (the first install taking over isn't an update)
+      if (this._updateReady) return;
+      this._updateReady = true;
+      const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
+      // (as lazer holds notifications while you play, it waits for the song to be over)
+      if (Screens.currentName !== 'gameplay') notify();
+      else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }
+    });
+  },
   initPWA() {
     if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))
-      navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+      navigator.serviceWorker.register('sw.js').then(reg => this.watchUpdates(reg)).catch(e => console.warn('service worker', e));
     if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
     window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });

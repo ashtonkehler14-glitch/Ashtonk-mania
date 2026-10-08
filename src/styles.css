@@ -3284,6 +3284,7 @@ html.touch .nf-clear { padding: 10px 12px; margin: -10px -12px; }
 .nf-list { gap: 0; padding: 0 20px 5px; }
 .nf-item { align-items: stretch; gap: 0; min-height: 60px; margin: 3px 0; padding: 0; border-radius: 6px; overflow: hidden; background: hsl(255 10% 25%); transition: background 200ms cubic-bezier(.22, 1, .36, 1); }
 .nf-item:hover { background: hsl(255 10% 30%); }
+.nf-item.act { cursor: pointer; }
 .nf-ico, .nf-item.ok .nf-ico, .nf-item.err .nf-ico { width: 40px; height: auto; border-radius: 0; background: hsl(255 10% 15%); color: #fff; }
 .nf-item.ok .nf-ico { color: #88b300; } .nf-item.err .nf-ico { color: #ff5a5a; } .nf-item.info .nf-ico { color: #66ccff; }
 .nf-body { padding: 10px; }

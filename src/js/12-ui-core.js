@@ -253,7 +253,7 @@ const Toast = {
     // the same message again while it's still up refreshes that toast instead of stacking a copy
     const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
     if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
-    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type);
+    if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type, { onClick });
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     el._key = key;
     box.appendChild(el);
@@ -1138,9 +1138,10 @@ const LazerCursor = {
 const Notifications = {
   list: [], unread: 0, el: null,
   /** (`prog` makes it a live progress entry — Toast.progress's — which goes when the work is done and isn't counted:
-   *  the finished or failed notice that replaces it is) */
-  add(title, body, type = 'info', { prog = null, onCancel = null } = {}) {
-    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel };
+   *  the finished or failed notice that replaces it is. `onClick`: as in lazer, clicking the entry does what clicking
+   *  its toast did — opens the chat, the daily challenge… — and it's done with) */
+  add(title, body, type = 'info', { prog = null, onCancel = null, onClick = null } = {}) {
+    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel, onClick };
     this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
     if (!this.isOpen() && prog == null) this.unread++;
@@ -1196,7 +1197,8 @@ const Notifications = {
   render() {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
-    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
+    clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}${n.onClick ? '.act' : ''}`,
+      { onclick: n.onClick ? e => { if (e.target.closest('.nf-x')) return; UISounds.click(); this.list = this.list.filter(x => x !== n); this.close(); n.onClick(); } : null },
       h('div.nf-ico', icon(n.prog != null ? 'download' : ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
       h('div.nf-body', h('div.nf-t', n.title), n.body || n.prog != null ? (n.bodyEl = h('div.nf-b', n.body)) : null,
         n.prog != null ? h('div.nf-bar', n.barEl = h('i', { style: { width: (n.prog * 100).toFixed(1) + '%' } })) : h('div.nf-time', this.ago(n.at))),

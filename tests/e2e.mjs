@@ -779,6 +779,25 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   }, osuRaw(779, 'Cancel Song'));
   check('a download can be cancelled from its notification (lazer\'s X): no error, the Download button is back', cx.busy && cx.live && !cx.left && !cx.state && !cx.err && /Download/.test(cx.btn || ''), JSON.stringify(cx));
   await page.waitForTimeout(300);
+  // as in lazer, an entry in the notifications does what its toast did when clicked (opens the chat, the daily challenge…)
+  await page.evaluate(() => { window.__nfClicked = 0; Toast.show('Clickable notice', 'click me', { onClick: () => { window.__nfClicked++; } }); Notifications.open(); });
+  await page.waitForTimeout(300);
+  await page.click('.nf-item.act');
+  await page.waitForTimeout(200);
+  check('clicking a notification does what its toast does, and it\'s done with', await page.evaluate(() => window.__nfClicked === 1 && !Notifications.isOpen() && !Notifications.list.some(n => n.title === 'Clickable notice')));
+  // lazer's "Update ready to install": a new version taking over while the game is open (not the first install) says so
+  const upd = await page.evaluate(async () => {
+    const sw = navigator.serviceWorker, had = !!sw.controller;
+    App.watchUpdates({ update: () => Promise.resolve() });
+    if (!had) { sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 50)); }
+    const first = [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent));
+    sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+    const toast = [...document.querySelectorAll('#toasts .toast')].find(t => /Update ready to install/.test(t.textContent));
+    const n = Notifications.list.find(x => /Update ready/.test(x.title));
+    if (toast) toast.remove();
+    return { first, toast: !!toast, clickable: !!(n && n.onClick) };
+  });
+  check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install doesn\'t', !upd.first && upd.toast && upd.clickable, JSON.stringify(upd));
 }
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor
