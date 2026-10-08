@@ -22,8 +22,11 @@ const Daily = {
       for (const set of d.sets || []) for (const x of set.diffs || []) {
         if (x.keys === 4 && x.id > 0 && x.stars >= 3.5 && x.stars <= 5.5) cand.push({ onlineSetId: set.id, onlineId: x.id, keys: 4, title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.stars, length: (x.length || 0) * 1000 });
       }
-      if (cand.length) Presence.send({ t: 'dailyPropose', map: cand[Math.floor(Math.random() * cand.length)] });
-    } catch (e) { console.warn('daily challenge: no beatmap to propose', e); }
+      if (cand.length) { this.proposeError = null; Presence.send({ t: 'dailyPropose', map: cand[Math.floor(Math.random() * cand.length)] }); }
+      else this.proposeError = 'The beatmap listing had no beatmap to choose from.';
+    } catch (e) { console.warn('daily challenge: no beatmap to propose', e); this.proposeError = friendlyError(e); }
+    // (said on the screen, instead of "Picking today's beatmap…" turning forever)
+    if (this.proposeError) Bus.emit('daily', this.data);
     setTimeout(() => { this._proposing = false; }, 15000);
   },
   // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
@@ -55,7 +58,11 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge') : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+      const failed = d && Daily.proposeError;
+      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge')
+        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${Daily.proposeError} It tries again by itself in a moment.`,
+          { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.proposeError = null; Daily.propose(); this.render(); } }, icon('sync'), 'Try again') })
+        : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
