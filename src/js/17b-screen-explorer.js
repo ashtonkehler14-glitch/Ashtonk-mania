@@ -153,14 +153,18 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   /** (`noVideo`: lazer's "Download without Video" — Settings → Prefer downloads without video, unless said) */
-  async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo')) {
+  /** (`signal`: cancels it — the download throws an error with `cancelled` set) */
+  async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo'), signal = null) {
     const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
     const urls = this.downloadURLs(id, viaServer, noVideo);
+    const cancelled = () => Object.assign(new Error('Download cancelled'), { cancelled: true });
     let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
     for (const url of urls) {
+      if (signal && signal.aborted) throw cancelled();
       // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
       // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
-      const ctl = new AbortController();
+      const ctl = new AbortController(), stop = () => ctl.abort();
+      if (signal) signal.addEventListener('abort', stop);
       let timer = setTimeout(() => ctl.abort(), 25000);
       const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
       try {
@@ -184,14 +188,15 @@ const OnlineBeatmaps = {
         } else blob = await r.blob();
         if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
         return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
-      } catch (e) { lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
-      finally { clearTimeout(timer); }
+      } catch (e) { if (signal && signal.aborted) throw cancelled(); lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
+      finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', stop); }
     }
+    if (signal && signal.aborted) throw cancelled();
     throw firstErr || lastErr || new Error('Download failed');
   },
   /** Download a set and import it into the library (remembering its online id). */
-  async downloadAndImport(set, onProgress, { quiet = false, noVideo } = {}) {
-    const file = await this.download(set.id, onProgress, noVideo);
+  async downloadAndImport(set, onProgress, { quiet = false, noVideo, signal } = {}) {
+    const file = await this.download(set.id, onProgress, noVideo, signal);
     // (downloads can run side by side; adding them to the library goes one at a time)
     const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
     this._importQ = run.catch(() => {});
@@ -824,21 +829,23 @@ const ExplorerScreen = {
     const state = { state: 'downloading', progress: 0, bytes: 0 };
     this.downloads.set(set.id, state);
     this.refreshCard(set);
-    // (lazer: a download is a notification with its progress, until it's in your library)
-    const note = Toast.progress(`Downloading ${set.artist} - ${set.title}`, 'Starting…');
+    // (lazer: a download is a notification with its progress, until it's in your library — its X cancels it)
+    const ac = new AbortController();
+    const note = Toast.progress(`Downloading ${set.artist} - ${set.title}`, 'Starting…', { onCancel: () => ac.abort() });
     try {
       let lastPaint = 0;
       const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
         if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); note.set(p, p != null ? `${Math.round(p * 100)}% · ${fmtBytes(bytes || 0)}` : fmtBytes(bytes || 0)); }
-      }, { quiet: true, noVideo });
+      }, { quiet: true, noVideo, signal: ac.signal });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
       note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
     } catch (e) {
-      state.state = 'error';
-      note.fail(`Couldn't download ${set.title}`, friendlyError(e));
+      // (cancelled: back to the Download button, nothing to report)
+      if (e && e.cancelled) { this.downloads.delete(set.id); note.cancelled(); }
+      else { state.state = 'error'; note.fail(`Couldn't download ${set.title}`, friendlyError(e)); }
     }
     this.refreshCard(set);
   },

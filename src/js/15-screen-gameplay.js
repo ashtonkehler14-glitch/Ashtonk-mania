@@ -544,7 +544,8 @@ const GameplayScreen = {
       e.preventDefault(); const v = !Settings.get(k); Settings.set(k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); after && after();
     } });
     t.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
-    return h('div.pl-toggle', h('span', label), t);
+    // (as lazer's checkboxes, the whole row is the switch — the switch alone is a small thing to tap on a phone)
+    return h('div.pl-toggle', { onclick: e => { if (!t.contains(e.target)) t.click(); } }, h('span', label), t);
   },
   /** The storyboard and video turned on or off from the loader or the pause screen. */
   applyStoryboardVideo() {
@@ -1414,7 +1415,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   onTouch(e) {
     const s = this.s;
     if (!s || Screens.current !== this) return;
-    if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input')) return; // (buttons work as buttons)
+    // (buttons work as buttons, and so does the loader's settings panel while it's up — a tap on a setting's name was a key)
+    if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input, .gp-loader:not(.out) .pl-settings')) return;
     e.preventDefault();
     if (s.feed) return;
     const t = this.inputTime(e);

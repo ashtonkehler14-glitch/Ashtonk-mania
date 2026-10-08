@@ -752,6 +752,27 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     nv.urls[0] === 'https://catboy.best/d/5n' && nv.urls.includes('https://api.nerinyan.moe/d/5?noVideo=1') && nv.urls.includes('https://dl.sayobot.cn/beatmaps/download/novideo/5') && nv.urls.includes('https://osu.direct/api/d/5?noVideo=1')
     && nv.urls.includes('https://mirror.nekoha.moe/api4/download/5') && nv.proxied === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5n') && nv.plain === 'https://catboy.best/d/5', JSON.stringify(nv));
   await page.waitForTimeout(400);
+  // the download's entry in the notifications has lazer's cancel X: cancelling stops it quietly, back to Download
+  const cx = await page.evaluate(async raw => {
+    const E = AshtonkMania.ExplorerScreen, O = AshtonkMania.OnlineBeatmaps, realFetch = window.fetch;
+    window.fetch = (u, o) => new Promise((_, rej) => o && o.signal && o.signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+    try {
+      const set = O.normalize(raw);
+      E.openSet(set);
+      const run = E.download(set);
+      await new Promise(r => setTimeout(r, 100));
+      const live = Notifications.list.find(n => n.prog != null);
+      const busy = !!document.querySelector('.bso-dl.busy');
+      live && live.onCancel && live.onCancel();
+      await run;
+      const out = { busy, live: !!(live && live.onCancel), left: Notifications.list.some(n => n.prog != null), state: E.downloads.get(raw.id) || null,
+        err: [...document.querySelectorAll('#toasts .toast.err')].some(t => /Cancel Song/.test(t.textContent)), btn: document.querySelector('.bso-dl')?.textContent };
+      E.closeSet();
+      return out;
+    } finally { window.fetch = realFetch; }
+  }, osuRaw(779, 'Cancel Song'));
+  check('a download can be cancelled from its notification (lazer\'s X): no error, the Download button is back', cx.busy && cx.live && !cx.left && !cx.state && !cx.err && /Download/.test(cx.btn || ''), JSON.stringify(cx));
+  await page.waitForTimeout(300);
 }
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor

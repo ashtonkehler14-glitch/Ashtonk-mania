@@ -3371,6 +3371,12 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .explorer.ov .ex-chip { margin: 0; padding: 2px 0; font-size: 13px; color: hsl(var(--o-h) 40% 75%); }
 .explorer.ov .ex-chip.on { color: hsl(var(--o-h) 40% 100%); }
 .explorer.ov .ex-chip.on::after { content: none; }
+/* on a touch screen each filter tab is finger-sized: the same text with the room around it part of the tab (on a phone
+   "4K" was a 9-pixel target) — the filters scroll away with the results, so it costs no space */
+html.touch .explorer.ov .ex-filters { gap: 0; }
+html.touch .explorer.ov .ex-chips { gap: 0; margin-left: -9px; }
+html.touch .explorer.ov .ex-chip { padding: 7px 9px; }
+html.touch .explorer.ov .ex-flabel { padding-top: 7px; }
 .toast.act { cursor: pointer; }
 /* lounge rooms: lazer's RoomPanel — 80px, corners of 10, the status pill on its own line above the room name and
    the beatmap, the players and the join button on the right; the cover shows through on the right */
@@ -4104,6 +4110,9 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-bg.sb-hide { opacity: 0; }
 
 .pl-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
+.pl-toggle { cursor: pointer; }
+/* (on a touch screen the sliders take a finger: the same track, a taller strip to grab it by) */
+html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 
 .bso-gscore { cursor: pointer; }
 .bso-gscore:hover { background: rgba(255, 255, 255, .06); }
@@ -12047,15 +12056,15 @@ const Toast = {
   },
   /** lazer's ProgressNotification: a toast with a bar. Like lazer's tray, the toast steps aside after a moment (not
    *  while the pointer is on it; it can be swiped away too) and the bar carries on in the notifications until the work
-   *  is done, so it never sits over a page for a whole download. Returns { set(fraction, text), done(title, body),
-   *  fail(title, body) }. */
-  progress(title, body = '') {
+   *  is done, so it never sits over a page for a whole download. `onCancel`: the entry's X cancels the work, as in lazer.
+   *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() }. */
+  progress(title, body = '', { onCancel = null } = {}) {
     const box = $('#toasts');
     const bar = h('i'), txt = h('div.t-body', body);
     const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
-    const n = Notifications.add(title, body, 'info', { prog: 0 });
+    const n = Notifications.add(title, body, 'info', { prog: 0, onCancel });
     let timer = 0;
     const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 300); };
     const arm = ms => { clearTimeout(timer); timer = setTimeout(close, ms); };
@@ -12068,6 +12077,7 @@ const Toast = {
       set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; Notifications.progress(n, f, text); },
       done: (t, b) => { close(); Notifications.remove(n); Toast.ok(t, b); },
       fail: (t, b) => { close(); Notifications.remove(n); Toast.err(t, b); },
+      cancelled: () => { close(); Notifications.remove(n); },
     };
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
@@ -12862,8 +12872,8 @@ const Notifications = {
   list: [], unread: 0, el: null,
   /** (`prog` makes it a live progress entry — Toast.progress's — which goes when the work is done and isn't counted:
    *  the finished or failed notice that replaces it is) */
-  add(title, body, type = 'info', { prog = null } = {}) {
-    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog };
+  add(title, body, type = 'info', { prog = null, onCancel = null } = {}) {
+    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel };
     this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
     if (!this.isOpen() && prog == null) this.unread++;
@@ -12923,7 +12933,9 @@ const Notifications = {
       h('div.nf-ico', icon(n.prog != null ? 'download' : ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
       h('div.nf-body', h('div.nf-t', n.title), n.body || n.prog != null ? (n.bodyEl = h('div.nf-b', n.body)) : null,
         n.prog != null ? h('div.nf-bar', n.barEl = h('i', { style: { width: (n.prog * 100).toFixed(1) + '%' } })) : h('div.nf-time', this.ago(n.at))),
-      h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('check')))) : []));
+      n.prog != null && n.onCancel
+        ? h('button.nf-x', { title: 'Cancel', 'aria-label': 'Cancel', onclick: () => { UISounds.click(); n.onCancel(); } }, icon('x'))
+        : h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('check')))) : []));
     if (this.countEl) this.countEl.textContent = String(this.list.length);
   },
 };
@@ -15934,7 +15946,8 @@ const GameplayScreen = {
       e.preventDefault(); const v = !Settings.get(k); Settings.set(k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); after && after();
     } });
     t.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
-    return h('div.pl-toggle', h('span', label), t);
+    // (as lazer's checkboxes, the whole row is the switch — the switch alone is a small thing to tap on a phone)
+    return h('div.pl-toggle', { onclick: e => { if (!t.contains(e.target)) t.click(); } }, h('span', label), t);
   },
   /** The storyboard and video turned on or off from the loader or the pause screen. */
   applyStoryboardVideo() {
@@ -16804,7 +16817,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   onTouch(e) {
     const s = this.s;
     if (!s || Screens.current !== this) return;
-    if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input')) return; // (buttons work as buttons)
+    // (buttons work as buttons, and so does the loader's settings panel while it's up — a tap on a setting's name was a key)
+    if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input, .gp-loader:not(.out) .pl-settings')) return;
     e.preventDefault();
     if (s.feed) return;
     const t = this.inputTime(e);
@@ -19384,7 +19398,7 @@ const CHANGELOG = [
       'With the network down, multiplayer says so plainly ("You\'re offline…") instead of "Failed to fetch"; on a phone, the "get the app" reminder shows once a visit and never over a match a reload is taking you back into'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own', 'Holding R or ` while watching no longer restarts their song from the top, and Ctrl+` stops watching (as Esc does) instead of going to song select'] },
     { icon: 'edit', title: 'Beatmap editor', items: ['The beatmap editor has been removed (the skin layout editor stays)'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['Switching away from the game (or pressing Esc) during the 3-2-1 after Continue pauses again, instead of the song carrying on where you can\'t see it', 'Replays of Wind Up, Wind Down and Adaptive Speed plays come out exactly as you played them (they were judged at the speed the song ended on)', 'Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: a search that matches nothing no longer leaves every group folded up once it\'s cleared — the selected beatmap\'s group opens again', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'Esc on the fail screen quits, as lazer\'s Back does (it did nothing)', 'Daily challenge: when today\'s beatmap can\'t be picked (the beatmap listing is down), it says so with Try again, instead of "Picking today\'s beatmap…" forever', 'Daily challenge: mods its scores can\'t have (Auto, Cinema, Muted, Wind Up / Down, Adaptive Speed) picked earlier in song select no longer come along — the play used to go uncounted', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Tablets and phones: a stage that spans the screen (many keys) shows lazer\'s health bar at the top, instead of the skin\'s bar half off the edge', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['On a phone, the settings beside the song as it loads work by touch: tapping a setting\'s name switches it, as in lazer (it counted as a key press), and the sliders are easier to grab', 'Switching away from the game (or pressing Esc) during the 3-2-1 after Continue pauses again, instead of the song carrying on where you can\'t see it', 'Replays of Wind Up, Wind Down and Adaptive Speed plays come out exactly as you played them (they were judged at the speed the song ended on)', 'Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: a search that matches nothing no longer leaves every group folded up once it\'s cleared — the selected beatmap\'s group opens again', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'Esc on the fail screen quits, as lazer\'s Back does (it did nothing)', 'Daily challenge: when today\'s beatmap can\'t be picked (the beatmap listing is down), it says so with Try again, instead of "Picking today\'s beatmap…" forever', 'Daily challenge: mods its scores can\'t have (Auto, Cinema, Muted, Wind Up / Down, Adaptive Speed) picked earlier in song select no longer come along — the play used to go uncounted', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Tablets and phones: a stage that spans the screen (many keys) shows lazer\'s health bar at the top, instead of the skin\'s bar half off the edge', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Esc in a search box (settings, the beatmap listing, manage collections, the multiplayer lounge, friends) clears what\'s typed first, as in lazer — a second Esc closes the panel or goes back', 'Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
@@ -19392,7 +19406,7 @@ const CHANGELOG = [
       'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['A play whose score couldn\'t be sent (the network dropped as the song ended) is sent again for two minutes — at once when you\'re back online — instead of never reaching the leaderboards and rankings', 'When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
-    { icon: 'download', title: 'Beatmap listing', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'On a phone or tablet the listing\'s filters (key count, category, sort) are bigger to tap — "4K" was a speck', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications'] },
     { icon: 'music', title: 'Song select', items: ['Coming back to song select asks for the online leaderboard again, so scores set since (anyone\'s) show — it kept a board for half a minute', 'The online leaderboard shows your new score as soon as the server has counted it (going back to song select straight after a song showed the old board for half a minute)', 'The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Deleting the beatmap set whose song is playing moves the music on to another song, or with none left stops it (the deleted song could still be played from the now playing panel)', 'An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
     { icon: 'clock', title: 'Results', items: ['A score opened from a leaderboard or a profile has no Retry button, as in lazer (it\'s there after your own play)', '"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
@@ -19630,14 +19644,18 @@ const OnlineBeatmaps = {
   },
   /** Download an .osz with progress; returns a File. */
   /** (`noVideo`: lazer's "Download without Video" — Settings → Prefer downloads without video, unless said) */
-  async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo')) {
+  /** (`signal`: cancels it — the download throws an error with `cancelled` set) */
+  async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo'), signal = null) {
     const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
     const urls = this.downloadURLs(id, viaServer, noVideo);
+    const cancelled = () => Object.assign(new Error('Download cancelled'), { cancelled: true });
     let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
     for (const url of urls) {
+      if (signal && signal.aborted) throw cancelled();
       // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
       // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
-      const ctl = new AbortController();
+      const ctl = new AbortController(), stop = () => ctl.abort();
+      if (signal) signal.addEventListener('abort', stop);
       let timer = setTimeout(() => ctl.abort(), 25000);
       const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
       try {
@@ -19661,14 +19679,15 @@ const OnlineBeatmaps = {
         } else blob = await r.blob();
         if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
         return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
-      } catch (e) { lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
-      finally { clearTimeout(timer); }
+      } catch (e) { if (signal && signal.aborted) throw cancelled(); lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
+      finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', stop); }
     }
+    if (signal && signal.aborted) throw cancelled();
     throw firstErr || lastErr || new Error('Download failed');
   },
   /** Download a set and import it into the library (remembering its online id). */
-  async downloadAndImport(set, onProgress, { quiet = false, noVideo } = {}) {
-    const file = await this.download(set.id, onProgress, noVideo);
+  async downloadAndImport(set, onProgress, { quiet = false, noVideo, signal } = {}) {
+    const file = await this.download(set.id, onProgress, noVideo, signal);
     // (downloads can run side by side; adding them to the library goes one at a time)
     const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
     this._importQ = run.catch(() => {});
@@ -20301,21 +20320,23 @@ const ExplorerScreen = {
     const state = { state: 'downloading', progress: 0, bytes: 0 };
     this.downloads.set(set.id, state);
     this.refreshCard(set);
-    // (lazer: a download is a notification with its progress, until it's in your library)
-    const note = Toast.progress(`Downloading ${set.artist} - ${set.title}`, 'Starting…');
+    // (lazer: a download is a notification with its progress, until it's in your library — its X cancels it)
+    const ac = new AbortController();
+    const note = Toast.progress(`Downloading ${set.artist} - ${set.title}`, 'Starting…', { onCancel: () => ac.abort() });
     try {
       let lastPaint = 0;
       const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
         if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); note.set(p, p != null ? `${Math.round(p * 100)}% · ${fmtBytes(bytes || 0)}` : fmtBytes(bytes || 0)); }
-      }, { quiet: true, noVideo });
+      }, { quiet: true, noVideo, signal: ac.signal });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
       note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
     } catch (e) {
-      state.state = 'error';
-      note.fail(`Couldn't download ${set.title}`, friendlyError(e));
+      // (cancelled: back to the Download button, nothing to report)
+      if (e && e.cancelled) { this.downloads.delete(set.id); note.cancelled(); }
+      else { state.state = 'error'; note.fail(`Couldn't download ${set.title}`, friendlyError(e)); }
     }
     this.refreshCard(set);
   },
