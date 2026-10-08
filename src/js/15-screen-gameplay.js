@@ -269,13 +269,13 @@ const GameplayScreen = {
     this._keydown = e => this.onKeyDown(e);
     this._keyup = e => this.onKeyUp(e);
     // losing focus pauses a solo play; a match can't pause, but keys held down would never see their keyup — let them go
-    this._blur = () => { if (this.s && this.s.running) { if (this.s.spectate) return; if (!this.s.mp) { if (this.phone()) this.tapToResume(); else this.pause(); } else this.releaseAll(); } };
+    this._blur = () => { const s = this.s; if (!s || s.spectate || !(s.running || this.cdEl)) return; if (s.mp) this.releaseAll(); else this.pauseAway(); };
     // leaving fullscreen mid-song pauses it (on a computer the browser takes the Esc that leaves it): the pause menu,
     // or on a phone a tap to go back
     this._fsc = () => {
       const s = this.s;
-      if (document.fullscreenElement || !PlayScreen.want() || App.installed || !s || !s.running || s.mp || s.spectate || s.replay) return;
-      if (this.phone()) this.tapToResume(); else this.pause();
+      if (document.fullscreenElement || !PlayScreen.want() || App.installed || !s || !(s.running || this.cdEl) || s.mp || s.spectate || s.replay) return;
+      this.pauseAway();
     };
     document.addEventListener('fullscreenchange', this._fsc);
     // spectating: coming back to the tab goes straight back to the live play (no pause menu)
@@ -371,6 +371,7 @@ const GameplayScreen = {
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
       if (this.s.running) this.pause();
+      else if (this.repause()) this.showPause('Paused'); // (Esc mid-countdown: paused again)
       else if (this.pauseEl && !this.s.failed) this.resume();
       else if (this.pauseEl && this.s.failed) { SkinManager.skinOnly('pause-back-click'); this.quit(); } // (lazer's fail screen: Back is its last button, Quit)
       else if (this.replayBar && !this.s.finished) this.showPause('Paused'); // paused from the replay controls
@@ -396,7 +397,9 @@ const GameplayScreen = {
     const auto = mods.includes('AT');
     this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
     const modConfig = replay ? (replay.modConfig || {}) : (p.modConfig || ModSystem.config());
-    let rate = replay ? replay.rate : ModSystem.rate(mods, modConfig);
+    // (Wind Up / Wind Down / Adaptive Speed change the speed as the song goes: a replay of one starts at the mods' own
+    // speed, as the play did — its saved rate is where the song ended, and judging from that changed the result)
+    let rate = replay && !ModSystem.ramp(mods) && !ModSystem.adaptive(mods) ? replay.rate : ModSystem.rate(mods, modConfig);
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     let skin = SkinManager.current;
@@ -1364,14 +1367,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // quick exit (lazer: hold Ctrl+`): back to song select after half a second
     if ((e.ctrlKey || e.metaKey) && e.code === 'Backquote') {
       e.preventDefault();
-      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else this.quit(); }, 500); }
+      if (!e.repeat) { clearTimeout(this._exitHold); this.holdEl.classList.add('on'); this._exitHold = setTimeout(() => { this.holdEl.classList.remove('on'); if (s.mp) this.mpQuit(); else if (s.spectate) Spectate.stop(); else this.quit(); }, 500); }
       return;
     }
     // retry: hold R (or `) for half a second — never instant. Ctrl+R counts as holding R (and doesn't reload the
-    // page). An R bound to a lane stays a lane key.
+    // page). An R bound to a lane stays a lane key. (Someone else's play you're watching can't be retried.)
     if (this.isRetryKey(e)) {
       e.preventDefault();
-      if (!s.mp && !e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
+      if (!s.mp && !s.spectate && !e.repeat) { clearTimeout(this._retryHold); this.holdEl.classList.add('on'); this._retryHold = setTimeout(() => this.retry(), 500); }
       return;
     }
     if (e.code === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !this.pauseEl) { e.preventDefault(); if (!e.repeat) this.toggleLeaderboard(); return; }
@@ -1545,7 +1548,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
    *  Used when the phone is turned, fullscreen is left or another app comes up. */
   tapToResume() {
     const s = this.s;
-    if (!s || !s.running || s.finished) return;
+    if (!s || s.finished || !(s.running || this.repause())) return;
     this.pause({ quiet: true });
     if (this.tapEl) this.tapEl.remove();
     const el = this.tapEl = h('div.gp-tap', { role: 'button', 'aria-label': 'Tap to resume' }, h('div.gp-tap-ring', h('i')), h('b', 'Tap to resume'), h('span', 'The song is paused.'));
@@ -1558,6 +1561,21 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.resume();
     });
     this.el.append(el);
+  },
+  /** Leaving the window (or fullscreen) mid-song, or mid-countdown: the pause menu, or on a phone a tap to go back. */
+  pauseAway() {
+    if (this.phone()) this.tapToResume();
+    else if (this.s.running) this.pause();
+    else if (this.repause()) this.showPause('Paused');
+  },
+  /** The unpause countdown, if it's running, stops and the song stays paused (it mustn't carry on unseen). */
+  repause() {
+    const s = this.s, cd = this.cdEl;
+    this.cdEl = null;
+    if (!s || !cd || !cd.isConnected || s.running || s.finished) return false;
+    clearTimeout(this._cdT); cd.remove();
+    if (Spectate.host.s === s) Spectate.hostPause(true, this.gameTime());
+    return true;
   },
   pause({ quiet = false } = {}) {
     const s = this.s;
@@ -1643,14 +1661,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (Spectate.host.s === s) Spectate.hostPause(false, this.gameTime());
     if (delay <= 0) { s.running = true; Music.play(Music.pausedPos); return; }
     const steps = 3, stepMs = delay / steps;
-    const cd = h('div.countdown', '3');
+    const cd = this.cdEl = h('div.countdown', '3');
     this.el.appendChild(cd);
     SkinManager.skinOnly('count3s');
     let n = steps;
     const step = () => {
       if (!this.s || this.s !== s) { cd.remove(); return; }
       n--;
-      if (n <= 0) { cd.remove(); SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); return; }
+      if (n <= 0) { cd.remove(); this.cdEl = null; SkinManager.skinOnly('gos'); s.running = true; Music.play(Music.pausedPos); return; }
       SkinManager.skinOnly(`count${n}s`);
       cd.textContent = String(n);
       this._cdT = setTimeout(step, stepMs);

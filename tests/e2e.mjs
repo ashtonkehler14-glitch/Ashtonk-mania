@@ -385,6 +385,16 @@ await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results',
 const rres = await page.evaluate(() => { const s = AshtonkMania.Screens.current.p.score; return { score: s.score, counts: s.counts, acc: s.accuracy }; });
 check('replay playback reproduces the original score exactly', rres.score === rp.summary.score && JSON.stringify(rres.counts) === JSON.stringify(rp.summary.counts), `${rres.score} vs ${rp.summary.score}`);
 
+{
+  // Wind Up / Wind Down / Adaptive Speed: a replay is judged from the speed the play started at (the rate it saved is
+  // where the song ended, 1.5× for Wind Up)
+  await page.evaluate(async (rp) => { const r = { ...(await AshtonkMania.ReplayManager.get(rp.id)), mods: ['WU'], rate: 1.5 }; Game.launch({ mapId: rp.mapId, mode: 'replay', replay: r }); }, rp);
+  await page.waitForFunction(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine && s.mods.includes('WU'); }, null, { timeout: 15000 });
+  const wu = await page.evaluate(() => ({ engine: AshtonkMania.GameplayScreen.s.engine.rate, ramp: AshtonkMania.GameplayScreen.s.ramp }));
+  check('a Wind Up replay is judged from the speed it started at, not the one it ended on', wu.engine === 1 && !!wu.ramp, JSON.stringify(wu));
+  await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect', null, { timeout: 10000 });
+}
 check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
 // osu!lazer replays (.osr): ours export as .osr and an .osr imports back (by the beatmap's MD5) with the same inputs
 {
@@ -477,6 +487,19 @@ await page.waitForTimeout(300);
 const paused = await page.evaluate(() => !!document.querySelector('.pause-menu') && !AshtonkMania.Music.playing);
 check('Escape pauses gameplay and audio', paused);
 await shot('06-pause');
+{
+  // Esc, or leaving the window, during the 3-2-1 after Continue pauses again (the song mustn't carry on unseen)
+  const st = () => page.evaluate(() => ({ menu: !!document.querySelector('.pause-menu'), cd: !!document.querySelector('.countdown'), playing: AshtonkMania.Music.playing, running: AshtonkMania.GameplayScreen.s.running }));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+  const counting = await st();
+  await page.keyboard.press('Escape'); await page.waitForTimeout(1400);
+  const esc = await st();
+  await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur'))); await page.waitForTimeout(1400);
+  const away = await st();
+  const ok = x => x.menu && !x.cd && !x.playing && !x.running;
+  check('Esc or leaving the window during the unpause countdown pauses again', counting.cd && !counting.menu && ok(esc) && ok(away), JSON.stringify({ counting, esc, away }));
+}
 await page.keyboard.press('Escape');
 await page.waitForTimeout(1600);
 check('resume continues audio after countdown', await page.evaluate(() => AshtonkMania.Music.playing && AshtonkMania.GameplayScreen.s.running));
