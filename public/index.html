@@ -4204,123 +4204,6 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .mp-auto .i { width: 16px; height: 16px; color: #ffd966; }
 .mp-auto b { color: #ffd966; font-variant-numeric: tabular-nums; }
 
-/* ── lazer's beatmap editor (compose) */
-.editor { position: absolute; inset: 0; display: flex; flex-direction: column; background: #16151b; color: #fff; user-select: none; }
-.ed-loading { margin: auto; display: flex; align-items: center; gap: 10px; color: rgba(255, 255, 255, .7); }
-.ed-top { height: 40px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #24222b; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); z-index: 1; }
-.ed-menu { height: 28px; padding: 0 12px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
-.ed-menu:hover { background: rgba(255, 255, 255, .14); }
-.ed-tabs { display: flex; gap: 4px; }
-.ed-tab { height: 28px; padding: 0 14px; border: 0; border-radius: 5px; background: none; color: rgba(255, 255, 255, .6); font: inherit; font-size: 14px; }
-.ed-tab.on { color: #fff; box-shadow: inset 0 -2px 0 #ffcc22; }
-.ed-title { flex: 1; min-width: 0; text-align: right; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, .7); }
-.ed-title b { color: #fff; }
-.ed-dirty { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 204, 34, .2); color: #ffd966; }
-.ed-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr) 170px; }
-.ed-left, .ed-right { padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; background: rgba(0, 0, 0, .18); }
-.ed-ph { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); margin: 4px 2px; }
-.ed-tool { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .05); color: #fff; font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
-.ed-tool .i { width: 16px; height: 16px; }
-.ed-tool span { flex: 1; }
-.ed-tool kbd { font-size: 11px; opacity: .5; }
-.ed-tool.on { background: #ffcc22; color: #222; }
-.ed-stage { position: relative; min-width: 0; min-height: 0; }
-.ed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
-.ed-div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.ed-dv { height: 30px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .05); color: var(--c); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
-.ed-dv.on { background: var(--c); color: #111; }
-.ed-help { margin-top: auto; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .55); }
-.ed-help kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255, 255, 255, .08); color: #fff; }
-.ed-bottom { height: 60px; flex: none; display: grid; grid-template-columns: 170px minmax(0, 1fr) 260px; align-items: center; gap: 14px; padding: 0 12px; background: #24222b; }
-.ed-time { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 300; }
-.ed-bpm { font-size: 11px; color: rgba(255, 255, 255, .55); }
-.ed-tlwrap { height: 40px; position: relative; }
-.ed-tl { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
-.ed-ctl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
-.ed-play { width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: #fff; display: grid; place-items: center; cursor: pointer; }
-.ed-play .i { width: 18px; height: 18px; }
-.ed-rates { display: flex; gap: 3px; }
-.ed-rate { height: 26px; padding: 0 7px; border: 0; border-radius: 5px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .7); font: inherit; font-size: 12px; cursor: pointer; }
-.ed-rate.on { background: #66ccff; color: #111; }
-@media (max-width: 900px) { .ed-main { grid-template-columns: 120px minmax(0, 1fr) 110px; } .ed-help { display: none; } .ed-bottom { grid-template-columns: 110px minmax(0, 1fr) auto; } .ed-rates { display: none; } }
-.screen.editor, .editor { padding: 0; }
-/* the editor's Setup and Timing screens */
-.ed-page { position: absolute; top: 40px; left: 0; right: 0; bottom: 60px; z-index: 2; overflow: auto; background: #1b1a21; padding: 24px; }
-.ed-form { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-.ed-form h2 { margin: 0; font-size: 26px; font-weight: 300; }
-.ed-form > p { margin: 0; }
-.ed-sec { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
-.ed-sec h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
-.ed-sec p { margin: 0; font-size: 13px; }
-.ed-sec .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
-.ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.ed-f { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: rgba(255, 255, 255, .65); min-width: 0; }
-.ed-f > span { display: flex; justify-content: space-between; }
-.ed-f > span b { color: #fff; }
-.ed-f small { opacity: .55; }
-.ed-f .input, .ed-f .select { width: 100%; }
-.ed-tps { display: flex; flex-direction: column; gap: 6px; }
-.ed-tp { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 100px auto auto auto; align-items: end; gap: 10px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
-.ed-tp.cur { box-shadow: inset 3px 0 0 #ed1121; }
-.ed-tp label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, .6); }
-.ed-tpn { align-self: center; font-weight: 700; color: #ed1121; }
-.ed-num, .ed-tp .select { width: 100%; }
-.ed-form > .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
-.ed-tp label .ed-nudge { display: flex; gap: 3px; margin-top: 2px; }
-.ed-ng { flex: 1; height: 20px; padding: 0; border: 0; border-radius: 4px; background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .75); font: inherit; font-size: 10.5px; font-variant-numeric: tabular-nums; cursor: pointer; }
-.ed-ng:hover { background: rgba(255, 255, 255, .14); color: #fff; }
-/* lazer's TapTimingControl */
-.ed-tapbox { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
-.ed-tapl { display: flex; align-items: center; gap: 16px; }
-.ed-tapbtn { width: 92px; height: 92px; border: 0; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #ff7ab8, #d6337e); box-shadow: 0 6px 18px rgba(214, 51, 126, .35), inset 0 -4px 0 rgba(0, 0, 0, .18); color: #fff; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; transition: transform 60ms; user-select: none; touch-action: manipulation; }
-.ed-tapbtn:active { transform: scale(.94); }
-.ed-tapbtn b { font-size: 20px; }
-.ed-tapbtn small { font-size: 10px; opacity: .8; }
-.ed-tapinfo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.ed-tapbpm { font-size: 30px; font-weight: 300; font-variant-numeric: tabular-nums; }
-.ed-tapbpm small { font-size: 13px; color: rgba(255, 255, 255, .6); }
-.ed-tapr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.ed-tapr .btn { display: inline-flex; align-items: center; gap: 6px; }
-.ed-metro { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: rgba(255, 255, 255, .75); margin-left: 4px; }
-.ed-res { display: flex; align-items: center; gap: 14px; }
-.ed-bgthumb { flex: none; width: 160px; aspect-ratio: 16 / 9; border-radius: 8px; background: rgba(255, 255, 255, .06) center / cover no-repeat; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
-.ed-resi { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; font-size: 13px; }
-.ed-resi .muted { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ed-h3 { margin: 10px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
-.ed-form > p.muted { font-size: 13px; }
-.ed-kiai { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); box-shadow: inset 3px 0 0 #ff9922; }
-.ed-kiai > span { flex: 1; display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
-.ed-kiai > span .ic { color: #ff9922; }
-.ed-row2 { display: flex; gap: 8px; flex-wrap: wrap; }
-.ed-row2 .btn { display: inline-flex; align-items: center; gap: 6px; }
-/* lazer's Verify screen: issue type filters and the issue table (Problem red, Warning yellow, Negligible grey) */
-.ed-vfilters { display: flex; gap: 6px; flex-wrap: wrap; }
-.ed-vf { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border: 0; border-radius: 15px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .5); font: inherit; font-size: 13px; cursor: pointer; }
-.ed-vf b { min-width: 20px; padding: 1px 6px; border-radius: 9px; background: rgba(0, 0, 0, .3); font-size: 11px; text-align: center; }
-.ed-vf.on { color: #fff; background: rgba(255, 255, 255, .12); box-shadow: inset 0 0 0 1.5px var(--sv); }
-.ed-vf.problem, .ed-issue.problem { --sv: #ff4a4a; }
-.ed-vf.warning, .ed-issue.warning { --sv: #ffcc22; }
-.ed-vf.negligible, .ed-issue.negligible { --sv: #8f8f9c; }
-.ed-issues { display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: rgba(255, 255, 255, .03); }
-.ed-issue { display: grid; grid-template-columns: 96px 80px minmax(0, 1fr) 96px; align-items: center; gap: 10px; min-height: 36px; padding: 6px 14px; border: 0; border-top: 1px solid rgba(255, 255, 255, .05); background: none; color: #fff; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.ed-issue:not(.head):not(:disabled):hover { background: rgba(255, 255, 255, .06); }
-.ed-issue:disabled { cursor: default; opacity: 1; }
-.ed-issue.head { border-top: 0; min-height: 30px; cursor: default; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255, 255, 255, .45); }
-.ed-isev { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; color: var(--sv); }
-.ed-isev::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sv); }
-.ed-itime { font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, .7); }
-.ed-icat { color: rgba(255, 255, 255, .5); font-size: 12px; }
-.ed-noissue { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 10px; background: rgba(136, 179, 0, .12); color: #b3d944; }
-@media (max-width: 640px) { .ed-issue { grid-template-columns: 80px 60px minmax(0, 1fr); } .ed-icat { display: none; } }
-.editor { position: absolute; }
-.editor .ed-page[hidden] { display: none; }
-
-.ed-empty { margin: auto; max-width: 520px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
-.ed-empty h2 { margin: 0; font-size: 28px; font-weight: 300; }
-.ed-empty p { margin: 0; color: rgba(255, 255, 255, .65); }
-.ed-empty-b { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
-.ed-empty-b .btn { display: inline-flex; align-items: center; gap: 6px; }
-
 /* ── lazer's skin editor: the HUD layout over a shrunk game ── */
 .gp-hud .hl-off { visibility: hidden !important; }
 body.se-open .gp-hud .hl-off { visibility: visible !important; opacity: .25; }
@@ -4372,16 +4255,6 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .se-box.on .se-handle { display: block; }
 .se-item > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .se-item small { font-size: 10.5px; color: rgba(255, 255, 255, .4); }
-.ed-tp { align-items: start; }
-.ed-tp > .btn { margin-top: 22px; }
-.ed-tp > .ed-tpn { line-height: 34px; margin-top: 18px; }
-.ch-stamp { color: #66ccff; text-decoration: none; border-bottom: 1px dotted currentColor; cursor: pointer; }
-.ch-stamp:hover { color: #99ddff; }
-/* lazer's TestGameplayButton: the editor's bottom-right corner */
-.editor .ed-bottom { grid-template-columns: 170px minmax(0, 1fr) 260px 110px; padding-right: 0; }
-.ed-testbtn { align-self: stretch; border: 0; background: #66a33d; color: #fff; font: inherit; font-size: 18px; font-weight: 600; cursor: pointer; transition: background 120ms; }
-.ed-testbtn:hover { background: #75b847; }
-@media (max-width: 700px) { .editor .ed-bottom { grid-template-columns: 120px minmax(0, 1fr) auto 70px; } .ed-testbtn { font-size: 14px; } }
 /* the skin editor on smaller screens: narrower panels; on a narrow (upright) one, the two panels side by side under the game */
 @media (max-width: 999px) {
   .se-top { height: 48px; padding: 0 8px 0 12px; }
@@ -4640,14 +4513,6 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .coll-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lib-card .stars { font-size: .72rem; }
 .lib-card.missing { opacity: .6; }
-/* the editor's bar as lazer's: flat menu words, the beatmap's name after them, the screen tabs on the right */
-.ed-top { gap: 4px; }
-.ed-top .ed-menu { background: none; color: rgba(255, 255, 255, .85); }
-.ed-top .ed-menu:hover, .ed-top .ed-menu.open { background: rgba(255, 255, 255, .1); color: #fff; }
-.ed-top .ed-title { text-align: left; margin-left: 10px; color: rgba(255, 255, 255, .5); }
-.ed-top .ed-tabs { margin-left: 12px; }
-.ed-top .ed-tab { height: 40px; border-radius: 0; padding: 0 16px; transition: color 150ms; }
-.ed-top .ed-tab:hover { color: #fff; }
 
 /* the room as lazer's MultiplayerRoomPanel (its lounge card) across the top, and the match footer's wide button */
 .mp-head > .mp-roompanel { flex: 1; min-width: 0; }
@@ -8037,7 +7902,7 @@ const SETTINGS_SCHEMA = [
   // hidden (not in UI)
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
-  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'editor.divisor', d: 4 }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
+  { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
@@ -8529,38 +8394,6 @@ const BeatmapManager = {
     return added;
   },
 
-  /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files
-   *  (its hash — and so its id — change; the old record goes). Returns the new difficulty. */
-  /** An edited difficulty back into the library (from the editor): the set's other files as they are, this .osu
-   *  replaced. opts.others: other difficulties rewritten with it ([{id, osuPath, text}] — lazer's set-wide details),
-   *  opts.extra: files added to the set or replaced ([{name, data}] — a new background). The set moves with its
-   *  details (its id comes from them): an old set left empty goes. */
-  async saveDifficulty(rec, text, opts = {}) {
-    const set = this.setById.get(rec.setId);
-    if (!set) throw new Error('That beatmap set is no longer in your library.');
-    const others = opts.others || [], extra = opts.extra || [];
-    const osuLow = normPath(rec.osuPath).toLowerCase(), entries = [];
-    const extraLow = new Set(extra.map(x => normPath(x.name).toLowerCase()));
-    for (const [low, real] of Object.entries(set.fileIndex || {})) {
-      if (low === osuLow || low.endsWith('.osu') || real.startsWith('__') || extraLow.has(low)) continue;
-      entries.push({ name: real, size: 0, read: async () => { const b = await DB.get('files', `${set.id}/${real}`); return new Uint8Array(b ? await b.arrayBuffer() : 0); } });
-    }
-    for (const x of extra) entries.push({ name: x.name, size: x.data.length, read: async () => x.data });
-    const bytes = new TextEncoder().encode(text);
-    entries.push({ name: rec.osuPath, size: bytes.length, read: async () => bytes });
-    for (const o of others) { const ob = new TextEncoder().encode(o.text); entries.push({ name: o.osuPath, size: ob.length, read: async () => ob }); }
-    const gone = [rec.id, ...others.map(o => o.id)];
-    for (const id of gone) { await DB.del('maps', id); this.maps.delete(id); }
-    set.mapIds = set.mapIds.filter(x => !gone.includes(x));
-    const report = { errors: [], warnings: [] };
-    const sets = await this._importEntries(entries, set.sourceName || 'editor', report);
-    if (report.errors.length) throw new Error(report.errors[0]);
-    const out = sets[0] && sets[0].maps.find(m => normPath(m.osuPath).toLowerCase() === osuLow);
-    if (out && set.onlineId > 0) { const s2 = this.setById.get(out.setId); if (s2 && !(s2.onlineId > 0)) s2.onlineId = set.onlineId; }
-    if (out && out.setId !== set.id && !set.mapIds.length) await this.removeSet(set.id);
-    Bus.emit('library:changed');
-    return out || null;
-  },
   async removeSet(setId) {
     const set = this.setById.get(setId);
     if (!set) return;
@@ -15382,7 +15215,6 @@ const SongSelect = {
       { label: 'Play', icon: 'play', onClick: () => this.play() },
       { label: 'Practice', icon: 'flag', onClick: () => this.play('practice') },
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
-      { label: 'Edit', icon: 'edit', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       // (lazer's carousel menu: straight to the collections, ticked where this difficulty already is)
@@ -15433,7 +15265,6 @@ const SongSelect = {
       btn('Play', 'play', () => this.play()),
       btn('Practice', 'flag', () => this.play('practice')),
       btn('Watch Auto', 'film', () => this.play('auto')),
-      btn('Edit', 'editcircle', () => Screens.go('editor', { mapId: m.id })),
       btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)),
       btn('Clear local scores', 'trash', () => this.clearScores(m)),
       btn('Hide', 'x', () => this.hideMap(m)),
@@ -15861,6 +15692,7 @@ const GameplayScreen = {
     if (this.s) {
       if (this.s.running) this.pause();
       else if (this.pauseEl && !this.s.failed) this.resume();
+      else if (this.pauseEl && this.s.failed) { SkinManager.skinOnly('pause-back-click'); this.quit(); } // (lazer's fail screen: Back is its last button, Quit)
       else if (this.replayBar && !this.s.finished) this.showPause('Paused'); // paused from the replay controls
     }
     return true;
@@ -17154,7 +16986,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   quit() {
     clearTimeout(this._cdT);
-    if (this.params.editor) { Screens.go('editor', this.params.editor, { replace: true }); return; } // (lazer: Test comes back to the editor)
     if (this.params.replay && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
     if (this.params.back) { Screens.go(this.params.back.name, this.params.back.params || {}, { replace: true }); return; } // (back where it was started from: the daily challenge, your replays)
     Screens.go('songselect', { mapId: this.params.mapId }, { replace: true });
@@ -17211,7 +17042,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, editor: this.params.editor || null, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
       if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }
@@ -18229,7 +18060,7 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.back) Screens.go(this.p.back.name, this.p.back.params, { replace: true }); else if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.editor) Screens.go('editor', this.p.editor, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.back) Screens.go(this.p.back.name, this.p.back.params, { replace: true }); else if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
@@ -19459,7 +19290,8 @@ const CHANGELOG = [
       'Ranked Play fits a phone held sideways (or a big interface size): the whole match shows, smaller, instead of the hands, the stage text and the chat running into each other — and the round\'s results say "Round N" once',
       'With the network down, multiplayer says so plainly ("You\'re offline…") instead of "Failed to fetch"; on a phone, the "get the app" reminder shows once a visit and never over a match a reload is taking you back into'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
+    { icon: 'edit', title: 'Beatmap editor', items: ['The beatmap editor has been removed (the skin layout editor stays)'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'Esc on the fail screen quits, as lazer\'s Back does (it did nothing)', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
@@ -19469,7 +19301,6 @@ const CHANGELOG = [
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
     { icon: 'music', title: 'Song select', items: ['The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
-    { icon: 'edit', title: 'Editor', items: ['The top bar is laid out like lazer\'s: File and Edit on the left, Setup, Compose, Timing and Verify on the right'] },
     { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
   ] },
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
@@ -19479,7 +19310,6 @@ const CHANGELOG = [
     { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)', 'The phone\'s Back button or swipe works like Esc, as in lazer on Android: it closes what\'s open, pauses a song and goes back a screen, instead of leaving the game', 'The pause menu is no longer covered by the replay controls when watching Auto or a replay', 'The install-the-app box fits a phone held sideways, Don\'t remind me again included', 'Hints and messages no longer tell you to press keys (Ctrl+O, F3, Esc…) on a phone, where there are none'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
     { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
-    { icon: 'edit', title: 'Editor', items: ['Opening the editor while its song plays in the menu stops it where it is, as lazer does (it kept running under a paused play button)'] },
     { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
     { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare — the setup\'s Performance choice turns it on, Graphics turns it off', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results', 'Smoother: the skins screen and the settings panel open with less of a hitch (the skin preview no longer works out a health drain it doesn\'t use; settings no longer lays its whole page out twice)', 'Online pages waiting on the server (rankings, profile, daily challenge, friends, the lounge) show lazer\'s spinner while they connect', 'Beatmap listing: scrolling does far less work — the cards move along a row at a time instead of a screen at a time, pictures go on in step with the screen, and where you\'ve scrolled to is read when it costs nothing', 'Skin editor: Hit position and Note offset at the top of the Components list — drag the yellow line on the stage up or down (or use the slider) to move where notes are judged, and set where notes are drawn against the receptors; undo and Reset all cover both', 'Hit position and Note offset are also regular settings now (Settings → Gameplay → Playfield)', 'Profiles are simpler: sections with nothing in them are left out (tab and all), sections come in osu!lazer\'s order (recent, ranks, historical, beatmaps, medals), the level sits beside the name instead of on a strip of its own, play count and time aren\'t shown twice, the pp breakdown is one compact line (the details on hover), and the rename pencil only shows when you point at your name', 'Team Versus: the teams are stacked, red above blue, in the room; and the match results group each team\'s players under its name and total, the winning team on top'] },
     { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
@@ -19489,8 +19319,7 @@ const CHANGELOG = [
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },
-  { id: '2026.10.5', title: 'Editors', sections: [
-    { icon: 'edit', title: 'Beatmap editor', items: ['New, like lazer\'s Compose screen: place notes and hold notes snapped to the beat (1/1 to 1/16, coloured as in lazer), move, select and delete them', 'Play the song at 25–100% speed, seek on the timeline, undo and redo', 'Save into your library and Test (F5) — you come back to the editor after', 'Open it from Edit in song select\'s beatmap options', 'Setup: the song\'s details, key count, HP and OD, and Create new difficulty (a copy, or blank)', 'Timing: add, move and change timing points (BPM and meter)', 'Copy, cut and paste notes (Ctrl+C / X / V)', 'New beatmap from a song: pick a song file and start mapping', 'The song\'s waveform behind the timeline', 'Verify: lazer\'s checks (overlapping and unsnapped notes, drain time, background, preview point, metadata) — click one to go to it', 'Bookmarks (Ctrl+B, Ctrl+Shift+B, jump with Ctrl+Alt+← / →), kiai time and the preview point, shown on the timeline', 'Timing: tap along to the song (T) to find its BPM and offset, a metronome, and ±1 / ±10 ms nudges', 'Setup: choose the background; the title, artist and other details change for every difficulty in the set (they no longer split it in two)', 'File › Export package (.osz)', 'Flip (Ctrl+H) and reverse (Ctrl+J) the selected notes, move them between columns with ← / →', 'Ctrl+Shift+C copies a timestamp; timestamps in chat are links that take the editor there'] },
+  { id: '2026.10.5', title: 'Skin editor', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
     { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
     { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
@@ -19500,7 +19329,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
     { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
     { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit has Beatmap (import beatmaps, extract them as .osz and edit collections) and Skin (preview and import skins, and Edit skin to change the layout of the one you use)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps and the ones you made in the editor, as cards', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit has Beatmap (import beatmaps, extract them as .osz and edit collections) and Skin (preview and import skins, and Edit skin to change the layout of the one you use)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps, as cards', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
     { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
@@ -20515,942 +20344,6 @@ const BeatmapStatus = {
     } finally { this.busy = false; }
     // (pp follows: only plays on ranked beatmaps count, and the profile and rankings are worked out from them)
     if (changed) { Bus.emit('library:changed'); if (typeof Rankings !== 'undefined') Rankings.report(); }
-  },
-};
-
-/* ===== 17c-editor.js ===== */
-/* osu!lazer's beatmap editor, for mania: the Compose screen — a playfield scrolling with the song, where notes and
- * hold notes are placed, moved and deleted, snapped to the beat divisor (lines coloured as lazer colours them);
- * the song plays (at 25–100% speed) and a timeline along the bottom seeks; undo / redo; Save writes the difficulty
- * back into your library (its file changes, so it gets a new id) and Test plays it from the editor, coming back
- * after. Timing and metadata (lazer's Timing and Setup screens) are kept as they are. */
-
-const EDIT_DIVISORS = [1, 2, 3, 4, 6, 8, 12, 16];
-/** lazer's BindableBeatDivisor.GetColourFor: the colour of a tick by the smallest divisor it falls on. */
-function snapColour(d) {
-  return { 1: '#ffffff', 2: '#ed1121', 3: '#8866ee', 4: '#66ccff', 6: '#eedd00', 8: '#eedd00', 12: '#888888', 16: '#888888' }[d] || '#888888';
-}
-
-const EditorScreen = {
-  inGame: true, transient: true, tab: 'songselect',
-  enter(p = {}) {
-    const el = h('div.editor');
-    this.el = el;
-    this.tool = 'select'; this.divisor = Settings.get('editor.divisor') || 4; this.zoom = 0.45; this.rateK = 1;
-    this.sel = new Set(); this.undo = []; this.redo = []; this.dirty = false; this.pos = p.pos || 0; this.hover = null;
-    el.append(h('div.ed-loading', h('span.spinner'), 'Loading the editor…'));
-    this.load(p.mapId).catch(e => { Toast.err('Couldn\'t open the editor', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); });
-    return el;
-  },
-  leave() {
-    cancelAnimationFrame(this._raf); this._raf = 0;
-    window.removeEventListener('keydown', this._key, true);
-    if (Music.playing) Music.pause();
-    if (this._ro) this._ro.disconnect();
-  },
-  /** Nothing to edit yet: pick a difficulty in song select, or start a new beatmap from a song. */
-  empty() {
-    clearEl(this.el).append(h('div.ed-empty',
-      h('h2', 'Beatmap editor'), h('p', 'Choose a difficulty to edit in song select, or start a new beatmap from a song file.'),
-      h('div.ed-empty-b',
-        h('button.btn.primary', { onclick: () => this.newBeatmap() }, icon('music'), 'New beatmap from a song…'),
-        h('button.btn', { onclick: () => Screens.go('songselect', {}, { replace: true }) }, icon('beatmap'), 'Song select'),
-        h('button.btn', { onclick: () => Screens.go('home', {}, { replace: true }) }, icon('back'), 'Back'))));
-  },
-  /** lazer: a brand new beatmap from a song file — a set with one 4K difficulty at 120 BPM (set the real timing on
-   *  the Timing screen) and a single note, opened here. */
-  async newBeatmap() {
-    const [file] = await pickFiles({ accept: 'audio/*,.mp3,.ogg,.wav', multiple: false });
-    if (!file) return;
-    const base = file.name.replace(/\.[^.]+$/, '').trim() || 'New song';
-    const [artist, title] = base.includes(' - ') ? base.split(' - ', 2) : ['Unknown artist', base];
-    const audioName = 'audio' + (file.name.match(/\.[^.]+$/) || ['.mp3'])[0].toLowerCase();
-    const creator = ProfileManager.profile.name || 'Mapper';
-    const text = `osu file format v14\n\n[General]\nAudioFilename: ${audioName}\nAudioLeadIn: 0\nPreviewTime: -1\nCountdown: 0\nSampleSet: Soft\nStackLeniency: 0.7\nMode: 3\nLetterboxInBreaks: 0\nSpecialStyle: 0\nWidescreenStoryboard: 1\n\n` +
-      `[Editor]\nDistanceSpacing: 1\nBeatDivisor: 4\nGridSize: 4\nTimelineZoom: 1\n\n` +
-      `[Metadata]\nTitle:${title}\nTitleUnicode:${title}\nArtist:${artist}\nArtistUnicode:${artist}\nCreator:${creator}\nVersion:Normal\nSource:\nTags:\nBeatmapID:0\nBeatmapSetID:-1\n\n` +
-      `[Difficulty]\nHPDrainRate:7\nCircleSize:4\nOverallDifficulty:7\nApproachRate:5\nSliderMultiplier:1.4\nSliderTickRate:1\n\n[Events]\n//Background and Video events\n//Break Periods\n//Storyboard Layer 0 (Background)\n\n` +
-      `[TimingPoints]\n0,500,4,1,0,100,1,0\n\n[HitObjects]\n64,192,2000,1,0,0:0:0:0:\n`;
-    const bytes = new TextEncoder().encode(text), audio = new Uint8Array(await file.arrayBuffer());
-    const osuName = `${artist} - ${title} (${creator}) [Normal].osu`.replace(/[\\/:*?"<>|]/g, '');
-    try {
-      const report = { errors: [], warnings: [] };
-      const sets = await BeatmapManager._importEntries([{ name: audioName, size: audio.length, read: async () => audio }, { name: osuName, size: bytes.length, read: async () => bytes }], base, report);
-      const m = sets[0] && sets[0].maps[0];
-      if (!m) throw new Error(report.errors[0] || report.warnings[0] || 'The song couldn\'t be read.');
-      Bus.emit('library:changed');
-      Toast.ok('New beatmap', 'Set its timing on the Timing screen first: it starts at 120 BPM.');
-      if (Screens.current === this) this.reopen(m.id); else Screens.go('editor', { mapId: m.id });
-    } catch (e) { Toast.err('Couldn\'t make a beatmap from that file', friendlyError(e)); }
-  },
-  /** Open another difficulty here (the new one just made). */
-  reopen(mapId) {
-    this.leave();
-    this.sel = new Set(); this.undo = []; this.redo = []; this.dirty = false; this.pos = 0; this.hover = null; this._ctx = null; this._tlCtx = null; this._tlImg = null;
-    clearEl(this.el).append(h('div.ed-loading', h('span.spinner'), 'Loading the editor…'));
-    SongSelect.selectedId = mapId;
-    this.load(mapId).catch(e => Toast.err('Couldn\'t open the difficulty', friendlyError(e)));
-  },
-  async load(mapId) {
-    const rec = BeatmapManager.maps.get(mapId) || BeatmapManager.maps.get(SongSelect.selectedId);
-    if (!rec) { this.empty(); return; }
-    const { bm, notes } = await BeatmapManager.load(rec.id);
-    const blob = await BeatmapManager.getFile(rec.setId, rec.osuPath);
-    this.rec = rec; this.bm = bm; this.text = await blob.text(); this.keys = BeatmapParser.keyCount(bm);
-    this.red = bm.timingPoints.filter(t => t.uninherited);
-    if (!this.red.length) this.red = [{ time: 0, beatLength: 500, meter: 4, uninherited: true }];
-    this.notes = notes.map(n => ({ t: Math.round(n.time), col: n.col, end: n.isLN ? Math.round(n.end) : null }));
-    // lazer's Setup and Timing screens: the song's details and difficulty settings, and its timing points
-    const md = bm.metadata || {}, df = bm.difficulty || {};
-    this.meta = { Title: md.Title || '', TitleUnicode: md.TitleUnicode || md.Title || '', Artist: md.Artist || '', ArtistUnicode: md.ArtistUnicode || md.Artist || '',
-      Creator: md.Creator || '', Version: md.Version || 'Normal', Source: md.Source || '', Tags: md.Tags || '' };
-    this.diffSet = { hp: +(df.HPDrainRate ?? 5), od: +(df.OverallDifficulty ?? 5) };
-    this.origMeta = { ...this.meta }; this.newBg = null;
-    this.red = this.red.map(r => ({ ...r }));
-    // (a converted osu! map's green lines are slider speeds, which don't scroll it: saved, it becomes an osu!mania
-    // difficulty, so they're kept at 1× — their kiai and volume stay)
-    this.green = bm.timingPoints.filter(t => !t.uninherited).map(t => ({ ...t, ...(bm.mode === 0 ? { beatLength: -100 } : {}) }));
-    // lazer's bookmarks ([Editor] Bookmarks) and the song select preview point ([General] PreviewTime)
-    const bk = /^Bookmarks[ \t]*:(.*)$/m.exec(this.text);
-    this.bookmarks = bk ? bk[1].split(',').map(x => parseInt(x, 10)).filter(x => Number.isFinite(x) && x >= 0).sort((a, b) => a - b) : [];
-    this.preview = Number.isFinite(bm.previewTime) && bm.previewTime >= 0 ? bm.previewTime : -1;
-    this.tabName = 'compose';
-    const buffer = await TrackCache.get(rec.setId, rec.audioFile);
-    await Music.load(buffer, `${rec.setId}/${rec.audioFile}`, { setId: rec.setId, mapId: rec.id });
-    await Music.setRate(1, false);
-    // (the menu may have been playing this same song: the editor opens stopped where it was, as lazer's does — it
-    // used to keep running under a play button that said it was paused)
-    if (Music.playing) { if (!this.pos) this.pos = Music.time; Music.pause(); }
-    this.duration = Music.duration || (this.notes.length ? this.notes[this.notes.length - 1].t + 2000 : 60000);
-    // the song's waveform for the timeline (lazer shows it behind the timeline): the loudest sample in each slice
-    try {
-      const ch = buffer.getChannelData(0), N = 600, step = Math.max(1, Math.floor(ch.length / N)), peaks = new Float32Array(N);
-      for (let i = 0; i < N; i++) { let m = 0; const a = i * step, b = Math.min(ch.length, a + step); for (let j = a; j < b; j += 16) { const v = Math.abs(ch[j]); if (v > m) m = v; } peaks[i] = m; }
-      this.peaks = peaks;
-    } catch { this.peaks = null; }
-    if (Screens.current !== this) return;
-    this.build();
-  },
-
-  // ── layout
-  build() {
-    const el = this.el;
-    clearEl(el);
-    const r = this.rec;
-    this.fileBtn = h('button.ed-menu', { onclick: e => this.fileMenu(e) }, 'file');
-    this.editBtn = h('button.ed-menu', { onclick: e => this.editMenu(e) }, 'edit');
-    this.tabsEl = h('div.ed-tabs', ...['setup', 'compose', 'timing', 'verify'].map(t => h(`button.ed-tab${t === this.tabName ? '.on' : ''}`, { dataset: { t }, onclick: () => this.showTab(t) }, t)));
-    // lazer's editor bar: the menus on the left, the screens (setup, compose, timing, verify) in the top right
-    const top = h('div.ed-top', this.fileBtn, this.editBtn,
-      this.titleEl = h('div.ed-title'), this.dirtyEl = h('span.ed-dirty', { hidden: true }, 'unsaved'), this.tabsEl);
-    const tool = (id, ic, label, key) => h(`button.ed-tool${this.tool === id ? '.on' : ''}`, { dataset: { tool: id }, title: `${label} (${key})`, onclick: () => this.setTool(id) }, icon(ic), h('span', label), h('kbd', key));
-    this.toolsEl = h('div.ed-tools', h('div.ed-ph', 'Toolbox'), tool('select', 'target', 'Select', '1'), tool('note', 'plus', 'Note', '2'), tool('hold', 'bars', 'Hold note', '3'));
-    this.divEl = h('div.ed-div');
-    this.canvas = h('canvas.ed-canvas');
-    this.stage = h('div.ed-stage', this.canvas);
-    this.timeEl = h('div.ed-time'); this.bpmEl = h('div.ed-bpm');
-    this.tl = h('canvas.ed-tl');
-    this.playBtn = h('button.ed-play', { onclick: () => this.togglePlay(), title: 'Play / pause (Space)' }, icon('play'));
-    const rates = [0.25, 0.5, 0.75, 1].map(k => h(`button.ed-rate${k === this.rateK ? '.on' : ''}`, { onclick: () => this.setRate(k) }, `${k * 100}%`));
-    this.ratesEl = h('div.ed-rates', ...rates);
-    const bottom = h('div.ed-bottom', h('div.ed-clock', this.timeEl, this.bpmEl), h('div.ed-tlwrap', this.tl), h('div.ed-ctl', this.playBtn, this.ratesEl), h('button.ed-testbtn', { title: 'Test (F5)', onclick: () => this.test() }, 'Test'));
-    this.pageEl = h('div.ed-page', { hidden: true });
-    el.append(top, this.pageEl, h('div.ed-main', h('div.ed-left', this.toolsEl), this.stage, h('div.ed-right', h('div.ed-ph', 'Beat snap'), this.divEl,
-      h('div.ed-help', h('div', h('kbd', 'Right click'), ' delete'), h('div', h('kbd', 'Ctrl+Z'), ' undo'), h('div', h('kbd', 'Wheel'), ' seek'), h('div', h('kbd', 'Ctrl+Wheel'), ' zoom'), h('div', h('kbd', 'Shift+Wheel'), ' snap'), h('div', h('kbd', 'Ctrl+H'), ' flip'), h('div', h('kbd', 'Ctrl+J'), ' reverse'), h('div', h('kbd', '← →'), ' move column'), h('div', h('kbd', 'Ctrl+S'), ' save')))), bottom);
-    this.paintTitle();
-    this.paintDivisor();
-    this.bindStage();
-    this._key = e => this.onKey(e);
-    window.addEventListener('keydown', this._key, true);
-    this._ro = new ResizeObserver(() => this.size()); this._ro.observe(this.stage); this._ro.observe(this.tl);
-    this.size();
-    const loop = () => { this._raf = requestAnimationFrame(loop); this.draw(); };
-    this._raf = requestAnimationFrame(loop);
-  },
-  paintTitle() { const r = this.rec; clearEl(this.titleEl).append(h('b', `${r.artist} - ${r.title}`), h('span', ` [${r.version}]`)); },
-  size() {
-    const k = Math.min(2, Zoom.dpr());
-    for (const c of [this.canvas, this.tl]) { const w = Math.round(c.clientWidth * k), hh = Math.round(c.clientHeight * k); if (w && hh && (c.width !== w || c.height !== hh)) { c.width = w; c.height = hh; } }
-    this._k = k; this._tlDirty = true;
-  },
-  paintDivisor() {
-    clearEl(this.divEl).append(...EDIT_DIVISORS.map(d => h(`button.ed-dv${d === this.divisor ? '.on' : ''}`, { style: { '--c': snapColour(d) }, onclick: () => this.setDivisor(d) }, `1/${d}`)));
-  },
-  /** lazer's editor screens: Setup (details and difficulty), Compose (the notes) and Timing (BPM and offset). */
-  showTab(t) {
-    this.tabName = t; UISounds.click();
-    for (const b of this.tabsEl.children) b.classList.toggle('on', b.dataset.t === t);
-    if (t === 'compose') { this.pageEl.hidden = true; return; }
-    if (Music.playing && t === 'setup') this.togglePlay();
-    this.pageEl.hidden = false;
-    clearEl(this.pageEl).append(t === 'setup' ? this.setupPage() : t === 'verify' ? this.verifyPage() : this.timingPage());
-  },
-  setupPage() {
-    const field = (label, key, hint) => {
-      const inp = h('input.input', { value: this.meta[key], maxlength: key === 'Tags' ? 1000 : 200, oninput: () => { this.meta[key] = inp.value.replace(/[\r\n]/g, ' '); this.setDirty(true); } });
-      inp.addEventListener('keydown', e => e.stopPropagation());
-      return h('label.ed-f', h('span', label), inp, hint ? h('small', hint) : null);
-    };
-    const slider = (label, key) => {
-      const v = h('b', String(this.diffSet[key]));
-      const inp = h('input.slider', { type: 'range', min: 0, max: 10, step: 0.1, value: this.diffSet[key] });
-      const paint = () => inp.style.setProperty('--p', (inp.value * 10) + '%');
-      inp.addEventListener('input', () => { this.diffSet[key] = +inp.value; v.textContent = (+inp.value).toFixed(1); paint(); this.setDirty(true); });
-      paint();
-      return h('label.ed-f', h('span', label, v), inp);
-    };
-    const keys = h('select.select', { onchange: () => {
-      const k = +keys.value;
-      if (this.notes.some(n => n.col >= k)) { Toast.err('Notes are in the columns that would go', `Move or delete the notes in columns ${k + 1}–${this.keys} first.`); keys.value = this.keys; return; }
-      this.keys = k; this.setDirty(true);
-    } }, ...Array.from({ length: 10 }, (_, i) => h('option', { value: i + 1, selected: i + 1 === this.keys }, `${i + 1}K`)));
-    keys.addEventListener('keydown', e => e.stopPropagation());
-    return h('div.ed-form',
-      h('h2', 'Beatmap setup'),
-      h('div.ed-sec', h('h3', 'Metadata'),
-        h('div.ed-row', field('Artist', 'Artist'), field('Artist (original language)', 'ArtistUnicode')),
-        h('div.ed-row', field('Title', 'Title'), field('Title (original language)', 'TitleUnicode')),
-        h('div.ed-row', field('Creator', 'Creator'), field('Difficulty name', 'Version')),
-        h('div.ed-row', field('Source', 'Source'), field('Tags', 'Tags', 'separated by spaces'))),
-      h('div.ed-sec', h('h3', 'Resources'), this.resources()),
-      h('div.ed-sec', h('h3', 'Difficulty'),
-        h('label.ed-f', h('span', 'Key count'), keys),
-        h('div.ed-row', slider('HP drain', 'hp'), slider('Accuracy (OD)', 'od'))),
-      h('div.ed-sec', h('h3', 'Difficulties'), h('p.muted', 'A new difficulty in this set, with this one\'s song, timing and details: a copy of its notes, or blank.'),
-        h('button.btn.primary', { onclick: () => this.newDifficulty() }, icon('plus'), 'Create new difficulty')));
-  },
-  /** lazer's Setup › Resources: the background (a new one goes into the set, for all its difficulties). */
-  resources() {
-    const img = h('div.ed-bgthumb');
-    const name = this.newBg ? this.newBg.name : this.rec.bgFile || '';
-    if (this.newBg) img.style.backgroundImage = `url("${this.newBg.url}")`;
-    else if (this.rec.bgFile) BeatmapManager.bgThumbURL(this.rec).then(u => { if (u) img.style.backgroundImage = `url("${u}")`; }).catch(() => {});
-    return h('div.ed-res', img, h('div.ed-resi', h('b', 'Background'), h('span.muted', name || 'None yet'),
-      h('button.btn.sm', { onclick: () => this.chooseBackground() }, icon('upload'), name ? 'Change…' : 'Choose…')));
-  },
-  async chooseBackground() {
-    const [f] = await pickFiles({ accept: 'image/*', multiple: false });
-    if (!f) return;
-    if (f.size > 20e6) { Toast.err('That picture is too big', 'Pick one under 20 MB.'); return; }
-    const name = f.name.replace(/[\\/:*?"<>|]/g, '').trim() || 'background.jpg';
-    if (this.newBg) URL.revokeObjectURL(this.newBg.url);
-    this.newBg = { name, data: new Uint8Array(await f.arrayBuffer()), url: URL.createObjectURL(f) };
-    this.setDirty(true);
-    if (this.tabName === 'setup') this.showTab('setup');
-  },
-  /** When the set-wide details (title, artist, creator, source, tags) or the background change, lazer changes them
-   *  for every difficulty in the set: the others' .osu files rewritten to go with this one. */
-  async siblings() {
-    const KEYS = ['Title', 'TitleUnicode', 'Artist', 'ArtistUnicode', 'Creator', 'Source', 'Tags'];
-    const metaCh = KEYS.some(k => (this.meta[k] || '') !== (this.origMeta[k] || ''));
-    const extra = this.newBg ? [{ name: this.newBg.name, data: this.newBg.data }] : [], others = [];
-    if (metaCh || this.newBg) {
-      const set = BeatmapManager.setById.get(this.rec.setId);
-      for (const id of set ? set.mapIds : []) {
-        const m = id !== this.rec.id && BeatmapManager.maps.get(id);
-        const blob = m && await BeatmapManager.getFile(m.setId, m.osuPath);
-        if (!blob) continue;
-        let t = (await blob.text()).replace(/\r\n/g, '\n');
-        if (metaCh) t = EditorScreen.setKeys(t, 'Metadata', Object.fromEntries(KEYS.map(k => [k, this.meta[k]])));
-        if (this.newBg) t = EditorScreen.setBackground(t, this.newBg.name);
-        others.push({ id, osuPath: m.osuPath, text: t });
-      }
-    }
-    return { others, extra };
-  },
-  timingPage() {
-    const wrap = h('div.ed-form');
-    const paint = () => {
-      const now = Math.round(this.now());
-      const row = (r, i) => {
-        const t = h('input.input.ed-num', { type: 'number', value: Math.round(r.time), step: 1 });
-        const bpm = h('input.input.ed-num', { type: 'number', value: +(60000 / r.beatLength).toFixed(3), step: 0.001, min: 1 });
-        const meter = h('select.select', ...[3, 4, 5, 6, 7].map(m => h('option', { value: m, selected: (r.meter || 4) === m }, `${m}/4`)));
-        for (const x of [t, bpm, meter]) x.addEventListener('keydown', e => e.stopPropagation());
-        t.addEventListener('change', () => { r.time = Math.round(+t.value || 0); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); });
-        bpm.addEventListener('change', () => { const b = +bpm.value; if (b > 0) { r.beatLength = 60000 / b; this.setDirty(true); } });
-        meter.addEventListener('change', () => { r.meter = +meter.value; this.setDirty(true); });
-        const nudge = d => h('button.ed-ng', { title: `${d > 0 ? '+' : ''}${d}ms`, onclick: e => { e.preventDefault(); r.time = Math.max(-5000, Math.round(r.time + d)); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); t.value = Math.round(r.time); } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`);
-        return h(`div.ed-tp${this.redAt(now) === r ? '.cur' : ''}`, h('span.ed-tpn', `#${i + 1}`), h('label', 'Time (ms)', t, h('span.ed-nudge', nudge(-10), nudge(-1), nudge(1), nudge(10))), h('label', 'BPM', bpm), h('label', 'Meter', meter),
-          h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(r.time); paint(); } }, icon('target')),
-          h('button.btn.sm', { title: 'Move to the current time', onclick: () => { r.time = now; this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } }, icon('clock')),
-          this.red.length > 1 ? h('button.btn.sm.danger', { title: 'Delete', onclick: () => { this.red = this.red.filter(x => x !== r); this.setDirty(true); paint(); } }, icon('trash')) : null);
-      };
-      clearEl(wrap).append(h('h2', 'Timing'), h('p.muted', 'Red lines: where the beat starts and its tempo. Notes stay where they are when the timing changes.'),
-        h('div.ed-tps', ...this.red.map(row)),
-        h('button.btn.primary', { onclick: () => { const now = Math.round(this.now()), r = this.redAt(now); this.red.push({ time: now, beatLength: r.beatLength, meter: r.meter || 4, sampleSet: 1, sampleIndex: 0, volume: 100, uninherited: true, effects: 0 }); this.red.sort((a, b) => a.time - b.time); this.setDirty(true); paint(); } },
-          icon('plus'), `Add a timing point at ${fmtTime(Math.max(0, now))}`),
-        this.tapPanel(paint),
-        h('h3.ed-h3', 'Kiai time'),
-        h('p.muted', 'The song\'s chorus: the playfield glows. It starts and stops on an effect point.'),
-        h('div.ed-tps', ...this.kiaiRanges().map(([a, b]) => h('div.ed-kiai', h('span', icon('magic'), `${fmtTime(Math.max(0, a))} – ${fmtTime(Math.max(0, b))}`),
-          h('button.btn.sm', { title: 'Seek here', onclick: () => { this.seek(a); paint(); } }, icon('target')),
-          h('button.btn.sm.danger', { title: 'Remove', onclick: () => { for (const p of [...this.red, ...this.green]) if (p.time >= a - 1 && p.time < b) p.effects = (p.effects || 0) & ~1; this.setDirty(true); paint(); } }, icon('trash'))))),
-        h('div.ed-row2', h('button.btn', { onclick: () => { this.toggleKiai(); paint(); } }, icon('magic'), `${this.kiaiAt(this.snap(now)) ? 'End' : 'Start'} kiai at ${fmtTime(Math.max(0, this.snap(now)))}`),
-          h('button.btn', { onclick: () => { this.setPreview(); paint(); } }, icon('music'), this.preview >= 0 ? `Preview point: ${fmtTime(this.preview)} — set to now` : 'Set the preview point to now')));
-    };
-    paint();
-    return wrap;
-  },
-  /** lazer's TapTimingControl: tap along to the song (the button, or T) and the BPM is worked out from the taps;
-   *  apply it to the timing point you're in — with the offset too, when you tapped while the song played. And the
-   *  metronome, ticking every beat while the song plays on this screen. */
-  tapPanel(repaint) {
-    const tp = this._tap || (this._tap = { list: [] }), res = this.tapResult();
-    const r = this.redAt(this.now());
-    const out = h('div.ed-tapbox',
-      h('div.ed-tapl',
-        h('button.ed-tapbtn', { onpointerdown: e => { e.preventDefault(); this.tap(); } }, h('b', 'Tap'), h('small', 'or press T')),
-        h('div.ed-tapinfo',
-          h('div.ed-tapbpm', res ? `${res.bpm.toFixed(res.bpm < 100 ? 2 : 1)}` : '—', h('small', ' BPM')),
-          h('div.muted', res ? `${tp.list.length} taps${res.phase != null ? ' with the song' : ''}` : 'Tap to the beat — 4 or more taps'))),
-      h('div.ed-tapr',
-        h('button.btn.sm', { disabled: !res, onclick: () => { r.beatLength = 60000 / +res.bpm.toFixed(2); this.setDirty(true); Toast.show('BPM applied', `${res.bpm.toFixed(2)} BPM from ${fmtTime(Math.max(0, r.time))}`); repaint(); } }, icon('check'), 'Apply BPM'),
-        h('button.btn.sm', { disabled: !res || res.phase == null, title: 'The BPM, and the timing point moved onto your taps', onclick: () => {
-          const b = 60000 / +res.bpm.toFixed(2); r.beatLength = b;
-          // (the beat nearest the timing point's old time, on the taps' phase)
-          r.time = Math.round(res.phase + Math.round((r.time - res.phase) / b) * b);
-          this.red.sort((a, b2) => a.time - b2.time); this.setDirty(true); Toast.show('BPM and offset applied', `${res.bpm.toFixed(2)} BPM at ${Math.round(r.time)}ms`); repaint();
-        } }, icon('target'), 'Apply BPM + offset'),
-        h('button.btn.sm.ghost', { onclick: () => { tp.list = []; repaint(); } }, icon('retry'), 'Reset'),
-        h('label.ed-metro', h('input', { type: 'checkbox', checked: this.metronome !== false, onchange: e => { this.metronome = e.target.checked; } }), 'Metronome')));
-    this._tapRepaint = repaint;
-    return out;
-  },
-  tap() {
-    const tp = this._tap || (this._tap = { list: [] }), now = performance.now();
-    const last = tp.list[tp.list.length - 1];
-    if (last && now - last.real > 2000) tp.list = [];
-    tp.list.push({ real: now, song: Music.playing ? this.now() : null });
-    if (tp.list.length > 16) tp.list.shift();
-    UISounds.click();
-    if (this._tapRepaint && this.tabName === 'timing') this._tapRepaint();
-  },
-  /** The BPM from the taps (the mean gap, in song time when the song played), and the beat's phase. */
-  tapResult() {
-    const L = (this._tap && this._tap.list) || [];
-    if (L.length < 4) return null;
-    const song = L.every(x => x.song != null), ts = L.map(x => song ? x.song : x.real);
-    const gap = (ts[ts.length - 1] - ts[0]) / (ts.length - 1);
-    if (!(gap > 100 && gap < 3000)) return null;
-    let phase = null;
-    if (song) {
-      // the circular mean of each tap's place within the beat
-      let sx = 0, sy = 0;
-      for (const t of ts) { const a = (t / gap) * 2 * Math.PI; sx += Math.cos(a); sy += Math.sin(a); }
-      phase = ((Math.atan2(sy, sx) / (2 * Math.PI)) * gap + gap) % gap;
-    }
-    return { bpm: 60000 / gap, phase };
-  },
-  metronomeTick(now) {
-    if (this.metronome === false || this.tabName !== 'timing' || !Music.playing) { this._mBeat = null; return; }
-    const r = this.redAt(now), meter = r.meter > 0 ? r.meter : 4;
-    if (!(r.beatLength > 0)) return;
-    const beat = Math.floor((now - r.time) / r.beatLength + 1e-6), key = r.time + ':' + beat;
-    if (key === this._mBeat) return;
-    const first = this._mBeat == null;
-    this._mBeat = key;
-    if (first && now - (r.time + beat * r.beatLength) > 60) return;
-    const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
-    if (buf) AudioManager.play(buf, { volume: 0.6 });
-  },
-  async newDifficulty() {
-    const name = (await Dialog.prompt('New difficulty', '', { ok: 'Create', placeholder: 'Difficulty name' }) || '').trim();
-    if (!name) return;
-    const set = BeatmapManager.setById.get(this.rec.setId);
-    if (set && set.maps.some(m => m.version.toLowerCase() === name.toLowerCase())) { Toast.err('That difficulty name is taken', 'Pick another name.'); return; }
-    // lazer: a copy of this difficulty's notes, or a blank one (here with a single note: a difficulty needs one to be kept)
-    const copy = await new Promise(res => {
-      let v = null;
-      Dialog.popup(`Create "${name}"`, 'Start from this difficulty\'s notes, or from scratch?', [
-        { label: 'Copy this difficulty', colour: '#ff66aa', onClick: () => { v = true; } },
-        { label: 'Start blank', colour: '#66ccff', onClick: () => { v = false; } },
-      ], { icon: 'plus', onClose: () => res(v) });
-    });
-    if (copy == null) return;
-    if (this.dirty && !(await this.save())) return;
-    const clean = x => String(x).replace(/[\\/:*?"<>|]/g, '').trim();
-    const file = `${clean(this.meta.Artist)} - ${clean(this.meta.Title)} (${clean(this.meta.Creator)}) [${clean(name)}].osu`;
-    const text = this.serialize({ Version: name, notes: copy ? this.notes : [{ t: Math.round(this.red[0].time + this.red[0].beatLength * 4), col: 0, end: null }] });
-    try {
-      const rec = await BeatmapManager.saveDifficulty({ id: '__new', setId: this.rec.setId, osuPath: file }, text);
-      if (!rec) throw new Error('The new difficulty couldn\'t be read back.');
-      Toast.ok(`Created ${name}`, copy ? 'A copy of the difficulty you were editing.' : 'A blank difficulty with one note to start from.');
-      this.reopen(rec.id);
-    } catch (e) { Toast.err('Couldn\'t create the difficulty', friendlyError(e)); }
-  },
-  // ── bookmarks, preview point, kiai (lazer: Ctrl+B / Ctrl+Shift+B, Ctrl+Alt+←/→; Edit › Set preview point; effect points)
-  toggleBookmark(remove) {
-    const t = this.snap(this.now());
-    if (remove) {
-      if (!this.bookmarks.length) return;
-      // (lazer: removes the closest one)
-      let best = this.bookmarks[0]; for (const b of this.bookmarks) if (Math.abs(b - t) < Math.abs(best - t)) best = b;
-      this.bookmarks = this.bookmarks.filter(b => b !== best);
-      Toast.show('Bookmark removed', fmtTime(best));
-    } else {
-      if (this.bookmarks.some(b => Math.abs(b - t) < 2)) return;
-      this.bookmarks = [...this.bookmarks, t].sort((a, b) => a - b);
-      Toast.show('Bookmark added', fmtTime(Math.max(0, t)));
-    }
-    this.setDirty(true);
-  },
-  jumpBookmark(dir) {
-    const now = this.now(), list = dir > 0 ? this.bookmarks.filter(b => b > now + 1) : this.bookmarks.filter(b => b < now - 1);
-    if (list.length) this.seek(dir > 0 ? list[0] : list[list.length - 1]);
-  },
-  setPreview() {
-    this.preview = Math.max(0, Math.round(this.now()));
-    this.setDirty(true);
-    Toast.show('Preview point set', `Song select plays the song from ${fmtTime(this.preview)}.`);
-  },
-  /** Every timing point (red and green) in order: the last one at or before a time decides its effects. */
-  points() { return [...this.red.map(r => ({ p: r, u: 1 })), ...this.green.map(g => ({ p: g, u: 0 }))].sort((a, b) => a.p.time - b.p.time || b.u - a.u); },
-  kiaiAt(t) { let on = false; for (const { p } of this.points()) { if (p.time <= t + 1) on = !!((p.effects || 0) & 1); else break; } return on; },
-  /** The kiai sections: [start, end] pairs (the end is the song's end when it doesn't stop). */
-  kiaiRanges() {
-    const out = []; let from = null;
-    for (const { p } of this.points()) {
-      const on = !!((p.effects || 0) & 1);
-      if (on && from == null) from = p.time; else if (!on && from != null) { if (p.time > from) out.push([from, p.time]); from = null; }
-    }
-    if (from != null) out.push([from, this.duration]);
-    return out;
-  },
-  /** Kiai starts (or stops) here: an effect point at the snapped time — an existing point there changes, or a green
-   *  line is added (keeping the scroll speed it's in). */
-  toggleKiai(t = this.snap(this.now())) {
-    t = Math.max(0, Math.round(t));
-    const on = !this.kiaiAt(t), at = [...this.red, ...this.green].filter(p => Math.abs(p.time - t) < 1);
-    if (at.length) for (const p of at) p.effects = on ? ((p.effects || 0) | 1) : ((p.effects || 0) & ~1);
-    else {
-      const r = this.redAt(t), g = this.green.filter(x => x.time <= t && x.time >= r.time).pop(), base = g || r;
-      this.green.push({ time: t, beatLength: g ? g.beatLength : -100, meter: r.meter || 4, sampleSet: base.sampleSet ?? 1, sampleIndex: base.sampleIndex ?? 0, volume: base.volume ?? 100, uninherited: false, effects: ((base.effects || 0) & ~1) | (on ? 1 : 0) });
-      this.green.sort((a, b) => a.time - b.time);
-    }
-    this.setDirty(true);
-    Toast.show(on ? 'Kiai starts here' : 'Kiai ends here', fmtTime(t));
-  },
-
-  /** lazer's Verify screen: the checks the beatmap must pass to be ranked (the ones that apply to mania), each a
-   *  problem, a warning or negligible; clicking one goes to it. */
-  issues() {
-    const out = [], P = (sev, cat, text, t = null, notes = null) => out.push({ sev, cat, text, t, notes });
-    const N = this.notes;
-    if (!N.length) P('problem', 'Compose', 'There are no notes.');
-    // concurrent / overlapping notes in a column, zero-length and too short hold notes
-    const cols = Array.from({ length: this.keys }, () => []);
-    for (const n of N) if (cols[n.col]) cols[n.col].push(n);
-    for (const c of cols) for (let i = 1; i < c.length; i++) {
-      const a = c[i - 1], b = c[i];
-      if (b.t <= (a.end ?? a.t)) P('problem', 'Compose', `${a.end != null ? 'A note is inside a hold note' : 'Two notes at the same time'} in column ${b.col + 1}.`, b.t, [a, b]);
-    }
-    for (const n of N) if (n.end != null && n.end - n.t <= 0) P('problem', 'Compose', 'A hold note has no length.', n.t, [n]);
-    // unsnapped (lazer's CheckUnsnappedObjects: off every 1/16 and 1/12 tick by 2ms or more is a problem, 1ms negligible)
-    const off = t => { const r = this.redAt(t); let m = Infinity; for (const d of [16, 12]) { const b = r.beatLength / d; if (b > 0) m = Math.min(m, Math.abs(t - (r.time + Math.round((t - r.time) / b) * b))); } return m; };
-    for (const n of N) for (const [t, what] of [[n.t, 'A note'], ...(n.end != null ? [[n.end, 'A hold note\'s end']] : [])]) {
-      const o = off(t);
-      if (o >= 2) P('problem', 'Timing', `${what} is unsnapped by ${Math.round(o)}ms.`, t, [n]);
-      else if (o >= 1) P('negligible', 'Timing', `${what} is unsnapped by ${Math.round(o)}ms.`, t, [n]);
-    }
-    if (N.length && N[0].t < this.red[0].time) P('problem', 'Timing', 'A note is before the first timing point.', N[0].t, [N[0]]);
-    const late = N.filter(n => (n.end ?? n.t) > this.duration + 1);
-    if (late.length) P('problem', 'Compose', `${plural(late.length, 'note is', 'notes are')} after the song ends.`, late[0].t, late);
-    // drain time (lazer's CheckDrainLength: under 30 seconds)
-    if (N.length) { const len = Math.max(...N.map(n => n.end ?? n.t)) - N[0].t; if (len < 30000) P('problem', 'Compose', `The drain time is only ${fmtTime(len)} — a beatmap needs at least 30 seconds.`); }
-    // audio and resources
-    if (!this.rec.bgFile && !this.newBg) P('problem', 'Resources', 'There is no background image.');
-    if (this.preview < 0) P('warning', 'Audio', 'There is no preview point (song select would play the song from the middle).');
-    // metadata (lazer's CheckMetadata…: empty fields, and unicode in the romanised ones)
-    if (!this.meta.Title.trim()) P('problem', 'Metadata', 'The title is empty.');
-    if (!this.meta.Artist.trim()) P('problem', 'Metadata', 'The artist is empty.');
-    if (!this.meta.Creator.trim()) P('warning', 'Metadata', 'The creator is empty.');
-    for (const k of ['Title', 'Artist']) if (/[^\x20-\x7e]/.test(this.meta[k])) P('problem', 'Metadata', `The romanised ${k.toLowerCase()} has non-romanised characters (they go in the original language field).`);
-    if (!this.meta.Tags.trim()) P('negligible', 'Metadata', 'There are no tags (they help people find the beatmap).');
-    const rank = { problem: 0, warning: 1, negligible: 2 };
-    return out.sort((a, b) => rank[a.sev] - rank[b.sev] || (a.t ?? -1) - (b.t ?? -1));
-  },
-  verifyPage() {
-    const wrap = h('div.ed-form.ed-verify');
-    this.vShow = this.vShow || { problem: true, warning: true, negligible: false };
-    const NAMES = { problem: 'Problem', warning: 'Warning', negligible: 'Negligible' };
-    const paint = () => {
-      const all = this.issues(), list = all.filter(i => this.vShow[i.sev]);
-      const counts = { problem: 0, warning: 0, negligible: 0 }; for (const i of all) counts[i.sev]++;
-      const row = i => h(`button.ed-issue.${i.sev}`, { disabled: i.t == null, onclick: () => {
-        UISounds.click(); this.sel = new Set(i.notes || []); this.seek(i.t); this.showTab('compose');
-      } }, h('span.ed-isev', NAMES[i.sev]), h('span.ed-itime', i.t == null ? '' : fmtTime(Math.max(0, i.t))), h('span.ed-imsg', i.text), h('span.ed-icat', i.cat));
-      clearEl(wrap).append(h('h2', 'Verify'),
-        h('div.ed-vfilters', ...Object.keys(NAMES).map(k => h(`button.ed-vf.${k}${this.vShow[k] ? '.on' : ''}`, { onclick: () => { this.vShow[k] = !this.vShow[k]; UISounds.click(); paint(); } }, NAMES[k], h('b', String(counts[k]))))),
-        list.length ? h('div.ed-issues', h('div.ed-issue.head', h('span', 'Type'), h('span', 'Time'), h('span', 'Message'), h('span', 'Category')), ...list.slice(0, 300).map(row))
-          : h('div.ed-noissue', icon('check'), all.length ? 'Nothing to show with these filters.' : 'No issues found — this beatmap is ready to be played.'));
-    };
-    paint();
-    return wrap;
-  },
-  setDivisor(d) { this.divisor = d; Settings.set('editor.divisor', d); this.paintDivisor(); },
-  setTool(t) { this.tool = t; for (const b of this.toolsEl.querySelectorAll('.ed-tool')) b.classList.toggle('on', b.dataset.tool === t); UISounds.click(); },
-  async setRate(k) {
-    const was = Music.playing, at = this.now();
-    if (was) Music.pause();
-    this.rateK = k; await Music.setRate(k, false);
-    for (const b of this.ratesEl.children) b.classList.toggle('on', b.textContent === `${k * 100}%`);
-    this.pos = at; if (was) Music.play(at);
-  },
-
-  // ── time
-  now() { return Music.playing ? Music.time : this.pos; },
-  redAt(t) { let r = this.red[0]; for (const x of this.red) { if (x.time <= t + 1) r = x; else break; } return r; },
-  snap(t) { const r = this.redAt(t), b = r.beatLength / this.divisor; return Math.round(r.time + Math.round((t - r.time) / b) * b); },
-  step(dir) {
-    const t = this.now(), r = this.redAt(t), b = r.beatLength / this.divisor;
-    const s = this.snap(t);
-    let n = Math.abs(s - t) > 2 && Math.sign(s - t) === dir ? s : Math.round(s + dir * b);
-    this.seek(n);
-  },
-  seek(t) {
-    t = clamp(t, Math.min(0, this.red[0].time), this.duration);
-    if (Music.playing) Music.play(t); else this.pos = t;
-  },
-  togglePlay() {
-    if (Music.playing) { if (!this.pos) this.pos = Music.time; Music.pause(); }
-    else { if (this.pos >= this.duration - 50) this.pos = 0; Music.play(this.pos); }
-    clearEl(this.playBtn).append(icon(Music.playing ? 'pause' : 'play'));
-  },
-
-  // ── geometry
-  geo() {
-    const c = this.canvas, k = this._k || 1, W = c.width / k, H = c.height / k;
-    const cw = Math.min(64, Math.max(28, (W * 0.5) / this.keys)), x0 = Math.round(W / 2 - cw * this.keys / 2), hitY = Math.round(H * 0.82);
-    return { W, H, cw, x0, hitY, px: this.zoom };
-  },
-  yOf(t, g, now) { return g.hitY - (t - now) * g.px; },
-  tOf(y, g, now) { return now + (g.hitY - y) / g.px; },
-  at(ev) {
-    const r = this.canvas.getBoundingClientRect(), g = this.geo(), x = (ev.clientX - r.left) * (g.W / r.width), y = (ev.clientY - r.top) * (g.H / r.height);
-    const col = Math.floor((x - g.x0) / g.cw), t = this.tOf(y, g, this.now());
-    return { col, t, x, y, inside: col >= 0 && col < this.keys };
-  },
-  noteAt(a) {
-    const g = this.geo(), now = this.now(), tol = 9 / g.px;
-    for (let i = this.notes.length - 1; i >= 0; i--) {
-      const n = this.notes[i];
-      if (n.col !== a.col) continue;
-      if (n.end != null ? a.t >= n.t - tol && a.t <= n.end + tol : Math.abs(a.t - n.t) <= tol) return n;
-    }
-    return null;
-  },
-
-  // ── editing
-  commit() {
-    this.undo.push(JSON.stringify(this.notes)); if (this.undo.length > 200) this.undo.shift();
-    this.redo = []; this.setDirty(true);
-  },
-  setDirty(v) { this.dirty = v; if (this.dirtyEl) this.dirtyEl.hidden = !v; this._tlDirty = true; },
-  sortNotes() { this.notes.sort((a, b) => a.t - b.t || a.col - b.col); },
-  clash(col, t, end, except) { return this.notes.some(n => n !== except && !(except instanceof Set && except.has(n)) && n.col === col && !((end ?? t) < n.t || t > (n.end ?? n.t))); },
-  add(col, t, end = null) {
-    if (col < 0 || col >= this.keys || this.clash(col, t, end)) return null;
-    this.commit();
-    const n = { t, col, end }; this.notes.push(n); this.sortNotes();
-    UISounds.play('check-on');
-    return n;
-  },
-  remove(list) {
-    if (!list.length) return;
-    this.commit();
-    const s = new Set(list);
-    this.notes = this.notes.filter(n => !s.has(n)); for (const n of list) this.sel.delete(n);
-    UISounds.play('check-off');
-  },
-  /** Change the selected notes (lazer's flip, reverse and column moves): `fn` gives each its new place; nothing
-   *  changes if one would land on another note or off the stage. */
-  transform(fn, what) {
-    const list = [...this.sel];
-    if (!list.length) return false;
-    const next = list.map(n => ({ n, ...fn(n) }));
-    const others = this.notes.filter(n => !this.sel.has(n));
-    const bad = next.some(x => x.col < 0 || x.col >= this.keys || x.t < 0) ||
-      next.some((x, i) => next.some((y, j) => j !== i && y.col === x.col && !((y.end ?? y.t) < x.t || y.t > (x.end ?? x.t)))) ||
-      next.some(x => others.some(o => o.col === x.col && !((x.end ?? x.t) < o.t || x.t > (o.end ?? o.t))));
-    if (bad) { if (what) Toast.err(`Can't ${what}`, 'A note would land on another note or off the stage.'); return false; }
-    this.commit();
-    for (const x of next) { x.n.col = x.col; x.n.t = x.t; x.n.end = x.end; }
-    this.sortNotes();
-    return true;
-  },
-  /** lazer's timestamp for modding: "00:12:345 (12345|0,12500|2) - " — pasted in chat, it links back here. */
-  copyTimestamp() {
-    const list = [...this.sel].sort((a, b) => a.t - b.t || a.col - b.col);
-    const t = list.length ? list[0].t : Math.round(this.now()), tt = Math.max(0, t);
-    const ts = `${String(Math.floor(tt / 60000)).padStart(2, '0')}:${String(Math.floor(tt / 1000) % 60).padStart(2, '0')}:${String(Math.floor(tt) % 1000).padStart(3, '0')}`;
-    const text = `${ts}${list.length ? ` (${list.map(n => `${n.t}|${n.col}`).join(',')})` : ''} - `;
-    try { navigator.clipboard.writeText(text).catch(() => {}); } catch {}
-    Toast.show('Timestamp copied', text);
-    return text;
-  },
-  /** A timestamp's moment (from chat): there, with its notes ([t, col] pairs) selected. */
-  goTo(t, notes = []) {
-    if (this.tabName !== 'compose') this.showTab('compose');
-    this.sel = new Set(this.notes.filter(n => notes.some(([nt, nc]) => Math.abs(n.t - nt) < 2 && n.col === nc)));
-    this.seek(t);
-  },
-  undoStep(back) {
-    const from = back ? this.undo : this.redo, to = back ? this.redo : this.undo;
-    if (!from.length) return;
-    to.push(JSON.stringify(this.notes));
-    this.notes = JSON.parse(from.pop()); this.sel.clear(); this.setDirty(true);
-  },
-  bindStage() {
-    const c = this.canvas;
-    c.addEventListener('contextmenu', e => e.preventDefault());
-    c.addEventListener('pointermove', e => { if (!this._drag) this.hover = this.at(e); else this.dragMove(e); });
-    c.addEventListener('pointerleave', () => { this.hover = null; });
-    c.addEventListener('pointerdown', e => {
-      const a = this.at(e);
-      if (e.button === 2) { const n = this.noteAt(a); if (n) this.remove(this.sel.has(n) ? [...this.sel] : [n]); return; }
-      if (e.button !== 0) return;
-      c.setPointerCapture(e.pointerId);
-      const hit = a.inside ? this.noteAt(a) : null;
-      if (this.tool === 'select' || hit) {
-        if (hit) {
-          if (e.shiftKey || e.ctrlKey) { this.sel.has(hit) ? this.sel.delete(hit) : this.sel.add(hit); }
-          else if (!this.sel.has(hit)) { this.sel.clear(); this.sel.add(hit); }
-          // dragging the selection: by whole snaps and columns
-          this._drag = { kind: 'move', from: a, base: [...this.sel].map(n => ({ n, t: n.t, col: n.col, end: n.end })), moved: false };
-        } else { if (!e.shiftKey) this.sel.clear(); this._drag = { kind: 'box', from: a, to: a }; }
-        return;
-      }
-      if (!a.inside) return;
-      const t = this.snap(a.t);
-      if (this.tool === 'note') { this.add(a.col, t); return; }
-      if (this.tool === 'hold') this._drag = { kind: 'hold', col: a.col, t, end: t };
-    });
-    c.addEventListener('pointerup', () => this.dragEnd());
-    c.addEventListener('wheel', e => {
-      e.preventDefault();
-      if (e.ctrlKey) { this.zoom = clamp(this.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.1, 2.5); return; }
-      if (e.shiftKey) { const i = EDIT_DIVISORS.indexOf(this.divisor); this.setDivisor(EDIT_DIVISORS[clamp(i + (e.deltaY > 0 ? -1 : 1), 0, EDIT_DIVISORS.length - 1)]); return; }
-      this.step(e.deltaY > 0 ? -1 : 1);
-    }, { passive: false });
-    // the timeline: click or drag to seek
-    const seekTl = e => { const r = this.tl.getBoundingClientRect(); this.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * this.duration); };
-    this.tl.addEventListener('pointerdown', e => { this.tl.setPointerCapture(e.pointerId); seekTl(e); this._tlDrag = true; });
-    this.tl.addEventListener('pointermove', e => { if (this._tlDrag) seekTl(e); });
-    this.tl.addEventListener('pointerup', () => { this._tlDrag = false; });
-  },
-  dragMove(e) {
-    const d = this._drag, a = this.at(e);
-    if (d.kind === 'hold') { d.end = Math.max(d.t, this.snap(a.t)); return; }
-    if (d.kind === 'box') { d.to = a; return; }
-    if (d.kind === 'move') {
-      const dt = this.snap(d.from.t + (a.t - d.from.t)) - this.snap(d.from.t), dc = a.col - d.from.col;
-      const ok = d.base.every(b => b.col + dc >= 0 && b.col + dc < this.keys);
-      if (!ok || (!dt && !dc)) return;
-      const moved = new Set(d.base.map(b => b.n));
-      if (d.base.some(b => this.clash(b.col + dc, b.t + dt, b.end != null ? b.end + dt : null, moved))) return;
-      if (!d.moved) { this.commit(); d.moved = true; }
-      for (const b of d.base) { b.n.t = b.t + dt; b.n.col = b.col + dc; b.n.end = b.end != null ? b.end + dt : null; }
-      this.sortNotes(); this.setDirty(true);
-    }
-  },
-  dragEnd() {
-    const d = this._drag; this._drag = null;
-    if (!d) return;
-    if (d.kind === 'hold') {
-      if (d.end - d.t >= 10) this.add(d.col, d.t, d.end); else this.add(d.col, d.t);
-    } else if (d.kind === 'box') {
-      const t0 = Math.min(d.from.t, d.to.t), t1 = Math.max(d.from.t, d.to.t), c0 = Math.min(d.from.col, d.to.col), c1 = Math.max(d.from.col, d.to.col);
-      if (Math.abs(d.from.y - d.to.y) > 4 || Math.abs(d.from.x - d.to.x) > 4) for (const n of this.notes) if (n.col >= c0 && n.col <= c1 && (n.end ?? n.t) >= t0 && n.t <= t1) this.sel.add(n);
-    }
-  },
-
-  // ── drawing
-  draw() {
-    const c = this.canvas;
-    if (!c || !c.width) return;
-    const k = this._k || 1, ctx = this._ctx || (this._ctx = c.getContext('2d'));
-    const g = this.geo(), now = this.now(), { W, H, cw, x0, hitY } = g;
-    ctx.setTransform(k, 0, 0, k, 0, 0);
-    ctx.fillStyle = '#16151b'; ctx.fillRect(0, 0, W, H);
-    const tTop = this.tOf(0, g, now), tBot = this.tOf(H, g, now);
-    // the stage
-    ctx.fillStyle = '#0b0b0f'; ctx.fillRect(x0, 0, cw * this.keys, H);
-    ctx.fillStyle = 'rgba(255,255,255,.06)'; for (let i = 1; i < this.keys; i++) ctx.fillRect(x0 + i * cw, 0, 1, H);
-    // beat snap lines (lazer's colours: 1/1 white, 1/2 red, 1/3 purple, 1/4 blue, 1/6 & 1/8 yellow, finer grey)
-    for (let ri = 0; ri < this.red.length; ri++) {
-      const r = this.red[ri], next = this.red[ri + 1] ? this.red[ri + 1].time : Infinity, b = r.beatLength / this.divisor, meter = r.meter > 0 ? r.meter : 4;
-      if (!(b > 1)) continue;
-      const from = Math.max(r.time, tBot), to = Math.min(next, tTop);
-      if (from > to) continue;
-      let i = Math.ceil((from - r.time) / b - 1e-6);
-      for (let t = r.time + i * b; t <= to && t < next; i++, t = r.time + i * b) {
-        let d = 1; for (const x of EDIT_DIVISORS) if (x <= this.divisor && Math.abs((i * x / this.divisor) - Math.round(i * x / this.divisor)) < 1e-6) { d = x; break; }
-        const bar = i % (this.divisor * meter) === 0;
-        ctx.globalAlpha = d === 1 ? (bar ? 0.9 : 0.55) : 0.35;
-        ctx.fillStyle = snapColour(d);
-        ctx.fillRect(x0, Math.round(this.yOf(t, g, now)) - (bar ? 1 : 0), cw * this.keys, bar ? 3 : d === 1 ? 2 : 1);
-      }
-    }
-    ctx.globalAlpha = 1;
-    // notes
-    const noteH = 14, pad = 3;
-    for (const n of this.notes) {
-      const end = n.end ?? n.t;
-      if (end < tBot - 50 || n.t > tTop + 50) continue;
-      const x = x0 + n.col * cw + pad, w = cw - pad * 2, y = this.yOf(n.t, g, now), sel = this.sel.has(n);
-      if (n.end != null) {
-        const ye = this.yOf(n.end, g, now);
-        ctx.fillStyle = sel ? 'rgba(255, 204, 34, .55)' : 'rgba(150, 70, 255, .55)';
-        ctx.fillRect(x + w * 0.15, ye, w * 0.7, y - ye);
-        ctx.fillStyle = sel ? '#ffcc22' : '#7d3cff'; this.rr(ctx, x, ye - noteH / 2, w, noteH, 4); ctx.fill();
-      }
-      ctx.fillStyle = sel ? '#ffcc22' : '#9a4dff';
-      this.rr(ctx, x, y - noteH / 2, w, noteH, 4); ctx.fill();
-      if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
-    }
-    // what the tool would place
-    const hv = this.hover, d = this._drag;
-    if (d && d.kind === 'hold') {
-      const x = x0 + d.col * cw + pad, w = cw - pad * 2, y = this.yOf(d.t, g, now), ye = this.yOf(d.end, g, now);
-      ctx.globalAlpha = 0.6; ctx.fillStyle = '#9a4dff'; ctx.fillRect(x + w * 0.15, ye, w * 0.7, y - ye); this.rr(ctx, x, y - noteH / 2, w, noteH, 4); ctx.fill(); this.rr(ctx, x, ye - noteH / 2, w, noteH, 4); ctx.fill(); ctx.globalAlpha = 1;
-    } else if (hv && hv.inside && this.tool !== 'select' && !d) {
-      const t = this.snap(hv.t), x = x0 + hv.col * cw + pad, w = cw - pad * 2;
-      ctx.globalAlpha = 0.4; ctx.fillStyle = '#c9a6ff'; this.rr(ctx, x, this.yOf(t, g, now) - noteH / 2, w, noteH, 4); ctx.fill(); ctx.globalAlpha = 1;
-    }
-    if (d && d.kind === 'box') {
-      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
-      const y0 = this.yOf(d.from.t, g, now), y1 = this.yOf(d.to.t, g, now);
-      ctx.fillRect(Math.min(d.from.x, d.to.x), Math.min(y0, y1), Math.abs(d.to.x - d.from.x), Math.abs(y1 - y0));
-      ctx.strokeRect(Math.min(d.from.x, d.to.x), Math.min(y0, y1), Math.abs(d.to.x - d.from.x), Math.abs(y1 - y0));
-    }
-    // the hit line
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 - 6, hitY - 1, cw * this.keys + 12, 2);
-    // clock and BPM
-    const tt = Math.max(0, now), mm = Math.floor(tt / 60000), ss = Math.floor(tt / 1000) % 60, ms = Math.floor(tt) % 1000;
-    const ts = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}:${String(ms).padStart(3, '0')}`;
-    if (this.timeEl.textContent !== ts) this.timeEl.textContent = ts;
-    const bpm = `${Math.round(60000 / this.redAt(now).beatLength)} BPM`;
-    if (this.bpmEl.textContent !== bpm) this.bpmEl.textContent = bpm;
-    this.metronomeTick(now);
-    if (Music.playing && now >= this.duration) { this.pos = this.duration; Music.pause(); clearEl(this.playBtn).append(icon('play')); }
-    this.drawTimeline(now);
-  },
-  rr(ctx, x, y, w, hh, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, hh, r) : ctx.rect(x, y, w, hh); },
-  /** lazer's summary timeline: where the notes are across the song, and where you are. */
-  drawTimeline(now) {
-    const c = this.tl, k = this._k || 1;
-    if (!c.width) return;
-    const ctx = this._tlCtx || (this._tlCtx = c.getContext('2d')), W = c.width / k, H = c.height / k;
-    if (this._tlDirty || !this._tlImg) {
-      this._tlDirty = false;
-      const off = this._tlImg || (this._tlImg = document.createElement('canvas'));
-      off.width = c.width; off.height = c.height;
-      const o = off.getContext('2d'); o.setTransform(k, 0, 0, k, 0, 0);
-      o.fillStyle = 'rgba(255,255,255,.06)'; o.fillRect(0, H / 2 - 1, W, 2);
-      if (this.peaks) {
-        // (the waveform spans the buffer; the timeline spans the song — the same length)
-        o.fillStyle = 'rgba(102, 204, 255, .22)';
-        const P = this.peaks, n = P.length;
-        for (let i = 0; i < n; i++) { const x = i / n * W, hh = Math.max(1, P[i] * (H - 4)); o.fillRect(x, H / 2 - hh / 2, Math.max(1, W / n), hh); }
-      }
-      const N = Math.max(1, Math.floor(W / 3)), bins = new Array(N).fill(0);
-      for (const n of this.notes) bins[clamp(Math.floor(n.t / this.duration * N), 0, N - 1)]++;
-      const max = Math.max(1, ...bins);
-      o.fillStyle = 'rgba(154, 77, 255, .8)';
-      bins.forEach((v, i) => { if (v) { const hh = Math.max(2, v / max * (H - 8)); o.fillRect(i * 3, H / 2 - hh / 2, 2, hh); } });
-      for (const r of this.red) { o.fillStyle = '#ed1121'; o.fillRect(r.time / this.duration * W, 0, 1.5, 6); }
-      // (lazer's summary timeline parts: kiai sections, bookmarks and the preview point)
-      o.fillStyle = 'rgba(255, 153, 34, .75)';
-      for (const [a, b] of this.kiaiRanges()) o.fillRect(a / this.duration * W, H - 3, Math.max(1.5, (b - a) / this.duration * W), 3);
-      o.fillStyle = '#4080ff';
-      for (const b of this.bookmarks) o.fillRect(b / this.duration * W, H - 10, 1.5, 7);
-      if (this.preview >= 0) { o.fillStyle = '#88b300'; o.fillRect(this.preview / this.duration * W - 0.75, 0, 1.5, H); }
-    }
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.drawImage(this._tlImg, 0, 0);
-    ctx.setTransform(k, 0, 0, k, 0, 0);
-    const x = clamp(now / this.duration, 0, 1) * W;
-    ctx.fillStyle = '#ffcc22'; ctx.fillRect(x - 1, 0, 2, H);
-  },
-
-  // ── keys
-  onKey(e) {
-    if (Screens.current !== this || Overlays.top()) return;
-    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-    const ctrl = e.ctrlKey || e.metaKey, stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
-    if (e.code === 'Space') { stop(); this.togglePlay(); return; }
-    if (ctrl && e.code === 'KeyS') { stop(); this.save(); return; }
-    if (ctrl && e.code === 'KeyZ') { stop(); this.undoStep(!e.shiftKey); return; }
-    if (ctrl && e.code === 'KeyY') { stop(); this.undoStep(false); return; }
-    if (ctrl && e.code === 'KeyB') { stop(); this.toggleBookmark(e.shiftKey); return; }
-    if (ctrl && e.altKey && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); this.jumpBookmark(e.code === 'ArrowRight' ? 1 : -1); return; }
-    // lazer's mania selection tools: flip (Ctrl+H), reverse (Ctrl+J), ← / → move between columns, Ctrl+Shift+C timestamp
-    if (ctrl && e.shiftKey && e.code === 'KeyC') { stop(); this.copyTimestamp(); return; }
-    if (ctrl && e.code === 'KeyH') { stop(); this.transform(n => ({ col: this.keys - 1 - n.col, t: n.t, end: n.end }), 'flip those notes'); return; }
-    if (ctrl && e.code === 'KeyJ') {
-      stop();
-      const list = [...this.sel]; if (!list.length) return;
-      const a = Math.min(...list.map(n => n.t)), b = Math.max(...list.map(n => n.end ?? n.t));
-      this.transform(n => n.end != null ? { col: n.col, t: a + b - n.end, end: a + b - n.t } : { col: n.col, t: a + b - n.t, end: null }, 'reverse those notes');
-      return;
-    }
-    if (!ctrl && !e.altKey && !e.shiftKey && this.sel.size && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { stop(); const d = e.code === 'ArrowRight' ? 1 : -1; this.transform(n => ({ col: n.col + d, t: n.t, end: n.end })); return; }
-    if (ctrl && e.code === 'KeyA') { stop(); this.notes.forEach(n => this.sel.add(n)); return; }
-    // lazer: copy, cut and paste (at the current time, snapped)
-    if (ctrl && (e.code === 'KeyC' || e.code === 'KeyX')) {
-      stop();
-      const list = [...this.sel]; if (!list.length) return;
-      const t0 = Math.min(...list.map(n => n.t));
-      this.clip = list.map(n => ({ dt: n.t - t0, col: n.col, len: n.end != null ? n.end - n.t : null }));
-      if (e.code === 'KeyX') this.remove(list); else Toast.show(`Copied ${plural(list.length, 'note', 'notes')}`);
-      return;
-    }
-    if (ctrl && e.code === 'KeyV') {
-      stop();
-      if (!this.clip || !this.clip.length) return;
-      const at = this.snap(this.now()), made = [];
-      this.commit();
-      for (const c of this.clip) { const t = at + c.dt, end = c.len != null ? t + c.len : null; if (c.col < this.keys && !this.clash(c.col, t, end)) { const n = { t, col: c.col, end }; this.notes.push(n); made.push(n); } }
-      this.sortNotes(); this.sel = new Set(made);
-      return;
-    }
-    if (e.code === 'Delete' || e.code === 'Backspace') { stop(); this.remove([...this.sel]); return; }
-    if (e.code === 'KeyT' && !ctrl && this.tabName === 'timing') { stop(); if (!e.repeat) this.tap(); return; }
-    if (e.code === 'Digit1') { stop(); this.setTool('select'); return; }
-    if (e.code === 'Digit2') { stop(); this.setTool('note'); return; }
-    if (e.code === 'Digit3') { stop(); this.setTool('hold'); return; }
-    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { stop(); this.step(e.code === 'ArrowUp' ? 1 : -1); return; }
-    // lazer: ← / → seek by the beat snap (with nothing selected), Shift+← / → to the previous / next note
-    if (!ctrl && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
-      stop();
-      const d = e.code === 'ArrowRight' ? 1 : -1;
-      if (e.shiftKey) { const now = this.now(), n = d > 0 ? this.notes.find(x => x.t > now + 1) : [...this.notes].reverse().find(x => x.t < now - 1); if (n) this.seek(n.t); }
-      else this.step(d);
-      return;
-    }
-    if (e.code === 'Home') { stop(); this.seek(0); return; }
-    if (e.code === 'End') { stop(); this.seek(this.notes.length ? this.notes[this.notes.length - 1].t : this.duration); return; }
-    if (e.code === 'F5' || (ctrl && e.code === 'Enter')) { stop(); this.test(); return; }
-    if (e.code === 'Escape') { stop(); this.exit(); }
-  },
-  onBack() { this.exit(); return true; },
-
-  // ── file
-  fileMenu() {
-    const r = this.fileBtn.getBoundingClientRect();
-    showMenu(r.left, r.bottom + 4, [
-      { label: 'Save (Ctrl+S)', icon: 'save', onClick: () => this.save() },
-      { label: 'Test (F5)', icon: 'play', onClick: () => this.test() },
-      { label: 'New beatmap from a song…', icon: 'music', onClick: () => this.newBeatmap() },
-      { label: 'Export package (.osz)', icon: 'download', onClick: async () => { if (this.dirty && !(await this.save())) return; BeatmapManager.exportOsz(this.rec.setId); } },
-      { sep: true },
-      { label: 'Exit', icon: 'back', onClick: () => this.exit() },
-    ]);
-  },
-  /** lazer's Edit menu. */
-  editMenu() {
-    const r = this.editBtn.getBoundingClientRect();
-    showMenu(r.left, r.bottom + 4, [
-      { label: 'Undo (Ctrl+Z)', icon: 'back', onClick: () => this.undoStep(true) },
-      { label: 'Redo (Ctrl+Y)', icon: 'retry', onClick: () => this.undoStep(false) },
-      { sep: true },
-      { label: 'Set preview point to current time', icon: 'music', onClick: () => this.setPreview() },
-      { label: 'Add bookmark (Ctrl+B)', icon: 'flag', onClick: () => this.toggleBookmark(false) },
-      { label: 'Remove closest bookmark (Ctrl+Shift+B)', icon: 'trash', onClick: () => this.toggleBookmark(true) },
-      { label: this.kiaiAt(this.snap(this.now())) ? 'End kiai here' : 'Start kiai here', icon: 'magic', onClick: () => this.toggleKiai() },
-    ]);
-  },
-  /** The difficulty as an .osu file: the original, with its [Metadata], [Difficulty], [TimingPoints] and
-   *  [HitObjects] written from the editor (`over`: a new difficulty's name and notes). */
-  serialize(over = {}) {
-    const notes = over.notes || this.notes, meta = { ...this.meta, ...(over.Version ? { Version: over.Version } : {}) };
-    const hit = notes.map(n => {
-      const x = Math.floor((n.col + 0.5) * 512 / this.keys);
-      return n.end != null ? `${x},192,${n.t},128,0,${n.end}:0:0:0:0:` : `${x},192,${n.t},1,0,0:0:0:0:`;
-    });
-    const tp = [...this.red.map(r => ({ ...r, u: 1 })), ...this.green.map(g => ({ ...g, u: 0 }))].sort((a, b) => a.time - b.time || b.u - a.u)
-      .map(p => `${Math.round(p.time)},${p.beatLength},${p.meter || 4},${p.sampleSet ?? 1},${p.sampleIndex ?? 0},${p.volume ?? 100},${p.u},${p.effects || 0}`);
-    let text = this.text.replace(/\r\n/g, '\n');
-    text = EditorScreen.setKeys(text, 'Metadata', meta);
-    text = EditorScreen.setKeys(text, 'Difficulty', { HPDrainRate: +this.diffSet.hp.toFixed(1), OverallDifficulty: +this.diffSet.od.toFixed(1), CircleSize: this.keys });
-    text = EditorScreen.setKeys(text, 'General', { PreviewTime: Math.round(this.preview), Mode: 3 });
-    if (this.bookmarks.length || /^\[Editor\]/m.test(text)) {
-      // (osu! keeps [Editor] between [General] and [Metadata])
-      if (!/^\[Editor\]/m.test(text)) text = /^\[Metadata\]/m.test(text) ? text.replace(/^\[Metadata\]/m, '[Editor]\n\n[Metadata]') : text;
-      text = EditorScreen.setKeys(text, 'Editor', { Bookmarks: this.bookmarks.map(Math.round).join(',') });
-    }
-    if (this.newBg) text = EditorScreen.setBackground(text, this.newBg.name);
-    text = EditorScreen.setSection(text, 'TimingPoints', tp);
-    text = EditorScreen.setSection(text, 'HitObjects', hit);
-    return text.replace(/\n{3,}/g, '\n\n');
-  },
-  /** An .osu section's lines replaced (added at the end when there isn't one). */
-  setSection(text, name, lines) {
-    const re = new RegExp(`^\\[${name}\\][ \\t]*$`, 'm'), m = re.exec(text);
-    if (!m) return `${text.trimEnd()}\n\n[${name}]\n${lines.join('\n')}\n`;
-    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m);
-    const end = next < 0 ? text.length : start + next;
-    return `${text.slice(0, m.index)}[${name}]\n${lines.join('\n')}\n${next < 0 ? '' : '\n'}${text.slice(end)}`;
-  },
-  /** The [Events] background line (0,0,"file",0,0) set to a file: replaced where it is, or added. */
-  setBackground(text, file) {
-    const line = `0,0,"${file}",0,0`;
-    const m = /^\[Events\][ \t]*$/m.exec(text);
-    if (!m) return EditorScreen.setSection(text, 'Events', ['//Background and Video events', line]);
-    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m), end = next < 0 ? text.length : start + next;
-    let body = text.slice(start, end);
-    const re = /^[ \t]*0[ \t]*,[ \t]*0[ \t]*,[ \t]*"[^"\n]*"[^\n]*$/m;
-    if (re.test(body)) body = body.replace(re, line);
-    else if (/^\/\/Background and Video events.*$/m.test(body)) body = body.replace(/^(\/\/Background and Video events.*)$/m, `$1\n${line}`);
-    else body = `\n${line}${body}`;
-    return text.slice(0, start) + body + text.slice(end);
-  },
-  /** key:value lines in an .osu section set (each replaced where it is, or added). */
-  setKeys(text, name, obj) {
-    const re = new RegExp(`^\\[${name}\\][ \\t]*$`, 'm'), m = re.exec(text);
-    if (!m) return EditorScreen.setSection(text, name, Object.entries(obj).map(([k, v]) => `${k}:${v}`));
-    const start = m.index + m[0].length, rest = text.slice(start), next = rest.search(/^\[/m);
-    let body = next < 0 ? rest : rest.slice(0, next);
-    for (const [k, v] of Object.entries(obj)) {
-      const kr = new RegExp(`^${k}[ \\t]*:.*$`, 'm');
-      if (kr.test(body)) body = body.replace(kr, `${k}:${v}`); else body = body.replace(/\s*$/, `\n${k}:${v}\n`);
-    }
-    return text.slice(0, start) + body.replace(/\s*$/, '\n\n') + (next < 0 ? '' : rest.slice(next));
-  },
-  async save() {
-    if (this._saving) return false;
-    this._saving = true;
-    try {
-      const text = this.serialize();
-      const rec = await BeatmapManager.saveDifficulty(this.rec, text, await this.siblings());
-      if (!rec) throw new Error('The saved difficulty couldn\'t be read back.');
-      this.rec = rec; this.text = text; this.setDirty(false);
-      this.origMeta = { ...this.meta }; this.paintTitle(); if (this.newBg) { URL.revokeObjectURL(this.newBg.url); this.newBg = null; }
-      Settings.set('last.map', rec.id); SongSelect.selectedId = rec.id;
-      Toast.ok('Beatmap saved', `${rec.version}: ${plural(this.notes.length, 'note', 'notes')}`);
-      return true;
-    } catch (e) { Toast.err('Couldn\'t save', friendlyError(e)); return false; } finally { this._saving = false; }
-  },
-  async test() {
-    if (this.dirty && !(await this.save())) return;
-    if (Music.playing) Music.pause();
-    UISounds.click();
-    Game.launch({ mapId: this.rec.id, mode: 'play', mods: [], editor: { mapId: this.rec.id, pos: this.now() } });
-  },
-  async exit() {
-    if (this.dirty) {
-      const choice = await new Promise(res => {
-        let v = 'cancel';
-        Dialog.popup('Save your changes?', 'You have changes that haven\'t been saved.', [
-          { label: 'Save and exit', colour: '#ff66aa', onClick: () => { v = 'save'; } },
-          { label: 'Exit without saving', colour: '#cc3333', cls: 'ok.danger', onClick: () => { v = 'discard'; } },
-          { label: 'Keep editing', colour: '#66ccff', cls: 'cancel', cancel: true },
-        ], { icon: 'save', onClose: () => res(v) });
-      });
-      if (choice === 'cancel') return;
-      if (choice === 'save' && !(await this.save())) return;
-    }
-    Screens.go('songselect', { mapId: this.rec.id }, { replace: true });
   },
 };
 
@@ -25750,7 +24643,7 @@ const Mobile = {
     let vol = null;
     document.addEventListener('touchstart', e => {
       const playing = Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running && GameplayScreen.s.mode === 'play';
-      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se, .editor')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
+      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
     }, { passive: true });
     document.addEventListener('touchmove', e => {
       if (!vol || e.touches.length !== 2) return;
@@ -26321,31 +25214,13 @@ const Chat = {
     const d = new Date(l.at), t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const me = l.from.pid && l.from.pid === Presence.pid();
     const act = /^\/me\s+/.test(l.text || '');
-    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', ...this.linkify(l.text))));
+    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', l.text)));
     // (/me: lazer's action line — the name and what they did, in italics)
     else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}${!me && this.mentions(l.text) ? '.mention' : ''}`,
       h('span.ch-time', t),
       h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
-      h('span.ch-text', ...this.linkify(act ? l.text.replace(/^\/me\s+/, '') : l.text))));
+      h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
     if (scroll && (stick || me)) this.lines.scrollTop = this.lines.scrollHeight;
-  },
-  /** lazer's editor timestamps (00:12:345 (12345|0,12500|2)) as links: they take the editor there and select those notes. */
-  linkify(text) {
-    const out = [], re = /\b(\d{2,}):(\d{2}):(\d{3})(?: \(((?:\d+\|\d+,?)+)\))?/g;
-    let last = 0, m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) out.push(text.slice(last, m.index));
-      const t = +m[1] * 60000 + +m[2] * 1000 + +m[3], notes = m[4] ? m[4].split(',').filter(Boolean).map(x => x.split('|').map(Number)) : [];
-      out.push(h('a.ch-stamp', { href: '#', title: 'Go there in the editor', onclick: e => { e.preventDefault(); this.goStamp(t, notes); } }, m[0]));
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) out.push(text.slice(last));
-    return out;
-  },
-  goStamp(t, notes) {
-    if (Screens.currentName !== 'editor' || !EditorScreen.notes) { Toast.show('Open the beatmap in the editor', 'Timestamps take the editor to that moment.'); return; }
-    this.close();
-    EditorScreen.goTo(t, notes);
   },
   paintList() {
     if (!this.o) return;
@@ -26892,7 +25767,6 @@ const App = {
     Screens.register('dashboard', DashboardScreen);
     Screens.register('rankings', RankingsScreen);
     Screens.register('daily', DailyScreen);
-    Screens.register('editor', EditorScreen);
     Screens.register('multiplayer', MultiplayerScreen);
     Screens.register('collections', CollectionsScreen);
     Screens.register('profile', ProfileScreen);
@@ -26903,7 +25777,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, EditorScreen, SkinEditor, HudLayout, Screenshot, UserTags };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

@@ -36,7 +36,7 @@ const Mobile = {
     let vol = null;
     document.addEventListener('touchstart', e => {
       const playing = Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.running && GameplayScreen.s.mode === 'play';
-      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se, .editor')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
+      vol = e.touches.length === 2 && !playing && !(e.target.closest && e.target.closest('input, textarea, .se')) ? { y: (e.touches[0].clientY + e.touches[1].clientY) / 2, acc: 0 } : null;
     }, { passive: true });
     document.addEventListener('touchmove', e => {
       if (!vol || e.touches.length !== 2) return;

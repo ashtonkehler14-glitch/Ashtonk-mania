@@ -166,31 +166,13 @@ const Chat = {
     const d = new Date(l.at), t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const me = l.from.pid && l.from.pid === Presence.pid();
     const act = /^\/me\s+/.test(l.text || '');
-    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', ...this.linkify(l.text))));
+    if (l.local) this.lines.append(h('div.ch-line.local', h('span.ch-time', t), h('span.ch-text', l.text)));
     // (/me: lazer's action line — the name and what they did, in italics)
     else this.lines.append(h(`div.ch-line${me ? '.me' : ''}${act ? '.act' : ''}${!me && this.mentions(l.text) ? '.mention' : ''}`,
       h('span.ch-time', t),
       h('span.ch-name', { style: { color: this.colour(l.from) }, title: l.from.name }, act ? `* ${l.from.name || '?'}` : l.from.name || '?'),
-      h('span.ch-text', ...this.linkify(act ? l.text.replace(/^\/me\s+/, '') : l.text))));
+      h('span.ch-text', act ? l.text.replace(/^\/me\s+/, '') : l.text)));
     if (scroll && (stick || me)) this.lines.scrollTop = this.lines.scrollHeight;
-  },
-  /** lazer's editor timestamps (00:12:345 (12345|0,12500|2)) as links: they take the editor there and select those notes. */
-  linkify(text) {
-    const out = [], re = /\b(\d{2,}):(\d{2}):(\d{3})(?: \(((?:\d+\|\d+,?)+)\))?/g;
-    let last = 0, m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) out.push(text.slice(last, m.index));
-      const t = +m[1] * 60000 + +m[2] * 1000 + +m[3], notes = m[4] ? m[4].split(',').filter(Boolean).map(x => x.split('|').map(Number)) : [];
-      out.push(h('a.ch-stamp', { href: '#', title: 'Go there in the editor', onclick: e => { e.preventDefault(); this.goStamp(t, notes); } }, m[0]));
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) out.push(text.slice(last));
-    return out;
-  },
-  goStamp(t, notes) {
-    if (Screens.currentName !== 'editor' || !EditorScreen.notes) { Toast.show('Open the beatmap in the editor', 'Timestamps take the editor to that moment.'); return; }
-    this.close();
-    EditorScreen.goTo(t, notes);
   },
   paintList() {
     if (!this.o) return;

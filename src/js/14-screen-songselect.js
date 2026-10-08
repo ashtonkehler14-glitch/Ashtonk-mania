@@ -1129,7 +1129,6 @@ const SongSelect = {
       { label: 'Play', icon: 'play', onClick: () => this.play() },
       { label: 'Practice', icon: 'flag', onClick: () => this.play('practice') },
       { label: 'Watch Auto', icon: 'film', onClick: () => this.play('auto') },
-      { label: 'Edit', icon: 'edit', onClick: () => Screens.go('editor', { mapId: m.id }) },
       { sep: true },
       { label: Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', icon: 'heart', onClick: () => Favorites.toggle(set.id) },
       // (lazer's carousel menu: straight to the collections, ticked where this difficulty already is)
@@ -1180,7 +1179,6 @@ const SongSelect = {
       btn('Play', 'play', () => this.play()),
       btn('Practice', 'flag', () => this.play('practice')),
       btn('Watch Auto', 'film', () => this.play('auto')),
-      btn('Edit', 'editcircle', () => Screens.go('editor', { mapId: m.id })),
       btn(Favorites.has(set.id) ? 'Remove from favourites' : 'Add to favourites', 'heart', () => Favorites.toggle(set.id)),
       btn('Clear local scores', 'trash', () => this.clearScores(m)),
       btn('Hide', 'x', () => this.hideMap(m)),

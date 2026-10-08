@@ -372,6 +372,7 @@ const GameplayScreen = {
     if (this.s) {
       if (this.s.running) this.pause();
       else if (this.pauseEl && !this.s.failed) this.resume();
+      else if (this.pauseEl && this.s.failed) { SkinManager.skinOnly('pause-back-click'); this.quit(); } // (lazer's fail screen: Back is its last button, Quit)
       else if (this.replayBar && !this.s.finished) this.showPause('Paused'); // paused from the replay controls
     }
     return true;
@@ -1665,7 +1666,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   quit() {
     clearTimeout(this._cdT);
-    if (this.params.editor) { Screens.go('editor', this.params.editor, { replace: true }); return; } // (lazer: Test comes back to the editor)
     if (this.params.replay && this.params.returnTo) { Screens.go('results', this.params.returnTo, { replace: true }); return; }
     if (this.params.back) { Screens.go(this.params.back.name, this.params.back.params || {}, { replace: true }); return; } // (back where it was started from: the daily challenge, your replays)
     Screens.go('songselect', { mapId: this.params.mapId }, { replace: true });
@@ -1722,7 +1722,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, editor: this.params.editor || null, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
       if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }

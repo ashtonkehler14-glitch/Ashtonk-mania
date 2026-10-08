@@ -116,7 +116,7 @@ const ResultsScreen = {
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
   },
-  onBack() { if (this.p.back) Screens.go(this.p.back.name, this.p.back.params, { replace: true }); else if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else if (this.p.editor) Screens.go('editor', this.p.editor, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
+  onBack() { if (this.p.back) Screens.go(this.p.back.name, this.p.back.params, { replace: true }); else if (this.p.mp && Multiplayer.inRoom()) Screens.go('multiplayer', {}, { replace: true }); else Screens.go('songselect', { mapId: this.p.score.mapId }, { replace: true }); return true; },
   retry() {
     const s = this.p.score;
     const map = BeatmapManager.mapByHash(s.mapHash);
