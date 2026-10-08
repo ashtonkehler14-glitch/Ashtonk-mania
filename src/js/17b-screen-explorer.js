@@ -11,6 +11,12 @@ const OnlineBeatmaps = {
     sayobot: 'https://dl.sayobot.cn/beatmaps/download/$setId', osudirect: 'https://osu.direct/api/d/$setId',
     nekoha: 'https://mirror.nekoha.moe/api4/download/$setId',
   },
+  // the same sets without their video (lazer's "Download without Video"), from the providers that offer it — the others
+  // send the whole set and the video is left out as it's added to the library
+  NO_VIDEO_PROVIDERS: {
+    mino: 'https://catboy.best/d/$setIdn', nerinyan: 'https://api.nerinyan.moe/d/$setId?noVideo=1',
+    sayobot: 'https://dl.sayobot.cn/beatmaps/download/novideo/$setId', osudirect: 'https://osu.direct/api/d/$setId?noVideo=1',
+  },
   PREVIEW_PROVIDERS: { official: 'https://b.ppy.sh/preview/$setId.mp3', beatconnect: 'https://beatconnect.io/preview/$setId.mp3', sayobot: 'https://cdnx.sayobot.cn:25225/preview/$setId.mp3' },
   COVER_PROVIDERS: { official: 'https://assets.ppy.sh/beatmaps/$setId/covers/$kind.jpg', sayobot: 'https://a.sayobot.cn/beatmaps/$setId/covers/cover.webp' },
   _covers: new Map(),
@@ -18,11 +24,12 @@ const OnlineBeatmaps = {
   /** Where to download a set from, as Web-Osu-Mania's getBeatmapSet: the chosen provider's URL — through the game's
    *  server (/api/downloadBeatmap?destinationUrl=…) when "proxy downloads" is on, straight from the browser otherwise —
    *  then (unlike WOM, so one provider being down doesn't stop you) the other providers directly. */
-  downloadURLs(id, viaServer) {
+  downloadURLs(id, viaServer, noVideo = false) {
     const choice = Settings.get('online.downloadSource') in this.DOWNLOAD_PROVIDERS || Settings.get('online.downloadSource') === 'custom' ? Settings.get('online.downloadSource') : 'mino';
     const customTpl = (Settings.get('online.customDownload') || '').trim();
-    const primary = choice === 'custom' && customTpl.includes('$setId') ? this.fill(customTpl, id) : this.fill(this.DOWNLOAD_PROVIDERS[choice in this.DOWNLOAD_PROVIDERS ? choice : 'mino'], id);
-    const others = Object.keys(this.DOWNLOAD_PROVIDERS).filter(k => k !== choice).map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
+    const tpl = k => (noVideo && this.NO_VIDEO_PROVIDERS[k]) || this.DOWNLOAD_PROVIDERS[k];
+    const primary = choice === 'custom' && customTpl.includes('$setId') ? this.fill(customTpl, id) : this.fill(tpl(choice in this.DOWNLOAD_PROVIDERS ? choice : 'mino'), id);
+    const others = Object.keys(this.DOWNLOAD_PROVIDERS).filter(k => k !== choice).map(k => this.fill(tpl(k), id));
     const first = viaServer && choice !== 'custom' ? `api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}` : primary;
     return [...new Set([first, ...(first !== primary ? [primary] : []), ...others])];
   },
@@ -145,9 +152,10 @@ const OnlineBeatmaps = {
     return r.json();
   },
   /** Download an .osz with progress; returns a File. */
-  async download(id, onProgress) {
+  /** (`noVideo`: lazer's "Download without Video" — Settings → Prefer downloads without video, unless said) */
+  async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo')) {
     const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
-    const urls = this.downloadURLs(id, viaServer);
+    const urls = this.downloadURLs(id, viaServer, noVideo);
     let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
     for (const url of urls) {
       // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
@@ -175,15 +183,15 @@ const OnlineBeatmaps = {
           blob = new Blob(chunks);
         } else blob = await r.blob();
         if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
-        return new File([blob], `${id}.osz`, { type: 'application/zip' });
+        return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
       } catch (e) { lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
       finally { clearTimeout(timer); }
     }
     throw firstErr || lastErr || new Error('Download failed');
   },
   /** Download a set and import it into the library (remembering its online id). */
-  async downloadAndImport(set, onProgress, { quiet = false } = {}) {
-    const file = await this.download(set.id, onProgress);
+  async downloadAndImport(set, onProgress, { quiet = false, noVideo } = {}) {
+    const file = await this.download(set.id, onProgress, noVideo);
     // (downloads can run side by side; adding them to the library goes one at a time)
     const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
     this._importQ = run.catch(() => {});
@@ -631,7 +639,7 @@ const ExplorerScreen = {
       ? h('div.ex-side-btn.busy', { title: 'Downloading…', style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span.spinner'))
       : this.mpPick ? h('button.ex-side-btn', { title: 'Choose a difficulty', 'aria-label': 'Choose a difficulty', onclick: e => { e.stopPropagation(); this.openSet(set); } }, icon('multi'))
         : owned ? h('button.ex-side-btn.play', { title: 'Play', 'aria-label': 'Play', onclick: e => { e.stopPropagation(); const m = owned.maps.find(x => !x.problems.length) || owned.maps[0]; this.playLocal(m); } }, icon('play'))
-          : h('button.ex-side-btn.dl', { title: 'Download', 'aria-label': 'Download', onclick: e => { e.stopPropagation(); this.download(set); } }, icon('download'));
+          : h('button.ex-side-btn.dl', { title: !set.video ? 'Download' : Settings.get('online.preferNoVideo') ? 'Download without video' : 'Download with video', 'aria-label': 'Download', onclick: e => { e.stopPropagation(); this.download(set); } }, icon('download'));
     const card = h(`div.ex-card${owned ? '.owned' : ''}`, { dataset: { id: set.id }, tabindex: '0', role: 'button', 'aria-label': `${artist} - ${title}`, onclick: () => this.openSet(set),
       onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); this.openSet(set); } } },
       bg, h('div.ex-cardshade'),
@@ -752,7 +760,12 @@ const ExplorerScreen = {
     if (dl && dl.state === 'downloading') main = h('div.bso-dl.busy', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('i'), h('span', 'Downloading…'), h('small', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
     else if (this.mpPick) main = h('button.bso-dl', { onclick: () => this.mpPickDiff(set, d) }, icon(Multiplayer.isHost() ? 'play' : 'multi'), h('span', Multiplayer.isHost() ? 'Pick for the room' : 'Recommend to the host'), h('small', d.version));
     else if (owned) { const m = owned.maps.find(x => x.onlineId === d.id) || owned.maps.find(x => !x.problems.length) || owned.maps[0]; main = h('button.bso-dl.play', { onclick: () => this.playLocal(m) }, icon('play'), h('span', 'Play'), h('small', m.version)); }
-    else main = h('button.bso-dl', { onclick: () => this.download(set) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'), h('small', set.video ? 'with video' : 'osu!mania beatmap'));
+    else {
+      // (as in lazer, a set with a video has a second button to download it without)
+      const btn = noVideo => h('button.bso-dl', { onclick: () => this.download(set, noVideo) }, icon('download'), h('span', dl && dl.state === 'error' ? 'Retry download' : 'Download'),
+        h('small', !set.video ? 'osu!mania beatmap' : noVideo ? 'without video' : 'with video'));
+      main = set.video ? [btn(false), btn(true)] : btn(false);
+    }
     const genre = set.genreId > 1 ? (EXPLORE_GENRES.find(([v]) => v === set.genreId) || [])[1] : null;
     const lang = set.languageId > 1 ? (EXPLORE_LANGUAGES.find(([v]) => v === set.languageId) || [])[1] : null;
     const when = date(set.rankedDate || set.lastUpdated);
@@ -795,7 +808,7 @@ const ExplorerScreen = {
               h('span.dim.bso-stat', { title: 'Favourites' }, icon('heart'), fmtCompact(set.favourites))].filter(Boolean)),
             h('div.bso-buttons',
               h('button.bso-fav', { title: 'Preview', 'aria-label': 'Preview', onclick: () => { this.togglePreview(set.id); this.renderSet(); } }, icon(playing ? 'pause' : 'play')),
-              main),
+              ...[main].flat()),
             body.children.length ? body : null),
           h('div.bso-card',
             h('div.bso-basics', basic('clock', 'Length', fmtTime(d.length * 1000)), basic('music', 'BPM', String(Math.round(d.bpm))),
@@ -806,7 +819,7 @@ const ExplorerScreen = {
     const sc = this.setEl.querySelector('.bso-scroll');
     if (sc) sc.scrollTop = top;
   },
-  async download(set) {
+  async download(set, noVideo) {
     if (this.downloads.get(set.id)?.state === 'downloading') return;
     const state = { state: 'downloading', progress: 0, bytes: 0 };
     this.downloads.set(set.id, state);
@@ -819,7 +832,7 @@ const ExplorerScreen = {
         state.progress = p; state.bytes = bytes;
         const now = performance.now();
         if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); note.set(p, p != null ? `${Math.round(p * 100)}% · ${fmtBytes(bytes || 0)}` : fmtBytes(bytes || 0)); }
-      }, { quiet: true });
+      }, { quiet: true, noVideo });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
       note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);

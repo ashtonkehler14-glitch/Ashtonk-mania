@@ -622,8 +622,8 @@ await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
 const rows = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
-// (room for the hit position and note offset, asked to be regular settings)
-check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 46, String(rows));
+// (room for the hit position and note offset, asked to be regular settings, and lazer's Prefer downloads without video)
+check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 47, String(rows));
 check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Renderer scale|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
@@ -733,6 +733,26 @@ check('once downloaded, the beatmap info page offers Play', true);
 check('toasts sit below the beatmap info page\'s close button (a phone has no Esc)', await page.evaluate(() => { const c = document.querySelector('.bso-close').getBoundingClientRect(), e = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2); return !!document.querySelector('#toasts .toast') && !!(e && e.closest('.bso-close')); }));
 check('a download\'s progress entry leaves the notifications once it\'s in the library', await page.evaluate(() => !Notifications.list.some(n => n.prog != null) && Notifications.list.some(n => /^Downloaded /.test(n.title))));
 await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+{
+  // lazer's "Download without Video": a set with a video has a second button, which asks the mirrors for the set without it
+  const nv = await page.evaluate(async raw => {
+    const E = AshtonkMania.ExplorerScreen, O = AshtonkMania.OnlineBeatmaps, real = O.downloadAndImport, calls = [];
+    O.downloadAndImport = async (s, p, opts) => { calls.push(opts && opts.noVideo); return { sets: [] }; };
+    try {
+      E.openSet(O.normalize(raw));
+      const btns = [...document.querySelectorAll('.bso-buttons .bso-dl')], labels = btns.map(b => b.innerText.replace(/\s+/g, ' ').trim());
+      btns[1].click();
+      await new Promise(r => setTimeout(r, 100));
+      E.downloads.delete(raw.id); E.imported.delete(raw.id); E.closeSet();
+      return { labels, calls, urls: O.downloadURLs(5, false, true), proxied: O.downloadURLs(5, true, true)[0], plain: O.downloadURLs(5, false)[0] };
+    } finally { O.downloadAndImport = real; }
+  }, osuRaw(778, 'Video Song', { video: true }));
+  check('a beatmap with a video has Download with video / without video buttons, as in lazer', nv.labels.length === 2 && /with video/.test(nv.labels[0]) && /without video/.test(nv.labels[1]) && nv.calls[0] === true, JSON.stringify(nv));
+  check('downloads without video ask each mirror for its no-video file (Nekoha has none: the video is left out on import)',
+    nv.urls[0] === 'https://catboy.best/d/5n' && nv.urls.includes('https://api.nerinyan.moe/d/5?noVideo=1') && nv.urls.includes('https://dl.sayobot.cn/beatmaps/download/novideo/5') && nv.urls.includes('https://osu.direct/api/d/5?noVideo=1')
+    && nv.urls.includes('https://mirror.nekoha.moe/api4/download/5') && nv.proxied === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5n') && nv.plain === 'https://catboy.best/d/5', JSON.stringify(nv));
+  await page.waitForTimeout(400);
+}
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor
   const seen = [];

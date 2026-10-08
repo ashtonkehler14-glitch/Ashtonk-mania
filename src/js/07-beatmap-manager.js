@@ -184,7 +184,9 @@ const BeatmapManager = {
     try { zip = new ZipReader(await file.arrayBuffer()); }
     catch (e) { throw new Error(`Corrupt archive (${e.message})`); }
     const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e) }))
-      .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name));
+      .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name))
+      // (downloaded "without video": a provider that sent the video anyway doesn't get it kept)
+      .filter(e => !file.noVideo || !/\.(mp4|webm|m4v|mov|avi|flv|wmv|mkv)$/i.test(e.name));
     const base = file.name.replace(/\.(osz|zip)$/i, '');
     // an archive with everything inside a folder (a zipped song folder, or a .zip of several): each folder that has
     // difficulties is a beatmap folder of its own, its files' paths taken from there (the audio and background
