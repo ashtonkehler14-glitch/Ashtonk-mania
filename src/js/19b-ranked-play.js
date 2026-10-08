@@ -214,13 +214,14 @@ const RankedMatch = {
     const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
   },
-  /** As lazer's fixed layout: a screen shorter than the match's (a phone on its side, a big interface size) shows all
-   *  of it, smaller, instead of the hands, the stage text and the chat running into each other. (Upright, a phone has
+  /** As lazer's fixed layout: a screen shorter or narrower than the match's (a phone on its side, a big interface size,
+   *  a 4:3 tablet or a 16:10 laptop) shows all of it, smaller, instead of the hands, the stage text and the chat running
+   *  into each other — the hand of five needs about 1,500 wide to clear the chat and your corner. (Upright, a phone has
    *  its own narrow layout.) */
   fit() {
     const r = this.root, p = r && r.parentElement;
     if (!p || !p.clientHeight) return;
-    const k = p.clientWidth < p.clientHeight ? 1 : Math.min(1, p.clientHeight / 800, p.clientWidth / 1200);
+    const k = p.clientWidth < p.clientHeight ? 1 : Math.min(1, p.clientHeight / 800, p.clientWidth / 1500);
     const z = k > 0.97 ? '' : String(Math.round(k * 1000) / 1000);
     if (r.style.zoom !== z) r.style.zoom = z;
   },

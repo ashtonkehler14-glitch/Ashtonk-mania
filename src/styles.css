@@ -1308,7 +1308,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-map-t { font-size: 1.5rem; font-weight: 600; }
 .mp-map-a { color: #ddd; }
 .mp-map-d { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-.mp-map-actions { display: flex; gap: 8px; margin-top: 12px; }
+.mp-map-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; } /* (a narrow card — a tablet — puts the second button underneath instead of cutting it off) */
 .mp-warn { color: #ffcc22; font-size: .85rem; }
 .mp-players, .mp-chat { border-radius: 10px; background: var(--panel-solid); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .mp-players h3, .mp-chat h3 { margin: 0 0 2px; font-size: .9rem; font-weight: 600; color: var(--text-2); }

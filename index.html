@@ -1327,7 +1327,7 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-map-t { font-size: 1.5rem; font-weight: 600; }
 .mp-map-a { color: #ddd; }
 .mp-map-d { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-.mp-map-actions { display: flex; gap: 8px; margin-top: 12px; }
+.mp-map-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; } /* (a narrow card — a tablet — puts the second button underneath instead of cutting it off) */
 .mp-warn { color: #ffcc22; font-size: .85rem; }
 .mp-players, .mp-chat { border-radius: 10px; background: var(--panel-solid); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .mp-players h3, .mp-chat h3 { margin: 0 0 2px; font-size: .9rem; font-weight: 600; color: var(--text-2); }
@@ -19333,7 +19333,7 @@ const CHANGELOG = [
       'Ranked Play: your own corner shows "Reconnecting…" while your connection is down, and the stage timer no longer jumps back when the screen updates',
       'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
       'On a phone on its side the room scrolls, instead of the chat covering the beatmap; leaving or quitting asks with a warning sign, not a bin',
-      'Ranked Play fits a phone held sideways (or a big interface size): the whole match shows, smaller, instead of the hands, the stage text and the chat running into each other — and the round\'s results say "Round N" once',
+      'On a tablet the room\'s Change beatmap / Search beatmaps buttons stack instead of the second running off the card', 'Ranked Play on a tablet or a 16:10 laptop: the match shrinks a little to fit, instead of your hand of cards covering the chat and your corner', 'Ranked Play fits a phone held sideways (or a big interface size): the whole match shows, smaller, instead of the hands, the stage text and the chat running into each other — and the round\'s results say "Round N" once',
       'With the network down, multiplayer says so plainly ("You\'re offline…") instead of "Failed to fetch"; on a phone, the "get the app" reminder shows once a visit and never over a match a reload is taking you back into'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own', 'Holding R or ` while watching no longer restarts their song from the top, and Ctrl+` stops watching (as Esc does) instead of going to song select'] },
     { icon: 'edit', title: 'Beatmap editor', items: ['The beatmap editor has been removed (the skin layout editor stays)'] },
@@ -23086,13 +23086,14 @@ const RankedMatch = {
     const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
   },
-  /** As lazer's fixed layout: a screen shorter than the match's (a phone on its side, a big interface size) shows all
-   *  of it, smaller, instead of the hands, the stage text and the chat running into each other. (Upright, a phone has
+  /** As lazer's fixed layout: a screen shorter or narrower than the match's (a phone on its side, a big interface size,
+   *  a 4:3 tablet or a 16:10 laptop) shows all of it, smaller, instead of the hands, the stage text and the chat running
+   *  into each other — the hand of five needs about 1,500 wide to clear the chat and your corner. (Upright, a phone has
    *  its own narrow layout.) */
   fit() {
     const r = this.root, p = r && r.parentElement;
     if (!p || !p.clientHeight) return;
-    const k = p.clientWidth < p.clientHeight ? 1 : Math.min(1, p.clientHeight / 800, p.clientWidth / 1200);
+    const k = p.clientWidth < p.clientHeight ? 1 : Math.min(1, p.clientHeight / 800, p.clientWidth / 1500);
     const z = k > 0.97 ? '' : String(Math.round(k * 1000) / 1000);
     if (r.style.zoom !== z) r.style.zoom = z;
   },

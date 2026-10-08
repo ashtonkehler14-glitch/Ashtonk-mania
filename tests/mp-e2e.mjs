@@ -538,6 +538,18 @@ check('replaced cards are swapped for new ones from the deck', await alice.evalu
 const active = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room; return r.players.find(p => p.id === r.rp.active).name; });
 const activePage = active === 'Alice' ? alice : bob, otherPage = active === 'Alice' ? bob : alice;
 check('pick phase: the stage overlay names whose pick it is', await otherPage.evaluate(n => [...document.querySelectorAll('.rkm-banner')].some(b => b.textContent.includes(`${n}'s pick`)), active));
+{
+  // a 4:3 screen at a tablet's interface size (125%): the match shrinks to fit instead of the hand of cards covering
+  // the chat and your corner
+  await otherPage.setViewportSize({ width: 1024, height: 768 }); await otherPage.evaluate(() => AshtonkMania.Settings.set('ui.scale', 1.25)); await otherPage.waitForTimeout(600);
+  const ov = await otherPage.evaluate(() => {
+    const R = e => e.getBoundingClientRect(), hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const cards = [...document.querySelectorAll('.rkm-myhand .rkc')].map(R), chat = R(document.querySelector('.rkm-chat')), me = R(document.querySelector('.rkm-corner.me'));
+    return { n: cards.length, chat: cards.some(c => hit(c, chat)), corner: cards.some(c => hit(c, me)), zoom: document.querySelector('.rkm').style.zoom };
+  });
+  await otherPage.evaluate(() => AshtonkMania.Settings.set('ui.scale', 0.9)); await otherPage.setViewportSize({ width: 1400, height: 800 }); await otherPage.waitForTimeout(400);
+  check('Ranked Play on a 4:3 tablet-sized screen: the hand of cards clears the chat and your corner', ov.n === 5 && !ov.chat && !ov.corner && !!ov.zoom, JSON.stringify(ov));
+}
 await activePage.waitForTimeout(1200);
 await activePage.hover('.rkm-myhand .rkh-slot:nth-child(3)');
 await otherPage.waitForFunction(() => document.querySelector('.rkm-opphand .rkh-slot.hover'), null, { timeout: 5000 });
