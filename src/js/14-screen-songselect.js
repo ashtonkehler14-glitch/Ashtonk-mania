@@ -48,7 +48,7 @@ const SongSelect = {
     const el = h('div.ss.entering');
     this.el = el;
     setTimeout(() => el.classList.remove('entering'), 900);
-    this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<120 ln>30', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
+    this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
     this.searchInput.addEventListener('keydown', e => {
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
@@ -306,31 +306,42 @@ const SongSelect = {
   // ── filtering & sorting
   parseQuery(q) {
     const conds = [], words = [];
-    const re = /(keys|key|k|stars|star|sr|bpm|length|len|od|hp|ln|lns|played|notes|creator|mapper|artist|title)\s*(<=|>=|=|<|>|:)\s*("[^"]*"|\S+)/gi;
+    const re = /\b(keys|key|k|stars|star|sr|bpm|length|len|od|hp|ln|lns|played|notes|creator|author|mapper|artist|title|diff|difficulty|version|source|tag|tags)\s*(<=|>=|=|<|>|:)\s*("[^"]*"|\S+)/gi;
     let rest = q.replace(re, (_, k, op, v) => { conds.push({ k: k.toLowerCase(), op, v: v.replace(/"/g, '').toLowerCase() }); return ' '; });
     for (const w of rest.toLowerCase().split(/\s+/)) if (w) words.push(w);
     return { conds, words };
   },
+  /** A length the way lazer's filter reads one — 90, 90s, 2m, 1m30s, 1h, 1:30, 1:02:03 — as [seconds, how close "="
+   *  has to be: half the smallest unit written]. */
+  parseLength(v) {
+    let m = /^(?:(\d+):)?(\d+):(\d{1,2})$/.exec(v);
+    if (m) return [(+(m[1] || 0)) * 3600 + +m[2] * 60 + +m[3], 0.5];
+    m = /^(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?$/.exec(v);
+    if (m && (m[1] || m[2] || m[3])) return [(+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + +(m[3] || 0), m[3] ? 0.5 : m[2] ? 30 : 1800];
+    return /^\d+(?:\.\d+)?$/.test(v) ? [+v, 0.5] : null;
+  },
   mapMatches(m, pq) {
     for (const c of pq.conds) {
-      const num = parseFloat(c.v);
-      let val;
+      let num = parseFloat(c.v), tol = 0.5001, val;
       switch (c.k) {
         case 'keys': case 'key': case 'k': val = this.keysOf(m); break;
-        case 'stars': case 'star': case 'sr': val = m.stars; break;
+        case 'stars': case 'star': case 'sr': val = m.stars; tol = 0.5; break;
         case 'bpm': val = m.bpm; break;
-        case 'length': case 'len': val = m.length / 1000; break;
+        case 'length': case 'len': { const l = this.parseLength(c.v); if (!l) continue; [num, tol] = l; val = m.length / 1000; break; }
         case 'od': val = m.od; break;
         case 'hp': val = m.hp; break;
         case 'ln': case 'lns': val = m.lnRatio * 100; break;
         case 'notes': val = m.objectCount; break;
         case 'played': val = ScoreManager.playCount(m.hash); break;
-        case 'creator': case 'mapper': if (!m.creator.toLowerCase().includes(c.v)) return false; continue;
+        case 'creator': case 'author': case 'mapper': if (!m.creator.toLowerCase().includes(c.v)) return false; continue;
+        case 'diff': case 'difficulty': case 'version': if (!(m.version || '').toLowerCase().includes(c.v)) return false; continue;
+        case 'source': if (!(m.source || '').toLowerCase().includes(c.v)) return false; continue;
+        case 'tag': case 'tags': if (!(m.tags || '').toLowerCase().includes(c.v)) return false; continue;
         case 'artist': if (!(m.artist + ' ' + m.artistUnicode).toLowerCase().includes(c.v)) return false; continue;
         case 'title': if (!(m.title + ' ' + m.titleUnicode).toLowerCase().includes(c.v)) return false; continue;
       }
       if (!isFinite(num)) continue;
-      const ok = c.op === '<' ? val < num : c.op === '>' ? val > num : c.op === '<=' ? val <= num : c.op === '>=' ? val >= num : Math.abs(val - num) < (c.k.startsWith('st') || c.k === 'sr' ? 0.5 : 0.5001);
+      const ok = c.op === '<' ? val < num : c.op === '>' ? val > num : c.op === '<=' ? val <= num : c.op === '>=' ? val >= num : Math.abs(val - num) < tol;
       if (!ok) return false;
     }
     return true;

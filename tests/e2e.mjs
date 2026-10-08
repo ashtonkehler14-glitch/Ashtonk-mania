@@ -226,6 +226,9 @@ check('typing a search, then Enter plays the selected difficulty (as in lazer)',
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = 'keys>=8'; s.query = 'keys>=8'; s.rebuild(true); });
 const syntax = await page.evaluate(() => AshtonkMania.SongSelect.results[0].maps.map(m => m.keys));
 check('filter syntax (keys>=8)', JSON.stringify(syntax) === '[8,9]', JSON.stringify(syntax));
+const lz = await page.evaluate(() => { const s = AshtonkMania.SongSelect, L = v => JSON.stringify(s.parseLength(v)), n = q => { s.searchInput.value = q; s.query = q; s.rebuild(true); return s.results.reduce((a, r) => a + (r.maps ? r.maps.length : 1), 0); };
+  const out = { p: ['90', '90s', '2m', '1m30s', '1:30', '1:02:03', 'abc'].map(L).join(' '), short: n('length<1m'), long: n('length>2m'), all: n(''), diff: n('diff=expert') }; n(''); return out; });
+check('filters read lengths as lazer does (90, 90s, 2m, 1m30s, 1:30) and diff= finds a difficulty by name', lz.p === '[90,0.5] [90,0.5] [120,30] [90,0.5] [90,0.5] [3723,0.5] null' && lz.short === lz.all && lz.long === 0 && lz.diff === 1, JSON.stringify(lz));
 const only = await page.evaluate(() => { const s = AshtonkMania.SongSelect, n = q => { s.searchInput.value = q; s.query = q; s.rebuild(true); return s.results.length; }; return { all: n(''), word: n('anthem'), loose: n('tsnhm'), none: n('zzqx') }; });
 check('search keeps only the songs it names (lazer: every word must appear; no loose letter matching)', only.all >= 1 && only.word === 1 && only.loose === 0 && only.none === 0, JSON.stringify(only));
 await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.value = ''; s.query = ''; AshtonkMania.Settings.set('songselect.group', 'none'); AshtonkMania.Settings.set('songselect.sort', 'stars'); s.rebuild(); });
