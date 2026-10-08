@@ -412,9 +412,10 @@ const ManiaConvert = (() => {
     }
   }
 
-  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. */
-  function convert(bm) {
-    const D = difficulty(bm), T = columnCount(bm), hos = bm.hitObjects;
+  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. `target`: the columns a
+   *  key mod (1K–10K) asks for instead of the beatmap's own count. */
+  function convert(bm, target = 0) {
+    const D = difficulty(bm), T = target >= 1 && target <= 18 ? target : columnCount(bm), hos = bm.hitObjects;
     const seed = seedOf(D);
     const breakTime = (bm.events.breaks || []).reduce((a, b) => a + Math.max(0, b.end - b.start), 0);
     let cdCache = null;

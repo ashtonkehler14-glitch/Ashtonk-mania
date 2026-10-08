@@ -22,12 +22,14 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (typeof osuText !== 'string' || !play || typeof play !== 'object') return fail('bad play');
   let bm;
   try { bm = BeatmapParser.parse(osuText); } catch (e) { return fail('the beatmap could not be read'); }
-  const keys = BeatmapParser.keyCount(bm);
-  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
-  const notes = BeatmapParser.toManiaNotes(bm);
-  if (!notes.length) return fail('the beatmap has no notes');
   // mods: only real ones, and only ranked ones (no Auto, no Autopilot-like helpers)
   const mods = ModSystem.normalize(Array.isArray(play.mods) ? play.mods.map(String) : []);
+  // (a key mod converts an osu! map to that many columns)
+  const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
+  let keys, notes;
+  try { keys = BeatmapParser.keyCount(bm, keyMod); notes = BeatmapParser.toManiaNotes(bm, keyMod); } catch (e) { return fail('not a playable beatmap'); }
+  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
+  if (!notes.length) return fail('the beatmap has no notes');
   if (!ModSystem.isRanked(mods)) return fail('unranked mods');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};

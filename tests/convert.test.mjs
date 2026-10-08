@@ -89,3 +89,29 @@ test('files older than format v5 are moved 24ms later, as osu! does', () => {
   assert.equal(JSON.stringify(old.events.breaks), '[{"start":5024,"end":6024}]');
   assert.equal(std(['256,192,1000,1,0,0:0:0:0:']).hitObjects[0].time, 1000);
 });
+
+test('key mods (1K–10K): a convert takes that many columns, an osu!mania map keeps its own (lazer\'s ManiaKeyMod)', () => {
+  const V = load(['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '09c-verify.js']);
+  assert.equal(V.ModSystem.keyMod(['HD', '4K']), 4);
+  assert.equal(V.ModSystem.keyMod(['HD']), 0);
+  assert.equal(JSON.stringify(V.ModSystem.toggle(['HD', '4K'], '7K')), '["HD","7K"]'); // (one key mod at a time)
+  const objs = Array.from({ length: 30 }, (_, i) => i % 6 ? `${(i * 97) % 512},${(i * 53) % 384},${1000 + i * 200},1,0,0:0:0:0:` : `${(i * 41) % 512},100,${1000 + i * 200},2,0,B|300:300,1,80`);
+  const text = `osu file format v14\n\n[General]\nAudioFilename: a.mp3\nMode: 0\n\n[Difficulty]\nHPDrainRate:5\nCircleSize:4\nOverallDifficulty:5\nApproachRate:7\nSliderMultiplier:1.4\n\n[TimingPoints]\n0,500,4,2,0,70,1,0\n\n[HitObjects]\n${objs.join('\n')}\n`;
+  const bm = V.BeatmapParser.parse(text);
+  assert.equal(V.BeatmapParser.keyCount(bm), 7);
+  for (const k of [1, 4, 8, 10]) {
+    const notes = V.BeatmapParser.toManiaNotes(bm, k);
+    assert.equal(V.BeatmapParser.keyCount(bm, k), k);
+    // (in one column, notes that start during a hold are dropped, as for any overlapping notes)
+    assert.ok(notes.length >= (k > 1 ? 30 : 10) && notes.every(n => n.col >= 0 && n.col < k), `${k}K`);
+    if (k > 1) assert.equal(new Set(notes.map(n => n.col)).size > 1, true);
+  }
+  // the server judges a 4K convert play with 4 columns
+  const notes = V.prepareNotes(V.BeatmapParser.toManiaNotes(bm, 4), 4, ['4K'], 1);
+  const r = V.verifyPlay(text, { mods: ['4K'], seed: 1, events: V.generateAutoInputs(notes, 4).flat() });
+  assert.ok(!r.error, r.error);
+  assert.equal(r.counts[5], 0);
+  // an osu!mania map isn't changed by one
+  const mania = V.BeatmapParser.parse(text.replace('Mode: 0', 'Mode: 3').replace('CircleSize:4', 'CircleSize:6'));
+  assert.equal(V.BeatmapParser.keyCount(mania, 4), 6);
+});

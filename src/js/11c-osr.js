@@ -143,7 +143,8 @@ const LZMA = {
 };
 
 /** osu!'s legacy mod bits ⇄ our mods (lazer-only mods have no bit and are left out of an .osr). */
-const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
+const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30],
+  ['1K', 1 << 26], ['2K', 1 << 28], ['3K', 1 << 27], ['4K', 1 << 15], ['5K', 1 << 16], ['6K', 1 << 17], ['7K', 1 << 18], ['8K', 1 << 19], ['9K', 1 << 24]];
 
 const Osr = {
   /** Read an .osr: { mode, version, beatmapMD5, player, counts, score, maxCombo, mods (bits), date, frames, seed }. */
@@ -251,11 +252,12 @@ const Osr = {
     const mods = this.bitsToMods(o.mods), [geki, c300, katu, c100, c50, miss] = o.counts;
     const total = geki + c300 + katu + c100 + c50 + miss;
     const accuracy = total ? (300 * (geki + c300) + 200 * katu + 100 * c100 + 50 * c50) / (300 * total) : 0;
-    const events = this.eventsFromFrames(o.frames, rec.keys);
+    const keys = (rec.mode === 0 && ModSystem.keyMod(mods)) || rec.keys; // (a key mod on a converted map: its columns)
+    const events = this.eventsFromFrames(o.frames, keys);
     const rep = {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: o.date || Date.now(),
       mapHash: rec.hash, mapId: rec.id, title: rec.title, artist: rec.artist, version: rec.version, creator: rec.creator,
-      keys: rec.keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
+      keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
       windows: timingWindows({ od: rec.od, mods, mode: 'od', rules: RULES }), hp: rec.hp, player: o.player || 'Player',
       duration: events.length ? events[events.length - 3] : 0, modConfig: {}, noFail: mods.includes('NF'), rules: RULES, events,
       summary: { score: o.score, scoreStd: o.version >= 30000000 ? o.score : null, accuracy, maxCombo: o.maxCombo, counts: o.counts, grade: ScoreSystem.gradeFor(accuracy, false, mods, o.counts) },

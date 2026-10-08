@@ -382,9 +382,12 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
-    const keys = BeatmapParser.keyCount(bm);
     const replay = p.replay || null;
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
+    // (a key mod on a converted osu! map: converted to that many columns, as lazer does)
+    const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
+    const keys = BeatmapParser.keyCount(bm, keyMod);
+    const mapNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
     this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
@@ -421,7 +424,7 @@ const GameplayScreen = {
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const redTiming = BeatmapParser.timing(bm);
-    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed, { red: redTiming.red });
+    const baseNotes = prepareNotes(mapNotes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
@@ -460,7 +463,7 @@ const GameplayScreen = {
     const startPos = Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
-    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     if (rec.setId) Toolbar.setNowPlaying(rec); // (not a song still downloading: the menus would try to play it)

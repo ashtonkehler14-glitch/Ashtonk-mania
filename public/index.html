@@ -639,6 +639,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .ss-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ss-filter .ss-row2, .ss-filter .ss-row3 { flex-wrap: nowrap; gap: 5px; }
 .ss-row3 > .ss-sel { flex: 1 1 0; min-width: 0; max-width: 180px; }
+.ss-row2 > .ss-conv { flex: none; }
+.ss-conv[hidden] { display: none; }
 .ss-row3 > .ss-coll { max-width: none; }
 .ss-row3 .select, .ss-row2 .select { flex: 1; min-width: 0; width: 100%; text-overflow: ellipsis; }
 .ss-sel { display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 2px 0 12px; font-size: .78rem; font-weight: 600; color: var(--c2); }
@@ -5561,9 +5563,10 @@ const BeatmapParser = {
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
 
-  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania. */
-  keyCount(bm) {
-    if (bm.mode === 0) return ManiaConvert.columnCount(bm);
+  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania — `target`, the
+   *  count a key mod (1K–10K) picks, when there is one (lazer's key mods change only converts). */
+  keyCount(bm, target = 0) {
+    if (bm.mode === 0) return target || ManiaConvert.columnCount(bm);
     const k = Math.round(bm.cs);
     if (!Number.isFinite(k)) throw new BeatmapError('The key count (CircleSize) isn\'t a number');
     return clamp(k, 1, 18);
@@ -5571,12 +5574,12 @@ const BeatmapParser = {
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
    *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
-  toManiaNotes(bm) {
+  toManiaNotes(bm, target = 0) {
     if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
-    const keys = this.keyCount(bm);
+    const keys = this.keyCount(bm, target);
     let notes = [], spin = null, slide = null;
     if (bm.mode === 0) {
-      try { notes = ManiaConvert.convert(bm).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
+      try { notes = ManiaConvert.convert(bm, target).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
     } else for (const ho of bm.hitObjects) {
       // a spinner in a mania map is a hold in a column lazer picks (by its seeded random numbers)
       if (ho.type & 8 && !(ho.type & 128)) {
@@ -6149,9 +6152,10 @@ const ManiaConvert = (() => {
     }
   }
 
-  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. */
-  function convert(bm) {
-    const D = difficulty(bm), T = columnCount(bm), hos = bm.hitObjects;
+  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. `target`: the columns a
+   *  key mod (1K–10K) asks for instead of the beatmap's own count. */
+  function convert(bm, target = 0) {
+    const D = difficulty(bm), T = target >= 1 && target <= 18 ? target : columnCount(bm), hos = bm.hitObjects;
     const seed = seedOf(D);
     const breakTime = (bm.events.breaks || []).reduce((a, b) => a + Math.max(0, b.end - b.start), 0);
     let cdCache = null;
@@ -8417,28 +8421,9 @@ const BeatmapManager = {
     // difficulties
     const mapRecords = [];
     for (const d of diffs) {
-      const { bm } = d;
-      const v = validateBeatmap(bm, available);
-      let stats = null;
-      if (!v.problems.length) {
-        try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); }
-      }
-      const m = bm.metadata;
-      const rec = {
-        id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
-        onlineId: parseInt(m.BeatmapID || '-1', 10),
-        title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
-        artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
-        creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
-        osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
-        previewTime: bm.previewTime, mode: bm.mode, keys: BeatmapParser.keyCount(bm),
-        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
-        breaks: bm.events.breaks,
-        added: existing?.added || Date.now(),
-        ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
-      };
+      const rec = this._mapRecord(d, setId, available, existing?.added || Date.now());
       // difficulties that can't be played (other game modes, missing audio…) aren't kept at all
-      if (v.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`); continue; }
+      if (rec.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${rec.problems.join('; ')}`); continue; }
       mapRecords.push(rec);
     }
     if (!mapRecords.length && !existing) {
@@ -8472,6 +8457,63 @@ const BeatmapManager = {
     this.setById.set(setId, set);
     BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`bg:${setId}/`);
     return set;
+  },
+
+  /** A difficulty's library record: d = { bm, hash, entry: { name } } (its .osu, read), `available`: the set's files
+   *  (lower case). Its `problems` say why it can't be played (then it isn't kept). */
+  _mapRecord(d, setId, available, added) {
+    const { bm } = d;
+    const v = validateBeatmap(bm, available);
+    let stats = null;
+    if (!v.problems.length) {
+      try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); }
+    }
+    const m = bm.metadata;
+    return {
+      id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
+      onlineId: parseInt(m.BeatmapID || '-1', 10),
+      title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
+      artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
+      creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
+      osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
+      previewTime: bm.previewTime, mode: bm.mode, keys: v.problems.length ? 0 : BeatmapParser.keyCount(bm),
+      od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
+      breaks: bm.events.breaks,
+      added,
+      ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
+    };
+  },
+  /** osu! (standard) difficulties in sets imported before converts could be played: their .osu files were kept with
+   *  the set but left out of the list. Read in once (in the background after boot) as converts, as an import does now. */
+  async addConverts() {
+    if (Settings.get('migr.converts')) return 0;
+    let added = 0;
+    for (const set of [...this.sets]) {
+      const known = new Set(set.mapIds.map(id => this.maps.get(id)).filter(Boolean).map(m => normPath(m.osuPath).toLowerCase()));
+      const left = Object.keys(set.fileIndex || {}).filter(k => k.endsWith('.osu') && !known.has(k));
+      if (!left.length) continue;
+      const available = new Set(Object.keys(set.fileIndex)), recs = [];
+      for (const low of left) {
+        try {
+          const blob = await DB.get('files', `${set.id}/${set.fileIndex[low]}`);
+          if (!blob) continue;
+          const bytes = new Uint8Array(await blob.arrayBuffer()), bm = BeatmapParser.parse(decodeIniText(bytes));
+          if (bm.mode !== 0) continue;
+          const rec = this._mapRecord({ bm, hash: await hashHex(bytes), entry: { name: set.fileIndex[low] } }, set.id, available, set.added || Date.now());
+          if (!rec.problems.length && !this.maps.has(rec.id)) recs.push(rec);
+        } catch (e) { /* (unreadable: left out, as on import) */ }
+        await sleep(0);
+      }
+      if (!recs.length || !this.setById.has(set.id)) continue;
+      for (const r of recs) this.maps.set(r.id, r);
+      set.mapIds = [...set.mapIds, ...recs.map(r => r.id)];
+      set.maps = set.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
+      await DB.putMany([{ store: 'sets', value: { ...set, maps: undefined } }, ...recs.map(r => ({ store: 'maps', value: r }))]);
+      added += recs.length;
+    }
+    Settings.set('migr.converts', true);
+    if (added) Bus.emit('library:changed');
+    return added;
   },
 
   /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files
@@ -8656,6 +8698,27 @@ const MODS = [
     desc: 'Any playback rate from 0.5× to 2×.' },
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
+  // lazer's key mods: a converted osu! beatmap with that many columns (osu!mania beatmaps keep theirs)
+  { id: '1K', name: 'One Key', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with one key (converted osu! beatmaps).' },
+  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with two keys (converted osu! beatmaps).' },
+  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with three keys (converted osu! beatmaps).' },
+  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with four keys (converted osu! beatmaps).' },
+  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with five keys (converted osu! beatmaps).' },
+  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with six keys (converted osu! beatmaps).' },
+  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
+    desc: 'Play with seven keys (converted osu! beatmaps).' },
+  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
+    desc: 'Play with eight keys (converted osu! beatmaps).' },
+  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
+    desc: 'Play with nine keys (converted osu! beatmaps).' },
+  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
+    desc: 'Play with ten keys (converted osu! beatmaps).' },
   { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
     desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
   { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
@@ -8744,6 +8807,8 @@ const ModSystem = {
   adaptive(list) { return list.some(id => MOD_BY_ID.get(id)?.adaptive); },
   ramp(list) { for (const id of list) { const r = MOD_BY_ID.get(id)?.ramp; if (r) return r; } return null; },
   label(list) { return list.length ? list.join('') : 'NM'; },
+  /** The column count a key mod (1K–10K) asks for, or 0. */
+  keyMod(list) { for (const id of list || []) { const m = /^(\d+)K$/.exec(id); if (m && MOD_BY_ID.has(id)) return +m[1]; } return 0; },
   isRanked(list) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
   /** Column permutation for Mirror / Random. */
   columnMap(list, keys, seed) {
@@ -9489,12 +9554,14 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (typeof osuText !== 'string' || !play || typeof play !== 'object') return fail('bad play');
   let bm;
   try { bm = BeatmapParser.parse(osuText); } catch (e) { return fail('the beatmap could not be read'); }
-  const keys = BeatmapParser.keyCount(bm);
-  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
-  const notes = BeatmapParser.toManiaNotes(bm);
-  if (!notes.length) return fail('the beatmap has no notes');
   // mods: only real ones, and only ranked ones (no Auto, no Autopilot-like helpers)
   const mods = ModSystem.normalize(Array.isArray(play.mods) ? play.mods.map(String) : []);
+  // (a key mod converts an osu! map to that many columns)
+  const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
+  let keys, notes;
+  try { keys = BeatmapParser.keyCount(bm, keyMod); notes = BeatmapParser.toManiaNotes(bm, keyMod); } catch (e) { return fail('not a playable beatmap'); }
+  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
+  if (!notes.length) return fail('the beatmap has no notes');
   if (!ModSystem.isRanked(mods)) return fail('unranked mods');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
@@ -11638,7 +11705,8 @@ const LZMA = {
 };
 
 /** osu!'s legacy mod bits ⇄ our mods (lazer-only mods have no bit and are left out of an .osr). */
-const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30]];
+const OSR_MODS = [['NF', 1], ['EZ', 2], ['HD', 8], ['HR', 16], ['SD', 32], ['DT', 64], ['HT', 256], ['NC', 512 | 64], ['AT', 2048], ['CN', 1 << 22], ['PF', 16384 | 32], ['FL', 1024], ['FI', 1 << 20], ['RD', 1 << 21], ['MR', 1 << 30],
+  ['1K', 1 << 26], ['2K', 1 << 28], ['3K', 1 << 27], ['4K', 1 << 15], ['5K', 1 << 16], ['6K', 1 << 17], ['7K', 1 << 18], ['8K', 1 << 19], ['9K', 1 << 24]];
 
 const Osr = {
   /** Read an .osr: { mode, version, beatmapMD5, player, counts, score, maxCombo, mods (bits), date, frames, seed }. */
@@ -11746,11 +11814,12 @@ const Osr = {
     const mods = this.bitsToMods(o.mods), [geki, c300, katu, c100, c50, miss] = o.counts;
     const total = geki + c300 + katu + c100 + c50 + miss;
     const accuracy = total ? (300 * (geki + c300) + 200 * katu + 100 * c100 + 50 * c50) / (300 * total) : 0;
-    const events = this.eventsFromFrames(o.frames, rec.keys);
+    const keys = (rec.mode === 0 && ModSystem.keyMod(mods)) || rec.keys; // (a key mod on a converted map: its columns)
+    const events = this.eventsFromFrames(o.frames, keys);
     const rep = {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: o.date || Date.now(),
       mapHash: rec.hash, mapId: rec.id, title: rec.title, artist: rec.artist, version: rec.version, creator: rec.creator,
-      keys: rec.keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
+      keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
       windows: timingWindows({ od: rec.od, mods, mode: 'od', rules: RULES }), hp: rec.hp, player: o.player || 'Player',
       duration: events.length ? events[events.length - 3] : 0, modConfig: {}, noFail: mods.includes('NF'), rules: RULES, events,
       summary: { score: o.score, scoreStd: o.version >= 30000000 ? o.score : null, accuracy, maxCombo: o.maxCombo, counts: o.counts, grade: ScoreSystem.gradeFor(accuracy, false, mods, o.counts) },
@@ -14234,14 +14303,18 @@ const SongSelect = {
     this.collSel = h('select.select', { 'aria-label': 'Collection' });
     this.fillCollections();
     this.collSel.addEventListener('change', () => { Settings.set('songselect.collection', this.collSel.value); UISounds.click(); this.rebuild(true); });
-    // lazer's FilterControl: the search box (with "N matches" under what's typed), the star range and (where lazer
-    // has "Show converts", which mania-only maps don't need) the key count, then Sort, Group and Collection
+    // lazer's FilterControl: the search box (with "N matches" under what's typed), the star range, the key count and
+    // "Show converts", then Sort, Group and Collection
     const filters = h('div.ss-filter',
       h('div.ss-search', icon('search'), this.searchInput, this.countEl),
       h('div.ss-filter-row.ss-row2',
         this.starRange(),
         // every key count in your library (and the one picked, if it's no longer there), each on its own
-        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => m.keys), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); })),
+        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => this.keysOf(m)), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
+        // lazer's "Show converts" (the same setting as in User Interface → Song Select), while there are any to show
+        this.convBtn = h(`button.lb-modsel.ss-conv${Settings.get('songselect.converts') !== false ? '.on' : ''}`, { title: 'osu! (standard) difficulties, converted to osu!mania',
+          hidden: ![...BeatmapManager.maps.values()].some(m => m.mode === 0),
+          onclick: () => { UISounds.click(); const on = Settings.get('songselect.converts') === false; Settings.set('songselect.converts', on); this.convBtn.classList.toggle('on', on); } }, 'Show converts')),
       h('div.ss-filter-row.ss-row3',
         sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
         sel('Group', GROUPS, Settings.get('songselect.group'), v => { Settings.set('songselect.group', v); this.expandedGroup = undefined; this.rebuild(); }),
@@ -14328,7 +14401,12 @@ const SongSelect = {
       Bus.on('library:changed', () => this.rebuild(false, true)),
       // (the selected beatmap's user tags came in)
       Bus.on('tags', key => { const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.hash === key) { this._lbKey = null; this.updateInfo(); } }),
-      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
+      Bus.on('mods:changed', () => {
+        // (a key mod changes converted maps' key counts: their filters and groups follow, as in lazer)
+        const km = ModSystem.keyMod(Settings.get('songselect.mods') || []);
+        if (km !== (this._keyMod || 0)) { this._keyMod = km; this.rebuild(false, true); }
+        this.renderMods(); this.updateInfo(); this.renderVisible(true);
+      }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
@@ -14472,7 +14550,7 @@ const SongSelect = {
       const num = parseFloat(c.v);
       let val;
       switch (c.k) {
-        case 'keys': case 'key': case 'k': val = m.keys; break;
+        case 'keys': case 'key': case 'k': val = this.keysOf(m); break;
         case 'stars': case 'star': case 'sr': val = m.stars; break;
         case 'bpm': val = m.bpm; break;
         case 'length': case 'len': val = m.length / 1000; break;
@@ -14495,6 +14573,7 @@ const SongSelect = {
    *  scrolled it instead of jumping back to the selected beatmap. */
   rebuild(keepScroll = false, stay = false) {
     if (!this.el) return;
+    if (this.convBtn) { this.convBtn.hidden = ![...BeatmapManager.maps.values()].some(m => m.mode === 0); this.convBtn.classList.toggle('on', Settings.get('songselect.converts') !== false); }
     const pq = this.parseQuery(this.query.trim());
     const keys = Settings.get('songselect.keys') || [];
     const sMin = +Settings.get('songselect.starsMin') || 0, sMax = +Settings.get('songselect.starsMax') || 10.1;
@@ -14521,7 +14600,7 @@ const SongSelect = {
         if (hidden.has(m.hash)) return false;
         if (m.mode === 0 && !converts) return false;
         if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
-        if (keys.length && !keys.includes(m.keys)) return false;
+        if (keys.length && !keys.includes(this.keysOf(m))) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
         // the star range (lazer's UserStarDifficulty: either end only once it's been moved)
@@ -14667,7 +14746,7 @@ const SongSelect = {
       case 'mine': return cx.me && String(set.creator || '').toLowerCase() === cx.me ? g(0, 'My maps') : [];
       case 'rank': { const b = ScoreManager.best(m.hash); return b ? g(RANK_ORDER.indexOf(b.grade), b.grade, { rank: b.grade }) : g(Infinity, 'Unplayed'); }
       case 'favourites': return Favorites.has(set.id) ? g(0, 'Favourites') : [];
-      case 'keys': return g(m.keys, `${m.keys}K`);
+      case 'keys': { const k = this.keysOf(m); return g(k, `${k}K`); }
     }
     return [];
   },
@@ -14841,7 +14920,7 @@ const SongSelect = {
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
-        h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+        h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
         h('div.dp-bottom', best ? rankPill(best.grade) : null, starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
@@ -14862,7 +14941,7 @@ const SongSelect = {
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
-        h('div.sp-dots', statusPill(set.status, '.sm'), ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
+        h('div.sp-dots', statusPill(set.status, '.sm'), ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${this.keysOf(m)}K` })),
           maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
@@ -14883,7 +14962,7 @@ const SongSelect = {
       }, h('div.dp-body',
         best ? rankPill(best.grade) : null,
         h('div.dp-main',
-          h('div.dp-top', h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+          h('div.dp-top', h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
           h('div.dp-bottom', starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
             m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
@@ -15052,20 +15131,24 @@ const SongSelect = {
     } catch (e) { console.warn('preview failed', e); }
   },
 
-  /** lazer shows the star rating with the selected speed mods: worked out in the background (the beatmap is parsed
-   *  and rated once per map and speed), then the panel redraws. null until it's known, or when there's no speed change. */
+  /** A difficulty's key count with the selected mods: a key mod (1K–10K) sets a converted osu! map's (lazer). */
+  keysOf(m) { return (m.mode === 0 && ModSystem.keyMod(Settings.get('songselect.mods') || [])) || m.keys; },
+  /** lazer shows the star rating with the selected speed mods (and key mods, on a converted map): worked out in the
+   *  background (the beatmap is parsed and rated once per map, speed and key count), then the panel redraws. null
+   *  until it's known, or when nothing changes it. */
   modStars(m) {
-    const rate = ModSystem.rate(Settings.get('songselect.mods') || []);
-    if (rate === 1) return null;
-    const key = `${m.hash}|${rate}`, cache = this._srCache || (this._srCache = new Map());
+    const sel = Settings.get('songselect.mods') || [], rate = ModSystem.rate(sel), km = m.mode === 0 ? ModSystem.keyMod(sel) : 0;
+    if (rate === 1 && !km) return null;
+    const key = `${m.hash}|${rate}|${km}`, cache = this._srCache || (this._srCache = new Map());
     if (cache.has(key)) return cache.get(key);
     cache.set(key, null);
     // one map at a time, so a screenful of difficulties doesn't stall the frame
     this._srQ = (this._srQ || Promise.resolve()).then(async () => {
       // (skipped when the speed changed or the panel has scrolled away by the time its turn comes)
-      if (ModSystem.rate(Settings.get('songselect.mods') || []) !== rate || (this.selectedId !== m.id && !this.pool.has('d:' + m.id))) { cache.delete(key); return; }
-      const { notes } = await BeatmapManager.load(m.id);
-      const v = DifficultyCalculator.calculate(notes, m.keys, rate);
+      const now = Settings.get('songselect.mods') || [];
+      if (ModSystem.rate(now) !== rate || (m.mode === 0 ? ModSystem.keyMod(now) : 0) !== km || (this.selectedId !== m.id && !this.pool.has('d:' + m.id))) { cache.delete(key); return; }
+      const { bm, notes } = await BeatmapManager.load(m.id);
+      const v = km ? DifficultyCalculator.calculate(BeatmapParser.toManiaNotes(bm, km), km, rate) : DifficultyCalculator.calculate(notes, m.keys, rate);
       cache.set(key, v);
       if (Screens.current !== this) return;
       if (this.selectedId === m.id) this.updateInfo();
@@ -15119,7 +15202,7 @@ const SongSelect = {
         return starBadgeRoll(from, v, x => { if (!diff) return; const c = starColour(x); diff.style.setProperty('--sc', c); diff.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); }); })(), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
-        h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
+        h('div.wd-diffs', stat('Keys', this.keysOf(m), 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
     // lazer's BeatmapDetailsArea: a "Details | Ranking" WedgeSelector (text tabs, a 2px strip under the current one);
     // Ranking has the "Selected Mods" toggle and the Sort and Scope dropdowns on the right (scores here are all local)
@@ -15763,9 +15846,12 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     const { rec, bm } = loaded;
     if (bm.epilepsyWarning && !p.quick) this.loaderDisclaimer('This beatmap contains scenes with rapidly flashing colours', 'Please take caution if you are affected by epilepsy.');
-    const keys = BeatmapParser.keyCount(bm);
     const replay = p.replay || null;
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
+    // (a key mod on a converted osu! map: converted to that many columns, as lazer does)
+    const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
+    const keys = BeatmapParser.keyCount(bm, keyMod);
+    const mapNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
     this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
@@ -15802,7 +15888,7 @@ const GameplayScreen = {
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
     const redTiming = BeatmapParser.timing(bm);
-    const baseNotes = prepareNotes(loaded.notes, keys, mods, seed, { red: redTiming.red });
+    const baseNotes = prepareNotes(mapNotes, keys, mods, seed, { red: redTiming.red });
     // replays keep the judging rules they were recorded with (older ones predate the rules field: rules 1)
     const rules = replay ? (replay.rules || 1) : RULES;
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
@@ -15841,7 +15927,7 @@ const GameplayScreen = {
     const startPos = Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
-    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     if (rec.setId) Toolbar.setNowPlaying(rec); // (not a song still downloading: the menus would try to play it)
@@ -19338,7 +19424,7 @@ const CHANGELOG = [
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
+    { icon: 'trophy', title: 'Gameplay', items: ['lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
@@ -21859,7 +21945,7 @@ const ModSelect = {
         const blocked = !on && !off && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
         const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}${off ? '.unavail' : ''}`, {
           'aria-pressed': String(on), 'aria-disabled': off ? 'true' : null, onclick: () => this.toggle(m.id),
-          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name}${m.key ? ` (${keyLabel(m.key)})` : ''} · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
         }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);
@@ -24805,7 +24891,7 @@ const Spectate = {
     if (!r.ok) throw new Error(`osu file ${r.status}`);
     const bm = BeatmapParser.parse(await r.text());
     const notes = BeatmapParser.toManiaNotes(bm);
-    if (BeatmapParser.keyCount(bm) !== head.keys) throw new Error('not the same difficulty');
+    if (BeatmapParser.keyCount(bm, bm.mode === 0 ? ModSystem.keyMod(head.mods) : 0) !== head.keys) throw new Error('not the same difficulty');
     const rec = { id: 'spec-' + head.onlineId, setId: null, hash: head.mapHash, onlineId: head.onlineId, title: head.title, artist: head.artist, version: head.version, creator: head.creator, keys: head.keys, stars: 0, srVersion: -1, audioFile: null, bgFile: null, temp: true };
     return { rec, set: null, bm, notes };
   },
@@ -26649,7 +26735,8 @@ const App = {
     Bus.on('library:changed', () => { clearTimeout(this._bsT); this._bsT = setTimeout(() => BeatmapStatus.sync(), 3000); });
     Multiplayer.joinFromLink();
     Presence.start();
-    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
+    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e))
+      .then(() => BeatmapManager.addConverts()).catch(e => console.warn('converts', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => OSD.show('Skin', s.name, this._skinKey || ''));
   },

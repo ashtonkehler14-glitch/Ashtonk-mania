@@ -194,6 +194,21 @@ await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.some(s => /Sta
   await page.waitForFunction(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine && s.engine.score.judged > 8; }, null, { timeout: 20000 }).catch(() => {});
   const play = await page.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine ? { keys: s.keys, judged: s.engine.score.judged, misses: s.engine.score.counts[5] } : null; });
   check('a converted map plays (Auto hits its notes)', play && play.keys === 7 && play.judged > 8 && play.misses === 0, JSON.stringify(play));
+  // lazer's key mods: the convert with four columns (song select says so too)
+  const k4 = await page.evaluate(() => { const A = AshtonkMania, m = A.BeatmapManager.sets.find(x => /Standard/.test(x.title)).maps[0]; A.Settings.set('songselect.mods', ['4K']); const shown = A.SongSelect.keysOf(m); A.Settings.set('songselect.mods', []); A.Screens.go('gameplay', { mapId: m.id, mods: ['AT', '4K'], force: true }); return shown; });
+  await page.waitForFunction(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.keys === 4 && s.engine && s.engine.score.judged > 8; }, null, { timeout: 20000 }).catch(() => {});
+  const play4 = await page.evaluate(() => { const s = AshtonkMania.GameplayScreen.s; return s && s.engine ? { keys: s.keys, judged: s.engine.score.judged, misses: s.engine.score.counts[5], cols: Math.max(...s.engine.notes.map(n => n.col)) } : null; });
+  check('the 4K key mod plays a convert with four columns (and song select shows 4K)', k4 === 4 && play4 && play4.keys === 4 && play4.cols === 3 && play4.judged > 8 && play4.misses === 0, JSON.stringify({ k4, play4 }));
+  // a library from before converts: the osu! difficulty's file was kept, the difficulty left out — it comes back once
+  const back = await page.evaluate(async () => {
+    const A = AshtonkMania, B = A.BeatmapManager, set = B.sets.find(x => /Standard/.test(x.title)), id = set.mapIds[0];
+    await A.DB.del('maps', id); B.maps.delete(id); set.mapIds = []; set.maps = []; await A.DB.put('sets', { ...set, maps: undefined });
+    A.Settings.set('migr.converts', false);
+    const n = await B.addConverts(), again = await B.addConverts();
+    const m = B.maps.get(id);
+    return { n, again, back: !!m && m.mode === 0 && set.mapIds.includes(id) && m.keys === 7, stored: !!(await A.DB.get('maps', id)) };
+  });
+  check('songs imported before converts get their osu! difficulties as converts, once', back.n === 1 && back.again === 0 && back.back && back.stored, JSON.stringify(back));
   await page.evaluate(async () => { AshtonkMania.Screens.go('songselect', {}, { replace: true }); const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => m.mode === 0)); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
   await page.waitForTimeout(400);
 }

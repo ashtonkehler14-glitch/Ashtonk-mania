@@ -160,7 +160,7 @@ const Spectate = {
     if (!r.ok) throw new Error(`osu file ${r.status}`);
     const bm = BeatmapParser.parse(await r.text());
     const notes = BeatmapParser.toManiaNotes(bm);
-    if (BeatmapParser.keyCount(bm) !== head.keys) throw new Error('not the same difficulty');
+    if (BeatmapParser.keyCount(bm, bm.mode === 0 ? ModSystem.keyMod(head.mods) : 0) !== head.keys) throw new Error('not the same difficulty');
     const rec = { id: 'spec-' + head.onlineId, setId: null, hash: head.mapHash, onlineId: head.onlineId, title: head.title, artist: head.artist, version: head.version, creator: head.creator, keys: head.keys, stars: 0, srVersion: -1, audioFile: null, bgFile: null, temp: true };
     return { rec, set: null, bm, notes };
   },

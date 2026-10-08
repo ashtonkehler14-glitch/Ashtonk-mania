@@ -74,7 +74,8 @@ const App = {
     Bus.on('library:changed', () => { clearTimeout(this._bsT); this._bsT = setTimeout(() => BeatmapStatus.sync(), 3000); });
     Multiplayer.joinFromLink();
     Presence.start();
-    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e)), 1500);
+    setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e))
+      .then(() => BeatmapManager.addConverts()).catch(e => console.warn('converts', e)), 1500);
     Bus.on('profile:changed', () => Toolbar.updateProfile());
     Bus.on('skin:changed', s => OSD.show('Skin', s.name, this._skinKey || ''));
   },

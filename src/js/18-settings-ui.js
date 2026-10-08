@@ -523,7 +523,7 @@ const ModSelect = {
         const blocked = !on && !off && cur.some(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id));
         const panel = h(`button.mod-p${on ? '.on' : ''}${blocked ? '.blocked' : ''}${off ? '.unavail' : ''}`, {
           'aria-pressed': String(on), 'aria-disabled': off ? 'true' : null, onclick: () => this.toggle(m.id),
-          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name} (${keyLabel(m.key)}) · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
+          title: off ? `${m.name} · ${this.disabledWhy || 'not available here'}` : `${m.name}${m.key ? ` (${keyLabel(m.key)})` : ''} · ${m.mult.toFixed(2)}×${blocked ? ` · replaces ${cur.filter(x => m.incompatible.includes(x) || (MOD_BY_ID.get(x)?.incompatible || []).includes(m.id)).join(', ')}` : ''}`,
         }, h('span.mod-ac', modIcon(m.id, 44)), h('span.mod-txt', h('b', m.name, h('small.mod-id', m.id)), h('span', m.desc)));
         panel.addEventListener('pointerenter', () => UISounds.hover());
         list.append(panel);

@@ -111,9 +111,10 @@ const BeatmapParser = {
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
 
-  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania. */
-  keyCount(bm) {
-    if (bm.mode === 0) return ManiaConvert.columnCount(bm);
+  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania — `target`, the
+   *  count a key mod (1K–10K) picks, when there is one (lazer's key mods change only converts). */
+  keyCount(bm, target = 0) {
+    if (bm.mode === 0) return target || ManiaConvert.columnCount(bm);
     const k = Math.round(bm.cs);
     if (!Number.isFinite(k)) throw new BeatmapError('The key count (CircleSize) isn\'t a number');
     return clamp(k, 1, 18);
@@ -121,12 +122,12 @@ const BeatmapParser = {
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
    *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
-  toManiaNotes(bm) {
+  toManiaNotes(bm, target = 0) {
     if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
-    const keys = this.keyCount(bm);
+    const keys = this.keyCount(bm, target);
     let notes = [], spin = null, slide = null;
     if (bm.mode === 0) {
-      try { notes = ManiaConvert.convert(bm).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
+      try { notes = ManiaConvert.convert(bm, target).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
     } else for (const ho of bm.hitObjects) {
       // a spinner in a mania map is a hold in a column lazer picks (by its seeded random numbers)
       if (ho.type & 8 && !(ho.type & 128)) {

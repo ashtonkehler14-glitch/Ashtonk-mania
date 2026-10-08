@@ -486,9 +486,10 @@ const BeatmapParser = {
     else if (/^(Sprite|Animation|Sample|3|4|5|6)$/.test(type)) bm.events.storyboard = true;
   },
 
-  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania. */
-  keyCount(bm) {
-    if (bm.mode === 0) return ManiaConvert.columnCount(bm);
+  /** Key count: a mania map's CircleSize, or the columns lazer gives an osu! map converted to mania — `target`, the
+   *  count a key mod (1K–10K) picks, when there is one (lazer's key mods change only converts). */
+  keyCount(bm, target = 0) {
+    if (bm.mode === 0) return target || ManiaConvert.columnCount(bm);
     const k = Math.round(bm.cs);
     if (!Number.isFinite(k)) throw new BeatmapError('The key count (CircleSize) isn\'t a number');
     return clamp(k, 1, 18);
@@ -496,12 +497,12 @@ const BeatmapParser = {
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
    *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
-  toManiaNotes(bm) {
+  toManiaNotes(bm, target = 0) {
     if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
-    const keys = this.keyCount(bm);
+    const keys = this.keyCount(bm, target);
     let notes = [], spin = null, slide = null;
     if (bm.mode === 0) {
-      try { notes = ManiaConvert.convert(bm).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
+      try { notes = ManiaConvert.convert(bm, target).notes; } catch (e) { throw new BeatmapError('This osu! difficulty can\'t be converted to osu!mania'); }
     } else for (const ho of bm.hitObjects) {
       // a spinner in a mania map is a hold in a column lazer picks (by its seeded random numbers)
       if (ho.type & 8 && !(ho.type & 128)) {
@@ -1074,9 +1075,10 @@ const ManiaConvert = (() => {
     }
   }
 
-  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. */
-  function convert(bm) {
-    const D = difficulty(bm), T = columnCount(bm), hos = bm.hitObjects;
+  /** The converted notes: [{ col, time, end, isLN, hs, sample }], as toManiaNotes gives. `target`: the columns a
+   *  key mod (1K–10K) asks for instead of the beatmap's own count. */
+  function convert(bm, target = 0) {
+    const D = difficulty(bm), T = target >= 1 && target <= 18 ? target : columnCount(bm), hos = bm.hitObjects;
     const seed = seedOf(D);
     const breakTime = (bm.events.breaks || []).reduce((a, b) => a + Math.max(0, b.end - b.start), 0);
     let cdCache = null;
@@ -1202,6 +1204,27 @@ const MODS = [
     desc: 'Any playback rate from 0.5× to 2×.' },
   { id: 'DA', name: 'Difficulty Adjust', group: 'conversion', key: 'KeyL', mult: 0.5, color: '#8c66ff', incompatible: ['EZ', 'HR'], config: 'da',
     desc: 'Override the beatmap\'s OD and HP.' },
+  // lazer's key mods: a converted osu! beatmap with that many columns (osu!mania beatmaps keep theirs)
+  { id: '1K', name: 'One Key', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with one key (converted osu! beatmaps).' },
+  { id: '2K', name: 'Two Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with two keys (converted osu! beatmaps).' },
+  { id: '3K', name: 'Three Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '4K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with three keys (converted osu! beatmaps).' },
+  { id: '4K', name: 'Four Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '5K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with four keys (converted osu! beatmaps).' },
+  { id: '5K', name: 'Five Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '6K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with five keys (converted osu! beatmaps).' },
+  { id: '6K', name: 'Six Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '7K', '8K', '9K', '10K'],
+    desc: 'Play with six keys (converted osu! beatmaps).' },
+  { id: '7K', name: 'Seven Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '8K', '9K', '10K'],
+    desc: 'Play with seven keys (converted osu! beatmaps).' },
+  { id: '8K', name: 'Eight Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '9K', '10K'],
+    desc: 'Play with eight keys (converted osu! beatmaps).' },
+  { id: '9K', name: 'Nine Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '10K'],
+    desc: 'Play with nine keys (converted osu! beatmaps).' },
+  { id: '10K', name: 'Ten Keys', group: 'conversion', mult: 1.0, color: '#8c66ff', incompatible: ['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K'],
+    desc: 'Play with ten keys (converted osu! beatmaps).' },
   { id: 'WU', name: 'Wind Up', group: 'fun', key: 'Period', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WD', 'AS'], unranked: true, ramp: [1, 1.5],
     desc: 'Can you keep up? The song speeds up from 1× to 1.5× as it plays (pitch follows).' },
   { id: 'WD', name: 'Wind Down', group: 'fun', key: 'Slash', mult: 1.0, color: '#ff66ab', incompatible: ['HT', 'DC', 'DT', 'NC', 'RT', 'WU', 'AS'], unranked: true, ramp: [1, 0.75],
@@ -1290,6 +1313,8 @@ const ModSystem = {
   adaptive(list) { return list.some(id => MOD_BY_ID.get(id)?.adaptive); },
   ramp(list) { for (const id of list) { const r = MOD_BY_ID.get(id)?.ramp; if (r) return r; } return null; },
   label(list) { return list.length ? list.join('') : 'NM'; },
+  /** The column count a key mod (1K–10K) asks for, or 0. */
+  keyMod(list) { for (const id of list || []) { const m = /^(\d+)K$/.exec(id); if (m && MOD_BY_ID.has(id)) return +m[1]; } return 0; },
   isRanked(list) { return !list.some(id => MOD_BY_ID.get(id)?.unranked); },
   /** Column permutation for Mirror / Random. */
   columnMap(list, keys, seed) {
@@ -2035,12 +2060,14 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (typeof osuText !== 'string' || !play || typeof play !== 'object') return fail('bad play');
   let bm;
   try { bm = BeatmapParser.parse(osuText); } catch (e) { return fail('the beatmap could not be read'); }
-  const keys = BeatmapParser.keyCount(bm);
-  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
-  const notes = BeatmapParser.toManiaNotes(bm);
-  if (!notes.length) return fail('the beatmap has no notes');
   // mods: only real ones, and only ranked ones (no Auto, no Autopilot-like helpers)
   const mods = ModSystem.normalize(Array.isArray(play.mods) ? play.mods.map(String) : []);
+  // (a key mod converts an osu! map to that many columns)
+  const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
+  let keys, notes;
+  try { keys = BeatmapParser.keyCount(bm, keyMod); notes = BeatmapParser.toManiaNotes(bm, keyMod); } catch (e) { return fail('not a playable beatmap'); }
+  if (!(keys >= 1 && keys <= 18)) return fail('not an osu!mania beatmap');
+  if (!notes.length) return fail('the beatmap has no notes');
   if (!ModSystem.isRanked(mods)) return fail('unranked mods');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};

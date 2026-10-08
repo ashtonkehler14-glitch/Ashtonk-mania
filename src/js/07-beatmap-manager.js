@@ -294,28 +294,9 @@ const BeatmapManager = {
     // difficulties
     const mapRecords = [];
     for (const d of diffs) {
-      const { bm } = d;
-      const v = validateBeatmap(bm, available);
-      let stats = null;
-      if (!v.problems.length) {
-        try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); }
-      }
-      const m = bm.metadata;
-      const rec = {
-        id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
-        onlineId: parseInt(m.BeatmapID || '-1', 10),
-        title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
-        artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
-        creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
-        osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
-        previewTime: bm.previewTime, mode: bm.mode, keys: BeatmapParser.keyCount(bm),
-        od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
-        breaks: bm.events.breaks,
-        added: existing?.added || Date.now(),
-        ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
-      };
+      const rec = this._mapRecord(d, setId, available, existing?.added || Date.now());
       // difficulties that can't be played (other game modes, missing audio…) aren't kept at all
-      if (v.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${v.problems.join('; ')}`); continue; }
+      if (rec.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${rec.problems.join('; ')}`); continue; }
       mapRecords.push(rec);
     }
     if (!mapRecords.length && !existing) {
@@ -349,6 +330,63 @@ const BeatmapManager = {
     this.setById.set(setId, set);
     BlobURLs.drop(`thumb:${setId}`); BlobURLs.drop(`bg:${setId}/`);
     return set;
+  },
+
+  /** A difficulty's library record: d = { bm, hash, entry: { name } } (its .osu, read), `available`: the set's files
+   *  (lower case). Its `problems` say why it can't be played (then it isn't kept). */
+  _mapRecord(d, setId, available, added) {
+    const { bm } = d;
+    const v = validateBeatmap(bm, available);
+    let stats = null;
+    if (!v.problems.length) {
+      try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); }
+    }
+    const m = bm.metadata;
+    return {
+      id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
+      onlineId: parseInt(m.BeatmapID || '-1', 10),
+      title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
+      artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
+      creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
+      osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
+      previewTime: bm.previewTime, mode: bm.mode, keys: v.problems.length ? 0 : BeatmapParser.keyCount(bm),
+      od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
+      breaks: bm.events.breaks,
+      added,
+      ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
+    };
+  },
+  /** osu! (standard) difficulties in sets imported before converts could be played: their .osu files were kept with
+   *  the set but left out of the list. Read in once (in the background after boot) as converts, as an import does now. */
+  async addConverts() {
+    if (Settings.get('migr.converts')) return 0;
+    let added = 0;
+    for (const set of [...this.sets]) {
+      const known = new Set(set.mapIds.map(id => this.maps.get(id)).filter(Boolean).map(m => normPath(m.osuPath).toLowerCase()));
+      const left = Object.keys(set.fileIndex || {}).filter(k => k.endsWith('.osu') && !known.has(k));
+      if (!left.length) continue;
+      const available = new Set(Object.keys(set.fileIndex)), recs = [];
+      for (const low of left) {
+        try {
+          const blob = await DB.get('files', `${set.id}/${set.fileIndex[low]}`);
+          if (!blob) continue;
+          const bytes = new Uint8Array(await blob.arrayBuffer()), bm = BeatmapParser.parse(decodeIniText(bytes));
+          if (bm.mode !== 0) continue;
+          const rec = this._mapRecord({ bm, hash: await hashHex(bytes), entry: { name: set.fileIndex[low] } }, set.id, available, set.added || Date.now());
+          if (!rec.problems.length && !this.maps.has(rec.id)) recs.push(rec);
+        } catch (e) { /* (unreadable: left out, as on import) */ }
+        await sleep(0);
+      }
+      if (!recs.length || !this.setById.has(set.id)) continue;
+      for (const r of recs) this.maps.set(r.id, r);
+      set.mapIds = [...set.mapIds, ...recs.map(r => r.id)];
+      set.maps = set.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
+      await DB.putMany([{ store: 'sets', value: { ...set, maps: undefined } }, ...recs.map(r => ({ store: 'maps', value: r }))]);
+      added += recs.length;
+    }
+    Settings.set('migr.converts', true);
+    if (added) Bus.emit('library:changed');
+    return added;
   },
 
   /** The editor's Save: this difficulty's .osu replaced by `text` and read in again, beside the set's other files

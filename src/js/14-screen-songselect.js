@@ -63,14 +63,18 @@ const SongSelect = {
     this.collSel = h('select.select', { 'aria-label': 'Collection' });
     this.fillCollections();
     this.collSel.addEventListener('change', () => { Settings.set('songselect.collection', this.collSel.value); UISounds.click(); this.rebuild(true); });
-    // lazer's FilterControl: the search box (with "N matches" under what's typed), the star range and (where lazer
-    // has "Show converts", which mania-only maps don't need) the key count, then Sort, Group and Collection
+    // lazer's FilterControl: the search box (with "N matches" under what's typed), the star range, the key count and
+    // "Show converts", then Sort, Group and Collection
     const filters = h('div.ss-filter',
       h('div.ss-search', icon('search'), this.searchInput, this.countEl),
       h('div.ss-filter-row.ss-row2',
         this.starRange(),
         // every key count in your library (and the one picked, if it's no longer there), each on its own
-        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => m.keys), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); })),
+        sel('Keys', [['', 'All'], ...[...new Set([...[...BeatmapManager.maps.values()].filter(m => !m.problems.length).map(m => this.keysOf(m)), ...(keysNow ? [+keysNow] : [])])].sort((a, b) => a - b).map(k => [String(k), k + 'K'])], String(keysNow), v => { Settings.set('songselect.keys', v ? [+v] : []); this.rebuild(true); }),
+        // lazer's "Show converts" (the same setting as in User Interface → Song Select), while there are any to show
+        this.convBtn = h(`button.lb-modsel.ss-conv${Settings.get('songselect.converts') !== false ? '.on' : ''}`, { title: 'osu! (standard) difficulties, converted to osu!mania',
+          hidden: ![...BeatmapManager.maps.values()].some(m => m.mode === 0),
+          onclick: () => { UISounds.click(); const on = Settings.get('songselect.converts') === false; Settings.set('songselect.converts', on); this.convBtn.classList.toggle('on', on); } }, 'Show converts')),
       h('div.ss-filter-row.ss-row3',
         sel('Sort', SORTS, Settings.get('songselect.sort'), v => { Settings.set('songselect.sort', v); this.rebuild(); }),
         sel('Group', GROUPS, Settings.get('songselect.group'), v => { Settings.set('songselect.group', v); this.expandedGroup = undefined; this.rebuild(); }),
@@ -157,7 +161,12 @@ const SongSelect = {
       Bus.on('library:changed', () => this.rebuild(false, true)),
       // (the selected beatmap's user tags came in)
       Bus.on('tags', key => { const cur = BeatmapManager.maps.get(this.selectedId); if (cur && cur.hash === key) { this._lbKey = null; this.updateInfo(); } }),
-      Bus.on('mods:changed', () => { this.renderMods(); this.updateInfo(); this.renderVisible(true); }), // (BPM, length and stars follow the mods)
+      Bus.on('mods:changed', () => {
+        // (a key mod changes converted maps' key counts: their filters and groups follow, as in lazer)
+        const km = ModSystem.keyMod(Settings.get('songselect.mods') || []);
+        if (km !== (this._keyMod || 0)) { this._keyMod = km; this.rebuild(false, true); }
+        this.renderMods(); this.updateInfo(); this.renderVisible(true);
+      }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
@@ -301,7 +310,7 @@ const SongSelect = {
       const num = parseFloat(c.v);
       let val;
       switch (c.k) {
-        case 'keys': case 'key': case 'k': val = m.keys; break;
+        case 'keys': case 'key': case 'k': val = this.keysOf(m); break;
         case 'stars': case 'star': case 'sr': val = m.stars; break;
         case 'bpm': val = m.bpm; break;
         case 'length': case 'len': val = m.length / 1000; break;
@@ -324,6 +333,7 @@ const SongSelect = {
    *  scrolled it instead of jumping back to the selected beatmap. */
   rebuild(keepScroll = false, stay = false) {
     if (!this.el) return;
+    if (this.convBtn) { this.convBtn.hidden = ![...BeatmapManager.maps.values()].some(m => m.mode === 0); this.convBtn.classList.toggle('on', Settings.get('songselect.converts') !== false); }
     const pq = this.parseQuery(this.query.trim());
     const keys = Settings.get('songselect.keys') || [];
     const sMin = +Settings.get('songselect.starsMin') || 0, sMax = +Settings.get('songselect.starsMax') || 10.1;
@@ -350,7 +360,7 @@ const SongSelect = {
         if (hidden.has(m.hash)) return false;
         if (m.mode === 0 && !converts) return false;
         if (pq.words.length && !pq.words.every(w => wordScore(hay + ' ' + m.version, w) > 0)) return false;
-        if (keys.length && !keys.includes(m.keys)) return false;
+        if (keys.length && !keys.includes(this.keysOf(m))) return false;
         if (coll && !coll.hashes.includes(m.hash)) return false;
         if (!this.mapMatches(m, pq)) return false;
         // the star range (lazer's UserStarDifficulty: either end only once it's been moved)
@@ -496,7 +506,7 @@ const SongSelect = {
       case 'mine': return cx.me && String(set.creator || '').toLowerCase() === cx.me ? g(0, 'My maps') : [];
       case 'rank': { const b = ScoreManager.best(m.hash); return b ? g(RANK_ORDER.indexOf(b.grade), b.grade, { rank: b.grade }) : g(Infinity, 'Unplayed'); }
       case 'favourites': return Favorites.has(set.id) ? g(0, 'Favourites') : [];
-      case 'keys': return g(m.keys, `${m.keys}K`);
+      case 'keys': { const k = this.keysOf(m); return g(k, `${k}K`); }
     }
     return [];
   },
@@ -670,7 +680,7 @@ const SongSelect = {
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
-        h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+        h('div.std-line', statusPill(set.status, '.sm'), h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
         h('div.dp-bottom', best ? rankPill(best.grade) : null, starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
       wrap.appendChild(btn);
@@ -691,7 +701,7 @@ const SongSelect = {
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
-        h('div.sp-dots', statusPill(set.status, '.sm'), ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${m.keys}K` })),
+        h('div.sp-dots', statusPill(set.status, '.sm'), ...maps.slice(0, 18).map(m => h('i', { style: { '--sc': starColour(m.stars) }, title: `[${m.version}] ${m.stars.toFixed(2)}★ ${this.keysOf(m)}K` })),
           maps.length > 18 ? h('span.sp-extra', `+${maps.length - 18}`) : null,
           broken ? h('span.tag.warn', 'Broken') : null)),
       Favorites.has(set.id) ? h('span.sp-fav', icon('heart', 'fill')) : null);
@@ -712,7 +722,7 @@ const SongSelect = {
       }, h('div.dp-body',
         best ? rankPill(best.grade) : null,
         h('div.dp-main',
-          h('div.dp-top', h('span.dp-k', `[${m.keys}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
+          h('div.dp-top', h('span.dp-k', `[${this.keysOf(m)}K] `), h('span.dp-v', m.version), h('span.dp-s', `mapped by ${m.creator}`)),
           h('div.dp-bottom', starBadge(stars), h('span.dp-stars', { style: { '--p': `${clamp(stars / 10, 0, 1) * 100}%` } }, '★★★★★★★★★★'),
             m.problems.length ? h('span.dp-bad', m.problems[0]) : null))));
       btn.addEventListener('pointerenter', () => UISounds.hover());
@@ -881,20 +891,24 @@ const SongSelect = {
     } catch (e) { console.warn('preview failed', e); }
   },
 
-  /** lazer shows the star rating with the selected speed mods: worked out in the background (the beatmap is parsed
-   *  and rated once per map and speed), then the panel redraws. null until it's known, or when there's no speed change. */
+  /** A difficulty's key count with the selected mods: a key mod (1K–10K) sets a converted osu! map's (lazer). */
+  keysOf(m) { return (m.mode === 0 && ModSystem.keyMod(Settings.get('songselect.mods') || [])) || m.keys; },
+  /** lazer shows the star rating with the selected speed mods (and key mods, on a converted map): worked out in the
+   *  background (the beatmap is parsed and rated once per map, speed and key count), then the panel redraws. null
+   *  until it's known, or when nothing changes it. */
   modStars(m) {
-    const rate = ModSystem.rate(Settings.get('songselect.mods') || []);
-    if (rate === 1) return null;
-    const key = `${m.hash}|${rate}`, cache = this._srCache || (this._srCache = new Map());
+    const sel = Settings.get('songselect.mods') || [], rate = ModSystem.rate(sel), km = m.mode === 0 ? ModSystem.keyMod(sel) : 0;
+    if (rate === 1 && !km) return null;
+    const key = `${m.hash}|${rate}|${km}`, cache = this._srCache || (this._srCache = new Map());
     if (cache.has(key)) return cache.get(key);
     cache.set(key, null);
     // one map at a time, so a screenful of difficulties doesn't stall the frame
     this._srQ = (this._srQ || Promise.resolve()).then(async () => {
       // (skipped when the speed changed or the panel has scrolled away by the time its turn comes)
-      if (ModSystem.rate(Settings.get('songselect.mods') || []) !== rate || (this.selectedId !== m.id && !this.pool.has('d:' + m.id))) { cache.delete(key); return; }
-      const { notes } = await BeatmapManager.load(m.id);
-      const v = DifficultyCalculator.calculate(notes, m.keys, rate);
+      const now = Settings.get('songselect.mods') || [];
+      if (ModSystem.rate(now) !== rate || (m.mode === 0 ? ModSystem.keyMod(now) : 0) !== km || (this.selectedId !== m.id && !this.pool.has('d:' + m.id))) { cache.delete(key); return; }
+      const { bm, notes } = await BeatmapManager.load(m.id);
+      const v = km ? DifficultyCalculator.calculate(BeatmapParser.toManiaNotes(bm, km), km, rate) : DifficultyCalculator.calculate(notes, m.keys, rate);
       cache.set(key, v);
       if (Screens.current !== this) return;
       if (this.selectedId === m.id) this.updateInfo();
@@ -948,7 +962,7 @@ const SongSelect = {
         return starBadgeRoll(from, v, x => { if (!diff) return; const c = starColour(x); diff.style.setProperty('--sc', c); diff.style.setProperty('--ink', x >= 6.5 ? '#ffd966' : c); }); })(), h('b.wd-v', m.version), h('span.wd-by', ' mapped by '), h('b.wd-mapper', m.creator)),
       h('div.wd-box',
         h('div.wd-counts', stat('Notes', m.noteCount, objs, fmtInt(m.noteCount)), stat('Hold notes', m.lnCount, objs, fmtInt(m.lnCount))),
-        h('div.wd-diffs', stat('Keys', m.keys, 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
+        h('div.wd-diffs', stat('Keys', this.keysOf(m), 10), stat('HP drain', m.hp, 10), stat('Accuracy', m.od, 10))));
     const problems = m.problems.length ? h('div.ss-problem', icon('info'), h('div', h('b', 'This difficulty can\'t be played'), h('div.muted', m.problems.join(' · ')))) : null;
     // lazer's BeatmapDetailsArea: a "Details | Ranking" WedgeSelector (text tabs, a 2px strip under the current one);
     // Ranking has the "Selected Mods" toggle and the Sort and Scope dropdowns on the right (scores here are all local)
