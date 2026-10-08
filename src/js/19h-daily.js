@@ -66,7 +66,7 @@ const DailyScreen = {
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
-    const mods = (Settings.get('songselect.mods') || []).filter(x => x !== 'AT');
+    const mods = this.mods();
     // (the card is rebuilt only when it changes: a new score on the board leaves it, and its fade-in, alone)
     const key = JSON.stringify([m, !!local, f && [Math.round((f.progress || 0) * 100), f.error], mods]);
     if (key !== this._cardKey || !this.cardEl) { this._cardKey = key; this.cardEl = this.buildCard(m, local, f, mods); }
@@ -112,9 +112,12 @@ const DailyScreen = {
         h('div.dc-meta', starBadge(m.stars || 0), h('span.dc-ver', m.version), h('span.dc-keys', `${m.keys}K`), m.length ? h('span', icon('clock'), fmtTime(m.length)) : null, m.creator ? h('span.dc-by', 'mapped by ', h('b', m.creator)) : null),
         h('div.dc-time', h('span', 'Time remaining'), this.timeEl, h('div.dc-tbar', this.timeBar)),
         h('div.dc-actions',
-          h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD', 'AS'], onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
+          h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
           play)));
   },
+  /** The mods picked in song select, less the ones a daily challenge score can't have (Auto, Cinema, Wind Up / Down,
+   *  Adaptive Speed: the server doesn't count those, so one picked earlier mustn't come along unseen). */
+  mods() { return (Settings.get('songselect.mods') || []).filter(x => !(MOD_BY_ID.get(x) || {}).unranked); },
   async play() {
     const d = Daily.data, m = d && d.map;
     if (!m) return;
@@ -133,6 +136,6 @@ const DailyScreen = {
       if (!local) { Toast.err('Couldn\'t find the daily beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
       if (Screens.currentName !== 'daily') return;
     }
-    Game.launch({ mapId: local.id, mods: (Settings.get('songselect.mods') || []).filter(x => x !== 'AT'), daily: { day: d.day, onlineId: m.onlineId }, back: { name: 'daily' } });
+    Game.launch({ mapId: local.id, mods: this.mods(), daily: { day: d.day, onlineId: m.onlineId }, back: { name: 'daily' } });
   },
 };

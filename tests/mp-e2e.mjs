@@ -146,6 +146,11 @@ await alice.evaluate(() => { AshtonkMania.Daily._proposing = true; AshtonkMania.
 await alice.waitForFunction(() => document.querySelector('.dc-title'), null, { timeout: 8000 });
 const dmap = await alice.evaluate(() => AshtonkMania.Daily.data.map);
 check('daily challenge: the day\'s beatmap with the time remaining and Play', await alice.evaluate(() => document.querySelector('.dc-title').textContent.length > 0 && /^\d+:\d\d:\d\d$/.test(document.querySelector('.dc-time b').textContent) && !!document.querySelector('.dc-play')), JSON.stringify(dmap));
+{
+  // mods a daily score can't have (Wind Up here), picked earlier in song select, don't come along
+  const dm = await alice.evaluate(async () => { const S = AshtonkMania.Settings; S.set('songselect.mods', ['WU', 'HR']); AshtonkMania.DailyScreen.render(); await new Promise(r => setTimeout(r, 100)); const out = { mods: AshtonkMania.DailyScreen.mods(), btn: document.querySelector('.dc-mods').textContent.trim() }; S.set('songselect.mods', []); AshtonkMania.DailyScreen.render(); return out; });
+  check('daily challenge: mods its scores can\'t have (Wind Up) picked in song select are left out', JSON.stringify(dm.mods) === '["HR"]' && dm.btn === 'HR', JSON.stringify(dm));
+}
 await bob.evaluate(m => { const D = AshtonkMania.Daily; D.ask(); }, dmap);
 await bob.waitForFunction(() => AshtonkMania.Daily.data && AshtonkMania.Daily.data.map, null, { timeout: 5000 });
 check('…the same beatmap for everyone', await bob.evaluate(id => AshtonkMania.Daily.data.map.onlineId === id, dmap.onlineId));
