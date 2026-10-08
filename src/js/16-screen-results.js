@@ -322,14 +322,18 @@ const ResultsScreen = {
     if (replay && !hasSaved && p.watched !== 'auto' && p.watched !== 'replay') bar.append(save);
     if (hasSaved || p.watched === 'replay') bar.append(exp);
     bar.append(h('button.res-ab.res-share', { onclick: () => ShareCard.open(s), title: 'share a picture of this result', 'aria-label': 'Share' }, icon('upload')));
-    // (someone else's score on a beatmap you don't have: get it from here, then the screen offers retry and the rest)
+    // (someone else's score on a beatmap you don't have: get it from here — the button counts up as it comes — and
+    // the screen then has the rest: its replay, favourite, the beatmap at song select)
     if (!map && s.onlineSetId > 0) {
+      const label = h('span', 'Download');
       const dl = h('button.res-ab.wide.dl', { title: 'download this beatmap', 'aria-label': 'Download beatmap', onclick: async () => {
-        UISounds.click(); dl.disabled = true;
-        try { await OnlineBeatmaps.downloadAndImport({ id: s.onlineSetId, title: s.title, artist: s.artist }); } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
+        UISounds.click(); dl.disabled = true; label.textContent = 'Downloading…';
+        try {
+          await OnlineBeatmaps.downloadAndImport({ id: s.onlineSetId, title: s.title, artist: s.artist }, f => { label.textContent = f != null ? `Downloading… ${Math.round(f * 100)}%` : 'Downloading…'; });
+        } catch (e) { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); }
         if (Screens.current === this && this.p === p && BeatmapManager.mapByHash(s.mapHash)) Screens.go('results', { ...p, force: true }, { replace: true });
-        else dl.disabled = false;
-      } }, icon('download'), h('span', 'Download'));
+        else { dl.disabled = false; label.textContent = 'Download'; }
+      } }, icon('download'), label);
       bar.append(dl);
     } else if (!map) bar.append(h('span.muted', s.online ? 'Beatmap not in your library' : 'Beatmap no longer in library'));
 

@@ -246,6 +246,10 @@ function downloadBlob(blob, name) {
 function downloadJSON(obj, name) { downloadBlob(new Blob([JSON.stringify(obj)], { type: 'application/json' }), name); }
 
 function pickFiles({ accept = '', multiple = true, directory = false } = {}) {
+  // (iOS greys out files of a type it doesn't know when they're listed here — .osz, .osk, .osr… — so on an iPhone or
+  // iPad the picker takes any file, and the import sorts out what it can use)
+  const ios = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  if (ios && /\.(osz|osk|osr|osu|amr)\b/i.test(accept)) accept = '';
   return new Promise(resolve => {
     const inp = h('input', { type: 'file', accept, style: { display: 'none' } });
     if (multiple) inp.multiple = true;
