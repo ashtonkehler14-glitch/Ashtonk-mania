@@ -3766,6 +3766,9 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .mp-col .mp-players { background: none; padding: 0; overflow-y: auto; }
 @media (max-width: 1000px) { .mp-grid.cols3 { grid-template-columns: 1fr 1fr; } .mp-grid.cols3 > .mp-col:last-child { grid-column: 1 / -1; min-height: 280px; } }
 @media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .mp-grid.cols3 { grid-template-columns: 1fr; } }
+/* (narrow screens, a phone on its side above all: the room scrolls rather than squeezing the beatmap under the chat) */
+@media (max-width: 1000px) { .mp-room { overflow-y: auto; } .mp-room > .mp-grid.cols3 { flex: 1 0 auto; grid-template-rows: auto minmax(280px, 1fr); row-gap: 14px; } }
+@media (max-width: 1000px) and (hover: none) and (orientation: portrait) { .mp-room > .mp-grid.cols3 { grid-template-rows: auto auto minmax(280px, 1fr); } }
 .mp-col.mp-left { gap: 0; }
 
 /* multiplayer lounge — lazer's LoungeSubScreen spans the screen (WaveOverlayContainer.WIDTH_PADDING 80px either
@@ -16742,8 +16745,8 @@ const GameplayScreen = {
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
     // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true })
-      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true });
+    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
     if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;
@@ -19433,7 +19436,11 @@ const CHANGELOG = [
       'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
       'The participants list never scrolls sideways: long names shorten instead',
       '"You win!" on the match results is no longer hidden under the top bar',
-      'Ranked Play: the warm-up\'s beatmap details and the round\'s score cards no longer run into the chat on smaller screens'] },
+      'Ranked Play: the warm-up\'s beatmap details and the round\'s score cards no longer run into the chat on smaller screens',
+      'Ranked Play: after leaving a song you watch your opponent\'s score climb (it sat at 0), a second duel in the same visit has its stage name and timer again, and someone who left is still named on the result',
+      'Ranked Play: your own corner shows "Reconnecting…" while your connection is down, and the stage timer no longer jumps back when the screen updates',
+      'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
+      'On a phone on its side the room scrolls, instead of the chat covering the beatmap; leaving or quitting asks with a warning sign, not a bin'] },
     { icon: 'film', title: 'Spectating', items: ['Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own'] },
     { icon: 'trophy', title: 'Gameplay', items: ['lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
     { icon: 'brush', title: 'Skins and top bar', items: ['Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
@@ -22696,8 +22703,11 @@ const Multiplayer = {
         if (m.t === 'welcome') {
           clearTimeout(slow); this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room);
           // the room's recent chat (after a reload, or anything said while the connection was down)
-          if (Array.isArray(m.chat)) { const last = this.chat.length ? this.chat[this.chat.length - 1].ts || 0 : 0; this.chat.push(...m.chat.filter(c => (c.ts || 0) > last)); if (this.chat.length > 200) this.chat.splice(0, this.chat.length - 200); }
-          settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); this.resendFinish(); Bus.emit('mp:changed'); return;
+          let missed = [];
+          if (Array.isArray(m.chat)) { const last = this.chat.length ? this.chat[this.chat.length - 1].ts || 0 : 0; missed = m.chat.filter(c => (c.ts || 0) > last); this.chat.push(...missed); if (this.chat.length > 200) this.chat.splice(0, this.chat.length - 200); }
+          settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); this.resendFinish();
+          for (const c of missed) Bus.emit('mp:chat', c); // (into a chat already open)
+          Bus.emit('mp:changed'); return;
         }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
@@ -22838,7 +22848,7 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'results') Bus.emit('mp:opp'); break;
+      case 'opp': this.opps.set(m.id, m); Bus.emit('mp:opp', m); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
@@ -24067,8 +24077,8 @@ const RankedMatch = {
   me() { return Multiplayer.me; },
   oppId() { const g = this.g; return g ? Object.keys(g.users).find(id => id !== Multiplayer.me) || null : null; },
   player(id) { return Multiplayer.room ? Multiplayer.room.players.find(p => p.id === id) || null : null; },
-  name(id) { const p = this.player(id); return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (this._names && this._names[id]) || 'Opponent'; },
-  avatar(id, size) { return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id) }, size); },
+  name(id) { const p = this.player(id), u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (u && u.name) || (this._names && this._names[id]) || 'Opponent'; },
+  avatar(id, size) { const u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id), avatar: (u && u.avatar) || '' }, size); },
 
   mount(scr) {
     this.scr = scr;
@@ -24091,11 +24101,12 @@ const RankedMatch = {
     s.el.appendChild(this.root);
     s.el.classList.add('rkm-on');
     $('#app').classList.add('hide-toolbar');
-    this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {};
+    this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {}; this.timerEl = null; // (the header is built in this new frame)
     this._subs = [
       Bus.on('mp:chat', m => this.addChat(m)),
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
+      Bus.on('mp:opp', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
     ];
     const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
@@ -24116,7 +24127,7 @@ const RankedMatch = {
     const g = this.g;
     const live = g && !['ended'].includes(g.stage) && !(g.stage === 'waitjoin' && !g.rated);
     if (live) {
-      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'stars' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true });
+      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'stars' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true, icon: 'warn' });
       if (!ok) return;
     }
     Multiplayer.leave();
@@ -24127,7 +24138,8 @@ const RankedMatch = {
     const g = this.g, r = Multiplayer.room;
     if (!g || !this.root) return;
     for (const p of r.players) this._names[p.id] = p.name;
-    if (g.left > 0) { this.endAt = performance.now() + g.left - Multiplayer.rtt / 2; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
+    // (the end time is worked out when the server's update arrives: repainting for anything else mustn't wind it back)
+    if (g.left > 0 && Multiplayer.qpEndAt) { this.endAt = Multiplayer.qpEndAt; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
     this.root.dataset.stage = g.stage;
     const opp = this.oppId();
     const key = `${r.code}|${g.id || 0}|${g.stage}|${g.round}|${g.active}|${opp || ''}|${g.stage === 'ended' ? (g.rematch || []).join() + '|' + r.players.length : ''}`;
@@ -24153,7 +24165,7 @@ const RankedMatch = {
     const result = g.winner === Multiplayer.me ? 'win' : g.winner ? 'loss' : 'draw';
     RankedRating.record({ id: `${Multiplayer.room.code}-${g.id || 0}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
       me: { life: me.life, won: me.won, before: me.rating, after: me.ratingAfter }, muAfter: me.muAfter, sigmaAfter: me.sigmaAfter,
-      opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
+      opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || o.avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
   },
   /** Every frame: the stage timer and its bar (and the warning sounds as it runs out). */
   tick() {
@@ -24205,7 +24217,7 @@ const RankedMatch = {
     if (!g) return;
     const opp = this.oppId();
     const f = Multiplayer.fetch;
-    const sig = JSON.stringify([g.users, opp, g.stage, (Multiplayer.room.players || []).map(p => [p.id, p.hasMap, p.away]), f && [f.progress, f.error], g.mult]);
+    const sig = JSON.stringify([g.users, opp, g.stage, (Multiplayer.room.players || []).map(p => [p.id, p.hasMap, p.away]), f && [f.progress, f.error], g.mult, !!Multiplayer.reconnecting]);
     if (!force && sig === this._cornerKey) return;
     this._cornerKey = sig;
     this.corner(this.cornerMe, Multiplayer.me, RP_BLUE);
@@ -24238,7 +24250,7 @@ const RankedMatch = {
     // beatmap state while it's being fetched (as lazer's "Downloading… (45%)")
     const p = this.player(id);
     let st = '';
-    if (p && p.away) st = 'Reconnecting…';
+    if (p && p.away || id === Multiplayer.me && Multiplayer.reconnecting) st = 'Reconnecting…';
     else if (['picked', 'ready'].includes(g.stage) && p && !p.hasMap) {
       if (id === Multiplayer.me) { const f = Multiplayer.fetch; st = f && f.error ? 'Download failed' : f && f.progress != null ? `Downloading... (${Math.round(f.progress * 100)}%)` : Multiplayer.localMap() ? 'Importing...' : 'Missing Beatmap'; }
       else st = 'Downloading...';

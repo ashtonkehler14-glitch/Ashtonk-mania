@@ -573,6 +573,8 @@ check('leaving the song in Ranked Play warns that it scores 0 for the round', aw
 await bob.waitForTimeout(100); await bob.keyboard.down('Enter'); await bob.waitForTimeout(750); await bob.keyboard.up('Enter'); // (a dangerous button: held)
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'playing', null, { timeout: 10000 });
 check('…you wait in the match while your opponent plays on', await bob.evaluate(() => /Gameplay is in progress/.test(document.querySelector('.rkm-stage').textContent)));
+await bob.waitForFunction(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
+check('…watching their score climb as they play', await bob.evaluate(() => /[1-9]/.test((document.querySelector('.rkm-live b') || {}).textContent || '')), await bob.evaluate(() => (document.querySelector('.rkm-live') || {}).textContent));
 await Promise.all([alice, bob].map(p => p.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer' && AshtonkMania.Multiplayer.room.rp.stage === 'results' && AshtonkMania.Multiplayer.room.rp.round === 2, null, { timeout: 45000 })));
 const r2 = await alice.evaluate(() => { const r = AshtonkMania.Multiplayer.room, b = r.players.find(p => p.name === 'Bob').id; return { score: r.rp.results.scores[b], life: r.rp.users[b].life }; });
 check('…and take the damage for a score of 0', r2.score === 0 && r2.life < lifeBefore, JSON.stringify({ ...r2, lifeBefore }));
@@ -582,6 +584,7 @@ await alice.waitForFunction(() => AshtonkMania.Multiplayer.room && AshtonkMania.
 await alice.waitForSelector('.rke-title', { timeout: 5000 });
 const end = await alice.evaluate(() => ({ title: document.querySelector('.rke-title').textContent, rating: !!document.querySelector('.rke-rating'), sub: (document.querySelector('.rke-sub') || {}).textContent, again: document.querySelector('.rke-btn.again').textContent }));
 check('the opponent leaving ends the match: VICTORY, with no rating change', end.title === 'VICTORY' && !end.rating && /4K duel · 2 rounds played/.test(end.sub) && end.again === 'New duel', JSON.stringify(end));
+check('…and the one who left is still named on it', await alice.evaluate(() => [...document.querySelectorAll('.rke-row')].some(e => /Bob/.test(e.textContent)) && !/Opponent/.test(document.querySelector('.rke-rows').textContent)));
 await alice.waitForTimeout(1600); await shot(alice, 'mp-rp-ended');
 check('the match screen shows no stray "null" / "undefined" / "NaN" text', await alice.evaluate(() => !/\b(null|undefined|NaN)\b/.test(document.querySelector('.rkm').innerText)));
 await alice.click('.rke-btn.quit');

@@ -1268,8 +1268,8 @@ const GameplayScreen = {
     if (!s || s.finished) { Screens.go('multiplayer', {}, { replace: true }); return; }
     // Ranked Play (as lazer): leaving the song scores 0 for this round — your opponent plays on, and you take the damage
     const ranked = Multiplayer.isRP(), opp = ranked && Multiplayer.opponent();
-    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true })
-      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true });
+    const ok = ranked ? await Dialog.confirm('Leave the song?', `You'll score 0 this round and take the damage while ${opp ? opp.name : 'your opponent'} plays on. The match carries on afterwards.`, { ok: 'Leave song', danger: true, icon: 'warn' })
+      : await Dialog.confirm('Quit match?', 'Quitting counts as a loss.', { ok: 'Quit', danger: true, icon: 'warn' });
     if (!ok || this.s !== s) return;
     Multiplayer.send({ t: 'quit' });
     s.finished = true; s.running = false;

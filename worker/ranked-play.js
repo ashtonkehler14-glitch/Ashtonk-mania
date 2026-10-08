@@ -111,7 +111,7 @@ export class RankedPlay {
   addUser(p, opts) {
     const own = opts.ratings && typeof opts.ratings === 'object' && opts.ratings[this.keys] && typeof opts.ratings[this.keys] === 'object' ? opts.ratings[this.keys] : opts;
     const rating = num(own.mu ?? own.rating, 0, 5000, RATING.MU), sigma = num(own.sigma, 1, 500, RATING.SIGMA);
-    this.users[p.id] = { rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), pref: null, life: RP.LIFE, hand: [], won: 0, mult: 0, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
+    this.users[p.id] = { name: p.name, avatar: p.avatar || '', rating: Math.round(rating), mu: rating, sigma, ratingAfter: Math.round(rating), pref: null, life: RP.LIFE, hand: [], won: 0, mult: 0, dmg: null, cid: String(opts.cid || '').slice(0, 40) };
   }
   alive() { return Object.values(this.users).filter(u => u.life > 0).length; }
   cardsLeft() { return this.deck.length + Object.values(this.users).reduce((a, u) => a + u.hand.length, 0); }
@@ -128,7 +128,8 @@ export class RankedPlay {
     for (const [id, u] of Object.entries(this.users)) {
       // a star rating stays hidden from the other player until both have locked theirs in
       const showPref = id === viewer || this.stage !== 'stars';
-      users[id] = { rating: u.rating, ratingAfter: u.ratingAfter, muAfter: u.muAfter ?? null, sigmaAfter: u.sigmaAfter ?? null, pref: showPref ? u.pref : null, picked: u.pref != null, life: u.life, hand: [...u.hand], won: u.won, mult: u.mult, dmg: u.dmg,
+      // (a name always; an avatar only once they've left the room — while here, it's in the room's player list)
+      users[id] = { name: u.name || '', avatar: this.room.get(id) ? '' : u.avatar || '', rating: u.rating, ratingAfter: u.ratingAfter, muAfter: u.muAfter ?? null, sigmaAfter: u.sigmaAfter ?? null, pref: showPref ? u.pref : null, picked: u.pref != null, life: u.life, hand: [...u.hand], won: u.won, mult: u.mult, dmg: u.dmg,
         discarded: !!this.discarded[id], ready: !!this.ready[id], away: !!(this.room.get(id) || {}).away };
     }
     return { keys: this.keys, rated: this.rated, stage: this.stage, round: this.round, left: this.deadline ? Math.max(0, this.deadline - this.now()) : 0, len: this.stageLen,

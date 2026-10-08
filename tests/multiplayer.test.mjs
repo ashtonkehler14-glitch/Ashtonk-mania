@@ -691,12 +691,17 @@ test('Ranked Play duels between friends: unrated, listed while public, the deck 
   assert.equal(r.listing().name, "Alice's Ranked Play duel");
   clock.t += 10 * 60000; r.tick();
   assert.equal(r.rp.stage, 'waitjoin', 'a duel waits for the friend');
-  r.join('b', 'Bob', false, { rating: 1500 });
+  r.join('b', 'Bob', false, { rating: 1500, avatar: 'preset:cat' });
   r.message('a', { t: 'rpStars', stars: 3 }); r.message('b', { t: 'rpStars', stars: 3 });
   r.message('a', { t: 'pool', maps: deck(12) });
   assert.equal(r.listing().state, 'playing');
+  // (the avatar of a player still in the room comes with the room's player list, not again with the match)
+  assert.equal(r.snapshot('a').rp.users.b.name, 'Bob'); assert.equal(r.snapshot('a').rp.users.b.avatar, '');
   r.leave('b');
   assert.equal(r.rp.winner, 'a');
+  // gone from the room, the match still names them (and shows their avatar) on the result
+  assert.equal(r.snapshot('a').rp.users.b.name, 'Bob'); assert.equal(r.snapshot('a').rp.users.b.avatar, 'preset:cat');
+  assert.equal(r.listing(), null, 'a finished duel with one player left is no longer listed');
   assert.equal(r.snapshot('a').rp.users.a.ratingAfter, 1234, 'unrated');
   const priv = new RoomLogic('DP'); priv.join('a', 'A', true, { mode: 'rp', public: false }); assert.equal(priv.listing(), null);
 });

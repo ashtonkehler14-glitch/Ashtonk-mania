@@ -146,6 +146,7 @@ export class RoomLogic {
     if (!this.created || this.mode === 'qp' || !this.settings.public || !this.players.length) return null;
     const host = this.get(this.hostId), m = this.map, ranked = this.mode === 'rp';
     if (ranked && this.rp.rated) return null; // (queue matches are the two players' own)
+    if (ranked && this.rp.stage === 'ended' && this.players.length < 2) return null; // (over, and nobody left to play again)
     return { code: this.code, name: `${host ? host.name : 'Someone'}'s ${ranked ? 'Ranked Play duel' : 'room'}`, host: host ? host.name : '', avatar: host ? host.avatar : '', rating: ranked && host && this.rp.user(host.id) ? this.rp.user(host.id).rating : null,
       players: this.players.length, size: this.settings.size, ranked, keys: ranked ? this.rp.keys : null,
       state: ranked ? (this.rp.stage === 'waitjoin' ? 'lobby' : 'playing') : this.state, type: this.settings.type, win: this.settings.win,

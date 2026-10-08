@@ -175,8 +175,8 @@ const RankedMatch = {
   me() { return Multiplayer.me; },
   oppId() { const g = this.g; return g ? Object.keys(g.users).find(id => id !== Multiplayer.me) || null : null; },
   player(id) { return Multiplayer.room ? Multiplayer.room.players.find(p => p.id === id) || null : null; },
-  name(id) { const p = this.player(id); return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (this._names && this._names[id]) || 'Opponent'; },
-  avatar(id, size) { return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id) }, size); },
+  name(id) { const p = this.player(id), u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.profile.name : p ? p.name : (u && u.name) || (this._names && this._names[id]) || 'Opponent'; },
+  avatar(id, size) { const u = this.g && this.g.users[id]; return id === Multiplayer.me ? ProfileManager.avatarEl(size) : Presence.avatarEl(this.player(id) || { name: this.name(id), avatar: (u && u.avatar) || '' }, size); },
 
   mount(scr) {
     this.scr = scr;
@@ -199,11 +199,12 @@ const RankedMatch = {
     s.el.appendChild(this.root);
     s.el.classList.add('rkm-on');
     $('#app').classList.add('hide-toolbar');
-    this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {};
+    this._key = null; this._cornerKey = null; this._lastStage = null; this._names = {}; this.timerEl = null; // (the header is built in this new frame)
     this._subs = [
       Bus.on('mp:chat', m => this.addChat(m)),
       Bus.on('rp:hand', m => this.onHand(m)),
       Bus.on('mp:fetch', () => this.paintCorners(true)),
+      Bus.on('mp:opp', () => { if (this.g && this.g.stage === 'playing') this.refreshPlaying(); }),
     ];
     const loop = () => { this._raf = requestAnimationFrame(loop); this.tick(); if (Spectate.host.watchers) Spectate.hostRk(this.root); };
     loop();
@@ -224,7 +225,7 @@ const RankedMatch = {
     const g = this.g;
     const live = g && !['ended'].includes(g.stage) && !(g.stage === 'waitjoin' && !g.rated);
     if (live) {
-      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'stars' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true });
+      const ok = await Dialog.confirm('Leave the match?', g.stage === 'waitjoin' || g.stage === 'stars' || g.stage === 'deal' ? 'The match hasn\'t started yet — leaving now doesn\'t count as a loss.' : `Leaving now loses the match${g.rated ? ' and keeps you out of the queue for 10 minutes' : ''}.`, { ok: 'Leave', danger: true, icon: 'warn' });
       if (!ok) return;
     }
     Multiplayer.leave();
@@ -235,7 +236,8 @@ const RankedMatch = {
     const g = this.g, r = Multiplayer.room;
     if (!g || !this.root) return;
     for (const p of r.players) this._names[p.id] = p.name;
-    if (g.left > 0) { this.endAt = performance.now() + g.left - Multiplayer.rtt / 2; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
+    // (the end time is worked out when the server's update arrives: repainting for anything else mustn't wind it back)
+    if (g.left > 0 && Multiplayer.qpEndAt) { this.endAt = Multiplayer.qpEndAt; this.len = g.len || g.left; } else { this.endAt = 0; this.len = 0; }
     this.root.dataset.stage = g.stage;
     const opp = this.oppId();
     const key = `${r.code}|${g.id || 0}|${g.stage}|${g.round}|${g.active}|${opp || ''}|${g.stage === 'ended' ? (g.rematch || []).join() + '|' + r.players.length : ''}`;
@@ -261,7 +263,7 @@ const RankedMatch = {
     const result = g.winner === Multiplayer.me ? 'win' : g.winner ? 'loss' : 'draw';
     RankedRating.record({ id: `${Multiplayer.room.code}-${g.id || 0}-${g.round}`, at: Date.now(), keys: g.keys, rated: g.rated, result, rounds: g.round,
       me: { life: me.life, won: me.won, before: me.rating, after: me.ratingAfter }, muAfter: me.muAfter, sigmaAfter: me.sigmaAfter,
-      opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
+      opp: o ? { name: this.name(oppId), avatar: (this.player(oppId) || {}).avatar || o.avatar || '', life: o.life, won: o.won, before: o.rating, after: o.ratingAfter } : null });
   },
   /** Every frame: the stage timer and its bar (and the warning sounds as it runs out). */
   tick() {
@@ -313,7 +315,7 @@ const RankedMatch = {
     if (!g) return;
     const opp = this.oppId();
     const f = Multiplayer.fetch;
-    const sig = JSON.stringify([g.users, opp, g.stage, (Multiplayer.room.players || []).map(p => [p.id, p.hasMap, p.away]), f && [f.progress, f.error], g.mult]);
+    const sig = JSON.stringify([g.users, opp, g.stage, (Multiplayer.room.players || []).map(p => [p.id, p.hasMap, p.away]), f && [f.progress, f.error], g.mult, !!Multiplayer.reconnecting]);
     if (!force && sig === this._cornerKey) return;
     this._cornerKey = sig;
     this.corner(this.cornerMe, Multiplayer.me, RP_BLUE);
@@ -346,7 +348,7 @@ const RankedMatch = {
     // beatmap state while it's being fetched (as lazer's "Downloading… (45%)")
     const p = this.player(id);
     let st = '';
-    if (p && p.away) st = 'Reconnecting…';
+    if (p && p.away || id === Multiplayer.me && Multiplayer.reconnecting) st = 'Reconnecting…';
     else if (['picked', 'ready'].includes(g.stage) && p && !p.hasMap) {
       if (id === Multiplayer.me) { const f = Multiplayer.fetch; st = f && f.error ? 'Download failed' : f && f.progress != null ? `Downloading... (${Math.round(f.progress * 100)}%)` : Multiplayer.localMap() ? 'Importing...' : 'Missing Beatmap'; }
       else st = 'Downloading...';

@@ -67,8 +67,11 @@ const Multiplayer = {
         if (m.t === 'welcome') {
           clearTimeout(slow); this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room);
           // the room's recent chat (after a reload, or anything said while the connection was down)
-          if (Array.isArray(m.chat)) { const last = this.chat.length ? this.chat[this.chat.length - 1].ts || 0 : 0; this.chat.push(...m.chat.filter(c => (c.ts || 0) > last)); if (this.chat.length > 200) this.chat.splice(0, this.chat.length - 200); }
-          settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); this.resendFinish(); Bus.emit('mp:changed'); return;
+          let missed = [];
+          if (Array.isArray(m.chat)) { const last = this.chat.length ? this.chat[this.chat.length - 1].ts || 0 : 0; missed = m.chat.filter(c => (c.ts || 0) > last); this.chat.push(...missed); if (this.chat.length > 200) this.chat.splice(0, this.chat.length - 200); }
+          settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); this.resendFinish();
+          for (const c of missed) Bus.emit('mp:chat', c); // (into a chat already open)
+          Bus.emit('mp:changed'); return;
         }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
@@ -209,7 +212,7 @@ const Multiplayer = {
       }
       case 'chat': this.chat.push(m); if (this.chat.length > 200) this.chat.shift(); Bus.emit('mp:chat', m); break;
       case 'pong': if (m.c === this._pingAt) this.rtt = performance.now() - m.c; break;
-      case 'opp': this.opps.set(m.id, m); if (Screens.currentName === 'results') Bus.emit('mp:opp'); break;
+      case 'opp': this.opps.set(m.id, m); Bus.emit('mp:opp', m); break;
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
