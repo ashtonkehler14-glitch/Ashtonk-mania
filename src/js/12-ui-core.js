@@ -246,6 +246,21 @@ function gradeEl(g, cls = '') {
 
 // ─────────────────────────────── Toasts ───────────────────────────────
 const Toast = {
+  /** Toasts sit under the top bar at the right, as lazer's — but below anything there marked .toast-clear (the beatmap
+   *  page's close button, a room's Invite and code), which they used to cover: on a phone that was the only way out. */
+  place() {
+    const box = $('#toasts'), app = $('#app');
+    if (!box || !app) return;
+    let bottom = null;
+    for (const el of document.querySelectorAll('.toast-clear')) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || r.right < innerWidth * 0.55 || r.top > innerHeight * 0.45) continue;
+      bottom = Math.max(bottom ?? 0, r.bottom);
+    }
+    if (bottom == null) { box.style.top = ''; return; }
+    const a = app.getBoundingClientRect(), k = a.width / (app.offsetWidth || a.width) || 1;
+    box.style.top = Math.round((bottom - a.top) / k + 12) + 'px';
+  },
   show(title, body = '', { type = 'info', timeout = 4200, log = true, onClick = null } = {}) {
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
     const box = $('#toasts');
@@ -254,6 +269,7 @@ const Toast = {
     const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
     if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
     if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type, { onClick });
+    this.place();
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     el._key = key;
     box.appendChild(el);
@@ -327,6 +343,7 @@ const Toast = {
    *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() }. */
   progress(title, body = '', { onCancel = null } = {}) {
     const box = $('#toasts');
+    this.place();
     const bar = h('i'), txt = h('div.t-body', body);
     const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
     box.appendChild(el);
@@ -352,6 +369,10 @@ const Toast = {
   ok(t, b) { return this.show(t, b, { type: 'ok' }); },
   err(t, b) { return this.show(t, b, { type: 'err', timeout: 8000 }); },
 };
+
+// (toasts move clear of what's on the new screen, or of the window's new shape)
+Bus.on('screen:changed', () => setTimeout(() => Toast.place(), 0));
+window.addEventListener('resize', () => Toast.place());
 
 // ─────────────────────────────── Overlays ───────────────────────────────
 const Overlays = {

@@ -689,8 +689,9 @@ const ExplorerScreen = {
     UISounds.click();
     this.setView = { set, diff: set.diffs[0] }; // (lazer's BeatmapPicker starts on the first difficulty, the easiest)
     this.setEl = h('div.bso', { role: 'dialog', 'aria-label': `${set.artist} - ${set.title}` });
-    this.setO = makeOverlay(this.setEl, { backdrop: false, onClose: () => { this.setO = null; this.setEl = null; this.setView = null; } });
+    this.setO = makeOverlay(this.setEl, { backdrop: false, onClose: () => { this.setO = null; this.setEl = null; this.setView = null; setTimeout(() => Toast.place(), 260); } });
     this.renderSet();
+    Toast.place();
     // (the search only lists a set; its own page adds the ratings and where players failed — fetched once)
     if (!set.full) OnlineBeatmaps.getSet(set.id).then(full => {
       if (!full) return;
@@ -800,7 +801,7 @@ const ExplorerScreen = {
             : h('div.muted', 'No scores on this difficulty yet.')) : null, global, this.descBox(set)].filter(Boolean));
     clearEl(this.setEl).append(h('div.bso-scroll',
       h('div.bso-header', cover, h('div.bso-shade'),
-        h('button.icon-btn.bso-close', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
+        h('button.icon-btn.bso-close.toast-clear', { title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => { UISounds.back(); this.closeSet(); } }, icon('x')),
         h('div.bso-inner',
           h('div.bso-left',
             h('div.bso-diffline', diffs, hover),

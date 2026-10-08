@@ -2478,9 +2478,6 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
-/* the page's close button is never under a toast (a download's stays up until it's done, and a phone has no Esc):
-   while the page is open, toasts sit below the button */
-body:has(.bso) #toasts { top: calc(var(--toolbar-h) + 66px); }
 .bso-scroll { padding-top: 0; }
 /* the beatmap info page is one full screen: the cover fills it and the details sit in the middle at a size that
    uses the space (tags and your scores live in the left column under the buttons) */

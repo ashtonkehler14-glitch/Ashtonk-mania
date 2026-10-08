@@ -910,11 +910,12 @@ const MultiplayerScreen = {
       if (lm) BeatmapManager.bgURL(lm).then(u => u && (panelBg.style.backgroundImage = `url("${u}")`));
       else if (m && m.onlineSetId > 0) panelBg.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(m.onlineSetId, 'cover')}")`;
     }
-    clearEl(this.headEl).append(h('div.mp-roompanel', panelBg, h('div.mp-rshade'),
+    clearEl(this.headEl).append(h('div.mp-roompanel.toast-clear', panelBg, h('div.mp-rshade'),
       h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
       h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
       h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
       invite, copy));
+    Toast.place();
 
     // beatmap panel
     const map = r.map, local = map ? Multiplayer.localMap(map) : null;

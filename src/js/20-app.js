@@ -64,7 +64,7 @@ const App = {
     Mobile.early(); // (on a phone: recommend the app before anything else)
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     const returning = !!ProfileManager.profile.onboarded;
-    if (!returning) { await Onboarding.run(); DB.kvSet('changelog.seen', WhatsNew.latest()).catch(() => {}); }
+    if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
     Mobile.init();
     try { Medals.backfill(); } catch (e) { console.warn('medals', e); }

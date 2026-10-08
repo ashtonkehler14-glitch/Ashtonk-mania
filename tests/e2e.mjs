@@ -801,6 +801,16 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     return { first, toast: !!toast, clickable: !!(n && n.onClick) };
   });
   check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install doesn\'t', !upd.first && upd.toast && upd.clickable, JSON.stringify(upd));
+  const wn = await page.evaluate(async () => {
+    const W = WhatsNew; await DB.kvSet('changelog.seen', W.latest()); await DB.kvSet('changelog.seenLines', W.lines());
+    await W.maybeShow(); const same = !!document.querySelector('.cl');
+    await DB.kvSet('changelog.seenLines', W.lines() - 1); await W.maybeShow(); const grew = !!document.querySelector('.cl');
+    Overlays.closeAll(); await new Promise(r => setTimeout(r, 400));
+    await W.maybeShow(); const again = !!document.querySelector('.cl'); Overlays.closeAll();
+    return { same, grew, again };
+  });
+  check('What\'s new comes back when the latest update gains lines after you\'ve seen it (and only then)', !wn.same && wn.grew && !wn.again, JSON.stringify(wn));
+  await page.waitForTimeout(400);
 }
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor
