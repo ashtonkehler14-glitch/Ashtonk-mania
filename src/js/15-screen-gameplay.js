@@ -333,7 +333,7 @@ const GameplayScreen = {
     const open = this.gpChatOpen();
     if (open === this._gpOpen) return;
     this._gpOpen = open; this.gpChatIn.disabled = !open;
-    this.gpChatIn.placeholder = open ? 'press Enter to chat' : 'chat is available when your song is over';
+    this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
     if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null;

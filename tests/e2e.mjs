@@ -269,20 +269,26 @@ async function autoPlay(version) {
     // smooth scrolling: from one drawn frame to the next, the playfield clock moves by exactly the time between the
     // frames' refreshes (it used to follow a jittery audio reading, so notes stepped unevenly), and no frame stalls
     // on building a sprite (the first hit lightings used to). Measured while notes are on screen: in the lead-in the
-    // clock may still take one correction as the audio output settles once sound starts (nothing is there to move)
+    // clock may still take one correction as the audio output settles once sound starts (nothing is there to move).
+    // (an audio output that shifts by up to 50 ms — a busy machine, a Bluetooth headset — is eased in over about a
+    // second by design: every frame then moves the same few % faster, evenly. So, as a share of the time between
+    // frames: no frame more than 6% off, and no jitter — the speed never changing by 3% or more from one frame to the
+    // next (following the raw audio reading did that by tens of %))
     const p = await page.evaluate(() => new Promise(resolve => {
       const G = AshtonkMania.GameplayScreen, R = G.renderer, orig = R.render, rec = [];
       const shown = G.s.firstNote - 11485 / AshtonkMania.Settings.get('gameplay.scrollSpeed') * G.s.rate;
       R.render = function (g) { const t0 = performance.now(); const r = orig.call(this, g); rec.push([g.realNow, g.now, performance.now() - t0]); return r; };
       setTimeout(() => {
         R.render = orig;
-        const steps = [], rate = G.s.rate;
-        for (let i = 1; i < rec.length; i++) if (G.s.running && rec[i - 1][1] >= shown) steps.push(Math.abs((rec[i][1] - rec[i - 1][1]) - (rec[i][0] - rec[i - 1][0]) * rate));
+        const dev = [], rate = G.s.rate;
+        for (let i = 1; i < rec.length; i++) if (G.s.running && rec[i - 1][1] >= shown) { const dt = rec[i][0] - rec[i - 1][0]; dev.push([(rec[i][1] - rec[i - 1][1]) - dt * rate, dt]); }
+        const rel = dev.map(([d, dt]) => d / Math.max(dt, 1)), jitter = rel.slice(1).map((r, i) => Math.abs(r - rel[i]));
         const cost = rec.map(x => x[2]).sort((a, b) => a - b);
-        resolve({ frames: rec.length, measured: steps.length, worstStepMs: +Math.max(...steps).toFixed(3), p99RenderMs: +cost[Math.floor(cost.length * 0.99)].toFixed(2) });
+        resolve({ frames: rec.length, measured: dev.length, worstStepMs: +Math.max(...dev.map(d => Math.abs(d[0]))).toFixed(3), worstOffPct: +(Math.max(...rel.map(Math.abs)) * 100).toFixed(2),
+          worstJitterPct: +(Math.max(...jitter) * 100).toFixed(2), p99RenderMs: +cost[Math.floor(cost.length * 0.99)].toFixed(2) });
       }, 4000);
     }));
-    check('gameplay: notes move by exactly the time between frames, and no frame stalls', p.frames > 60 && p.measured > 40 && p.worstStepMs < 0.5 && p.p99RenderMs < 8, JSON.stringify(p));
+    check('gameplay: notes move by the time between frames — evenly, no jitter — and no frame stalls', p.frames > 60 && p.measured > 40 && p.worstOffPct < 6 && p.worstJitterPct < 3 && p.p99RenderMs < 8, JSON.stringify(p));
   } else await page.waitForTimeout(2500);
   if (version === '7K Hard') await shot('03-gameplay-7k-default-skin');
   // skip to speed things up is not possible for auto; wait for results

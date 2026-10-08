@@ -426,9 +426,11 @@ const ModSelect = {
     const sheet = this.sheet;
     this.query = '';
     this.colsEl = this.footEl = null;
-    const si = this.searchEl = h('input.ms-search-in', { type: 'search', placeholder: 'tab to search...', 'aria-label': 'Search mods', spellcheck: 'false', autocomplete: 'off' });
+    // (lazer's "tab to search..." — a phone has no Tab key, so there it's a tap)
+    const hint = kbHint('tab to search...', 'tap to search...');
+    const si = this.searchEl = h('input.ms-search-in', { type: 'search', placeholder: hint, 'aria-label': 'Search mods', spellcheck: 'false', autocomplete: 'off' });
     si.addEventListener('focus', () => { si.placeholder = 'type in to search'; });
-    si.addEventListener('blur', () => { si.placeholder = 'tab to search...'; });
+    si.addEventListener('blur', () => { si.placeholder = hint; });
     si.addEventListener('input', () => { this.query = si.value; this.render(); });
     si.addEventListener('keydown', e => {
       e.stopPropagation(); // (typing here doesn't press the mods' hotkeys)

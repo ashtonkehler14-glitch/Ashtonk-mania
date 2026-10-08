@@ -3279,6 +3279,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .nf-count { color: #ffcc22; }
 .nf-clear { padding: 0; border: 0; background: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .8; }
 .nf-clear:hover { opacity: 1; }
+/* (on a touch screen "CLEAR ALL" takes a finger: the same text with room around it, kept in place by the negative margin) */
+html.touch .nf-clear { padding: 10px 12px; margin: -10px -12px; }
 .nf-list { gap: 0; padding: 0 20px 5px; }
 .nf-item { align-items: stretch; gap: 0; min-height: 60px; margin: 3px 0; padding: 0; border-radius: 6px; overflow: hidden; background: hsl(255 10% 25%); transition: background 200ms cubic-bezier(.22, 1, .36, 1); }
 .nf-item:hover { background: hsl(255 10% 30%); }
