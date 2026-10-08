@@ -28,18 +28,21 @@ const Verified = {
     let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return btoa(bin);
   },
-  /** A multiplayer play, to the room to be judged — the match is decided by that, not by the result sent with 'finish'. */
+  /** A multiplayer play, to the room to be judged — the match is decided by that, not by the result sent with 'finish'.
+   *  The room waits 20 s for it, so a play that can't go out (the network dropped as the song ended) keeps trying
+   *  until then — at once when the network is back — instead of giving up after a few seconds. */
   async room({ rec, mods, modConfig, seed, events }) {
     const code = Multiplayer.room && Multiplayer.room.code, token = Multiplayer.token;
     if (!code || !token) return;
     const osu = await this.file(rec);
     if (!osu) return;
-    for (let i = 0; i < 3; i++) {
+    const body = JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }), until = Date.now() + 22000;
+    for (let i = 0; Date.now() < until && Multiplayer.code === code; i++) {
       try {
-        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
-        if (r.ok || r.status === 422) return;
+        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+        if (r.ok || r.status === 422 || r.status === 403) return;
       } catch { /* network: try again */ }
-      await sleep(1500);
+      await new Promise(res => { const t = setTimeout(done, Math.min(4000, 1000 * (i + 1))); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
   },
   async submit({ rec, mods, modConfig, seed, events, daily = null }) {

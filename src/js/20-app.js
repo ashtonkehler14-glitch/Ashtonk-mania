@@ -73,6 +73,7 @@ const App = {
     setTimeout(() => BeatmapStatus.sync(), 6000);
     Bus.on('library:changed', () => { clearTimeout(this._bsT); this._bsT = setTimeout(() => BeatmapStatus.sync(), 3000); });
     Multiplayer.joinFromLink();
+    Multiplayer.resume(); // (the page was reloaded in a room: back into it)
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e))
       .then(() => BeatmapManager.addConverts()).catch(e => console.warn('converts', e)), 1500);

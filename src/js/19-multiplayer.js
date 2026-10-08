@@ -64,7 +64,12 @@ const Multiplayer = {
       ws.onmessage = ev => {
         if (this.ws === ws) this._lastMsg = performance.now();
         let m; try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.t === 'welcome') { clearTimeout(slow); this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room); settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); Bus.emit('mp:changed'); return; }
+        if (m.t === 'welcome') {
+          clearTimeout(slow); this.me = m.you; if (m.token) this.token = m.token; this.room = m.room; this.qpClock(m.room);
+          // the room's recent chat (after a reload, or anything said while the connection was down)
+          if (Array.isArray(m.chat)) { const last = this.chat.length ? this.chat[this.chat.length - 1].ts || 0 : 0; this.chat.push(...m.chat.filter(c => (c.ts || 0) > last)); if (this.chat.length > 200) this.chat.splice(0, this.chat.length - 200); }
+          settled = true; resolve(); this.startKeepAlive(); this.autoFetch(); this.flushOutbox(); this.resendFinish(); Bus.emit('mp:changed'); return;
+        }
         if (m.t === 'error' && m.fatal) { fail(m.msg); return; }
         this.onMessage(m);
       };
@@ -112,7 +117,28 @@ const Multiplayer = {
     rc.now = () => { clearTimeout(rc.timer); attempt(); }; // (the network or the tab is back: don't wait for the timer)
     rc.timer = setTimeout(attempt, 150);
   },
+  /** After the page reloaded in a room (see pagehide): back into it as the same player, while the room still keeps
+   *  the seat. */
+  async resume() {
+    let s = null;
+    try { s = JSON.parse(sessionStorage.getItem('mp.rejoin') || 'null'); sessionStorage.removeItem('mp.rejoin'); } catch { return; }
+    if (!s || !s.code || !(Date.now() - s.at < 60000) || !this.available() || this.room) return;
+    await Screens.go('multiplayer', s.rp ? { ranked: true } : {});
+    try {
+      await this.connect(s.code, false, !!s.quick, true, s.opts || {});
+      this.syncHasMap();
+      if ((s.mods || []).length) this.send({ t: 'mods', mods: s.mods });
+      if (s.diff) this.chooseDiff(s.diff);
+      Toast.ok('Back in the room', s.code);
+      Bus.emit('mp:changed');
+    } catch (e) {
+      this.ws = null; this.room = null;
+      Toast.err(/not found/i.test(e.message) ? 'That room has closed' : /already started/i.test(e.message) ? `Lost the ${s.rp ? 'Ranked Play' : 'Quick Play'} match` : 'Couldn\'t get back into the room', /not found|already started/i.test(e.message) ? s.code : friendlyError(e));
+      Bus.emit('mp:changed');
+    }
+  },
   leave(silent = false) {
+    try { sessionStorage.removeItem('mp.rejoin'); } catch { /* storage blocked */ }
     if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
     this.stopKeepAlive();
     this.myDiffId = null; this.fetch = null; this._outbox = null;
@@ -148,6 +174,16 @@ const Multiplayer = {
     }, 5000);
   },
   stopKeepAlive() { clearInterval(this._keep); this._keep = 0; },
+  /** The network or the tab is back: reconnect now if we were, or check that the connection survived — a ping not
+   *  answered in 4 s means it died meanwhile (it can still look open), and it's replaced at once. */
+  probe() {
+    if (this.reconnecting && this.reconnecting.now) { this.reconnecting.now(); return; }
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return;
+    this.ping();
+    const at = this._pingAt;
+    setTimeout(() => { if (this.ws === ws && this._lastMsg < at) this.dropDead(ws); }, 4000);
+  },
   dropDead(ws) {
     if (this.ws !== ws) return;
     this.ws = null; this.stopKeepAlive();
@@ -177,7 +213,7 @@ const Multiplayer = {
       case 'qpPool': this.buildPool(m); break;
       case 'rpDeck': buildRankedDeck(m).catch(e => console.warn('Ranked Play deck', e)); break;
       case 'hand': Bus.emit('rp:hand', m); break;
-      case 'start': this.lastResults = null; this.launch(m); break; // (a new match: the last one's results go)
+      case 'start': this.lastResults = null; this._lastFinish = null; this.launch(m); break; // (a new match: the last one's results go)
       case 'skipvote': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkipVotes(m); break;
       case 'skip': if (typeof GameplayScreen !== 'undefined') GameplayScreen.mpSkip(); break;
       case 'results':
@@ -355,7 +391,18 @@ const Multiplayer = {
   },
   /** (Ranked Play's damage is worked out on lazer's standardised score.) */
   finish(score, forfeit = false) {
-    this.send({ t: 'finish', result: { score: score.scoreStd ?? score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } });
+    const m = { t: 'finish', result: { score: score.scoreStd ?? score.score, accuracy: score.accuracy, maxCombo: score.maxCombo, counts: score.counts, grade: score.grade, passed: score.passed, pp: score.pp, forfeit } };
+    // (kept until the room has it: sent into a connection that had silently died, it's lost — see resendFinish)
+    this._lastFinish = m;
+    this.send(m);
+  },
+  /** Back after a dropped connection mid-match: if our song's over but the room never got told (it went into a dead
+   *  connection), tell it again. (The room ignores a second one.) */
+  resendFinish() {
+    const m = this._lastFinish, r = this.room, me = this.self();
+    if (!m || !r) return;
+    if (r.state !== 'playing' || !me || !me.playing) { this._lastFinish = null; return; }
+    if (!me.fin) this.send(m);
   },
 };
 
@@ -630,15 +677,18 @@ const Presence = {
   },
 };
 
-// Closing (or reloading) the tab is leaving on purpose: the room is told at once, rather than waiting for a dropped
-// connection to come back. (A page frozen into the back/forward cache just drops, and reconnects if it's restored.)
+// Reloading the page (or a phone's browser reloading a tab it put away) in a room isn't leaving it: the room keeps a
+// dropped player's seat for a while, so the room is only told the connection went, and the reloaded page goes straight
+// back in as the same player (Multiplayer.resume) — still the host, still in the match. Closing the tab for good is the
+// same drop: the seat goes once its wait is over. (A page frozen into the back/forward cache just drops, and reconnects
+// if it's restored.)
 addEventListener('pagehide', e => {
-  // (and you're off the online list at once, rather than when the server notices the silence)
+  // (you're off the online list at once, rather than when the server notices the silence)
   const pw = Presence.ws;
   if (pw && !e.persisted) { try { if (pw.readyState === 1) pw.send(JSON.stringify({ t: 'bye' })); pw.close(1000, 'bye'); } catch { /* closing */ } }
-  const ws = Multiplayer.ws;
-  if (e.persisted || !ws) return;
-  try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'bye' })); } catch { /* closing */ }
+  if (e.persisted || !Multiplayer.room || !Multiplayer.code) return;
+  const me = Multiplayer.self();
+  try { sessionStorage.setItem('mp.rejoin', JSON.stringify({ code: Multiplayer.code, quick: !!Multiplayer.quick, opts: Multiplayer.opts || {}, rp: Multiplayer.isRP(), mods: (me && me.mods) || [], diff: Multiplayer.myDiffId || null, at: Date.now() })); } catch { /* storage blocked */ }
 });
 
 // In a room, other menus (profile, skins, collections…) keep you in it, and going back or home from them returns to
@@ -703,7 +753,7 @@ const MultiplayerScreen = {
     // a room code only opens a room of this lounge's kind (Ranked Play rooms aren't reachable from the lounge)
     const joinBtn = h('button.btn.mp-join', { onclick: () => code.value.length >= 4 && busy('Joining room…', () => this.joinHere(code.value)) }, 'Join');
     const offline = !Multiplayer.available();
-    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'queue up for a 1v1, or open a duel' : 'lounge — join a room, or make your own' }), h('div.mp-lobby',
+    this.body.append(overlayHeader(ranked ? 'Ranked Play' : 'Multiplayer', { icon: ranked ? 'crown' : 'multi', sub: ranked ? 'open a 1v1 duel, or join one' : 'lounge — join a room, or make your own' }), h('div.mp-lobby',
       offline ? h('div.mp-note', 'Multiplayer needs the online server — open the game from its web address (the Cloudflare deployment).') : null,
       // lazer's LoungeSubScreen, in one bar: "Create room", the room search, then joining by code
       h('div.mp-lounge-bar',
@@ -926,9 +976,9 @@ const MultiplayerScreen = {
       const state = p.away && !isMe ? 'reconnecting' : p.playing ? (p.fin ? 'finished' : 'playing') : r.map && p.ready ? 'ready' : '';
       return h('div.mp-slot', h('span.mp-crown', p.id === r.host ? h('span', { title: 'Host' }, icon('crown')) : null), h(`div.mp-player${p.ready ? '.ready' : ''}${p.team === 0 ? '.red' : p.team === 1 ? '.blue' : ''}`,
         h('span.mp-pav', isMe ? ProfileManager.avatarEl(40) : Presence.avatarEl(p, 40)),
-        h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
-        r.map ? h('span.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null,
-        h('span.grow'),
+        // (the name, and under it the difficulty they're playing — side by side, a ready player's difficulty was cut off)
+        h('span.mp-pinfo', h('span.mp-pname', p.name, isMe ? h('span.mp-you', ' (you)') : null),
+          r.map ? h('span.mp-pdiff', p.diff ? `${p.diff.version} · ★${p.diff.stars.toFixed(2)}` : `${r.map.version} · ★${r.map.stars.toFixed(2)}`) : null),
         (p.mods || []).length ? h('span.mp-pmods', ...p.mods.map(m => ModSystem.badge(m, true))) : null,
         // still playing while you're back in the room: watch them finish
         !isMe && p.playing && !p.fin && Screens.currentName === 'multiplayer' && p.pid ? h('button.btn.sm.mp-spec', { title: `Watch ${p.name} play`, onclick: () => {
@@ -1042,12 +1092,16 @@ const MultiplayerScreen = {
     const teamBar = res.teams ? h('div.mp-res-teams', h('span.red', 'Red ', h('b', fmtT(res.teams[0].total))), h('span.muted', `by ${WIN[res.win] || 'pp'}`), h('span.blue', h('b', fmtT(res.teams[1].total)), ' Blue')) : null;
     // the room re-renders on every update: the panel slides in the first time it shows these results, then stays put
     const seen = this._resSeen === res; this._resSeen = res;
+    // (a fade along the list's bottom edge while there are more rows below, so a cut-off row reads as "scroll")
+    const more = l => { if (!l) return; const edge = () => l.classList.toggle('more', l.scrollHeight - l.scrollTop - l.clientHeight > 4); l.addEventListener('scroll', edge, { passive: true }); requestAnimationFrame(edge); };
+    requestAnimationFrame(() => more(this.resEl && this.resEl.querySelector('.mp-res-list')));
     return h(`div.mp-results.${cls}${seen ? '.still' : ''}`,
       h('div.mp-verdict', verdict, h('button.icon-btn', { title: 'Dismiss', onclick: () => { Multiplayer.lastResults = null; clearEl(this.resEl); } }, icon('x'))),
-      teamBar, ...(res.teams
+      // (the players' rows scroll inside the card: a full room's results used to push the room itself off the screen)
+      teamBar, h('div.mp-res-list', ...(res.teams
         // Team Versus: each team's players together, one above the other — the winning team first (red first on a draw)
         ? (res.winnerTeam === 1 ? [1, 0] : [0, 1]).map(t => { const rows = res.rows.filter(x => x.team === t); return rows.length ? h(`div.mp-res-team.${t ? 'blue' : 'red'}`, h('div.mp-res-team-h', t ? 'Blue team' : 'Red team', h('b', fmtT(res.teams[t].total))), ...rows.map(row)) : null; })
-        : res.rows.map(row)));
+        : res.rows.map(row))));
   },
 
   /** Match settings (osu!lazer's MatchSettingsOverlay, host only): match type, win condition, room size, queue mode.
@@ -1197,13 +1251,11 @@ const MultiplayerScreen = {
 
 // the network coming back, or the tab coming back to the front: reconnect now rather than at the next retry (and
 // check a connection that may have died while the tab was in the background)
-addEventListener('online', () => { Presence.wake(); if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now(); });
+addEventListener('online', () => { Presence.wake(); Multiplayer.probe(); });
 for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => Presence.input(), { capture: true, passive: true });
 addEventListener('pointermove', () => { if (Presence.away || performance.now() - Presence.lastInput > 5000) Presence.input(); }, { capture: true, passive: true });
 setInterval(() => Presence.idleCheck(), 30000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { Presence.hidden(); return; }
-  Presence.shown(); Presence.wake();
-  if (Multiplayer.reconnecting && Multiplayer.reconnecting.now) Multiplayer.reconnecting.now();
-  else if (Multiplayer.ws) Multiplayer.ping();
+  Presence.shown(); Presence.wake(); Multiplayer.probe();
 });

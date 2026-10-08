@@ -46,6 +46,8 @@
 :root.no-anim *, :root.no-anim *::before, :root.no-anim *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 
 * { box-sizing: border-box; }
+/* (a component's own display rule must never show something marked hidden — an empty pill used to) */
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
 body {
   font-family: "Torus", "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -1350,7 +1352,9 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .mp-results.lost { box-shadow: inset 0 3px 0 #ed1121; }
 .mp-results.draw { box-shadow: inset 0 3px 0 var(--gold); }
 .mp-verdict { display: flex; align-items: center; justify-content: space-between; font-size: 1.4rem; font-weight: 600; }
-.mp-res-row { display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.mp-res-list { display: flex; flex-direction: column; gap: 6px; max-height: min(196px, 24vh); overflow-y: auto; overscroll-behavior: contain; }
+.mp-res-list.more { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 36px), transparent); }
+.mp-res-row { display: flex; align-items: center; gap: 14px; padding: 6px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
 .mp-res-row.win { background: rgba(136, 179, 0, .15); }
 .mp-res-row .grade { font-size: 1.5rem; width: 34px; text-align: center; }
 .mp-res-row .main { flex: 1; }
@@ -3161,6 +3165,8 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 #app:has(.settings-panel) #toolbar { z-index: 61; }
 /* song select's logo (lazer's SongSelect: the OsuLogo at scale 0.4 tracked to the footer at (-76, -36) from the corner) */
 .ss-footer .ss-cookie { position: absolute; right: 76px; bottom: 36px; width: 192.5px; height: 192.5px; margin: 0; transform: translate(50%, 50%); border-radius: 50%; z-index: 3; transition: none; }
+/* (the Practice and "Choose the match beatmap" tags sat under the logo: they end where it starts) */
+.ss-footer > .tag { margin-right: 170px; }
 .ss-footer .ss-cookie:hover, .ss-footer .ss-cookie:active { transform: translate(50%, 50%); }
 .ss-logo { position: absolute; left: 50%; top: 50%; width: 512px; height: 512px; margin: -256px 0 0 -256px; scale: .4; transition: scale 500ms linear(0, .518, 1.097, 1.364, 1.296, 1.081, .912, .87, .924, 1, 1.043, 1.041, 1.016, .992, .984, .989, .998, 1.005, 1.006, 1.003, .999, .998, .998, 1, 1); pointer-events: none; }
 .ss-cookie:hover .ss-logo { scale: .44; }
@@ -3730,7 +3736,7 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .mp-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 20px; }
 .mp-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .mp-col > div:not(.mp-side) { min-height: 0; }
-.mp-col .mp-side { flex: 1; }
+.mp-col .mp-side { flex: 1; min-height: 0; } /* (the room's columns share what the screen has left: the chat's box used to push its input under the footer) */
 .mp-col:first-child > div { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .mp-sect { position: relative; margin: 0 5px 12px; padding-bottom: 6px; font-size: 16px; font-weight: 600; color: #fff; flex: none; }
 .mp-sect span { color: hsl(var(--o-h, 320) 40% 70%); font-weight: 600; }
@@ -4076,6 +4082,7 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 
 /* lazer's results: the play's place on the global ranking */
 .res-grank { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 4px auto 0; padding: 3px 12px; border-radius: 99px; background: rgba(255, 204, 34, .12); color: #ffd966; font-size: 13px; animation: fadeIn 300ms ease; }
+.res-grank[hidden] { display: none; }
 .res-grank .i { width: 14px; height: 14px; }
 .res-grank b { color: #fff; }
 
@@ -4639,10 +4646,10 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-col .mp-players { overflow-x: hidden; container-type: inline-size; }
 .mp-teams, .mp-team, .mp-slot, .mp-slot > .mp-player { min-width: 0; }
 .mp-slot > .mp-player { overflow: hidden; }
-.mp-pname { flex: 0 1 auto; min-width: 48px; max-width: 55%; }
-.mp-pdiff { flex: 1 1 0; } /* (only what the name leaves over) */
+.mp-pinfo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; line-height: 1.15; }
+.mp-pinfo .mp-pname { max-width: 100%; font-size: 16px; }
+.mp-pinfo .mp-pdiff { font-size: 12px; margin: 0; }
 .mp-pmods, .mp-pstate, .mp-pact, .mp-spec { flex: none; }
-@container (max-width: 400px) { .mp-pdiff { display: none; } }
 @container (max-width: 330px) { .mp-pstate { font-size: 0; gap: 0; } .mp-spec { font-size: 0; gap: 0; padding: 0 8px; } }
 
 /* ── the in-game leaderboard as lazer's DrawableGameplayLeaderboardScore, in Kori's colours: 38px panels sheared like

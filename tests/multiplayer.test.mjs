@@ -836,12 +836,19 @@ test('a dropped connection in the room keeps the seat (host, ready, difficulty) 
   r.disconnect('a');
   assert.equal(r.players.length, 2); assert.equal(r.get('a').away, true); assert.equal(r.hostId, 'a');
   assert.equal(r.snapshot('b').players.find(p => p.id === 'a').away, true);
-  clock.t += 20000; r.tick();
-  assert.ok(r.get('a'), 'still waited for after 20 s');
+  clock.t += 5000; r.tick();
+  assert.equal(r.hostId, 'a', 'a blip keeps the host');
   // back (same browser): herself, host and ready as before
-  const back = r.join('a2', 'Alice', false, { cid: 'ca' });
+  let back = r.join('a2', 'Alice', false, { cid: 'ca' });
   assert.equal(back.as, 'a'); assert.equal(r.get('a').away, false); assert.equal(r.hostId, 'a'); assert.equal(r.get('a').ready, true);
-  // drops again and doesn't come back: after 30 s she's gone and Bob is the host
+  // away for longer: Bob takes over as host (the room isn't stuck waiting), but her seat is still kept
+  r.disconnect('a');
+  clock.t += 11000; const o = r.tick();
+  assert.equal(r.hostId, 'b'); assert.ok(o.some(x => x.msg && x.msg.t === 'chat' && /Bob is now the host/.test(x.msg.text)));
+  assert.ok(r.get('a'), 'still waited for');
+  back = r.join('a3', 'Alice', false, { cid: 'ca' });
+  assert.equal(back.as, 'a'); assert.equal(r.hostId, 'b');
+  // drops again and doesn't come back: after 30 s she's gone
   r.disconnect('a');
   clock.t += 30001; r.tick();
   assert.equal(r.get('a'), undefined); assert.equal(r.hostId, 'b');
@@ -1178,6 +1185,13 @@ test('multiplayer results are the server\'s judgement where it can judge; a play
   const v = r.verify('a', r.get('a').token, { ...judged, mods: ['HR'] }, { hash: 'h'.repeat(64) });
   assert.equal(v.error, 'Not the room\'s mods.');
   assert.equal(r.get('a').finished.unverified, true);
+  // a play the judge turned down (impossible input, say) counts as 0 — it used to throw, and the player's own claimed
+  // result stood once the wait ran out
+  r.message('b', { t: 'finish', raw: true, result: { score: 999999, accuracy: 1, passed: true, grade: 'SS', pp: 500 } });
+  const bad = r.verify('b', r.get('b').token, { error: 'impossible input' }, { hash: 'h'.repeat(64) });
+  assert.equal(bad.error, 'impossible input');
+  const res2 = bad.out.find(o => o.msg && o.msg.t === 'results').msg.results, rb = res2.rows.find(x => x.id === 'b');
+  assert.deepEqual([rb.score, rb.grade], [0, 'F']);
 });
 
 test('a standing from a profile\'s best plays counts only the ones on ranked beatmaps', () => {

@@ -253,10 +253,21 @@ export class RoomLogic {
     // blip in the network comes back as the same player instead of someone who left and joined again)
     const lobbyDrop = !midMatch && !justPlayed && this.state === 'lobby' && !this.qp && !this.rp;
     if ((midMatch || justPlayed || lobbyDrop) && p.cid && !p.leaving) {
-      p.away = true; p.awayUntil = this.now() + (midMatch ? RP.AWAY : justPlayed ? 20000 : 30000);
+      p.away = true; p.awaySince = this.now(); p.awayUntil = this.now() + (midMatch ? RP.AWAY : justPlayed ? 20000 : 30000);
       return [this.system(`${p.name} lost connection — waiting for them to come back`), this.roomMsg()];
     }
     return this.leave(id);
+  }
+  /** Between matches the host can't stay away: the room would sit waiting for them, with nobody able to pick a
+   *  beatmap or start. A blip (back within 10 s) keeps the host; longer, the next player still here takes over (lazer
+   *  hands the host on as soon as they go), and coming back they're a player like the rest. */
+  passHostIfAway() {
+    const host = this.get(this.hostId);
+    if (!host || !host.away || this.state !== 'lobby' || this.qp || this.rp || this.now() - (host.awaySince || 0) < 10000) return [];
+    const next = this.players.find(x => !x.away && x !== host);
+    if (!next) return [];
+    this.hostId = next.id;
+    return [this.system(`${next.name} is now the host`)];
   }
   leave(id) {
     const p = this.get(id);
@@ -591,6 +602,7 @@ export class RoomLogic {
     // a dropped connection that didn't come back in time: gone for good
     const out = [];
     for (const p of [...this.players]) if (p.away && this.now() >= p.awayUntil) out.push(...this.leave(p.id));
+    { const h = this.passHostIfAway(); if (h.length) out.push(...h, this.roomMsg()); }
     if (this.state === 'playing') {
       // a finished play whose key presses never came in to be judged counts for nothing
       let lapsed = false;
@@ -624,7 +636,9 @@ export class RoomLogic {
     const map = this.map || {};
     const sameMap = !this.map || (map.hash && hash === map.hash) || (map.onlineSetId > 0 && r.beatmapSetId === map.onlineSetId) ||
       (!!map.title && r.title === map.title && r.artist === map.artist);
-    const want = [...new Set([...this.mods, ...(p.mods || [])])].sort().join(), got = [...r.mods].sort().join();
+    // (a play the judge turned down has no mods to compare: it counts for nothing — reading them threw, the judging
+    // failed, and the player's own unchecked result stood instead)
+    const want = [...new Set([...this.mods, ...(p.mods || [])])].sort().join(), got = !r.error && Array.isArray(r.mods) ? [...r.mods].sort().join() : '';
     if (r.error || !sameMap || want !== got) {
       p.finished = { ...cleanResult({}), grade: 'F', unverified: true };
       return { error: r.error || (!sameMap ? 'Not this room\'s beatmap.' : 'Not the room\'s mods.'), out: this.checkFinished() };
@@ -663,7 +677,7 @@ export class RoomLogic {
     this.resultCid = new Map([...this.departedCid, ...this.players.filter(x => x.cid && x.playing).map(x => [x.id, x.cid])]); this.departedCid = new Map();
     this.state = 'lobby'; this.deadline = 0; this.departed = [];
     for (const p of this.players) { p.playing = false; p.ready = false; p.finished = null; p.live = null; p.claimed = null; }
-    const out = [];
+    const out = [...this.passHostIfAway()];
     const q = this.qp;
     if (this.rp) out.push(...this.rp.gameplayDone(rows));
     else if (q) {
@@ -700,13 +714,17 @@ export class MatchRoom {
     if (!this.env.MATCHMAKER) return;
     const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
     stub.fetch('https://mm/api/mp/rooms/update', { method: 'POST', body, headers: { 'content-type': 'application/json' } }).catch(() => {});
-    if (l && !this.beat) this.beat = setInterval(() => { this.dropSilent(); this.announce(true); }, 15000);
+    if (l && !this.beat) this.beat = setInterval(() => this.announce(true), 15000);
     if (!l && this.beat) { clearInterval(this.beat); this.beat = null; }
   }
-  /** Players ping every 15 s: a connection silent for 90 s has dropped without closing, so close it (they leave). */
+  /** Players ping every 5 s: a connection silent for 20 s has dropped without closing (the network went — Wi-Fi to
+   *  mobile, a tunnel), so it's closed and the player counts as away, with their seat kept for them to come back,
+   *  instead of looking connected to everyone else for minutes. Checked every 5 s in every room (private rooms and
+   *  Ranked Play included). */
   dropSilent() {
     const t = Date.now();
-    for (const [id, at] of this.seen) if (t - at > 90000) {
+    if (!this.socks.size) { clearInterval(this.sweep); this.sweep = null; return; }
+    for (const [id, at] of this.seen) if (t - at > 20000) {
       const ws = this.socks.get(id);
       if (ws) { try { ws.close(4002, 'timeout'); } catch { /* closed */ } }
       (this.kick.get(id) || (() => this.seen.delete(id)))(); // (a dead connection may never report the close)
@@ -750,6 +768,7 @@ export class MatchRoom {
         }
         joined = true; this.socks.set(id, server); this.seen.set(id, Date.now());
         this.kick.set(id, gone);
+        if (!this.sweep) this.sweep = setInterval(() => this.dropSilent(), 5000);
         this.dispatch(r.out);
         this.schedule();
         return;
@@ -792,6 +811,12 @@ export class MatchRoom {
   dispatch(out) {
     if (out && out.length) { this.announce(); this.saveSoon(); }
     for (const { to, msg, each } of out || []) {
+      // the room's recent chat, for whoever joins (or comes back after a reload) — as lazer shows a channel's history
+      if (this.logic && msg) {
+        const log = this.logic.chatLog || (this.logic.chatLog = []);
+        if (to === 'all' && msg.t === 'chat') { log.push(msg); if (log.length > 40) log.shift(); }
+        else if (msg.t === 'welcome') msg.chat = log.slice();
+      }
       const data = each ? null : JSON.stringify(msg);
       for (const [id, ws] of this.socks) {
         const hit = to === 'all' || to === id || (to && typeof to === 'object' && to.except !== id);

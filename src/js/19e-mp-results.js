@@ -63,7 +63,8 @@ const MpResults = {
     const first = !this._key || (!!res && !this._final);
     this._key = key; this._final = !!res;
     const me = Multiplayer.me, mine = rows.find(r => r.id === me);
-    let verdict = 'Waiting for the others to finish…', cls = 'wait';
+    // (everyone's song is over and the server is still checking the plays: say so, not "waiting for the others")
+    let verdict = rows.some(r => r.pending) ? 'Waiting for the others to finish…' : 'Checking the scores…', cls = 'wait';
     if (res) {
       if (res.teams) {
         const my = mine ? mine.team : null;
