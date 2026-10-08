@@ -894,4 +894,15 @@ const MenuMusic = {
     this.go(map, false);
   },
   playable() { return BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length)); },
+  /** The song playing was deleted with its beatmap set: on to another (song select picks its own), or with none left,
+   *  silence and lazer's "no beatmaps available!" — not the deleted song, still playable from memory. */
+  removed() {
+    const cur = this.current;
+    if (!cur || BeatmapManager.maps.has(cur.id) || Screens.currentName === 'gameplay') return;
+    this.history = this.history.filter(id => BeatmapManager.maps.has(id));
+    if (this.playable().length) { if (Screens.currentName !== 'songselect') this.next(); return; }
+    this._tok = {}; Music.unload(); this.current = null; this.paused = false; Background.set(null);
+    Toolbar.setNowPlaying(null); Bus.emit('music:changed', null);
+  },
 };
+Bus.on('library:changed', () => MenuMusic.removed());

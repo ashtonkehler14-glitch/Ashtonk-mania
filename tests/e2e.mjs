@@ -768,7 +768,20 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.unroute('**/api/getBeatmaps**');
   await page.route('**/api/getBeatmaps**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ beatmapsets: [osuRaw(777, 'Explorer Song')], cursor_string: null }) }));
 }
-await page.evaluate(async () => { const s = AshtonkMania.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version))); if (s) await AshtonkMania.BeatmapManager.removeSet(s.id); });
+{
+  // deleting the set whose song is playing: the music moves on to another song (not the deleted one, still in memory)
+  const mv = await page.evaluate(async () => {
+    const A = AshtonkMania, s = A.BeatmapManager.sets.find(x => x.maps.some(m => /^Online/.test(m.version)));
+    if (!s) return null;
+    await A.MenuMusic.play(s.maps[0]);
+    const was = !!A.MenuMusic.current && A.MenuMusic.current.setId === s.id;
+    await A.BeatmapManager.removeSet(s.id);
+    await new Promise(r => setTimeout(r, 1500));
+    const cur = A.MenuMusic.current;
+    return { screen: A.Screens.currentName, was, moved: !!cur && cur.setId !== s.id && !!A.BeatmapManager.maps.get(cur.id), stale: !!A.Music.key && A.Music.key.startsWith(s.id + '/') };
+  });
+  check('deleting the beatmap set whose song is playing moves the music on to another song', !!mv && mv.was && mv.moved && !mv.stale, JSON.stringify(mv));
+}
 
 // beatmap sources (Web-Osu-Mania's "Sources" settings)
 const src = await page.evaluate(async () => {

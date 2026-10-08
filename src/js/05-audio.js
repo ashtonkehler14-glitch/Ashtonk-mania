@@ -298,6 +298,8 @@ const Music = {
     this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
     this.rate = 1; this.pausedPos = 0;
   },
+  /** Nothing loaded any more (its beatmap set was deleted). */
+  unload() { this.stop(0); this._dropStream(); this.buffer = null; this.stretched = null; this.key = null; this.meta = null; this.pausedPos = 0; },
   _dropStream() {
     if (!this.el) return;
     this.el.pause(); this.el.onended = null;

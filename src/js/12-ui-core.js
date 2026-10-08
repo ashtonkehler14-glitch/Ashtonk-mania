@@ -897,8 +897,8 @@ const NowPlaying = {
     const m = MenuMusic.current;
     const key = m ? m.setId : '';
     if (key !== this._key || !this.title.firstChild) {
-      marquee(this.title, () => h('span', m ? m.title : 'Nothing to play'));
-      marquee(this.artist, () => h('span', m ? m.artist : 'Nothing to play'));
+      marquee(this.title, () => h('span', m ? m.title : 'no beatmaps available!')); // (lazer's DummyWorkingBeatmap)
+      marquee(this.artist, () => h('span', m ? m.artist : 'please load a beatmap!'));
     }
     if (this.el.classList.contains('list')) this.renderList();
     if (key === this._key && this.bgs.firstChild) { this.update(); return; }

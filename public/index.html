@@ -7509,6 +7509,8 @@ const Music = {
     this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
     this.rate = 1; this.pausedPos = 0;
   },
+  /** Nothing loaded any more (its beatmap set was deleted). */
+  unload() { this.stop(0); this._dropStream(); this.buffer = null; this.stretched = null; this.key = null; this.meta = null; this.pausedPos = 0; },
   _dropStream() {
     if (!this.el) return;
     this.el.pause(); this.el.onended = null;
@@ -12602,8 +12604,8 @@ const NowPlaying = {
     const m = MenuMusic.current;
     const key = m ? m.setId : '';
     if (key !== this._key || !this.title.firstChild) {
-      marquee(this.title, () => h('span', m ? m.title : 'Nothing to play'));
-      marquee(this.artist, () => h('span', m ? m.artist : 'Nothing to play'));
+      marquee(this.title, () => h('span', m ? m.title : 'no beatmaps available!')); // (lazer's DummyWorkingBeatmap)
+      marquee(this.artist, () => h('span', m ? m.artist : 'please load a beatmap!'));
     }
     if (this.el.classList.contains('list')) this.renderList();
     if (key === this._key && this.bgs.firstChild) { this.update(); return; }
@@ -13948,7 +13950,18 @@ const MenuMusic = {
     this.go(map, false);
   },
   playable() { return BeatmapManager.sets.filter(s => s.maps.some(m => !m.problems.length)); },
+  /** The song playing was deleted with its beatmap set: on to another (song select picks its own), or with none left,
+   *  silence and lazer's "no beatmaps available!" — not the deleted song, still playable from memory. */
+  removed() {
+    const cur = this.current;
+    if (!cur || BeatmapManager.maps.has(cur.id) || Screens.currentName === 'gameplay') return;
+    this.history = this.history.filter(id => BeatmapManager.maps.has(id));
+    if (this.playable().length) { if (Screens.currentName !== 'songselect') this.next(); return; }
+    this._tok = {}; Music.unload(); this.current = null; this.paused = false; Background.set(null);
+    Toolbar.setNowPlaying(null); Bus.emit('music:changed', null);
+  },
 };
+Bus.on('library:changed', () => MenuMusic.removed());
 
 /* ===== 13b-neru.js ===== */
 /* Neru on the main menu: a picture of Neru standing in the bottom-left corner. It shows the image chosen in
@@ -19320,7 +19333,7 @@ const CHANGELOG = [
     { icon: 'globe', title: 'Offline and empty pages', items: ['When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
     { icon: 'music', title: 'Song select', items: ['The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
-    { icon: 'beatmap', title: 'Beatmap library and collections', items: ['An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
+    { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Deleting the beatmap set whose song is playing moves the music on to another song, or with none left stops it (the deleted song could still be played from the now playing panel)', 'An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
     { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
   ] },
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
