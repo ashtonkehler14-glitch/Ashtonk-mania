@@ -1271,6 +1271,18 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.setViewportSize({ width: 844, height: 390 }); await mp.waitForTimeout(500);
   const land = await mp.evaluate(() => ({ rot: !document.querySelector('.rot-prompt').hidden, z: AshtonkMania.Zoom.z, w: document.querySelector('#app').offsetWidth }));
   check('phone sideways: the desktop interface scaled to the screen as on lazer for Android, at the phone\'s 125% UI scale (no rotate prompt)', !land.rot && land.z > 1.3 && Math.abs(land.w - 844 / (Math.min(844 / 1366, 390 / 768) * 1.25)) < 6, JSON.stringify(land));
+  {
+    // a tablet-shaped screen and many keys: the stage spans it, so the skin's health bar beside it would be off the
+    // edge — lazer's bar at the top instead; with fewer keys the skin's bar stays beside the stage
+    await mp.setViewportSize({ width: 1024, height: 768 }); await mp.waitForTimeout(400);
+    const hpFor = async v => {
+      await mp.evaluate(v => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === v); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); }, v);
+      await mp.waitForFunction(v => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running && AshtonkMania.GameplayScreen.s.rec.version === v, v, { timeout: 20000 });
+      return mp.evaluate(() => { const G = AshtonkMania.GameplayScreen, r = G.renderer; return { hm: G.healthMode, off: !!r.healthMode && r.stageX + r.stageW + r._cropMargins()[1] > r.W }; });
+    };
+    const nine = await hpFor('9K Expert'), four = await hpFor('4K Normal');
+    check('touch screen: a stage spanning the screen gets lazer\'s health bar at the top (the skin\'s beside it would be off the edge)', nine.hm === 'lazer' && !nine.off && four.hm !== 'lazer' && !four.off, JSON.stringify({ nine, four }));
+  }
   await mctx.close();
 }
 

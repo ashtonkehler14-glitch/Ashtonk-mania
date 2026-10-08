@@ -115,7 +115,7 @@ const DailyScreen = {
           h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
           play)));
   },
-  /** The mods picked in song select, less the ones a daily challenge score can't have (Auto, Cinema, Wind Up / Down,
+  /** The mods picked in song select, less the ones a daily challenge score can't have (Auto, Cinema, Muted, Wind Up / Down,
    *  Adaptive Speed: the server doesn't count those, so one picked earlier mustn't come along unseen). */
   mods() { return (Settings.get('songselect.mods') || []).filter(x => !(MOD_BY_ID.get(x) || {}).unranked); },
   async play() {

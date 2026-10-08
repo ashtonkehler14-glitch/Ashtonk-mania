@@ -427,6 +427,9 @@ const GameplayScreen = {
     // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
     this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
     this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
+    // (sideways the stage can still span the screen — many keys on a tablet — leaving no room for a bar beside it,
+    // which ended up off the edge: lazer's bar at the top there too)
+    { const r = this.renderer; if (r.healthMode && r.fnf && r.stageX + r.stageW + r._cropMargins()[1] > r.W) { this.healthMode = 'lazer'; r.healthMode = null; r.resize(true); } }
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI') || mods.includes('CO')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
