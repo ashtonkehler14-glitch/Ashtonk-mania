@@ -18,7 +18,11 @@ const SettingsPanel = {
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
-    search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
+    search.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') { e.stopPropagation(); return; }
+      // (lazer's search box: Esc clears what's typed first; with nothing typed, Esc closes the panel)
+      if (search.value) { e.preventDefault(); e.stopPropagation(); search.value = ''; this.build(''); }
+    });
     // (once a frame at most: a touchpad sends scroll events faster than the screen draws)
     let navRaf = 0;
     scroll.addEventListener('scroll', () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; if (this.scrollEl) this.syncNav(); }); }, { passive: true });

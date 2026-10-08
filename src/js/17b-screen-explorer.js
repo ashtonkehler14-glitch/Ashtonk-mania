@@ -268,7 +268,14 @@ const ExplorerScreen = {
     this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
     let t = 0;
     this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { st.q = this.searchInput.value.trim(); this.newSearch(); }, 420); });
-    this.searchInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); } if (e.key === 'Escape') this.searchInput.blur(); });
+    this.searchInput.addEventListener('keydown', e => {
+      // (lazer's search box: Esc clears what's typed first — and lists everything again — then, with nothing typed,
+      // goes back as Esc does anywhere)
+      if (e.key === 'Escape' && !this.searchInput.value) { e.preventDefault(); e.stopPropagation(); this.searchInput.blur(); Screens.back(); return; }
+      e.stopPropagation();
+      if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); }
+      if (e.key === 'Escape') { e.preventDefault(); this.searchInput.value = ''; clearTimeout(t); if (st.q) { st.q = ''; this.newSearch(); } }
+    });
     const chipRow = (label, items, isOn, onClick) => h('div.ex-filter', h('span.ex-flabel', label), h('div.ex-chips', ...items.map(([v, l]) => h(`button.ex-chip${isOn(v) ? '.on' : ''}`, { onclick: () => { onClick(v); UISounds.click(); this.renderFilters(); this.newSearch(); } }, l))));
     this.filters = h('div.ex-filters');
     this.renderFilters = () => {

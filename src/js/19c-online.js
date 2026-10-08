@@ -801,7 +801,7 @@ const DashboardScreen = {
     clearEl(this.tabsEl).append(...[['friends', 'friends'], ['online', 'currently online']].map(([k, l]) =>
       h(`button.ov-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this._fade = true; this.tab = k; this.render(); } }, l)));
     const online = this.users();
-    const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => e.stopPropagation() });
+    const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => searchBoxKey(e, () => { this.query = ''; this.renderList(); }) });
     const style = this.style();
     const styleBtns = h('div.dash-styles', ...[['card', 'Card'], ['list', 'List'], ['brick', 'Brick']].map(([k, l]) =>
       h(`button.dash-style${style === k ? '.on' : ''}`, { title: l, 'aria-label': `${l} view`, onclick: () => { UISounds.click(); this._fade = true; Settings.set('ui.dashStyle', k); this.render(); } }, h(`span.dsi.${k}`))));

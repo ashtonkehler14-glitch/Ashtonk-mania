@@ -762,7 +762,7 @@ const MultiplayerScreen = {
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('label.mp-searchbox', icon('search'), h('input.input.mp-search.mp-search-top', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
-          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() })),
+          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => searchBoxKey(e, () => { this._roomQuery = ''; this.filterRooms(); }) })),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));

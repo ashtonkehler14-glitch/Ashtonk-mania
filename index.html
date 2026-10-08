@@ -4795,6 +4795,15 @@ if (typeof Element !== 'undefined') for (const P of [Element.prototype, Document
 }
 
 
+/** lazer's search boxes (FocusedTextBox): Esc clears what's typed first; with nothing typed, it does what Esc does
+ *  anywhere on the screen (back). Every other key stays in the box. */
+function searchBoxKey(e, onClear) {
+  if (e.key !== 'Escape') { e.stopPropagation(); return; }
+  e.preventDefault(); e.stopPropagation();
+  if (e.target.value) { e.target.value = ''; onClear(); }
+  else { e.target.blur(); Screens.back(); }
+}
+
 /** Fuzzy match: returns score > 0 if every char of the needle appears in order; contiguous and word-start hits score higher. */
 function fuzzyScore(hay, needle) {
   if (!needle) return 1;
@@ -18885,6 +18894,7 @@ const ManageCollections = {
       if (keep) { const b = list.querySelector(`.mc-item[data-id="${keep}"] .mc-name`); if (b) b.focus(); }
     };
     search.addEventListener('input', render);
+    search.addEventListener('keydown', e => { if (e.key === 'Escape' && search.value) { e.preventDefault(); e.stopPropagation(); search.value = ''; render(); } }); // (lazer: Esc clears the search first)
     const off = Bus.on('collections:changed', () => { if (!list.contains(document.activeElement) || !document.activeElement.matches('.mc-name') || document.activeElement.closest('.new')) render(); });
     this.o = makeOverlay(panel, { onClose: () => { off(); this.o = null; UISounds.play('click-close'); }, onKey: e => { if (e.key === 'Escape') { UISounds.back(); this.o.close(); return true; } } });
     render();
@@ -19325,7 +19335,7 @@ const CHANGELOG = [
     { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own', 'Holding R or ` while watching no longer restarts their song from the top, and Ctrl+` stops watching (as Esc does) instead of going to song select'] },
     { icon: 'edit', title: 'Beatmap editor', items: ['The beatmap editor has been removed (the skin layout editor stays)'] },
     { icon: 'trophy', title: 'Gameplay', items: ['Switching away from the game (or pressing Esc) during the 3-2-1 after Continue pauses again, instead of the song carrying on where you can\'t see it', 'Replays of Wind Up, Wind Down and Adaptive Speed plays come out exactly as you played them (they were judged at the speed the song ended on)', 'Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'Esc on the fail screen quits, as lazer\'s Back does (it did nothing)', 'Daily challenge: when today\'s beatmap can\'t be picked (the beatmap listing is down), it says so with Try again, instead of "Picking today\'s beatmap…" forever', 'Daily challenge: mods its scores can\'t have (Auto, Cinema, Wind Up / Down, Adaptive Speed) picked earlier in song select no longer come along — the play used to go uncounted', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
-    { icon: 'brush', title: 'Skins and top bar', items: ['Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
+    { icon: 'brush', title: 'Skins and top bar', items: ['Esc in a search box (settings, the beatmap listing, manage collections, the multiplayer lounge, friends) clears what\'s typed first, as in lazer — a second Esc closes the panel or goes back', 'Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
       'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
       'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
       'Animated skin parts play at lazer\'s speed (60 frames a second, each note from when it comes on screen), missed long notes turn dark grey, skin.ini names ending in "@2x" are found, and skins with only some score digits still use their own font',
@@ -19684,7 +19694,14 @@ const ExplorerScreen = {
     this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
     let t = 0;
     this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { st.q = this.searchInput.value.trim(); this.newSearch(); }, 420); });
-    this.searchInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); } if (e.key === 'Escape') this.searchInput.blur(); });
+    this.searchInput.addEventListener('keydown', e => {
+      // (lazer's search box: Esc clears what's typed first — and lists everything again — then, with nothing typed,
+      // goes back as Esc does anywhere)
+      if (e.key === 'Escape' && !this.searchInput.value) { e.preventDefault(); e.stopPropagation(); this.searchInput.blur(); Screens.back(); return; }
+      e.stopPropagation();
+      if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); }
+      if (e.key === 'Escape') { e.preventDefault(); this.searchInput.value = ''; clearTimeout(t); if (st.q) { st.q = ''; this.newSearch(); } }
+    });
     const chipRow = (label, items, isOn, onClick) => h('div.ex-filter', h('span.ex-flabel', label), h('div.ex-chips', ...items.map(([v, l]) => h(`button.ex-chip${isOn(v) ? '.on' : ''}`, { onclick: () => { onClick(v); UISounds.click(); this.renderFilters(); this.newSearch(); } }, l))));
     this.filters = h('div.ex-filters');
     this.renderFilters = () => {
@@ -20401,7 +20418,11 @@ const SettingsPanel = {
     this.scrollEl = scroll; this.nav = nav;
     this.build('');
     search.addEventListener('input', () => this.build(search.value.trim().toLowerCase()));
-    search.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
+    search.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') { e.stopPropagation(); return; }
+      // (lazer's search box: Esc clears what's typed first; with nothing typed, Esc closes the panel)
+      if (search.value) { e.preventDefault(); e.stopPropagation(); search.value = ''; this.build(''); }
+    });
     // (once a frame at most: a touchpad sends scroll events faster than the screen draws)
     let navRaf = 0;
     scroll.addEventListener('scroll', () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; if (this.scrollEl) this.syncNav(); }); }, { passive: true });
@@ -22341,7 +22362,7 @@ const MultiplayerScreen = {
       h('div.mp-lounge-bar',
         h('button.mp-create', { disabled: offline, onclick: () => { UISounds.click(); this.openCreate({ ranked }); } }, h('span', ranked ? 'Create duel' : 'Create room')),
         h('label.mp-searchbox', icon('search'), h('input.input.mp-search.mp-search-top', { type: 'search', placeholder: 'type to search', 'aria-label': 'Search rooms', value: this._roomQuery || '',
-          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => e.stopPropagation() })),
+          oninput: e => { this._roomQuery = e.target.value; this.filterRooms(); }, onkeydown: e => searchBoxKey(e, () => { this._roomQuery = ''; this.filterRooms(); }) })),
         h('div.mp-joinbox', icon('multi'), code, joinBtn)),
       status,
       this.roomsEl = h('div.mp-roomlist', h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…'))));
@@ -24569,7 +24590,7 @@ const DashboardScreen = {
     clearEl(this.tabsEl).append(...[['friends', 'friends'], ['online', 'currently online']].map(([k, l]) =>
       h(`button.ov-tab${this.tab === k ? '.on' : ''}`, { onclick: () => { UISounds.click(); this._fade = true; this.tab = k; this.render(); } }, l)));
     const online = this.users();
-    const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => e.stopPropagation() });
+    const search = h('input.input.dash-search', { type: 'search', placeholder: 'type to search', value: this.query, oninput: e => { this.query = e.target.value; this.renderList(); }, onkeydown: e => searchBoxKey(e, () => { this.query = ''; this.renderList(); }) });
     const style = this.style();
     const styleBtns = h('div.dash-styles', ...[['card', 'Card'], ['list', 'List'], ['brick', 'Brick']].map(([k, l]) =>
       h(`button.dash-style${style === k ? '.on' : ''}`, { title: l, 'aria-label': `${l} view`, onclick: () => { UISounds.click(); this._fade = true; Settings.set('ui.dashStyle', k); this.render(); } }, h(`span.dsi.${k}`))));

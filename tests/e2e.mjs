@@ -620,8 +620,11 @@ check('niche options are gone from the panel but keep working', await page.evalu
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
 check('settings search finds options', await page.evaluate(() => [...document.querySelectorAll('.settings-panel .set-row')].some(r => /Audio offset/.test(r.textContent))));
+await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+const escOnce = await page.evaluate(() => ({ open: !!AshtonkMania.SettingsPanel.o, q: document.querySelector('.sp-search').value, rows: document.querySelectorAll('.settings-panel .set-row').length }));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
+check('settings search: Esc clears what\'s typed first (as lazer), a second Esc closes the panel', escOnce.open && escOnce.q === '' && escOnce.rows === rows && !(await page.evaluate(() => !!AshtonkMania.SettingsPanel.o)), JSON.stringify(escOnce));
 await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
 await page.waitForTimeout(700);
 await page.keyboard.press('F1');
@@ -1195,7 +1198,7 @@ await page.evaluate(() => AshtonkMania.SettingsPanel.open()); await page.waitFor
 await page.keyboard.type('dim'); await page.waitForTimeout(200);
 const typed = await page.evaluate(() => ({ sp: document.querySelector('.sp-search').value, ss: document.querySelector('input[aria-label="Search beatmaps"]').value, rows: document.querySelectorAll('.settings-panel .sp-section').length }));
 check('settings: typing right after opening searches the settings', typed.sp === 'dim' && typed.ss === '' && typed.rows >= 1, JSON.stringify(typed));
-await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
 // the same toast again refreshes the one on screen instead of stacking copies
 const dupToasts = await page.evaluate(() => { const T = AshtonkMania.Toast; T.clear(); for (let i = 0; i < 4; i++) T.err('Same thing', 'again'); T.ok('Something else'); return document.querySelectorAll('#toasts .toast:not(.out)').length; });

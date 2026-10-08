@@ -184,6 +184,15 @@ if (typeof Element !== 'undefined') for (const P of [Element.prototype, Document
 }
 
 
+/** lazer's search boxes (FocusedTextBox): Esc clears what's typed first; with nothing typed, it does what Esc does
+ *  anywhere on the screen (back). Every other key stays in the box. */
+function searchBoxKey(e, onClear) {
+  if (e.key !== 'Escape') { e.stopPropagation(); return; }
+  e.preventDefault(); e.stopPropagation();
+  if (e.target.value) { e.target.value = ''; onClear(); }
+  else { e.target.blur(); Screens.back(); }
+}
+
 /** Fuzzy match: returns score > 0 if every char of the needle appears in order; contiguous and word-start hits score higher. */
 function fuzzyScore(hay, needle) {
   if (!needle) return 1;
