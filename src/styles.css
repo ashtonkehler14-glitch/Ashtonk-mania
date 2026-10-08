@@ -4157,7 +4157,7 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-chat-in[disabled] { display: none; }
 
 .ch-line.act .ch-text, .ch-line.act .ch-name { font-style: italic; }
-.ch-line.local .ch-text { color: rgba(255, 255, 255, .55); font-style: italic; }
+.ch-line.local .ch-text { grid-column: 3; color: rgba(255, 255, 255, .55); font-style: italic; } /* (in the messages' column: it has no name, and squeezed into the names' column it wrapped word by word) */
 
 /* lazer: a line that mentions you is highlighted */
 .ch-line.mention { background: rgba(255, 204, 34, .12); box-shadow: inset 3px 0 0 #ffcc22; }

@@ -4176,7 +4176,7 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 .gp-chat-in[disabled] { display: none; }
 
 .ch-line.act .ch-text, .ch-line.act .ch-name { font-style: italic; }
-.ch-line.local .ch-text { color: rgba(255, 255, 255, .55); font-style: italic; }
+.ch-line.local .ch-text { grid-column: 3; color: rgba(255, 255, 255, .55); font-style: italic; } /* (in the messages' column: it has no name, and squeezed into the names' column it wrapped word by word) */
 
 /* lazer: a line that mentions you is highlighted */
 .ch-line.mention { background: rgba(255, 204, 34, .12); box-shadow: inset 3px 0 0 #ffcc22; }
@@ -19332,7 +19332,7 @@ const CHANGELOG = [
       'Ranked Play: the warm-up\'s beatmap details and the round\'s score cards no longer run into the chat on smaller screens',
       'Ranked Play: after leaving a song you watch your opponent\'s score climb (it sat at 0), a second duel in the same visit has its stage name and timer again, and someone who left is still named on the result',
       'Ranked Play: your own corner shows "Reconnecting…" while your connection is down, and the stage timer no longer jumps back when the screen updates',
-      'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
+      'Chat: a command\'s answer (/help) reads along the messages instead of wrapping word by word under the names', 'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
       'On a phone on its side the room scrolls, instead of the chat covering the beatmap; leaving or quitting asks with a warning sign, not a bin',
       'On a tablet the room\'s Change beatmap / Search beatmaps buttons stack instead of the second running off the card', 'Ranked Play on a tablet or a 16:10 laptop: the match shrinks a little to fit, instead of your hand of cards covering the chat and your corner', 'Ranked Play fits a phone held sideways (or a big interface size): the whole match shows, smaller, instead of the hands, the stage text and the chat running into each other — and the round\'s results say "Round N" once',
       'With the network down, multiplayer says so plainly ("You\'re offline…") instead of "Failed to fetch"; on a phone, the "get the app" reminder shows once a visit and never over a match a reload is taking you back into'] },
