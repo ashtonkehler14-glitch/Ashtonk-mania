@@ -162,6 +162,18 @@ await alice.evaluate(() => { const S = AshtonkMania.Settings; S.set('songselect.
 await alice.waitForFunction(() => [...document.querySelectorAll('.lbs')].some(r => /Bob/.test(r.textContent)), null, { timeout: 8000 });
 check('song select: the Global scope shows other players\' best scores from the server', await alice.evaluate(() => { const r = [...document.querySelectorAll('.lbs')].find(x => /Bob/.test(x.textContent)); return /1,000,000/.test(r.textContent) && /100\.00%/.test(r.textContent) && /#1/.test(r.textContent); }), await alice.evaluate(() => document.querySelector('.lb') && document.querySelector('.lb').textContent.slice(0, 300)));
 await shot(alice, 'mp-global-lb');
+{
+  // a play whose score can't be sent at first (the network dropped as the song ended) is sent again once it's back
+  let n = 0;
+  await bob.route('**/api/mp/score', r => (++n === 1 ? r.abort('internetdisconnected') : r.continue()));
+  const again = await bob.evaluate(async () => {
+    const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal');
+    const { notes } = await AshtonkMania.BeatmapManager.load(m.id);
+    return Verified.submit({ rec: m, mods: [], modConfig: {}, seed: 1, events: generateAutoInputs(prepareNotes(notes, m.keys, [], 1), m.keys).flat() });
+  });
+  await bob.unroute('**/api/mp/score');
+  check('a play that couldn\'t be sent at first (the network dropped) is sent again, and counts', n === 2 && !!again && again.ok && again.score === 1000000, JSON.stringify({ n, again }));
+}
 await alice.evaluate(() => { AshtonkMania.Settings.set('songselect.lbScope', 'local'); AshtonkMania.Screens.back(); });
 await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'daily', null, { timeout: 5000 });
 

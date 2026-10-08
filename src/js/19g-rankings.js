@@ -50,8 +50,16 @@ const Verified = {
     const osu = await this.file(rec);
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
+    // (a play that can't go out — the network dropped as the song ended — is tried again for two minutes, at once when
+    // the network is back, instead of never reaching the leaderboards and rankings. The server keeps each player's best
+    // and turns down a second score within seconds, so one that did arrive isn't counted twice)
+    const until = Date.now() + 120000;
+    let r = null;
+    for (let i = 0; !r; i++) {
+      try { r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body }); if (r.status >= 500 && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
+    }
     try {
-      const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);
@@ -63,7 +71,7 @@ const Verified = {
       this.last = { d, at: Date.now() };
       Bus.emit('verified', d);
       return d;
-    } catch (e) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; }
+    } catch (e) { console.warn('score not counted online', e); return null; }
   },
 };
 

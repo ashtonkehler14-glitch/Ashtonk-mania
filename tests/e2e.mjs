@@ -268,19 +268,21 @@ async function autoPlay(version) {
   if (version === '4K Normal') {
     // smooth scrolling: from one drawn frame to the next, the playfield clock moves by exactly the time between the
     // frames' refreshes (it used to follow a jittery audio reading, so notes stepped unevenly), and no frame stalls
-    // on building a sprite (the first hit lightings used to)
+    // on building a sprite (the first hit lightings used to). Measured while notes are on screen: in the lead-in the
+    // clock may still take one correction as the audio output settles once sound starts (nothing is there to move)
     const p = await page.evaluate(() => new Promise(resolve => {
       const G = AshtonkMania.GameplayScreen, R = G.renderer, orig = R.render, rec = [];
+      const shown = G.s.firstNote - 11485 / AshtonkMania.Settings.get('gameplay.scrollSpeed') * G.s.rate;
       R.render = function (g) { const t0 = performance.now(); const r = orig.call(this, g); rec.push([g.realNow, g.now, performance.now() - t0]); return r; };
       setTimeout(() => {
         R.render = orig;
         const steps = [], rate = G.s.rate;
-        for (let i = 1; i < rec.length; i++) if (G.s.running) steps.push(Math.abs((rec[i][1] - rec[i - 1][1]) - (rec[i][0] - rec[i - 1][0]) * rate));
+        for (let i = 1; i < rec.length; i++) if (G.s.running && rec[i - 1][1] >= shown) steps.push(Math.abs((rec[i][1] - rec[i - 1][1]) - (rec[i][0] - rec[i - 1][0]) * rate));
         const cost = rec.map(x => x[2]).sort((a, b) => a - b);
-        resolve({ frames: rec.length, worstStepMs: +Math.max(...steps).toFixed(3), p99RenderMs: +cost[Math.floor(cost.length * 0.99)].toFixed(2) });
-      }, 2500);
+        resolve({ frames: rec.length, measured: steps.length, worstStepMs: +Math.max(...steps).toFixed(3), p99RenderMs: +cost[Math.floor(cost.length * 0.99)].toFixed(2) });
+      }, 4000);
     }));
-    check('gameplay: notes move by exactly the time between frames, and no frame stalls', p.frames > 60 && p.worstStepMs < 0.5 && p.p99RenderMs < 8, JSON.stringify(p));
+    check('gameplay: notes move by exactly the time between frames, and no frame stalls', p.frames > 60 && p.measured > 40 && p.worstStepMs < 0.5 && p.p99RenderMs < 8, JSON.stringify(p));
   } else await page.waitForTimeout(2500);
   if (version === '7K Hard') await shot('03-gameplay-7k-default-skin');
   // skip to speed things up is not possible for auto; wait for results
