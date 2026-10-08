@@ -730,6 +730,8 @@ await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 2, 
 check('explorer download imports the .osz into the library', true);
 await page.waitForFunction(() => /Play/.test(document.querySelector('.bso-dl')?.textContent || ''), null, { timeout: 5000 });
 check('once downloaded, the beatmap info page offers Play', true);
+check('toasts sit below the beatmap info page\'s close button (a phone has no Esc)', await page.evaluate(() => { const c = document.querySelector('.bso-close').getBoundingClientRect(), e = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2); return !!document.querySelector('#toasts .toast') && !!(e && e.closest('.bso-close')); }));
+check('a download\'s progress entry leaves the notifications once it\'s in the library', await page.evaluate(() => !Notifications.list.some(n => n.prog != null) && Notifications.list.some(n => /^Downloaded /.test(n.title))));
 await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 {
   // Web-Osu-Mania's request: the list comes in osu!'s own order, page after page by osu!'s cursor

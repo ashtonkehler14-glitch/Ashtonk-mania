@@ -2027,7 +2027,7 @@ div.res-calib .i { color: var(--good); }
 .pl-group input[type=range].slider::-moz-range-thumb { border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; }
 @media (max-width: 800px) and (hover: none) and (orientation: portrait) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
 /* like lazer's toast tray, notifications step aside while the now-playing panel or a menu is open at the top right */
-#toasts { transition: opacity 200ms; }
+#toasts { transition: opacity 200ms, top 300ms var(--ease-out); }
 body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
 
@@ -2473,6 +2473,9 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
+/* the page's close button is never under a toast (a download's stays up until it's done, and a phone has no Esc):
+   while the page is open, toasts sit below the button */
+body:has(.bso) #toasts { top: calc(var(--toolbar-h) + 66px); }
 .bso-scroll { padding-top: 0; }
 /* the beatmap info page is one full screen: the cover fills it and the details sit in the middle at a size that
    uses the space (tags and your scores live in the left column under the buttons) */
@@ -4179,6 +4182,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 /* lazer's ProgressNotification */
 .toast.prog .t-bar { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }
+.nf-bar { height: 3px; margin-top: 7px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.nf-bar i { display: block; height: 100%; background: #66ccff; transition: width 150ms linear; }
 
 .pm-desc { margin: 6px 0 0; font-size: 18px; color: #fff; text-align: center; text-shadow: 0 0 6px rgba(0, 0, 0, .5); }
 

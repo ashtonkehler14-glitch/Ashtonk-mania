@@ -111,7 +111,7 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
-    if (this.p.mp) return false; // (a room's match isn't yours to retry)
+    if (this.p.mp || this.p.browse) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile)
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
@@ -303,7 +303,8 @@ const ResultsScreen = {
     if (replay || s.replayId) bar.append(watch);
     // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
     if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
-    else bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // (lazer's AllowRetry: only after a play of your own — not on a score opened from a leaderboard or a profile)
+    else if (!p.browse) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)

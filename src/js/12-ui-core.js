@@ -321,19 +321,29 @@ const Toast = {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   },
-  /** lazer's ProgressNotification: a toast with a bar that stays until the work is done. Returns
-   *  { set(fraction, text), done(title, body), fail(title, body) }. */
+  /** lazer's ProgressNotification: a toast with a bar. Like lazer's tray, the toast steps aside after a moment (not
+   *  while the pointer is on it; it can be swiped away too) and the bar carries on in the notifications until the work
+   *  is done, so it never sits over a page for a whole download. Returns { set(fraction, text), done(title, body),
+   *  fail(title, body) }. */
   progress(title, body = '') {
     const box = $('#toasts');
     const bar = h('i'), txt = h('div.t-body', body);
     const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
-    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    const n = Notifications.add(title, body, 'info', { prog: 0 });
+    let timer = 0;
+    const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    const arm = ms => { clearTimeout(timer); timer = setTimeout(close, ms); };
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', () => { if (!el._drag) arm(1500); });
+    el.addEventListener('click', () => { if (el._dragged) { el._dragged = false; return; } close(); });
+    Toast.draggable(el, close);
+    arm(4200);
     return {
-      set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; },
-      done: (t, b) => { close(); Toast.ok(t, b); },
-      fail: (t, b) => { close(); Toast.err(t, b); },
+      set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; Notifications.progress(n, f, text); },
+      done: (t, b) => { close(); Notifications.remove(n); Toast.ok(t, b); },
+      fail: (t, b) => { close(); Notifications.remove(n); Toast.err(t, b); },
     };
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
@@ -1126,10 +1136,27 @@ const LazerCursor = {
  *  the toolbar bell counts the ones you haven't seen. */
 const Notifications = {
   list: [], unread: 0, el: null,
-  add(title, body, type = 'info') {
-    this.list.unshift({ id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now() });
+  /** (`prog` makes it a live progress entry — Toast.progress's — which goes when the work is done and isn't counted:
+   *  the finished or failed notice that replaces it is) */
+  add(title, body, type = 'info', { prog = null } = {}) {
+    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog };
+    this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
-    if (!this.isOpen()) this.unread++;
+    if (!this.isOpen() && prog == null) this.unread++;
+    Bus.emit('notif:changed');
+    if (this.isOpen()) this.render();
+    return n;
+  },
+  /** A live entry's bar and text, written in place (re-rendering the list on every tick would eat clicks on it). */
+  progress(n, f, text) {
+    n.prog = clamp(f || 0, 0, 1);
+    if (text != null) n.body = String(text);
+    if (n.barEl) n.barEl.style.width = (n.prog * 100).toFixed(1) + '%';
+    if (n.bodyEl && text != null) n.bodyEl.textContent = n.body;
+  },
+  remove(n) {
+    if (!this.list.includes(n)) return;
+    this.list = this.list.filter(x => x !== n);
     Bus.emit('notif:changed');
     if (this.isOpen()) this.render();
   },
@@ -1169,8 +1196,9 @@ const Notifications = {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
     clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
-      h('div.nf-ico', icon(ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
-      h('div.nf-body', h('div.nf-t', n.title), n.body ? h('div.nf-b', n.body) : null, h('div.nf-time', this.ago(n.at))),
+      h('div.nf-ico', icon(n.prog != null ? 'download' : ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
+      h('div.nf-body', h('div.nf-t', n.title), n.body || n.prog != null ? (n.bodyEl = h('div.nf-b', n.body)) : null,
+        n.prog != null ? h('div.nf-bar', n.barEl = h('i', { style: { width: (n.prog * 100).toFixed(1) + '%' } })) : h('div.nf-time', this.ago(n.at))),
       h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('check')))) : []));
     if (this.countEl) this.countEl.textContent = String(this.list.length);
   },

@@ -2046,7 +2046,7 @@ div.res-calib .i { color: var(--good); }
 .pl-group input[type=range].slider::-moz-range-thumb { border-radius: 3px; border: 2px solid #ffcc22; background: #1a1a1a; }
 @media (max-width: 800px) and (hover: none) and (orientation: portrait) { .gp-loader { grid-template-columns: 1fr; } .pl-settings { display: none; } }
 /* like lazer's toast tray, notifications step aside while the now-playing panel or a menu is open at the top right */
-#toasts { transition: opacity 200ms; }
+#toasts { transition: opacity 200ms, top 300ms var(--ease-out); }
 body:has(.np-panel.show) #toasts, body:has(.menu) #toasts { opacity: 0; pointer-events: none; }
 /* lazer's NowPlayingOverlay: the cover at ~60% brightness, 5px corners, a yellow progress bar */
 
@@ -2492,6 +2492,9 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 @media (max-width: 900px) and (hover: none) and (orientation: portrait) { .bso-inner { flex-direction: column; align-items: stretch; padding-left: 16px; padding-right: 16px; } .bso-body { padding-left: 16px; padding-right: 16px; } .bso-card { width: auto; } }
 .ex-card { flex-direction: row; align-items: stretch; }
 .bso { inset: var(--toolbar-h) 0 0 0; }
+/* the page's close button is never under a toast (a download's stays up until it's done, and a phone has no Esc):
+   while the page is open, toasts sit below the button */
+body:has(.bso) #toasts { top: calc(var(--toolbar-h) + 66px); }
 .bso-scroll { padding-top: 0; }
 /* the beatmap info page is one full screen: the cover fills it and the details sit in the middle at a size that
    uses the space (tags and your scores live in the left column under the buttons) */
@@ -4198,6 +4201,8 @@ html.touch .hud-hp { left: 76px; top: 30px; width: min(calc(42 * var(--vw)), 300
 /* lazer's ProgressNotification */
 .toast.prog .t-bar { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .toast.prog .t-bar i { display: block; height: 100%; width: 0; background: #66ccff; transition: width 150ms linear; }
+.nf-bar { height: 3px; margin-top: 7px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.nf-bar i { display: block; height: 100%; background: #66ccff; transition: width 150ms linear; }
 
 .pm-desc { margin: 6px 0 0; font-size: 18px; color: #fff; text-align: center; text-shadow: 0 0 6px rgba(0, 0, 0, .5); }
 
@@ -12037,19 +12042,29 @@ const Toast = {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   },
-  /** lazer's ProgressNotification: a toast with a bar that stays until the work is done. Returns
-   *  { set(fraction, text), done(title, body), fail(title, body) }. */
+  /** lazer's ProgressNotification: a toast with a bar. Like lazer's tray, the toast steps aside after a moment (not
+   *  while the pointer is on it; it can be swiped away too) and the bar carries on in the notifications until the work
+   *  is done, so it never sits over a page for a whole download. Returns { set(fraction, text), done(title, body),
+   *  fail(title, body) }. */
   progress(title, body = '') {
     const box = $('#toasts');
     const bar = h('i'), txt = h('div.t-body', body);
     const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
     box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
-    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    const n = Notifications.add(title, body, 'info', { prog: 0 });
+    let timer = 0;
+    const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    const arm = ms => { clearTimeout(timer); timer = setTimeout(close, ms); };
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', () => { if (!el._drag) arm(1500); });
+    el.addEventListener('click', () => { if (el._dragged) { el._dragged = false; return; } close(); });
+    Toast.draggable(el, close);
+    arm(4200);
     return {
-      set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; },
-      done: (t, b) => { close(); Toast.ok(t, b); },
-      fail: (t, b) => { close(); Toast.err(t, b); },
+      set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; Notifications.progress(n, f, text); },
+      done: (t, b) => { close(); Notifications.remove(n); Toast.ok(t, b); },
+      fail: (t, b) => { close(); Notifications.remove(n); Toast.err(t, b); },
     };
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
@@ -12842,10 +12857,27 @@ const LazerCursor = {
  *  the toolbar bell counts the ones you haven't seen. */
 const Notifications = {
   list: [], unread: 0, el: null,
-  add(title, body, type = 'info') {
-    this.list.unshift({ id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now() });
+  /** (`prog` makes it a live progress entry — Toast.progress's — which goes when the work is done and isn't counted:
+   *  the finished or failed notice that replaces it is) */
+  add(title, body, type = 'info', { prog = null } = {}) {
+    const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog };
+    this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
-    if (!this.isOpen()) this.unread++;
+    if (!this.isOpen() && prog == null) this.unread++;
+    Bus.emit('notif:changed');
+    if (this.isOpen()) this.render();
+    return n;
+  },
+  /** A live entry's bar and text, written in place (re-rendering the list on every tick would eat clicks on it). */
+  progress(n, f, text) {
+    n.prog = clamp(f || 0, 0, 1);
+    if (text != null) n.body = String(text);
+    if (n.barEl) n.barEl.style.width = (n.prog * 100).toFixed(1) + '%';
+    if (n.bodyEl && text != null) n.bodyEl.textContent = n.body;
+  },
+  remove(n) {
+    if (!this.list.includes(n)) return;
+    this.list = this.list.filter(x => x !== n);
     Bus.emit('notif:changed');
     if (this.isOpen()) this.render();
   },
@@ -12885,8 +12917,9 @@ const Notifications = {
     if (!this.listEl) return;
     const ico = { info: 'info', ok: 'star', err: 'x' };
     clearEl(this.listEl).append(...(this.list.length ? this.list.map(n => h(`div.nf-item.${n.type}`,
-      h('div.nf-ico', icon(ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
-      h('div.nf-body', h('div.nf-t', n.title), n.body ? h('div.nf-b', n.body) : null, h('div.nf-time', this.ago(n.at))),
+      h('div.nf-ico', icon(n.prog != null ? 'download' : ico[n.type] || 'info', n.type === 'ok' ? 'fill' : '')),
+      h('div.nf-body', h('div.nf-t', n.title), n.body || n.prog != null ? (n.bodyEl = h('div.nf-b', n.body)) : null,
+        n.prog != null ? h('div.nf-bar', n.barEl = h('i', { style: { width: (n.prog * 100).toFixed(1) + '%' } })) : h('div.nf-time', this.ago(n.at))),
       h('button.nf-x', { title: 'Dismiss', 'aria-label': 'Dismiss', onclick: () => { this.list = this.list.filter(x => x !== n); this.render(); } }, icon('check')))) : []));
     if (this.countEl) this.countEl.textContent = String(this.list.length);
   },
@@ -14148,6 +14181,9 @@ const SongSelect = {
   rows: [], pool: new Map(), ROW_SET: 72, ROW_DIFF: 45, ROW_GROUP: 54, ROW_GAP: 3, // (lazer's PanelBeatmapSet / PanelBeatmap / PanelGroup heights)
 
   enter(params = {}) {
+    // (as lazer: coming back to song select asks for the online leaderboard again — one from half a minute ago is
+    // missing the scores set since, your own among them)
+    this._onlineFor = null;
     this.practiceMode = !!params.practice;
     this.mpPick = !!params.mpPick && Multiplayer.inRoom();
     if (params.mapId) this.selectedId = params.mapId;
@@ -15142,7 +15178,7 @@ const SongSelect = {
     const row = h(`button.lbs${own ? '.own' : ''}`, {
       style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
-      onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, watched: 'online' } : { score: s, fromList: true }, { transition: 'right' }); },
+      onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
       oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
     },
       h('span.lbs-rank', h('b', '#' + fmtInt(i + 1))),
@@ -18107,7 +18143,7 @@ const ResultsScreen = {
     this._srcs = this._srcs.filter(Boolean);
   },
   onKey(e) {
-    if (this.p.mp) return false; // (a room's match isn't yours to retry)
+    if (this.p.mp || this.p.browse) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile)
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
@@ -18299,7 +18335,8 @@ const ResultsScreen = {
     if (replay || s.replayId) bar.append(watch);
     // (after a multiplayer song: back to the room instead of retrying, as lazer's multiplayer results)
     if (p.mp) bar.append(h('button.res-ab.wide.green', { onclick: () => { UISounds.click(); this.onBack(); }, title: 'back to the room', 'aria-label': 'Back to the room' }, icon('multi')));
-    else bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
+    // (lazer's AllowRetry: only after a play of your own — not on a score opened from a leaderboard or a profile)
+    else if (!p.browse) bar.append(h('button.res-ab.wide.green', { onclick: () => this.retry(), disabled: !map, title: 'retry (R)', 'aria-label': 'Retry' }, icon('retry')));
     // lazer's CollectionButton and FavouriteButton (the heart filled while the set is a favourite)
     if (map) {
       // (green while the beatmap is in a collection / the set is a favourite)
@@ -19113,9 +19150,9 @@ const ProfileScreen = {
       UISounds.click();
       // (back from the score comes back here — this profile, scrolled where it was — not to song select)
       const back = { name: 'profile', params: this.backParams() };
-      if (!s.remote) { Screens.go('results', { score: s, fromList: true, back }, { transition: 'right' }); return; }
+      if (!s.remote) { Screens.go('results', { score: s, fromList: true, browse: true, back }, { transition: 'right' }); return; }
       const r = this.remote || {};
-      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, watched: 'online', back }, { transition: 'right' });
+      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, browse: true, watched: 'online', back }, { transition: 'right' });
     } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
@@ -19352,9 +19389,10 @@ const CHANGELOG = [
       'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
     { icon: 'globe', title: 'Offline and empty pages', items: ['A play whose score couldn\'t be sent (the network dropped as the song ended) is sent again for two minutes — at once when you\'re back online — instead of never reaching the leaderboards and rankings', 'When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
     { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
-    { icon: 'music', title: 'Song select', items: ['The online leaderboard shows your new score as soon as the server has counted it (going back to song select straight after a song showed the old board for half a minute)', 'The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
+    { icon: 'download', title: 'Beatmap listing', items: ['A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications'] },
+    { icon: 'music', title: 'Song select', items: ['Coming back to song select asks for the online leaderboard again, so scores set since (anyone\'s) show — it kept a board for half a minute', 'The online leaderboard shows your new score as soon as the server has counted it (going back to song select straight after a song showed the old board for half a minute)', 'The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
     { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Deleting the beatmap set whose song is playing moves the music on to another song, or with none left stops it (the deleted song could still be played from the now playing panel)', 'An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
-    { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
+    { icon: 'clock', title: 'Results', items: ['A score opened from a leaderboard or a profile has no Retry button, as in lazer (it\'s there after your own play)', '"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
   ] },
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
     { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
