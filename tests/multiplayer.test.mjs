@@ -243,6 +243,10 @@ test('speed mods (DT…) need every player to accept; other mods are per player'
   r.message('b', { t: 'hasMap', has: true });
   r.message('b', { t: 'mods', mods: ['MR', 'DT', 'AT'] });
   assert.deepEqual(r.get('b').mods, ['MR']);
+  // mods the judge turns down (Cinema, Wind Up / Down, Adaptive Speed, Muted) never reach a room: a play with them
+  // would be an F with no score
+  r.message('b', { t: 'mods', mods: ['MR', 'WU', 'WD', 'AS', 'MU', 'CN'] });
+  assert.deepEqual(r.get('b').mods, ['MR']);
   r.message('a', { t: 'ready', ready: true }); r.message('b', { t: 'ready', ready: true });
   assert.equal(msgs(r.message('a', { t: 'start' }), 'error').length, 1); // vote still open
   r.message('b', { t: 'vote', yes: true });

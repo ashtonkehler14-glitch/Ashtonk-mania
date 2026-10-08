@@ -14970,7 +14970,7 @@ const SongSelect = {
     OSD.show('Mod customisation', `Speed changed to ${target.toFixed(2)}x`, 'Ctrl+Up / Ctrl+Down');
   },
   /** Mod select; picking a beatmap for a multiplayer room greys out the mods a room doesn't allow (Auto). */
-  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: ['AT', 'CN', 'WU', 'WD', 'AS'], why: 'not available in multiplayer' } : {}); },
+  openMods() { ModSelect.open(this.mpPick && Multiplayer.inRoom() ? { disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer' } : {}); },
   onBack() {
     if (this.query) { this.query = ''; this.searchInput.value = ''; this.rebuild(true); return true; }
     return false;
@@ -19315,7 +19315,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.7', title: 'Cleaner pages', sections: [
-    { icon: 'multi', title: 'Multiplayer', items: ['Reloading the page (or a phone reloading the tab) in a room takes you straight back in as yourself — still the host, still in the match — with the room\'s recent chat', 'A dropped connection is noticed in seconds on both sides: the others see you as reconnecting, and you\'re back the moment your network is', 'A play that ends while your connection is down still counts: it\'s sent and checked once you\'re back, instead of being marked unchecked', 'A host who loses connection for more than a few seconds hands the host on, so the room isn\'t stuck waiting', 'Participants show their difficulty and stars under their name (it was cut off once they were ready)', 'After a match the room\'s results take less space, so the room and its chat stay on screen', '"Checking the scores…" while the server checks everyone\'s play, instead of "Waiting for the others" when nobody is still playing', 'Song select\'s "Choose the match beatmap" note is no longer hidden behind the logo', 'The lounge has one bar: Create room, search and join by code side by side',
+    { icon: 'multi', title: 'Multiplayer', items: ['Mods a match can\'t judge (Muted, Wind Up / Down, Adaptive Speed, Cinema) can\'t be picked in a room, and one still on from solo play is left out — a play with them used to count as an F with no score', 'Reloading the page (or a phone reloading the tab) in a room takes you straight back in as yourself — still the host, still in the match — with the room\'s recent chat', 'A dropped connection is noticed in seconds on both sides: the others see you as reconnecting, and you\'re back the moment your network is', 'A play that ends while your connection is down still counts: it\'s sent and checked once you\'re back, instead of being marked unchecked', 'A host who loses connection for more than a few seconds hands the host on, so the room isn\'t stuck waiting', 'Participants show their difficulty and stars under their name (it was cut off once they were ready)', 'After a match the room\'s results take less space, so the room and its chat stay on screen', '"Checking the scores…" while the server checks everyone\'s play, instead of "Waiting for the others" when nobody is still playing', 'Song select\'s "Choose the match beatmap" note is no longer hidden behind the logo', 'The lounge has one bar: Create room, search and join by code side by side',
       'The room is laid out like lazer\'s: the room\'s card across the top and a wide Ready / Start button in the middle',
       'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
       'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
@@ -21907,7 +21907,7 @@ const Multiplayer = {
   /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
   setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
-    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && x !== 'AT') });
+    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).unranked) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
     if (!propose) return;
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
@@ -21918,7 +21918,7 @@ const Multiplayer = {
   selectMap(m, mods) {
     const set = BeatmapManager.setById.get(m.setId);
     this.send({ t: 'map', map: { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
-      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => x !== 'AT'), modConfig: ModSystem.config() });
+      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
   },
   launch(m) {
     if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
@@ -22645,7 +22645,7 @@ const MultiplayerScreen = {
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
     // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
-    ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD', 'AS'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
+    ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;

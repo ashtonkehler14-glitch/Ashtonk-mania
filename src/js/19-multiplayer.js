@@ -307,7 +307,7 @@ const Multiplayer = {
   /** This player's own mods; a speed mod (DT, HT…) in the list is proposed to the room instead. */
   setMods(list, { propose = true } = {}) {
     const speed = list.filter(x => MP_SPEED_MODS.includes(x)).slice(0, 1);
-    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && x !== 'AT') });
+    this.send({ t: 'mods', mods: list.filter(x => !MP_SPEED_MODS.includes(x) && !(MOD_BY_ID.get(x) || {}).unranked) }); // (no Auto, Cinema, Wind Up…: a room can't judge those)
     if (!propose) return;
     const r = this.room, cur = r ? r.mods || [] : [];
     const pending = r && r.vote ? r.vote.mods : null;
@@ -318,7 +318,7 @@ const Multiplayer = {
   selectMap(m, mods) {
     const set = BeatmapManager.setById.get(m.setId);
     this.send({ t: 'map', map: { hash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, length: m.length,
-      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => x !== 'AT'), modConfig: ModSystem.config() });
+      onlineSetId: set && set.onlineId > 0 ? set.onlineId : -1, onlineId: m.onlineId > 0 ? m.onlineId : -1 }, mods: mods.filter(x => !(MOD_BY_ID.get(x) || {}).unranked), modConfig: ModSystem.config() });
   },
   launch(m) {
     if (Array.isArray(m.players) && !m.players.includes(this.me)) { Toast.show('Sitting this round out', 'You didn\'t have the beatmap in time — you\'re back in next round.'); return; }
@@ -1045,7 +1045,7 @@ const MultiplayerScreen = {
     Settings.set('songselect.mods', ModSystem.normalize([...(r.mods || []), ...((me && me.mods) || [])]));
     // every toggle reaches the room straight away; a speed mod is proposed to the room once, when mod select closes
     const off = Bus.on('mods:changed', () => { if (Multiplayer.inRoom() && ModSelect.o) Multiplayer.setMods(Settings.get('songselect.mods') || [], { propose: false }); });
-    ModSelect.open({ disabled: ['AT', 'CN', 'WU', 'WD', 'AS'], why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
+    ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), why: 'not available in multiplayer', onClose: () => { off(); if (Multiplayer.inRoom()) Multiplayer.setMods(Settings.get('songselect.mods') || []); } });
   },
   updateFetch() {
     const f = Multiplayer.fetch;

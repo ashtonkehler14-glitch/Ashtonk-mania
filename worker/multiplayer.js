@@ -49,7 +49,10 @@ export const RATE_MODS = ['DT', 'NC', 'HT', 'DC', 'RT'];
 export function cleanMods(list) {
   return Array.isArray(list) ? [...new Set(list.filter(x => typeof x === 'string' && /^[A-Z]{2,3}$/.test(x) && x !== 'AT'))].slice(0, 12) : [];
 }
-const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x));
+// (mods a judged play can't have — Cinema, Wind Up / Down, Adaptive Speed, Muted: the judge turns those plays down, and a
+// match result it turned down is an F — so a room never takes them, even ones still picked from solo play)
+export const NO_ROOM_MODS = ['AT', 'CN', 'WU', 'WD', 'AS', 'MU'];
+const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x) && !NO_ROOM_MODS.includes(x));
 const speedMods = list => cleanMods(list).filter(x => RATE_MODS.includes(x)).slice(0, 1);
 const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.entries(c).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
 /** A shared profile picture: a preset / public picture id, or a small inline JPEG / PNG / WebP. */
