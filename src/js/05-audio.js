@@ -11,6 +11,9 @@ const AudioManager = {
   init() {
     if (this.ctx) return this.ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
+    // (iOS: the page's sound follows the ring/silent switch unless it says it's media — on a phone set to silent the
+    // game played without a sound. The Audio Session API, Safari 16.4+; elsewhere there's nothing to set)
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* not settable */ }
     this.ctx = new AC({ latencyHint: 'interactive' });
     // the browser can suspend audio on its own (another app takes the output, Safari's "interrupted"): gameplay pauses
     this.ctx.onstatechange = () => Bus.emit('audio:state', this.ctx.state);
