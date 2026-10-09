@@ -1418,6 +1418,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // (buttons work as buttons, and so does the loader's settings panel while it's up — a tap on a setting's name was a key)
     if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input, .gp-loader:not(.out) .pl-settings')) return;
     e.preventDefault();
+    // (watching — a replay, Auto: a touch is no key, it brings up the playback controls, as moving the mouse does —
+    // a phone had no way to them)
+    if (this.replayBar) {
+      if (e.type === 'touchstart') {
+        const el = this.el;
+        if (!el.classList.contains('show-cursor')) this.updateReplayBar(this.gameTime(), true);
+        el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 3000);
+      }
+      return;
+    }
     if (s.feed) return;
     const t = this.inputTime(e);
     for (const tc of e.changedTouches) {

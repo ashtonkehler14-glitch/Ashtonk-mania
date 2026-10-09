@@ -854,7 +854,7 @@ html.touch .practice-bar .kbd { display: none; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay:has(.pause-menu) .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
-.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:focus-within { opacity: 1; }
+.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:has(:focus-visible) { opacity: 1; } /* (keyboard focus: a tapped button keeps its focus, and the bar stayed up) */
 .replay-bar.top { bottom: auto; top: 14px; }
 /* the REPLAY tag sits on the same side: it steps aside while the controls are up */
 .hud-replay { transition: opacity var(--t-med); }
@@ -16874,6 +16874,16 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     // (buttons work as buttons, and so does the loader's settings panel while it's up — a tap on a setting's name was a key)
     if (e.target.closest && e.target.closest('button, .pause-menu, .replay-bar, .gp-skip, a, input, .gp-loader:not(.out) .pl-settings')) return;
     e.preventDefault();
+    // (watching — a replay, Auto: a touch is no key, it brings up the playback controls, as moving the mouse does —
+    // a phone had no way to them)
+    if (this.replayBar) {
+      if (e.type === 'touchstart') {
+        const el = this.el;
+        if (!el.classList.contains('show-cursor')) this.updateReplayBar(this.gameTime(), true);
+        el.classList.add('show-cursor'); clearTimeout(this._mmT); this._mmT = setTimeout(() => el.classList.remove('show-cursor'), 3000);
+      }
+      return;
+    }
     if (s.feed) return;
     const t = this.inputTime(e);
     for (const tc of e.changedTouches) {
@@ -19439,7 +19449,7 @@ const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'download', title: 'Downloads', items: ['"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
+    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
     { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },

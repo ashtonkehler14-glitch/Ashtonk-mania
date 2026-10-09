@@ -835,7 +835,7 @@ html.touch .practice-bar .kbd { display: none; }
 /* replay / Auto controls (osu!lazer's replay player): shown while the mouse moves, when paused or hovered */
 .replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, calc(calc(100 * var(--vw)) - 340px)); min-width: min(470px, calc(calc(100 * var(--vw)) - 32px)); padding: 10px 12px; border-radius: 14px; background: rgba(12, 8, 20, .84); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; cursor: default; opacity: 0; transition: opacity var(--t-med); }
 .gameplay:has(.pause-menu) .replay-bar { opacity: 0 !important; pointer-events: none !important; } /* (the pause / fail menu covers it: it sat over their title) */
-.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:focus-within { opacity: 1; }
+.gameplay.show-cursor .replay-bar, .replay-bar.paused, .replay-bar:hover, .replay-bar:has(:focus-visible) { opacity: 1; } /* (keyboard focus: a tapped button keeps its focus, and the bar stayed up) */
 .replay-bar.top { bottom: auto; top: 14px; }
 /* the REPLAY tag sits on the same side: it steps aside while the controls are up */
 .hud-replay { transition: opacity var(--t-med); }

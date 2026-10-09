@@ -1401,6 +1401,17 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     const paused = await hit();
     check('phone practice: the tools let touches through to the column while the song plays, and are there to use when paused', !playing && paused, JSON.stringify({ playing, paused }));
   }
+  {
+    // watching Auto / a replay on a phone: a tap brings up the playback controls (moving the mouse does on a computer)
+    await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); });
+    await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running && document.querySelector('.replay-bar'), null, { timeout: 20000 });
+    await mp.waitForTimeout(600);
+    const op = () => mp.evaluate(() => getComputedStyle(document.querySelector('.replay-bar')).opacity);
+    const before = await op();
+    await mp.touchscreen.tap(420, 200); await mp.waitForTimeout(400);
+    const after = await op();
+    check('phone: watching Auto, a tap brings up the playback controls', before === '0' && after === '1', JSON.stringify({ before, after }));
+  }
   await mctx.close();
 }
 
