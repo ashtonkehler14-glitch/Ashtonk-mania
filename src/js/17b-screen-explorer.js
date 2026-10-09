@@ -101,8 +101,8 @@ const OnlineBeatmaps = {
     p = { status: 'leaderboard', keys: [], minStars: 0, maxStars: 20, nsfw: true, ...p };
     if (navigator.onLine === false) throw new Error('You\'re offline. Connect to the internet to browse and download beatmaps — this page searches again by itself once you\'re back online.');
     if (!await this.checkApi()) throw Object.assign(new Error(Multiplayer.available()
-      ? 'Beatmaps will show up as soon as it\'s back. You can still drag .osz files onto the window to add songs.'
-      : 'Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or drag .osz files onto the window to add songs.'), { server: true });
+      ? 'Beatmaps will show up as soon as it\'s back. ' + kbHint('You can still drag .osz files onto the window to add songs.', 'You can still import .osz files from your device to add songs.')
+      : 'Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or ' + kbHint('drag .osz files onto the window to add songs.', 'import .osz files from your device to add songs.')), { server: true });
     const lo = p.minStars > 0 ? p.minStars : null, hi = p.maxStars < 20 ? p.maxStars : null;
     const q = [lo !== null && `stars>=${lo}`, hi !== null && `stars<=${hi}`, p.keys.map(k => `key=${k}`).join(' '), p.q].filter(Boolean).join(' ');
     const params = new URLSearchParams();
@@ -280,14 +280,22 @@ const ExplorerScreen = {
     this.mpPick = !!params.mpPick && typeof Multiplayer !== 'undefined' && Multiplayer.inRoom();
     this.searchInput = h('input.input.ex-search', { type: 'search', value: st.q, placeholder: 'Search osu!mania beatmaps — title, artist, mapper, tags…', 'aria-label': 'Search online beatmaps' });
     let t = 0;
-    this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { st.q = this.searchInput.value.trim(); this.newSearch(); }, 420); });
+    // (lazer's listing: a new search sorts by relevance, and clearing it goes back to ranked — another sort can be
+    // picked after)
+    const setQuery = q => {
+      if (q === st.q) return;
+      st.q = q;
+      if (q) { st.sort = 'relevance'; st.dir = 'desc'; } else if (st.sort === 'relevance') { st.sort = 'ranked'; st.dir = 'desc'; }
+      this.renderFilters && this.renderFilters();
+    };
+    this.searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { setQuery(this.searchInput.value.trim()); this.newSearch(); }, 420); });
     this.searchInput.addEventListener('keydown', e => {
       // (lazer's search box: Esc clears what's typed first — and lists everything again — then, with nothing typed,
       // goes back as Esc does anywhere)
       if (e.key === 'Escape' && !this.searchInput.value) { e.preventDefault(); e.stopPropagation(); this.searchInput.blur(); Screens.back(); return; }
       e.stopPropagation();
-      if (e.key === 'Enter') { clearTimeout(t); st.q = this.searchInput.value.trim(); this.newSearch(); }
-      if (e.key === 'Escape') { e.preventDefault(); this.searchInput.value = ''; clearTimeout(t); if (st.q) { st.q = ''; this.newSearch(); } }
+      if (e.key === 'Enter') { clearTimeout(t); setQuery(this.searchInput.value.trim()); this.newSearch(); }
+      if (e.key === 'Escape') { e.preventDefault(); this.searchInput.value = ''; clearTimeout(t); if (st.q) { setQuery(''); this.newSearch(); } }
     });
     const chipRow = (label, items, isOn, onClick) => h('div.ex-filter', h('span.ex-flabel', label), h('div.ex-chips', ...items.map(([v, l]) => h(`button.ex-chip${isOn(v) ? '.on' : ''}`, { onclick: () => { onClick(v); UISounds.click(); this.renderFilters(); this.newSearch(); } }, l))));
     this.filters = h('div.ex-filters');
@@ -389,7 +397,8 @@ const ExplorerScreen = {
   sortParam() { const st = this.state; const s = `${st.sort || 'ranked'}_${st.dir}`; return s === 'ranked_desc' ? null : s; },
   filtersChanged() {
     const st = this.state, d = EXPLORE_DEFAULTS;
-    return st.keys.length > 0 || st.status !== d.status || st.sort !== d.sort || st.dir !== d.dir || st.minStars !== d.minStars || st.maxStars !== d.maxStars
+    const sortSet = st.q && st.sort === 'relevance' && st.dir === 'desc' ? false : st.sort !== d.sort || st.dir !== d.dir; // (a search's own relevance isn't a filter)
+    return st.keys.length > 0 || st.status !== d.status || sortSet || st.minStars !== d.minStars || st.maxStars !== d.maxStars
       || st.genre !== d.genre || st.language !== d.language || st.nsfw !== d.nsfw || (st.extra || []).length > 0;
   },
   async newSearch() {

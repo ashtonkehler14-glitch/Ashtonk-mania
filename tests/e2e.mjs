@@ -837,6 +837,20 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.click('.ex-chip:text-matches("^Title")');
   await page.waitForTimeout(300);
   check('explorer: a new sort starts descending (Z→A), clicking again flips it (as on WOM)', s2 === 'title_desc' && seen[seen.length - 1].get('sort') === 'title_asc', `${s2} / ${seen[seen.length - 1]}`);
+  {
+    // lazer's listing: typing a search sorts by relevance (osu! does then), and clearing it goes back to ranked
+    const rel = await page.evaluate(async () => {
+      const E = AshtonkMania.ExplorerScreen, st = E.state, was = { sort: st.sort, dir: st.dir }, inp = E.searchInput;
+      inp.value = 'anthem'; inp.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 650));
+      const typed = `${st.sort}_${st.dir}`, reset = !!document.querySelector('.ex-reset');
+      inp.value = ''; inp.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 650));
+      const cleared = `${st.sort}_${st.dir}`;
+      Object.assign(st, was); E.renderFilters(); E.newSearch();
+      return { typed, reset, cleared };
+    });
+    check('explorer: typing a search sorts by relevance and clearing it goes back to ranked, as in lazer (no "Reset filters" for it)', rel.typed === 'relevance_desc' && rel.cleared === 'ranked_desc' && !rel.reset, JSON.stringify(rel));
+    await page.waitForTimeout(300);
+  }
   // WOM's other filters: genre, language, explicit content (under "More filters"), key counts up to 18K, stars, reset
   await page.click('.ex-chip:text-is("More filters")');
   await page.click('.ex-chip:text-is("Anime")'); await page.waitForTimeout(150);
