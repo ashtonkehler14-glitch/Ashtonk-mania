@@ -66,6 +66,7 @@ const App = {
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
+    this.takeShared();
     Mobile.init();
     try { Medals.backfill(); } catch (e) { console.warn('medals', e); }
     // (the online status of imported beatmaps, in the background once the game has settled)
@@ -327,6 +328,20 @@ const App = {
       const files = await Promise.all(params.files.map(f => f.getFile()));
       this.importFiles(files);
     });
+  },
+  /** Files shared to the installed app from another app (Android's share sheet): the service worker kept them. */
+  async takeShared() {
+    if (!/[?&]shared=1/.test(location.search) || !('caches' in window)) return;
+    try { history.replaceState(history.state, '', location.pathname); } catch { /* fine */ }
+    try {
+      const cache = await caches.open('ashtonk-shared'), files = [];
+      for (const k of await cache.keys()) {
+        const r = await cache.match(k);
+        if (r) files.push(new File([await r.blob()], decodeURIComponent(k.url.split('/').pop()), { type: r.headers.get('content-type') || '' }));
+        await cache.delete(k);
+      }
+      if (files.length) this.importFiles(files);
+    } catch (e) { console.warn('shared files', e); }
   },
   get installed() { return ['fullscreen', 'standalone', 'minimal-ui'].some(m => window.matchMedia && matchMedia(`(display-mode: ${m})`).matches); },
   async install() {

@@ -341,6 +341,8 @@ import { handleMultiplayer } from './multiplayer.js';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // (Android's share sheet posts shared beatmaps here; the game's service worker takes them — without it, just open the game)
+    if (url.pathname === '/share-target') return Response.redirect(new URL('/', url).href, 303);
     if (url.pathname === '/api/health') {
       let osu = null;
       if (env.MATCHMAKER) {

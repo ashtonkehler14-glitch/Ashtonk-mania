@@ -156,6 +156,13 @@ test('non-API paths are served from static assets', async () => {
   assert.equal((await worker.fetch(new Request('https://x/api/search?q=a'), env)).status, 404, 'no mirror search any more');
 });
 
+test('a share from Android\'s share sheet without the service worker just opens the game', async () => {
+  const env = { ASSETS: { fetch: async () => new Response('index') } };
+  const r = await worker.fetch(new Request('https://x/share-target', { method: 'POST', body: new FormData() }), env);
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.get('location'), 'https://x/');
+});
+
 test('listing is rate-limited per visitor (like Web-Osu-Mania)', () => {
   const t0 = 1e12;
   for (let i = 0; i < 40; i++) assert.ok(allowSearch('1.2.3.4', t0 + i));

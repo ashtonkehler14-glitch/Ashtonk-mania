@@ -5,8 +5,8 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = '1dcca5027645';
-const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts';
+const VERSION = '85344431a5fc';
+const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts', SHARED = 'ashtonk-shared';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 
 self.addEventListener('install', e => {
@@ -22,13 +22,16 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k.startsWith('ashtonk-') && ![PAGES, ASSETS, FONTS].includes(k)) await caches.delete(k);
+    for (const k of await caches.keys()) if (k.startsWith('ashtonk-') && ![PAGES, ASSETS, FONTS, SHARED].includes(k)) await caches.delete(k);
     await self.clients.claim();
   })());
 });
 
 self.addEventListener('fetch', e => {
   const req = e.request;
+  // Android's share sheet ("Share → Ashtonk!mania", the manifest's share_target): the files wait in a cache of their
+  // own, and the game opens to import them (App.takeShared)
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/share-target')) { e.respondWith(shared(req)); return; }
   if (req.method !== 'GET' || req.headers.has('range')) return;
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
@@ -39,6 +42,17 @@ self.addEventListener('fetch', e => {
   }
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') e.respondWith(cacheFirst(req, FONTS, e));
 });
+
+async function shared(req) {
+  try {
+    const fd = await req.formData(), cache = await caches.open(SHARED);
+    let i = 0;
+    for (const f of fd.getAll('files')) {
+      if (f && typeof f === 'object' && f.name) await cache.put(`./shared/${Date.now()}-${i++}/${encodeURIComponent(f.name)}`, new Response(f, { headers: { 'Content-Type': f.type || 'application/octet-stream' } }));
+    }
+  } catch (err) { /* nothing usable came */ }
+  return Response.redirect('./?shared=1', 303);
+}
 
 /** The game page: the network's copy (saved for offline), else the saved one — whatever the query string. */
 async function page(req) {

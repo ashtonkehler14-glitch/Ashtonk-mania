@@ -19449,7 +19449,7 @@ const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'globe', title: 'Beatmap listing', items: ['Typing a search sorts by relevance, as in lazer (the best matches first; the sort still said "Ranked"), and clearing it goes back to ranked'] },
-    { icon: 'download', title: 'Downloads', items: ['"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
+    { icon: 'download', title: 'Downloads', items: ['Android: with the game installed, a beatmap, skin or replay can be shared to it from another app (Files, your browser\'s downloads) and it\'s imported', '"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
     { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
@@ -26099,6 +26099,7 @@ const App = {
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
+    this.takeShared();
     Mobile.init();
     try { Medals.backfill(); } catch (e) { console.warn('medals', e); }
     // (the online status of imported beatmaps, in the background once the game has settled)
@@ -26360,6 +26361,20 @@ const App = {
       const files = await Promise.all(params.files.map(f => f.getFile()));
       this.importFiles(files);
     });
+  },
+  /** Files shared to the installed app from another app (Android's share sheet): the service worker kept them. */
+  async takeShared() {
+    if (!/[?&]shared=1/.test(location.search) || !('caches' in window)) return;
+    try { history.replaceState(history.state, '', location.pathname); } catch { /* fine */ }
+    try {
+      const cache = await caches.open('ashtonk-shared'), files = [];
+      for (const k of await cache.keys()) {
+        const r = await cache.match(k);
+        if (r) files.push(new File([await r.blob()], decodeURIComponent(k.url.split('/').pop()), { type: r.headers.get('content-type') || '' }));
+        await cache.delete(k);
+      }
+      if (files.length) this.importFiles(files);
+    } catch (e) { console.warn('shared files', e); }
   },
   get installed() { return ['fullscreen', 'standalone', 'minimal-ui'].some(m => window.matchMedia && matchMedia(`(display-mode: ${m})`).matches); },
   async install() {
