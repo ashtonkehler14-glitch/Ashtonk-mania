@@ -19432,7 +19432,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
-    { icon: 'download', title: 'Downloads', items: ['"Downloaded …" takes you to the beatmap when clicked, as lazer\'s "Click to view" — from its toast or the notifications'] },
+    { icon: 'download', title: 'Downloads', items: ['"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
     { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
@@ -26281,7 +26281,11 @@ const App = {
     if (report.replays.length) parts.push(`${report.replays.length} replay${report.replays.length === 1 ? '' : 's'}`);
     if (report.data) parts.push('data backup');
     if (report.wom) parts.push(`a Web-Osu-Mania backup (${WomImport.summary(report.wom)})`);
-    if (parts.length) Toast.ok('Imported ' + parts.join(', '));
+    // (as lazer's "Imported …! Click to view.": imported from anywhere but song select or the main menu — which go to
+    // it by themselves — the notice takes you to the beatmap)
+    const firstMap = (report.sets.flatMap(st => st.maps).find(m => !m.problems.length)) || null;
+    const view = firstMap && !['songselect', 'home'].includes(Screens.currentName);
+    if (parts.length) Toast.show('Imported ' + parts.join(', '), view ? kbHint('Click to view.', 'Tap to view.') : '', { type: 'ok', onClick: view ? () => Screens.go('songselect', { mapId: firstMap.id }) : null });
     if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
     if (report.sets.length || report.skins.length) this.keepStorage();
     if (report.skins.length) await SkinManager.select(report.skins[report.skins.length - 1].id);
