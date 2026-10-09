@@ -3830,6 +3830,9 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .ch-x { flex: none; display: none; width: 16px; height: 16px; color: hsl(var(--h) 40% 80%); }
 .ch-x .i { width: 12px; height: 12px; }
 .ch-item:hover .ch-x { display: grid; place-items: center; }
+/* (on a touch screen: taller channel rows, and the open conversation's close button always there — there's no hover) */
+html.touch .ch-item { height: 34px; }
+html.touch .ch-item.on .ch-x { display: grid; place-items: center; width: 26px; height: 26px; }
 .ch-hint { padding: 4px 10px 0 18px; color: hsl(var(--h) 10% 40%); font-size: 12px; }
 .ch-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ch-lines { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 5px 10px 0; user-select: text; }
