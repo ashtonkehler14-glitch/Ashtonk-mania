@@ -1307,6 +1307,16 @@ await page.evaluate(() => AshtonkMania.SettingsPanel.open()); await page.waitFor
 await page.keyboard.type('dim'); await page.waitForTimeout(200);
 const typed = await page.evaluate(() => ({ sp: document.querySelector('.sp-search').value, ss: document.querySelector('input[aria-label="Search beatmaps"]').value, rows: document.querySelectorAll('.settings-panel .sp-section').length }));
 check('settings: typing right after opening searches the settings', typed.sp === 'dim' && typed.ss === '' && typed.rows >= 1, JSON.stringify(typed));
+// the toolbar button of what's open lights up whole (not a dot in its corner), and a status shows on the avatar
+const tbOn = await page.evaluate(async () => {
+  const st = document.querySelector('.tb-btn.on > .tb-st'), r = st && st.getBoundingClientRect(), btn = st && st.parentElement.getBoundingClientRect();
+  Toolbar.setStatus('dnd');
+  await new Promise(res => setTimeout(res, 300));
+  const dot = document.querySelector('.tb-av > .tb-st.dnd'), op = dot ? +getComputedStyle(dot).opacity : null; // (read before the dot goes)
+  Toolbar.setStatus('online');
+  return { w: r && Math.round(r.width), bw: btn && Math.round(btn.width), dot: op };
+});
+check('toolbar: the open overlay\'s button lights up, and a status dot shows on the avatar', tbOn.w >= tbOn.bw - 10 && tbOn.dot === 1, JSON.stringify(tbOn));
 await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
 // the same toast again refreshes the one on screen instead of stacking copies

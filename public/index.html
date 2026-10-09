@@ -3642,6 +3642,13 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lb-head .lb-tab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: hsl(var(--ss-h) 100% 70%); }
 .lb-ctl { margin-left: auto; display: flex; align-items: center; gap: 5px; min-width: 0; }
 .lb-ctl .ss-sel { flex: 0 1 auto; }
+/* (a narrower panel — a tablet — squeezes the controls instead of pushing Scope off its edge) */
+.lb-ctl > * { min-width: 0; }
+.lb-ctl .ss-sel > span { flex: none; }
+.lb-ctl .ss-sel .select { min-width: 0; flex: 0 1 auto; text-overflow: ellipsis; }
+.lb-ctl > .lb-modsel { flex: none; }
+.lb-head { container-type: inline-size; }
+@container (max-width: 660px) { .lb-ctl .ss-sel { padding-left: 4px; } .lb-ctl .ss-sel > span { display: none; } } /* (the values, not their captions: each select still says what it is) */
 .lb-modsel { position: relative; isolation: isolate; height: 30px; padding: 0 12px; border: 0; background: none; color: #fff; font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .lb-modsel::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); border-radius: 6px; background: hsl(var(--ss-h) 10% 20% / .85); transition: background 200ms; }
 .lb-modsel:hover::before { background: hsl(var(--ss-h) 10% 25% / .9); }
@@ -4160,9 +4167,10 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 .st-opt { display: inline-flex; align-items: center; gap: 8px; }
 .st-opt i { width: 8px; height: 8px; border-radius: 50%; }
 .tb-av { position: relative; }
-.tb-st { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; }
-.tb-st.dnd { background: #ff6666; }
-.tb-st.offline { background: #999; }
+/* (the avatar's status dot — only there: a toolbar button's own .tb-st is its "on" highlight, which this made a dot) */
+.tb-av > .tb-st { position: absolute; inset: auto -3px -3px auto; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; opacity: 1; mix-blend-mode: normal; }
+.tb-av > .tb-st.dnd { background: #ff6666; }
+.tb-av > .tb-st.offline { background: #999; }
 
 /* lazer's daily challenge: leaderboard beside total passes, score breakdown and event feed */
 .dc-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; max-width: 1100px; margin: 0 auto; align-items: start; }
@@ -19453,7 +19461,8 @@ const CHANGELOG = [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'globe', title: 'Beatmap listing', items: ['Typing a search sorts by relevance, as in lazer (the best matches first; the sort still said "Ranked"), and clearing it goes back to ranked'] },
     { icon: 'download', title: 'Downloads', items: ['Android: with the game installed, a beatmap, skin or replay can be shared to it from another app (Files, your browser\'s downloads) and it\'s imported', '"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'music', title: 'Song select', items: ['The score multiplier over the Mods button isn\'t cut off ("1.00x" lost its x)'] },
+    { icon: 'home', title: 'Toolbar', items: ['The button of what\'s open (settings, the beatmap listing…) lights up as in lazer — it only had a small red dot in its corner', 'Your avatar shows a dot when you\'re on "Do not disturb" or "Appear offline" (it never showed)'] },
+    { icon: 'music', title: 'Song select', items: ['The score multiplier over the Mods button isn\'t cut off ("1.00x" lost its x)', 'On a tablet the leaderboard\'s Sort and Scope fit beside "Selected Mods" (Scope was cut off)'] },
     { icon: 'sec-input', title: 'Phones and tablets', items: ['The results card\'s mod icons are big enough to make out (on a phone they were specks)', 'A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [

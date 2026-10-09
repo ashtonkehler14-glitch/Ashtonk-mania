@@ -3623,6 +3623,13 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 .lb-head .lb-tab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: hsl(var(--ss-h) 100% 70%); }
 .lb-ctl { margin-left: auto; display: flex; align-items: center; gap: 5px; min-width: 0; }
 .lb-ctl .ss-sel { flex: 0 1 auto; }
+/* (a narrower panel — a tablet — squeezes the controls instead of pushing Scope off its edge) */
+.lb-ctl > * { min-width: 0; }
+.lb-ctl .ss-sel > span { flex: none; }
+.lb-ctl .ss-sel .select { min-width: 0; flex: 0 1 auto; text-overflow: ellipsis; }
+.lb-ctl > .lb-modsel { flex: none; }
+.lb-head { container-type: inline-size; }
+@container (max-width: 660px) { .lb-ctl .ss-sel { padding-left: 4px; } .lb-ctl .ss-sel > span { display: none; } } /* (the values, not their captions: each select still says what it is) */
 .lb-modsel { position: relative; isolation: isolate; height: 30px; padding: 0 12px; border: 0; background: none; color: #fff; font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .lb-modsel::before { content: ""; position: absolute; inset: 0; z-index: -1; transform: skewX(var(--shear)); border-radius: 6px; background: hsl(var(--ss-h) 10% 20% / .85); transition: background 200ms; }
 .lb-modsel:hover::before { background: hsl(var(--ss-h) 10% 25% / .9); }
@@ -4141,9 +4148,10 @@ html.touch .pl-group input[type=range].slider { height: 40px; margin: -8px 0; }
 .st-opt { display: inline-flex; align-items: center; gap: 8px; }
 .st-opt i { width: 8px; height: 8px; border-radius: 50%; }
 .tb-av { position: relative; }
-.tb-st { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; }
-.tb-st.dnd { background: #ff6666; }
-.tb-st.offline { background: #999; }
+/* (the avatar's status dot — only there: a toolbar button's own .tb-st is its "on" highlight, which this made a dot) */
+.tb-av > .tb-st { position: absolute; inset: auto -3px -3px auto; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #1b1a20; opacity: 1; mix-blend-mode: normal; }
+.tb-av > .tb-st.dnd { background: #ff6666; }
+.tb-av > .tb-st.offline { background: #999; }
 
 /* lazer's daily challenge: leaderboard beside total passes, score breakdown and event feed */
 .dc-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; max-width: 1100px; margin: 0 auto; align-items: start; }
