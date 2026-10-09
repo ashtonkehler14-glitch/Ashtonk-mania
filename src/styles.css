@@ -1954,12 +1954,12 @@ div.res-calib .i { color: var(--good); }
 .ss-footer .foot-btn.fb-mods.unr { margin-right: 108px; }
 .fb-modbar { position: absolute; left: 0; bottom: calc(100% + 5px); z-index: 1; width: 100%; height: 30px; display: flex; border-radius: 10px; overflow: hidden; background: hsl(200 10% 20%); box-shadow: 0 2px 4px rgba(0, 0, 0, .25); opacity: 0; translate: 0 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
 .fb-mods.has-mods .fb-modbar { opacity: 1; translate: 0 0; pointer-events: auto; }
-.fb-modicons { flex: 0 0 65%; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: hsl(200 10% 25%); overflow: hidden; }
+.fb-modicons { flex: 0 1 65%; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: hsl(200 10% 25%); overflow: hidden; }
 .fb-modicons > * { transform: skewX(11.31deg); }
 .fb-modicons .mod-badge + .mod-badge { margin-left: -9px; }
 .fb-modicons .mb-t { display: none; }
 .fb-modcount { font-size: 14px; font-weight: 700; white-space: nowrap; }
-.fb-mult { flex: 1; display: grid; place-items: center; font-size: 14px; font-weight: 700; transform: skewX(11.31deg); transition: color 240ms var(--ease-out); }
+.fb-mult { flex: 1 0 auto; padding: 0 5px 0 2px; display: grid; place-items: center; font-size: 14px; font-weight: 700; transform: skewX(11.31deg); transition: color 240ms var(--ease-out); }
 .fb-mult.up { color: #ff6666; }
 .fb-mult.down { color: #b2ff66; }
 .fb-unranked { position: absolute; left: calc(100% + 5px); bottom: calc(100% + 5px); height: 30px; display: grid; place-items: center; padding: 0 15px; border: 2px solid #fff; border-radius: 10px; background: #ebc247; color: #000; white-space: nowrap; opacity: 0; translate: -20px 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
@@ -4311,6 +4311,8 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 /* (the results card fits a sideways phone's height instead of scrolling) */
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
+/* (…but its mods stay big enough to make out: halved again inside a shrunk card, they were specks) */
+@media (max-height: 520px) { .results .rs-diff { flex-wrap: wrap; row-gap: 3px; } .results .rs-diff .rs-mods { zoom: .85; } }
 /* lazer's HUD overlay visibility mode (hidden during gameplay / never): the HUD fades out — but not the touch columns,
  * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
 .gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.hud-hfm):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
@@ -4476,7 +4478,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .off-state.compact .off-ico { width: 40px; height: 40px; margin: 0; } .off-state.compact .off-ico .i { width: 20px; height: 20px; } .off-state.compact .off-ico i { height: 30px; }
 .off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }
 .off-state.compact.connecting { margin: 26px 0; }
-.dash-list .off-state { grid-column: 1 / -1; }
+.dash-list .off-state, .dash-list > .dash-empty { grid-column: 1 / -1; flex-basis: 100%; }
 .ch-lines > .off-state { margin: 16px auto; max-width: 460px; }
 /* the lounge's one bar: Create room · search (takes the room) · join by code */
 .mp-lounge-bar { flex-wrap: nowrap; }

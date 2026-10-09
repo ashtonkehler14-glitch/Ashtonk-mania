@@ -255,6 +255,7 @@ function pickFiles({ accept = '', multiple = true, directory = false } = {}) {
     if (multiple) inp.multiple = true;
     if (directory) { inp.webkitdirectory = true; inp.setAttribute('webkitdirectory', ''); }
     inp.addEventListener('change', () => { resolve(Array.from(inp.files || [])); inp.remove(); });
+    inp.addEventListener('cancel', () => { resolve([]); inp.remove(); }); // (the picker closed with nothing chosen)
     document.body.appendChild(inp); inp.click();
   });
 }

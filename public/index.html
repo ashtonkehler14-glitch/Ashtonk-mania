@@ -1973,12 +1973,12 @@ div.res-calib .i { color: var(--good); }
 .ss-footer .foot-btn.fb-mods.unr { margin-right: 108px; }
 .fb-modbar { position: absolute; left: 0; bottom: calc(100% + 5px); z-index: 1; width: 100%; height: 30px; display: flex; border-radius: 10px; overflow: hidden; background: hsl(200 10% 20%); box-shadow: 0 2px 4px rgba(0, 0, 0, .25); opacity: 0; translate: 0 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
 .fb-mods.has-mods .fb-modbar { opacity: 1; translate: 0 0; pointer-events: auto; }
-.fb-modicons { flex: 0 0 65%; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: hsl(200 10% 25%); overflow: hidden; }
+.fb-modicons { flex: 0 1 65%; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: hsl(200 10% 25%); overflow: hidden; }
 .fb-modicons > * { transform: skewX(11.31deg); }
 .fb-modicons .mod-badge + .mod-badge { margin-left: -9px; }
 .fb-modicons .mb-t { display: none; }
 .fb-modcount { font-size: 14px; font-weight: 700; white-space: nowrap; }
-.fb-mult { flex: 1; display: grid; place-items: center; font-size: 14px; font-weight: 700; transform: skewX(11.31deg); transition: color 240ms var(--ease-out); }
+.fb-mult { flex: 1 0 auto; padding: 0 5px 0 2px; display: grid; place-items: center; font-size: 14px; font-weight: 700; transform: skewX(11.31deg); transition: color 240ms var(--ease-out); }
 .fb-mult.up { color: #ff6666; }
 .fb-mult.down { color: #b2ff66; }
 .fb-unranked { position: absolute; left: calc(100% + 5px); bottom: calc(100% + 5px); height: 30px; display: grid; place-items: center; padding: 0 15px; border: 2px solid #fff; border-radius: 10px; background: #ebc247; color: #000; white-space: nowrap; opacity: 0; translate: -20px 25px; pointer-events: none; cursor: default; transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out); }
@@ -4330,6 +4330,8 @@ html.no-zoom, html.no-zoom body { touch-action: manipulation; }
 /* (the results card fits a sideways phone's height instead of scrolling) */
 @media (max-height: 520px) { .results .rs { zoom: .74; justify-self: center; } }
 @media (max-height: 420px) { .results .rs { zoom: .64; } }
+/* (…but its mods stay big enough to make out: halved again inside a shrunk card, they were specks) */
+@media (max-height: 520px) { .results .rs-diff { flex-wrap: wrap; row-gap: 3px; } .results .rs-diff .rs-mods { zoom: .85; } }
 /* lazer's HUD overlay visibility mode (hidden during gameplay / never): the HUD fades out — but not the touch columns,
  * the skip and pause buttons, the room's chat or the replay controls; Ctrl peeks */
 .gp-hud.auto-hide > :not(.fnf-hitbox):not(.hud-skip):not(.hud-touch-pause):not(.hud-hfm):not(.gp-chat):not(.replay-bar):not(.hud-replay) { opacity: 0; transition: opacity 300ms ease; }
@@ -4495,7 +4497,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .off-state.compact .off-ico { width: 40px; height: 40px; margin: 0; } .off-state.compact .off-ico .i { width: 20px; height: 20px; } .off-state.compact .off-ico i { height: 30px; }
 .off-state.compact .off-t { font-size: .98rem; } .off-state.compact .off-sub { font-size: .8rem; }
 .off-state.compact.connecting { margin: 26px 0; }
-.dash-list .off-state { grid-column: 1 / -1; }
+.dash-list .off-state, .dash-list > .dash-empty { grid-column: 1 / -1; flex-basis: 100%; }
 .ch-lines > .off-state { margin: 16px auto; max-width: 460px; }
 /* the lounge's one bar: Create room · search (takes the room) · join by code */
 .mp-lounge-bar { flex-wrap: nowrap; }
@@ -4893,6 +4895,7 @@ function pickFiles({ accept = '', multiple = true, directory = false } = {}) {
     if (multiple) inp.multiple = true;
     if (directory) { inp.webkitdirectory = true; inp.setAttribute('webkitdirectory', ''); }
     inp.addEventListener('change', () => { resolve(Array.from(inp.files || [])); inp.remove(); });
+    inp.addEventListener('cancel', () => { resolve([]); inp.remove(); }); // (the picker closed with nothing chosen)
     document.body.appendChild(inp); inp.click();
   });
 }
@@ -19450,7 +19453,8 @@ const CHANGELOG = [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'globe', title: 'Beatmap listing', items: ['Typing a search sorts by relevance, as in lazer (the best matches first; the sort still said "Ranked"), and clearing it goes back to ranked'] },
     { icon: 'download', title: 'Downloads', items: ['Android: with the game installed, a beatmap, skin or replay can be shared to it from another app (Files, your browser\'s downloads) and it\'s imported', '"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
+    { icon: 'music', title: 'Song select', items: ['The score multiplier over the Mods button isn\'t cut off ("1.00x" lost its x)'] },
+    { icon: 'sec-input', title: 'Phones and tablets', items: ['The results card\'s mod icons are big enough to make out (on a phone they were specks)', 'A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
     { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },
