@@ -2387,6 +2387,8 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-thumb.loaded { opacity: 1; }
 .ex-thumbwrap .ex-play { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; opacity: 0; transition: opacity 150ms, transform 150ms; }
 .ex-card:hover .ex-play, .ex-play[data-ic="pause"] { opacity: 1; }
+/* (a touch screen has no hover: the preview button is always there — it was only seen after the card had opened) */
+@media (hover: none) { .ex-thumbwrap .ex-play { opacity: 1; } }
 .ex-play:hover { transform: scale(1.1); background: rgba(0, 0, 0, .7); }
 .ex-thumbprog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, .5); }
 .ex-thumbprog::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--p); background: #66ccff; box-shadow: 0 0 8px #66ccff; }
@@ -4437,6 +4439,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* the profile, simpler: a small rename pencil that shows when you point at the name */
 .pf-name .icon-btn { width: 26px; height: 26px; opacity: 0; transition: opacity 200ms; }
 .pf-name .icon-btn .i { width: 14px; height: 14px; }
+@media (hover: none) { .pf-name .icon-btn { opacity: .7; } } /* (no pointing at your name on a touch screen) */
 .pf-name:hover .icon-btn, .pf-name .icon-btn:focus-visible { opacity: .7; }
 .pf-name .icon-btn:hover { opacity: 1; }
 @media (hover: none) { .pf-name .icon-btn { opacity: .55; } }

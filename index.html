@@ -2406,6 +2406,8 @@ body:has(.modsel) #toasts { opacity: 0; pointer-events: none; }
 .ex-thumb.loaded { opacity: 1; }
 .ex-thumbwrap .ex-play { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; opacity: 0; transition: opacity 150ms, transform 150ms; }
 .ex-card:hover .ex-play, .ex-play[data-ic="pause"] { opacity: 1; }
+/* (a touch screen has no hover: the preview button is always there — it was only seen after the card had opened) */
+@media (hover: none) { .ex-thumbwrap .ex-play { opacity: 1; } }
 .ex-play:hover { transform: scale(1.1); background: rgba(0, 0, 0, .7); }
 .ex-thumbprog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, .5); }
 .ex-thumbprog::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--p); background: #66ccff; box-shadow: 0 0 8px #66ccff; }
@@ -4456,6 +4458,7 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* the profile, simpler: a small rename pencil that shows when you point at the name */
 .pf-name .icon-btn { width: 26px; height: 26px; opacity: 0; transition: opacity 200ms; }
 .pf-name .icon-btn .i { width: 14px; height: 14px; }
+@media (hover: none) { .pf-name .icon-btn { opacity: .7; } } /* (no pointing at your name on a touch screen) */
 .pf-name:hover .icon-btn, .pf-name .icon-btn:focus-visible { opacity: .7; }
 .pf-name .icon-btn:hover { opacity: 1; }
 @media (hover: none) { .pf-name .icon-btn { opacity: .55; } }
@@ -19436,7 +19439,7 @@ const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'download', title: 'Downloads', items: ['"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)'] },
+    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
     { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },
