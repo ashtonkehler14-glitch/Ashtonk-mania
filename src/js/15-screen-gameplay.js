@@ -525,7 +525,7 @@ const GameplayScreen = {
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
     const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
-    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
+    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', kbHint('Click here to restore it.', 'Tap here to restore it.'), { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
     return el;
   },
   /** lazer's PlayerSettingsOverlay groups — Visual Settings and (playing, not watching) Audio Settings with the

@@ -14791,7 +14791,7 @@ const SongSelect = {
     if (any) return;
     if (!BeatmapManager.sets.length) {
       this.emptyEl.append(h('div.box', h('h2', 'Your library is empty'),
-        h('p', 'Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.'),
+        h('p', kbHint('Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.', 'Find beatmaps online and download them in one tap, or import .osz files from your device.')),
         h('div.row.wrap', { style: { justifyContent: 'center', marginTop: '14px' } },
           h('button.btn.primary.ss-browse', { onclick: () => { UISounds.click(); Screens.go('explore'); } }, icon('search'), 'Browse online'),
           h('button.btn', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json') }, icon('upload'), 'Import files'),
@@ -15981,7 +15981,7 @@ const GameplayScreen = {
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
     const quiet = Settings.get('audio.master') <= 0.01 || Settings.get('audio.music') <= 0.01;
-    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', 'Click here to restore it.', { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
+    if (quiet && !p.mp) setTimeout(() => Toast.show('Your game volume is too low to hear anything!', kbHint('Click here to restore it.', 'Tap here to restore it.'), { timeout: 6000, onClick: () => { Settings.reset('audio.master'); Settings.reset('audio.music'); VolumeOverlay.show('master'); } }), 400); // (after the menu's toasts are cleared)
     return el;
   },
   /** lazer's PlayerSettingsOverlay groups — Visual Settings and (playing, not watching) Audio Settings with the
@@ -18846,7 +18846,7 @@ const BeatmapsScreen = {
       .sort((a, b) => b.added - a.added);
     if (!sets.length) {
       this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain' })
-        : stateCard('beatmap', 'No beatmaps yet', 'Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', { cls: '.plain' }));
+        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain' }));
       return;
     }
     // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
@@ -19449,7 +19449,7 @@ const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'download', title: 'Downloads', items: ['"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
+    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
     { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },
@@ -20853,7 +20853,7 @@ const Calibration = {
   open() {
     AudioManager.resume();
     const beat = h('div.calib-beat', 'TAP');
-    const info = h('div.muted', 'Tap Space (or click) in time with the clicks. 16 taps are averaged.');
+    const info = h('div.muted', kbHint('Tap Space (or click) in time with the clicks. 16 taps are averaged.', 'Tap the circle in time with the clicks. 16 taps are averaged.'));
     const res = h('div', { style: { fontWeight: 900, fontSize: '1.2rem', minHeight: '1.5em' } });
     const body = h('div.calib', beat, info, res);
     const BPM = 120, period = 60 / BPM;
@@ -25653,7 +25653,7 @@ const Daily = {
     // lazer's NewDailyChallengeNotification, once a day
     if (m.map) { let seen = null; try { seen = localStorage.getItem('am.dailySeen'); } catch {}
       if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
-        if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', 'Click here to play.', { timeout: 8000, onClick: () => Screens.go('daily') }); } }
+        if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily') }); } }
     this.data = m;
     if (!m.map && !this._proposing) this.propose();
     Bus.emit('daily', m);

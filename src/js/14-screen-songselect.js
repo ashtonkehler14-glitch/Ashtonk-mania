@@ -590,7 +590,7 @@ const SongSelect = {
     if (any) return;
     if (!BeatmapManager.sets.length) {
       this.emptyEl.append(h('div.box', h('h2', 'Your library is empty'),
-        h('p', 'Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.'),
+        h('p', kbHint('Find beatmaps online and download them in one click, or drag & drop .osz files (or a folder of beatmaps) anywhere on this window.', 'Find beatmaps online and download them in one tap, or import .osz files from your device.')),
         h('div.row.wrap', { style: { justifyContent: 'center', marginTop: '14px' } },
           h('button.btn.primary.ss-browse', { onclick: () => { UISounds.click(); Screens.go('explore'); } }, icon('search'), 'Browse online'),
           h('button.btn', { onclick: () => importViaPicker('.osz,.osu,.osk,.amr,.json') }, icon('upload'), 'Import files'),

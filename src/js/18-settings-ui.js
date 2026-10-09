@@ -274,7 +274,7 @@ const Calibration = {
   open() {
     AudioManager.resume();
     const beat = h('div.calib-beat', 'TAP');
-    const info = h('div.muted', 'Tap Space (or click) in time with the clicks. 16 taps are averaged.');
+    const info = h('div.muted', kbHint('Tap Space (or click) in time with the clicks. 16 taps are averaged.', 'Tap the circle in time with the clicks. 16 taps are averaged.'));
     const res = h('div', { style: { fontWeight: 900, fontSize: '1.2rem', minHeight: '1.5em' } });
     const body = h('div.calib', beat, info, res);
     const BPM = 120, period = 60 / BPM;
