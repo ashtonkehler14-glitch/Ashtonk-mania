@@ -468,6 +468,8 @@ input[type=range].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
 .settings-panel .set-row .reset { position: absolute; top: 0; bottom: 0; right: -16px; width: 8px; padding: 0; border: 0; border-radius: 4px; background: var(--ohl); opacity: 0; pointer-events: none; transform: scaleY(.6); transition: opacity 200ms, transform 200ms var(--ease-out); cursor: pointer; }
 .settings-panel .set-row .reset.show { opacity: .75; pointer-events: auto; transform: none; }
 .settings-panel .set-row .reset.show:hover { opacity: 1; }
+/* (on a touch screen the revert bar is wider to tap than it looks — it stays clear of the setting's own control) */
+html.touch .settings-panel .set-row .reset::after { content: ""; position: absolute; inset: -4px -10px -4px -6px; }
 .settings-panel .sp-section { padding-right: 34px; }
 .sp-more { width: calc(100% - 46px); margin: 22px 34px 0 12px; }
 .sp-footer { padding: 16px 0 0; color: var(--oc2); opacity: .6; font-size: .78rem; text-align: center; }

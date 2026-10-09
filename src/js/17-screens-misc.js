@@ -670,6 +670,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.9', title: 'Touch-ups', sections: [
+    { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
+    { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap'] },
+  ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
     { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },
     { icon: 'sparkle', title: 'Updates and notifications', items: ['Notices no longer cover a multiplayer room\'s Invite and Copy code buttons: in a room they show below its card', 'What\'s new shows again when an update adds to it after you\'ve seen it (fixes that came the same day went unmentioned)', 'When a new version of the game goes live while it\'s open (an installed app can sit in the background for days), you get lazer\'s "Update ready to install" — click it to restart into it; it waits until your song is over', 'Clicking an entry in the notifications does what clicking its toast did, as in lazer: a message opens the chat, the daily challenge notice opens the challenge'] },
@@ -778,7 +782,9 @@ const WhatsNew = {
     if (seen === this.latest() && seenLines >= this.lines()) return;
     await this.markSeen();
     if (!seen && !ProfileManager.profile.onboarded) return; // brand new: nothing to catch up on
-    this.show(CHANGELOG.slice(0, 1)); // (only the latest update — the whole history is in Settings)
+    // (every update since the one you saw — up to three; the whole history is in Settings)
+    const at = CHANGELOG.findIndex(e => e.id === seen);
+    this.show(CHANGELOG.slice(0, at > 0 ? Math.min(at, 3) : 1));
   },
   show(entries = CHANGELOG) {
     const el = h('div.cl', { role: 'dialog', 'aria-label': 'What\'s new' },

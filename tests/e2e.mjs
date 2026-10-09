@@ -810,6 +810,11 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     return { same, grew, again };
   });
   check('What\'s new comes back when the latest update gains lines after you\'ve seen it (and only then)', !wn.same && wn.grew && !wn.again, JSON.stringify(wn));
+  const wn2 = await page.evaluate(async () => {
+    await DB.kvSet('changelog.seen', CHANGELOG[2].id); await WhatsNew.maybeShow();
+    const n = document.querySelectorAll('.cl .cl-entry').length; Overlays.closeAll(); return n;
+  });
+  check('What\'s new shows every update since the one you last saw (two missed: both)', wn2 === 2, String(wn2));
   await page.waitForTimeout(400);
 }
 {
