@@ -42,10 +42,13 @@ const Mobile = {
       timer = setTimeout(() => {
         const s = start; timer = 0; start = null;
         if (!s || !s.t.isConnected) return;
-        held = true; firedAt = performance.now();
+        firedAt = performance.now();
         const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: s.x, clientY: s.y, button: 2, buttons: 2 });
         ev.__longPress = true;
         s.t.dispatchEvent(ev);
+        // (only when something had a menu for it is the tap that follows swallowed: a slow press on a plain button
+        // is still a press)
+        held = !!ev.__handled;
       }, 500);
     }, { capture: true, passive: true });
     document.addEventListener('pointermove', e => { if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel(); }, { capture: true, passive: true });
@@ -53,6 +56,9 @@ const Mobile = {
       if (timer) cancel();
       if (held) { held = false; swallowUntil = performance.now() + 600; }
     }, { capture: true, passive: true });
+    // (whether an element's own handler took it: <html> hears it after them, before the page-wide ones that stop
+    // the browser's menu)
+    document.documentElement.addEventListener('contextmenu', e => { if (e.__longPress) e.__handled = e.defaultPrevented; });
     // the browser's own long-press menu (Android): whichever comes first is the one
     document.addEventListener('contextmenu', e => {
       if (e.__longPress) return;

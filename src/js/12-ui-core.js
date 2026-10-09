@@ -269,7 +269,7 @@ const Toast = {
     const same = [...box.children].find(t => t._key === key && !t.classList.contains('out'));
     if (same) { same._arm(); same.classList.remove('bump'); void same.offsetWidth; same.classList.add('bump'); return same._close; }
     if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type, { onClick });
-    this.place();
+    Toast.place();
     const el = h(`div.toast.${type}`, { role: 'status' }, h('div.t-ico', icon(ico, type === 'ok' ? 'fill' : '')), h('div', h('div.t-title', title), body ? h('div.t-body', body) : null));
     el._key = key;
     box.appendChild(el);
@@ -343,7 +343,7 @@ const Toast = {
    *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() }. */
   progress(title, body = '', { onCancel = null } = {}) {
     const box = $('#toasts');
-    this.place();
+    Toast.place();
     const bar = h('i'), txt = h('div.t-body', body);
     const el = h('div.toast.info.prog', { role: 'status' }, h('div.t-ico', icon('download')), h('div', h('div.t-title', title), txt, h('div.t-bar', bar)));
     box.appendChild(el);
