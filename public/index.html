@@ -12106,7 +12106,7 @@ const Toast = {
     arm(4200);
     return {
       set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; Notifications.progress(n, f, text); },
-      done: (t, b) => { close(); Notifications.remove(n); Toast.ok(t, b); },
+      done: (t, b, { onClick = null } = {}) => { close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick }); },
       fail: (t, b) => { close(); Notifications.remove(n); Toast.err(t, b); },
       cancelled: () => { close(); Notifications.remove(n); },
     };
@@ -19432,6 +19432,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
+    { icon: 'download', title: 'Downloads', items: ['"Downloaded …" takes you to the beatmap when clicked, as lazer\'s "Click to view" — from its toast or the notifications'] },
     { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
@@ -20406,7 +20407,10 @@ const ExplorerScreen = {
       }, { quiet: true, noVideo, signal: ac.signal });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
-      note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
+      // (as lazer's "Imported …! Click to view.": the notice takes you to the beatmap at song select)
+      const first = report.sets.flatMap(s => s.maps || []).find(m => !(m.problems || []).length);
+      note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.${first ? kbHint(' Click to view.', ' Tap to view.') : ''}`,
+        { onClick: first ? () => this.playLocal(first) : null });
     } catch (e) {
       // (cancelled: back to the Download button, nothing to report)
       if (e && e.cancelled) { this.downloads.delete(set.id); note.cancelled(); }

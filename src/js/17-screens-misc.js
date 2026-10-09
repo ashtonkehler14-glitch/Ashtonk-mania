@@ -672,6 +672,7 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
+    { icon: 'download', title: 'Downloads', items: ['"Downloaded …" takes you to the beatmap when clicked, as lazer\'s "Click to view" — from its toast or the notifications'] },
     { icon: 'sec-input', title: 'Phones and tablets', items: ['A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [

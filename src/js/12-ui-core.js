@@ -359,7 +359,7 @@ const Toast = {
     arm(4200);
     return {
       set(f, text) { bar.style.width = (clamp(f || 0, 0, 1) * 100).toFixed(1) + '%'; if (text != null) txt.textContent = text; Notifications.progress(n, f, text); },
-      done: (t, b) => { close(); Notifications.remove(n); Toast.ok(t, b); },
+      done: (t, b, { onClick = null } = {}) => { close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick }); },
       fail: (t, b) => { close(); Notifications.remove(n); Toast.err(t, b); },
       cancelled: () => { close(); Notifications.remove(n); },
     };

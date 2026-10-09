@@ -741,6 +741,7 @@ await page.waitForFunction(() => /Play/.test(document.querySelector('.bso-dl')?.
 check('once downloaded, the beatmap info page offers Play', true);
 check('toasts sit below the beatmap info page\'s close button (a phone has no Esc)', await page.evaluate(() => { const c = document.querySelector('.bso-close').getBoundingClientRect(), e = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2); return !!document.querySelector('#toasts .toast') && !!(e && e.closest('.bso-close')); }));
 check('a download\'s progress entry leaves the notifications once it\'s in the library', await page.evaluate(() => !Notifications.list.some(n => n.prog != null) && Notifications.list.some(n => /^Downloaded /.test(n.title))));
+check('the "Downloaded" notice takes you to the beatmap, as lazer\'s "Click to view"', await page.evaluate(() => { const n = Notifications.list.find(n => /^Downloaded /.test(n.title)); return !!(n && n.onClick && /Click to view/.test(n.body)); }));
 await page.keyboard.press('Escape'); await page.waitForTimeout(300);
 {
   // lazer's "Download without Video": a set with a video has a second button, which asks the mirrors for the set without it

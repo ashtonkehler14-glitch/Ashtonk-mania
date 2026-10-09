@@ -842,7 +842,10 @@ const ExplorerScreen = {
       }, { quiet: true, noVideo, signal: ac.signal });
       this.imported.set(set.id, report.sets.map(x => x.id));
       state.state = 'done';
-      note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
+      // (as lazer's "Imported …! Click to view.": the notice takes you to the beatmap at song select)
+      const first = report.sets.flatMap(s => s.maps || []).find(m => !(m.problems || []).length);
+      note.done(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.${first ? kbHint(' Click to view.', ' Tap to view.') : ''}`,
+        { onClick: first ? () => this.playLocal(first) : null });
     } catch (e) {
       // (cancelled: back to the Download button, nothing to report)
       if (e && e.cancelled) { this.downloads.delete(set.id); note.cancelled(); }
