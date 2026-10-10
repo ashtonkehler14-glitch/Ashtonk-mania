@@ -6,6 +6,7 @@ const BUNDLED_KORI_VERSION = 2;
 const App = {
   lastReport: null,
   async boot() {
+    SafeMode.early(); // (first: a filter can take the tab while the loading screen is still up)
     const status = $('.load-status');
     const say = (msg) => { status.textContent = msg; };
     // each step on its own, so one broken record can't leave the rest of the library unloaded

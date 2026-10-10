@@ -1266,6 +1266,15 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await kp.keyboard.down('Control'); await kp.goto('about:blank'); await kp.keyboard.up('Control'); await kp.waitForTimeout(1800);
   await kp.goto(url); await ready();
   check('"Turn it off" turns it off, and leaving the game yourself (Ctrl+W) doesn\'t turn it back on', await kp.evaluate(() => !AshtonkMania.Settings.get('online.safeMode') && !document.querySelector('.dialog.popup')));
+  // as GoGuardian does it: the tab is taken while the loading screen still shows (here the library takes 4 s to
+  // open), and the player comes back with Back
+  await kp.keyboard.down('Control'); await kp.goto(url + 'tests/fixtures/'); await kp.keyboard.up('Control'); await kp.waitForTimeout(1800); // (left by the player)
+  await kctx.addInitScript(() => { const o = indexedDB.open.bind(indexedDB); indexedDB.open = (...a) => { const r = o(...a); let cb = null; Object.defineProperty(r, 'onsuccess', { set(f) { cb = f; }, get() { return cb; } }); r.addEventListener('success', e => setTimeout(() => cb && cb.call(r, e), 4000)); return r; }; });
+  await kp.goto(url, { waitUntil: 'domcontentloaded' }); await kp.waitForTimeout(1500);
+  const midLoad = await kp.evaluate(() => !document.querySelector('#loading-screen.done'));
+  await kp.goto('about:blank'); await kp.waitForTimeout(1800);
+  await kp.goBack(); await kp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 }); await kp.waitForTimeout(2000);
+  check('taken while still loading (as GoGuardian does), then back: safe mode is on', midLoad && await kp.evaluate(() => AshtonkMania.Settings.get('online.safeMode') === true && !!document.querySelector('.dialog.popup')));
   await kctx.close();
 }
 

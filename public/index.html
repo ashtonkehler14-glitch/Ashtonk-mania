@@ -8114,21 +8114,27 @@ const SafeMode = {
   /** The game itself is about to leave the page (a reload for an update, a reset): not a takeover. */
   leaving() { this._leaving = true; },
 
-  /** First thing once the settings are loaded: look at how the last visit ended, then watch this one. */
-  boot() {
+  /** The very first thing the game does, before the loading screen's first step: how did the last visit end, and
+   *  watch this one from the start (a school filter can take the tab while the game is still loading). */
+  early() {
     const prev = this.read();
     const nav = typeof performance !== 'undefined' && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
-    this.session = { at: Date.now() };
+    // (timed from when this page started loading: a slow start isn't time spent somewhere else)
+    const started = typeof performance !== 'undefined' && performance.timeOrigin ? Math.round(performance.timeOrigin) : Date.now();
+    this.session = { at: started };
     this.write(this.session);
     // (a reload — the player's or the game's — ends the last visit on purpose, whatever it looked like; and the game
     // opening again the moment it left means the "other page" was the game itself: an invite link, its own address)
-    // (timed from when this page started loading, so a slow start doesn't count as time spent somewhere else)
-    const started = typeof performance !== 'undefined' && performance.timeOrigin ? performance.timeOrigin : Date.now();
-    if (prev && prev.taken && !(nav && nav.type === 'reload') && !(prev.out && started - prev.out < 1500)) this.takenOver();
+    this._prevTaken = !!(prev && prev.taken && !(nav && nav.type === 'reload') && !(prev.out && started - prev.out < 1500));
+    this.watch();
+  },
+  /** Once the settings are loaded (and before anything online starts): safe mode on if the last visit was taken. */
+  boot() {
+    if (!this.session) this.early();
+    if (this._prevTaken) this.takenOver();
     this._was = this.on;
     document.documentElement.classList.toggle('safe-mode', this._was);
     Bus.on('settings:changed', k => { if (k === 'online.safeMode' || k === '*') this.apply(); });
-    this.watch();
   },
   /** The last visit was taken over: safe mode comes on, and says so once the game is up (announce). */
   takenOver() {
@@ -19607,7 +19613,7 @@ const CHANGELOG = [
     { icon: 'lock', title: 'Safe mode', items: [
       'For a school (or work) computer: the first-run setup asks whether you\'re on one, and Settings → Online has it too',
       'Safe mode turns off chat, multiplayer, Ranked Play, the daily challenge, the rankings, online leaderboards and who\'s online (what school filters tend to block), and your plays stay on the device. The beatmap listing (with explicit beatmaps hidden), your songs, skins and scores all still work',
-      'It turns itself on if something other than the game (a school filter, say) sends the tab to another page just after the game opens: the next time you open it, safe mode is on, says why, and has a button to turn it back off'] },
+      'It turns itself on if something other than the game (a school filter, say) sends the tab to another page just after the game opens, even while it\'s still loading: the next time you open it, safe mode is on, says why, and has a button to turn it back off'] },
   ] },
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
@@ -26245,6 +26251,7 @@ const BUNDLED_KORI_VERSION = 2;
 const App = {
   lastReport: null,
   async boot() {
+    SafeMode.early(); // (first: a filter can take the tab while the loading screen is still up)
     const status = $('.load-status');
     const say = (msg) => { status.textContent = msg; };
     // each step on its own, so one broken record can't leave the rest of the library unloaded
