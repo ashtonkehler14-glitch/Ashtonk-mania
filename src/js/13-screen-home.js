@@ -58,6 +58,7 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._poke, { passive: true });
     this._offMusic = Bus.on('music:changed', m => this.showTicker(m));
     this._offDaily = Bus.on('daily', () => this.paintDaily());
+    this._offSafe = Bus.on('safemode:changed', () => this.rebuildButtons());
     // (the background source changed in settings: the triangles come or go straight away)
     this._offBgSrc = Bus.on('settings:changed', k => {
       if (k !== 'ui.menuBackground' || !this.el) return;
@@ -75,6 +76,7 @@ const HomeScreen = {
     for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._poke);
     if (this._offMusic) this._offMusic();
     if (this._offDaily) this._offDaily(); clearInterval(this._dailyT);
+    if (this._offSafe) this._offSafe();
     if (this._offBgSrc) this._offBgSrc();
     clearTimeout(this._tbT); $('#app').classList.remove('hide-toolbar');
   },
@@ -102,8 +104,19 @@ const HomeScreen = {
         ['play', 'play', 'osulogo', '#6644cc', ['KeyP', 'KeyM', 'KeyL'], 'top', 'top', 'l', () => this.setState('play')],
         ['edit', 'edit', 'editcircle', '#eeaa00', ['KeyE'], 'top', 'top', null, () => this.setState('edit')],
         ['browse', 'browse', 'beatmap', '#a5cc00', ['KeyB', 'KeyD'], 'top', 'top', null, () => this.enterMode(() => Screens.go('explore'))],
-      ],
+      ].filter(([id]) => !(SafeMode.on && this.ONLINE.has(id))), // (safe mode: Play is solo only)
     };
+  },
+  ONLINE: new Set(['lounge', 'ranked', 'multi', 'daily']),
+  /** Safe mode switched while the menu is up: its buttons are rebuilt to match, where they were. */
+  rebuildButtons() {
+    if (!this.left || !this.el || !this.el.isConnected) return;
+    clearEl(this.left); clearEl(this.right);
+    this.buildButtons();
+    const st = this.menuState === 'multi' && SafeMode.on ? 'play' : this.menuState;
+    this.menuState = null;
+    this.setState(st, true);
+    this.paintDaily();
   },
   /** The daily challenge button: the day's beatmap cover and the time left (hh:mm:ss), as lazer's. */
   paintDaily() {

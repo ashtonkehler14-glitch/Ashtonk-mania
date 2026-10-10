@@ -125,7 +125,7 @@ const Multiplayer = {
   async resume() {
     let s = null;
     try { s = JSON.parse(sessionStorage.getItem('mp.rejoin') || 'null'); sessionStorage.removeItem('mp.rejoin'); } catch { return; }
-    if (!s || !s.code || !(Date.now() - s.at < 60000) || !this.available() || this.room) return;
+    if (!s || !s.code || !(Date.now() - s.at < 60000) || !this.available() || this.room || SafeMode.on) return;
     await Screens.go('multiplayer', s.rp ? { ranked: true } : {});
     try {
       await this.connect(s.code, false, !!s.quick, true, s.opts || {});
@@ -388,6 +388,7 @@ const Multiplayer = {
     if (!code) return;
     const u = new URL(location.href); u.searchParams.delete('join'); history.replaceState(null, '', u);
     if (!/^[A-Za-z0-9]{4,8}$/.test(code) || !this.available()) return;
+    if (SafeMode.on) { SafeMode.refuse('Multiplayer'); return; }
     await Screens.go('multiplayer');
     try { await this.join(code); Toast.ok('Joined the room', code.toUpperCase()); }
     catch (e) { Toast.err('Couldn\'t join the room', friendlyError(e)); }
@@ -426,12 +427,14 @@ function offlineState(what, { compact = false } = {}) {
 const Presence = {
   ws: null, me: null, players: [], retry: 0, started: false,
   start() {
-    if (this.started || !Multiplayer.available()) return;
-    this.started = true;
+    if (this.started || !Multiplayer.available() || SafeMode.on) return;
+    this.started = true; this.away = false;
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
     const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
-    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
+    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (!this.started) return; if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(() => { if (this.started) none(); });
+    if (this._bound) return; // (started again after safe mode: the listeners are already there)
+    this._bound = true;
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -461,6 +464,7 @@ const Presence = {
     return (this._pid = p);
   },
   connect() {
+    if (!this.started) return; // (stopped for safe mode while a retry was waiting)
     const u = new URL('api/mp/presence', location.href);
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
     let ws;
@@ -542,9 +546,19 @@ const Presence = {
       this.later();
     };
   },
+  /** Safe mode: off the online service altogether — no connection, no retries — until start() again. */
+  stop() {
+    this.started = false; this.health = null;
+    clearTimeout(this._t); clearTimeout(this._hT); clearTimeout(this._awayT); clearInterval(this._ping);
+    const ws = this.ws;
+    this.ws = null; this._q = null;
+    if (ws) { ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; try { ws.close(1000, 'safe mode'); } catch { /* closed */ } }
+    this.players = []; this._listed = false; this.me = null;
+    Bus.emit('presence:changed');
+  },
   /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
   tryNow(quiet = false) {
-    if (!Multiplayer.available() || this.ws) return;
+    if (!Multiplayer.available() || this.ws || !this.started) return;
     this.retry = 0; clearTimeout(this._t); clearTimeout(this._hT);
     if (this.health === 'ok') this.connect();
     else {

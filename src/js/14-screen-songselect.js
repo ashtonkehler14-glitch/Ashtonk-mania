@@ -172,6 +172,7 @@ const SongSelect = {
       }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
       Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
+      Bus.on('safemode:changed', () => { this._lbKey = null; this.updateInfo(); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
@@ -1004,12 +1005,13 @@ const SongSelect = {
       return h('label.ss-sel', h('span', label), el);
     };
     const modsOn = !!Settings.get('songselect.lbMods'), sortBy = Settings.get('songselect.lbSort') || 'score';
-    const scope = ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
+    // (safe mode: the scores on this device only — the online boards are off, and so is the choice)
+    const scope = !SafeMode.on && ['global', 'friends'].includes(Settings.get('songselect.lbScope')) ? Settings.get('songselect.lbScope') : 'local';
     const head = h('div.lb-head', h('div.lb-tabs', tabBtn('details', 'Details'), tabBtn('ranking', 'Ranking')),
       tab === 'ranking' ? h('div.lb-ctl',
         h(`button.lb-modsel${modsOn ? '.on' : ''}`, { onclick: () => { UISounds.click(); Settings.set('songselect.lbMods', !modsOn); this._lbKey = null; this.updateInfo(); } }, 'Selected Mods'),
         lbSel('Sort', [['score', 'Score'], ['accuracy', 'Accuracy'], ['maxCombo', 'Max Combo'], ['misses', 'Misses'], ['date', 'Date']], sortBy, v => { Settings.set('songselect.lbSort', v); this._lbKey = null; this.updateInfo(); }),
-        lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, v => { Settings.set('songselect.lbScope', v); this._lbKey = null; this.updateInfo(); })) : null);
+        SafeMode.on ? null : lbSel('Scope', [['local', 'Local'], ['global', 'Global'], ['country', 'Country', 1], ['friends', 'Friends'], ['team', 'Team', 1]], scope, v => { Settings.set('songselect.lbScope', v); this._lbKey = null; this.updateInfo(); })) : null);
     const lb = h(`div.lb.lb-${tab}`, head);
     if (tab === 'details') lb.append(this.metadataWedge(m, set));
     else if (scope !== 'local') lb.append(this.onlineBoard(m, scope, modsOn));

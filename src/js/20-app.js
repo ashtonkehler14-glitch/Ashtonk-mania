@@ -14,6 +14,7 @@ const App = {
     say('Opening library…');
     await step('storage', () => DB.open());
     await step('settings', () => Settings.load());
+    SafeMode.boot(); // (before anything online starts: last visit taken over by a filter → safe mode on now)
     say('Loading skin…');
     await step('skins', () => SkinManager.init());
     if (!SkinManager.current) { SkinManager.defaultSkin = SkinManager.defaultSkin || new DefaultSkin(); SkinManager.current = SkinManager.defaultSkin; }
@@ -51,7 +52,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags };
+    window.AshtonkMania = { SafeMode, MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -64,8 +65,8 @@ const App = {
     Mobile.early(); // (on a phone: recommend the app before anything else)
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     const returning = !!ProfileManager.profile.onboarded;
-    if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
-    else setTimeout(() => WhatsNew.maybeShow(), 1200);
+    if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); SafeMode.announce(); }
+    else if (!SafeMode.announce()) setTimeout(() => WhatsNew.maybeShow(), 1200); // (why safe mode came on first: what's new can wait)
     this.takeShared();
     Mobile.init();
     try { Medals.backfill(); } catch (e) { console.warn('medals', e); }
@@ -311,7 +312,7 @@ const App = {
       if (!had) { had = true; return; } // (the first install taking over isn't an update)
       if (this._updateReady) return;
       this._updateReady = true;
-      const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
+      const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => { SafeMode.leaving(); location.reload(); } });
       // (as lazer holds notifications while you play, it waits for the song to be over)
       if (Screens.currentName !== 'gameplay') notify();
       else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }

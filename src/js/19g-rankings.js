@@ -46,7 +46,7 @@ const Verified = {
     }
   },
   async submit({ rec, mods, modConfig, seed, events, daily = null }) {
-    if (!Multiplayer.available()) return null;
+    if (!Multiplayer.available() || SafeMode.on) return null; // (safe mode: plays stay on this device)
     const osu = await this.file(rec);
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });

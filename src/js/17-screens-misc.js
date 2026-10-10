@@ -384,7 +384,8 @@ const ProfileScreen = {
       h('div.pf-detail-l',
         h('div.pf-bigs',
           // lazer's Global Ranking: the place in the rankings (from the server; — until it answers or offline)
-          this.globalEl = h('div.pf-big.pf-global', { title: 'Place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', globalRank ? `#${fmtInt(globalRank)}` : '—')),
+          // (safe mode: no rankings, so no place in them)
+          own && SafeMode.on ? (this.globalEl = null) : this.globalEl = h('div.pf-big.pf-global', { title: 'Place in the rankings, by performance', onclick: () => Screens.go('rankings') }, h('span', 'Global Ranking'), h('b', globalRank ? `#${fmtInt(globalRank)}` : '—')),
           h('div.pf-big', { title: 'The best play on each beatmap: the top one counts in full, each next one 95% as much as the one before' }, h('span', 'Performance'), h('b', fmtInt(pp.total) + 'pp'))),
         h('div.pf-ranks', rank('SS', 'XH', 'X'), rank('S', 'SH'), rank('A'))),
       h('div.pf-detail-r',
@@ -670,6 +671,12 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.10', title: 'Safe mode', sections: [
+    { icon: 'lock', title: 'Safe mode', items: [
+      'For a school (or work) computer: the first-run setup asks whether you\'re on one, and Settings → Online has it too',
+      'Safe mode turns off chat, multiplayer, Ranked Play, the daily challenge, the rankings, online leaderboards and who\'s online (what school filters tend to block), and your plays stay on the device. The beatmap listing (with explicit beatmaps hidden), your songs, skins and scores all still work',
+      'It turns itself on if something other than the game (a school filter, say) sends the tab to another page just after the game opens: the next time you open it, safe mode is on, says why, and has a button to turn it back off'] },
+  ] },
   { id: '2026.10.9', title: 'Touch-ups', sections: [
     { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
     { icon: 'globe', title: 'Beatmap listing', items: ['Typing a search sorts by relevance, as in lazer (the best matches first; the sort still said "Ranked"), and clearing it goes back to ranked'] },

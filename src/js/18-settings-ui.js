@@ -79,8 +79,8 @@ const SettingsPanel = {
       if (!g.has(it.g)) g.set(it.g, []);
       g.get(it.g).push(it);
     }
-    // (in lazer's order: skin, input, user interface, gameplay, audio, graphics, maintenance)
-    const ORDER = ['Skin', 'Input', 'User Interface', 'Gameplay', 'Audio', 'Graphics', 'Maintenance'];
+    // (in lazer's order: skin, input, user interface, gameplay, audio, graphics, online, maintenance)
+    const ORDER = ['Skin', 'Input', 'User Interface', 'Gameplay', 'Audio', 'Graphics', 'Online', 'Maintenance'];
     const rank = sec => { const i = ORDER.indexOf(sec); return i < 0 ? ORDER.length : i; };
     const sorted = new Map([...bySec].sort((a, b) => rank(a[0]) - rank(b[0])));
     bySec.clear(); for (const [k, v] of sorted) bySec.set(k, v);
@@ -116,7 +116,11 @@ const SettingsPanel = {
       case 'bool': {
         const t = h(`button.toggle${val() ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(!!val()), 'aria-label': it.l, onclick: e => {
           e.stopPropagation();
+          // (a switch that shows or hides other options — safe mode and its "turn on by itself" — redraws the section
+          // once it has moved)
+          const whens = SETTINGS_SCHEMA.filter(x => x.when && x.s === it.s && x.k !== it.k), before = whens.map(x => !!x.when());
           const v = !val(); Settings.set(it.k, v); t.classList.toggle('on', v); t.setAttribute('aria-checked', String(v)); UISounds.play(v ? 'check-on' : 'check-off'); updReset(); flash();
+          if (whens.some((x, i) => !!x.when() !== before[i])) setTimeout(() => { if (!this.o) return; const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; }, 250);
         } });
         row = form('fbool', cap, t);
         row.addEventListener('click', () => t.click());

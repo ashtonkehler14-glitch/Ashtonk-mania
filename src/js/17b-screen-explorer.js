@@ -312,7 +312,7 @@ const ExplorerScreen = {
         st.more ? chipRow('Genre', EXPLORE_GENRES, v => st.genre === v, v => { st.genre = v; }) : null,
         st.more ? chipRow('Language', EXPLORE_LANGUAGES, v => st.language === v, v => { st.language = v; }) : null,
         st.more ? chipRow('Extra', [['video', 'Has video'], ['storyboard', 'Has storyboard']], v => (st.extra || []).includes(v), v => { const e = st.extra || []; st.extra = e.includes(v) ? e.filter(x => x !== v) : [...e, v]; }) : null,
-        st.more ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null,
+        st.more && !SafeMode.on ? chipRow('Explicit', [[true, 'Show'], [false, 'Hide']], v => st.nsfw === v, v => { st.nsfw = v; }) : null, // (safe mode: always hidden)
         h('div.ex-filter', h('span.ex-flabel', ''), h('div.ex-chips',
           h(`button.ex-chip${st.hideOwned ? '.on' : ''}`, { onclick: () => { st.hideOwned = !st.hideOwned; UISounds.click(); this.renderFilters(); this.renderResults(); } }, 'Hide downloaded'),
           h(`button.ex-chip${st.more ? '.on' : ''}`, { onclick: () => { st.more = !st.more; UISounds.click(); this.renderFilters(); } }, st.more ? 'Fewer filters' : 'More filters'),
@@ -366,6 +366,8 @@ const ExplorerScreen = {
     const resized = () => { this._mDirty = true; this.renderWindow(); }; // (a different width can mean a different number of columns)
     window.addEventListener('resize', resized);
     this._unsub = [Bus.on('library:changed', () => this.renderResults()),
+      // (safe mode switched: explicit beatmaps go from, or may come back to, the list)
+      Bus.on('safemode:changed', () => { this.renderFilters && this.renderFilters(); this.newSearch(); }),
       // (a difficulty's global board, asked for by its beatmap id, for the open beatmap overlay)
       Bus.on('lb', m => { if (!m.id) return; (this.lbById ||= new Map()).set(m.id, { ...m, at: Date.now() }); if (this.setView && this.setView.diff && this.setView.diff.id === m.id) this.renderSet(); }), () => window.removeEventListener('online', online), () => window.removeEventListener('resize', resized)];
     if (!this.results.length) this.newSearch(); else this.renderResults();
@@ -415,8 +417,10 @@ const ExplorerScreen = {
     this.loading = true; this.renderStatus();
     try {
       const st = this.state;
-      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw, extra: st.extra || [] });
+      const safe = SafeMode.on;
+      const d = await OnlineBeatmaps.search({ q: st.q, keys: st.keys, status: st.status, sort: this.sortParam(), minStars: st.minStars, maxStars: st.maxStars, cursor: this.cursor, genre: st.genre, language: st.language, nsfw: st.nsfw && !safe, extra: st.extra || [] });
       if (tok !== this.token) return;
+      if (safe) d.sets = d.sets.filter(x => !x.nsfw); // (and any the listing sent anyway)
       // pages come in osu!'s own order, one after another (as Web-Osu-Mania lists them)
       if (this._replace) this.results = [];
       const seen = new Set(this.results.map(s => s.id));
@@ -796,7 +800,7 @@ const ExplorerScreen = {
     const lbRow = sc => h(`div.bso-score.bso-gscore${sc.pid === me ? '.me' : ''}`, { onclick: () => { UISounds.click(); UserPanels.profile({ pid: sc.pid, name: sc.name, avatar: sc.avatar }); } },
       h('span.bso-rank', `#${sc.rank}`), rankPill(sc.grade), Presence.avatarEl(sc, 20), h('b', sc.name), h('span.grow'),
       sc.mods && sc.mods.length ? h('span.dim.bso-mods', sc.mods.join(' ')) : null, h('span.dim', `${fmtInt(sc.combo)}x`), h('span.dim', fmtAcc(sc.acc)), h('b', fmtScore(sc.score)));
-    const global = d.id > 0 ? h('div.bso-sec', h('h3', 'Global ranking', h('small', d.version)),
+    const global = d.id > 0 && !SafeMode.on ? h('div.bso-sec', h('h3', 'Global ranking', h('small', d.version)),
       !lb ? h('div.muted', Presence.ws ? 'Loading scores…' : 'Scores need the online server.')
         : lb.scores.length ? h('div.bso-scorelist', ...lb.scores.slice(0, 10).map(lbRow), ...(lb.you && lb.you.rank > 10 ? [h('div.rk-sep', '…'), lbRow(lb.you)] : []))
           : h('div.muted', 'No scores yet. Be the first to set one!')) : null;

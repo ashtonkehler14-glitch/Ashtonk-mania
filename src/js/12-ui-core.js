@@ -662,6 +662,7 @@ const Toolbar = {
     Bus.on('notif:changed', () => this.updateBell());
     Bus.on('settings:changed', k => { if (k === 'audio.master' || k === '*') this.updateVolume(); });
     Bus.on('screen:changed', () => this.sync());
+    Bus.on('safemode:changed', () => this.updateProfile()); // (the status dot isn't shown in safe mode)
     this.updateBell();
     this.updateVolume();
   },
@@ -767,7 +768,7 @@ const Toolbar = {
     const p = ProfileManager.profile;
     // lazer's ToolbarUserButton: the name, then a 32px picture with rounded corners (not a circle)
     const st = Settings.get('online.status') || 'online';
-    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
+    clearEl(this.profileBtn).append(h('span.lbl', p.name), h('span.tb-av', ProfileManager.avatarEl(32), st !== 'online' && !SafeMode.on ? h(`i.tb-st.${st}`, { title: st === 'dnd' ? 'Do not disturb' : 'Appearing offline' }) : null));
   },
   userMenu() {
     const r = this.profileBtn.getBoundingClientRect();
@@ -775,7 +776,9 @@ const Toolbar = {
     const cur = Settings.get('online.status') || 'online';
     const status = (v, label, col) => ({ label: h('span.st-opt', h('i', { style: { background: col } }), label), checked: cur === v, onClick: () => this.setStatus(v) });
     const m = showMenu(r.right, r.bottom + 6, [
-      status('online', 'Online', '#b3d944'), status('dnd', 'Do not disturb', '#ff6666'), status('offline', 'Appear offline', '#999999'),
+      // (safe mode: nobody sees you online anyway — what it is instead of a status, and the way to change it)
+      ...(SafeMode.on ? [{ label: 'Safe mode is on', icon: 'lock', onClick: () => SettingsPanel.open('Online') }]
+        : [status('online', 'Online', '#b3d944'), status('dnd', 'Do not disturb', '#ff6666'), status('offline', 'Appear offline', '#999999')]),
       { sep: true },
       { label: 'Profile', icon: 'user', onClick: () => Screens.go('profile') },
       { label: 'Replays', icon: 'film', onClick: () => Screens.go('replays') },
@@ -1329,6 +1332,8 @@ const Screens = {
   async go(name, params = {}, { replace = false, transition = 'default' } = {}) {
     // (a screen may be swapped for another first: in a multiplayer room, "home" means back to the room)
     if (this.redirect && !params.noRedirect) { name = this.redirect(name, this.currentName); if (!name) return; }
+    // (safe mode: the online-only screens stay shut, whatever opened them — a button, a hotkey, a notification)
+    if (SafeMode.blocks(name)) { SafeMode.refuse(...{ multiplayer: [params.ranked ? 'Ranked Play' : 'Multiplayer'], dashboard: ['The online list'], rankings: ['The rankings', true], daily: ['The daily challenge'] }[name]); return; }
     const next = this.registry[name];
     if (!next || this.busy) return;
     if (this.currentName === name && !params.force) { next.refresh && next.refresh(params); return; }

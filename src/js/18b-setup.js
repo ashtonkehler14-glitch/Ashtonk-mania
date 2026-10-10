@@ -26,6 +26,7 @@ const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
+    { id: 'safe', title: 'Playing on a school device?', short: 'Safe mode' },
     { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
     { id: 'gameplay', title: 'How notes move', short: 'Gameplay' },
@@ -172,6 +173,23 @@ const Onboarding = {
     } catch (e) { Toast.err('Couldn\'t import the backup', friendlyError(e)); }
     this.womStatus = null;
     if (this.o && this.step.id === 'wom') this.render();
+  },
+
+  /** Safe mode (SafeMode): on a school or work device, the online features its web filter would block are off. */
+  step_safe() {
+    const cur = 'online.safeMode' in Settings.values ? !!Settings.values['online.safeMode'] : null;
+    const choice = (v, ic, t, sub) => h(`button.setup-choice${cur === v ? '.on' : ''}`, { dataset: { id: v ? 'yes' : 'no' }, onclick: () => {
+      Settings.set('online.safeMode', v);
+      UISounds.play('check-on');
+      this.render();
+      setTimeout(() => { if (this.o && this.step.id === 'safe') this.next(); }, 350);
+    } }, h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
+    return [
+      h('p.setup-lead', 'Is this a school (or work) computer?'),
+      h('div.setup-choices.two',
+        choice(true, 'lock', 'Yes', 'Safe mode: no chat, multiplayer or the other online features school filters block'),
+        choice(false, IS_CHROMEBOOK || TOUCH_DEVICE ? 'laptop' : 'pc', 'No', 'It\'s mine: everything on, online play and chat included')),
+      h('p.setup-note', 'Safe mode keeps the beatmap listing (without explicit beatmaps), your songs, skins and scores. It also comes on by itself if a filter takes the game away. Change it any time in Settings → Online.')];
   },
 
   step_device() {

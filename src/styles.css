@@ -1552,7 +1552,8 @@ html.touch .practice-bar .kbd { display: none; }
 .setup-foot .ob-err { margin: 0 8px 0 0; }
 .setup-next { min-width: 130px; height: 42px; font-size: .95rem; }
 .setup-next .i { order: 2; }
-.setup-step-welcome, .setup-step-ask, .setup-step-device, .setup-step-look { align-items: center; justify-content: center; text-align: center; }
+.setup-step-welcome, .setup-step-ask, .setup-step-device, .setup-step-look, .setup-step-safe { align-items: center; justify-content: center; text-align: center; }
+.setup-note { max-width: 560px; margin: 4px 0 0; color: var(--muted); font-size: .85rem; line-height: 1.45; }
 .setup-logo { position: relative; width: 130px; height: 130px; flex: none; container-type: size; animation: setupLogo 2.4s ease-in-out infinite; }
 .setup-logo.small { width: 96px; height: 96px; }
 .setup-logo .lz-cookie-disc { border-width: 6px; }
@@ -4604,3 +4605,6 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.slow .lz-fountain, :root.slow .ov-waves { display: none !important; }
 :root.slow #bg-layer { transform: none !important; }
 :root.slow #bg-a, :root.slow #bg-b { will-change: auto; }
+
+/* safe mode (a school or work device): the toolbar's online buttons — rankings, chat, who's online — aren't there */
+html.safe-mode #toolbar .tb-btn[data-ov="chat"], html.safe-mode #toolbar .tb-btn[data-tab="dashboard"], html.safe-mode #toolbar .tb-btn[data-tab="rankings"] { display: none; }

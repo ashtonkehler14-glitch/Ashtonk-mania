@@ -8,6 +8,8 @@ Open `index.html` in Chrome, Edge, Firefox or Safari. Drag `.osz` beatmaps or `.
 
 Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore) and import it here. Your songs, scores, collections, keybinds and skin come with it.
 
+On a school computer, say yes to **safe mode** in the first-run setup (or turn it on in Settings → Online). It turns off chat, multiplayer and the other online features school filters block. The beatmap listing and your own songs, skins and scores still work. If a filter sends the game's tab to another page just after it opens, safe mode turns itself on the next time.
+
 ## Host it
 
 `npx wrangler deploy` puts it on Cloudflare: the game, beatmap search and downloads, and online multiplayer.
