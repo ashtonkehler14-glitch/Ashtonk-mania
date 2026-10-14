@@ -9,7 +9,12 @@ const root = dirname(fileURLToPath(import.meta.url));
 const tpl = readFileSync(join(root, 'src/index.template.html'), 'utf8');
 const css = readFileSync(join(root, 'src/styles.css'), 'utf8');
 const jsDir = join(root, 'src/js');
-const js = readdirSync(jsDir).filter(f => f.endsWith('.js')).sort()
+// the install worker's code (src/import-worker.js, after the game's parser and star rating it uses): a string in the
+// page, started from a Blob (see src/js/07a-import-workers.js)
+const WORKER_FILES = ['00-util.js', '03-beatmap-parser.js', '03b-mania-convert.js', '08-mods.js', '09a-osu-math.js'];
+const workerSrc = '"use strict";\n' + WORKER_FILES.map(f => readFileSync(join(jsDir, f), 'utf8')).join('\n') + '\n' + readFileSync(join(root, 'src/import-worker.js'), 'utf8');
+if (/<\/script|<!--/i.test(workerSrc)) throw new Error('the install worker\'s code has text that would end the page\'s script early');
+const js = `const IMPORT_WORKER_SRC = ${JSON.stringify(workerSrc)};\n` + readdirSync(jsDir).filter(f => f.endsWith('.js')).sort()
   .map(f => `/* ===== ${f} ===== */\n` + readFileSync(join(jsDir, f), 'utf8')).join('\n');
 const out = tpl
   .replace('/*__CSS__*/', () => css)

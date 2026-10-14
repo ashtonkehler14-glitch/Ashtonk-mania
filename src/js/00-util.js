@@ -283,10 +283,10 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   // moment on slow devices — then only copied onto the canvas and encoded, which is asynchronous too)
   if (typeof createImageBitmap === 'function') {
     try {
-      const full = await createImageBitmap(blob);
-      const s = Math.min(1, maxW / full.width), w = Math.max(1, Math.round(full.width * s)), hh = Math.max(1, Math.round(full.height * s));
-      const bm = s < 1 ? await createImageBitmap(full, { resizeWidth: w, resizeHeight: hh, resizeQuality: 'high' }) : full;
-      if (bm !== full) full.close();
+      // (decoded and shrunk in one step, from the file: shrinking a picture already decoded is done on the main
+      // thread — a full-HD background held the game up for a good 30 ms of every install)
+      const bm = await createImageBitmap(blob, { resizeWidth: maxW, resizeQuality: 'high' });
+      const w = bm.width, hh = bm.height;
       const c = document.createElement('canvas'); c.width = w; c.height = hh;
       c.getContext('2d').drawImage(bm, 0, 0);
       bm.close();

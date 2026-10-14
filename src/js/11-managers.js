@@ -333,6 +333,6 @@ const DataManager = {
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;
     await new Promise(r => { const q = indexedDB.deleteDatabase(DB.name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
-    SafeMode.leaving(); location.reload();
+    location.reload();
   },
 };

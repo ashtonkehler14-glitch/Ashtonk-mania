@@ -128,9 +128,6 @@ const SETTINGS_SCHEMA = [
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
   { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).', 'Move, scale and hide the score, health, progress and the rest of the HUD.') },
-  // safe mode, for a school or work device (see SafeMode): asked in the first-run setup
-  { s: 'Online', g: 'Safe mode', k: 'online.safeMode', l: 'Safe mode', t: 'bool', d: false, hint: 'For a school or work device: chat, multiplayer, the rankings and the other online features school filters block are off, and plays stay on this device. The beatmap listing (no explicit beatmaps), your songs, skins and scores still work.' },
-  { s: 'Online', g: 'Safe mode', k: 'online.safeModeAuto', l: 'Turn on safe mode if a filter takes the game away', t: 'bool', d: true, hint: 'If something other than the game (a school filter, say) sends this tab to another page just after it opens, safe mode is on the next time you open it.', when: () => !Settings.get('online.safeMode') },
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
@@ -232,6 +229,8 @@ const Settings = {
     // (…and back again: the Performance choice is Performance mode, menus and all, as the player asked)
     if (v['migr.perfMenus'] && !v['migr.perfBack'] && v['setup.device'] === 'chromebook') v['graphics.performanceMode'] = true;
     v['migr.perfBack'] = true;
+    // (safe mode is gone: what it left behind goes too)
+    if (!v['migr.noSafe']) { delete v['online.safeMode']; delete v['online.safeModeAuto']; try { localStorage.removeItem('am.session'); } catch { /* storage blocked */ } v['migr.noSafe'] = true; }
     if (!v['migr.cbBlur']) { if (v['graphics.performanceMode'] && v['graphics.menuBlur'] === 0) v['graphics.menuBlur'] = 12; v['migr.cbBlur'] = true; }
     // a Chromebook that never picked a device (or skipped setup before it asked) gets the Chromebook settings, once
     if (!v['migr.crosAuto']) {

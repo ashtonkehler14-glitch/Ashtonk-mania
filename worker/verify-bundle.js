@@ -285,10 +285,10 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
   // moment on slow devices — then only copied onto the canvas and encoded, which is asynchronous too)
   if (typeof createImageBitmap === 'function') {
     try {
-      const full = await createImageBitmap(blob);
-      const s = Math.min(1, maxW / full.width), w = Math.max(1, Math.round(full.width * s)), hh = Math.max(1, Math.round(full.height * s));
-      const bm = s < 1 ? await createImageBitmap(full, { resizeWidth: w, resizeHeight: hh, resizeQuality: 'high' }) : full;
-      if (bm !== full) full.close();
+      // (decoded and shrunk in one step, from the file: shrinking a picture already decoded is done on the main
+      // thread — a full-HD background held the game up for a good 30 ms of every install)
+      const bm = await createImageBitmap(blob, { resizeWidth: maxW, resizeQuality: 'high' });
+      const w = bm.width, hh = bm.height;
       const c = document.createElement('canvas'); c.width = w; c.height = hh;
       c.getContext('2d').drawImage(bm, 0, 0);
       bm.close();
@@ -672,6 +672,23 @@ function validateBeatmap(bm, availableFiles) {
   else if (availableFiles && !availableFiles.has(bm.audioFile.toLowerCase())) problems.push(`Missing audio: ${bm.audioFile}`);
   if (bm.events.background && availableFiles && !availableFiles.has(bm.events.background.file.toLowerCase())) warnings.push(`Missing background: ${bm.events.background.file}`);
   return { problems, warnings };
+}
+
+/** What the library keeps of a difficulty, worked out once as it's installed — in a background thread where the
+ *  browser has them (ImportWorkers): its metadata and files, whether it can be played and why not, its key count, star
+ *  rating and the rest of BeatmapParser.analyse. */
+function inspectBeatmap(bm, availableFiles) {
+  const v = validateBeatmap(bm, availableFiles);
+  let stats = null;
+  if (!v.problems.length) { try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); } }
+  const ev = bm.events, samples = new Set();
+  for (const ho of bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) samples.add(f); }
+  return {
+    metadata: bm.metadata, audioFile: bm.audioFile, previewTime: bm.previewTime, mode: bm.mode, od: bm.od, hp: bm.hp,
+    keys: v.problems.length ? 0 : BeatmapParser.keyCount(bm),
+    background: ev.background ? ev.background.file : null, video: ev.video ? ev.video.file || '' : null, storyboard: !!ev.storyboard,
+    breaks: ev.breaks, samples: [...samples], problems: v.problems, warnings: v.warnings, stats,
+  };
 }
 
 /* ===== 03b-mania-convert.js ===== */

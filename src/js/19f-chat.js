@@ -81,7 +81,6 @@ const Chat = {
 
   toggle() { this.o ? this.close() : this.open(); },
   open(key) {
-    if (SafeMode.on) { SafeMode.refuse('Chat'); return; }
     if (key && this.channels.has(key)) this.cur = key;
     if (this.o) { this.paint(); return; }
     UISounds.click();

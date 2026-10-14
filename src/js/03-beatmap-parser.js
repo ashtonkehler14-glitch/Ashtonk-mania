@@ -284,3 +284,20 @@ function validateBeatmap(bm, availableFiles) {
   if (bm.events.background && availableFiles && !availableFiles.has(bm.events.background.file.toLowerCase())) warnings.push(`Missing background: ${bm.events.background.file}`);
   return { problems, warnings };
 }
+
+/** What the library keeps of a difficulty, worked out once as it's installed — in a background thread where the
+ *  browser has them (ImportWorkers): its metadata and files, whether it can be played and why not, its key count, star
+ *  rating and the rest of BeatmapParser.analyse. */
+function inspectBeatmap(bm, availableFiles) {
+  const v = validateBeatmap(bm, availableFiles);
+  let stats = null;
+  if (!v.problems.length) { try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); } }
+  const ev = bm.events, samples = new Set();
+  for (const ho of bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) samples.add(f); }
+  return {
+    metadata: bm.metadata, audioFile: bm.audioFile, previewTime: bm.previewTime, mode: bm.mode, od: bm.od, hp: bm.hp,
+    keys: v.problems.length ? 0 : BeatmapParser.keyCount(bm),
+    background: ev.background ? ev.background.file : null, video: ev.video ? ev.video.file || '' : null, storyboard: !!ev.storyboard,
+    breaks: ev.breaks, samples: [...samples], problems: v.problems, warnings: v.warnings, stats,
+  };
+}

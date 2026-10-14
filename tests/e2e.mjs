@@ -166,6 +166,34 @@ await shot('02-songselect');
   check('import: an archive with the song folder inside it finds each difficulty\'s audio (only the broken one is reported)',
     r.sets === 1 && !r.errors.length && r.warnings.length === 1 && /missing\.mp3/.test(r.warnings[0]), JSON.stringify(r));
 }
+{
+  // installing goes through the background threads (the same answers as the page's own parser), and an install asked
+  // for while a song is being played waits for it to end
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, BM = A.BeatmapManager, out = {};
+    out.workers = !!ImportWorkers.pool && ImportWorkers.pool.length > 0 && !ImportWorkers.broken;
+    const set = BM.sets.find(s => s.maps.length), m = set.maps[0];
+    const blob = await A.DB.get('files', set.id + '/' + m.osuPath);
+    const page = inspectBeatmap(BeatmapParser.parse(decodeIniText(new Uint8Array(await blob.arrayBuffer()))), new Set(Object.keys(set.fileIndex)));
+    out.same = page.stats.stars === m.stars && page.keys === m.keys && page.stats.noteCount === m.noteCount;
+    const zr = new ZipReader(await (await fetch('/tests/fixtures/online-set.osz')).arrayBuffer());
+    const files = [];
+    for (const e of zr.entries) files.push({ name: e.name, data: new Uint8Array(await zr.read(e)) });
+    const real = BM.playing, had = new Set(BM.sets.map(x => x.id)); let done = false;
+    BM.playing = () => true; // (a song being played)
+    BM.importFiles([new File([writeZip(files)], 'mid-song.osz')]).then(() => { done = true; });
+    await new Promise(r => setTimeout(r, 700));
+    out.waited = !done;
+    BM.playing = real;
+    for (let i = 0; i < 50 && !done; i++) await new Promise(r => setTimeout(r, 100));
+    out.installedAfter = done && BM.sets.some(x => !had.has(x.id));
+    // (the library as the later checks expect it)
+    for (const x of [...BM.sets]) if (!had.has(x.id)) await BM.removeSet(x.id);
+    A.Bus.emit('library:changed');
+    return out;
+  });
+  check('installing: difficulties are worked out in background threads with the same results, and an install waits out a song being played', r.workers && r.same && r.waited && r.installedAfter, JSON.stringify(r));
+}
 
 // corrupt / unplayable archives
 await dropFiles(['corrupt.osz', 'taiko.osz']);
@@ -631,9 +659,8 @@ await page.keyboard.press('Control+o');
 await page.waitForTimeout(600);
 await shot('12-settings');
 const rows = await page.evaluate(() => document.querySelectorAll('.settings-panel .set-row').length);
-// (room for the hit position and note offset, asked to be regular settings, lazer's Prefer downloads without video,
-// and safe mode with its "turn on by itself")
-check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 49, String(rows));
+// (room for the hit position and note offset, asked to be regular settings, and lazer's Prefer downloads without video)
+check('settings are a short list (no "show all" split)', rows >= 25 && rows <= 47, String(rows));
 check('niche options are gone from the panel but keep working', await page.evaluate(() => !document.querySelector('.sp-more') && ![...document.querySelectorAll('.settings-panel .set-row')].some(r => /Unpause countdown|Renderer scale|Lane spacing/.test(r.textContent)) && AshtonkMania.Settings.get('gameplay.unpauseDelay') === 1200));
 await page.fill('.sp-search', 'offset');
 await page.waitForTimeout(200);
@@ -1169,11 +1196,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await sp.waitForSelector('.setup-step-wom');
   check('setup: no skipping — after the name it asks about Web-Osu-Mania (yes / no)', !(await sp.$('.ob-skip')) && (await sp.$$('.setup-step-wom .setup-choice')).length === 2);
   await sp.click('.setup-choice[data-id="no"]');
-  await sp.waitForSelector('.setup-step-safe');
-  check('setup: then it asks whether this is a school device (safe mode yes / no)', (await sp.$$('.setup-step-safe .setup-choice')).length === 2 && /school/i.test(await sp.textContent('.setup-step-safe')));
-  await sp.click('.setup-step-safe .setup-choice[data-id="no"]');
   await sp.waitForSelector('.setup-step-device');
-  check('setup: "No" leaves safe mode off', await sp.evaluate(() => AshtonkMania.Settings.get('online.safeMode') === false && !document.documentElement.classList.contains('safe-mode')));
   check('setup: device step is just PC or Chromebook', (await sp.$$('.setup-step-device .setup-choice')).length === 2 && !(await sp.$('.setup-detect')));
   await sp.click('.setup-choice[data-id="chromebook"]');
   await sp.waitForSelector('.setup-step-look', { timeout: 3000 });
@@ -1223,59 +1246,6 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await sp.evaluate(() => AshtonkMania.Settings.set('graphics.performanceMode', false));
   check('Performance mode strips the menus: no animation, blur or parallax (and gives them back when turned off)', pm.cls && pm.anim === 0 && pm.noAnim && (pm.glass === 'none' || !pm.glass) && pm.parallax === false && await sp.evaluate(() => !document.documentElement.classList.contains('perf') && AshtonkMania.Settings.get('ui.animSpeed') > 0), JSON.stringify(pm));
   await sctx.close();
-}
-
-{
-  // safe mode, for a school device: chosen in the setup, it turns the online features off; and it comes on by itself
-  // after a filter takes the tab to another page soon after the game opened
-  const kctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
-  const kp = await kctx.newPage();
-  kp.on('pageerror', e => errors.push('safe mode: ' + e.message));
-  const ready = async () => { await kp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 }); await kp.waitForTimeout(2000); };
-  await kp.goto(url);
-  await kp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
-  await kp.fill('.ob-name', 'School'); await kp.keyboard.press('Enter');
-  await kp.waitForSelector('.setup-step-wom'); await kp.click('.setup-step-wom .setup-choice[data-id="no"]');
-  await kp.waitForSelector('.setup-step-safe'); await kp.click('.setup-step-safe .setup-choice[data-id="yes"]');
-  await kp.waitForSelector('.setup-step-device');
-  await kp.evaluate(() => AshtonkMania.Onboarding.finish()); await kp.waitForTimeout(600);
-  await kp.evaluate(() => AshtonkMania.Screens.go('home')); await kp.waitForTimeout(600);
-  const off = await kp.evaluate(async () => {
-    const A = AshtonkMania, r = {};
-    r.tb = [...document.querySelectorAll('#toolbar .tb-btn')].filter(b => b.offsetWidth > 0).map(b => b.getAttribute('aria-label'));
-    r.play = [...document.querySelectorAll('.lz-btn')].map(b => b.dataset.id); // (the menu's buttons, whichever row is showing)
-    for (const s of ['multiplayer', 'dashboard', 'rankings', 'daily']) await A.Screens.go(s);
-    r.screen = A.Screens.currentName;
-    A.Chat.open(); r.chat = !!A.Chat.o;
-    r.presence = A.Presence.started || !!A.Presence.ws;
-    r.toast = [...document.querySelectorAll('#toasts .t-title')].some(t => /off in safe mode/.test(t.textContent));
-    return r;
-  });
-  check('safe mode (chosen in the setup): no chat, who\'s online or rankings in the toolbar, Play is solo only, online screens and chat stay shut (saying why), no connection',
-    !off.tb.some(l => /^(chat|dashboard|rankings)$/.test(l)) && off.tb.includes('beatmap listing') && off.play.includes('solo') && !off.play.some(id => /multi|daily|lounge|ranked/.test(id)) && off.screen === 'home' && !off.chat && !off.presence && off.toast, JSON.stringify(off));
-  await kp.evaluate(() => AshtonkMania.Settings.set('online.safeMode', false)); await kp.waitForTimeout(400);
-  check('safe mode off: the online features come back at once', await kp.evaluate(() => AshtonkMania.Presence.started && [...document.querySelectorAll('#toolbar .tb-btn')].some(b => b.offsetWidth > 0 && b.getAttribute('aria-label') === 'chat') && !!document.querySelector('.lz-btn[data-id=multi]')));
-  // a filter's script sends the tab to its block page soon after the game opened → safe mode on next time, saying why
-  await kp.reload(); await ready();
-  check('a reload doesn\'t turn safe mode on', await kp.evaluate(() => !AshtonkMania.Settings.get('online.safeMode') && !document.querySelector('.dialog.popup')));
-  await kp.evaluate(() => { setTimeout(() => { location.href = 'about:blank'; }, 50); }); await kp.waitForTimeout(1800);
-  await kp.goto(url); await ready();
-  check('the tab taken to another page soon after opening: safe mode is on next time, and says why', await kp.evaluate(() => AshtonkMania.Settings.get('online.safeMode') === true && !AshtonkMania.Presence.started && /Safe mode is on/.test((document.querySelector('.dialog.popup h2') || {}).textContent || '')));
-  await kp.evaluate(() => [...document.querySelectorAll('.dialog.popup .pd-btn')].find(b => /Turn it off/.test(b.textContent)).click()); await kp.waitForTimeout(400);
-  // the player leaving (a browser shortcut held as the page went) isn't a takeover
-  await kp.keyboard.down('Control'); await kp.goto('about:blank'); await kp.keyboard.up('Control'); await kp.waitForTimeout(1800);
-  await kp.goto(url); await ready();
-  check('"Turn it off" turns it off, and leaving the game yourself (Ctrl+W) doesn\'t turn it back on', await kp.evaluate(() => !AshtonkMania.Settings.get('online.safeMode') && !document.querySelector('.dialog.popup')));
-  // as GoGuardian does it: the tab is taken while the loading screen still shows (here the library takes 4 s to
-  // open), and the player comes back with Back
-  await kp.keyboard.down('Control'); await kp.goto(url + 'tests/fixtures/'); await kp.keyboard.up('Control'); await kp.waitForTimeout(1800); // (left by the player)
-  await kctx.addInitScript(() => { const o = indexedDB.open.bind(indexedDB); indexedDB.open = (...a) => { const r = o(...a); let cb = null; Object.defineProperty(r, 'onsuccess', { set(f) { cb = f; }, get() { return cb; } }); r.addEventListener('success', e => setTimeout(() => cb && cb.call(r, e), 4000)); return r; }; });
-  await kp.goto(url, { waitUntil: 'domcontentloaded' }); await kp.waitForTimeout(1500);
-  const midLoad = await kp.evaluate(() => !document.querySelector('#loading-screen.done'));
-  await kp.goto('about:blank'); await kp.waitForTimeout(1800);
-  await kp.goBack(); await kp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 }); await kp.waitForTimeout(2000);
-  check('taken while still loading (as GoGuardian does), then back: safe mode is on', midLoad && await kp.evaluate(() => AshtonkMania.Settings.get('online.safeMode') === true && !!document.querySelector('.dialog.popup')));
-  await kctx.close();
 }
 
 {

@@ -24,7 +24,7 @@ const BeatmapManager = {
         m.srVersion = SR_VERSION;
         await DB.put('maps', m);
       } catch (e) { m.srVersion = SR_VERSION; }
-      await sleep(0);
+      await this.breathe();
     }
     for (const s of this.sets) s.maps.sort((a, b) => a.stars - b.stars);
     Bus.emit('library:changed');
@@ -112,6 +112,16 @@ const BeatmapManager = {
   },
 
   // ─────────────────────────────── importing ───────────────────────────────
+  /** A song is being played right now (not paused, not over). */
+  playing() { return Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && !!GameplayScreen.s && !!GameplayScreen.s.running && !GameplayScreen.s.finished; },
+  /** Between the steps of installing (and of the library's background jobs): while a song is being played the work
+   *  waits for it to end or pause, so not one frame of it stutters; otherwise a frame goes by every ~8 ms of work. */
+  async breathe() {
+    if (this.playing()) { while (this.playing()) await sleep(200); this._br = 0; }
+    if (performance.now() - (this._br || 0) < 8) return;
+    await (globalThis.scheduler && scheduler.yield ? scheduler.yield() : new Promise(r => setTimeout(r, 0)));
+    this._br = performance.now();
+  },
   /** Import anything the user dropped / picked. Returns a report. */
   async importFiles(files) {
     const report = { sets: [], skins: [], replays: [], errors: [], warnings: [], data: false };
@@ -123,6 +133,7 @@ const BeatmapManager = {
     for (const f of files) {
       const name = f.relPath || f.webkitRelativePath || f.name;
       const ext = fileExt(f.name);
+      await this.breathe();
       try {
         if (ext === 'osz') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'osk') { status('skin ', f); report.skins.push(await SkinManager.importOsk(f)); }
@@ -167,6 +178,7 @@ const BeatmapManager = {
           name: dir ? l.path.slice(dir.length + 1) : l.path,
           size: l.file.size,
           read: async () => new Uint8Array(await l.file.arrayBuffer()),
+          blob: async type => new Blob([l.file], { type }), // (the file itself: nothing copied)
         }));
         try {
           Bus.emit('import:status', `Importing folder ${dir || '(files)'}…`);
@@ -181,9 +193,9 @@ const BeatmapManager = {
 
   async importOsz(file, report) {
     let zip;
-    try { zip = new ZipReader(await file.arrayBuffer()); }
+    try { zip = new ZipReader(await file.arrayBuffer()); zip.file = file; }
     catch (e) { throw new Error(`Corrupt archive (${e.message})`); }
-    const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e) }))
+    const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e), blob: type => zip.blob(e, type) }))
       .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name))
       // (downloaded "without video": a provider that sent the video anyway doesn't get it kept)
       .filter(e => !file.noVideo || !/\.(mp4|webm|m4v|mov|avi|flv|wmv|mkv)$/i.test(e.name));
@@ -211,13 +223,24 @@ const BeatmapManager = {
     const lowerIndex = new Map(entries.map(e => [e.name.toLowerCase(), e]));
     const available = new Set(lowerIndex.keys());
     const parsed = [];
-    for (const e of osuEntries) {
+    // every difficulty at once: read out of the archive and hashed here, then parsed, checked and star-rated in the
+    // background threads (ImportWorkers) side by side; without them, here, one at a time with a frame between each
+    const jobs = osuEntries.map(async e => {
+      const bytes = await e.read();
+      // (UTF-8 as osu! writes them; UTF-16 from Windows Notepad and Latin-1 from old editors are read too)
+      const text = decodeIniText(bytes);
+      const [hash, info] = await Promise.all([hashHex(bytes), ImportWorkers.inspect(text, available)]);
+      return { text, hash, info };
+    });
+    const done = await Promise.allSettled(jobs);
+    for (let i = 0; i < osuEntries.length; i++) {
+      const e = osuEntries[i];
       try {
-        const bytes = await e.read();
-        // (UTF-8 as osu! writes them; UTF-16 from Windows Notepad and Latin-1 from old editors are read too)
-        const text = decodeIniText(bytes);
-        const bm = BeatmapParser.parse(text);
-        parsed.push({ entry: e, text, bm, hash: await hashHex(bytes) });
+        if (done[i].status === 'rejected') throw done[i].reason;
+        const { text, hash } = done[i].value;
+        let { info } = done[i].value;
+        if (!info) { await this.breathe(); info = inspectBeatmap(BeatmapParser.parse(text), available); }
+        parsed.push({ entry: e, text, info, hash });
       } catch (err) {
         report && report.errors.push(`${sourceName} / ${e.name}: ${err instanceof BeatmapError ? err.message : 'Invalid .osu file (' + err.message + ')'}`);
       }
@@ -226,7 +249,7 @@ const BeatmapManager = {
     // Group difficulties into sets (usually one per archive, but folders may mix)
     const bySet = new Map();
     for (const p of parsed) {
-      const md = p.bm.metadata;
+      const md = p.info.metadata;
       const onlineId = parseInt(md.BeatmapSetID || '-1', 10);
       const keySrc = onlineId > 0 ? `osu-${onlineId}` : `${md.Artist || ''}|${md.Title || ''}|${md.Creator || ''}`.toLowerCase();
       if (!bySet.has(keySrc)) bySet.set(keySrc, []);
@@ -240,24 +263,25 @@ const BeatmapManager = {
   async _storeSet(keySrc, diffs, entries, lowerIndex, available, sourceName, report) {
     const setId = 'set-' + (await hashHex(keySrc)).slice(0, 16);
     const existing = this.setById.get(setId);
-    const md = diffs[0].bm.metadata;
+    const md = diffs[0].info.metadata;
     // which files do we keep? .osu, audio, backgrounds, samples, skip video & big storyboards
     const needed = new Set();
     let storyboard = false, video = false;
     for (const d of diffs) {
+      const i = d.info;
       needed.add(d.entry.name.toLowerCase());
-      if (d.bm.audioFile) needed.add(d.bm.audioFile.toLowerCase());
-      if (d.bm.events.background) needed.add(d.bm.events.background.file.toLowerCase());
-      if (d.bm.events.storyboard) storyboard = true;
-      if (d.bm.events.video) {
+      if (i.audioFile) needed.add(i.audioFile.toLowerCase());
+      if (i.background) needed.add(i.background.toLowerCase());
+      if (i.storyboard) storyboard = true;
+      if (i.video !== null) {
         video = true;
-        const vf = d.bm.events.video.file;
+        const vf = i.video;
         if (vf && /\.(mp4|webm|m4v|mov)$/i.test(vf) && Settings.get('gameplay.videoImport')) {
           const ve = lowerIndex.get(vf.toLowerCase());
           if (ve && ve.size < 120e6) needed.add(vf.toLowerCase());
         }
       }
-      for (const ho of d.bm.hitObjects) { const f = ho.sample && ho.sample[4]; if (f) needed.add(normPath(f).toLowerCase()); }
+      for (const f of i.samples) needed.add(normPath(f).toLowerCase());
     }
     let skinBytes = 0;
     for (const e of entries) {
@@ -282,20 +306,24 @@ const BeatmapManager = {
       } catch (e) { console.warn('storyboard files', e); }
     }
     const fileIndex = existing ? { ...existing.fileIndex } : {};
+    // (all of the set's files out of the archive at once, each straight into a Blob — the song isn't copied through
+    // memory twice — then written 20 to a transaction)
+    const want = [...needed].map(n => [n, lowerIndex.get(n)]).filter(([, e]) => e);
+    const blobs = await Promise.all(want.map(([, e]) => e.blob ? e.blob(mimeFor(e.name)) : e.read().then(d => new Blob([d], { type: mimeFor(e.name) }))));
     const items = [];
-    for (const n of needed) {
-      const e = lowerIndex.get(n);
-      if (!e) continue;
-      const data = await e.read();
-      items.push({ store: 'files', key: `${setId}/${e.name}`, value: new Blob([data], { type: mimeFor(e.name) }) });
+    for (let i = 0; i < want.length; i++) {
+      const [n, e] = want[i];
+      items.push({ store: 'files', key: `${setId}/${e.name}`, value: blobs[i] });
       fileIndex[n] = e.name;
-      if (items.length >= 20) await DB.putMany(items.splice(0));
+      if (items.length >= 20) { await this.breathe(); await DB.putMany(items.splice(0)); }
     }
-    if (items.length) await DB.putMany(items);
+    if (items.length) { await this.breathe(); await DB.putMany(items); }
+    const blobOf = name => { const i = want.findIndex(([n]) => n === name); return i < 0 ? null : blobs[i]; };
 
     // difficulties
     const mapRecords = [];
     for (const d of diffs) {
+      await this.breathe();
       const rec = this._mapRecord(d, setId, available, existing?.added || Date.now());
       // difficulties that can't be played (other game modes, missing audio…) aren't kept at all
       if (rec.problems.length) { if (report) report.warnings.push(`${rec.artist} - ${rec.title} [${rec.version}]: ${rec.problems.join('; ')}`); continue; }
@@ -311,7 +339,8 @@ const BeatmapManager = {
     if (bgRec && !thumb) {
       try {
         const e = lowerIndex.get(bgRec.bgFile.toLowerCase());
-        const t = await makeThumbnail(new Blob([await e.read()]), this.THUMB_W, this.THUMB_Q);
+        await this.breathe();
+        const t = await makeThumbnail(blobOf(bgRec.bgFile.toLowerCase()) || new Blob([await e.read()]), this.THUMB_W, this.THUMB_Q);
         if (t) { await DB.put('files', t, `${setId}/__thumb.jpg`); thumb = true; }
       } catch (e) { /* ignore */ }
     }
@@ -334,26 +363,21 @@ const BeatmapManager = {
     return set;
   },
 
-  /** A difficulty's library record: d = { bm, hash, entry: { name } } (its .osu, read), `available`: the set's files
-   *  (lower case). Its `problems` say why it can't be played (then it isn't kept). */
+  /** A difficulty's library record: d = { info (inspectBeatmap) or bm (its parsed .osu), hash, entry: { name } },
+   *  `available`: the set's files (lower case). Its `problems` say why it can't be played (then it isn't kept). */
   _mapRecord(d, setId, available, added) {
-    const { bm } = d;
-    const v = validateBeatmap(bm, available);
-    let stats = null;
-    if (!v.problems.length) {
-      try { stats = BeatmapParser.analyse(bm); } catch (e) { v.problems.push(e.message); }
-    }
-    const m = bm.metadata;
+    const info = d.info || inspectBeatmap(d.bm, available), v = info, stats = info.stats;
+    const m = info.metadata;
     return {
       id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
       onlineId: parseInt(m.BeatmapID || '-1', 10),
       title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
       artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
       creator: m.Creator || 'Unknown', version: m.Version || 'Normal', source: m.Source || '', tags: m.Tags || '',
-      osuPath: d.entry.name, audioFile: bm.audioFile, bgFile: bm.events.background ? bm.events.background.file : null,
-      previewTime: bm.previewTime, mode: bm.mode, keys: v.problems.length ? 0 : BeatmapParser.keyCount(bm),
-      od: bm.od, hp: bm.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
-      breaks: bm.events.breaks,
+      osuPath: d.entry.name, audioFile: info.audioFile, bgFile: info.background,
+      previewTime: info.previewTime, mode: info.mode, keys: info.keys,
+      od: info.od, hp: info.hp, problems: v.problems, warnings: v.warnings, srVersion: SR_VERSION,
+      breaks: info.breaks,
       added,
       ...(stats || { stars: 0, bpm: 0, bpmMin: 0, bpmMax: 0, length: 0, drainLength: 0, noteCount: 0, lnCount: 0, objectCount: 0, lnRatio: 0, nps: 0, firstNote: 0, lastNote: 0 }),
     };
@@ -377,7 +401,7 @@ const BeatmapManager = {
           const rec = this._mapRecord({ bm, hash: await hashHex(bytes), entry: { name: set.fileIndex[low] } }, set.id, available, set.added || Date.now());
           if (!rec.problems.length && !this.maps.has(rec.id)) recs.push(rec);
         } catch (e) { /* (unreadable: left out, as on import) */ }
-        await sleep(0);
+        await this.breathe();
       }
       if (!recs.length || !this.setById.has(set.id)) continue;
       for (const r of recs) this.maps.set(r.id, r);

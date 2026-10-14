@@ -132,10 +132,28 @@ class ZipReader {
   }
   static _looksUtf8(b) { try { new TextDecoder('utf-8', { fatal: true }).decode(b); return true; } catch (e) { return false; } }
 
-  async read(entry) {
+  /** Where an entry's (compressed) bytes start. */
+  _start(entry) {
     const { dv } = this;
     if (dv.getUint32(entry.lho, true) !== 0x04034b50) throw new Error(`Corrupt archive entry: ${entry.name}`);
-    const start = entry.lho + 30 + dv.getUint16(entry.lho + 26, true) + dv.getUint16(entry.lho + 28, true);
+    return entry.lho + 30 + dv.getUint16(entry.lho + 26, true) + dv.getUint16(entry.lho + 28, true);
+  }
+  /** An entry as a Blob, without copying it through the page's memory where it can: a stored one is a slice of the
+   *  archive file itself, a deflated one is inflated by the browser straight into a Blob. (`this.file`: the archive's
+   *  File, when there is one.) */
+  async blob(entry, type = '') {
+    if (this.file && (entry.method === 0 || (entry.method === 8 && typeof DecompressionStream !== 'undefined'))) {
+      try {
+        const start = this._start(entry), part = this.file.slice(start, start + entry.csize);
+        if (entry.method === 0) return new Blob([part], { type });
+        const b = await new Response(part.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
+        return new Blob([b], { type });
+      } catch (e) { /* the copying way, below */ }
+    }
+    return new Blob([await this.read(entry)], { type });
+  }
+  async read(entry) {
+    const start = this._start(entry);
     const data = this.u8.subarray(start, start + entry.csize);
     if (entry.method === 0) return data.slice();
     if (entry.method !== 8) throw new Error(`Unsupported compression in ${entry.name}`);
