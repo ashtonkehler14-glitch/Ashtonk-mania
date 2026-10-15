@@ -23,7 +23,7 @@ const Mobile = {
       again = sessionStorage.getItem('am.instShown') === '1' || !!(r && Date.now() - r.at < 60000);
       sessionStorage.setItem('am.instShown', '1');
     } catch { /* private mode */ }
-    if (!App.installed && !quiet && !again) this.showInstall();
+    if (!App.installed && !quiet && !again && !Host.standalone) this.showInstall(); // (a saved HTML file can't be installed)
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
   /** A long press is a right-click, everywhere the game has a right-click menu (song select's beatmaps, scores, players,
@@ -147,7 +147,7 @@ const Mobile = {
       how.hidden = false; // (no one-tap install here: the steps)
     };
     el.append(h('div.mob-inst-box',
-      h('img', { src: 'icons/icon-192.png', alt: '' }),
+      h('img', { src: Host.asset('icons/icon-192.png'), alt: '' }),
       h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
       h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),

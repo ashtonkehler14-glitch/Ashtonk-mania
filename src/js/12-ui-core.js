@@ -1083,7 +1083,7 @@ const LazerCursor = {
     const OUT_ELASTIC_QUARTER = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((0.25 * t - 0.075) * (2 * Math.PI) / 0.3 * 4) + 1;
     this.EL = this.ease(OUT_ELASTIC); this.ELQ = this.ease(OUT_ELASTIC_QUARTER);
     this.add = h('span.lzc-add');
-    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false',
+    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false',
       // (no picture — index.html opened on its own, without the lazer/ folder next to it: the system cursor, rather
       // than a broken-image box following the mouse)
       onerror: () => { this.missing = true; this.apply(); } }), this.add);
@@ -1153,7 +1153,7 @@ const LazerCursor = {
   /** lazer's playTapSample: ±1% pitch at random, panned by where the cursor is (at most 75%). */
   async tap(freq) {
     if (!Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
-    if (!this._buf) this._buf = fetch('lazer/cursor-tap.wav').then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
+    if (!this._buf) this._buf = fetch(Host.asset('lazer/cursor-tap.wav')).then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
     const buf = await this._buf;
     if (!buf) return;
     AudioManager.play(buf, { bus: 'ui', volume: freq, rate: freq - 0.01 + Math.random() * 0.02, pan: ((this.x || 0) / innerWidth * 2 - 1) * 0.75 });

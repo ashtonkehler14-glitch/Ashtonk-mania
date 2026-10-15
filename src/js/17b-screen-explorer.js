@@ -30,7 +30,7 @@ const OnlineBeatmaps = {
     const tpl = k => (noVideo && this.NO_VIDEO_PROVIDERS[k]) || this.DOWNLOAD_PROVIDERS[k];
     const primary = choice === 'custom' && customTpl.includes('$setId') ? this.fill(customTpl, id) : this.fill(tpl(choice in this.DOWNLOAD_PROVIDERS ? choice : 'mino'), id);
     const others = Object.keys(this.DOWNLOAD_PROVIDERS).filter(k => k !== choice).map(k => this.fill(tpl(k), id));
-    const first = viaServer && choice !== 'custom' ? `api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}` : primary;
+    const first = viaServer && choice !== 'custom' ? Host.api(`api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}`) : primary;
     return [...new Set([first, ...(first !== primary ? [primary] : []), ...others])];
   },
   /** Web-Osu-Mania's messages for a provider's answer. */
@@ -48,9 +48,9 @@ const OnlineBeatmaps = {
 
   async checkApi() {
     if (this.apiAvailable !== null) return this.apiAvailable;
-    if (!/^https?:/.test(location.protocol)) return (this.apiAvailable = false);
+    if (!Host.online()) return (this.apiAvailable = false);
     try {
-      const r = await fetch('api/health', { cache: 'no-store' });
+      const r = await fetch(Host.api('api/health'), { cache: 'no-store' });
       this.apiAvailable = r.ok && /json/.test(r.headers.get('content-type') || '');
     } catch (e) { this.apiAvailable = false; }
     return this.apiAvailable;
@@ -143,7 +143,7 @@ const OnlineBeatmaps = {
   /** GET from the game's server; a failure reads as WOM shows it ("Code 429: The site is being rate-limited…"). */
   async api(url) {
     let r;
-    try { r = await fetch(url); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    try { r = await fetch(Host.api(url)); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
     if (!r.ok) {
       let msg = `Code ${r.status}`;
       try { const t = (await r.text()).trim(); if (t && !/^\s*</.test(t)) msg += `: ${t.slice(0, 300)}`; } catch { /* no body */ }
@@ -975,7 +975,7 @@ const BeatmapStatus = {
     if (!m) return null;
     let q = m.onlineId > 0 ? `id=${m.onlineId}` : '';
     if (!q) { const b = await BeatmapManager.getFile(set.id, m.osuPath); if (!b) return null; q = `checksum=${md5Hex(new Uint8Array(await b.arrayBuffer()))}`; }
-    const r = await fetch(`api/lookupBeatmap?${q}`);
+    const r = await fetch(Host.api(`api/lookupBeatmap?${q}`));
     if (r.status === 404 || r.status === 400) return null;
     if (!r.ok) throw Object.assign(new Error(`Code ${r.status}`), { status: r.status });
     const d = await r.json();

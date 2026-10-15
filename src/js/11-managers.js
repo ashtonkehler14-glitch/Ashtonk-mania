@@ -224,7 +224,7 @@ const ProfileManager = {
       const b = await DB.get('files', 'profile/avatar');
       if (b) this.avatarURL = URL.createObjectURL(b);
     } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
-    else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
+    else if (a.startsWith('file:')) this.avatarURL = Host.asset('avatars/' + encodeURIComponent(a.slice(5)));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
   },
   /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 256 px (the size

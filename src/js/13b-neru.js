@@ -15,7 +15,7 @@ const NeruMascot = {
       return (this._blobURL = URL.createObjectURL(blob));
     }
     const loads = src => new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = src; });
-    if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(f)) return f; return null; })();
+    if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(Host.asset(f))) return Host.asset(f); return null; })();
     return this._probe;
   },
   LINES: ['Let\'s play!', 'Pick a song~', 'One more?', 'Full combo time!', 'Eyes on the notes!', 'Hehe~', 'You got this!', 'Again!'],
@@ -37,8 +37,8 @@ const NeruMascot = {
       // the bundled Neru has a second, happy picture she switches to when clicked
       this.base = u; this.happy = null;
       if (!u.startsWith('blob:')) {
-        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = 'neru-happy.png'; });
-        if (ok && this.el === el) this.happy = 'neru-happy.png';
+        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = Host.asset('neru-happy.png'); });
+        if (ok && this.el === el) this.happy = Host.asset('neru-happy.png');
       }
     });
     return el;

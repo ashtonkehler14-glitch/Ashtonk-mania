@@ -51,7 +51,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -83,9 +83,8 @@ const App = {
 
   /** Kori 3.0 ships with the client (public/skins/kori.osk, mania assets only) and is installed and selected
    *  on first launch. A skin dropped in as skins/default.osk takes priority. Runs once per browser; deleting
-   *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
+   *  Kori afterwards is respected. A saved HTML file has it inside (Host.asset). */
   async installBundledSkin(say) {
-    if (!/^https?:/.test(location.protocol)) return;
     if (await DB.kvGet('bundled.kori', false)) { await this.upgradeBundledSkin(); return; }
     const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
     if (existing) {
@@ -93,9 +92,9 @@ const App = {
       if (SkinManager.current.builtin) await SkinManager.select(existing.id, { silent: true });
       return;
     }
-    for (const name of ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
+    for (const name of Host.standalone ? ['skins/kori.osk'] : ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
-        const r = await fetch(encodeURI(name), { cache: 'no-cache' });
+        const r = await fetch(Host.asset(encodeURI(name)), { cache: 'no-cache' });
         if (!r.ok) continue;
         const blob = await r.blob();
         if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
@@ -114,14 +113,13 @@ const App = {
   // (none any more: Chemuss no longer comes with the game — it can still be imported like any skin)
   EXTRA_SKINS: [],
   async installExtraSkins() {
-    if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {
       try {
         if (await DB.kvGet(`bundled.${x.key}`, false)) {
           if ((await DB.kvGet(`bundled.${x.key}.v`, 1)) >= x.v) continue;
           const meta = SkinManager.skins.find(sk => x.match.test(sk.name));
           if (meta) {
-            const r = await fetch(x.file, { cache: 'no-cache' });
+            const r = await fetch(Host.asset(x.file), { cache: 'no-cache' });
             if (!r.ok) continue;
             const zip = new ZipReader(await r.arrayBuffer());
             const ini = zip.entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
@@ -131,7 +129,7 @@ const App = {
           continue;
         }
         if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
-          const r = await fetch(x.file, { cache: 'no-cache' });
+          const r = await fetch(Host.asset(x.file), { cache: 'no-cache' });
           if (!r.ok) continue; // try again next launch
           const blob = await r.blob();
           if (blob.size < 1000) continue;
@@ -149,7 +147,7 @@ const App = {
     try {
       const kori = SkinManager.skins.find(sk => (sk.source === 'kori.osk' || /kori 3\.0$/i.test(sk.name || '')) && !sk.files.some(f => /^scorebar-colour/i.test(f)));
       if (kori) {
-        const r = await fetch('skins/kori.osk', { cache: 'no-cache' });
+        const r = await fetch(Host.asset('skins/kori.osk'), { cache: 'no-cache' });
         if (!r.ok) return; // try again next launch
         const zip = new ZipReader(await r.arrayBuffer());
         const files = [];
@@ -220,6 +218,14 @@ const App = {
     }
     // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
+    // Ctrl+S: save the game as one HTML file, everything inside (the browser's own "Save page" leaves the skins and
+    // pictures behind); from a saved file, its newest version. (The beatmap editor keeps Ctrl+S for saving the beatmap;
+    // not while a song is playing.)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS' && Screens.currentName !== 'editor') {
+      e.preventDefault();
+      if (Screens.current !== GameplayScreen) HtmlFile.save();
+      return;
+    }
     // lazer's F12: a screenshot
     if (e.code === 'F12' && !e.ctrlKey && !e.altKey && !e.shiftKey) { e.preventDefault(); Screenshot.take(); return; }
     // lazer's Ctrl+F11: show / hide the FPS counter

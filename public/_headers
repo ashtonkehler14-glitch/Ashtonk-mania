@@ -8,3 +8,6 @@
   Cache-Control: no-cache
 /manifest.webmanifest
   Cache-Control: no-cache
+# the game saved as one HTML file (Settings → Maintenance) fetches the newest copy of these files from the device
+/*
+  Access-Control-Allow-Origin: *

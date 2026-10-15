@@ -448,7 +448,7 @@ function previewPlayer(url) {
     async play() {
       AudioManager.init();
       const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(`preview ${r.status}`); return r.arrayBuffer(); };
-      const data = await get(url).catch(() => get('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url)));
+      const data = await get(url).catch(() => get(Host.api('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url))));
       const buf = await AudioManager.decode(data);
       if (p._stopped) return;
       const ctx = AudioManager.ctx, src = ctx.createBufferSource(), g = ctx.createGain();

@@ -706,7 +706,7 @@ const WOM = {
     let e = WOM._img.get(path);
     if (!e) {
       const img = new Image(); e = { img, ok: false };
-      img.onload = () => { e.ok = true; }; img.src = `wom/${path}`;
+      img.onload = () => { e.ok = true; }; img.src = Host.asset(`wom/${path}`);
       WOM._img.set(path, e);
     }
     return e.ok ? e.img : null;

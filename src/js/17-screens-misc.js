@@ -670,6 +670,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.15', title: 'Play from a file', sections: [
+    { icon: 'download', title: 'Play from a file', items: ['Ctrl+S (or Settings → Maintenance → Save as an HTML file) saves the whole game as one HTML file, skins and pictures inside: open it on any device to play without the website, offline too', 'Multiplayer, beatmap search, rankings and the daily challenge still work from the file: it connects to the website it came from', 'From the file, Ctrl+S gets its newest version'] },
+  ] },
   { id: '2026.10.14', title: 'Quicker installs', sections: [
     { icon: 'download', title: 'Installing beatmaps', items: [
       'Beatmaps install faster: every difficulty in a set is read and star-rated at the same time, on your device\'s other processor cores, and the song and pictures are stored without being copied twice',
