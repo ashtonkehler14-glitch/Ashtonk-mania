@@ -13,12 +13,12 @@ const AvatarPresets = {
    *  character's picture. */
   url(id) {
     const p = AVATAR_PRESETS.find(x => x.id === id) || AVATAR_PRESETS.find(x => x.id === String(id).split('-')[0]);
-    return p ? 'avatars/' + p.file : null;
+    return p ? Host.asset('avatars/' + p.file) : null;
   },
   /** Extra pictures from public/avatars/avatars.json (cached for the session). */
   extra() {
-    if (!this._extra) this._extra = fetch('avatars/avatars.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(a => Array.isArray(a)
-      ? a.filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(png|jpe?g|webp|gif|svg)$/i.test(x.file)).map(x => ({ file: x.file, name: String(x.name || x.file), url: 'avatars/' + encodeURIComponent(x.file) }))
+    if (!this._extra) this._extra = fetch(Host.asset('avatars/avatars.json'), { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(a => Array.isArray(a)
+      ? a.filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(png|jpe?g|webp|gif|svg)$/i.test(x.file)).map(x => ({ file: x.file, name: String(x.name || x.file), url: Host.asset('avatars/' + encodeURIComponent(x.file)) }))
       : []).catch(() => []);
     return this._extra;
   },

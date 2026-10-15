@@ -147,7 +147,7 @@ const Spectate = {
   findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
   /** The difficulty they're playing, on its own (not imported): enough to show their play. */
   async tempMap(head) {
-    const r = await fetch('api/osuFile?id=' + head.onlineId);
+    const r = await fetch(Host.api('api/osuFile?id=' + head.onlineId));
     if (!r.ok) throw new Error(`osu file ${r.status}`);
     const bm = BeatmapParser.parse(await r.text());
     const notes = BeatmapParser.toManiaNotes(bm);
@@ -268,7 +268,7 @@ const Spectate = {
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
-      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), h('span.spec-tap'));
+      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
       if (this._lastCur) this.onCur(this._lastCur);
@@ -606,7 +606,7 @@ const UserPanels = {
   },
   cover(u) {
     const a = typeof u.avatar === 'string' ? u.avatar : '';
-    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
+    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
     return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
   },
   canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)

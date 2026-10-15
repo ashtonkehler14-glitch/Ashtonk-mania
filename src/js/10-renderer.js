@@ -658,7 +658,7 @@ class ManiaRenderer {
     this.womArrow = WOM.ARROWS[K - 1] || [];
     this.womNS = 0.9; // (sized like Kori's notes: nine tenths of the column)
     this._womSpr = new Map();
-    if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
+    if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', `url(${Host.asset('wom/RobotoMono.ttf')})`, { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
   }
   /** A tinted white shape (or WOM's arrow image) drawn once at its size and cached: tap and head sprites. */
   _womSprite(kind, color, size, dark, deg = 0) {

@@ -4947,6 +4947,45 @@ function friendlyError(e) {
   return msg;
 }
 
+/* ===== 00b-host.js ===== */
+/* Where the game's files and its server are. On the website both are next to the page (relative paths). A copy
+ * saved as one HTML file and opened from the device (file://, see HtmlFile) carries its files inside it
+ * (window.AM_ASSETS: path → data: URL) and talks to the website it was saved from (window.AM_SERVER), or to the
+ * address set in Settings → Maintenance. */
+
+const Host = {
+  /** Running from a saved HTML file rather than the website. */
+  standalone: !/^https?:$/.test(location.protocol),
+  files: window.AM_ASSETS || null,
+  /** The game's website ('https://…/'), for a saved file; '' on the website itself (everything is relative there). */
+  server() {
+    if (!this.standalone) return '';
+    let s = ''; try { s = localStorage.getItem('am.server') || ''; } catch { /* private mode */ }
+    s = s || window.AM_SERVER || '';
+    return /^https?:\/\/[^/\s]+/i.test(s) ? s.replace(/\/*$/, '/') : '';
+  },
+  setServer(s) {
+    s = String(s || '').trim();
+    if (s && !/^https?:\/\//i.test(s)) s = 'https://' + s;
+    try { if (s && s !== window.AM_SERVER) localStorage.setItem('am.server', s); else localStorage.removeItem('am.server'); } catch { /* private mode */ }
+    return this.server();
+  },
+  /** Whether there's a game server to talk to (multiplayer, beatmap search, rankings). */
+  online() { return !this.standalone || !!this.server(); },
+  /** A server path ('api/…') as a URL fetch() can use. */
+  api(path) { return this.standalone ? this.server() + path : path; },
+  /** A server path as a WebSocket URL. */
+  ws(path) { const u = new URL(this.api(path), location.href); u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'; return u; },
+  /** A file shipped with the game ('skins/kori.osk', 'avatars/miku.jpg'…): from inside the saved file when it has it. */
+  asset(path) {
+    const f = this.files && (this.files[path] || this.files[safeDecode(path)]);
+    return f || this.api(path);
+  },
+  /** The page's address for links other people open (invites): the website, even from a saved file. */
+  siteURL() { return this.standalone ? this.server() || location.href : location.href; },
+};
+function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
+
 /* ===== 01-db.js ===== */
 /* BeatmapDatabase / persistent storage — IndexedDB wrapper.
  * Stores:
@@ -6227,7 +6266,7 @@ const WOM = {
     let e = WOM._img.get(path);
     if (!e) {
       const img = new Image(); e = { img, ok: false };
-      img.onload = () => { e.ok = true; }; img.src = `wom/${path}`;
+      img.onload = () => { e.ok = true; }; img.src = Host.asset(`wom/${path}`);
       WOM._img.set(path, e);
     }
     return e.ok ? e.img : null;
@@ -7035,7 +7074,7 @@ function previewPlayer(url) {
     async play() {
       AudioManager.init();
       const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(`preview ${r.status}`); return r.arrayBuffer(); };
-      const data = await get(url).catch(() => get('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url)));
+      const data = await get(url).catch(() => get(Host.api('api/downloadBeatmap?destinationUrl=' + encodeURIComponent(url))));
       const buf = await AudioManager.decode(data);
       if (p._stopped) return;
       const ctx = AudioManager.ctx, src = ctx.createBufferSource(), g = ctx.createGain();
@@ -9463,7 +9502,7 @@ class ManiaRenderer {
     this.womArrow = WOM.ARROWS[K - 1] || [];
     this.womNS = 0.9; // (sized like Kori's notes: nine tenths of the column)
     this._womSpr = new Map();
-    if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', 'url(wom/RobotoMono.ttf)', { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
+    if (!WOM._font) { try { WOM._font = new FontFace('WomRobotoMono', `url(${Host.asset('wom/RobotoMono.ttf')})`, { weight: '100 900' }); document.fonts.add(WOM._font); WOM._font.load().catch(() => {}); } catch { WOM._font = true; } }
   }
   /** A tinted white shape (or WOM's arrow image) drawn once at its size and cached: tap and head sprites. */
   _womSprite(kind, color, size, dark, deg = 0) {
@@ -10482,7 +10521,7 @@ const ProfileManager = {
       const b = await DB.get('files', 'profile/avatar');
       if (b) this.avatarURL = URL.createObjectURL(b);
     } else if (a.startsWith('preset:')) this.avatarURL = AvatarPresets.url(a.slice(7));
-    else if (a.startsWith('file:')) this.avatarURL = 'avatars/' + encodeURIComponent(a.slice(5));
+    else if (a.startsWith('file:')) this.avatarURL = Host.asset('avatars/' + encodeURIComponent(a.slice(5)));
     this.sharedAvatar = await this.makeSharedAvatar().catch(() => '');
   },
   /** What other players see: the preset / public picture's id, or a copy of an uploaded picture — 160 px, sharp
@@ -10611,12 +10650,12 @@ const AvatarPresets = {
    *  character's picture. */
   url(id) {
     const p = AVATAR_PRESETS.find(x => x.id === id) || AVATAR_PRESETS.find(x => x.id === String(id).split('-')[0]);
-    return p ? 'avatars/' + p.file : null;
+    return p ? Host.asset('avatars/' + p.file) : null;
   },
   /** Extra pictures from public/avatars/avatars.json (cached for the session). */
   extra() {
-    if (!this._extra) this._extra = fetch('avatars/avatars.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(a => Array.isArray(a)
-      ? a.filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(png|jpe?g|webp|gif|svg)$/i.test(x.file)).map(x => ({ file: x.file, name: String(x.name || x.file), url: 'avatars/' + encodeURIComponent(x.file) }))
+    if (!this._extra) this._extra = fetch(Host.asset('avatars/avatars.json'), { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then(a => Array.isArray(a)
+      ? a.filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(png|jpe?g|webp|gif|svg)$/i.test(x.file)).map(x => ({ file: x.file, name: String(x.name || x.file), url: Host.asset('avatars/' + encodeURIComponent(x.file)) }))
       : []).catch(() => []);
     return this._extra;
   },
@@ -11974,7 +12013,7 @@ const LazerCursor = {
     const OUT_ELASTIC_QUARTER = t => t === 0 || t === 1 ? t : Math.pow(2, -10 * t) * Math.sin((0.25 * t - 0.075) * (2 * Math.PI) / 0.3 * 4) + 1;
     this.EL = this.ease(OUT_ELASTIC); this.ELQ = this.ease(OUT_ELASTIC_QUARTER);
     this.add = h('span.lzc-add');
-    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), this.add);
+    this.scaleEl = h('span.lzc-scale', h('img.lzc-img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), this.add);
     this.rotEl = h('span.lzc-rot', this.scaleEl);
     this.el = h('div#lz-cur', { hidden: true, 'aria-hidden': 'true' }, this.rotEl);
     document.body.appendChild(this.el);
@@ -12041,7 +12080,7 @@ const LazerCursor = {
   /** lazer's playTapSample: ±1% pitch at random, panned by where the cursor is (at most 75%). */
   async tap(freq) {
     if (!Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
-    if (!this._buf) this._buf = fetch('lazer/cursor-tap.wav').then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
+    if (!this._buf) this._buf = fetch(Host.asset('lazer/cursor-tap.wav')).then(r => r.arrayBuffer()).then(b => AudioManager.ctx.decodeAudioData(b)).catch(() => null);
     const buf = await this._buf;
     if (!buf) return;
     AudioManager.play(buf, { bus: 'ui', volume: freq, rate: freq - 0.01 + Math.random() * 0.02, pan: ((this.x || 0) / innerWidth * 2 - 1) * 0.75 });
@@ -13187,7 +13226,7 @@ const NeruMascot = {
       return (this._blobURL = URL.createObjectURL(blob));
     }
     const loads = src => new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = src; });
-    if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(f)) return f; return null; })();
+    if (!this._probe) this._probe = (async () => { for (const f of this.FILES) if (await loads(Host.asset(f))) return Host.asset(f); return null; })();
     return this._probe;
   },
   LINES: ['Let\'s play!', 'Pick a song~', 'One more?', 'Full combo time!', 'Eyes on the notes!', 'Hehe~', 'You got this!', 'Again!'],
@@ -13209,8 +13248,8 @@ const NeruMascot = {
       // the bundled Neru has a second, happy picture she switches to when clicked
       this.base = u; this.happy = null;
       if (!u.startsWith('blob:')) {
-        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = 'neru-happy.png'; });
-        if (ok && this.el === el) this.happy = 'neru-happy.png';
+        const ok = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = Host.asset('neru-happy.png'); });
+        if (ok && this.el === el) this.happy = Host.asset('neru-happy.png');
       }
     });
     return el;
@@ -18433,6 +18472,7 @@ const CHANGELOG = [
     { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
     { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it', 'Fixed a crash: retrying from the results screen and then pressing Back could reopen an empty results screen', 'Back to a player\'s profile reopens theirs, not yours', 'The beatmap listing has a back button like every other page, and lines up with them'] },
     { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
+    { icon: 'download', title: 'Play from a file', items: ['Ctrl+S (or Settings → Maintenance → Save as an HTML file) saves the whole game as one HTML file, skins and pictures inside: open it on any device to play without the website, offline too', 'Multiplayer, beatmap search, rankings and the daily challenge still work from the file: it connects to the website it came from', 'From the file, Ctrl+S gets its newest version'] },
     { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
   ] },
   { id: '2026.10.5', title: 'Editors', sections: [
@@ -18523,7 +18563,7 @@ const OnlineBeatmaps = {
     const customTpl = (Settings.get('online.customDownload') || '').trim();
     const primary = choice === 'custom' && customTpl.includes('$setId') ? this.fill(customTpl, id) : this.fill(this.DOWNLOAD_PROVIDERS[choice in this.DOWNLOAD_PROVIDERS ? choice : 'mino'], id);
     const others = Object.keys(this.DOWNLOAD_PROVIDERS).filter(k => k !== choice).map(k => this.fill(this.DOWNLOAD_PROVIDERS[k], id));
-    const first = viaServer && choice !== 'custom' ? `api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}` : primary;
+    const first = viaServer && choice !== 'custom' ? Host.api(`api/downloadBeatmap?destinationUrl=${encodeURIComponent(primary)}`) : primary;
     return [...new Set([first, ...(first !== primary ? [primary] : []), ...others])];
   },
   /** Web-Osu-Mania's messages for a provider's answer. */
@@ -18541,9 +18581,9 @@ const OnlineBeatmaps = {
 
   async checkApi() {
     if (this.apiAvailable !== null) return this.apiAvailable;
-    if (!/^https?:/.test(location.protocol)) return (this.apiAvailable = false);
+    if (!Host.online()) return (this.apiAvailable = false);
     try {
-      const r = await fetch('api/health', { cache: 'no-store' });
+      const r = await fetch(Host.api('api/health'), { cache: 'no-store' });
       this.apiAvailable = r.ok && /json/.test(r.headers.get('content-type') || '');
     } catch (e) { this.apiAvailable = false; }
     return this.apiAvailable;
@@ -18634,7 +18674,7 @@ const OnlineBeatmaps = {
   /** GET from the game's server; a failure reads as WOM shows it ("Code 429: The site is being rate-limited…"). */
   async api(url) {
     let r;
-    try { r = await fetch(url); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    try { r = await fetch(Host.api(url)); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
     if (!r.ok) {
       let msg = `Code ${r.status}`;
       try { const t = (await r.text()).trim(); if (t && !/^\s*</.test(t)) msg += `: ${t.slice(0, 300)}`; } catch { /* no body */ }
@@ -19429,7 +19469,7 @@ const BeatmapStatus = {
     if (!m) return null;
     let q = m.onlineId > 0 ? `id=${m.onlineId}` : '';
     if (!q) { const b = await BeatmapManager.getFile(set.id, m.osuPath); if (!b) return null; q = `checksum=${md5Hex(new Uint8Array(await b.arrayBuffer()))}`; }
-    const r = await fetch(`api/lookupBeatmap?${q}`);
+    const r = await fetch(Host.api(`api/lookupBeatmap?${q}`));
     if (r.status === 404 || r.status === 400) return null;
     if (!r.ok) throw Object.assign(new Error(`Code ${r.status}`), { status: r.status });
     const d = await r.json();
@@ -20715,7 +20755,7 @@ const Shortcuts = {
       [['Ctrl', 'O'], 'Settings'], [['Esc'], 'Back / close'], [['Alt', 'Enter'], 'Fullscreen'],
       [['Alt', '~+ mouse wheel'], 'Volume (add Shift: music, Ctrl: effects)'], [['Alt', '↑', '↓'], 'Volume'], [['Alt', '←', '→'], 'Effects / master / music'],
       [['Alt', 'Home'], 'Main menu'], [['Ctrl', 'B'], 'Beatmap listing'], [['Ctrl', 'N'], 'Notifications'], [['Ctrl', 'P'], 'Profile'], [['F6'], 'Now playing'],
-      [['Ctrl', 'Shift', 'R'], 'Random skin'], [['Ctrl', 'Shift', 'E', 'T'], 'Previous / next skin'], [['Mouse back button'], 'Back'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['?'], 'This list']]],
+      [['Ctrl', 'Shift', 'R'], 'Random skin'], [['Ctrl', 'Shift', 'E', 'T'], 'Previous / next skin'], [['Mouse back button'], 'Back'], [['Ctrl', 'Shift', 'D'], 'Debug overlay'], [['Ctrl', 'S'], 'Save the game as an HTML file'], [['?'], 'This list']]],
     ['Main menu', [
       [['~any key'], 'Open the menu from the big logo'], [['P'], 'Play'], [['P', 'M'], 'Solo, Multi (after Play)'], [['L', 'R'], 'Lounge, Ranked Play (after Multi)'], [['E'], 'Edit'], [['S', 'I', 'B', 'C', 'R'], 'Skins, Import, Beatmaps, Collections, Replays (after Edit)'], [['B'], 'Browse beatmaps online'],
       [['U'], 'Profile'], [['O'], 'Settings'], [['←', '→', 'Enter'], 'Move and press']]],
@@ -20763,7 +20803,8 @@ const DataPanel = {
         btn('Keep data persistent', 'save', async () => { const ok = await DB.persist(); Toast.show(ok ? 'Storage marked persistent' : 'The browser declined persistent storage'); }),
         btn('Run first-run setup', 'sparkle', () => { SettingsPanel.close && SettingsPanel.close(); Onboarding.run({ again: true }); }),
         App.installPrompt ? btn('Install as an app', 'download', async () => { await App.install(); SettingsPanel.o && SettingsPanel.build(''); }, '.primary') : null),
-      App.installed ? null : h('div.muted', { style: { fontSize: '.8rem' } }, 'Tip: install Ashtonk!mania as an app (the install icon in the address bar, or the button above when the browser offers it) for its own full-screen window. Once opened, it plays offline, and the installed app opens .osz / .osk files directly.'),
+      App.installed || Host.standalone ? null : h('div.muted', { style: { fontSize: '.8rem' } }, 'Tip: install Ashtonk!mania as an app (the install icon in the address bar, or the button above when the browser offers it) for its own full-screen window. Once opened, it plays offline, and the installed app opens .osz / .osk files directly.'),
+      HtmlFile.panel(btn),
       h('div.row.wrap',
         btn('Clear scores', 'trash', () => confirmClear('scores', () => ScoreManager.clear()), '.danger'),
         btn('Clear replays', 'trash', () => confirmClear('replays', () => ReplayManager.clear()), '.danger'),
@@ -21605,7 +21646,7 @@ const Multiplayer = {
   fetch: null,       // {onlineSetId, progress, error, done} — the automatic download of the room's beatmap
   myDiffId: null,    // the difficulty (local map id) this player chose from the room's beatmap set
 
-  available() { return /^https?:$/.test(location.protocol); },
+  available() { return Host.online(); },
   // (while reconnecting after a dropped connection the room stays on screen)
   inRoom() { return !!(this.room && (this.ws || this.reconnecting)); },
   isHost() { return !!this.room && this.room.host === this.me; },
@@ -21620,7 +21661,7 @@ const Multiplayer = {
   self() { return this.room ? this.room.players.find(p => p.id === this.me) || null : null; },
 
   async api(path, body) {
-    const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
@@ -21635,8 +21676,7 @@ const Multiplayer = {
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
     return new Promise((resolve, reject) => {
-      const u = new URL(`api/mp/room/${encodeURIComponent(code)}`, location.href);
-      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      const u = Host.ws(`api/mp/room/${encodeURIComponent(code)}`);
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
       this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
@@ -21916,7 +21956,7 @@ const Multiplayer = {
   setTeam(t) { this.send({ t: 'team', team: t }); },
   /** Invite link for the current room: opening it joins the room directly. */
   inviteLink() {
-    const u = new URL(location.href);
+    const u = new URL(Host.siteURL());
     u.search = ''; u.hash = '';
     u.searchParams.set('join', this.room.code);
     return u.toString();
@@ -21952,7 +21992,7 @@ const Presence = {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
     // only where the Worker serves multiplayer (a plain static copy has no /api)
-    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    fetch(Host.api('api/health'), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -21982,8 +22022,7 @@ const Presence = {
     return (this._pid = p);
   },
   connect() {
-    const u = new URL('api/mp/presence', location.href);
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    const u = Host.ws('api/mp/presence');
     let ws;
     try { ws = new WebSocket(u); } catch { this.later(); return; }
     this.ws = ws;
@@ -22102,7 +22141,7 @@ const Presence = {
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
     const a = p && typeof p.avatar === 'string' ? p.avatar : '';
-    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
+    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
     if (url) return h('img.avatar', { src: url, alt: '', style: { width: size + 'px', height: size + 'px' }, onerror: e => e.target.replaceWith(this.avatarEl({ name: p.name }, size)) });
     return h('div.avatar.avatar-mono', { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.45) + 'px' } }, (p && p.name || '?').slice(0, 1).toUpperCase());
   },
@@ -22287,7 +22326,7 @@ const MultiplayerScreen = {
     const el = this.roomsEl;
     if (!el || !el.isConnected || Multiplayer.inRoom()) return;
     let rooms = null;
-    try { const r = await fetch('api/mp/rooms', { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
+    try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
     const left = Multiplayer.lastLeft;
     if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));
@@ -23761,7 +23800,7 @@ const Spectate = {
   findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
   /** The difficulty they're playing, on its own (not imported): enough to show their play. */
   async tempMap(head) {
-    const r = await fetch('api/osuFile?id=' + head.onlineId);
+    const r = await fetch(Host.api('api/osuFile?id=' + head.onlineId));
     if (!r.ok) throw new Error(`osu file ${r.status}`);
     const bm = BeatmapParser.parse(await r.text());
     const notes = BeatmapParser.toManiaNotes(bm);
@@ -23882,7 +23921,7 @@ const Spectate = {
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
-      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: 'lazer/menu-cursor.png', alt: '', draggable: 'false' }), h('span.spec-tap'));
+      this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
       if (this._lastCur) this.onCur(this._lastCur);
@@ -24220,7 +24259,7 @@ const UserPanels = {
   },
   cover(u) {
     const a = typeof u.avatar === 'string' ? u.avatar : '';
-    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
+    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
     return h('div.up-cover', url ? { style: { backgroundImage: `url("${url}")` } } : {});
   },
   canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)
@@ -24410,7 +24449,7 @@ const Mobile = {
     this.noZoom();
     Orientation.init();
     let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
-    if (!App.installed && !quiet) this.showInstall();
+    if (!App.installed && !quiet && !Host.standalone) this.showInstall(); // (a saved HTML file can't be installed)
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
   /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
@@ -24493,7 +24532,7 @@ const Mobile = {
       how.hidden = false; // (no one-tap install here: the steps)
     };
     el.append(h('div.mob-inst-box',
-      h('img', { src: 'icons/icon-192.png', alt: '' }),
+      h('img', { src: Host.asset('icons/icon-192.png'), alt: '' }),
       h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
       h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),
@@ -25079,7 +25118,7 @@ const Verified = {
     if (!osu) return;
     for (let i = 0; i < 3; i++) {
       try {
-        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
+        const r = await fetch(Host.api(`api/mp/room/${code}/verify`), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
         if (r.ok || r.status === 422) return;
       } catch { /* network: try again */ }
       await sleep(1500);
@@ -25091,7 +25130,7 @@ const Verified = {
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
     try {
-      const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+      const r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);
@@ -25516,6 +25555,112 @@ const UserTags = {
   },
 };
 
+/* ===== 19m-html-file.js ===== */
+/* Ashtonk!mania as one HTML file (Ctrl+S, or Settings → Maintenance → Data management): the page with every file
+ * it ships with inside it — the Kori and Chemuss skins, Neru, avatars, the cursor, the WOM images and the Outfit font.
+ * Opened from the device (file://) it plays like the website, offline too, and its online features (multiplayer,
+ * beatmap search and downloads, rankings, the daily challenge) talk to the website it was saved from (Host).
+ * The file is put together here, in the browser, from what the website serves: the page, then each file that
+ * public/files.json lists (written by build.mjs). From a saved file, the same button fetches the newest version. */
+
+const HtmlFile = {
+  NAME: 'Ashtonk!mania.html',
+  busy: false,
+  /** The website the file is put together from. */
+  base() { return Host.standalone ? Host.server() : new URL('.', location.href).href; },
+  async build(onProgress = () => {}) {
+    const base = this.base();
+    if (!base) throw new Error('Set the game\'s website address first.');
+    const get = async (path, as) => {
+      let r;
+      try { r = await fetch(new URL(path, base), { cache: 'no-cache' }); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
+      if (!r.ok) throw new Error(`${path}: ${r.status}`);
+      return as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob();
+    };
+    let page = await get('index.html', 'text');
+    const list = await get('files.json', 'json');
+    if (!Array.isArray(list) || !page.includes('"use strict"')) throw new Error('The website sent something unexpected. Try again later.');
+    const assets = {};
+    let done = 0;
+    const total = list.length + 2;
+    // (a few at a time: the skins are most of the size)
+    const queue = list.filter(p => typeof p === 'string' && /^[\w./ ()-]+$/.test(p));
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (queue.length) {
+        const path = queue.shift();
+        assets[path] = await blobToDataURL(await get(encodeURI(path)));
+        onProgress(++done / total);
+      }
+    }));
+    page = await this.inlineFonts(page).catch(() => page);
+    onProgress(++done / total);
+    // the page's own references to bundled files (favicon, the cursor's glow in the CSS); the manifest is for the website
+    for (const [path, data] of Object.entries(assets)) page = page.split(`url(${path})`).join(`url("${data}")`).split(`href="${path}"`).join(`href="${data}"`);
+    page = page.replace(/<link rel="manifest"[^>]*>\n?/, '');
+    const head = `<script>window.AM_SERVER=${jsString(base)};window.AM_SAVED=${Date.now()};window.AM_ASSETS=${jsString(assets)};<\/script>\n`;
+    // (before the game's script, which reads them as it starts; after the loading screen, so that shows first)
+    const at = page.lastIndexOf('<script>\n"use strict"');
+    page = at >= 0 ? page.slice(0, at) + head + page.slice(at) : page.replace('</head>', head + '</head>');
+    onProgress(1);
+    return new Blob([page], { type: 'text/html' });
+  },
+  /** Google Fonts' Outfit, put inside the file so the text looks right offline (left as a link if it can't be fetched). */
+  async inlineFonts(page) {
+    const m = /<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet">/.exec(page);
+    if (!m) return page;
+    let css = await (await fetch(m[1].replace(/&amp;/g, '&'))).text();
+    // (Outfit is one variable font per alphabet: every weight's @font-face names the same file — kept once, as a range)
+    const faces = new Map();
+    for (const [, body] of css.matchAll(/@font-face\s*{([^}]*)}/g)) {
+      const src = /url\(([^)]+)\)/.exec(body), w = /font-weight:\s*(\d+)/.exec(body);
+      if (!src || !w) continue;
+      const f = faces.get(src[1]) || { body, lo: +w[1], hi: +w[1] };
+      f.lo = Math.min(f.lo, +w[1]); f.hi = Math.max(f.hi, +w[1]);
+      faces.set(src[1], f);
+    }
+    if (faces.size) css = [...faces.values()].map(f => `@font-face {${f.body.replace(/font-weight:\s*\d+/, `font-weight: ${f.lo} ${f.hi}`)}}`).join('\n');
+    const urls = [...new Set(css.match(/https:\/\/fonts\.gstatic\.com\/[^)\s'"]+/g) || [])];
+    for (const u of urls) css = css.split(u).join(await blobToDataURL(await (await fetch(u)).blob()));
+    return page.replace(m[0], () => `<style>${css}</style>`).replace(/<link rel="preconnect"[^>]*>\n?/g, '');
+  },
+  async save() {
+    if (this.busy) return;
+    this.busy = true;
+    const p = Toast.progress(Host.standalone ? 'Getting the newest version' : 'Saving the game as an HTML file', 'Packing the skins and pictures…');
+    try {
+      const blob = await this.build(f => p.set(f));
+      downloadBlob(blob, this.NAME);
+      p.done('HTML file saved', `${this.NAME} (${fmtBytes(blob.size)}): open it in a browser to play — no website needed.`);
+    } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
+    finally { this.busy = false; }
+  },
+  /** Its part of Settings → Maintenance → Data management. */
+  panel(btn) {
+    const note = t => h('div.muted', { style: { fontSize: '.8rem' } }, t);
+    if (!Host.standalone) return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+      h('div.row.wrap', btn(kbHint('Save as an HTML file (Ctrl+S)', 'Save as an HTML file'), 'download', () => this.save())),
+      note('One file with the whole game inside: open it in a browser on any device to play without this website — offline too, or where the site is blocked. Multiplayer, beatmap search and rankings still connect to this site. Its beatmaps, scores and settings are its own: move them with Export all data / Import data.'));
+    const inp = h('input.input', { value: Host.server(), placeholder: 'https://…', 'aria-label': 'Game website', spellcheck: 'false', autocomplete: 'off', style: { flex: '1', minWidth: '180px' } });
+    inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') apply(); });
+    const apply = () => {
+      const s = Host.setServer(inp.value);
+      inp.value = s;
+      Toast.ok(s ? 'Game website set' : 'No game website', s ? 'Reload to connect to it.' : 'Online features are off until one is set.');
+    };
+    const saved = window.AM_SAVED ? new Date(window.AM_SAVED).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null;
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+      note(`Playing from a saved HTML file${saved ? ` (saved ${saved})` : ''}. Online features connect to this website:`),
+      h('div.row', { style: { gap: '6px' } }, inp, h('button.btn.sm', { onclick: apply }, 'Set')),
+      h('div.row.wrap', btn(kbHint('Get the newest version (Ctrl+S)', 'Get the newest version'), 'download', () => this.save())));
+  },
+};
+
+function blobToDataURL(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+}
+/** A value as JavaScript source that's safe inside a <script> tag. */
+function jsString(v) { return JSON.stringify(v).replace(/</g, '\\u003c'); }
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -25571,7 +25716,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, EditorScreen, SkinEditor, HudLayout, Screenshot, UserTags };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, EditorScreen, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -25600,9 +25745,8 @@ const App = {
 
   /** Kori 3.0 ships with the client (public/skins/kori.osk, mania assets only) and is installed and selected
    *  on first launch. A skin dropped in as skins/default.osk takes priority. Runs once per browser; deleting
-   *  Kori afterwards is respected. Needs http(s) — browsers block fetch() from file://. */
+   *  Kori afterwards is respected. A saved HTML file has it inside (Host.asset). */
   async installBundledSkin(say) {
-    if (!/^https?:/.test(location.protocol)) return;
     if (await DB.kvGet('bundled.kori', false)) { await this.upgradeBundledSkin(); return; }
     const existing = SkinManager.skins.find(sk => /kori/i.test(sk.name));
     if (existing) {
@@ -25610,9 +25754,9 @@ const App = {
       if (SkinManager.current.builtin) await SkinManager.select(existing.id, { silent: true });
       return;
     }
-    for (const name of ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
+    for (const name of Host.standalone ? ['skins/kori.osk'] : ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
-        const r = await fetch(encodeURI(name), { cache: 'no-cache' });
+        const r = await fetch(Host.asset(encodeURI(name)), { cache: 'no-cache' });
         if (!r.ok) continue;
         const blob = await r.blob();
         if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
@@ -25630,14 +25774,13 @@ const App = {
   // v: bump when the shipped copy changes; installed copies then get its skin.ini (v2: Chemuss 4K hit position 448)
   EXTRA_SKINS: [{ key: 'chemuss', file: 'skins/chemuss.osk', match: /chemuss/i, label: 'Chemuss mixed edit', v: 2 }],
   async installExtraSkins() {
-    if (!/^https?:/.test(location.protocol)) return;
     for (const x of this.EXTRA_SKINS) {
       try {
         if (await DB.kvGet(`bundled.${x.key}`, false)) {
           if ((await DB.kvGet(`bundled.${x.key}.v`, 1)) >= x.v) continue;
           const meta = SkinManager.skins.find(sk => x.match.test(sk.name));
           if (meta) {
-            const r = await fetch(x.file, { cache: 'no-cache' });
+            const r = await fetch(Host.asset(x.file), { cache: 'no-cache' });
             if (!r.ok) continue;
             const zip = new ZipReader(await r.arrayBuffer());
             const ini = zip.entries.filter(e => /(^|\/)skin\.ini$/i.test(e.name)).sort((a, b) => a.name.split('/').length - b.name.split('/').length)[0];
@@ -25647,7 +25790,7 @@ const App = {
           continue;
         }
         if (!SkinManager.skins.some(sk => x.match.test(sk.name))) {
-          const r = await fetch(x.file, { cache: 'no-cache' });
+          const r = await fetch(Host.asset(x.file), { cache: 'no-cache' });
           if (!r.ok) continue; // try again next launch
           const blob = await r.blob();
           if (blob.size < 1000) continue;
@@ -25665,7 +25808,7 @@ const App = {
     try {
       const kori = SkinManager.skins.find(sk => (sk.source === 'kori.osk' || /kori 3\.0$/i.test(sk.name || '')) && !sk.files.some(f => /^scorebar-colour/i.test(f)));
       if (kori) {
-        const r = await fetch('skins/kori.osk', { cache: 'no-cache' });
+        const r = await fetch(Host.asset('skins/kori.osk'), { cache: 'no-cache' });
         if (!r.ok) return; // try again next launch
         const zip = new ZipReader(await r.arrayBuffer());
         const files = [];
@@ -25729,6 +25872,14 @@ const App = {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); SettingsPanel.toggle(); return; }
     // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
+    // Ctrl+S: save the game as one HTML file, everything inside (the browser's own "Save page" leaves the skins and
+    // pictures behind); from a saved file, its newest version. (The beatmap editor keeps Ctrl+S for saving the beatmap;
+    // not while a song is playing.)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS' && Screens.currentName !== 'editor') {
+      e.preventDefault();
+      if (Screens.current !== GameplayScreen) HtmlFile.save();
+      return;
+    }
     // lazer's F12: a screenshot
     if (e.code === 'F12' && !e.ctrlKey && !e.altKey && !e.shiftKey) { e.preventDefault(); Screenshot.take(); return; }
     // lazer's Ctrl+F11: show / hide the FPS counter

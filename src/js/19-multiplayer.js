@@ -13,7 +13,7 @@ const Multiplayer = {
   fetch: null,       // {onlineSetId, progress, error, done} — the automatic download of the room's beatmap
   myDiffId: null,    // the difficulty (local map id) this player chose from the room's beatmap set
 
-  available() { return /^https?:$/.test(location.protocol); },
+  available() { return Host.online(); },
   // (while reconnecting after a dropped connection the room stays on screen)
   inRoom() { return !!(this.room && (this.ws || this.reconnecting)); },
   isHost() { return !!this.room && this.room.host === this.me; },
@@ -28,7 +28,7 @@ const Multiplayer = {
   self() { return this.room ? this.room.players.find(p => p.id === this.me) || null : null; },
 
   async api(path, body) {
-    const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
@@ -43,8 +43,7 @@ const Multiplayer = {
   connect(code, create, quick = false, rejoin = false, opts = {}) {
     if (!rejoin) this.leave(true);
     return new Promise((resolve, reject) => {
-      const u = new URL(`api/mp/room/${encodeURIComponent(code)}`, location.href);
-      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      const u = Host.ws(`api/mp/room/${encodeURIComponent(code)}`);
       let ws;
       try { ws = new WebSocket(u); } catch (e) { reject(e); return; }
       this.ws = ws; this.code = code; this.quick = quick; this.opts = opts;
@@ -324,7 +323,7 @@ const Multiplayer = {
   setTeam(t) { this.send({ t: 'team', team: t }); },
   /** Invite link for the current room: opening it joins the room directly. */
   inviteLink() {
-    const u = new URL(location.href);
+    const u = new URL(Host.siteURL());
     u.search = ''; u.hash = '';
     u.searchParams.set('join', this.room.code);
     return u.toString();
@@ -360,7 +359,7 @@ const Presence = {
     if (this.started || !Multiplayer.available()) return;
     this.started = true;
     // only where the Worker serves multiplayer (a plain static copy has no /api)
-    fetch('api/health', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
+    fetch(Host.api('api/health'), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) this.connect(); }).catch(() => {});
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -390,8 +389,7 @@ const Presence = {
     return (this._pid = p);
   },
   connect() {
-    const u = new URL('api/mp/presence', location.href);
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    const u = Host.ws('api/mp/presence');
     let ws;
     try { ws = new WebSocket(u); } catch { this.later(); return; }
     this.ws = ws;
@@ -510,7 +508,7 @@ const Presence = {
   /** A player's picture: their chosen preset / uploaded thumbnail when they share one, else their initial. */
   avatarEl(p, size = 44) {
     const a = p && typeof p.avatar === 'string' ? p.avatar : '';
-    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? 'avatars/' + encodeURIComponent(a.slice(5)) : a.startsWith('data:image/') ? a : null;
+    const url = a.startsWith('preset:') ? AvatarPresets.url(a.slice(7)) : a.startsWith('file:') ? Host.asset('avatars/' + encodeURIComponent(a.slice(5))) : a.startsWith('data:image/') ? a : null;
     if (url) return h('img.avatar', { src: url, alt: '', style: { width: size + 'px', height: size + 'px' }, onerror: e => e.target.replaceWith(this.avatarEl({ name: p.name }, size)) });
     return h('div.avatar.avatar-mono', { style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.45) + 'px' } }, (p && p.name || '?').slice(0, 1).toUpperCase());
   },
@@ -695,7 +693,7 @@ const MultiplayerScreen = {
     const el = this.roomsEl;
     if (!el || !el.isConnected || Multiplayer.inRoom()) return;
     let rooms = null;
-    try { const r = await fetch('api/mp/rooms', { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
+    try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
     const left = Multiplayer.lastLeft;
     if (rooms && left && left.alone && Date.now() - left.at < 60000) rooms = rooms.filter(r => !(r.code === left.code && r.players <= 1));

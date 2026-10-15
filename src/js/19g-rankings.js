@@ -36,7 +36,7 @@ const Verified = {
     if (!osu) return;
     for (let i = 0; i < 3; i++) {
       try {
-        const r = await fetch(`api/mp/room/${code}/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
+        const r = await fetch(Host.api(`api/mp/room/${code}/verify`), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }) });
         if (r.ok || r.status === 422) return;
       } catch { /* network: try again */ }
       await sleep(1500);
@@ -48,7 +48,7 @@ const Verified = {
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
     try {
-      const r = await fetch('api/mp/score', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+      const r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);

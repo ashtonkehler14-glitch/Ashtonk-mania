@@ -5,7 +5,7 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = 'f159df02095f';
+const VERSION = 'a8e45b3a546f';
 const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 
@@ -68,7 +68,9 @@ async function networkFirst(req, name) {
 /** Serve from the cache at once and refresh it in the background; fetch (and save) when not cached yet. */
 async function cacheFirst(req, name, e) {
   const cache = await caches.open(name);
-  const hit = await cache.match(req);
+  let hit = await cache.match(req);
+  // (the page's <link> saves Google's stylesheet unreadable — opaque — and "Save as an HTML file" reads it: from the network)
+  if (hit && hit.type === 'opaque' && req.mode === 'cors') hit = null;
   const refresh = fetch(req).then(res => { if (res.ok || res.type === 'opaque') return cache.put(req, res.clone()).then(() => res); return res; });
   if (hit) { e.waitUntil(refresh.catch(() => {})); return hit; }
   return refresh;

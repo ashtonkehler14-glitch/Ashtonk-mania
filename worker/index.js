@@ -338,27 +338,47 @@ export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) 
 export { MatchRoom, Matchmaker } from './multiplayer.js';
 import { handleMultiplayer } from './multiplayer.js';
 
+/** The game saved as one HTML file (Settings → Maintenance) runs from the device — origin "null" — and calls this
+ *  server from there: every /api answer allows any origin (nothing here uses cookies; players prove who they are with
+ *  their own key), and the browser's preflight for a JSON POST is answered. */
+const PREFLIGHT = { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Max-Age': '86400' };
+function withCors(res) {
+  if (res.status === 101 || res.webSocket) return res; // (a WebSocket upgrade: no CORS for those)
+  const r = new Response(res.body, res);
+  r.headers.set('Access-Control-Allow-Origin', '*');
+  r.headers.set('Access-Control-Expose-Headers', 'Retry-After');
+  return r;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/api/health') {
-      let osu = null;
-      if (env.MATCHMAKER) {
-        try { osu = await (await env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api')).fetch('https://osu-api/osu/state')).json(); } catch { /* no state yet */ }
-      }
-      return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu, womFallbackError: womApi.lastError }, 200, { 'Cache-Control': 'no-store' });
+    if (url.pathname.startsWith('/api/')) {
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: PREFLIGHT });
+      return withCors(await api(request, env, url));
     }
-    if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
-      if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);
-      return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
-    }
-    if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
-    if (url.pathname === '/api/osuFile') return handleOsuFile(url);
-    if (url.pathname === '/api/lookupBeatmap') return handleLookupBeatmap(url, env);
-    const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
-    if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
-    if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
-    if (url.pathname.startsWith('/api/')) return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);
   },
 };
+
+/** The game's API (/api/*). */
+async function api(request, env, url) {
+  if (url.pathname === '/api/health') {
+    let osu = null;
+    if (env.MATCHMAKER) {
+      try { osu = await (await env.MATCHMAKER.get(env.MATCHMAKER.idFromName('osu-api')).fetch('https://osu-api/osu/state')).json(); } catch { /* no state yet */ }
+    }
+    return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu, womFallbackError: womApi.lastError }, 200, { 'Cache-Control': 'no-store' });
+  }
+  if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
+    if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);
+    return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
+  }
+  if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
+  if (url.pathname === '/api/osuFile') return handleOsuFile(url);
+  if (url.pathname === '/api/lookupBeatmap') return handleLookupBeatmap(url, env);
+  const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
+  if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
+  if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
+  return json({ error: 'Not found' }, 404);
+}

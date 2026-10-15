@@ -15,7 +15,7 @@ const Mobile = {
     this.noZoom();
     Orientation.init();
     let quiet = false; try { quiet = localStorage.getItem('am.noInstallPrompt') === '1'; } catch { /* private mode */ }
-    if (!App.installed && !quiet) this.showInstall();
+    if (!App.installed && !quiet && !Host.standalone) this.showInstall(); // (a saved HTML file can't be installed)
     Bus.on('install:available', () => this.inst && this.paintInstall());
   },
   /** No zooming the page on a phone or tablet, in the app or the browser: pinching (iOS ignores the viewport's
@@ -98,7 +98,7 @@ const Mobile = {
       how.hidden = false; // (no one-tap install here: the steps)
     };
     el.append(h('div.mob-inst-box',
-      h('img', { src: 'icons/icon-192.png', alt: '' }),
+      h('img', { src: Host.asset('icons/icon-192.png'), alt: '' }),
       h('h2', 'Downloading the app is recommended'),
       h('p.mob-inst-warn', 'Playing in the browser isn\'t recommended on phones.'),
       h('p', 'In a browser tab the address bar, swipe gestures and browser timing get in the way. The app opens full screen, runs smoother and plays offline.'),
