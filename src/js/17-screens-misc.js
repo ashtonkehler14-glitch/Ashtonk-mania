@@ -364,7 +364,9 @@ const ProfileScreen = {
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
       h('div.pf-id',
-        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')) : null),
+        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) Account.setName(n); } }, icon('edit')) : null,
+          // (a guest's own profile: signing in makes it the same player on every device)
+          own && !Account.signedIn() && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => LoginPanel.open() }, icon('user'), Account.signedOut() ? 'Sign in' : 'Guest · Sign in') : null),
         h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
@@ -670,6 +672,19 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.16', title: 'Accounts', sections: [
+    { icon: 'user', title: 'Accounts', items: [
+      'Make an account (click your name in the top bar while you\'re a guest) and sign in to it on every device you play on: they\'re all the same player — one entry on the rankings and beatmap leaderboards, one profile, one friends list',
+      'Signing in on a device you already played on as a guest moves what that guest had online into your account, so importing a save onto another device no longer puts you on the leaderboards twice',
+      'Your username is yours: nobody else can use it (someone trying shows as a guest)',
+      'Sign out from the same place, or by right-clicking your name; your beatmaps, scores and settings stay on the device',
+      'The first-run setup has "Already have an account? Sign in" for a new device'] },
+    { icon: 'film', title: 'Spectating', items: [
+      'Watching someone in the menus is much smoother: their screen is no longer rebuilt every frame (their main menu\'s animations used to make it go out constantly), and your own menu stops drawing underneath it',
+      'Nothing on the screen you\'re watching lights up under your pointer any more — it\'s theirs, to watch'] },
+    { icon: 'download', title: 'Downloads', items: [
+      'Beatmaps start downloading much sooner: if the beatmap provider hasn\'t answered within 2 seconds the next one is tried alongside it (one that never answered used to hold a download up for 25 seconds), and whichever answered first is tried first next time'] },
+  ] },
   { id: '2026.10.15', title: 'Play from a file', sections: [
     { icon: 'download', title: 'Play from a file', items: ['Ctrl+S (or Settings → Maintenance → Save as an HTML file) saves the whole game as one HTML file, skins and pictures inside: open it on any device to play without the website, offline too', 'Multiplayer, beatmap search, rankings and the daily challenge still work from the file: it connects to the website it came from', 'From the file, Ctrl+S gets its newest version'] },
   ] },

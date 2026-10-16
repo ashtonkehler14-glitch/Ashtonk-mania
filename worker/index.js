@@ -336,7 +336,7 @@ export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) 
 }
 
 export { MatchRoom, Matchmaker } from './multiplayer.js';
-import { handleMultiplayer } from './multiplayer.js';
+import { handleMultiplayer, handleAccount } from './multiplayer.js';
 
 /** The game saved as one HTML file (Settings → Maintenance) runs from the device — origin "null" — and calls this
  *  server from there: every /api answer allows any origin (nothing here uses cookies; players prove who they are with
@@ -382,5 +382,6 @@ async function api(request, env, url) {
   const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
   if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
   if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
+  if (url.pathname.startsWith('/api/account/')) return handleAccount(request, env, url);
   return json({ error: 'Not found' }, 404);
 }

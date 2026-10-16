@@ -452,9 +452,11 @@ const Presence = {
     if (!k || k.length < 32) { const a = new Uint8Array(24); crypto.getRandomValues(a); k = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('am.key', k); } catch { /* private mode */ } }
     return (this._key = k);
   },
-  /** This player's public id: kept in this browser, so friends recognise you between visits. */
+  /** This player's public id: kept in this browser, so friends recognise you between visits — the account's, once
+   *  signed in (Account). None after signing out: a new guest would put the same scores on the rankings again. */
   pid() {
     if (this._pid) return this._pid;
+    if (typeof Account !== 'undefined' && Account.signedOut()) return '';
     let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
     if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
     return (this._pid = p);
@@ -527,7 +529,8 @@ const Presence = {
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
-      else if (m.t === 'repid') { if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (signed in: the account's key here doesn't work any more — signed out, not quietly made a guest)
+      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.signedIn()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
@@ -557,6 +560,8 @@ const Presence = {
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
   later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(15000, 1000 * 2 ** this.retry++)); },
+  /** Connect again now as whoever this device is (after signing in or out). */
+  reconnect() { if (this.ws) this.dropDead(this.ws); else this.wake(); },
   /** A connection that went silent: close it and connect again now (as if it had closed). */
   dropDead(ws) {
     if (this.ws !== ws) return;

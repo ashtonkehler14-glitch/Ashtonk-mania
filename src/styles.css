@@ -3650,6 +3650,10 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
 .spec-rk { position: fixed; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
 .spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
+/* (their screen is only to look at: nothing on it lights up or answers to your pointer — not even the parts their own
+   styles make clickable — and your own screen under it isn't drawn while it's covered) */
+.spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { pointer-events: none !important; cursor: inherit !important; }
+body.spec-rk-on #app { visibility: hidden; }
 .spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
 .spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
 .spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
@@ -4604,3 +4608,34 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.slow .lz-fountain, :root.slow .ov-waves { display: none !important; }
 :root.slow #bg-layer { transform: none !important; }
 :root.slow #bg-a, :root.slow #bg-b { will-change: auto; }
+
+/* ── accounts: lazer's LoginOverlay — 360px on Purple Background4, square, a black shadow (radius 10), fading in
+   (OutQuint) under the right of the toolbar; ACCOUNT, the fields, the error line, Sign in, then Register */
+.login-ov > .backdrop { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.login-panel { position: absolute; top: var(--toolbar-h); right: 10px; z-index: 56; width: 360px; max-width: calc(100% - 20px); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 20px 16px; background: hsl(255 10% 20%); box-shadow: 0 0 10px rgba(0, 0, 0, .5); color: #fff;
+  animation: lpIn calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
+.login-panel.out { animation: lpOut calc(200ms * var(--anim)) ease-in both; }
+.login-panel.shake { animation: lpShake 420ms cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes lpIn { from { opacity: 0; translate: 0 -8px; } }
+@keyframes lpOut { to { opacity: 0; } }
+@keyframes lpShake { 10%, 90% { translate: -2px 0; } 20%, 80% { translate: 4px 0; } 30%, 50%, 70% { translate: -7px 0; } 40%, 60% { translate: 7px 0; } }
+.lp-title { margin: 2px 0; font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+.lp-in { width: 100%; height: 40px; box-sizing: border-box; font-size: 15px; }
+.lp-btn { width: 100%; justify-content: center; }
+.lp-btn.busy { opacity: .6; pointer-events: none; }
+.lp-err { color: #ff6666; font-size: 13px; line-height: 1.4; }
+.lp-hint { margin: -2px 0 4px; font-size: 12px; line-height: 1.45; color: hsl(255 20% 78%); }
+.lp-note { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: hsl(255 15% 70%); }
+.lp-link { padding: 0; border: 0; background: none; color: hsl(255 100% 82%); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.lp-user { display: flex; align-items: center; gap: 12px; padding: 8px; border: 0; border-radius: 6px; background: hsl(255 10% 15%); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 200ms; }
+.lp-user:hover { background: hsl(255 10% 26%); }
+.lp-user-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lp-user-t b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-user-t small { font-size: 12px; color: hsl(255 15% 70%); }
+.setup-signin { margin-top: 12px; padding: 4px; border: 0; background: none; color: var(--accent); font: inherit; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pf-signin { margin-left: 8px; font-size: .78rem; text-shadow: none; }
+@media (max-width: 420px) { .login-panel { right: 10px; left: 10px; width: auto; max-width: none; } }
+/* (notifications go beside the sign-in panel while it's open, not over its fields) */
+html.lp-open #toasts { right: 380px; }
+@media (max-width: 760px) { html.lp-open #toasts { opacity: 0; pointer-events: none; } }

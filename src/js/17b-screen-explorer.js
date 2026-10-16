@@ -156,44 +156,86 @@ const OnlineBeatmaps = {
   /** (`signal`: cancels it — the download throws an error with `cancelled` set) */
   async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo'), signal = null) {
     const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
-    const urls = this.downloadURLs(id, viaServer, noVideo);
+    let urls = this.downloadURLs(id, viaServer, noVideo);
+    const chosen = urls[0];
+    // (the source that answered first last time goes first: one that's slow or blocked where you are stops costing
+    // every download its wait)
+    const host = u => { try { return new URL(u, location.href).host + (u.includes('api/downloadBeatmap') ? '/proxy' : ''); } catch { return u; } };
+    const bi = this._best ? urls.findIndex(u => host(u) === this._best) : -1;
+    if (bi > 0) urls = [urls[bi], ...urls.slice(0, bi), ...urls.slice(bi + 1)];
     const cancelled = () => Object.assign(new Error('Download cancelled'), { cancelled: true });
-    let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
-    for (const url of urls) {
-      if (signal && signal.aborted) throw cancelled();
-      // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
-      // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
-      const ctl = new AbortController(), stop = () => ctl.abort();
-      if (signal) signal.addEventListener('abort', stop);
-      let timer = setTimeout(() => ctl.abort(), 25000);
-      const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
-      try {
-        const r = await fetch(url, { signal: ctl.signal });
-        const ct = r.headers.get('content-type') || '';
-        if (!r.ok || !r.body || /json|html|text/.test(ct)) { lastErr = new Error(this.downloadError(r.ok ? 0 : r.status, r.headers.get('Retry-After'))); firstErr = firstErr || lastErr; continue; }
-        kick();
-        const total = Number(r.headers.get('content-length')) || 0;
-        const reader = r.body && r.body.getReader ? r.body.getReader() : null;
-        let blob;
-        if (reader) {
-          const chunks = []; let got = 0;
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            kick();
-            chunks.push(value); got += value.length;
-            onProgress && onProgress(total ? got / total : null, got);
-          }
-          blob = new Blob(chunks);
-        } else blob = await r.blob();
-        if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
-        return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
-      } catch (e) { if (signal && signal.aborted) throw cancelled(); lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
-      finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', stop); }
-    }
     if (signal && signal.aborted) throw cancelled();
-    throw firstErr || lastErr || new Error('Download failed');
+    // The sources overlap rather than queue: the first starts at once, and each STAGGER ms without an answer the next
+    // one starts alongside (a provider that never answers used to hold the download 25 s before the next was tried).
+    // The first to answer with the file is downloaded and the rest are dropped; one that fails or stalls part-way hands
+    // over to the next. (The chosen provider's error is the one shown, as WOM shows it.)
+    return new Promise((resolve, reject) => {
+      let next = 0, live = 0, winner = null, done = false, firstErr = null, lastErr = null, stagger = 0;
+      const flights = new Set();
+      const finish = (err, file) => {
+        if (done) return;
+        done = true; clearTimeout(stagger);
+        if (signal) signal.removeEventListener('abort', onAbort);
+        for (const f of flights) f.abort();
+        if (file) resolve(file); else reject(err);
+      };
+      const onAbort = () => finish(cancelled());
+      if (signal) signal.addEventListener('abort', onAbort);
+      const failed = (e, url) => {
+        lastErr = e; if (url === chosen) firstErr = e;
+        if (winner === null) launch(); // (nothing downloading: the next source now, not after the wait)
+        if (!live && next >= urls.length && winner === null) finish(firstErr || lastErr || new Error('Download failed'));
+      };
+      const launch = () => {
+        if (done || winner !== null || next >= urls.length) return;
+        const url = urls[next++];
+        clearTimeout(stagger);
+        if (next < urls.length) stagger = setTimeout(launch, this.STAGGER);
+        const ctl = new AbortController();
+        flights.add(ctl); live++;
+        let timer = setTimeout(() => ctl.abort(), 25000); // (no answer at all in 25 s: given up on)
+        const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); }; // (no data for 30 s: stalled)
+        (async () => {
+          const r = await fetch(url, { signal: ctl.signal });
+          const ct = r.headers.get('content-type') || '';
+          if (!r.ok || !r.body || /json|html|text/.test(ct)) throw new Error(this.downloadError(r.ok ? 0 : r.status, r.headers.get('Retry-After')));
+          if (winner !== null || done) { ctl.abort(); return null; } // (another source got there first)
+          winner = url; clearTimeout(stagger);
+          for (const f of flights) if (f !== ctl) f.abort();
+          kick();
+          const total = Number(r.headers.get('content-length')) || 0;
+          const reader = r.body.getReader ? r.body.getReader() : null;
+          let blob;
+          if (reader) {
+            const chunks = []; let got = 0;
+            for (;;) {
+              const { done: end, value } = await reader.read();
+              if (end) break;
+              kick();
+              chunks.push(value); got += value.length;
+              onProgress && onProgress(total ? got / total : null, got);
+            }
+            blob = new Blob(chunks);
+          } else blob = await r.blob();
+          if (blob.size < 200) throw new Error('Empty download');
+          return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
+        })().then(file => {
+          clearTimeout(timer); flights.delete(ctl); live--;
+          if (!file) { if (!live && next >= urls.length && winner === null) finish(firstErr || lastErr || new Error('Download failed')); return; }
+          this._best = host(url);
+          finish(null, file);
+        }, e => {
+          clearTimeout(timer); flights.delete(ctl); live--;
+          if (done) return;
+          if (winner === url) winner = null; // (the one being downloaded failed part-way: the others carry on)
+          if (winner !== null) return; // (dropped because another source answered first)
+          failed(ctl.signal.aborted && !(signal && signal.aborted) ? new Error(this.downloadError(504)) : e, url);
+        });
+      };
+      launch();
+    });
   },
+  STAGGER: 2000,
   /** Download a set and import it into the library (remembering its online id). */
   async downloadAndImport(set, onProgress, { quiet = false, noVideo, signal } = {}) {
     const file = await this.download(set.id, onProgress, noVideo, signal);

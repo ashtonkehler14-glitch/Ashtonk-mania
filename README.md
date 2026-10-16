@@ -6,6 +6,8 @@ A mania rhythm game that runs in your browser, made to look and feel like osu!la
 
 Open `index.html` in Chrome, Edge, Firefox or Safari. Drag `.osz` beatmaps or `.osk` skins onto the window to add them, or find songs with **Browse**. Everything is saved in your browser.
 
+Make an account (click your name in the top bar) and sign in on each device you play on. All of them count as the same player online, with one spot on the rankings, so importing a save onto another device doesn't list you twice.
+
 To play without the website, press **Ctrl+S** in the game (or Settings → Maintenance → **Save as an HTML file**). You get one file with the whole game inside, skins and pictures included. Open it in a browser on any device. It plays offline, and multiplayer, beatmap search and rankings connect to the website it was saved from. The file keeps its own beatmaps, scores and settings: move them with **Export all data** and **Import data**.
 
 Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore) and import it here. Your songs, scores, collections, keybinds and skin come with it.
@@ -31,6 +33,7 @@ node --test tests/*.test.mjs                   # unit tests
 node tests/e2e.mjs                             # browser tests
 MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs      # multiplayer tests
 MINIFLARE_DIR=<dir> node tests/html-file-e2e.mjs # the game saved as one HTML file, opened from the device
+MINIFLARE_DIR=<dir> node tests/accounts-e2e.mjs  # an account signed in on two devices
 ```
 
 ## Credits

@@ -3669,6 +3669,10 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* spectating a friend's Ranked Play screen: their page, read-only, under a bar to stop watching */
 .spec-rk { position: fixed; inset: 0; z-index: 900; background: #16151b; overflow: hidden; animation: fadeIn 200ms ease; }
 .spec-rk-view { position: absolute; inset: 0; pointer-events: none; }
+/* (their screen is only to look at: nothing on it lights up or answers to your pointer — not even the parts their own
+   styles make clickable — and your own screen under it isn't drawn while it's covered) */
+.spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { pointer-events: none !important; cursor: inherit !important; }
+body.spec-rk-on #app { visibility: hidden; }
 .spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
 .spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
 .spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }
@@ -4623,6 +4627,37 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 :root.slow .lz-fountain, :root.slow .ov-waves { display: none !important; }
 :root.slow #bg-layer { transform: none !important; }
 :root.slow #bg-a, :root.slow #bg-b { will-change: auto; }
+
+/* ── accounts: lazer's LoginOverlay — 360px on Purple Background4, square, a black shadow (radius 10), fading in
+   (OutQuint) under the right of the toolbar; ACCOUNT, the fields, the error line, Sign in, then Register */
+.login-ov > .backdrop { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.login-panel { position: absolute; top: var(--toolbar-h); right: 10px; z-index: 56; width: 360px; max-width: calc(100% - 20px); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 20px 16px; background: hsl(255 10% 20%); box-shadow: 0 0 10px rgba(0, 0, 0, .5); color: #fff;
+  animation: lpIn calc(500ms * var(--anim)) cubic-bezier(.22, 1, .36, 1) both; }
+.login-panel.out { animation: lpOut calc(200ms * var(--anim)) ease-in both; }
+.login-panel.shake { animation: lpShake 420ms cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes lpIn { from { opacity: 0; translate: 0 -8px; } }
+@keyframes lpOut { to { opacity: 0; } }
+@keyframes lpShake { 10%, 90% { translate: -2px 0; } 20%, 80% { translate: 4px 0; } 30%, 50%, 70% { translate: -7px 0; } 40%, 60% { translate: 7px 0; } }
+.lp-title { margin: 2px 0; font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+.lp-in { width: 100%; height: 40px; box-sizing: border-box; font-size: 15px; }
+.lp-btn { width: 100%; justify-content: center; }
+.lp-btn.busy { opacity: .6; pointer-events: none; }
+.lp-err { color: #ff6666; font-size: 13px; line-height: 1.4; }
+.lp-hint { margin: -2px 0 4px; font-size: 12px; line-height: 1.45; color: hsl(255 20% 78%); }
+.lp-note { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: hsl(255 15% 70%); }
+.lp-link { padding: 0; border: 0; background: none; color: hsl(255 100% 82%); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.lp-user { display: flex; align-items: center; gap: 12px; padding: 8px; border: 0; border-radius: 6px; background: hsl(255 10% 15%); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 200ms; }
+.lp-user:hover { background: hsl(255 10% 26%); }
+.lp-user-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lp-user-t b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-user-t small { font-size: 12px; color: hsl(255 15% 70%); }
+.setup-signin { margin-top: 12px; padding: 4px; border: 0; background: none; color: var(--accent); font: inherit; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pf-signin { margin-left: 8px; font-size: .78rem; text-shadow: none; }
+@media (max-width: 420px) { .login-panel { right: 10px; left: 10px; width: auto; max-width: none; } }
+/* (notifications go beside the sign-in panel while it's open, not over its fields) */
+html.lp-open #toasts { right: 380px; }
+@media (max-width: 760px) { html.lp-open #toasts { opacity: 0; pointer-events: none; } }
 
 </style>
 </head>
@@ -11546,7 +11581,11 @@ const DataManager = {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
     if (obj.settings) await Settings.import(obj.settings);
     if (obj.kind === 'settings') return;
-    if (obj.profile) { ProfileManager.profile = { ...ProfileManager.profile, ...obj.profile }; await ProfileManager.save(); }
+    if (obj.profile) {
+      ProfileManager.profile = { ...ProfileManager.profile, ...obj.profile };
+      if (typeof Account !== 'undefined' && Account.signedIn()) ProfileManager.profile.name = Account.name(); // (the account's name, not the save's)
+      await ProfileManager.save();
+    }
     if (Array.isArray(obj.favorites)) { for (const f of obj.favorites) Favorites.set.add(f); await DB.kvSet('favorites', [...Favorites.set]); }
     if (Array.isArray(obj.collections)) {
       for (const c of obj.collections) {
@@ -11559,6 +11598,9 @@ const DataManager = {
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
+    // (a save from another device, imported by a guest: signing in to your account here keeps you one player online)
+    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !Account.signedIn() && Multiplayer.available())
+      setTimeout(() => Toast.show('Playing on more than one device?', 'Sign in to your account here too (your name in the top bar), so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
   },
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;
@@ -12572,7 +12614,8 @@ const Toolbar = {
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
+        // (lazer's ToolbarUserButton: signed out, it opens the sign-in panel; signed in, your profile)
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); if (Account.signedIn() || !Multiplayer.available()) this.pages.profile(); else LoginPanel.open(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.clock,
         this.bell),
@@ -12710,6 +12753,10 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
+      // (lazer's UserDropdown ends with Sign out)
+      ...(!Multiplayer.available() ? [] : [{ sep: true }, ...(Account.signedIn()
+        ? [{ label: `Signed in as ${Account.name()}`, icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Sign out', icon: 'x', onClick: () => LoginPanel.open() }]
+        : [{ label: 'Sign in', icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Create an account', icon: 'user-plus', onClick: () => LoginPanel.open({ page: 'register' }) }])]),
     ]);
     return m;
   },
@@ -13674,7 +13721,7 @@ const HomeScreen = {
     const tick = now => {
       this._raf = requestAnimationFrame(tick);
       const cv = this.vis;
-      if (!cv.isConnected) return;
+      if (!cv.isConnected || (typeof Spectate !== 'undefined' && Spectate.rkEl)) return; // (covered by a spectated player's screen: nothing to draw)
       const dt = Math.min(100, now - lastT); lastT = now;
       // Performance mode: no visualiser, triangles, fountains or beat — the logo sits still (only the idle return runs)
       if (Settings.get('graphics.performanceMode')) {
@@ -14290,6 +14337,7 @@ const NeruMascot = {
     let last = performance.now();
     const tick = now => {
       if (!this.el || !this.body || !this.el.isConnected) { if (this.el && !this.el.isConnected) this.stop(); else this._raf = requestAnimationFrame(tick); return; }
+      if (typeof Spectate !== 'undefined' && Spectate.rkEl) { last = now; this._raf = requestAnimationFrame(tick); return; } // (hidden under a spectated screen)
       const dt = Math.min(64, now - last); last = now;
       let want = 0;
       if (this._px != null && this._rect && Settings.get('ui.animSpeed')) {
@@ -19311,7 +19359,9 @@ const ProfileScreen = {
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
       h('div.pf-id',
-        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) ProfileManager.setName(n); } }, icon('edit')) : null),
+        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) Account.setName(n); } }, icon('edit')) : null,
+          // (a guest's own profile: signing in makes it the same player on every device)
+          own && !Account.signedIn() && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => LoginPanel.open() }, icon('user'), Account.signedOut() ? 'Sign in' : 'Guest · Sign in') : null),
         h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
@@ -19617,6 +19667,19 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.16', title: 'Accounts', sections: [
+    { icon: 'user', title: 'Accounts', items: [
+      'Make an account (click your name in the top bar while you\'re a guest) and sign in to it on every device you play on: they\'re all the same player — one entry on the rankings and beatmap leaderboards, one profile, one friends list',
+      'Signing in on a device you already played on as a guest moves what that guest had online into your account, so importing a save onto another device no longer puts you on the leaderboards twice',
+      'Your username is yours: nobody else can use it (someone trying shows as a guest)',
+      'Sign out from the same place, or by right-clicking your name; your beatmaps, scores and settings stay on the device',
+      'The first-run setup has "Already have an account? Sign in" for a new device'] },
+    { icon: 'film', title: 'Spectating', items: [
+      'Watching someone in the menus is much smoother: their screen is no longer rebuilt every frame (their main menu\'s animations used to make it go out constantly), and your own menu stops drawing underneath it',
+      'Nothing on the screen you\'re watching lights up under your pointer any more — it\'s theirs, to watch'] },
+    { icon: 'download', title: 'Downloads', items: [
+      'Beatmaps start downloading much sooner: if the beatmap provider hasn\'t answered within 2 seconds the next one is tried alongside it (one that never answered used to hold a download up for 25 seconds), and whichever answered first is tried first next time'] },
+  ] },
   { id: '2026.10.15', title: 'Play from a file', sections: [
     { icon: 'download', title: 'Play from a file', items: ['Ctrl+S (or Settings → Maintenance → Save as an HTML file) saves the whole game as one HTML file, skins and pictures inside: open it on any device to play without the website, offline too', 'Multiplayer, beatmap search, rankings and the daily challenge still work from the file: it connects to the website it came from', 'From the file, Ctrl+S gets its newest version'] },
   ] },
@@ -19921,44 +19984,86 @@ const OnlineBeatmaps = {
   /** (`signal`: cancels it — the download throws an error with `cancelled` set) */
   async download(id, onProgress, noVideo = !!Settings.get('online.preferNoVideo'), signal = null) {
     const viaServer = Settings.get('online.proxyDownloads') && await this.checkApi();
-    const urls = this.downloadURLs(id, viaServer, noVideo);
+    let urls = this.downloadURLs(id, viaServer, noVideo);
+    const chosen = urls[0];
+    // (the source that answered first last time goes first: one that's slow or blocked where you are stops costing
+    // every download its wait)
+    const host = u => { try { return new URL(u, location.href).host + (u.includes('api/downloadBeatmap') ? '/proxy' : ''); } catch { return u; } };
+    const bi = this._best ? urls.findIndex(u => host(u) === this._best) : -1;
+    if (bi > 0) urls = [urls[bi], ...urls.slice(0, bi), ...urls.slice(bi + 1)];
     const cancelled = () => Object.assign(new Error('Download cancelled'), { cancelled: true });
-    let lastErr = null, firstErr = null; // (the chosen provider's error is the one shown, as WOM shows it)
-    for (const url of urls) {
-      if (signal && signal.aborted) throw cancelled();
-      // a mirror that never answers (or stalls part-way) used to hold the download — and a whole collection
-      // import — forever: no answer in 25 s, or no data for 30 s, moves on to the next source
-      const ctl = new AbortController(), stop = () => ctl.abort();
-      if (signal) signal.addEventListener('abort', stop);
-      let timer = setTimeout(() => ctl.abort(), 25000);
-      const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
-      try {
-        const r = await fetch(url, { signal: ctl.signal });
-        const ct = r.headers.get('content-type') || '';
-        if (!r.ok || !r.body || /json|html|text/.test(ct)) { lastErr = new Error(this.downloadError(r.ok ? 0 : r.status, r.headers.get('Retry-After'))); firstErr = firstErr || lastErr; continue; }
-        kick();
-        const total = Number(r.headers.get('content-length')) || 0;
-        const reader = r.body && r.body.getReader ? r.body.getReader() : null;
-        let blob;
-        if (reader) {
-          const chunks = []; let got = 0;
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            kick();
-            chunks.push(value); got += value.length;
-            onProgress && onProgress(total ? got / total : null, got);
-          }
-          blob = new Blob(chunks);
-        } else blob = await r.blob();
-        if (blob.size < 200) { lastErr = new Error('Empty download'); continue; }
-        return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
-      } catch (e) { if (signal && signal.aborted) throw cancelled(); lastErr = ctl.signal.aborted ? new Error(this.downloadError(504)) : e; firstErr = firstErr || lastErr; }
-      finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', stop); }
-    }
     if (signal && signal.aborted) throw cancelled();
-    throw firstErr || lastErr || new Error('Download failed');
+    // The sources overlap rather than queue: the first starts at once, and each STAGGER ms without an answer the next
+    // one starts alongside (a provider that never answers used to hold the download 25 s before the next was tried).
+    // The first to answer with the file is downloaded and the rest are dropped; one that fails or stalls part-way hands
+    // over to the next. (The chosen provider's error is the one shown, as WOM shows it.)
+    return new Promise((resolve, reject) => {
+      let next = 0, live = 0, winner = null, done = false, firstErr = null, lastErr = null, stagger = 0;
+      const flights = new Set();
+      const finish = (err, file) => {
+        if (done) return;
+        done = true; clearTimeout(stagger);
+        if (signal) signal.removeEventListener('abort', onAbort);
+        for (const f of flights) f.abort();
+        if (file) resolve(file); else reject(err);
+      };
+      const onAbort = () => finish(cancelled());
+      if (signal) signal.addEventListener('abort', onAbort);
+      const failed = (e, url) => {
+        lastErr = e; if (url === chosen) firstErr = e;
+        if (winner === null) launch(); // (nothing downloading: the next source now, not after the wait)
+        if (!live && next >= urls.length && winner === null) finish(firstErr || lastErr || new Error('Download failed'));
+      };
+      const launch = () => {
+        if (done || winner !== null || next >= urls.length) return;
+        const url = urls[next++];
+        clearTimeout(stagger);
+        if (next < urls.length) stagger = setTimeout(launch, this.STAGGER);
+        const ctl = new AbortController();
+        flights.add(ctl); live++;
+        let timer = setTimeout(() => ctl.abort(), 25000); // (no answer at all in 25 s: given up on)
+        const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); }; // (no data for 30 s: stalled)
+        (async () => {
+          const r = await fetch(url, { signal: ctl.signal });
+          const ct = r.headers.get('content-type') || '';
+          if (!r.ok || !r.body || /json|html|text/.test(ct)) throw new Error(this.downloadError(r.ok ? 0 : r.status, r.headers.get('Retry-After')));
+          if (winner !== null || done) { ctl.abort(); return null; } // (another source got there first)
+          winner = url; clearTimeout(stagger);
+          for (const f of flights) if (f !== ctl) f.abort();
+          kick();
+          const total = Number(r.headers.get('content-length')) || 0;
+          const reader = r.body.getReader ? r.body.getReader() : null;
+          let blob;
+          if (reader) {
+            const chunks = []; let got = 0;
+            for (;;) {
+              const { done: end, value } = await reader.read();
+              if (end) break;
+              kick();
+              chunks.push(value); got += value.length;
+              onProgress && onProgress(total ? got / total : null, got);
+            }
+            blob = new Blob(chunks);
+          } else blob = await r.blob();
+          if (blob.size < 200) throw new Error('Empty download');
+          return Object.assign(new File([blob], `${id}.osz`, { type: 'application/zip' }), { noVideo });
+        })().then(file => {
+          clearTimeout(timer); flights.delete(ctl); live--;
+          if (!file) { if (!live && next >= urls.length && winner === null) finish(firstErr || lastErr || new Error('Download failed')); return; }
+          this._best = host(url);
+          finish(null, file);
+        }, e => {
+          clearTimeout(timer); flights.delete(ctl); live--;
+          if (done) return;
+          if (winner === url) winner = null; // (the one being downloaded failed part-way: the others carry on)
+          if (winner !== null) return; // (dropped because another source answered first)
+          failed(ctl.signal.aborted && !(signal && signal.aborted) ? new Error(this.downloadError(504)) : e, url);
+        });
+      };
+      launch();
+    });
   },
+  STAGGER: 2000,
   /** Download a set and import it into the library (remembering its online id). */
   async downloadAndImport(set, onProgress, { quiet = false, noVideo, signal } = {}) {
     const file = await this.download(set.id, onProgress, noVideo, signal);
@@ -21491,7 +21596,7 @@ const Onboarding = {
     if (this.step.id === 'welcome') {
       const n = this.nameEl.value.trim();
       if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
-      if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
+      if (n !== ProfileManager.profile.name) await Account.setName(n);
       Toolbar.updateProfile();
     }
     return true;
@@ -21524,7 +21629,9 @@ const Onboarding = {
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; });
     this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-    return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
+    // (already playing on another device: sign in, and this one is the same player)
+    const signIn = Multiplayer.available() && !Account.signedIn() ? h('button.setup-signin', { onclick: () => { UISounds.click(); LoginPanel.open({ onDone: n => { this.nameEl.value = n; this.next(); } }); } }, 'Already have an account? Sign in') : null;
+    return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl, signIn];
   },
 
   /** osu!lazer's "import from osu!stable" page, for Web-Osu-Mania: its backup brings keybinds, settings, beatmaps,
@@ -22427,9 +22534,11 @@ const Presence = {
     if (!k || k.length < 32) { const a = new Uint8Array(24); crypto.getRandomValues(a); k = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('am.key', k); } catch { /* private mode */ } }
     return (this._key = k);
   },
-  /** This player's public id: kept in this browser, so friends recognise you between visits. */
+  /** This player's public id: kept in this browser, so friends recognise you between visits — the account's, once
+   *  signed in (Account). None after signing out: a new guest would put the same scores on the rankings again. */
   pid() {
     if (this._pid) return this._pid;
+    if (typeof Account !== 'undefined' && Account.signedOut()) return '';
     let p = null; try { p = localStorage.getItem('am.pid'); } catch { /* private mode */ }
     if (!p || !/^[a-z0-9]{6,24}$/.test(p)) { p = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 16); try { localStorage.setItem('am.pid', p); } catch { /* private mode */ } }
     return (this._pid = p);
@@ -22502,7 +22611,8 @@ const Presence = {
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
-      else if (m.t === 'repid') { if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (signed in: the account's key here doesn't work any more — signed out, not quietly made a guest)
+      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.signedIn()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
@@ -22532,6 +22642,8 @@ const Presence = {
   /** Still finding out whether the server is there (the first look, or the first connection attempt). */
   connecting() { return Multiplayer.available() && (!this.started || this.health === 'checking' || (this.health === 'ok' && !this.retry && !(this.ws && this.ws.readyState === 1))); },
   later() { clearTimeout(this._t); if (this.away) return; this._t = setTimeout(() => this.connect(), Math.min(15000, 1000 * 2 ** this.retry++)); },
+  /** Connect again now as whoever this device is (after signing in or out). */
+  reconnect() { if (this.ws) this.dropDead(this.ws); else this.wake(); },
   /** A connection that went silent: close it and connect again now (as if it had closed). */
   dropDead(ws) {
     if (this.ws !== ws) return;
@@ -24481,15 +24593,24 @@ const Spectate = {
   stalled() { const c = this.cur; return !!(c && (c.buffering || c.pauseShown || c.ended || c.failed)); },
   showRk(html) {
     this._rk = html || null;
-    if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
+    if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; document.body.classList.remove('spec-rk-on'); } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
       this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
+      // (your own screen is all under it: not drawn, and its menu's animations stop, while theirs covers it)
+      document.body.classList.add('spec-rk-on');
       if (this._lastCur) this.onCur(this._lastCur);
     }
+    // (their screen can change many times a second: it's brought up to date once a frame at most, with the newest copy
+    // — the ones in between are skipped rather than each worked through)
+    if (!this._rkRaf) this._rkRaf = requestAnimationFrame(() => { this._rkRaf = 0; if (this.rkEl && this._rk) this.applyRk(this._rk); });
+  },
+  applyRk(html) {
+    if (html === this._rkApplied && this.rkView.firstChild) return;
+    this._rkApplied = html;
     const t = document.createElement('template');
     t.innerHTML = html;
     const ok = u => /^(https:|data:image\/)/i.test(u.trim());
@@ -24598,7 +24719,18 @@ const Spectate = {
     if (!app) return;
     // (copied as soon as something on screen changes — or a list is scrolled — at most every MIR_GAP ms)
     if (!this._mo) {
-      this._mo = new MutationObserver(recs => { if (recs.some(r => r.attributeName !== 'data-ss' && !(r.target.closest && r.target.closest('.spec-rk')))) this.mirrorSoon(); });
+      // (a change to what's on screen goes out straight away; one that's only an inline style — the logo pulsing to the
+      // beat, Neru bobbing, a progress bar — every 400ms at most: those change every frame, and each copy costs the
+      // watchers' games a whole screen's worth of work)
+      this._mo = new MutationObserver(recs => {
+        let any = false;
+        for (const r of recs) {
+          if (r.attributeName === 'data-ss' || (r.target.closest && r.target.closest('.spec-rk'))) continue;
+          if (r.type !== 'attributes' || r.attributeName !== 'style') { this.mirrorSoon(); return; }
+          any = true;
+        }
+        if (any) this.mirrorSoon(400);
+      });
       this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true });
       this.hostCur(true);
       // (lists already scrolled before anyone watched — a chat at its newest lines — go at their place too)
@@ -24607,12 +24739,14 @@ const Spectate = {
     }
     this.mirrorFlush();
   },
-  MIR_GAP: 33,
-  mirrorSoon() {
+  MIR_GAP: 50,
+  mirrorSoon(gap = this.MIR_GAP) {
     this._dirty = true;
-    if (this._mirT) return;
-    const wait = Math.max(0, (this._mirAt || 0) + Math.max(this.MIR_GAP, (this._mirCost || 0) * 6) - performance.now());
-    this._mirT = setTimeout(() => { this._mirT = 0; try { this.mirrorTick(); } catch { /* the next change tries again */ } }, wait);
+    const now = performance.now(), due = Math.max(now, (this._mirAt || 0) + Math.max(gap, (this._mirCost || 0) * 6));
+    if (this._mirT && this._mirDue <= due) return; // (one's already due as soon or sooner)
+    clearTimeout(this._mirT);
+    this._mirDue = due;
+    this._mirT = setTimeout(() => { this._mirT = 0; try { this.mirrorTick(); } catch { /* the next change tries again */ } }, due - now);
   },
   mirrorFlush() {
     if (!this._dirty && this._mirOn) return;
@@ -25764,7 +25898,7 @@ const Verified = {
     }
   },
   async submit({ rec, mods, modConfig, seed, events, daily = null }) {
-    if (!Multiplayer.available()) return null;
+    if (!Multiplayer.available() || !Presence.pid()) return null; // (signed out: no scores go up)
     const osu = await this.file(rec);
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
@@ -26318,6 +26452,192 @@ function blobToDataURL(blob) {
 /** A value as JavaScript source that's safe inside a <script> tag. */
 function jsString(v) { return JSON.stringify(v).replace(/</g, '\\u003c'); }
 
+/* ===== 19n-account.js ===== */
+/* Accounts: osu!lazer's sign-in (its LoginOverlay, under the user button on the toolbar). An account is a username and
+ * password on the game's server, and every device signed in to it is the same player — one entry on the rankings and
+ * the beatmap boards, one profile and friends list. Without one you play as a guest of this browser, as before.
+ * Signing in on a device that was playing as a guest moves that guest's scores, rank and friends into the account
+ * (the server does it), so a save imported onto a second device doesn't put you on the leaderboards twice.
+ * After Sign out a device has no online identity — it plays, chats and joins rooms, but sends no scores — until it
+ * signs in again or goes back to being a guest. Beatmaps, scores and settings stay on each device (Export / Import data). */
+
+const Account = {
+  /** The username this device is signed in as ('' when it isn't). */
+  name() { try { return localStorage.getItem('am.account') || ''; } catch { return ''; } },
+  signedIn() { return !!this.name(); },
+  /** Signed out (no online identity) rather than a guest. */
+  signedOut() { try { return localStorage.getItem('am.signedOut') === '1'; } catch { return false; } },
+  async call(what, body) {
+    let r;
+    try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
+    catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `The server couldn't do that (${r.status}).`);
+    return d;
+  },
+  /** This device's guest, to go into the account (its key proves it's this device's). */
+  guestId() { const pid = Presence.pid(); return pid && !this.signedIn() ? { pid, key: Presence.key() } : {}; },
+  /** This device is the account's player now. */
+  async become({ name, pid, key }) {
+    try {
+      if (pid) localStorage.setItem('am.pid', pid);
+      if (key) localStorage.setItem('am.key', key);
+      localStorage.setItem('am.account', name);
+      localStorage.removeItem('am.signedOut');
+    } catch { /* private mode */ }
+    Presence._pid = null; Presence._key = null;
+    if (ProfileManager.profile.name !== name) await ProfileManager.setName(name);
+    Toolbar.updateProfile();
+    Presence.reconnect();
+    Bus.emit('account:changed');
+  },
+  async register(name, password) {
+    const d = await this.call('register', { name, password, ...this.guestId() });
+    await this.become(d);
+    UISounds.play('check-on');
+    Toast.ok(`Welcome, ${d.name}!`, 'Your account is ready. Sign in with it on your other devices to be the same player there.');
+    return d;
+  },
+  async login(name, password) {
+    const d = await this.call('login', { name, password, ...this.guestId() });
+    await this.become(d);
+    UISounds.play('check-on');
+    Toast.ok(`Signed in as ${d.name}`, d.merged ? 'What this device had online as a guest is part of your account now — one player on the rankings.' : 'This device plays as your account now.');
+    return d;
+  },
+  async logout() {
+    const pid = Presence.pid(), key = Presence.key();
+    if (pid) this.call('logout', { pid, key }).catch(() => {}); // (the key's forgotten here either way)
+    this.forget();
+    Toast.show('Signed out', 'Scores from this device don\'t go online until you sign in again.');
+  },
+  /** The account's key stopped working here (it was signed out on the server): signed out. */
+  expired() {
+    this.forget();
+    Toast.err('You were signed out', 'Sign in again (your name in the top bar) to send scores from this device.');
+  },
+  forget() {
+    try { ['am.account', 'am.pid', 'am.key'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
+    Presence._pid = null; Presence._key = null;
+    Toolbar.updateProfile();
+    Presence.reconnect();
+    Bus.emit('account:changed');
+  },
+  /** Back to playing as a guest of this browser. */
+  guest() {
+    try { localStorage.removeItem('am.signedOut'); } catch { /* private mode */ }
+    Presence._pid = null; Presence._key = null;
+    Toolbar.updateProfile();
+    Presence.reconnect();
+    Bus.emit('account:changed');
+  },
+  /** Your name: an account's is changed on the server (it has to stay unique), a guest's only here. */
+  async setName(n) {
+    n = String(n || '').trim();
+    if (!n) return;
+    if (!this.signedIn()) { await ProfileManager.setName(n); Toolbar.updateProfile(); return; }
+    try {
+      const d = await this.call('rename', { pid: Presence.pid(), key: Presence.key(), name: n });
+      try { localStorage.setItem('am.account', d.name); } catch { /* private mode */ }
+      await ProfileManager.setName(d.name);
+      Toolbar.updateProfile();
+      Bus.emit('account:changed');
+    } catch (e) { Toast.err('Couldn\'t change your username', friendlyError(e)); }
+  },
+  /** On every start: a signed-in device keeps the account's name (an imported save can bring another one along). */
+  init() {
+    const n = this.name();
+    if (n && ProfileManager.profile.name !== n) ProfileManager.setName(n).then(() => Toolbar.updateProfile()).catch(() => {});
+  },
+};
+
+/** lazer's LoginOverlay: a 360px panel under the right of the toolbar (Purple Background4) — ACCOUNT, username,
+ *  password and Sign in, then Register; signed in, the player and Sign out. Account creation (lazer's own overlay)
+ *  is the same panel's second page, with lazer's words under each field. */
+const LoginPanel = {
+  o: null, page: 'signin',
+  open(opts = {}) {
+    if (this.o) { this.close(); return; }
+    this.opts = opts;
+    this.page = opts.page || 'signin';
+    this.panel = h('div.login-panel', { role: 'dialog', 'aria-label': 'Account' });
+    this.o = makeOverlay(this.panel, { onClose: () => { this.o = null; document.documentElement.classList.remove('lp-open'); } });
+    this.o.el.classList.add('login-ov');
+    document.documentElement.classList.add('lp-open');
+    this.render();
+  },
+  close() { if (this.o) this.o.close(); },
+  render() {
+    const p = this.panel;
+    clearEl(p);
+    if (!Multiplayer.available()) { p.append(h('div.lp-title', 'ACCOUNT'), h('p.lp-note', 'Accounts need the game\'s server. Play on the website, or set its address in Settings → Maintenance.')); return; }
+    if (Account.signedIn()) { this.signedIn(p); return; }
+    if (this.page === 'register') { this.register(p); return; }
+    this.signIn(p);
+  },
+  field(placeholder, type, autocomplete) {
+    const inp = h('input.input.lp-in', { type, placeholder, autocomplete, spellcheck: 'false', autocapitalize: 'off', maxlength: type === 'password' ? 200 : 15, 'aria-label': placeholder });
+    inp.addEventListener('keydown', e => e.stopPropagation());
+    return inp;
+  },
+  busy(btn, on) { btn.disabled = on; btn.classList.toggle('busy', on); },
+  signIn(p) {
+    const user = this.field('username', 'text', 'username'), pass = this.field('password', 'password', 'current-password');
+    const err = h('div.lp-err', { hidden: true });
+    const go = h('button.btn.primary.lp-btn', 'Sign in');
+    const submit = async () => {
+      if (!user.value.trim() || !pass.value) { err.hidden = false; err.textContent = 'Type your username and password.'; (user.value.trim() ? pass : user).focus(); return; }
+      this.busy(go, true); err.hidden = true;
+      try { const d = await Account.login(user.value, pass.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
+      catch (e) { err.hidden = false; err.textContent = friendlyError(e); pass.select(); this.panel.classList.remove('shake'); void this.panel.offsetWidth; this.panel.classList.add('shake'); }
+      finally { this.busy(go, false); }
+    };
+    go.addEventListener('click', submit);
+    pass.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    user.addEventListener('keydown', e => { if (e.key === 'Enter') pass.focus(); });
+    p.append(h('div.lp-title', 'ACCOUNT'), user, pass, err, go,
+      h('button.btn.lp-btn', { onclick: () => { UISounds.click(); this.page = 'register'; this.render(); } }, 'Create an account'),
+      Account.signedOut()
+        ? h('p.lp-note', 'Signed out: scores from this device don\'t go online. ', h('button.lp-link', { onclick: () => { Account.guest(); this.close(); Toast.show('Playing as a guest', 'Scores from this device go online as a guest of this browser.'); } }, 'Play as a guest instead'))
+        : h('p.lp-note', 'You\'re playing as a guest of this browser. Sign in to be the same player on every device — what you have here as a guest comes with you.'));
+    setTimeout(() => user.focus(), 60);
+  },
+  register(p) {
+    const user = this.field('username', 'text', 'username'), pass = this.field('password', 'password', 'new-password');
+    user.value = Account.signedOut() ? '' : (ProfileManager.profile.name || '').slice(0, 15);
+    const err = h('div.lp-err', { hidden: true });
+    const go = h('button.btn.primary.lp-btn', 'Create account');
+    const submit = async () => {
+      this.busy(go, true); err.hidden = true;
+      try { const d = await Account.register(user.value, pass.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
+      catch (e) { err.hidden = false; err.textContent = friendlyError(e); }
+      finally { this.busy(go, false); }
+    };
+    go.addEventListener('click', submit);
+    pass.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    user.addEventListener('keydown', e => { if (e.key === 'Enter') pass.focus(); });
+    // (lazer's account creation, without the email: what each field is for, in its words)
+    p.append(h('div.lp-title', 'CREATE AN ACCOUNT'),
+      user, h('p.lp-hint', 'This will be your public presence. No profanity, no impersonation. Avoid exposing your own personal details, too! (3 to 15 letters, numbers or spaces.)'),
+      pass, h('p.lp-hint', 'At least 8 characters long. Choose something long but also something you will remember, like a line from your favourite song. There\'s no way to get it back if you forget it.'),
+      err, go,
+      h('button.btn.lp-btn', { onclick: () => { UISounds.back(); this.page = 'signin'; this.render(); } }, 'I have an account'),
+      Account.signedOut() ? null : h('p.lp-note', 'Your scores, rank and friends as a guest on this device become the account\'s.'));
+    setTimeout(() => (user.value ? pass : user).focus(), 60);
+  },
+  signedIn(p) {
+    const out = h('button.btn.lp-btn.danger', 'Sign out');
+    out.addEventListener('click', async () => {
+      if (!(await Dialog.confirm('Sign out?', 'Scores from this device won\'t go online until you sign in again. Your beatmaps, scores and settings here stay.', { ok: 'Sign out' }))) return;
+      this.close(); Account.logout();
+    });
+    p.append(h('div.lp-title', 'SIGNED IN'),
+      h('button.lp-user', { onclick: () => { this.close(); Screens.go('profile'); } }, ProfileManager.avatarEl(48), h('span.lp-user-t', h('b', Account.name()), h('small', 'View profile'))),
+      h('p.lp-note', 'Every device signed in to this account is the same player. Beatmaps and settings stay on each device — move them with Settings → Maintenance → Export / Import data.'),
+      out);
+  },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -26372,7 +26692,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, LoginPanel };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -26395,6 +26715,7 @@ const App = {
     Bus.on('library:changed', () => { clearTimeout(this._bsT); this._bsT = setTimeout(() => BeatmapStatus.sync(), 3000); });
     Multiplayer.joinFromLink();
     Multiplayer.resume(); // (the page was reloaded in a room: back into it)
+    Account.init();
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e))
       .then(() => BeatmapManager.addConverts()).catch(e => console.warn('converts', e)), 1500);

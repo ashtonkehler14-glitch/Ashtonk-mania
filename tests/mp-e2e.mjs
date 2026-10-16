@@ -630,6 +630,21 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
   await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); 
   const ssSeen = await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 }).then(() => true, () => false);
   check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen }));
+  // (their main menu idling — its logo pulsing to the beat every frame — isn't copied every frame: that work made the
+  // watcher's game lag; nothing in the copy lights up under the watcher's pointer, and their own screen isn't drawn)
+  await bob.evaluate(() => AshtonkMania.Screens.go('home')); await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 });
+  await alice.waitForTimeout(600);
+  const idle = await alice.evaluate(async () => {
+    const S = AshtonkMania.Spectate, real = S.applyRk; let n = 0;
+    S.applyRk = function (html) { n++; return real.call(this, html); };
+    await new Promise(r => setTimeout(r, 2000));
+    S.applyRk = real;
+    const b = document.querySelector('.spec-rk .lz-menu button') || document.querySelector('.spec-rk button:not(.btn)');
+    return { applied: n, pointer: b ? getComputedStyle(b).pointerEvents : null, own: getComputedStyle(document.getElementById('app')).visibility };
+  });
+  check('…an idle main menu is copied a few times a second, not every frame; the copy doesn\'t react to the watcher\'s pointer; their own screen isn\'t drawn under it',
+    idle.applied <= 14 && idle.pointer === 'none' && idle.own === 'hidden', JSON.stringify(idle));
+  await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 });
   const pics = await alice.waitForFunction(() => [...document.querySelectorAll('.spec-rk [style*="url("]')].some(e => /url\("?data:image\//.test(e.getAttribute('style'))), null, { timeout: 8000 }).then(() => true, () => false);
   check('…with the pictures only their browser has (a beatmap\'s own background) sent along', pics);
   // no lag: a change on Bob's screen is on Alice's within a few frames

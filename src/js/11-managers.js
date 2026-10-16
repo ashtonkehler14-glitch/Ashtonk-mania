@@ -316,7 +316,11 @@ const DataManager = {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
     if (obj.settings) await Settings.import(obj.settings);
     if (obj.kind === 'settings') return;
-    if (obj.profile) { ProfileManager.profile = { ...ProfileManager.profile, ...obj.profile }; await ProfileManager.save(); }
+    if (obj.profile) {
+      ProfileManager.profile = { ...ProfileManager.profile, ...obj.profile };
+      if (typeof Account !== 'undefined' && Account.signedIn()) ProfileManager.profile.name = Account.name(); // (the account's name, not the save's)
+      await ProfileManager.save();
+    }
     if (Array.isArray(obj.favorites)) { for (const f of obj.favorites) Favorites.set.add(f); await DB.kvSet('favorites', [...Favorites.set]); }
     if (Array.isArray(obj.collections)) {
       for (const c of obj.collections) {
@@ -329,6 +333,9 @@ const DataManager = {
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
+    // (a save from another device, imported by a guest: signing in to your account here keeps you one player online)
+    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !Account.signedIn() && Multiplayer.available())
+      setTimeout(() => Toast.show('Playing on more than one device?', 'Sign in to your account here too (your name in the top bar), so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
   },
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;

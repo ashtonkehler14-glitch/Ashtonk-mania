@@ -789,6 +789,27 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   check('downloads without video ask each mirror for its no-video file (Nekoha has none: the video is left out on import)',
     nv.urls[0] === 'https://catboy.best/d/5n' && nv.urls.includes('https://api.nerinyan.moe/d/5?noVideo=1') && nv.urls.includes('https://dl.sayobot.cn/beatmaps/download/novideo/5') && nv.urls.includes('https://osu.direct/api/d/5?noVideo=1')
     && nv.urls.includes('https://mirror.nekoha.moe/api4/download/5') && nv.proxied === 'api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5n') && nv.plain === 'https://catboy.best/d/5', JSON.stringify(nv));
+  // a provider that doesn't answer doesn't hold the download up: the next one starts alongside after 2 s, the first to
+  // answer is used, and it goes first next time
+  const race = await page.evaluate(async () => {
+    const O = AshtonkMania.OnlineBeatmaps, realFetch = window.fetch, asked = [], body = new Uint8Array(4096), best = O._best;
+    window.fetch = (u, o) => {
+      asked.push(String(u));
+      if (String(u).includes('catboy')) return new Promise((_, rej) => o.signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+      return new Promise(r => setTimeout(() => r(new Response(body, { headers: { 'content-type': 'application/octet-stream' } })), 100));
+    };
+    O._best = null;
+    try {
+      let t = performance.now();
+      const f = await O.download(9, null, false);
+      const first = performance.now() - t, triedFirst = asked[0];
+      asked.length = 0; t = performance.now();
+      await O.download(9, null, false);
+      return { size: f.size, first, triedFirst, again: performance.now() - t, nextFirst: asked[0] };
+    } finally { window.fetch = realFetch; O._best = best; }
+  });
+  check('a beatmap provider that doesn\'t answer no longer holds a download up: the next one joins after 2 s, and the one that answered goes first next time',
+    race.size === 4096 && /catboy/.test(race.triedFirst) && race.first < 3500 && race.again < 1500 && !/catboy/.test(race.nextFirst), JSON.stringify(race));
   await page.waitForTimeout(400);
   // the download's entry in the notifications has lazer's cancel X: cancelling stops it quietly, back to Download
   const cx = await page.evaluate(async raw => {

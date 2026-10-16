@@ -706,6 +706,18 @@ function rateOf(mods, cfg) {
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
+// ── account passwords: PBKDF2-SHA-256 with a salt of their own (Workers cap the rounds at 100,000)
+const PASSWORD_ITER = 60000;
+const randomHex = bytes => [...crypto.getRandomValues(new Uint8Array(bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+export async function passwordHash(password, saltHex, iter = PASSWORD_ITER) {
+  const salt = Uint8Array.from((String(saltHex).match(/../g) || []).map(x => parseInt(x, 16)));
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password)), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: Math.min(100000, iter || PASSWORD_ITER) }, base, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+/** Two hashes compared without stopping at the first difference. */
+const sameHex = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.min(a.length, b.length); i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
+
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
   constructor(state, env) { this.state = state; this.env = env; this.logic = null; this.socks = new Map(); this.timer = null; this.beat = null; this._listed = ''; this.seen = new Map(); this.kick = new Map(); }
@@ -868,8 +880,11 @@ export class PresenceLogic {
     this.firsts = new Map(); this.persistFirsts = null;
     // when each player was last online (for friends' "Last seen …"): set as they go offline; `persistSeen` keeps it
     this.seen = new Map(); this.persistSeen = null;
-    // players' keys, by public id (only the key's SHA-256 is kept): pid → hash
+    // players' keys, by public id (only each key's SHA-256 is kept): pid → hash, or a list of them for an account (a key
+    // for each device signed in to it)
     this.auth = new Map(); this.persistAuth = null;
+    // accounts (lazer's sign-in): username (lower case) → { name, pid, salt, hash, iter, at }, and pid → username
+    this.accounts = new Map(); this.accountOf = new Map(); this.persistAccount = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
     this.profiles = new Map(); this.profileJson = new Map(); this.persistProfile = null;
     // lazer's playlists: lists of beatmaps a player puts up for a while, each with everyone's best score on each
@@ -934,13 +949,239 @@ export class PresenceLogic {
   claim(pid, key) {
     const k = String(key || '');
     if (k.length < 16 || k.length > 100) return false;
-    const hash = sha256hex(k), have = this.auth.get(pid);
-    if (have) return have === hash;
+    const hash = sha256hex(k), have = this.keyHashes(pid);
+    if (have.length) return have.includes(hash);
+    if (this.accountOf.has(pid)) return false; // (an account every device has signed out of isn't up for grabs)
     this.auth.set(pid, hash);
     if (this.persistAuth) this.persistAuth(pid, hash);
     return true;
   }
-  loadAuth(all) { for (const [pid, h] of Object.entries(all || {})) if (typeof h === 'string') this.auth.set(pid, h); }
+  loadAuth(all) { for (const [pid, h] of Object.entries(all || {})) if (typeof h === 'string' || (Array.isArray(h) && h.length)) this.auth.set(pid, h); }
+  keyHashes(pid) { const h = this.auth.get(pid); return Array.isArray(h) ? h : h ? [h] : []; }
+  /** Is this one of the keys for this public id? */
+  keyOk(pid, key) { const k = String(key || ''); return k.length >= 16 && k.length <= 100 && this.keyHashes(pid).includes(sha256hex(k)); }
+
+  // ── accounts: lazer's sign-in. A username and password belong to one public id, and every device signed in to it is
+  //    that player — one entry on the rankings and the beatmap boards, one profile, one friends list. Each device gets
+  //    a key of its own for the id, so signing out on one leaves the others signed in.
+  static ACCOUNT_KEYS = 20; // devices signed in at once (past that, the one signed in longest ago is signed out)
+  /** A username as accounts take it (osu!'s rules: 3 to 15 letters, numbers, spaces, - _ [ ]), or '' when it doesn't fit. */
+  static accountName(n) {
+    const s = String(n ?? '').replace(/\s+/g, ' ').trim();
+    return /^[A-Za-z0-9_\-\[\] ]{3,15}$/.test(s) ? s : '';
+  }
+  loadAccounts(all) {
+    for (const a of Object.values(all || {})) if (a && typeof a === 'object' && a.pid && a.name) { this.accounts.set(a.name.toLowerCase(), a); this.accountOf.set(a.pid, a.name.toLowerCase()); }
+  }
+  accountFor(pid) { const k = pid && this.accountOf.get(pid); return (k && this.accounts.get(k)) || null; }
+  /** Another device signed in: a key of its own for the id. */
+  addKey(pid, key) {
+    const h = sha256hex(String(key)), list = [...this.keyHashes(pid).filter(x => x !== h), h].slice(-PresenceLogic.ACCOUNT_KEYS);
+    this.auth.set(pid, list);
+    if (this.persistAuth) this.persistAuth(pid, list);
+  }
+  /** A device signed out: its key stops working (the account's other devices stay signed in). */
+  dropKey(pid, key) {
+    const h = sha256hex(String(key || '')), list = this.keyHashes(pid).filter(x => x !== h);
+    if (list.length) this.auth.set(pid, list); else this.auth.delete(pid);
+    if (this.persistAuth) this.persistAuth(pid, list);
+  }
+  /** The name a player shows as: an account's username, whatever its game says; a guest using an account's name is
+   *  marked as a guest (nobody can pass themselves off as someone with an account). */
+  shownName(pid, name) {
+    const a = this.accountFor(pid);
+    if (a) return a.name;
+    return this.accounts.has(String(name).toLowerCase()) ? `${String(name).slice(0, 16)} (guest)` : name;
+  }
+  /** An account's name is the player's everywhere they're kept by name: online, on the rankings, their profile and their friends' lists. */
+  renamed(pid, name) {
+    for (const u of this.users.values()) if (u.pid === pid) u.name = name;
+    const r = this.ranks.get(pid);
+    if (r && r.name !== name) { r.name = name; if (this.persistRank) this.persistRank(pid, r); }
+    const pf = this.profiles.get(pid);
+    if (pf && pf.name !== name) { pf.name = name; if (this.persistProfile) this.persistProfile(pid, pf); }
+    const touched = [];
+    for (const [p, m] of this.friends) if (m.has(pid) && m.get(pid) !== name) { m.set(pid, name); this.save('fr', p); touched.push(p); }
+    return [this.broadcast(), ...this.friendsOut(...touched)];
+  }
+  /** A new account, with the password's stored form (`pass`: {salt, hash, iter}). The guest on the device it's made on
+   *  becomes the account — keeping its scores, rank and friends — when the key shows it's theirs; otherwise the account
+   *  starts on a new id (`fresh()` → {pid, key}). */
+  createAccount({ name, pass, pid, key, fresh }) {
+    const n = PresenceLogic.accountName(name);
+    if (!n) return { error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).', status: 400 };
+    if (this.accounts.has(n.toLowerCase())) return { error: 'That username is taken.', status: 409 };
+    let id = /^[a-z0-9]{6,24}$/.test(String(pid || '')) ? String(pid) : '', issued = null;
+    if (!id || this.accountOf.has(id) || !this.claim(id, key)) {
+      const f = fresh();
+      id = f.pid; issued = f.key; this.addKey(id, issued);
+    }
+    const acct = { name: n, pid: id, salt: pass.salt, hash: pass.hash, iter: pass.iter, at: this.now() };
+    this.accounts.set(n.toLowerCase(), acct); this.accountOf.set(id, n.toLowerCase());
+    if (this.persistAccount) this.persistAccount(acct, null);
+    return { ok: true, name: n, pid: id, key: issued, out: this.renamed(id, n) };
+  }
+  /** Signing in on a device: it gets a key for the account's id. The guest it was playing as (`from`, proved by its
+   *  key) goes into the account — so the same player isn't on the rankings twice. */
+  signIn(acct, from, fromKey, newKey) {
+    const merge = /^[a-z0-9]{6,24}$/.test(String(from || '')) && from !== acct.pid && !this.accountOf.has(from) && this.keyOk(from, fromKey);
+    const out = merge ? this.mergePlayer(from, acct.pid) : [];
+    this.addKey(acct.pid, newKey);
+    return { ok: true, name: acct.name, pid: acct.pid, merged: merge, out: [...out, ...this.renamed(acct.pid, acct.name)] };
+  }
+  renameAccount(pid, key, name) {
+    const a = this.accountFor(pid);
+    if (!a || !this.keyOk(pid, key)) return { error: 'Sign in again to change your username.', status: 403 };
+    const n = PresenceLogic.accountName(name);
+    if (!n) return { error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).', status: 400 };
+    const old = a.name.toLowerCase();
+    if (n.toLowerCase() !== old && this.accounts.has(n.toLowerCase())) return { error: 'That username is taken.', status: 409 };
+    this.accounts.delete(old); a.name = n; this.accounts.set(n.toLowerCase(), a); this.accountOf.set(pid, n.toLowerCase());
+    if (this.persistAccount) this.persistAccount(a, old === n.toLowerCase() ? null : old);
+    return { ok: true, name: n, out: this.renamed(pid, n) };
+  }
+  /** Everything the server keeps about one player (`from`) moved to another (`to`): their best plays, rank, places on the
+   *  beatmap boards and first places, daily challenge record and today's score, playlist scores, friends and friend
+   *  requests, tag votes and profile. `from` is gone afterwards. The boards and tags it's on, and both players' best
+   *  plays, must be loaded first (Matchmaker.preloadPlayer). */
+  mergePlayer(from, to) {
+    const acct = this.accountFor(to), name = acct ? acct.name : (this.ranks.get(to) || this.ranks.get(from) || {}).name || 'Player';
+    // rankings: the best play on each beatmap from either, and the totals worked out again from them
+    const a = this.ranks.get(from);
+    if (a) {
+      const rec = this.ranks.get(to) || { pid: to, name, avatar: a.avatar, plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
+      const bests = { ...(rec.bests || {}) };
+      for (const [k, x] of Object.entries(a.bests || {})) if (x && (!bests[k] || (bests[k].pp || 0) < (x.pp || 0))) bests[k] = x;
+      rec.bests = Object.fromEntries(Object.entries(bests).sort((p, q) => (q[1].pp || 0) - (p[1].pp || 0)).slice(0, PresenceLogic.KEEP_BESTS));
+      delete rec._lazy;
+      rec.rk = [...new Set([...(rec.rk || []), ...(a.rk || [])])].slice(0, 1000);
+      rec.okh = [...new Set([...(rec.okh || []), ...(a.okh || [])])].slice(0, 50);
+      rec.plays = (rec.plays || 0) + (a.plays || 0);
+      if (a.rep && (!rec.rep || (a.rep.pp || 0) > (rec.rep.pp || 0))) rec.rep = a.rep;
+      rec.pid = to; rec.name = name; rec.at = Math.max(rec.at || 0, a.at || 0);
+      PresenceLogic.revalue(rec);
+      rec.v.rscore = Object.values(rec.bests).reduce((t, x) => t + (x.pp > 0 ? x.score || 0 : 0), 0);
+      PresenceLogic.settleRank(rec);
+      this.ranks.set(to, rec); this.ranks.delete(from);
+      if (this.persistRank) this.persistRank(to, rec);
+      if (this.dropPlayer) this.dropPlayer(from, 'rank');
+    }
+    // beatmap boards: the better of the two scores stays, as `to`
+    for (const [key, list] of this.boards) {
+      const mine = list.find(x => x && x.pid === from);
+      if (!mine) continue;
+      const theirs = list.find(x => x && x.pid === to);
+      const keep = !theirs || mine.score > theirs.score ? { ...mine, pid: to, name } : theirs;
+      const next = [...list.filter(x => x && x.pid !== from && x.pid !== to), keep].sort((p, q) => q.score - p.score || p.date - q.date);
+      this.boards.set(key, next);
+      if (this.persistBoard) this.persistBoard(key, next);
+    }
+    // first places: the ones `to` now holds
+    const fa = this.firsts.get(from);
+    if (fa) {
+      const fb = { ...(this.firsts.get(to) || {}) };
+      for (const [k, v] of Object.entries(fa)) {
+        const b = this.boards.get(k);
+        if (v && (!b || (b[0] && b[0].pid === to)) && (!fb[k] || (fb[k].score || 0) < (v.score || 0))) fb[k] = v;
+      }
+      this.firsts.delete(from);
+      if (this.persistFirsts) this.persistFirsts(from, {});
+      if (Object.keys(fb).length) { this.firsts.set(to, fb); if (this.persistFirsts) this.persistFirsts(to, fb); }
+    }
+    // the daily challenge: days played added up, the best streak, and the streak of whichever played last
+    const da = this.dailyStats.get(from);
+    if (da) {
+      const db = this.dailyStats.get(to), last = !db || String(da.last || '') > String(db.last || '') ? da : db;
+      const m = db ? { plays: (db.plays || 0) + (da.plays || 0), best: Math.max(db.best || 0, da.best || 0), current: last.current || 0, last: last.last || '' } : da;
+      this.dailyStats.set(to, m); this.dailyStats.delete(from);
+      if (this.persistDailyStats) { this.persistDailyStats(to, m); }
+      if (this.dropPlayer) this.dropPlayer(from, 'daily');
+    }
+    const d = this.daily, ds = d.scores.find(x => x.pid === from);
+    if (ds) {
+      const dt = d.scores.find(x => x.pid === to), keep = !dt || ds.score > dt.score ? { ...ds, pid: to, name } : dt;
+      d.scores = [...d.scores.filter(x => x.pid !== from && x.pid !== to), keep];
+      if (this.persistDaily) this.persistDaily(d);
+    }
+    // playlists: their best on each beatmap there
+    for (const pl of this.playlists.values()) {
+      let changed = false;
+      if (pl.host && pl.host.pid === from) { pl.host.pid = to; pl.host.name = name; changed = true; }
+      const sa = pl.scores && pl.scores[from];
+      if (sa) {
+        const sb = pl.scores[to] || { name, avatar: sa.avatar, best: {} };
+        for (const [k, v] of Object.entries(sa.best || {})) if (v && (!sb.best[k] || sb.best[k].score < v.score)) sb.best[k] = v;
+        sb.name = name; pl.scores[to] = sb; delete pl.scores[from]; changed = true;
+      }
+      if (changed) this.savePlaylist(pl);
+    }
+    // friends and friend requests (theirs, and theirs in other players' lists)
+    const touched = new Set([to]);
+    const ff = this.friends.get(from);
+    if (ff) {
+      if (!this.friends.has(to)) this.friends.set(to, new Map());
+      for (const [p, n] of ff) if (p !== to) this.friends.get(to).set(p, n);
+      this.friends.delete(from); this.save('fr', from);
+    }
+    for (const [p, m] of this.friends) if (m.has(from)) { m.delete(from); if (p !== to) m.set(to, name); this.save('fr', p); touched.add(p); }
+    this.friends.get(to)?.delete(to); // (an old device of theirs they had befriended)
+    const rq = this.requests.get(from);
+    if (rq) {
+      if (!this.requests.has(to)) this.requests.set(to, new Map());
+      for (const [p, n] of rq) if (p !== to && !this.areFriends(p, to)) this.requests.get(to).set(p, n);
+      this.requests.delete(from); this.save('fq', from);
+    }
+    for (const [p, m] of this.requests) if (m.has(from)) { m.delete(from); if (p !== to && !this.areFriends(p, to)) m.set(to, name); this.save('fq', p); touched.add(p); }
+    this.save('fr', to); this.save('fq', to);
+    // tag votes
+    for (const [key, votes] of this.tags) {
+      let changed = false;
+      for (const t of Object.keys(votes)) if (votes[t].includes(from)) { votes[t] = [...new Set(votes[t].map(x => x === from ? to : x))]; changed = true; }
+      if (changed && this.persistTags) this.persistTags(key, votes);
+    }
+    // the profile: the two put together
+    const pa = this.profiles.get(from);
+    if (pa) {
+      const merged = PresenceLogic.mergeProfile(this.profiles.get(to), pa);
+      this.profiles.set(to, { ...merged, name }); this.profileJson.delete(to);
+      if (this.persistProfile) this.persistProfile(to, this.profiles.get(to));
+    }
+    this.profiles.delete(from); this.profileJson.delete(from);
+    if (this.dropPlayer) this.dropPlayer(from, 'profile');
+    this.seen.delete(from); this.auth.delete(from);
+    if (this.dropPlayer) { this.dropPlayer(from, 'seen'); this.dropPlayer(from, 'auth'); }
+    // (any tab still online as the guest is the account now)
+    for (const u of this.users.values()) if (u.pid === from) { u.pid = to; u.name = name; }
+    return [...this.friendsOut(...touched)];
+  }
+  /** A profile from one of an account's devices, put together with what its other devices sent: the best plays of
+   *  all of them (each beatmap once, at its best), the highest counts, the newest plays — so a device with fewer
+   *  scores never brings the account's standing down. */
+  static mergeProfile(prev, next) {
+    if (!prev || typeof prev !== 'object') return next;
+    if (!next || typeof next !== 'object') return prev;
+    const out = { ...prev, ...next };
+    for (const k of ['plays', 'playtime', 'passed', 'notes', 'highestCombo', 'rankedPlays', 'rankedScore', 'pp']) out[k] = Math.max(+prev[k] || 0, +next[k] || 0);
+    if ((+prev.plays || 0) > (+next.plays || 0)) out.avgAcc = prev.avgAcc;
+    const lv = x => (+x.level || 0) * 1e12 + (+x.xpInto || 0);
+    if (lv(prev) > lv(next)) for (const k of ['level', 'xpInto', 'xpNeed', 'xpProgress']) out[k] = prev[k];
+    out.grades = {};
+    for (const g of ['XH', 'SS', 'SH', 'S', 'A']) out.grades[g] = Math.max(+((prev.grades || {})[g]) || 0, +((next.grades || {})[g]) || 0);
+    const best = new Map();
+    for (const x of [...(Array.isArray(prev.top) ? prev.top : []), ...(Array.isArray(next.top) ? next.top : [])]) {
+      if (!x || typeof x !== 'object') continue;
+      const id = PresenceLogic.playId(x), b = best.get(id);
+      if (!b || (+x.pp || 0) > (+b.pp || 0)) best.set(id, x);
+    }
+    out.top = [...best.values()].sort((p, q) => (+q.pp || 0) - (+p.pp || 0)).slice(0, 50);
+    const seen = new Set();
+    out.recent = [...(Array.isArray(next.recent) ? next.recent : []), ...(Array.isArray(prev.recent) ? prev.recent : [])]
+      .filter(x => { if (!x || typeof x !== 'object') return false; const id = PresenceLogic.playId(x) + '|' + x.date; if (seen.has(id)) return false; seen.add(id); return true; })
+      .sort((p, q) => (+q.date || 0) - (+p.date || 0)).slice(0, 10);
+    out.medals = { ...(prev.medals && typeof prev.medals === 'object' ? prev.medals : {}), ...(next.medals && typeof next.medals === 'object' ? next.medals : {}) };
+    if (prev.created && (!next.created || prev.created < next.created)) out.created = prev.created;
+    return out;
+  }
   static KEEP_BESTS = 200; // each player's best plays kept for their total (lazer's total uses the top 100)
   /** A play the server judged itself (verifyPlay): onto the beatmap's leaderboard, into the player's best plays —
    *  their total pp, accuracy and grades for the rankings are worked out from those — and, when it's the daily
@@ -1235,7 +1476,7 @@ export class PresenceLogic {
     // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
     if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
-    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
+    this.users.set(id, { name: this.shownName(pid, str(msg && msg.name, 24) || 'Player'), status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
@@ -1282,7 +1523,8 @@ export class PresenceLogic {
       if (msg.profile && typeof msg.profile === 'object') {
         const json = JSON.stringify(msg.profile);
         if (json.length <= PresenceLogic.PROFILE_MAX && json !== this.profileJson.get(u.pid)) {
-          const data = { ...JSON.parse(json), name: u.name };
+          // (an account's: what this device sent, put together with what its other devices did)
+          const sent = JSON.parse(json), data = { ...(this.accountOf.has(u.pid) ? PresenceLogic.mergeProfile(this.profiles.get(u.pid), sent) : sent), name: u.name };
           this.profiles.set(u.pid, data); this.profileJson.set(u.pid, json);
           if (this.persistProfile) this.persistProfile(u.pid, data);
         }
@@ -1298,7 +1540,8 @@ export class PresenceLogic {
         if (p && Number.isFinite(+p.plays)) rec.plays = Math.max(rec.plays || 0, num(p.plays, 1e9));
         if (JSON.stringify([rec.name, rec.avatar, rec.plays]) !== before && this.persistRank) this.persistRank(u.pid, rec);
       }
-      if (p && Array.isArray(p.top) && p.top.length && this.verifyTop) this.verifyTop(u.pid, p.top.slice(0, 50), { name: u.name, avatar: u.avatar });
+      const top = this.accountOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (an account: every device's best plays)
+      if (Array.isArray(top) && top.length && this.verifyTop) this.verifyTop(u.pid, top.slice(0, 50), { name: u.name, avatar: u.avatar });
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
@@ -1371,7 +1614,7 @@ export class PresenceLogic {
       return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
     }
     if (msg.t === 'status') {
-      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      const st = cleanStatus(msg.status), name = msg.name != null ? this.shownName(u.pid, str(msg.name, 24) || u.name) : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
       if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return [];
       u.status = st; u.name = name; u.avatar = av; u.song = song;
@@ -1581,6 +1824,17 @@ export class Matchmaker {
         });
         return;
       }
+      // (an account's profile is put together from what each of its devices reports: the kept one is read in first, or
+      // the first report after a restart would stand in for all of them)
+      const su = msg.t === 'stats' ? this.presence.users.get(id) : null;
+      if (su && su.pid && this.presence.accountOf.has(su.pid) && !this.presence.profiles.has(su.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(su.pid)) {
+        this._pfLoaded.add(su.pid);
+        this.state.storage.get(`pf:${su.pid}`).catch(() => null).then(v => {
+          if (v && typeof v === 'object' && !this.presence.profiles.has(su.pid)) this.presence.profiles.set(su.pid, v);
+          if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
+        });
+        return;
+      }
       // (a beatmap's user tags come out of storage the first time they're asked for — with its board, and the voter's
       // best plays when they aren't read yet: they decide whether that player may tag it)
       const tkey = msg.t === 'tags' || msg.t === 'tagVote' ? PresenceLogic.lbKey(msg.key) : '';
@@ -1627,6 +1881,89 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
+  /** Accounts: register {name, password, pid, key} (the device's guest becomes the account), login {name, password,
+   *  pid, key} (the device gets a key for the account; its guest goes into it), logout {pid, key}, rename {pid, key,
+   *  name}. Passwords are kept only as PBKDF2 hashes; sign-in attempts are limited per address and per username. */
+  async account(what, request) {
+    await this.loadFriends();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
+    const P = this.presence, ip = request.headers.get('x-ip') || '', pw = String(body.password ?? '');
+    const pid = String(body.pid || ''), key = String(body.key || '');
+    if (what === 'register') {
+      if (!this.allowTry('r:' + ip, 10)) return json({ error: 'Too many new accounts from here. Try again later.' }, 429);
+      if (!PresenceLogic.accountName(body.name)) return json({ error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).' }, 400);
+      if (pw.length < 8 || pw.length > 200) return json({ error: 'A password is at least 8 characters.' }, 400);
+      if (pw.trim().toLowerCase() === String(body.name).trim().toLowerCase()) return json({ error: 'Your password can\'t be your username.' }, 400);
+      if (P.accounts.has(PresenceLogic.accountName(body.name).toLowerCase())) return json({ error: 'That username is taken.' }, 409);
+      const salt = randomHex(16), hash = await passwordHash(pw, salt, PASSWORD_ITER);
+      const r = P.createAccount({ name: body.name, pass: { salt, hash, iter: PASSWORD_ITER }, pid, key, fresh: () => this.freshId() });
+      if (r.error) return json({ error: r.error }, r.status || 400);
+      this.send(r.out);
+      return json({ ok: true, name: r.name, pid: r.pid, ...(r.key ? { key: r.key } : {}) });
+    }
+    if (what === 'login') {
+      const lower = String(body.name ?? '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 40);
+      if (!this.allowTry('i:' + ip, 30) || !this.allowTry('n:' + lower, 10)) return json({ error: 'Too many sign-in attempts. Wait a few minutes and try again.' }, 429);
+      const a = P.accounts.get(lower);
+      // (the same work whether or not the username exists)
+      const got = await passwordHash(pw.slice(0, 200), a ? a.salt : '00000000000000000000000000000000', a ? a.iter : PASSWORD_ITER);
+      if (!a || !sameHex(got, a.hash)) return json({ error: 'Wrong username or password.' }, 401);
+      if (/^[a-z0-9]{6,24}$/.test(pid) && pid !== a.pid && !P.accountOf.has(pid) && P.keyOk(pid, key)) {
+        await Promise.all([this.preloadPlayer(pid), this.preloadPlayer(a.pid, false)]);
+      }
+      const newKey = randomHex(32), r = P.signIn(a, pid, key, newKey);
+      this.send(r.out);
+      return json({ ok: true, name: r.name, pid: r.pid, key: newKey, merged: r.merged });
+    }
+    if (what === 'logout') {
+      if (P.accountOf.has(pid) && P.keyOk(pid, key)) P.dropKey(pid, key);
+      return json({ ok: true });
+    }
+    if (what === 'rename') {
+      const r = P.renameAccount(pid, key, body.name);
+      if (r.error) return json({ error: r.error }, r.status || 400);
+      this.send(r.out);
+      return json({ ok: true, name: r.name });
+    }
+    return json({ error: 'Not found' }, 404);
+  }
+  /** At most `n` tries per 10 minutes for this address or username. */
+  allowTry(k, n) {
+    const t = Date.now(), m = this._tries || (this._tries = new Map());
+    if (m.size > 20000) m.clear();
+    const list = (m.get(k) || []).filter(x => t - x < 600000);
+    if (list.length >= n) { m.set(k, list); return false; }
+    list.push(t); m.set(k, list);
+    return true;
+  }
+  /** A new public id nobody has used, with its key. */
+  freshId() {
+    let pid;
+    do pid = randomHex(8); while (this.presence.auth.has(pid) || this.presence.ranks.has(pid) || this.presence.accountOf.has(pid));
+    return { pid, key: randomHex(32) };
+  }
+  /** What has to be in memory before a player is merged into another (PresenceLogic.mergePlayer): their best plays,
+   *  their profile, and — `all` — every beatmap board and tag list they're on (kept in storage, read only when asked
+   *  for: all of them are looked through once). */
+  async preloadPlayer(pid, all = true) {
+    const st = this.state.storage, P = this.presence;
+    await this.ensureBests(pid);
+    if (!P.profiles.has(pid)) { const v = await st.get(`pf:${pid}`).catch(() => null); if (v && typeof v === 'object' && !P.profiles.has(pid)) P.profiles.set(pid, v); }
+    if (!all) return;
+    for (const [prefix, map] of [['lb:', P.boards], ['tg:', P.tags]]) {
+      let after = null;
+      for (;;) {
+        const page = await st.list({ prefix, limit: 256, ...(after ? { startAfter: after } : {}) }).catch(() => new Map());
+        for (const [k, v] of page) {
+          after = k;
+          const on = prefix === 'lb:' ? Array.isArray(v) && v.some(x => x && x.pid === pid) : v && typeof v === 'object' && Object.values(v).some(x => Array.isArray(x) && x.includes(pid));
+          if (on && !map.has(k.slice(3))) map.set(k.slice(3), v);
+        }
+        if (page.size < 256) break;
+      }
+    }
+  }
   /** A finished play, to be judged here: { pid, key, osu (the beatmap file, base64), play: { mods, modConfig, seed,
    *  events }, daily? }. The file's SHA-256 is the beatmap's id; verifyPlay plays the key presses through the game's
    *  judging and works the score out; that score — never the player's own — goes on the boards and rankings. */
@@ -1635,7 +1972,7 @@ export class Matchmaker {
     if (!body || typeof body !== 'object' || !body.r || typeof body.r !== 'object') return json({ error: 'Bad request.' }, 400);
     await this.loadFriends();
     const pid = String(body.pid || '');
-    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.auth.has(pid) || this.presence.auth.get(pid) !== sha256hex(String(body.key || '').slice(0, 100))) return json({ error: 'Not signed in as that player.' }, 403);
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.keyOk(pid, body.key)) return json({ error: 'Not signed in as that player.' }, 403);
     const t = Date.now(), last = (this._lastScore || (this._lastScore = new Map())).get(pid) || 0;
     if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
     this._lastScore.set(pid, t);
@@ -1661,6 +1998,8 @@ export class Matchmaker {
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
         const au = {}; for (const [k, v] of await st.list({ prefix: 'au:' })) au[k.slice(3)] = v;
         this.presence.loadAuth(au);
+        const ac = {}; for (const [k, v] of await st.list({ prefix: 'ac:' })) ac[k.slice(3)] = v;
+        this.presence.loadAccounts(ac);
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
@@ -1689,7 +2028,13 @@ export class Matchmaker {
       const revalue = async () => { for (const pid of rew.splice(0, 10)) { const r = this.presence.ranks.get(pid); if (!r) continue; await this.ensureBests(pid); delete r.rew; PresenceLogic.revalue(r); this.presence.persistRank(pid, r); } if (rew.length) setTimeout(() => revalue().catch(() => {}), 500); };
       if (rew.length) setTimeout(() => revalue().catch(() => {}), 2000);
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
-      this.presence.persistAuth = (pid, h) => { st.put(`au:${pid}`, h).catch(() => {}); };
+      this.presence.persistAuth = (pid, h) => { (Array.isArray(h) && !h.length ? st.delete(`au:${pid}`) : st.put(`au:${pid}`, h)).catch(() => {}); };
+      this.presence.persistAccount = (a, oldName) => { st.put(`ac:${a.name.toLowerCase()}`, a).catch(() => {}); if (oldName) st.delete(`ac:${oldName}`).catch(() => {}); };
+      // (a player merged into an account: what was kept under their old id goes)
+      this.presence.dropPlayer = (pid, what) => {
+        const keys = { rank: [`rk:${pid}`, `rb:${pid}`], daily: [`ds:${pid}`], profile: [`pf:${pid}`], seen: [`ls:${pid}`], auth: [`au:${pid}`] }[what];
+        if (keys) st.delete(keys).catch(() => {});
+      };
       this.presence.persistDaily = d => { st.put('daily', d).catch(() => {}); };
       this.presence.persistSeen = (pid, t) => { st.put(`ls:${pid}`, t).catch(() => {}); };
       // (written at most every couple of seconds however busy the lobby is)
@@ -1873,6 +2218,7 @@ export class Matchmaker {
       return this.presenceSocket();
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
+    if (url.pathname.startsWith('/api/account/') && request.method === 'POST') return this.account(url.pathname.slice(13), request);
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
     if (url.pathname.endsWith('/rooms/update')) {
@@ -1947,6 +2293,15 @@ export async function beatmapStatus(r, md5, env, get = officialGet) {
     const b = await get(path, env, fetch, week), set = b && b.beatmapset;
     return { status: String((set && set.status) || (b && b.status) || ''), setId: (b && b.beatmapset_id) || (set && set.id) || 0 };
   } catch { return { status: '', setId: 0 }; }
+}
+
+/** /api/account/*: to the server object that keeps the players (Matchmaker), with the caller's address for its limits. */
+export async function handleAccount(request, env, url) {
+  if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
+  if (request.method !== 'POST' || !/^\/api\/account\/(register|login|logout|rename)$/.test(url.pathname)) return json({ error: 'Not found' }, 404);
+  const body = (await request.text()).slice(0, 4096);
+  const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+  return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
 }
 
 export async function handleMultiplayer(request, env, url) {

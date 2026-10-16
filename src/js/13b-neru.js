@@ -53,6 +53,7 @@ const NeruMascot = {
     let last = performance.now();
     const tick = now => {
       if (!this.el || !this.body || !this.el.isConnected) { if (this.el && !this.el.isConnected) this.stop(); else this._raf = requestAnimationFrame(tick); return; }
+      if (typeof Spectate !== 'undefined' && Spectate.rkEl) { last = now; this._raf = requestAnimationFrame(tick); return; } // (hidden under a spectated screen)
       const dt = Math.min(64, now - last); last = now;
       let want = 0;
       if (this._px != null && this._rect && Settings.get('ui.animSpeed')) {

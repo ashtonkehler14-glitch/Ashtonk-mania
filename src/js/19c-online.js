@@ -317,15 +317,24 @@ const Spectate = {
   stalled() { const c = this.cur; return !!(c && (c.buffering || c.pauseShown || c.ended || c.failed)); },
   showRk(html) {
     this._rk = html || null;
-    if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; } return; }
+    if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; document.body.classList.remove('spec-rk-on'); } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
       this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
       document.body.appendChild(this.rkEl); // (outside your own app: what it's showing mustn't style theirs)
+      // (your own screen is all under it: not drawn, and its menu's animations stop, while theirs covers it)
+      document.body.classList.add('spec-rk-on');
       if (this._lastCur) this.onCur(this._lastCur);
     }
+    // (their screen can change many times a second: it's brought up to date once a frame at most, with the newest copy
+    // — the ones in between are skipped rather than each worked through)
+    if (!this._rkRaf) this._rkRaf = requestAnimationFrame(() => { this._rkRaf = 0; if (this.rkEl && this._rk) this.applyRk(this._rk); });
+  },
+  applyRk(html) {
+    if (html === this._rkApplied && this.rkView.firstChild) return;
+    this._rkApplied = html;
     const t = document.createElement('template');
     t.innerHTML = html;
     const ok = u => /^(https:|data:image\/)/i.test(u.trim());
@@ -434,7 +443,18 @@ const Spectate = {
     if (!app) return;
     // (copied as soon as something on screen changes — or a list is scrolled — at most every MIR_GAP ms)
     if (!this._mo) {
-      this._mo = new MutationObserver(recs => { if (recs.some(r => r.attributeName !== 'data-ss' && !(r.target.closest && r.target.closest('.spec-rk')))) this.mirrorSoon(); });
+      // (a change to what's on screen goes out straight away; one that's only an inline style — the logo pulsing to the
+      // beat, Neru bobbing, a progress bar — every 400ms at most: those change every frame, and each copy costs the
+      // watchers' games a whole screen's worth of work)
+      this._mo = new MutationObserver(recs => {
+        let any = false;
+        for (const r of recs) {
+          if (r.attributeName === 'data-ss' || (r.target.closest && r.target.closest('.spec-rk'))) continue;
+          if (r.type !== 'attributes' || r.attributeName !== 'style') { this.mirrorSoon(); return; }
+          any = true;
+        }
+        if (any) this.mirrorSoon(400);
+      });
       this._mo.observe(app, { subtree: true, childList: true, attributes: true, characterData: true });
       this.hostCur(true);
       // (lists already scrolled before anyone watched — a chat at its newest lines — go at their place too)
@@ -443,12 +463,14 @@ const Spectate = {
     }
     this.mirrorFlush();
   },
-  MIR_GAP: 33,
-  mirrorSoon() {
+  MIR_GAP: 50,
+  mirrorSoon(gap = this.MIR_GAP) {
     this._dirty = true;
-    if (this._mirT) return;
-    const wait = Math.max(0, (this._mirAt || 0) + Math.max(this.MIR_GAP, (this._mirCost || 0) * 6) - performance.now());
-    this._mirT = setTimeout(() => { this._mirT = 0; try { this.mirrorTick(); } catch { /* the next change tries again */ } }, wait);
+    const now = performance.now(), due = Math.max(now, (this._mirAt || 0) + Math.max(gap, (this._mirCost || 0) * 6));
+    if (this._mirT && this._mirDue <= due) return; // (one's already due as soon or sooner)
+    clearTimeout(this._mirT);
+    this._mirDue = due;
+    this._mirT = setTimeout(() => { this._mirT = 0; try { this.mirrorTick(); } catch { /* the next change tries again */ } }, due - now);
   },
   mirrorFlush() {
     if (!this._dirty && this._mirOn) return;
