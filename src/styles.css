@@ -3653,7 +3653,7 @@ html.touch .pl-hint:has(.kbd) { visibility: hidden; }
 /* (their screen is only to look at: nothing on it lights up or answers to your pointer — not even the parts their own
    styles make clickable — and your own screen under it isn't drawn while it's covered) */
 .spec-rk-view *, .spec-rk-view *::before, .spec-rk-view *::after { pointer-events: none !important; cursor: inherit !important; }
-body.spec-rk-on #app { visibility: hidden; }
+body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of theirs is an #app too) */
 .spec-rk-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(23, 26, 28, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .4); font-size: 14px; font-weight: 600; }
 .spec-rk-bar .i { width: 16px; height: 16px; color: #ff66ab; }
 .spec-rk-bar small { font-weight: 400; opacity: .6; font-size: 12px; }

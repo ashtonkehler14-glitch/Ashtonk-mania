@@ -629,7 +629,9 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
   const homeSeen = await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 }).then(() => true, () => false);
   await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); 
   const ssSeen = await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 }).then(() => true, () => false);
-  check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen }));
+  const specState = homeSeen && ssSeen ? null : await alice.evaluate(() => { const S = AshtonkMania.Spectate; return { target: !!S.target, rkEl: !!S.rkEl, connected: !!(S.rkEl && S.rkEl.isConnected), n: document.querySelectorAll('.spec-rk').length, rk: (S._rk || '').length, view: S.rkView ? S.rkView.innerHTML.length : -1, raf: S._rkRaf, hidden: document.hidden, screen: AshtonkMania.Screens.currentName, watching: S.watchingNow(), screens: S.rkView ? [...S.rkView.querySelectorAll('main > *, #screens > *')].map(e => e.className).join(' | ').slice(0, 300) : '', head: S._rk ? S._rk.slice(0, 200) : '' }; });
+  const hostState = homeSeen && ssSeen ? null : await bob.evaluate(() => { const S = AshtonkMania.Spectate; return { watchers: S.host.watchers, mirOn: S._mirOn, mo: !!S._mo, html: (S._mirHtml || '').length, screen: AshtonkMania.Screens.currentName, busy: AshtonkMania.Screens.busy }; });
+  check('spectating someone in the menus shows their screen and follows it (main menu, then song select)', homeSeen && ssSeen, JSON.stringify({ homeSeen, ssSeen, specState, hostState }));
   // (their main menu idling — its logo pulsing to the beat every frame — isn't copied every frame: that work made the
   // watcher's game lag; nothing in the copy lights up under the watcher's pointer, and their own screen isn't drawn)
   await bob.evaluate(() => AshtonkMania.Screens.go('home')); await alice.waitForSelector('.spec-rk .lz-menu', { timeout: 8000 });
@@ -640,10 +642,11 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
     await new Promise(r => setTimeout(r, 2000));
     S.applyRk = real;
     const b = document.querySelector('.spec-rk .lz-menu button') || document.querySelector('.spec-rk button:not(.btn)');
-    return { applied: n, pointer: b ? getComputedStyle(b).pointerEvents : null, own: getComputedStyle(document.getElementById('app')).visibility };
+    const mine = document.querySelector('body > #app'), theirs = document.querySelector('.spec-rk-view > #app');
+    return { applied: n, pointer: b ? getComputedStyle(b).pointerEvents : null, own: getComputedStyle(mine).visibility, shown: theirs ? getComputedStyle(theirs).visibility : null };
   });
   check('…an idle main menu is copied a few times a second, not every frame; the copy doesn\'t react to the watcher\'s pointer; their own screen isn\'t drawn under it',
-    idle.applied <= 14 && idle.pointer === 'none' && idle.own === 'hidden', JSON.stringify(idle));
+    idle.applied <= 14 && idle.pointer === 'none' && idle.own === 'hidden' && idle.shown === 'visible', JSON.stringify(idle));
   await bob.evaluate(() => AshtonkMania.Screens.go('songselect')); await alice.waitForSelector('.spec-rk .ss', { timeout: 8000 });
   const pics = await alice.waitForFunction(() => [...document.querySelectorAll('.spec-rk [style*="url("]')].some(e => /url\("?data:image\//.test(e.getAttribute('style'))), null, { timeout: 8000 }).then(() => true, () => false);
   check('…with the pictures only their browser has (a beatmap\'s own background) sent along', pics);
@@ -708,7 +711,7 @@ check('spectating: switching away doesn\'t bring up the pause menu', await alice
 // Bob pauses: once Alice's playback reaches that moment she sees the pause screen; it goes when he continues
 await bob.keyboard.press('Escape');
 await bob.waitForSelector('.pause-menu', { timeout: 3000 });
-const sawPause = await alice.waitForSelector('.spec-pause', { timeout: 8000 }).then(() => true, () => false);
+const sawPause = await alice.waitForSelector('.spec-pause', { state: 'attached', timeout: 8000 }).then(() => true, () => false); // (under the copy of his own pause menu, checked next)
 const mirPause = await alice.waitForSelector('.spec-rk .pause-menu', { timeout: 6000 }).then(() => true, () => false);
 check('spectating: the watcher sees the player\'s own screen while the song can\'t go on (their pause menu, as they see it)', mirPause);
 const pausedT = await alice.evaluate(() => AshtonkMania.Music.time);
