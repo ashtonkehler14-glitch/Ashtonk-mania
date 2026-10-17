@@ -692,6 +692,14 @@ const CHANGELOG = [
       'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
       'A song played upright ends on its results upright too: Retry without turning your phone',
       'The setup fits a phone held sideways, and says "press and hold your name" where a computer says right-click'] },
+    { icon: 'mania', title: 'Gameplay', items: [
+      'Replays start at 1× (a DT replay\'s speed buttons were off by its rate), and the playfield stays smooth at 2× and 0.25×; Wind Up and Wind Down keep the speed you picked',
+      'Seeking a Wind Up / Wind Down replay judges it as it was played',
+      'Two gamepads (or one listed twice) no longer fight over a button',
+      'Muted with its metronome on a map without timing points no longer freezes the HUD',
+      'Phones: turning the phone during the 3-2-1 countdown stops for a tap too, and Back on "Tap to resume" opens the pause menu',
+      'Dragging background dim and blur before a song is smooth; a background video can no longer start twice',
+      'Practice: changing the speed twice quickly no longer puts the music out of step'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [

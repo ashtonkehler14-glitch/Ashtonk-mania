@@ -69,14 +69,11 @@ const PlayScreen = {
     else this.lock();
   },
   // (a song plays either way up: the screen follows how the phone is held)
-  lock() { clearTimeout(this._unT); if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
+  lock() { if (this.phone() && typeof Orientation !== 'undefined') Orientation.lock('any'); },
   unlock() {
     if (this._keys) { this._keys = false; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch { /* not supported */ } }
     if (!document.fullscreenElement) this._ours = false;
-    if (!this.phone()) return;
-    // (a retry comes straight back to gameplay: don't turn the screen in between)
-    clearTimeout(this._unT);
-    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock(Orientation.wanted()); }, 500);
+    // (the screen's turn after the song is Orientation's: it follows each screen — results either way up, menus sideways)
   },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {
@@ -250,7 +247,7 @@ const GameplayScreen = {
       const up = typeof Mobile !== 'undefined' && Mobile.portrait;
       if (up === this._upright) return;
       this._upright = up;
-      if (typeof Mobile !== 'undefined' && Mobile.touch && this.s && this.s.running && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume();
+      if (typeof Mobile !== 'undefined' && Mobile.touch && this.s && (this.s.running || this.cdEl) && !this.s.mp && !this.s.replay && !this.s.spectate) this.tapToResume();
     };
     window.addEventListener('resize', this._orient);
     this.renderer = new ManiaRenderer(this.canvas, { crop: true });
@@ -301,9 +298,15 @@ const GameplayScreen = {
       e.preventDefault();
       if (this.pauseEl && !this.s.failed && this.pauseEl.querySelector('.pm-btn.primary')) this.resume(); else if (!this.pauseEl) this.pause();
     });
-    this._settingsSub = Bus.on('settings:changed', k => { if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
+    this._settingsSub = Bus.on('settings:changed', k => {
+      // (dim and blur only change the picture behind: no new layout for the playfield, on every slider step)
+      if (/^gameplay\.(bgDim|bgBlur)$/.test(k)) { if (this.s || this.bgRec) this.applyBackground(); return; }
+      if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
-    requestAnimationFrame(() => this.start(params).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }));
+    // (this entry's token, taken now: a frame that only comes after the screen was left — a tab in the background —
+    // starts nothing)
+    const tok = this._tok;
+    requestAnimationFrame(() => { if (this._tok !== tok) return; this.start(params, tok).catch(e => { console.error(e); Toast.err('Couldn\'t start the beatmap', friendlyError(e)); Screens.go('songselect', {}, { replace: true }); }); });
     return el;
   },
   /** lazer's GameplayChatDisplay: the room's chat in the corner during a multiplayer song. You can read it while
@@ -370,6 +373,7 @@ const GameplayScreen = {
     if (!this.loaderGone) { if (!this.params.mp) this.quit(); return true; }
     if (this.s && this.s.mp) { this.mpQuit(); return true; }
     if (this.s) {
+      if (this.tapEl) { this.tapEl.remove(); this.tapEl = null; this.showPause('Paused'); return true; } // (Back on "tap to resume")
       if (this.s.running) this.pause();
       else if (this.repause()) this.showPause('Paused'); // (Esc mid-countdown: paused again)
       else if (this.pauseEl && !this.s.failed) this.resume();
@@ -379,8 +383,9 @@ const GameplayScreen = {
     return true;
   },
 
-  async start(p) {
-    const tok = this._tok;
+  async start(p, tok = this._tok) {
+    if (!tok || this._tok !== tok) return;
+    this.failedScore = this.failedReplay = null; // (a fail screen offers this play's score, never an earlier one's)
     this.loaderStatus('Loading beatmap…', 0.1);
     // (spectating a song you don't have yet: just its difficulty, fetched on its own — see Spectate.start)
     const loaded = p.temp || await BeatmapManager.load(p.mapId);
@@ -450,7 +455,7 @@ const GameplayScreen = {
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
       events: [], running: false, finished: false, failed: false, startedReal: performance.now(), playedReal: 0,
       mode: replay ? 'replay' : auto ? 'auto' : practice ? 'practice' : 'play',
-      loopA: null, loopB: null, speed: rate, ramp: practice ? null : ModSystem.ramp(mods), adaptive: !practice && ModSystem.adaptive(mods), adaptTarget: 1, adaptHist: [], mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
+      loopA: null, loopB: null, rate0: rate, ramp: practice ? null : ModSystem.ramp(mods), adaptive: !practice && ModSystem.adaptive(mods), adaptTarget: 1, adaptHist: [], mp: p.mp || null, mapOffset: MapOffsets.get(rec.hash), spectate: p.spectate || null,
       debug: { inputs: 0, lastErr: null },
       // (lazer's Cover is the same cover as Hidden and Fade In, from whichever end you choose: along the scroll — from
       // where notes appear, as Fade In — or against it, from the receptors, as Hidden)
@@ -532,8 +537,8 @@ const GameplayScreen = {
    *  beatmap's offset: on the loader, and on the pause screen to fix things mid-song. */
   playerSettings(rec, offset) {
     return [h('div.pl-group', h('div.pl-gt', 'Visual Settings', icon('list')),
-      this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
-      this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`, () => this.applyBackground()),
+      this.loaderSlider('gameplay.bgDim', 'Background dim', 0, 1, 0.01, v => `${Math.round(v * 100)}%`),
+      this.loaderSlider('gameplay.bgBlur', 'Background blur', 0, 1, 0.05, v => `${Math.round(v * 100)}%`),
       this.loaderToggle('gameplay.video', 'Show storyboard / video', () => this.applyStoryboardVideo()),
       this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`)),
       rec && offset ? this.loaderOffset(rec) : null].filter(Boolean);
@@ -693,7 +698,7 @@ const GameplayScreen = {
       }
       const images = new Map();
       await Promise.all([...paths].map(async f => { const b = await BeatmapManager.getFile(set.id, f).catch(() => null); if (b) { try { images.set(f, await createImageBitmap(b)); } catch { /* not a picture */ } } }));
-      if (this.s !== s) { for (const b of images.values()) b.close && b.close(); return; }
+      if (this.s !== s || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground')) { for (const b of images.values()) b.close && b.close(); if (this._sbFor === s) this._sbFor = null; return; }
       if (!images.size) return;
       this.sb = new StoryboardPlayer(sprites, images, { widescreen: /WidescreenStoryboard:\s*1/.test(osb + '\n' + osu) });
       const bgf = s.rec.bgFile && normPath(s.rec.bgFile).toLowerCase();
@@ -714,9 +719,10 @@ const GameplayScreen = {
   /** Background video (mp4/webm stored at import) kept in sync with the audio clock. */
   async loadVideo() {
     const s = this.s, v = s.bm.events.video;
-    if (!v || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground') || this._videoURL) return;
+    if (!v || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground') || this._videoURL || this._videoFor === s) return;
+    this._videoFor = s; // (asked again while the file is read — every slider move asks — it's still the one video)
     const blob = await BeatmapManager.getFile(s.rec.setId, v.file || v);
-    if (!blob || this.s !== s) return;
+    if (!blob || this.s !== s || !Settings.get('gameplay.video') || !Settings.get('gameplay.showBackground')) { if (this._videoFor === s) this._videoFor = null; return; }
     this._videoURL = URL.createObjectURL(blob);
     this.videoEl.src = this._videoURL;
     this.videoOffset = v.offset || 0;
@@ -727,7 +733,8 @@ const GameplayScreen = {
     if (!this._videoURL || !vid) return;
     const target = (now - this.videoOffset) / 1000;
     if (target < 0 || !s.running) { if (!vid.paused) vid.pause(); if (target < 0 && vid.currentTime !== 0) vid.currentTime = 0; return; }
-    if (vid.playbackRate !== s.rate) vid.playbackRate = s.rate;
+    const vr = s.rate * (s.speed || 1);
+    if (vid.playbackRate !== vr) vid.playbackRate = vr;
     if (vid.paused) { vid.currentTime = target; vid.play().catch(() => {}); return; }
     if (Math.abs(vid.currentTime - target) > 0.12) vid.currentTime = target;
   },
@@ -876,7 +883,7 @@ const GameplayScreen = {
    *  half-life (DampContinuously); it only jumps to the audio if it's more than two 60 Hz frames (33 ms) out, and it
    *  never runs backwards while the song plays forwards. */
   frameTime(ts) {
-    const truth = this.gameTime(ts), c = this._vc, s = this.s, rate = s.rate || 1;
+    const truth = this.gameTime(ts), c = this._vc, s = this.s, rate = (s.rate || 1) * (s.speed || 1);
     if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || !(ts > c.ts) || ts - c.ts > 250 || c.off !== this.offsetMs()) {
       this._vc = { ts, t: truth, gen: Music.gen, off: this.offsetMs() };
       return truth;
@@ -942,12 +949,12 @@ const GameplayScreen = {
       if (s.adaptive && s.running && !s.finished && Math.abs(s.adaptTarget - s.rate) > 0.002) {
         const dt = Math.min(0.1, Math.max(0, (realNow - (this._asT || realNow)) / 1000)), step = 0.25 * dt;
         const r = s.rate + clamp(s.adaptTarget - s.rate, -step, step);
-        if (Math.abs(r - s.rate) > 0.001) { s.rate = r; Music.rampTo(r); }
+        if (Math.abs(r - s.rate) > 0.001) { s.rate = r; Music.rampTo(r * (s.speed || 1)); }
       }
       this._asT = realNow;
       if (s.ramp && s.running && !s.finished) {
         const k = clamp((now - s.firstNote) / Math.max(1, s.endTime - s.firstNote), 0, 1), r = s.ramp[0] + (s.ramp[1] - s.ramp[0]) * k;
-        if (Math.abs(r - s.rate) > 0.002) { s.rate = r; Music.rampTo(r); }
+        if (Math.abs(r - s.rate) > 0.002) { s.rate = r; Music.rampTo(r * (s.speed || 1)); }
       }
       const timeRange = 11485 / Settings.get('gameplay.scrollSpeed');
       g.now = now; g.posNow = s.scroll.pos(now); g.scroll = s.scroll; g.pxPerMs = this.renderer.scrollLength / (timeRange * s.rate);
@@ -1018,7 +1025,8 @@ const GameplayScreen = {
     const f = m.count <= 0 ? 1 : Math.min(1, combo / m.count), v = m.inverse ? f : 1 - f;
     if (this._muV == null || Math.abs(v - this._muV) > 0.005) { this._muV = v; AudioManager.modVolume(v); }
     if (!m.metronome || !s.running) return;
-    const red = s.redTiming.red, tp = red[Math.max(0, bsearchLE(red, now, 'time'))];
+    const red = s.redTiming.red, tp = red.length ? red[Math.max(0, bsearchLE(red, now, 'time'))] : null;
+    if (!tp || !(tp.beatLength > 0)) return; // (no timing to keep a beat to)
     const meter = tp.meter > 0 ? tp.meter : 4;
     if (now < s.firstNote - tp.beatLength * meter) return;
     const beat = Math.floor((now - tp.time) / tp.beatLength + 1e-6), key = tp.time + ':' + beat;
@@ -1858,16 +1866,18 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const pads = [...navigator.getGamepads()].filter(Boolean);
     if (!pads.length) return;
     this._padState = this._padState || {};
-    for (const gp of pads) {
-      gp.buttons.forEach((b, i) => {
-        const code = `Pad${i}`, prev = !!this._padState[code], now = !!b.pressed;
-        if (now === prev) return;
-        this._padState[code] = now;
-        const col = s.keyMap.get(code);
-        if (col === undefined) return;
-        const t = Music.timeAtCtx(AudioManager.perfToCtx(gp.timestamp || performance.now())) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
-        if (now) this.keyDown(col, code, t); else this.keyUp(col, code, t);
-      });
+    const down = [];
+    let at = 0;
+    for (const gp of pads) { gp.buttons.forEach((b, i) => { if (b.pressed) down[i] = true; }); at = Math.max(at, gp.timestamp || 0); }
+    const n = Math.max(down.length, ...pads.map(gp => gp.buttons.length));
+    for (let i = 0; i < n; i++) {
+      const code = `Pad${i}`, prev = !!this._padState[code], now = !!down[i];
+      if (now === prev) continue;
+      this._padState[code] = now;
+      const col = s.keyMap.get(code);
+      if (col === undefined) continue;
+      const t = Music.timeAtCtx(AudioManager.perfToCtx(at || performance.now())) - this.offsetMs() * s.rate - Settings.get('input.latency') * s.rate;
+      if (now) this.keyDown(col, code, t); else this.keyUp(col, code, t);
     }
   },
 
@@ -1968,6 +1978,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (!s || !s.feed || s.finished || s.changingSpeed) return;
     t = clamp(t, Math.min(0, s.startPos), s.endTime + 300 * s.rate);
     this._resim = true;
+    // (Wind Up / Wind Down / Adaptive Speed: the play's engine was made at the speed the song started at — its timing
+    // windows go by it; the frames after the seek move the speed on to where the song is)
+    const rateNow = s.rate;
+    if (s.ramp || s.adaptive) s.rate = s.rate0;
     try {
       this.newEngine();
       const eng = s.engine, ev = s.feed;
@@ -1976,7 +1990,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       eng.advance(t);
       s.feedIdx = i;
       this._lastCombo = eng.score.combo;
-    } finally { this._resim = false; }
+    } finally { this._resim = false; if (s.adaptive) s.rate = rateNow; }
     if (this.errMeter) this.errMeter.clear();
     this._ppJudged = this._lastSc = this._lastAcc = undefined;
     const pos = t + this.offsetMs() * s.rate;
@@ -2039,6 +2053,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     this.practiceBar = bar;
     this.hud.append(bar);
     this.placePracticeBar();
+    if (this._prResize) window.removeEventListener('resize', this._prResize); // (a retry builds the bar again)
     this._prResize = () => this.placePracticeBar();
     window.addEventListener('resize', this._prResize);
     // density graph
@@ -2128,15 +2143,17 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   async practiceSpeed(sp) {
     const s = this.s;
-    if (!s) return;
+    if (!s || s.changingSpeed) return; // (a stretch takes a moment: the next speed waits for it)
     const pos = this.gameTime();
     Settings.set('practice.speed', sp);
     Music.stop(0);
     s.running = false;
+    s.changingSpeed = true;
     const msg = h('div.hud-center-msg', 'Changing speed…');
     this.hud.append(msg);
-    await Music.setRate(sp, Settings.get('audio.preservePitch'), f => msg.textContent = `Changing speed… ${Math.round(f * 100)}%`);
-    msg.remove();
+    try { await Music.setRate(sp, Settings.get('audio.preservePitch'), f => msg.textContent = `Changing speed… ${Math.round(f * 100)}%`); }
+    finally { msg.remove(); s.changingSpeed = false; }
+    if (this.s !== s) return;
     s.rate = sp;
     $$('.speed-group .chip', this.practiceBar).forEach((b, i) => b.classList.toggle('on', Math.abs(PRACTICE_SPEEDS[i] - sp) < 1e-3));
     this.practiceSeek(s.loopA != null && pos < s.loopA ? s.loopA : Math.max(0, pos));
