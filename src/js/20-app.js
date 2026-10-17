@@ -22,7 +22,7 @@ const App = {
     say('Loading beatmaps…');
     await step('beatmaps', () => BeatmapManager.init());
     await BeatmapManager.pruneUnplayable().catch(e => console.warn('prune', e)); // older versions kept them
-    await Multiplayer.cleanupTemp().catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
+    await Multiplayer.cleanupTemp({ startup: true }).catch(() => {}); // beatmaps installed only for a room that wasn't left cleanly
     await Promise.all([['scores', ScoreManager], ['replays', ReplayManager], ['favourites', Favorites], ['collections', Collections], ['profile', ProfileManager], ['beatmap offsets', MapOffsets]]
       .map(([label, m]) => step(label, () => m.init())));
     await ProfileManager.syncPlays().catch(e => console.warn('plays under an earlier name', e)); // (renamed before this was done)

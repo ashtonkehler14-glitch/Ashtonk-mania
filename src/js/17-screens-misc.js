@@ -700,6 +700,16 @@ const CHANGELOG = [
       'Phones: turning the phone during the 3-2-1 countdown stops for a tap too, and Back on "Tap to resume" opens the pause menu',
       'Dragging background dim and blur before a song is smooth; a background video can no longer start twice',
       'Practice: changing the speed twice quickly no longer puts the music out of step'] },
+    { icon: 'multi', title: 'Multiplayer', items: [
+      'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
+      'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',
+      'A room that everyone dropped out of comes back as it was (private stays private, Team Versus stays Team Versus)',
+      'Given the host with a beatmap you don\'t have: it downloads, and Retry works for the host too',
+      'A full room you were away too long from says so, instead of reconnecting forever',
+      'A chat message typed while reconnecting stays in the box instead of vanishing',
+      'Friends in a Ranked Play match can\'t be invited out of it',
+      'Results of a match you weren\'t in say who won, not "You lose"',
+      'A failed join goes back to the lounge instead of showing the room you left'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [

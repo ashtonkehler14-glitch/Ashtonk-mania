@@ -386,7 +386,7 @@ const RankedMatch = {
     this.chatList = h('div.rkm-chatlist');
     for (const m of Multiplayer.chat.slice(-30)) this.chatList.append(this.chatLine(m));
     const input = h('input.input', { placeholder: 'Chat with your opponent…', maxlength: 300, 'aria-label': 'Chat message' });
-    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
+    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') Multiplayer.say(input); if (e.key === 'Escape') input.blur(); });
     const box = h('div.rkm-chat', this.chatList, input);
     requestAnimationFrame(() => { this.chatList.scrollTop = this.chatList.scrollHeight; });
     return box;

@@ -53,7 +53,7 @@ const Multiplayer = {
       if (!rejoin) this.opps = new Map(); // (a reconnect keeps the other players' last scores on screen)
       if (!rejoin) { this.chat = []; this.lastResults = null; }
       let settled = false;
-      const fail = msg => { if (!settled) { settled = true; clearTimeout(slow); reject(new Error(msg)); } };
+      const fail = msg => { if (!settled) { settled = true; clearTimeout(slow); reject(new Error(msg)); if (!rejoin && !this.room) Bus.emit('mp:changed'); } };
       // a connection that neither opens nor fails (a half-dead network) would leave a reconnect waiting forever:
       // no welcome in 10 s, give up on it (and try again)
       const slow = setTimeout(() => { if (settled) return; fail('Couldn\'t reach the multiplayer server.'); try { ws.close(4005, 'slow'); } catch { /* closed */ } }, 10000);
@@ -82,7 +82,7 @@ const Multiplayer = {
         const wasIn = !!this.room;
         this.ws = null; this.stopKeepAlive();
         // this browser's seat was taken by a newer connection (the room opened in another tab): don't fight it for it
-        if (ev && ev.code === 4003) { this.leave(); Toast.show('The room was opened in another tab', 'You\'re playing it there now.'); return; }
+        if (ev && ev.code === 4003) { this.leave(false, { keepMaps: true }); Toast.show('The room was opened in another tab', 'You\'re playing it there now.'); return; }
         // dropped: quietly keep trying to get back in (the only notice is "Reconnected")
         if (wasIn) { this.startReconnect(); Bus.emit('mp:changed'); }
       };
@@ -93,13 +93,20 @@ const Multiplayer = {
   startReconnect() {
     if (this.reconnecting) return;
     const me = this.self();
-    const rc = this.reconnecting = { code: this.code, quick: this.quick, opts: this.opts || {}, tries: 0, create: false, mods: (me && me.mods) || [], diff: this.myDiffId, timer: 0 };
+    const st = this.room && this.room.settings;
+    const rc = this.reconnecting = { code: this.code, quick: this.quick, opts: this.opts || {}, tries: 0, create: false, mods: (me && me.mods) || [], diff: this.myDiffId, timer: 0,
+      // (the room as it was set up: if everyone left meanwhile it's opened again just so — not as a public room)
+      settings: st && !this.isQP() && !this.isRP() ? { ...st } : null };
     const attempt = async () => {
-      if (this.reconnecting !== rc) return;
+      if (this.reconnecting !== rc || rc.busy) return;
+      rc.busy = true;
       try {
-        await this.connect(rc.code, rc.create, rc.quick, true, rc.opts);
+        const opts = rc.create && rc.settings ? { ...rc.opts, public: rc.settings.public, type: rc.settings.type, size: rc.settings.size } : rc.opts;
+        await this.connect(rc.code, rc.create, rc.quick, true, opts);
+        rc.busy = false;
         if (this.reconnecting !== rc) return;
         this.reconnecting = null;
+        if (rc.create && rc.settings && this.isHost()) this.setSettings(rc.settings);
         this.syncHasMap();
         // mid-song: your live score goes out on the very next frame, so the others see it move again straight away
         if (typeof GameplayScreen !== 'undefined') GameplayScreen._mpSent = 0;
@@ -108,11 +115,15 @@ const Multiplayer = {
         Toast.ok('Reconnected to the room', rc.code);
         Bus.emit('mp:changed');
       } catch (e) {
+        rc.busy = false;
         if (this.reconnecting !== rc) return;
         // a Quick Play round moved on without us: there's no way back in
         if (/already started|full/i.test(e.message) && (rc.opts.mode === 'qp' || rc.opts.mode === 'rp' || this.isRPCode === rc.code)) { this.leave(); Toast.err(`Lost the ${rc.opts.mode === 'qp' ? 'Quick Play' : 'Ranked Play'} match`, 'The connection dropped for too long and the match went on without you.'); return; }
+        // (your seat went while you were away and someone took the last one: trying again won't get you in)
+        if (/full/i.test(e.message)) { this.leave(); Toast.err('The room filled up', `You were away too long and your place in ${rc.code} went to someone else.`); return; }
         if (/not found/i.test(e.message)) rc.create = true; // everyone left meanwhile: open it again under the same code
         rc.tries++;
+        clearTimeout(rc.timer);
         rc.timer = setTimeout(attempt, Math.min(5000, 500 * 2 ** Math.min(rc.tries, 4)));
       }
     };
@@ -139,12 +150,14 @@ const Multiplayer = {
       Bus.emit('mp:changed');
     }
   },
-  leave(silent = false) {
+  leave(silent = false, { keepMaps = false } = {}) {
     try { sessionStorage.removeItem('mp.rejoin'); } catch { /* storage blocked */ }
     if (this.reconnecting) { clearTimeout(this.reconnecting.timer); this.reconnecting = null; }
     this.stopKeepAlive();
     this.myDiffId = null; this.fetch = null; this._outbox = null;
-    if (this.temp.size) this.cleanupTemp();
+    // (`keepMaps`: the room carries on in another tab, playing from the beatmaps installed for it — they go at the
+    // next start, when nothing's using them)
+    if (keepMaps) this.temp.clear(); else if (this.temp.size) this.cleanupTemp();
     if (this.quick && this.code && this.room && this.room.players.length < 2) this.api('api/mp/quick/cancel', { code: this.code }).catch(() => {});
     const ws = this.ws;
     // the room list may still carry the room we just left for a moment: the lobby hides it if we were alone in it
@@ -156,8 +169,17 @@ const Multiplayer = {
   /** Send to the room. A play's result (finish / quit) that can't go out because the connection has dropped waits
    *  and goes out once it's back: the room keeps your place in the match while you reconnect. */
   send(m) {
-    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return; }
+    if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return true; }
     if (m && (m.t === 'finish' || m.t === 'quit') && (this.reconnecting || this.ws)) this._outbox = m;
+    return false;
+  },
+  /** A chat message: kept in the box (and said so) when the connection is down, instead of vanishing. */
+  say(input) {
+    const text = input.value;
+    if (!text.trim()) return;
+    if (this.send({ t: 'chat', text })) { input.value = ''; return true; }
+    Toast.show('Not sent', this.reconnecting ? 'Reconnecting to the room — send it again in a moment.' : 'You\'re not connected to the room.');
+    return false;
   },
   flushOutbox() { const m = this._outbox; this._outbox = null; if (m) this.send(m); },
   ping() { this._pingAt = performance.now(); this.send({ t: 'ping', c: this._pingAt }); },
@@ -204,7 +226,9 @@ const Multiplayer = {
         this.qpClock(m.room);
         if (key(m.room.map) !== prev) this.myDiffId = null;
         this.syncHasMap();
-        this.autoFetch();
+        // (the room handed to you: you may not have its beatmap — the last host picked it from their library)
+        this.autoFetch(this.isHost() && this._wasHost === false);
+        this._wasHost = this.isHost();
         if (m.room.players.length > had && had) UISounds.click();
         Bus.emit('mp:changed');
         break;
@@ -266,9 +290,9 @@ const Multiplayer = {
 
   /** Download the room's beatmap straight away when this player doesn't have it. It's installed only for the
    *  room: `cleanupTemp()` removes it when they leave (unless they choose to keep it). */
-  autoFetch() {
+  autoFetch(force = false) {
     const map = this.room && this.room.map;
-    if (!map || (this.isHost() && !this.isQP() && !this.isRP()) || this.localMap(map) || !(map.onlineSetId > 0)) return;
+    if (!map || (this.isHost() && !this.isQP() && !this.isRP() && !force) || this.localMap(map) || !(map.onlineSetId > 0)) return;
     if (this.fetch && this.fetch.onlineSetId === map.onlineSetId && !this.fetch.error) return;
     const f = this.fetch = { onlineSetId: map.onlineSetId, progress: 0 };
     const before = new Set(BeatmapManager.sets.map(x => x.id));
@@ -287,7 +311,13 @@ const Multiplayer = {
   keepTemp() { const l = this.localMap(); if (l) { this.temp.delete(l.setId); this.saveTemp(); Toast.ok('Kept in your library', `${l.artist} - ${l.title}`); Bus.emit('mp:changed'); } },
   saveTemp() { DB.kvSet('mp.tempSets', [...this.temp]).catch(() => {}); },
   /** Remove beatmaps that were only installed for a room (also run at startup, in case the tab was closed). */
-  async cleanupTemp() {
+  async cleanupTemp({ startup = false } = {}) {
+    if (startup) {
+      // (the page reloaded in a room and is going back in: its beatmaps stay, and go when it's left)
+      let back = null;
+      try { back = JSON.parse(sessionStorage.getItem('mp.rejoin') || 'null'); } catch { /* storage blocked */ }
+      if (back && back.code && Date.now() - back.at < 60000) { for (const id of await DB.kvGet('mp.tempSets', []).catch(() => [])) this.temp.add(id); return; }
+    }
     const ids = new Set([...this.temp, ...(await DB.kvGet('mp.tempSets', []).catch(() => []))]);
     this.temp.clear();
     await DB.kvSet('mp.tempSets', []).catch(() => {});
@@ -538,7 +568,7 @@ const Presence = {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
-      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); this._q = null;
+      this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
@@ -586,7 +616,7 @@ const Presence = {
   away: false,
   hidden() {
     clearTimeout(this._awayT);
-    this._awayT = setTimeout(() => { if (document.hidden && !this.busy()) this.goAway(); }, 30000);
+    this._awayT = setTimeout(() => { if (!document.hidden) return; if (!this.busy()) this.goAway(); else this.hidden(); }, 30000);
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
@@ -619,7 +649,7 @@ const Presence = {
     if (this.ws && this.ws.readyState === 1) { this.ws.send(JSON.stringify(m)); return; }
     // (asked while the connection is still opening — a leaderboard, a profile, a friend request: it goes out the moment
     // it's open instead of being lost, which left song select's online leaderboard spinning)
-    if (this.ws && this.ws.readyState === 0 && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
+    if (((this.ws && this.ws.readyState === 0) || (!this.ws && this.started && !this.away)) && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
   },
   pushStatus() {
     const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
@@ -668,10 +698,10 @@ const Presence = {
     const paint = () => {
       const others = this.others().filter(p => Friends.has(p.pid)); // (only friends can be invited)
       clearEl(list).append(...(others.length ? others.map(p => {
-        const busy = p.status === 'playing' || p.status === 'room'; // (already in a room: can't be invited)
+        const busy = p.status === 'playing' || p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
         const done = invited.has(p.id);
         return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
-          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : 'Online')),
+          h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
           h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
       }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));
     };
@@ -833,7 +863,7 @@ const MultiplayerScreen = {
     // slide-in and reloaded their covers, so the whole list blinked
     const prevRows = this._roomRows || new Map(), nextRows = new Map();
     const sigOf = r => JSON.stringify([r.name, r.players, r.size, r.state, r.type, r.win, r.ranked, r.keys, r.rating, r.host, r.avatar, r.map && [r.map.onlineSetId, r.map.title, r.map.version, r.map.stars]]);
-    const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x';
+    const listSig = rooms ? rooms.map(r => r.code + sigOf(r)).join('|') : 'x' + (Presence.connecting() ? 'c' : '');
     if (listSig === this._roomsSig && el.isConnected && el.childNodes.length) { this._roomsT = setTimeout(() => this.pollRooms(), 3000); return; }
     this._roomsSig = listSig;
     // each lounge lists only its own kind of room
@@ -884,7 +914,7 @@ const MultiplayerScreen = {
     this.chatList = h('div.mp-chat-list');
     for (const m of Multiplayer.chat) this.appendChat(m, false);
     const input = h('input.input', { placeholder: 'Type a message…', maxlength: 300, 'aria-label': 'Chat message' });
-    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && input.value.trim()) { Multiplayer.send({ t: 'chat', text: input.value }); input.value = ''; } if (e.key === 'Escape') input.blur(); });
+    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') Multiplayer.say(input); if (e.key === 'Escape') input.blur(); });
     const chat = h('div.mp-tabpane', this.chatList, input);
     const side = h('div.mp-side', chat);
     this.roomEl = h('div.mp-room', this.headEl, this.resEl, h('div.mp-grid.cols3', h('div.mp-col', this.playersEl), h('div.mp-col.mp-left', h('h3.mp-sect', 'Beatmap'), this.mapEl), h('div.mp-col', h('h3.mp-sect', 'Chat'), side)));
@@ -896,7 +926,7 @@ const MultiplayerScreen = {
     this._qpKey = null;
     const r = Multiplayer.room, me = Multiplayer.self(), host = Multiplayer.isHost();
     const st = r.settings || { type: 'h2h', win: 'pp', size: 2, queue: 'host' };
-    const copy = h('button.btn.sm', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } }, icon('copy'), 'Copy code');
+    const copy = h('button.btn.sm.mp-copy', { onclick: async () => { try { await navigator.clipboard.writeText(r.code); Toast.ok('Room code copied', r.code); } catch { Toast.show('Room code', r.code); } } }, icon('copy'), 'Copy code');
     const invite = h('button.btn.sm.primary.mp-invite', { title: 'Invite someone who\'s online, or share a link', onclick: () => { UISounds.click(); Presence.openInvite(); } }, icon('multi'), 'Invite');
     const reconnecting = Multiplayer.reconnecting ? h('span.mp-reconnecting', h('span.spinner'), 'Reconnecting…') : null;
     // the room's rules at a glance (lazer's match settings); the host can change them
@@ -919,7 +949,9 @@ const MultiplayerScreen = {
       h(`span.mp-rstate${playing ? '.on' : ''}`, playing ? 'Playing' : 'Open'),
       h('div.mp-rbody', h('div.mp-rname', Multiplayer.quick ? 'Quick 1v1' : `${hostP ? hostP.name : 'Someone'}'s room`, reconnecting), rules),
       h('div.mp-roompanel-code', h('small', 'Room code'), h('b.mp-room-code', r.code)),
-      invite, copy));
+      invite, copy,
+      // (lazer's match settings: the host changes the rules between matches)
+      host && !Multiplayer.isQP() && !Multiplayer.isRP() ? h('button.btn.sm.mp-settings-btn', { title: 'Match type, win condition, room size, queue, visibility, auto start', disabled: playing, onclick: () => { UISounds.click(); this.openSettings(); } }, icon('cog'), 'Settings') : null));
     Toast.place();
 
     // beatmap panel
@@ -938,7 +970,7 @@ const MultiplayerScreen = {
     if (map && !local) {
       const f = Multiplayer.fetch;
       if (!(map.onlineSetId > 0)) status.append(h('span.mp-warn', 'You don\'t have this beatmap and it has no online ID — import it to play.'));
-      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Couldn't get the beatmap: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(); this.refreshRoom(); } }, 'Retry'));
+      else if (f && f.onlineSetId === map.onlineSetId && f.error) status.append(h('span.mp-warn', `Couldn't get the beatmap: ${f.error}`), h('button.btn.sm', { onclick: () => { Multiplayer.fetch = null; Multiplayer.autoFetch(true); this.refreshRoom(); } }, 'Retry'));
       // (otherwise it's downloading in the background: nothing to see)
     }
     // each player chooses their own difficulty from the room's beatmap set
@@ -1086,7 +1118,11 @@ const MultiplayerScreen = {
       const my = mine ? mine.team : null;
       verdict = res.winnerTeam === null ? 'Draw' : res.winnerTeam === my ? 'Your team wins!' : my == null ? `${res.winnerTeam ? 'Blue' : 'Red'} team wins` : 'Your team lost';
       cls = res.winnerTeam === null ? 'draw' : res.winnerTeam === my ? 'won' : 'lost';
-    } else if (res.rows.length > 2 && mine) {
+    } else if (!mine) {
+      // (a match you weren't in — you were away when it started: who won it, not "You lose")
+      const w = res.rows.find(x => x.id === res.winner);
+      verdict = w ? `${w.name} wins` : 'Draw'; cls = 'draw';
+    } else if (res.rows.length > 2) {
       verdict = mine.place === 1 && res.winner === meId ? 'You win!' : `You placed ${ord(mine.place)}`;
       cls = mine.place === 1 ? 'won' : mine.place <= Math.ceil(res.rows.length / 2) ? 'draw' : 'lost';
     } else {
@@ -1130,7 +1166,7 @@ const MultiplayerScreen = {
     const paint = () => {
       if (!Multiplayer.room) return;
       const st = Multiplayer.room.settings || {};
-      const size = h('select.select', { 'aria-label': 'Room size' }, ...[2, 3, 4, 5, 6, 7, 8].map(n => h('option', { value: n, selected: n === st.size, disabled: n < Multiplayer.room.players.length }, `${n} players`)));
+      const size = h('select.select', { 'aria-label': 'Room size' }, ...[2, 3, 4, 5, 6, 7, 8, 10, 12, 16].map(n => h('option', { value: n, selected: n === st.size, disabled: n < Multiplayer.room.players.length }, `${n} players`)));
       size.addEventListener('change', () => { UISounds.click(); Multiplayer.setSettings({ size: +size.value }); });
       size.addEventListener('keydown', e => e.stopPropagation());
       clearEl(body).append(

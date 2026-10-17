@@ -228,6 +228,16 @@ await bob.click('.mp-join');
 await bob.waitForFunction(() => AshtonkMania.Multiplayer.inRoom(), null, { timeout: 10000 });
 await alice.waitForFunction(() => AshtonkMania.Multiplayer.room.players.length === 2, null, { timeout: 5000 });
 check('opponent joined; both see two players', await bob.evaluate(() => document.querySelectorAll('.mp-player:not(.empty)').length === 2));
+// the host's Settings (lazer's match settings): win by accuracy — everyone sees the new rule; only the host has the button
+await alice.click('.mp-settings-btn');
+await alice.waitForSelector('.dialog .mp-set');
+await alice.click('.dialog .mp-seg-b:has-text("Accuracy")');
+await bob.waitForFunction(() => /Highest Accuracy wins/.test(document.querySelector('.mp-rules')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+check('the host changes the room\'s rules from Settings (win by accuracy), and everyone sees them; only the host has the button', await bob.evaluate(() => /Highest Accuracy wins/.test(document.querySelector('.mp-rules').textContent) && !document.querySelector('.mp-settings-btn')));
+await alice.click('.dialog .mp-seg-b:has-text("Score")'); // (back to score for the rest)
+await bob.waitForFunction(() => /Highest Score wins/.test(document.querySelector('.mp-rules')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+await alice.click('.dialog .actions .btn');
+await alice.waitForTimeout(300);
 check('joining a missing room fails cleanly', await bob.evaluate(async () => {
   const M = AshtonkMania.Multiplayer, saved = { ws: M.ws, room: M.room, me: M.me, code: M.code };
   try { await new Promise((res, rej) => { const ws = new WebSocket(location.origin.replace('http', 'ws') + '/api/mp/room/ZZZZZZ'); ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name: 'x', create: false })); ws.onmessage = e => { const m = JSON.parse(e.data); m.t === 'error' ? res(m.msg) : rej(new Error('joined')); }; }); return true; }

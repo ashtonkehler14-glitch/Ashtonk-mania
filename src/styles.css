@@ -4552,7 +4552,10 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mp-footer .mp-ready { width: min(600px, 50%); }
 .mp-roompanel-code { grid-area: code; margin-right: 6px; }
 .mp-roompanel > .mp-invite { grid-area: invite; }
-.mp-roompanel > .btn:last-child { grid-area: copy; }
+.mp-roompanel > .mp-copy { grid-area: copy; }
+/* the host's Settings: a column of its own after Copy code */
+.mp-roompanel:has(> .mp-settings-btn) { grid-template-columns: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "state code invite copy set" "body code invite copy set"; }
+.mp-roompanel > .mp-settings-btn { grid-area: set; }
 .mp-roompanel .mp-rshade { background: linear-gradient(90deg, hsl(var(--o-h, 333) 10% 15%) 25%, hsl(var(--o-h, 333) 10% 15% / .45)); }
 .mp-pact { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-left: -4px; border: 0; border-radius: 5px; background: none; color: rgba(255, 255, 255, .55); cursor: pointer; transition: color 150ms, background 150ms; }
 .mp-pact .i { width: 14px; height: 14px; }
