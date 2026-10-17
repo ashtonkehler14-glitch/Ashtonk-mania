@@ -90,14 +90,16 @@ const Account = {
   },
 };
 
-/** The Your code panel: lazer's LoginOverlay look — a 360px panel under the right of the toolbar on Purple Background4 —
- *  with your code (hidden until you ask; Copy), New code and Sign out other devices; and Use a code, for this device. */
+/** The Your code panel: lazer's LoginOverlay look — a 360px panel under the right of the toolbar on Purple Background4.
+ *  Two tabs, one thing each: My code (the code, hidden until tapped, with Copy — and, small underneath, New code and
+ *  signing devices out) and Use a code (type one in). Signed out, only Use a code. */
 const CodePanel = {
-  o: null,
+  o: null, tab: 'mine',
   open(opts = {}) {
     if (this.o) { this.close(); return; }
     this.opts = opts;
     this.shown = false;
+    this.tab = opts.use || Account.signedOut() ? 'use' : 'mine';
     this.panel = h('div.login-panel', { role: 'dialog', 'aria-label': 'Your code' });
     this.o = makeOverlay(this.panel, { onClose: () => { this.o = null; document.documentElement.classList.remove('lp-open'); } });
     this.o.el.classList.add('login-ov');
@@ -110,53 +112,48 @@ const CodePanel = {
     const p = this.panel;
     clearEl(p);
     if (!Multiplayer.available()) { p.append(h('div.lp-title', 'YOUR CODE'), h('p.lp-note', 'Codes need the game\'s server. Play on the website, or set its address in Settings → Maintenance.')); return; }
-    if (!Account.signedOut() && !this.opts.use) this.mine(p);
-    this.use(p);
+    if (Account.signedOut()) { p.append(h('div.lp-title', 'PLAY AS YOURSELF HERE')); this.use(p); return; }
+    const tab = (id, label) => h(`button.lp-tab${this.tab === id ? '.on' : ''}`, { onclick: () => { if (this.tab === id) return; UISounds.click(); this.tab = id; this.render(); } }, label);
+    p.append(h('div.lp-tabs', tab('mine', 'My code'), tab('use', 'Use a code')));
+    if (this.tab === 'mine') this.mine(p); else this.use(p);
   },
-  /** Your code: hidden until shown, Copy, New code, Sign out other devices — and this device's sign out. */
+  /** My code: the code (tap to show), Copy; New code and signing out as small links. */
   mine(p) {
     const code = Account.code(), err = h('div.lp-err', { hidden: true });
     const fail = e => { err.hidden = false; err.textContent = friendlyError(e); };
-    p.append(h('div.lp-title', 'YOUR CODE'));
-    if (code) {
-      const val = h('div.lp-code', { title: this.shown ? '' : 'Show it' }, this.shown ? code : code.replace(/[^-]/g, '•'));
-      val.addEventListener('click', () => { if (!this.shown) { this.shown = true; this.render(); } });
-      const copy = h('button.btn.sm', { onclick: async () => { try { await navigator.clipboard.writeText(code); Toast.ok('Code copied', 'Type or paste it on your other device.'); } catch { this.shown = true; this.render(); } } }, icon('copy'), 'Copy');
-      p.append(h('div.lp-code-row', val, this.shown ? null : h('button.btn.sm', { onclick: () => { this.shown = true; this.render(); } }, icon('eye'), 'Show'), copy));
-      p.append(h('p.lp-note', 'Type it on another device to play there as you: your scores, rank and friends. ', h('b', 'Keep it secret'), ' — anyone with it can play as you.'));
-    } else {
+    if (!code) {
       const get = h('button.btn.primary.lp-btn', icon('lock'), Account.linked() ? 'Make a new code' : 'Get my code');
       get.addEventListener('click', async () => { this.busy(get, true); try { await Account.newCode(); this.shown = true; this.render(); } catch (e) { fail(e); } finally { this.busy(get, false); } });
-      p.append(h('p.lp-note', Account.linked()
-        ? 'This device doesn\'t have your code to show. Making a new one replaces it (the old one stops working).'
-        : 'A code lets you play as yourself on another device — your scores, rank and friends — with no username or password.'), get);
+      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank and friends.'), get, err);
+      return;
     }
-    p.append(err);
-    if (code) {
-      const again = h('button.btn.lp-btn', icon('retry'), 'New code');
-      again.addEventListener('click', async () => {
-        if (!(await Dialog.confirm('Make a new code?', 'Your current code stops working. Devices already playing as you stay signed in — use Sign out other devices for those.', { ok: 'New code' }))) return;
-        this.busy(again, true); try { await Account.newCode(); this.shown = true; this.render(); Toast.ok('New code made', 'Your old code doesn\'t work any more.'); } catch (e) { fail(e); } finally { this.busy(again, false); }
-      });
-      const others = h('button.btn.lp-btn', icon('user-times'), 'Sign out other devices');
-      others.addEventListener('click', async () => {
-        if (!(await Dialog.confirm('Sign out your other devices?', 'Only this device will play as you. On the others, typing your code brings them back.', { ok: 'Sign them out' }))) return;
-        this.busy(others, true); try { await Account.signOutOthers(); } catch (e) { fail(e); } finally { this.busy(others, false); }
-      });
-      p.append(again, others);
-    }
-    if (Account.linked()) {
-      const out = h('button.btn.lp-btn.danger', 'Sign out on this device');
-      out.addEventListener('click', async () => {
-        if (!(await Dialog.confirm('Sign out on this device?', 'It stops playing as you (good for a shared or school computer). Your beatmaps, scores and settings here stay. Make sure you have your code to come back.', { ok: 'Sign out' }))) return;
+    const val = h('div.lp-code', this.shown ? code : code.replace(/[^-]/g, '•'));
+    const box = h(`button.lp-codebox${this.shown ? '' : '.hidden'}`, { 'aria-label': this.shown ? 'Your code' : 'Show your code', onclick: () => { if (!this.shown) { UISounds.click(); this.shown = true; this.render(); } } },
+      val, this.shown ? null : h('span.lp-tap', Mobile.touch ? 'tap to show' : 'click to show'));
+    const copy = h('button.lp-copy', { title: 'Copy', 'aria-label': 'Copy your code', onclick: async () => {
+      try { await navigator.clipboard.writeText(code); UISounds.click(); Toast.ok('Code copied', 'Type or paste it on your other device.'); }
+      catch { this.shown = true; this.render(); } // (no clipboard here: shown, to copy by hand)
+    } }, icon('copy'));
+    p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')), err);
+    // (the rarely needed: small, under it)
+    const act = (label, fn, cls = '') => h(`button.lp-act${cls}`, { onclick: fn }, label);
+    p.append(h('div.lp-acts',
+      act('New code', async () => {
+        if (!(await Dialog.confirm('Make a new code?', 'Your current code stops working. Devices already playing as you stay — sign them out too if someone else may have it.', { ok: 'New code' }))) return;
+        try { await Account.newCode(); this.shown = true; this.render(); Toast.ok('New code made', 'Your old code doesn\'t work any more.'); } catch (e) { fail(e); }
+      }),
+      act('Sign out other devices', async () => {
+        if (!(await Dialog.confirm('Sign out your other devices?', 'Only this device will play as you. Typing your code brings the others back.', { ok: 'Sign them out' }))) return;
+        try { await Account.signOutOthers(); } catch (e) { fail(e); }
+      }),
+      Account.linked() ? act('Sign out here', async () => {
+        if (!(await Dialog.confirm('Sign out on this device?', 'It stops playing as you (good for a shared or school computer). Your beatmaps, scores and settings stay. Keep your code to come back.', { ok: 'Sign out' }))) return;
         this.close(); Account.logout();
-      });
-      p.append(out);
-    }
+      }, '.danger') : null));
   },
   /** Use a code: this device becomes the code's player. */
   use(p) {
-    const inp = h('input.input.lp-in.lp-code-in', { placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Your code', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', maxlength: 24 });
+    const inp = h('input.input.lp-in.lp-code-in', { placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Code', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', maxlength: 24 });
     inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submit(); });
     // (tidied as it's typed: capitals, a dash every four)
     inp.addEventListener('input', () => { const raw = inp.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 16); const f = Account.format(raw); if (f !== inp.value) inp.value = f; err.hidden = true; });
@@ -171,10 +168,8 @@ const CodePanel = {
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
-    p.append(h('div.lp-title.lp-sep', signedOut || this.opts.use ? 'PLAY AS YOURSELF HERE' : 'USE A CODE ON THIS DEVICE'),
-      h('p.lp-hint', signedOut ? 'This device is signed out. Type your code (from Your code on your other device) to play as yourself here.' : 'Got a code from your other device? Type it here and this device plays as you — what it has online now is added to you.'),
-      inp, err, go,
-      signedOut ? h('p.lp-note', 'Or ', h('button.lp-link', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'start over as a new player'), ' on this device.') : null);
-    if (signedOut || this.opts.use) setTimeout(() => inp.focus(), 60);
+    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.'), inp, err, go,
+      signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
+    setTimeout(() => inp.isConnected && inp.focus(), 60);
   },
 };

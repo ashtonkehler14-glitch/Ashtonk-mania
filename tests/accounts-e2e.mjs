@@ -81,7 +81,8 @@ try {
   await a.click('.tb-profile', { button: 'right' });
   await a.click('.menu >> text=Your code');
   await a.waitForSelector('.login-panel');
-  check('the menu under your name has Your code (lazer\'s panel, no username or password)', /YOUR CODE/.test(await a.textContent('.login-panel')) && !(await a.$('.login-panel input[type=password]')));
+  const tabs = await a.$$eval('.login-panel .lp-tab', t => t.map(x => x.textContent));
+  check('the menu under your name has Your code: two tabs, My code and Use a code (no username or password)', tabs.join('|') === 'My code|Use a code' && !(await a.$('.login-panel input[type=password]')), tabs.join('|'));
   await a.click('.login-panel >> text=Get my code');
   await a.waitForFunction(() => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/.test((document.querySelector('.login-panel .lp-code') || {}).textContent || ''), null, { timeout: 8000 });
   const code = await a.textContent('.login-panel .lp-code');

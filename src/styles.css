@@ -4639,9 +4639,27 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (notifications go beside the sign-in panel while it's open, not over its fields) */
 html.lp-open #toasts { right: 380px; }
 @media (max-width: 760px) { html.lp-open #toasts { opacity: 0; pointer-events: none; } }
-/* Your code: the code in a monospace box (hidden as dots until Show), Copy beside it; Use a code below a rule */
-.lp-code-row { display: flex; align-items: center; gap: 6px; }
-.lp-code { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 6px; background: hsl(255 10% 12%); font: 600 16px/1.2 ui-monospace, 'RobotoMono', 'Consolas', monospace; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: all; cursor: pointer; }
-.lp-code-in { font-family: ui-monospace, 'Consolas', monospace; letter-spacing: .08em; text-transform: uppercase; }
-.lp-sep { margin-top: 10px; padding-top: 12px; border-top: 1px solid hsl(255 10% 28%); }
-.login-panel > .lp-title:first-child.lp-sep { margin-top: 2px; padding-top: 0; border-top: 0; }
+/* Your code: two tabs (lazer's underline), the code large in one box — dots until tapped — with Copy beside it, one
+   line of what it's for, and the rarely needed as small links underneath */
+.lp-tabs { display: flex; gap: 22px; margin: -2px -20px 6px; padding: 0 20px; border-bottom: 1px solid hsl(255 10% 27%); }
+.lp-tab { position: relative; padding: 8px 0 10px; border: 0; background: none; color: hsl(255 15% 68%); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: color 200ms; }
+.lp-tab:hover { color: #fff; }
+.lp-tab.on { color: #fff; }
+.lp-tab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 2px; background: hsl(255 100% 74%); }
+.lp-code-row { display: flex; align-items: stretch; gap: 6px; }
+.lp-codebox { position: relative; flex: 1; min-width: 0; display: grid; place-items: center; padding: 14px 8px; border: 0; border-radius: 8px; background: hsl(255 10% 12%); color: #fff; cursor: default; }
+.lp-codebox.hidden { cursor: pointer; }
+.lp-codebox.hidden:hover { background: hsl(255 10% 15%); }
+.lp-code { font: 600 18px/1.2 ui-monospace, 'RobotoMono', 'Consolas', monospace; letter-spacing: .07em; white-space: nowrap; user-select: all; }
+.lp-codebox.hidden .lp-code { color: hsl(255 15% 55%); letter-spacing: 0; user-select: none; }
+.lp-tap { position: absolute; bottom: 3px; font-size: 10px; letter-spacing: .04em; color: hsl(255 15% 60%); }
+.lp-copy { flex: none; width: 46px; display: grid; place-items: center; border: 0; border-radius: 8px; background: hsl(255 10% 26%); color: #fff; cursor: pointer; transition: background 200ms; }
+.lp-copy:hover { background: hsl(255 10% 32%); }
+.lp-copy .i { width: 18px; height: 18px; }
+.lp-lead { margin: 2px 0 2px; font-size: 13px; line-height: 1.45; color: hsl(255 20% 80%); }
+.lp-code-in { height: 48px; text-align: center; font-family: ui-monospace, 'RobotoMono', 'Consolas', monospace; font-size: 18px; letter-spacing: .1em; text-transform: uppercase; }
+.lp-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px; margin-top: 4px; padding-top: 10px; border-top: 1px solid hsl(255 10% 25%); }
+.lp-act { padding: 3px 0; border: 0; background: none; color: hsl(255 15% 68%); font: inherit; font-size: 12.5px; cursor: pointer; transition: color 200ms; }
+.lp-act:hover { color: #fff; }
+.lp-act.danger { color: #ff8a8a; }
+.lp-act.danger:hover { color: #ffb0b0; }
