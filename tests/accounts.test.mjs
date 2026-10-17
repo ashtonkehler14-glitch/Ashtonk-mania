@@ -116,3 +116,24 @@ test('codes: profiles from two devices are put together, never brought down', ()
   assert.deepEqual(m.recent.map(x => x.title), ['B', 'A']);
   assert.deepEqual(m.medals, { m1: 1, m2: 1 });
 });
+
+test('imported backups: a play copied onto someone else\'s profile counts only for whoever reported it first', () => {
+  const p = new PresenceLogic(), checked = [];
+  p.verifyTop = (pid, top) => checked.push([pid, top.map(x => x.title)]);
+  const X = { title: 'X', version: 'H', pp: 300, mapHash: 'a'.repeat(32), score: 950000, date: 1700000000000 };
+  const Y = { title: 'Y', version: 'H', pp: 120, mapHash: 'b'.repeat(32), score: 800000, date: 1700000500000 };
+  p.join('a', { name: 'Ann', pid: 'annplay1', key: KEY_A });
+  p.join('b', { name: 'Ann', pid: 'importer', key: KEY_B });
+  p.message('a', { t: 'stats', profile: { plays: 5, top: [X] } });
+  // a backup of Ann's imported elsewhere: the same play (beatmap, score, moment) — and a play of the importer's own
+  p.message('b', { t: 'stats', profile: { plays: 6, top: [X, Y] } });
+  assert.deepEqual(checked, [['annplay1', ['X']], ['importer', ['Y']]], 'the copy counts for nobody but Ann');
+  // the same play again from Ann still counts for Ann; a play with no moment to it can't be told apart, and counts as before
+  p.message('a', { t: 'stats', profile: { plays: 7, top: [X, { title: 'Z', pp: 50 }] } });
+  assert.deepEqual(checked[2], ['annplay1', ['X', 'Z']]);
+  // Ann's first device typed her code on another — merged away — so the player she is now can take the play
+  p.recordVerified('newann12', 'c'.repeat(64), play(100000, 10));
+  p.ranks.delete('annplay1'); p.auth.delete('annplay1');
+  assert.deepEqual(p.ownPlays('newann12', [X]).map(x => x.title), ['X']);
+  assert.deepEqual(p.ownPlays('importer', [X]).map(x => x.title), [], 'still not the importer\'s');
+});

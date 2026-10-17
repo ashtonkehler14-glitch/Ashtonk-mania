@@ -682,8 +682,9 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup has "Playing on another device already? Use your code"'] },
     { icon: 'trophy', title: 'Rankings', items: [
-      'Only plays the server checked as you played them count on the rankings and leaderboards now: a backup someone imported never shows up there, and standings that came from imported backups are gone',
-      'A backup\'s scores stay on your device to look at, marked as imported, and aren\'t shown to other players'] },
+      'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
+      'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',
+      'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [

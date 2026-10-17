@@ -884,6 +884,9 @@ export class PresenceLogic {
     this.firsts = new Map(); this.persistFirsts = null;
     // when each player was last online (for friends' "Last seen …"): set as they go offline; `persistSeen` keeps it
     this.seen = new Map(); this.persistSeen = null;
+    // whose a play on a profile is (its beatmap, score and the moment it was set — only a copied backup repeats all three):
+    // the first player to report it; a copy on someone else's profile counts for nobody else (po:<fingerprint>)
+    this.playOwner = new Map(); this.persistPlayOwner = null;
     // players' keys, by public id (only each key's SHA-256 is kept): pid → hash, or a list of them for an account (a key
     // for each device signed in to it)
     this.auth = new Map(); this.persistAuth = null;
@@ -1157,6 +1160,27 @@ export class PresenceLogic {
     if (prev.created && (!next.created || prev.created < next.created)) out.created = prev.created;
     return out;
   }
+  /** A profile play's fingerprint: its beatmap, score and the moment it was set ('' when it doesn't say). */
+  static playPrint(x) {
+    const hash = String((x && x.mapHash) || ''), date = Math.round(+(x && x.date) || 0);
+    return hash && date > 0 ? `${hash.slice(0, 40)}|${Math.round(+x.score || 0)}|${date}` : '';
+  }
+  loadPlayOwners(all) { for (const [k, v] of Object.entries(all || {})) if (typeof v === 'string') this.playOwner.set(k, v); }
+  /** The plays on a player's profile that are theirs: an exact copy of a play someone else reported first (an imported
+   *  backup) is left out. A play whose first reporter is gone (merged into another player through their code) is
+   *  theirs to take. */
+  ownPlays(pid, top) {
+    return (Array.isArray(top) ? top : []).filter(x => {
+      const fp = PresenceLogic.playPrint(x);
+      if (!fp) return true;
+      const owner = this.playOwner.get(fp);
+      if (owner === pid) return true;
+      if (owner && (this.ranks.has(owner) || this.keyHashes(owner).length)) return false; // (someone else's: a copy)
+      this.playOwner.set(fp, pid);
+      if (this.persistPlayOwner) this.persistPlayOwner(fp, pid);
+      return true;
+    });
+  }
   static KEEP_BESTS = 200; // each player's best plays kept for their total (lazer's total uses the top 100)
   /** A play the server judged itself (verifyPlay): onto the beatmap's leaderboard, into the player's best plays —
    *  their total pp, accuracy and grades for the rankings are worked out from those — and, when it's the daily
@@ -1247,8 +1271,12 @@ export class PresenceLogic {
     const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
     // (the best plays their profile lists: only the ones checked to be on ranked beatmaps — and when their standing is
     //  the plays judged here, those instead — with the numbers the total is made of: the bonus pp and how many plays)
-    // (the best plays listed are the judged ones, never a list their game sent — that could be an imported save's)
-    const shown = data ? { ...data, top: [], pp: r ? r.pp : 0 } : data;
+    let shown = data;
+    if (data && Array.isArray(data.top)) {
+      const ok = r && r.okh ? new Set(r.okh) : null;
+      const vt = r && r.src === 'judged' && top.length ? [] : data.top.filter(x => x && x.pp > 0 && x.passed !== false && (ok ? ok.has(PresenceLogic.playId(x)) : x.ranked === true));
+      shown = { ...data, top: vt, pp: r ? r.pp : data.pp };
+    }
     const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
     return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
       rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
@@ -1355,16 +1383,16 @@ export class PresenceLogic {
         r.pol = 3; r.reset = true; r.rew = 1;
         if (r.bests) { PresenceLogic.revalue(r); delete r.rew; }
       }
-      // (policy 4: standing only from plays judged here — what came from players' own reports, an imported save's scores
-      //  among them, is gone: someone with no judged plays leaves the rankings)
-      if (r.pol < 4) { r.pol = 4; r.rep = null; delete r.okh; r.reset = true; }
+      // (a record from the short while only judged plays counted — its profile's standing was dropped: it's checked again
+      //  from their profile, in the background — restoreRanks — and the next time they're online)
+      if (r.pol > PresenceLogic.RANK_POLICY) { r.pol = PresenceLogic.RANK_POLICY; r.reset = true; }
       PresenceLogic.settleRank(r);
       this.ranks.set(pid, r);
     }
   }
   /** A player's standing: the pp of the plays judged here or, while that's lower (a small server can't always judge a
    *  long song in time), what their game reports from their own scores — whichever is higher. */
-  static RANK_POLICY = 4;
+  static RANK_POLICY = 3;
   /** A standing from the best plays a player's profile lists (only the ones on ranked beatmaps: `isRanked(entry)`),
    *  weighted as osu! weights them; null when none count. */
   static rankFromTop(top, isRanked) {
@@ -1399,14 +1427,13 @@ export class PresenceLogic {
     PresenceLogic.settleRank(rec);
     return rec;
   }
-  /** A player's standing: only the plays judged here, from their key presses as they played. What a player's game says
-   *  about its scores — a save imported from somewhere else, plays from before plays were judged, or anything a
-   *  changed game might claim — never counts (policy 4). */
   static settleRank(r) {
-    const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
-    r.pp = v.pp || 0; r.acc = v.acc || 0; r.ss = v.ss || 0; r.s = v.s || 0; r.a = v.a || 0;
-    r.n = v.n || 0; r.src = 'judged';
-    r.rscore = v.rscore || 0;
+    const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+    const use = rep.pp > v.pp ? rep : v;
+    r.pp = use.pp; r.acc = use.acc; r.ss = use.ss; r.s = use.s; r.a = use.a;
+    // (how many ranked plays the total counts, for its bonus pp, and where it came from: plays judged here, or their profile's plays checked on osu!)
+    r.n = use.n || 0; r.src = use === rep ? 'profile' : 'judged';
+    r.rscore = Math.max(v.rscore || 0, rep.rscore || 0);
     return r;
   }
   /** The top 50 by pp, and where you stand. */
@@ -1516,7 +1543,7 @@ export class PresenceLogic {
         if (JSON.stringify([rec.name, rec.avatar, rec.plays]) !== before && this.persistRank) this.persistRank(u.pid, rec);
       }
       const top = this.codeOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (a player on several devices: all their best plays)
-      // (their reported plays are only for showing on their profile: the rankings take judged plays alone — see settleRank)
+      if (Array.isArray(top) && top.length && this.verifyTop) this.verifyTop(u.pid, this.ownPlays(u.pid, top.slice(0, 50)), { name: u.name, avatar: u.avatar });
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
@@ -1972,6 +1999,8 @@ export class Matchmaker {
         this.presence.loadAuth(au);
         const cd = {}; for (const [k, v] of await st.list({ prefix: 'cd:' })) cd[k.slice(3)] = v;
         this.presence.loadCodes(cd);
+        const po = {}; for (const [k, v] of await st.list({ prefix: 'po:' })) po[k.slice(3)] = v;
+        this.presence.loadPlayOwners(po);
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
@@ -1995,11 +2024,13 @@ export class Matchmaker {
       if (inline.length) setTimeout(split, 3000);
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.presence.verifyTop = (pid, top, who) => { this.verifyTop(pid, top, who).catch(e => console.error('verifyTop', e)); };
+      this.restoreRanks().catch(e => console.error('restoreRanks', e));
       // (records whose plays weren't loaded when the way totals are added up changed: worked out again, a few at a time)
       const rew = [...this.presence.ranks].filter(([, r]) => r.rew).map(([pid]) => pid);
       const revalue = async () => { for (const pid of rew.splice(0, 10)) { const r = this.presence.ranks.get(pid); if (!r) continue; await this.ensureBests(pid); delete r.rew; PresenceLogic.revalue(r); this.presence.persistRank(pid, r); } if (rew.length) setTimeout(() => revalue().catch(() => {}), 500); };
       if (rew.length) setTimeout(() => revalue().catch(() => {}), 2000);
       this.presence.persistAuth = (pid, h) => { (Array.isArray(h) && !h.length ? st.delete(`au:${pid}`) : st.put(`au:${pid}`, h)).catch(() => {}); };
+      this.presence.persistPlayOwner = (fp, pid) => { st.put(`po:${fp}`, pid).catch(() => {}); };
       this.presence.persistCode = (hash, pid, old) => { if (hash) st.put(`cd:${hash}`, { pid, at: Date.now() }).catch(() => {}); if (old) st.delete(`cd:${old}`).catch(() => {}); };
       // (a player merged into an account: what was kept under their old id goes)
       this.presence.dropPlayer = (pid, what) => {
@@ -2132,7 +2163,7 @@ export class Matchmaker {
     const budget = { n: 300 };
     const ranked = x => this.rankedEntry(x, budget);
     // (a few profiles at a time, a little apart, so it never holds the server up; once for each change of the rules)
-    const state = await st.get('rr3').catch(() => null);
+    const state = await st.get('rr4').catch(() => null);
     if (state === true) return;
     const opts = { prefix: 'pf:', limit: 20 };
     if (typeof state === 'string') opts.startAfter = state;
@@ -2140,16 +2171,18 @@ export class Matchmaker {
     let done = typeof state === 'string' ? state : null, deferred = false; // (done: the last profile fully dealt with)
     for (const [k, data] of page) {
       const pid = k.slice(3), rec = P.ranks.get(pid);
-      if (data && typeof data === 'object' && Array.isArray(data.top) && data.top.length) {
-        const flags = await Promise.all(data.top.slice(0, 50).map(x => x && typeof x === 'object' ? ranked(x) : false));
+      // (only the plays that are theirs: a copy of someone else's — an imported backup — is left out)
+      const mine = data && typeof data === 'object' && Array.isArray(data.top) ? P.ownPlays(pid, data.top.slice(0, 50)) : [];
+      if (mine.length || (rec && rec.rep && rec.rep.pp > 0)) {
+        const flags = await Promise.all(mine.map(x => x && typeof x === 'object' ? ranked(x) : false));
         // (lookups used up or failing: this player's standing stays as it is, and they're checked again next round)
         if (flags.some(f => f === null)) { deferred = true; break; }
-        const rep = PresenceLogic.rankFromTop(data.top.slice(0, 50).filter((x, i) => flags[i] === true), () => true);
+        const rep = PresenceLogic.rankFromTop(mine.filter((x, i) => flags[i] === true), () => true);
         if (rec || rep) {
           const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
           r.restored = true;
           r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
-          r.okh = PresenceLogic.okIds(data.top.slice(0, 50), flags);
+          r.okh = PresenceLogic.okIds(mine, flags);
           PresenceLogic.settleRank(r);
           P.ranks.set(pid, r);
           if (P.persistRank) P.persistRank(pid, r);
@@ -2157,10 +2190,10 @@ export class Matchmaker {
       }
       done = k;
     }
-    if (done) await st.put('rr3', done);
+    if (done) await st.put('rr4', done);
     // (this round's osu! lookups used up: carry on in a minute with a fresh allowance — not at the next restart)
     if (deferred) { setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 60000); return; }
-    if (page.size < 20) { st.put('rr3', true).catch(() => {}); return; }
+    if (page.size < 20) { st.put('rr4', true).catch(() => {}); return; }
     setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 1500);
   }
   closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
