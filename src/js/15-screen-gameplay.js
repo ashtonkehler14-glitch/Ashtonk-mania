@@ -76,7 +76,7 @@ const PlayScreen = {
     if (!this.phone()) return;
     // (a retry comes straight back to gameplay: don't turn the screen in between)
     clearTimeout(this._unT);
-    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock('landscape'); }, 500);
+    this._unT = setTimeout(() => { if (Screens.currentName !== 'gameplay' && typeof Orientation !== 'undefined') Orientation.lock(Orientation.wanted()); }, 500);
   },
   /** On the gameplay screen: a tap or click (a gesture the browser accepts for fullscreen) restores it. */
   attach(el) {

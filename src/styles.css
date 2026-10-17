@@ -1553,6 +1553,8 @@ html.touch .practice-bar .kbd { display: none; }
 .setup-next { min-width: 130px; height: 42px; font-size: .95rem; }
 .setup-next .i { order: 2; }
 .setup-step-welcome, .setup-step-ask, .setup-step-device, .setup-step-look { align-items: center; justify-content: center; text-align: center; }
+/* (your code or your name: centred like the pages around it — from the top when it runs longer than the page) */
+.setup-step-account { align-items: center; justify-content: safe center; text-align: center; }
 .setup-logo { position: relative; width: 130px; height: 130px; flex: none; container-type: size; animation: setupLogo 2.4s ease-in-out infinite; }
 .setup-logo.small { width: 96px; height: 96px; }
 @media (max-height: 520px) { .setup-body > .setup-logo { width: 72px; height: 72px; } .setup-body > .setup-logo .lz-cookie-disc { border-width: 4px; } }

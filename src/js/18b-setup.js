@@ -41,8 +41,12 @@ const Onboarding = {
       this.resolve = resolve;
       this.again = again;
       this.accountOnly = account;
-      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false; this.got = null; this.busy = false;
+      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false; this.got = null; this.busy = false; this.finishing = false;
       this.i = 0;
+      // (closed before Finish after typing a code or getting one: this device is that player already — on to their page,
+      // where what's kept for them is brought again — never "I'm new", which would rename them)
+      const already = !again && !account && this.asksAccount && Account.linked() && !Account.signedOut();
+      if (already) { this.acct = 'have'; this.linked = true; this.i = 1; }
       this.dir = 1;
       this.womAnswer = this.womDone = this.womStatus = null;
       this.animate = true;
@@ -56,6 +60,7 @@ const Onboarding = {
         },
       });
       this.render();
+      if (already) this.bringBack({ pause: false }).then(() => { if (this.o && this.step.id === 'account') { this.animate = false; this.render(); } });
     });
     return this.done;
   },
@@ -110,7 +115,6 @@ const Onboarding = {
   async go(k) {
     if (k === this.i || k < 0 || k >= this.steps.length || this.busy) return;
     if (k > this.i && !(await this.commit())) return;
-    if (k >= this.steps.length) k = this.steps.length - 1; // (a returning player's pages, now fewer)
     this.dir = k > this.i ? 1 : -1;
     this.i = k;
     this.animate = true;
@@ -151,7 +155,10 @@ const Onboarding = {
   },
   /** Close and land on the main menu. */
   async finish() {
-    if (!(await this.commit())) return;
+    if (this.finishing || !this.o) return; // (a tap on Finish while a choice is already finishing it)
+    this.finishing = true;
+    try { if (!(await this.commit())) return; } finally { if (this.o) this.finishing = false; }
+    this.finishing = true;
     const p = ProfileManager.profile;
     const first = !p.onboarded;
     p.onboarded = true;
@@ -161,7 +168,8 @@ const Onboarding = {
     this.stopPreview();
     UISounds.click();
     const o = this.o;
-    this.o = null;
+    this.o = null; this.finishing = false;
+    if (!o) return;
     o.close();
     if (Screens.currentName !== 'home') Screens.go('home');
     if (first) Toast.show(`Welcome, ${p.name}!`, kbHint('Change anything later in Settings (Ctrl+O).', 'Change anything later in Settings.'));
@@ -216,8 +224,9 @@ const Onboarding = {
     this.paintRestore();
     return [h('p.setup-lead', `Playing as ${ProfileManager.profile.name}`), h('div.setup-acct', this.restoreEl)];
   },
-  /** Your settings and skin, from the server, shown on this page as they come. */
-  async bringBack() {
+  /** Your settings and skin, from the server, shown on this page as they come (`pause`: a moment to see what came
+   *  before the setup moves on by itself). */
+  async bringBack({ pause = true } = {}) {
     this.busy = true;
     this.got = null; this.restoreErr = null; this.restoreMsg = 'Bringing your settings…'; this.restoreFrac = null;
     this.animate = false; this.render();
@@ -228,22 +237,22 @@ const Onboarding = {
       if (e.status !== 503 && e.status !== 404) this.restoreErr = friendlyError(e);
     }
     this.paintRestore();
-    await sleep(this.got.settings || this.got.skin ? 900 : 300); // (a moment to see what came)
+    if (pause) await sleep(this.got.settings || this.got.skin ? 900 : 300);
     this.busy = false;
   },
   paintRestore() {
     const w = this.restoreEl;
-    if (!w || !w.isConnected) return;
+    if (!w) return;
     if (!this.got) {
       const bar = this.restoreFrac != null ? h('div.setup-restore-bar', h('i', { style: { width: `${Math.round(this.restoreFrac * 100)}%` } })) : null;
-      clearEl(w).append(h('div.setup-codewait', h('span.spinner'), this.restoreMsg || 'Bringing your settings…'), bar);
+      clearEl(w).append(...[h('div.setup-codewait', h('span.spinner'), this.restoreMsg || 'Bringing your settings…'), bar].filter(Boolean));
       return;
     }
     const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
-    clearEl(w).append(
+    clearEl(w).append(...[
       line(true, 'Your scores, rank and friends'),
       this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
-      this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : null);
+      this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : this.got.skinErr ? line(false, `Your skin didn't come along (${noStop(this.got.skinErr)})`) : null].filter(Boolean));
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */
   paintCode() {
@@ -261,7 +270,7 @@ const Onboarding = {
   codeEntry() {
     this.codeIn = h('input.input.lp-code-in.setup-code-in', { placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Your code', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', maxlength: 24 });
     this.codeIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
-    this.codeIn.addEventListener('input', () => { const raw = this.codeIn.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 16), f = Account.format(raw); if (f !== this.codeIn.value) this.codeIn.value = f; this.err.textContent = ''; });
+    Account.tidyInput(this.codeIn, () => { this.err.textContent = ''; });
     this.afterRender = () => setTimeout(() => this.codeIn && this.codeIn.focus(), 60);
     const help = h('div.setup-help', { hidden: !this.helpOpen },
       h('p', 'On a device you already play Ashtonk!mania on:'),

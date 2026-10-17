@@ -277,7 +277,7 @@ const Orientation = {
     document.body.append(this.el);
     window.addEventListener('resize', () => this.update());
     document.addEventListener('fullscreenchange', () => this.lock(this.wanted()));
-    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.update()); };
+    const hook = () => { if (typeof Bus === 'undefined') return setTimeout(hook, 200); Bus.on('screen:changed', () => this.lock(this.wanted())); };
     hook();
     this.lock('landscape');
   },

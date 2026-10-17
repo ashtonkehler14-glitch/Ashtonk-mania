@@ -187,15 +187,29 @@ try {
   await e.waitForSelector('.setup-step-account .setup-code-in');
   check('a new device: "Yes, I have a code" leads to a page of its own for the code', !(await e.$('.setup-step-welcome')));
   await e.fill('.setup-code-in', code2);
+  // (everything the page says while your settings come)
+  await e.evaluate(() => { window.__said = []; new MutationObserver(() => { const r = document.querySelector('.setup-restore'); if (r) window.__said.push(r.textContent); }).observe(document.body, { subtree: true, childList: true, characterData: true }); });
   await e.keyboard.press('Enter');
   await e.waitForSelector('.setup-step-device', { timeout: 20000 });
+  const said = await e.evaluate(() => window.__said);
+  check('…the page shows them coming, then what came — your settings, your skin (no stray "null")', said.some(t => /Downloading your skin/.test(t)) && said.some(t => /Your settings/.test(t) && /Your skin:/.test(t)) && !said.some(t => /null/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));
   const got = await e.evaluate(() => { const A = AshtonkMania, S = A.Settings; return { steps: A.Onboarding.steps.map(x => x.id).join(), got: A.Onboarding.got, speed: S.get('gameplay.scrollSpeed'), hue: S.get('wom.hue'), offset: S.get('audio.offset'), perf: S.get('graphics.performanceMode'), skin: A.SkinManager.current.meta && A.SkinManager.current.meta.name, files: (A.SkinManager.current.meta && A.SkinManager.current.meta.files || []).length, pid: A.Presence.pid() }; });
   check('…your settings come along (not the ones that belong to a device: audio offset, performance)', got.speed === 33 && got.hue === 200 && got.offset !== 25 && got.perf !== true && got.got && got.got.settings, JSON.stringify(got));
   check('…and the skin you imported, downloaded and in use', got.skin === mineA.skin && got.files > 5 && got.got.skin === mineA.skin, JSON.stringify(got));
   check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
+  // closed before Finish: back on this player's page (never "I'm new", which would rename them), then the device's page
+  await e.reload();
+  await e.waitForSelector('.setup-step-account .setup-restore', { timeout: 30000 });
+  check('closed before Finish: the setup comes back as this player ("Playing as Kai"), not at "have you played before?"', /Playing as Kai/.test(await e.textContent('.setup-step-account')) && !(await e.$('.setup-step-welcome')) && !(await e.$('.setup-back')));
+  await e.waitForFunction(() => /Your settings/.test(document.querySelector('.setup-restore')?.textContent || ''), null, { timeout: 20000 });
+  await e.click('.setup-next');
+  await e.waitForSelector('.setup-step-device', { timeout: 20000 });
+  // a choice finishes the setup on its own; a tap on Finish as well mustn't run it twice
   await e.click('.setup-choice[data-id="pc"]');
+  await e.click('.setup-next', { timeout: 1000 }).catch(() => {});
   await e.waitForFunction(() => !document.querySelector('.setup'), null, { timeout: 8000 });
-  check('…and it\'s done (Finish on that page)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending()));
+  await e.waitForTimeout(600);
+  check('…and it\'s done (Finish on that page — once, even tapped twice)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending() && AshtonkMania.ProfileManager.profile.name === 'Kai') && (await toasts(e)).split('Welcome, Kai!').length <= 2);
 
   // ── guessing: a few tries per address, then turned away (codes have 80 random bits anyway)
   const tries = await c.evaluate(async () => {

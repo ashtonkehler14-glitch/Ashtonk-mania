@@ -19,7 +19,9 @@ export class PlayerVault {
       if (text.length > SETTINGS_MAX) return json({ error: 'Your settings are too big to keep.' }, 413);
       try { const o = JSON.parse(text); if (!o || typeof o !== 'object') throw 0; } catch { return json({ error: 'Bad settings.' }, 400); }
       await st.put('settings', { at: Date.now(), text });
-      return json({ ok: true });
+      // (which skin is kept: a device whose skin isn't it sends its own)
+      const k = await st.get('skin');
+      return json({ ok: true, skin: k ? { id: k.id, name: k.name } : null });
     }
     // what there is to bring to a device: the settings, and which skin is kept (not the skin itself)
     if (path === '/restore') {

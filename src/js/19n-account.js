@@ -21,6 +21,10 @@ const Account = {
     return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
   },
   format(c) { return String(c || '').replace(/(.{4})(?=.)/g, '$1-'); },
+  /** A code box tidies what's typed into it: capitals, a dash every four. */
+  tidyInput(inp, onInput) {
+    inp.addEventListener('input', () => { const f = this.format(inp.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 16)); if (f !== inp.value) inp.value = f; onInput && onInput(); });
+  },
   /** Where Your code is, said for this device (a phone has no right-click). */
   where() { return Mobile.touch ? 'press and hold your name in the top bar → Your code' : 'right-click your name in the top bar → Your code'; },
   async call(what, body) {
@@ -168,7 +172,7 @@ const CodePanel = {
     const inp = h('input.input.lp-in.lp-code-in', { placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Code', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', maxlength: 24 });
     inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submit(); });
     // (tidied as it's typed: capitals, a dash every four)
-    inp.addEventListener('input', () => { const raw = inp.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 16); const f = Account.format(raw); if (f !== inp.value) inp.value = f; err.hidden = true; });
+    Account.tidyInput(inp, () => { err.hidden = true; });
     const err = h('div.lp-err', { hidden: true });
     const go = h('button.btn.primary.lp-btn', 'Use code');
     const submit = async () => {

@@ -1897,7 +1897,8 @@ export class Matchmaker {
     if (what === 'code') {
       // (a player that's never been online yet claims its id first)
       if (!mine && !(/^[a-z0-9]{6,24}$/.test(pid) && !P.keyHashes(pid).length && P.claim(pid, key))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
-      if (!this.allowTry('c:' + pid, 6) || !this.allowTry('ci:' + ip, 20)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
+      // (every new player gets one in the first-run setup: a class setting up at once behind one school address has room)
+      if (!this.allowTry('c:' + pid, 6) || !this.allowTry('ci:' + ip, 150)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
       let code;
       do code = newPlayerCode(); while (P.codes.has(codeHash(code)));
       P.setCode(pid, codeHash(code));
