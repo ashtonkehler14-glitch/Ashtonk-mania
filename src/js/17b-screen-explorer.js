@@ -100,9 +100,7 @@ const OnlineBeatmaps = {
   async search(p) {
     p = { status: 'leaderboard', keys: [], minStars: 0, maxStars: 20, nsfw: true, ...p };
     if (navigator.onLine === false) throw new Error('You\'re offline. Connect to the internet to browse and download beatmaps — this page searches again by itself once you\'re back online.');
-    if (!await this.checkApi()) throw Object.assign(new Error(Multiplayer.available()
-      ? 'Beatmaps will show up as soon as it\'s back. ' + kbHint('You can still drag .osz files onto the window to add songs.', 'You can still import .osz files from your device to add songs.')
-      : 'Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or ' + kbHint('drag .osz files onto the window to add songs.', 'import .osz files from your device to add songs.')), { server: true });
+    if (!await this.checkApi()) throw this.serverDown();
     const lo = p.minStars > 0 ? p.minStars : null, hi = p.maxStars < 20 ? p.maxStars : null;
     const q = [lo !== null && `stars>=${lo}`, hi !== null && `stars<=${hi}`, p.keys.map(k => `key=${k}`).join(' '), p.q].filter(Boolean).join(' ');
     const params = new URLSearchParams();
@@ -140,14 +138,22 @@ const OnlineBeatmaps = {
     if (!await this.checkApi()) return null;
     return this.normalize(await this.api(`api/getBeatmap?beatmapSetId=${encodeURIComponent(id)}`));
   },
-  /** GET from the game's server; a failure reads as WOM shows it ("Code 429: The site is being rate-limited…"). */
+  /** The game's own server isn't answering: said as on every other online page. */
+  serverDown(status = 0) {
+    return Object.assign(new Error(Multiplayer.available()
+      ? 'Beatmaps will show up as soon as it\'s back. ' + kbHint('You can still drag .osz files onto the window to add songs.', 'You can still import .osz files from your device to add songs.')
+      : 'Browsing beatmaps needs the game\'s server, which asks osu! for them. Open the game from its website to browse, or ' + kbHint('drag .osz files onto the window to add songs.', 'import .osz files from your device to add songs.')), { server: true, status });
+  },
+  /** GET from the game's server; a failure reads as WOM shows it ("Code 429: The site is being rate-limited…") — or, when
+   *  the server itself is down (an error with nothing to say), as every other online page says it. */
   async api(url) {
     let r;
-    try { r = await fetch(Host.api(url)); } catch (e) { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    try { r = await fetch(Host.api(url)); } catch (e) { throw this.serverDown(); }
     if (!r.ok) {
-      let msg = `Code ${r.status}`;
-      try { const t = (await r.text()).trim(); if (t && !/^\s*</.test(t)) msg += `: ${t.slice(0, 300)}`; } catch { /* no body */ }
-      throw Object.assign(new Error(msg), { status: r.status });
+      let t = '';
+      try { t = (await r.text()).trim(); if (/^\s*</.test(t)) t = ''; } catch { /* no body */ }
+      if (!t && r.status >= 500) throw this.serverDown(r.status);
+      throw Object.assign(new Error(`Code ${r.status}${t ? `: ${t.slice(0, 300)}` : ''}`), { status: r.status });
     }
     return r.json();
   },

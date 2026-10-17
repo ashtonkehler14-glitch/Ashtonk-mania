@@ -242,7 +242,7 @@ const Onboarding = {
     const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
     clearEl(w).append(
       line(true, 'Your scores, rank and friends'),
-      this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${this.restoreErr})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
+      this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
       this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : null);
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */
@@ -253,8 +253,8 @@ const Onboarding = {
       const copy = h('button.lp-copy', { title: 'Copy', 'aria-label': 'Copy your code', onclick: async () => { try { await navigator.clipboard.writeText(this.code); UISounds.click(); Toast.ok('Code copied', 'Paste it somewhere safe.'); } catch { /* it's on screen to copy by hand */ } } }, icon('copy'));
       clearEl(w).append(h('label.setup-lbl', 'Your code'),
         h('div.lp-code-row', h('div.lp-codebox', h('div.lp-code', this.code)), copy),
-        h('p.setup-save', icon('warn'), h('span', h('b', 'Save it somewhere safe'), ' — a note on your phone, a screenshot, or write it down. It\'s how you play as yourself on another device, and nobody can get it back for you if it\'s lost. You can always see it again: right-click your name → Your code.')));
-    } else if (this.codeErr) clearEl(w).append(h('p.setup-save.err', h('span', `Couldn't make your code just now (${this.codeErr}). You can get it later: right-click your name in the top bar → Your code.`)));
+        h('p.setup-save', icon('warn'), h('span', h('b', 'Save it somewhere safe'), ` — a note on your phone, a screenshot, or write it down. It's how you play as yourself on another device, and nobody can get it back for you if it's lost. You can always see it again: ${Account.where()}.`)));
+    } else if (this.codeErr) clearEl(w).append(h('p.setup-save.err', h('span', `Couldn't make your code just now (${noStop(this.codeErr)}). You can get it later: ${Account.where()}.`)));
     else clearEl(w).append(h('div.setup-codewait', h('span.spinner'), 'Making your code…'));
   },
   /** Type your code — and how to find it. */
@@ -270,7 +270,12 @@ const Onboarding = {
         h('li', 'Choose ', h('b', 'Your code'), '.'),
         h('li', 'It\'s under ', h('b', 'My code'), ': tap the dots to see it, or press the copy button and paste it here.')),
       h('p.muted', 'Can\'t get to that device and didn\'t save your code? It can\'t be recovered — pick "No, I\'m new" to start fresh.'));
-    const toggle = h('button.setup-help-link', { onclick: () => { this.helpOpen = !this.helpOpen; help.hidden = !this.helpOpen; toggle.classList.toggle('open', this.helpOpen); } }, icon('question'), 'Where do I find my code?');
+    const toggle = h('button.setup-help-link', { onclick: () => {
+      this.helpOpen = !this.helpOpen; help.hidden = !this.helpOpen; toggle.classList.toggle('open', this.helpOpen);
+      // (on a phone it opens below the fold: the page scrolls to it — the page alone, not the setup around it)
+      const body = help.closest('.setup-body');
+      if (this.helpOpen && body) requestAnimationFrame(() => { const by = help.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom + 16; if (by > 0) body.scrollBy({ top: by, behavior: 'smooth' }); });
+    } }, icon('question'), 'Where do I find my code?');
     toggle.classList.toggle('open', this.helpOpen);
     return [h('label.setup-lbl', 'Your code'), this.codeIn, toggle, help];
   },

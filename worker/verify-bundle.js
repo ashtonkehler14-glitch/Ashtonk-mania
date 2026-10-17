@@ -52,6 +52,8 @@ function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); retu
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/** A message to go inside a sentence of ours: without its own full stop. */
+const noStop = m => String(m || '').replace(/[.!]+$/, '');
 const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

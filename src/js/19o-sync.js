@@ -22,7 +22,7 @@ const Sync = {
     if (this.pending() && Account.linked()) setTimeout(() => this.restore().catch(e => console.warn('restore', e)), 2000);
     else this.later(3000);
   },
-  later(ms = 4000) {
+  later(ms = 10000) {
     clearTimeout(this.t);
     this.t = setTimeout(() => this.push().catch(e => console.warn('settings not kept', e)), ms);
   },

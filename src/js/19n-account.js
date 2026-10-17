@@ -21,6 +21,8 @@ const Account = {
     return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
   },
   format(c) { return String(c || '').replace(/(.{4})(?=.)/g, '$1-'); },
+  /** Where Your code is, said for this device (a phone has no right-click). */
+  where() { return Mobile.touch ? 'press and hold your name in the top bar → Your code' : 'right-click your name in the top bar → Your code'; },
   async call(what, body) {
     let r;
     try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
@@ -86,7 +88,7 @@ const Account = {
     this.askAgain();
   },
   forget() {
-    try { ['am.pid', 'am.key', 'am.code', 'am.linked'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
+    try { ['am.pid', 'am.key', 'am.code', 'am.linked', 'am.restore'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
     Presence.reconnect();
     Bus.emit('account:changed');
@@ -134,7 +136,7 @@ const CodePanel = {
     if (!code) {
       const get = h('button.btn.primary.lp-btn', icon('lock'), Account.linked() ? 'Make a new code' : 'Get my code');
       get.addEventListener('click', async () => { this.busy(get, true); try { await Account.newCode(); this.shown = true; this.render(); } catch (e) { fail(e); } finally { this.busy(get, false); } });
-      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank and friends.'), get, err);
+      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank, friends, settings and skin.'), get, err);
       return;
     }
     const val = h('div.lp-code', this.shown ? code : code.replace(/[^-]/g, '•'));

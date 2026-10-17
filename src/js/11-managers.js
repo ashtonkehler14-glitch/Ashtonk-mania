@@ -338,7 +338,7 @@ const DataManager = {
     // (a save from another device: typing your code here keeps you one player online, not one for each device)
     const same = obj.pid && typeof Presence !== 'undefined' && obj.pid === Presence.pid();
     if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !same && Multiplayer.available())
-      setTimeout(() => Toast.show('Playing on more than one device?', 'Get your code on your other device (right-click your name in the top bar → Your code) and type it here under Use a code, so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
+      setTimeout(() => Toast.show('Playing on more than one device?', `Get your code on your other device (${Account.where()}) and type it here under Use a code, so you're one player on the rankings — not one for each device.`, { timeout: 12000 }), 1200);
   },
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;

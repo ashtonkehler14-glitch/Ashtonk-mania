@@ -1555,6 +1555,7 @@ html.touch .practice-bar .kbd { display: none; }
 .setup-step-welcome, .setup-step-ask, .setup-step-device, .setup-step-look { align-items: center; justify-content: center; text-align: center; }
 .setup-logo { position: relative; width: 130px; height: 130px; flex: none; container-type: size; animation: setupLogo 2.4s ease-in-out infinite; }
 .setup-logo.small { width: 96px; height: 96px; }
+@media (max-height: 520px) { .setup-body > .setup-logo { width: 72px; height: 72px; } .setup-body > .setup-logo .lz-cookie-disc { border-width: 4px; } }
 .setup-logo .lz-cookie-disc { border-width: 6px; }
 @keyframes setupLogo { 50% { transform: scale(1.04); } }
 .setup-lead { max-width: 480px; margin: 0; color: var(--text-2); font-size: 1.05rem; line-height: 1.5; }
