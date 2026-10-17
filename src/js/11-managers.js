@@ -303,6 +303,7 @@ const DataManager = {
   async exportAll() {
     const obj = {
       app: APP_NAME, kind: 'backup', version: APP_VERSION, date: Date.now(),
+      pid: typeof Presence !== 'undefined' ? Presence.pid() : '', // (whose save it is: no hint about codes on the same player's device)
       settings: Settings.export(), profile: ProfileManager.profile, favorites: [...Favorites.set],
       collections: Collections.list, scores: await DB.getAll('scores'), replays: await DB.getAll('replays'),
       note: 'Beatmap and skin files are not included; re-import your .osz/.osk files after restoring.',
@@ -335,8 +336,9 @@ const DataManager = {
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
     // (a save from another device: typing your code here keeps you one player online, not one for each device)
-    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !Account.linked() && Multiplayer.available())
-      setTimeout(() => Toast.show('Playing on more than one device?', 'Get your code on your other device (right-click your name in the top bar → Your code) and type it here, so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
+    const same = obj.pid && typeof Presence !== 'undefined' && obj.pid === Presence.pid();
+    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !same && Multiplayer.available())
+      setTimeout(() => Toast.show('Playing on more than one device?', 'Get your code on your other device (right-click your name in the top bar → Your code) and type it here under Use a code, so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
   },
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;

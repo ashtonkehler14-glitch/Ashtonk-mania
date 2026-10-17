@@ -26,6 +26,11 @@ const server = createServer((req, res) => {
 const port = server.address().port;
 const url = `http://127.0.0.1:${port}/`;
 
+/** The setup's first page: "No, I'm new", then the name. */
+async function setupName(pg, name) {
+  if (await pg.$('.setup-choice[data-id="new"]')) await pg.click('.setup-choice[data-id="new"]');
+  await pg.fill('.onboarding .ob-name', name); await pg.keyboard.press('Enter');
+}
 const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
 
@@ -43,7 +48,7 @@ const waitBoot = async () => {
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(400);
   if (await page.$('.onboarding')) {
-    await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
+    await setupName(page, 'Tester');
     await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(400);
   }
   // (every medal already earned: their pop-ups would cover what the tests click; the medal test resets them)
@@ -1157,7 +1162,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await op.reload();
   await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   check('a service worker controls the page after the first visit', await op.evaluate(() => !!navigator.serviceWorker.controller));
-  if (await op.$('.onboarding')) { await op.fill('.onboarding .ob-name', 'Offline'); await op.keyboard.press('Enter'); await op.waitForSelector('.setup-step-wom'); await op.evaluate(() => AshtonkMania.Onboarding.finish()); await op.waitForTimeout(300); }
+  if (await op.$('.onboarding')) { await setupName(op, 'Offline'); await op.waitForSelector('.setup-step-wom'); await op.evaluate(() => AshtonkMania.Onboarding.finish()); await op.waitForTimeout(300); }
   await op.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await octx.setOffline(true);
   await op.reload();
@@ -1181,7 +1186,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await bp.goto(url);
   await bp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await bp.waitForTimeout(300);
-  if (await bp.$('.onboarding')) { await bp.fill('.onboarding .ob-name', 'Guest'); await bp.keyboard.press('Enter'); await bp.waitForSelector('.setup-step-wom'); await bp.evaluate(() => AshtonkMania.Onboarding.finish()); await bp.waitForTimeout(400); }
+  if (await bp.$('.onboarding')) { await setupName(bp, 'Guest'); await bp.waitForSelector('.setup-step-wom'); await bp.evaluate(() => AshtonkMania.Onboarding.finish()); await bp.waitForTimeout(400); }
   const toastText = await bp.$$eval('.toast', a => a.map(t => t.textContent).join(' | '));
   check('storage blocked: the game still boots and says nothing will be saved', await bp.evaluate(() => !!AshtonkMania.DB.memory && AshtonkMania.Screens.currentName === 'home') && /Storage is blocked/.test(toastText), toastText);
   await bp.evaluate(() => AshtonkMania.Screens.go('songselect')); await bp.waitForSelector('.ss-browse');
@@ -1210,10 +1215,29 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const sp = await sctx.newPage();
   sp.on('pageerror', e => errors.push('setup: ' + e.message));
   await sp.goto(url);
+  // (the game server's answers, as it gives them)
+  await sp.route('**/api/account/code', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true,"code":"K7QM3XRA9DPZW2HF"}' }));
   await sp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
+  check('setup: the first page asks whether you\'ve played before (yes, with a code / no, new)', /played Ashtonk!mania before/.test(await sp.textContent('.setup-step-welcome')) && (await sp.$$('.setup-step-welcome .setup-choice')).length === 2);
+  await sp.click('.setup-next');
+  check('setup: you have to answer it', /Pick one/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
+  // "Yes": the code box, and how to find your code
+  await sp.click('.setup-choice[data-id="have"]');
+  await sp.waitForSelector('.setup-code-in');
+  const helpHidden = await sp.$eval('.setup-help', e => e.hidden);
+  await sp.click('.setup-help-link');
+  const help = await sp.$eval('.setup-help', e => ({ shown: !e.hidden, text: e.textContent }));
+  check('setup, "I have a code": a code box, and "Where do I find my code?" says how (your name in the top bar → Your code → My code)', helpHidden && help.shown && /Your code/.test(help.text) && /My code/.test(help.text) && /top bar/.test(help.text), help.text.slice(0, 160));
+  await sp.click('.setup-next');
+  check('…Next without a code asks for it', /Type your code/.test(await sp.textContent('.ob-err')));
+  // "No": your name, and your new code with why to keep it safe
+  await sp.click('.setup-choice[data-id="new"]');
+  await sp.waitForSelector('.setup-mycode .lp-code');
+  const mine = await sp.evaluate(() => ({ code: document.querySelector('.setup-mycode .lp-code').textContent, save: document.querySelector('.setup-save').textContent, name: !!document.querySelector('.setup-acct .ob-name') }));
+  check('setup, "I\'m new": your name, and your code shown with "save it somewhere safe"', mine.name && mine.code === 'K7QM-3XRA-9DPZ-W2HF' && /Save it somewhere safe/.test(mine.save), JSON.stringify(mine));
   await sp.click('.setup-next');
   check('setup: a name is required', /name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
-  await sp.fill('.ob-name', 'Newbie'); await sp.keyboard.press('Enter');
+  await setupName(sp, 'Newbie');
   await sp.waitForSelector('.setup-step-wom');
   check('setup: no skipping — after the name it asks about Web-Osu-Mania (yes / no)', !(await sp.$('.ob-skip')) && (await sp.$$('.setup-step-wom .setup-choice')).length === 2);
   await sp.click('.setup-choice[data-id="no"]');
@@ -1279,9 +1303,14 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await wp.route('**/api/download/**', r => r.fulfill({ contentType: 'application/octet-stream', body: readFileSync(join(root, 'tests', 'fixtures', 'test-set.osz')) }));
   await wp.route('https://catboy.best/d/**', r => r.fulfill({ contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: readFileSync(join(root, 'tests', 'fixtures', 'test-set.osz')) }));
   await wp.goto(url);
+  await wp.route('**/api/account/link', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, pid: 'kiwiplay1', key: 'k'.repeat(64), name: 'Kiwi', merged: false }) }));
   await wp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
-  await wp.fill('.ob-name', 'Kiwi'); await wp.keyboard.press('Enter');
+  // a returning player: "Yes, I have a code", their code (typed carelessly), and they're themselves — named — here
+  await wp.click('.setup-choice[data-id="have"]');
+  await wp.fill('.setup-code-in', 'k7qm3xra9dpzw2hf');
+  await wp.keyboard.press('Enter');
   await wp.waitForSelector('.setup-step-wom');
+  check('setup, "I have a code": typing it makes this device you (your name from it), then on to the rest of the setup', await wp.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Kiwi' && AshtonkMania.Presence.pid() === 'kiwiplay1' && AshtonkMania.Account.linked()));
   await wp.click('.setup-choice[data-id="yes"]');
   await wp.waitForSelector('.setup-step-wom .setup-wom-btn');
   check('setup: "Yes" explains where Web-Osu-Mania keeps its backup (Settings → Backup & Restore)', /Backup & Restore/.test(await wp.textContent('.setup-wom')));
@@ -1302,6 +1331,21 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('Web-Osu-Mania backup: high scores land on the right difficulty (mods, rate, judgements); ones for missing maps are left out', w.score && w.score.v === 'Online Hard' && w.score.mods.join() === 'DT,MR' && w.score.rate === 1.5 && w.score.counts.join() === '300,40,5,2,1,3' && w.score.n === 1, JSON.stringify(w.score));
   check('Web-Osu-Mania backup: collection songs missing from the backup are downloaded, and the collection holds them all', w.col && w.col.hashes.length > 2 && w.downloaded === 1, JSON.stringify({ col: w.col && w.col.hashes.length, dl: w.downloaded }));
   check('the setup screen says what came across', /2 beatmap sets \(1 downloaded for your collections\), 1 score, 1 collection, settings and keybinds/.test(w.text), w.text);
+  // Sign out here (Your code): back at the setup's first question — and only that
+  await wp.evaluate(() => AshtonkMania.Onboarding.finish());
+  await wp.waitForFunction(() => !document.querySelector('.setup'), null, { timeout: 5000 });
+  await wp.route('**/api/account/logout', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
+  await wp.route('**/api/account/code', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true,"code":"M4RT9QZXW2HFK7PA"}' }));
+  await wp.evaluate(() => AshtonkMania.CodePanel.open());
+  await wp.click('.login-panel >> text=Sign out here');
+  await wp.click('.dialog .pd-btn.ok');
+  const back = await wp.waitForSelector('.setup .setup-step-welcome .setup-choice[data-id="have"]', { timeout: 5000 }).then(() => true, () => false);
+  check('Sign out here: the setup comes back at "Have you played before?" (just that page)', back && /Play as yourself/.test(await wp.textContent('.setup h2')) && await wp.evaluate(() => AshtonkMania.Account.signedOut() && AshtonkMania.Onboarding.steps.length === 1));
+  await wp.click('.setup-choice[data-id="new"]');
+  await wp.waitForFunction(() => /M4RT-9QZX-W2HF-K7PA/.test(document.querySelector('.setup .lp-code')?.textContent || ''), null, { timeout: 5000 });
+  await wp.keyboard.press('Enter');
+  await wp.waitForFunction(() => !document.querySelector('.setup'), null, { timeout: 5000 });
+  check('…"No, I\'m new" there: a new player with a new code, and the setup closes', await wp.evaluate(() => !AshtonkMania.Account.signedOut() && AshtonkMania.Account.code() === 'M4RT-9QZX-W2HF-K7PA' && AshtonkMania.Presence.pid() !== 'kiwiplay1'));
   await wctx.close();
 }
 
@@ -1383,7 +1427,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForSelector('.mob-inst', { timeout: 30000 });
   check('phone: opening in the browser recommends the app straight away, saying the browser isn\'t recommended', /not recommended/.test(await mp.textContent('.mob-inst')));
   await mp.click('.mob-inst-skip'); await mp.waitForTimeout(400);
-  await mp.waitForSelector('.ob-name', { timeout: 30000 }); await mp.fill('.ob-name', 'Phone'); await mp.keyboard.press('Enter'); await mp.waitForTimeout(300);
+  await mp.waitForSelector('.setup-step-welcome', { timeout: 30000 }); await setupName(mp, 'Phone'); await mp.waitForTimeout(300);
   await mp.evaluate(() => AshtonkMania.Onboarding.finish()); await mp.waitForFunction(() => !document.querySelector('.setup'));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   {

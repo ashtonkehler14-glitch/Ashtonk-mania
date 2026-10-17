@@ -19,6 +19,11 @@ const server = createServer((req, res) => {
 }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/`;
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
+/** The setup's first page: "No, I'm new", then the name. */
+async function setupName(pg, name) {
+  if (await pg.$('.setup-choice[data-id="new"]')) await pg.click('.setup-choice[data-id="new"]');
+  await pg.fill('.onboarding .ob-name', name); await pg.keyboard.press('Enter');
+}
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
 page.on('pageerror', e => console.log('pageerror:', e.message));
@@ -29,7 +34,7 @@ await page.waitForFunction(() => document.querySelector('#loading-screen.done'),
 await page.waitForTimeout(400);
 if (await page.$('.onboarding')) {
   await page.waitForTimeout(500); await shot('onboarding');
-  await page.fill('.onboarding .ob-name', 'Tester'); await page.keyboard.press('Enter');
+  await setupName(page, 'Tester');
   await page.waitForSelector('.setup-step-wom'); await page.waitForTimeout(500); await shot('setup-wom');
   await page.click('.setup-choice[data-id="yes"]'); await page.waitForTimeout(500); await shot('setup-wom-yes');
   await page.click('.setup-next'); await page.waitForSelector('.setup-step-device'); await page.waitForTimeout(500); await shot('setup-device');

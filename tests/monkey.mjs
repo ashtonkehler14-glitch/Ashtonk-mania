@@ -19,6 +19,11 @@ const server = createServer((req, res) => {
   } catch { res.writeHead(404); res.end(); }
 }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/`;
+/** The setup's first page: "No, I'm new", then the name. */
+async function setupName(pg, name) {
+  if (await pg.$('.setup-choice[data-id="new"]')) await pg.click('.setup-choice[data-id="new"]');
+  await pg.fill('.onboarding .ob-name', name); await pg.keyboard.press('Enter');
+}
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, serviceWorkers: 'block' })).newPage();
 let failures = 0;
@@ -30,7 +35,7 @@ await page.route('https://**', r => r.abort());
 await page.goto(url);
 await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 60000 });
 await page.waitForTimeout(400);
-if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', 'Monkey'); await page.keyboard.press('Enter'); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(500); }
+if (await page.$('.onboarding')) { await setupName(page, 'Monkey'); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(500); }
 await page.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
 await page.waitForTimeout(1200);
 let seed = +(process.argv[3] || 7); const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };

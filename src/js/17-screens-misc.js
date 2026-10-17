@@ -680,7 +680,8 @@ const CHANGELOG = [
       'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
       'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
       'Sign out on this device from the same place, for a shared or school computer',
-      'The first-run setup has "Playing on another device already? Use your code"'] },
+      'The first-run setup asks whether you\'ve played before: if you have, type your code (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, you get your code there — save it somewhere safe',
+      'Signing out brings you back to that question'] },
     { icon: 'trophy', title: 'Rankings', items: [
       'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
       'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',

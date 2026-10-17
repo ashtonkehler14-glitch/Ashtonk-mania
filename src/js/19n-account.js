@@ -69,11 +69,20 @@ const Account = {
     if (me.pid) this.call('logout', me).catch(() => {}); // (its key is forgotten here either way)
     this.forget();
     Toast.show('Signed out on this device', 'Type your code to play as yourself here again.');
+    this.askAgain();
+  },
+  /** Signed out: back to the setup's first question — have you played before? (your code, or start fresh). Not over a
+   *  song: once it's over. */
+  askAgain() {
+    if (typeof Onboarding === 'undefined') return;
+    if (Screens.currentName !== 'gameplay') { setTimeout(() => Onboarding.run({ account: true }), 250); return; }
+    const off = Bus.on('screen:changed', () => { if (Screens.currentName === 'gameplay') return; off(); setTimeout(() => Onboarding.run({ account: true }), 400); });
   },
   /** This device's key doesn't work any more (signed out from another device): signed out here. */
   expired() {
     this.forget();
     Toast.err('Signed out on this device', 'Another of your devices signed this one out. Type your code to play as yourself here again.');
+    this.askAgain();
   },
   forget() {
     try { ['am.pid', 'am.key', 'am.code', 'am.linked'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }

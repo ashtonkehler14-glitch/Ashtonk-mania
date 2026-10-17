@@ -33,6 +33,11 @@ const mf = new Miniflare({
 });
 const url = String(await mf.ready);
 
+/** The setup's first page: "No, I'm new", then the name. */
+async function setupName(pg, name) {
+  if (await pg.$('.setup-choice[data-id="new"]')) await pg.click('.setup-choice[data-id="new"]');
+  await pg.fill('.onboarding .ob-name', name); await pg.keyboard.press('Enter');
+}
 const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
@@ -46,7 +51,7 @@ async function device(name, label) {
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
   await page.waitForTimeout(300);
-  if (await page.$('.onboarding')) { await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter'); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
+  if (await page.$('.onboarding')) { await setupName(page, name); await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish()); await page.waitForTimeout(300); }
   await page.evaluate(() => AshtonkMania.Settings.set('medals.unlocked', Object.fromEntries(AshtonkMania.Medals.all.map(m => [m.id, 1]))));
   await page.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
   await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
@@ -83,10 +88,12 @@ try {
   await a.waitForSelector('.login-panel');
   const tabs = await a.$$eval('.login-panel .lp-tab', t => t.map(x => x.textContent));
   check('the menu under your name has Your code: two tabs, My code and Use a code (no username or password)', tabs.join('|') === 'My code|Use a code' && !(await a.$('.login-panel input[type=password]')), tabs.join('|'));
-  await a.click('.login-panel >> text=Get my code');
+  // (the code was made at setup, "No, I'm new"): hidden until you click it
+  check('the code from setup is under My code, hidden until you ask to see it', /^[•-]+$/.test(await a.textContent('.login-panel .lp-code')));
+  await a.click('.login-panel .lp-codebox');
   await a.waitForFunction(() => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/.test((document.querySelector('.login-panel .lp-code') || {}).textContent || ''), null, { timeout: 8000 });
   const code = await a.textContent('.login-panel .lp-code');
-  check('Get my code: 16 characters in fours, shown on this device', /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$/.test(code), code);
+  check('…clicked: 16 characters in fours, the one setup showed', /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$/.test(code) && code === await a.evaluate(() => AshtonkMania.Account.code()), code);
   check('…the player is the same as before (the code is for who you already are)', await a.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
   await closePanel(a);
   await a.evaluate(() => AshtonkMania.CodePanel.open()); await a.waitForSelector('.login-panel .lp-code');
@@ -99,11 +106,12 @@ try {
   check('device B has a judged play of its own', sb && sb.ok, JSON.stringify(sb && { ok: sb.ok, pp: sb.pp }));
   await b.waitForTimeout(300);
   check('before the code: Kai is on the rankings twice (one for each device)', (await rankings(b)).total === 2);
+  const pidB = await b.evaluate(() => AshtonkMania.Presence.pid());
   // a wrong code: the same answer as any wrong code, after the same pause
   const wrongT = Date.now();
   await typeCode(b, 'AAAA-BBBB-CCCC-DDDD');
   await b.waitForSelector('.login-panel .lp-err:not([hidden])');
-  check('a wrong code is turned down ("doesn\'t belong to anyone"), and this device stays as it was', /doesn't belong to anyone/i.test(await b.textContent('.login-panel .lp-err')) && Date.now() - wrongT >= 380 && await b.evaluate(() => !AshtonkMania.Account.linked()));
+  check('a wrong code is turned down ("doesn\'t belong to anyone"), and this device stays as it was', /doesn't belong to anyone/i.test(await b.textContent('.login-panel .lp-err')) && Date.now() - wrongT >= 380 && await b.evaluate(() => AshtonkMania.Presence.pid()) === pidB);
   // the right one, typed carelessly: lower case, no dashes, an O for a 0
   const sloppy = code.replace(/-/g, '').toLowerCase().replace(/0/g, 'o');
   await b.fill('.login-panel .lp-code-in', sloppy);
@@ -148,9 +156,13 @@ try {
   await a.waitForTimeout(3200); // (one score every 3 s from a player)
   const sa2 = await play(a, '7K Hard');
   check('device A still plays as Kai', sa2 && sa2.ok, JSON.stringify(sa2 && sa2.error));
-  // B comes back with the new code
-  await typeCode(b, code2);
-  await b.waitForFunction(() => AshtonkMania.Account.linked() && !AshtonkMania.Account.signedOut(), null, { timeout: 10000 });
+  // signed out, B is back at the setup's first question; "Yes, I have a code" and the new code bring it back
+  const asked = await b.waitForSelector('.setup .setup-step-welcome .setup-choice[data-id="have"]', { timeout: 6000 }).then(() => true, () => false);
+  check('signed out: the setup\'s first question comes back — have you played before?', asked && /played Ashtonk!mania before/.test(await b.textContent('.setup')));
+  await b.click('.setup-choice[data-id="have"]');
+  await b.fill('.setup-code-in', code2);
+  await b.keyboard.press('Enter');
+  await b.waitForFunction(() => AshtonkMania.Account.linked() && !AshtonkMania.Account.signedOut() && !document.querySelector('.setup'), null, { timeout: 10000 });
   check('a signed-out device comes back with the new code', await b.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
   check('…still one Kai on the rankings', (await rankings(a)).total === 1);
 
@@ -165,10 +177,13 @@ try {
   const badLink = await c.evaluate(() => fetch('api/account/link?code=x', { method: 'GET' }).then(r => r.status));
   check('codes only travel in the body of a POST (nothing to end up in logs or history)', badLink === 404, String(badLink));
 
-  // ── a save imported by a device that isn't using a code: the hint
+  // ── a save from another player imported: the hint (none for a save of this same player's)
+  await c.evaluate(async () => { await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', pid: AshtonkMania.Presence.pid(), scores: [{ id: 'own1', mapHash: 'h', date: 1 }] }); }).catch(() => {});
+  await c.waitForTimeout(1600);
+  check('importing a save of your own: no hint about codes', !/one player on the rankings/i.test(await toasts(c)));
   await c.evaluate(async () => { const s = AshtonkMania.ScoreManager.scores[0] || { id: 'x', mapHash: 'h', date: 1 }; await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', scores: [{ ...s, id: 'imported1' }] }); }).catch(() => {});
   await c.waitForTimeout(1600);
-  check('importing a save on a device that isn\'t using a code: told to type the code from the other device', /Your code/.test(await toasts(c)) && /one player on the rankings/i.test(await toasts(c)));
+  check('importing another device\'s save: told to type the code from that device', /Your code/.test(await toasts(c)) && /one player on the rankings/i.test(await toasts(c)));
   // a backup's scores stay on the device: marked as imported, never sent with its profile, never on the rankings
   const imp = await c.evaluate(async () => {
     AshtonkMania.Rankings.report(); await new Promise(r => setTimeout(r, 800));

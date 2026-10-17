@@ -4663,3 +4663,27 @@ html.lp-open #toasts { right: 380px; }
 .lp-act:hover { color: #fff; }
 .lp-act.danger { color: #ff8a8a; }
 .lp-act.danger:hover { color: #ffb0b0; }
+
+/* setup's first page: have you played before? — the code to type (with how to find it), or your name and your new code */
+.setup-acct { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(420px, 100%); margin-top: 16px; padding: 16px 18px; border-radius: 14px; background: rgba(0, 0, 0, .22); text-align: left; animation: fadeIn 250ms ease both; }
+.setup-lbl { font-size: .8rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.setup-acct .ob-name { width: 100%; }
+.setup-mycode { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.setup-mycode .lp-code { font-size: 20px; }
+.setup-save { display: flex; gap: 8px; margin: 2px 0 0; font-size: .82rem; line-height: 1.45; color: var(--text-2); }
+.setup-save .i { flex: none; width: 15px; height: 15px; margin-top: 2px; color: #ffcc22; }
+.setup-save b { color: #fff; }
+.setup-save.err { color: #ff9a9a; }
+.setup-codewait { display: flex; align-items: center; gap: 10px; padding: 12px 0; font-size: .9rem; color: var(--text-2); }
+.setup-code-in { width: 100%; }
+.setup-help-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: .88rem; cursor: pointer; }
+.setup-help-link .i { width: 14px; height: 14px; }
+.setup-help { padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .05); font-size: .85rem; line-height: 1.5; color: var(--text-2); animation: fadeIn 200ms ease both; }
+.setup-help p { margin: 0 0 6px; }
+.setup-help ol { margin: 0 0 8px; padding-left: 20px; }
+.setup-help li { margin: 2px 0; }
+.setup-help b { color: #fff; }
+.setup-help .muted { margin: 0; font-size: .8rem; }
+.setup-linked { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #b3d944; }
+.setup-linked .i { width: 16px; height: 16px; }
+.setup-next.busy { opacity: .6; pointer-events: none; }
