@@ -689,7 +689,9 @@ const CHANGELOG = [
       'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',
       'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)'] },
     { icon: 'sparkle', title: 'Phones', items: [
-      'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it'] },
+      'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
+      'A song played upright ends on its results upright too: Retry without turning your phone',
+      'The setup fits a phone held sideways, and says "press and hold your name" where a computer says right-click'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [

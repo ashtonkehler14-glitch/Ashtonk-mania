@@ -269,7 +269,7 @@ if (Mobile.touch) Keyboard.init();
 const Orientation = {
   el: null,
   /** The menus are used sideways; gameplay either way up — upright (as lazer's app) or sideways, as you hold it. */
-  wanted() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay' ? 'any' : 'landscape'; },
+  wanted() { return typeof Screens !== 'undefined' && /^(gameplay|results)$/.test(Screens.currentName) ? 'any' : 'landscape'; },
   lock(kind) { try { const o = screen.orientation; o && o.lock && o.lock(kind).catch(() => {}); } catch { /* not supported */ } this.update(); },
   init() {
     if (this.el || !Mobile.touch) return;

@@ -1494,6 +1494,13 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const autoPause = await mp.evaluate(() => { const b = document.querySelector('.hud-touch-pause'); if (!b) return null; const r = b.getBoundingClientRect(); return { vis: getComputedStyle(b).visibility, w: r.width, top: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b }; });
   await mp.tap('.hud-touch-pause'); await mp.waitForTimeout(400);
   check('phone: the pause button is there in Auto too, with the HUD hidden, and pauses', !!(autoPause && autoPause.vis === 'visible' && autoPause.w > 20 && autoPause.top) && !!(await mp.$('.pause-menu')), JSON.stringify(autoPause));
+  // a song played upright: its results stay upright too (Retry without turning the phone)
+  await mp.setViewportSize({ width: 390, height: 844 });
+  await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['AT'], force: true }); });
+  await mp.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 40000 });
+  await mp.waitForTimeout(500);
+  check('phone upright: the results after a song stay upright (no prompt to turn sideways), Retry in reach', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden && !!document.querySelector('.results')));
+  await mp.setViewportSize({ width: 844, height: 390 });
   await mp.evaluate(() => AshtonkMania.Screens.go('home', {}, {})); await mp.setViewportSize({ width: 390, height: 844 }); await mp.waitForTimeout(500);
   await mp.evaluate(() => { const H = AshtonkMania.Screens.current; if (H.setState) H.setState('top'); }); await mp.waitForTimeout(900);
   check('phone: the whole app fits the visible screen (its bottom isn\'t cut off)', await mp.evaluate(() => { const r = document.querySelector('#app').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 2 && Math.abs(r.right - innerWidth) < 2; }));
