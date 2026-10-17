@@ -20,7 +20,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, port: 0, host: '127.0.0.1',
-  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker' },
+  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker', VAULT: 'PlayerVault' },
   serviceBindings: {
     // the static files as Cloudflare serves public/ (with public/_headers' CORS line)
     ASSETS: async req => {

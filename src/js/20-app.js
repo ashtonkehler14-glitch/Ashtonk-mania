@@ -52,7 +52,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -63,6 +63,7 @@ const App = {
     this.globalLoop();
     this.initPWA();
     Mobile.early(); // (on a phone: recommend the app before anything else)
+    Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }

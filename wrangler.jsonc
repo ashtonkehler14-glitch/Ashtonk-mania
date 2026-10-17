@@ -3,7 +3,8 @@
 //  - worker/index.js answers /api/* (beatmap explorer search + .osz download proxy, online
 //    multiplayer) and hands everything else to the assets.
 //  - Multiplayer uses two Durable Objects (worker/multiplayer.js): MatchRoom (one per room code)
-//    and Matchmaker (quick match). SQLite-backed classes work on the Workers free plan.
+//    and Matchmaker (quick match), and PlayerVault (worker/vault.js) keeps each player's settings and skin for the
+//    devices that use their code. SQLite-backed classes work on the Workers free plan.
 //  - `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app): the beatmap listing comes
 //    from the osu! API, as on Web-Osu-Mania (the mirrors are only used to download).
 // Deploy: npx wrangler deploy
@@ -20,11 +21,13 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "MatchRoom" },
-      { "name": "MATCHMAKER", "class_name": "Matchmaker" }
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" },
+      { "name": "VAULT", "class_name": "PlayerVault" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["MatchRoom", "Matchmaker"] }
+    { "tag": "v1", "new_sqlite_classes": ["MatchRoom", "Matchmaker"] },
+    { "tag": "v2", "new_sqlite_classes": ["PlayerVault"] }
   ],
   "vars": {
     "TRUST_CF_CONNECTING_IP": "true"

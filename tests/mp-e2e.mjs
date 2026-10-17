@@ -19,7 +19,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript' };
 const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, port: 0, host: '127.0.0.1',
-  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker' },
+  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker', VAULT: 'PlayerVault' },
   bindings: { TEST_ALL_RANKED: '1' }, // (the test beatmaps aren't online: count them as ranked)
   serviceBindings: {
     ASSETS: async req => {

@@ -4685,5 +4685,9 @@ html.lp-open #toasts { right: 380px; }
 .setup-help b { color: #fff; }
 .setup-help .muted { margin: 0; font-size: .8rem; }
 .setup-linked { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #b3d944; }
-.setup-linked .i { width: 16px; height: 16px; }
+.setup-linked .i { width: 16px; height: 16px; flex: none; }
+.setup-linked.none { color: var(--text-2); font-weight: 500; }
+.setup-restore { display: flex; flex-direction: column; gap: 10px; }
+.setup-restore-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+.setup-restore-bar i { display: block; height: 100%; background: var(--accent, #ff66ab); transition: width .2s; }
 .setup-next.busy { opacity: .6; pointer-events: none; }

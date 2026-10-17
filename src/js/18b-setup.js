@@ -25,6 +25,7 @@ const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
+    { id: 'account', title: 'You' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
@@ -40,7 +41,7 @@ const Onboarding = {
       this.resolve = resolve;
       this.again = again;
       this.accountOnly = account;
-      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false;
+      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false; this.got = null; this.busy = false;
       this.i = 0;
       this.dir = 1;
       this.womAnswer = this.womDone = this.womStatus = null;
@@ -59,7 +60,22 @@ const Onboarding = {
     return this.done;
   },
 
-  get steps() { return this.accountOnly ? this.STEPS.slice(0, 1) : this.STEPS; },
+  /** The pages: without a server to ask, no "have you played before?" (the first page asks your name); after signing
+   *  out, only that question and your code or name; a returning player whose settings came along only has the device's
+   *  own page left (performance or graphics) — their look, gameplay and skin are theirs already. */
+  get steps() {
+    if (!this.asksAccount) return this.STEPS.filter(s => s.id !== 'account');
+    if (this.accountOnly) return this.STEPS.slice(0, 2);
+    if (this.acct === 'have' && !(this.got && !this.got.settings)) return this.STEPS.filter(s => /^(welcome|account|device)$/.test(s.id));
+    return this.STEPS;
+  },
+  /** A page's heading, and its name on the button that leads to it. */
+  titleOf(st) {
+    if (st.id === 'welcome') return this.accountOnly ? 'Play as yourself' : 'Welcome to Ashtonk!mania';
+    if (st.id === 'account') return this.acct === 'have' ? 'Welcome back' : 'Nice to meet you';
+    return st.title;
+  },
+  shortOf(st) { return st.id === 'account' ? (this.acct === 'have' ? 'Your code' : this.acct === 'new' ? 'Your name' : '') : st.short; },
   get step() { return this.steps[this.i]; },
   get last() { return this.i === this.steps.length - 1; },
   /** The first page asks whether you've played before (your code) — wherever there's a server to ask. */
@@ -73,16 +89,18 @@ const Onboarding = {
     const showNav = true;
     // lazer's WizardOverlay: the overlay header, the step, then sheared Back and a wide Next "(next step)" button
     const nx = this.steps[this.i + 1];
-    this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && nx.short ? `Next (${nx.short})` : 'Next')) : null;
+    this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && this.shortOf(nx) ? `Next (${this.shortOf(nx)})` : 'Next')) : null;
+    // (once this device is you, there's no going back to "have you played before?")
+    const back = this.i > 0 && showNav && !(st.id === 'account' && this.linked);
     clearEl(this.el).append(
       h('div.setup-ovhead', h('div.setup-ovt', 'first-run setup'), h('div.setup-ovs', 'set up Ashtonk!mania to suit you')),
       h('div.setup-head',
-        h('h2', st.id === 'welcome' ? (this.accountOnly ? 'Play as yourself' : 'Welcome to Ashtonk!mania') : st.title),
+        h('h2', this.titleOf(st)),
         this.i > 0 ? h('div.setup-progress', ...this.steps.slice(1).map((s, k) => h(`i${k + 1 === this.i ? '.on' : k + 1 < this.i ? '.past' : ''}`)))
           : null),
       body,
       h('div.setup-foot',
-        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
+        back ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
         this.err = h('div.ob-err'),
         this.nextBtn));
     this.afterRender && this.afterRender();
@@ -90,8 +108,9 @@ const Onboarding = {
   },
 
   async go(k) {
-    if (k === this.i || k < 0 || k >= this.steps.length) return;
+    if (k === this.i || k < 0 || k >= this.steps.length || this.busy) return;
     if (k > this.i && !(await this.commit())) return;
+    if (k >= this.steps.length) k = this.steps.length - 1; // (a returning player's pages, now fewer)
     this.dir = k > this.i ? 1 : -1;
     this.i = k;
     this.animate = true;
@@ -99,6 +118,7 @@ const Onboarding = {
     this.render();
   },
   next() {
+    if (this.busy) return;
     if (this.last) this.finish();
     else this.go(this.i + 1);
   },
@@ -106,19 +126,22 @@ const Onboarding = {
   async commit() {
     if (this.step.id === 'welcome' && this.asksAccount) {
       if (!this.acct) { this.err.textContent = 'Pick one first.'; return false; }
-      if (this.acct === 'have' && !this.linked) {
-        const typed = this.codeIn ? this.codeIn.value : '';
-        if (!typed.trim()) { this.err.textContent = 'Type your code first.'; this.codeIn && this.codeIn.focus(); return false; }
-        this.nextBtn && this.nextBtn.classList.add('busy');
-        try { await Account.link(typed); this.linked = true; }
-        catch (e) { this.err.textContent = friendlyError(e); this.codeIn && this.codeIn.select(); return false; }
-        finally { this.nextBtn && this.nextBtn.classList.remove('busy'); }
-        Toolbar.updateProfile();
-        return true;
-      }
-      if (this.acct === 'have') return true;
+      return true;
     }
-    if (this.step.id === 'welcome') {
+    if (this.step.id === 'account' && this.acct === 'have') {
+      if (this.linked) return true;
+      const typed = this.codeIn ? this.codeIn.value : '';
+      if (!typed.trim()) { this.err.textContent = 'Type your code first.'; this.codeIn && this.codeIn.focus(); return false; }
+      this.busy = true;
+      this.nextBtn && this.nextBtn.classList.add('busy');
+      try { await Account.link(typed); this.linked = true; }
+      catch (e) { this.err.textContent = friendlyError(e); this.codeIn && this.codeIn.select(); return false; }
+      finally { this.busy = false; this.nextBtn && this.nextBtn.classList.remove('busy'); }
+      Toolbar.updateProfile();
+      await this.bringBack();
+      return true;
+    }
+    if (this.step.id === 'welcome' || this.step.id === 'account') {
       const n = this.nameEl.value.trim();
       if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
       if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
@@ -149,35 +172,30 @@ const Onboarding = {
   logo(cls = '') { return h(`div.setup-logo${cls}`, h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))); },
 
   step_welcome() {
+    if (!this.asksAccount) return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameInput()];
+    // have you played before? — the next page takes your code (you: scores, rank, friends, settings and skin) or your name
+    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.acct === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => this.pickAccount(v) },
+      h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
+    return [this.logo(), h('p.setup-lead', 'Have you played Ashtonk!mania before?'),
+      h('div.setup-choices.two', choice('have', 'lock', 'Yes, I have a code', 'Play as yourself — your scores, rank, friends, settings and skin'), choice('new', 'user-plus', 'No, I\'m new', 'Start fresh — you\'ll get a code of your own'))];
+  },
+  nameInput() {
     const p = ProfileManager.profile;
     this.nameEl = h('input.input.ob-name', { value: this.nameVal != null ? this.nameVal : p.onboarded || this.again ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; this.nameVal = this.nameEl.value; });
-    if (!this.asksAccount) {
-      this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-      return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
-    }
-    // have you played before? — your code brings you (scores, rank, friends) to this device; new players get theirs
-    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.acct === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => this.pickAccount(v) },
-      h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
-    const out = [this.logo(), h('p.setup-lead', 'Have you played Ashtonk!mania before?'),
-      h('div.setup-choices.two', choice('have', 'lock', 'Yes, I have a code', 'Play as yourself — your scores, rank and friends'), choice('new', 'user-plus', 'No, I\'m new', 'Start fresh — you\'ll get a code of your own'))];
-    if (this.acct === 'new') {
-      this.codeWrap = h('div.setup-mycode');
-      this.paintCode();
-      out.push(h('div.setup-acct', h('label.setup-lbl', 'What should we call you?'), this.nameEl, this.codeWrap));
-      this.afterRender = () => setTimeout(() => this.nameEl && !this.nameEl.value && this.nameEl.focus(), 60);
-    } else if (this.acct === 'have') out.push(h('div.setup-acct', this.linked ? h('div.setup-linked', icon('check'), `Playing as ${ProfileManager.profile.name}`) : this.codeEntry()));
-    return out;
+    this.afterRender = () => setTimeout(() => this.nameEl && !this.nameEl.value && this.nameEl.focus(), 60);
+    return this.nameEl;
   },
-  async pickAccount(v) {
-    if (this.acct === v) return;
-    UISounds.click();
+  /** Picked on the first page: on to the next, where your code or your name goes. */
+  pickAccount(v) {
+    if (this.busy) return;
     this.acct = v; this.err.textContent = '';
-    this.animate = false;
-    this.render();
-    if (v !== 'new' || this.code || this.codeBusy) return;
-    // your code, made now (after signing out: you start over as a new player first)
+    this.go(this.i + 1);
+    if (v === 'new' && !this.code && !this.codeBusy) this.makeCode();
+  },
+  /** Your code, made now (after signing out: you start over as a new player first). */
+  async makeCode() {
     this.codeBusy = true;
     try {
       if (Account.signedOut()) Account.fresh();
@@ -185,6 +203,47 @@ const Onboarding = {
     } catch (e) { this.codeErr = friendlyError(e); }
     finally { this.codeBusy = false; }
     if (this.codeWrap && this.codeWrap.isConnected) this.paintCode();
+  },
+  step_account() {
+    if (this.acct === 'new') {
+      this.codeWrap = h('div.setup-mycode');
+      this.paintCode();
+      return [h('p.setup-lead', 'What should we call you?'), h('div.setup-acct', this.nameInput(), this.codeWrap)];
+    }
+    // a returning player: your code — then what it brings (your settings, your skin) on its way here
+    if (!this.linked) return [h('p.setup-lead', 'Type your code to play as yourself here.'), h('div.setup-acct', this.codeEntry())];
+    this.restoreEl = h('div.setup-restore');
+    this.paintRestore();
+    return [h('p.setup-lead', `Playing as ${ProfileManager.profile.name}`), h('div.setup-acct', this.restoreEl)];
+  },
+  /** Your settings and skin, from the server, shown on this page as they come. */
+  async bringBack() {
+    this.busy = true;
+    this.got = null; this.restoreErr = null; this.restoreMsg = 'Bringing your settings…'; this.restoreFrac = null;
+    this.animate = false; this.render();
+    try {
+      this.got = await Sync.restore((m, f) => { this.restoreMsg = m; this.restoreFrac = f == null ? null : f; this.paintRestore(); });
+    } catch (e) {
+      this.got = { settings: false, skin: '' };
+      if (e.status !== 503 && e.status !== 404) this.restoreErr = friendlyError(e);
+    }
+    this.paintRestore();
+    await sleep(this.got.settings || this.got.skin ? 900 : 300); // (a moment to see what came)
+    this.busy = false;
+  },
+  paintRestore() {
+    const w = this.restoreEl;
+    if (!w || !w.isConnected) return;
+    if (!this.got) {
+      const bar = this.restoreFrac != null ? h('div.setup-restore-bar', h('i', { style: { width: `${Math.round(this.restoreFrac * 100)}%` } })) : null;
+      clearEl(w).append(h('div.setup-codewait', h('span.spinner'), this.restoreMsg || 'Bringing your settings…'), bar);
+      return;
+    }
+    const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
+    clearEl(w).append(
+      line(true, 'Your scores, rank and friends'),
+      this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${this.restoreErr})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
+      this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : null);
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */
   paintCode() {

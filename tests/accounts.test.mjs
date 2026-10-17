@@ -137,3 +137,43 @@ test('imported backups: a play copied onto someone else\'s profile counts only f
   assert.deepEqual(p.ownPlays('newann12', [X]).map(x => x.title), ['X']);
   assert.deepEqual(p.ownPlays('importer', [X]).map(x => x.title), [], 'still not the importer\'s');
 });
+
+test('your settings and skin: kept per player, the skin in 1 MB pieces; a new one replaces the old; too big is turned down', async () => {
+  const { PlayerVault, SKIN_MAX } = await import('../worker/vault.js');
+  const m = new Map();
+  const storage = {
+    get: async k => m.get(k), put: async (k, v) => { m.set(k, v); },
+    delete: async k => { for (const x of [].concat(k)) m.delete(x); }, deleteAll: async () => m.clear(),
+  };
+  const v = new PlayerVault({ storage });
+  const call = (path, body, headers = {}) => v.fetch(new Request('https://vault' + path, { method: 'POST', body, headers, duplex: 'half' }));
+  const stream = (n, piece = 300000) => new ReadableStream({ start(c) { for (let i = 0; i < n; i += piece) c.enqueue(new Uint8Array(Math.min(piece, n - i)).fill(i / piece % 251)); c.close(); } });
+  const skinHdr = (id, name) => ({ 'x-am-skin': encodeURIComponent(JSON.stringify({ id, name })) });
+
+  assert.deepEqual(await (await call('/restore')).json(), { ok: true, settings: null, skin: null }, 'nothing kept yet');
+  assert.equal((await call('/settings', JSON.stringify({ v: 1, values: { 'gameplay.scrollSpeed': 30 }, skin: { id: 'skin-a', name: 'A' } }))).status, 200);
+  assert.equal((await call('/settings', 'not json')).status, 400);
+
+  const size = 2.5 * 1024 * 1024;
+  let r = await call('/skin-up', stream(size), skinHdr('skin-a', 'A'));
+  assert.equal(r.status, 200, await r.clone().text());
+  assert.equal([...m.keys()].filter(k => k.startsWith('sk:')).length, 3, 'three pieces');
+  const kept = await (await call('/restore')).json();
+  assert.deepEqual([kept.settings.values['gameplay.scrollSpeed'], kept.skin.name, kept.skin.size], [30, 'A', size]);
+  const back = new Uint8Array(await (await call('/skin')).arrayBuffer());
+  assert.equal(back.length, size);
+  assert.equal(back[300000], 1, 'the bytes as sent');
+
+  // a new skin: the old pieces go
+  r = await call('/skin-up', stream(1000), skinHdr('skin-b', 'B'));
+  assert.equal(r.status, 200);
+  assert.deepEqual([...m.keys()].filter(k => k.startsWith('sk:')).length, 1);
+  // too big: turned down, nothing left behind, the kept one stays
+  r = await call('/skin-up', stream(SKIN_MAX + 1, 1 << 20), skinHdr('skin-c', 'C'));
+  assert.equal(r.status, 413);
+  assert.equal([...m.keys()].filter(k => k.startsWith('sk:')).length, 1);
+  assert.equal((await (await call('/restore')).json()).skin.name, 'B');
+  // merged into another player: nothing of theirs is kept
+  await call('/wipe');
+  assert.equal(m.size, 0);
+});

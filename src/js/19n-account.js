@@ -26,7 +26,7 @@ const Account = {
     try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
     catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
     const d = await r.json().catch(() => ({}));
-    if (!r.ok || !d.ok) throw new Error(d.error || `The server couldn't do that (${r.status}).`);
+    if (!r.ok || !d.ok) throw Object.assign(new Error(d.error || `The server couldn't do that (${r.status}).`), { status: r.status });
     return d;
   },
   /** This device's player now (pid and its key), as far as the server knows it. */
@@ -48,6 +48,7 @@ const Account = {
       localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
       localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
       localStorage.removeItem('am.signedOut');
+      localStorage.setItem('am.restore', '1'); // (your settings and skin to come: Sync.restore)
     } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
     if (d.name && d.name !== ProfileManager.profile.name) await ProfileManager.setName(d.name);
@@ -171,13 +172,13 @@ const CodePanel = {
     const submit = async () => {
       if (!inp.value.trim()) { inp.focus(); return; }
       this.busy(go, true); err.hidden = true;
-      try { const d = await Account.link(inp.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
+      try { const d = await Account.link(inp.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); Sync.restoreToast(); }
       catch (e) { err.hidden = false; err.textContent = friendlyError(e); inp.select(); this.panel.classList.remove('shake'); void this.panel.offsetWidth; this.panel.classList.add('shake'); }
       finally { this.busy(go, false); }
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
-    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.'), inp, err, go,
+    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings and skin come along.'), inp, err, go,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
   },

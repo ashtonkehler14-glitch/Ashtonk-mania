@@ -4704,7 +4704,11 @@ html.lp-open #toasts { right: 380px; }
 .setup-help b { color: #fff; }
 .setup-help .muted { margin: 0; font-size: .8rem; }
 .setup-linked { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #b3d944; }
-.setup-linked .i { width: 16px; height: 16px; }
+.setup-linked .i { width: 16px; height: 16px; flex: none; }
+.setup-linked.none { color: var(--text-2); font-weight: 500; }
+.setup-restore { display: flex; flex-direction: column; gap: 10px; }
+.setup-restore-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+.setup-restore-bar i { display: block; height: 100%; background: var(--accent, #ff66ab); transition: width .2s; }
 .setup-next.busy { opacity: .6; pointer-events: none; }
 
 </style>
@@ -7369,16 +7373,23 @@ const SkinManager = {
     Bus.emit('skins:changed');
   },
 
-  async exportOsk(id) {
+  /** An installed skin as an .osk (a Blob), or null. */
+  async oskBlob(id) {
     const meta = this.skins.find(s => s.id === id);
-    if (!meta) return;
+    if (!meta) return null;
     const files = [];
     for (const f of meta.files) {
       const b = await DB.get('files', `skin:${id}/${f}`);
       if (b) files.push({ name: f, data: new Uint8Array(await b.arrayBuffer()) });
     }
-    downloadBlob(writeZip(files), `${meta.name}.osk`);
+    return writeZip(files);
   },
+  async exportOsk(id) {
+    const meta = this.skins.find(s => s.id === id), blob = await this.oskBlob(id);
+    if (blob) downloadBlob(blob, `${meta.name}.osk`);
+  },
+  /** A skin that comes with the game (every device has it): Kori. */
+  bundled(meta) { return !!meta && (/^(default|kori|kori 3\.0)\.osk$/i.test(meta.source || '') || /^kori 3\.0$/i.test(meta.name || '')); },
 
   /** Skin number font (score-0..9 etc). Returns null when the skin has none. */
   async loadFont(skin, prefix, overlap) {
@@ -19725,7 +19736,9 @@ const CHANGELOG = [
       'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
       'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
       'Sign out on this device from the same place, for a shared or school computer',
-      'The first-run setup asks whether you\'ve played before: if you have, type your code (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, you get your code there — save it somewhere safe',
+      'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
+      'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
+      'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
       'Signing out brings you back to that question'] },
     { icon: 'trophy', title: 'Rankings', items: [
       'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
@@ -21581,6 +21594,7 @@ const SETUP_NOTE_STYLES = [['bars', 'Bars'], ['circles', 'Circles'], ['arrows', 
 const Onboarding = {
   STEPS: [
     { id: 'welcome', title: 'Welcome!' },
+    { id: 'account', title: 'You' },
     { id: 'wom', title: 'Coming from Web-Osu-Mania?', short: 'Import' },
     { id: 'device', title: 'Performance or graphics?', short: 'Quality' },
     { id: 'look', title: 'Make it yours', short: 'Appearance' },
@@ -21596,7 +21610,7 @@ const Onboarding = {
       this.resolve = resolve;
       this.again = again;
       this.accountOnly = account;
-      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false;
+      this.acct = null; this.linked = false; this.nameVal = null; this.code = null; this.codeErr = null; this.helpOpen = false; this.got = null; this.busy = false;
       this.i = 0;
       this.dir = 1;
       this.womAnswer = this.womDone = this.womStatus = null;
@@ -21615,7 +21629,22 @@ const Onboarding = {
     return this.done;
   },
 
-  get steps() { return this.accountOnly ? this.STEPS.slice(0, 1) : this.STEPS; },
+  /** The pages: without a server to ask, no "have you played before?" (the first page asks your name); after signing
+   *  out, only that question and your code or name; a returning player whose settings came along only has the device's
+   *  own page left (performance or graphics) — their look, gameplay and skin are theirs already. */
+  get steps() {
+    if (!this.asksAccount) return this.STEPS.filter(s => s.id !== 'account');
+    if (this.accountOnly) return this.STEPS.slice(0, 2);
+    if (this.acct === 'have' && !(this.got && !this.got.settings)) return this.STEPS.filter(s => /^(welcome|account|device)$/.test(s.id));
+    return this.STEPS;
+  },
+  /** A page's heading, and its name on the button that leads to it. */
+  titleOf(st) {
+    if (st.id === 'welcome') return this.accountOnly ? 'Play as yourself' : 'Welcome to Ashtonk!mania';
+    if (st.id === 'account') return this.acct === 'have' ? 'Welcome back' : 'Nice to meet you';
+    return st.title;
+  },
+  shortOf(st) { return st.id === 'account' ? (this.acct === 'have' ? 'Your code' : this.acct === 'new' ? 'Your name' : '') : st.short; },
   get step() { return this.steps[this.i]; },
   get last() { return this.i === this.steps.length - 1; },
   /** The first page asks whether you've played before (your code) — wherever there's a server to ask. */
@@ -21629,16 +21658,18 @@ const Onboarding = {
     const showNav = true;
     // lazer's WizardOverlay: the overlay header, the step, then sheared Back and a wide Next "(next step)" button
     const nx = this.steps[this.i + 1];
-    this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && nx.short ? `Next (${nx.short})` : 'Next')) : null;
+    this.nextBtn = showNav ? h('button.setup-next', { onclick: () => this.next() }, h('span', this.last ? 'Finish' : nx && this.shortOf(nx) ? `Next (${this.shortOf(nx)})` : 'Next')) : null;
+    // (once this device is you, there's no going back to "have you played before?")
+    const back = this.i > 0 && showNav && !(st.id === 'account' && this.linked);
     clearEl(this.el).append(
       h('div.setup-ovhead', h('div.setup-ovt', 'first-run setup'), h('div.setup-ovs', 'set up Ashtonk!mania to suit you')),
       h('div.setup-head',
-        h('h2', st.id === 'welcome' ? (this.accountOnly ? 'Play as yourself' : 'Welcome to Ashtonk!mania') : st.title),
+        h('h2', this.titleOf(st)),
         this.i > 0 ? h('div.setup-progress', ...this.steps.slice(1).map((s, k) => h(`i${k + 1 === this.i ? '.on' : k + 1 < this.i ? '.past' : ''}`)))
           : null),
       body,
       h('div.setup-foot',
-        this.i > 0 && showNav ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
+        back ? h('button.setup-back', { onclick: () => this.go(this.i - 1) }, h('span', icon('back'), 'Back')) : null,
         this.err = h('div.ob-err'),
         this.nextBtn));
     this.afterRender && this.afterRender();
@@ -21646,8 +21677,9 @@ const Onboarding = {
   },
 
   async go(k) {
-    if (k === this.i || k < 0 || k >= this.steps.length) return;
+    if (k === this.i || k < 0 || k >= this.steps.length || this.busy) return;
     if (k > this.i && !(await this.commit())) return;
+    if (k >= this.steps.length) k = this.steps.length - 1; // (a returning player's pages, now fewer)
     this.dir = k > this.i ? 1 : -1;
     this.i = k;
     this.animate = true;
@@ -21655,6 +21687,7 @@ const Onboarding = {
     this.render();
   },
   next() {
+    if (this.busy) return;
     if (this.last) this.finish();
     else this.go(this.i + 1);
   },
@@ -21662,19 +21695,22 @@ const Onboarding = {
   async commit() {
     if (this.step.id === 'welcome' && this.asksAccount) {
       if (!this.acct) { this.err.textContent = 'Pick one first.'; return false; }
-      if (this.acct === 'have' && !this.linked) {
-        const typed = this.codeIn ? this.codeIn.value : '';
-        if (!typed.trim()) { this.err.textContent = 'Type your code first.'; this.codeIn && this.codeIn.focus(); return false; }
-        this.nextBtn && this.nextBtn.classList.add('busy');
-        try { await Account.link(typed); this.linked = true; }
-        catch (e) { this.err.textContent = friendlyError(e); this.codeIn && this.codeIn.select(); return false; }
-        finally { this.nextBtn && this.nextBtn.classList.remove('busy'); }
-        Toolbar.updateProfile();
-        return true;
-      }
-      if (this.acct === 'have') return true;
+      return true;
     }
-    if (this.step.id === 'welcome') {
+    if (this.step.id === 'account' && this.acct === 'have') {
+      if (this.linked) return true;
+      const typed = this.codeIn ? this.codeIn.value : '';
+      if (!typed.trim()) { this.err.textContent = 'Type your code first.'; this.codeIn && this.codeIn.focus(); return false; }
+      this.busy = true;
+      this.nextBtn && this.nextBtn.classList.add('busy');
+      try { await Account.link(typed); this.linked = true; }
+      catch (e) { this.err.textContent = friendlyError(e); this.codeIn && this.codeIn.select(); return false; }
+      finally { this.busy = false; this.nextBtn && this.nextBtn.classList.remove('busy'); }
+      Toolbar.updateProfile();
+      await this.bringBack();
+      return true;
+    }
+    if (this.step.id === 'welcome' || this.step.id === 'account') {
       const n = this.nameEl.value.trim();
       if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
       if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
@@ -21705,35 +21741,30 @@ const Onboarding = {
   logo(cls = '') { return h(`div.setup-logo${cls}`, h('span.lz-cookie-disc', h('span.lz-cookie-text', 'ashtonk!', h('small', 'mania')))); },
 
   step_welcome() {
+    if (!this.asksAccount) return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameInput()];
+    // have you played before? — the next page takes your code (you: scores, rank, friends, settings and skin) or your name
+    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.acct === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => this.pickAccount(v) },
+      h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
+    return [this.logo(), h('p.setup-lead', 'Have you played Ashtonk!mania before?'),
+      h('div.setup-choices.two', choice('have', 'lock', 'Yes, I have a code', 'Play as yourself — your scores, rank, friends, settings and skin'), choice('new', 'user-plus', 'No, I\'m new', 'Start fresh — you\'ll get a code of your own'))];
+  },
+  nameInput() {
     const p = ProfileManager.profile;
     this.nameEl = h('input.input.ob-name', { value: this.nameVal != null ? this.nameVal : p.onboarded || this.again ? p.name : '', placeholder: 'Your name', maxlength: 24, 'aria-label': 'Your name', autocomplete: 'nickname' });
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; this.nameVal = this.nameEl.value; });
-    if (!this.asksAccount) {
-      this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-      return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl];
-    }
-    // have you played before? — your code brings you (scores, rank, friends) to this device; new players get theirs
-    const choice = (v, ic, t, sub) => h(`button.setup-choice${this.acct === v ? '.on' : ''}`, { dataset: { id: v }, onclick: () => this.pickAccount(v) },
-      h('span.setup-choice-ic', icon(ic)), h('span.setup-choice-t', t), h('span.setup-choice-s', sub), h('span.setup-check', icon('check')));
-    const out = [this.logo(), h('p.setup-lead', 'Have you played Ashtonk!mania before?'),
-      h('div.setup-choices.two', choice('have', 'lock', 'Yes, I have a code', 'Play as yourself — your scores, rank and friends'), choice('new', 'user-plus', 'No, I\'m new', 'Start fresh — you\'ll get a code of your own'))];
-    if (this.acct === 'new') {
-      this.codeWrap = h('div.setup-mycode');
-      this.paintCode();
-      out.push(h('div.setup-acct', h('label.setup-lbl', 'What should we call you?'), this.nameEl, this.codeWrap));
-      this.afterRender = () => setTimeout(() => this.nameEl && !this.nameEl.value && this.nameEl.focus(), 60);
-    } else if (this.acct === 'have') out.push(h('div.setup-acct', this.linked ? h('div.setup-linked', icon('check'), `Playing as ${ProfileManager.profile.name}`) : this.codeEntry()));
-    return out;
+    this.afterRender = () => setTimeout(() => this.nameEl && !this.nameEl.value && this.nameEl.focus(), 60);
+    return this.nameEl;
   },
-  async pickAccount(v) {
-    if (this.acct === v) return;
-    UISounds.click();
+  /** Picked on the first page: on to the next, where your code or your name goes. */
+  pickAccount(v) {
+    if (this.busy) return;
     this.acct = v; this.err.textContent = '';
-    this.animate = false;
-    this.render();
-    if (v !== 'new' || this.code || this.codeBusy) return;
-    // your code, made now (after signing out: you start over as a new player first)
+    this.go(this.i + 1);
+    if (v === 'new' && !this.code && !this.codeBusy) this.makeCode();
+  },
+  /** Your code, made now (after signing out: you start over as a new player first). */
+  async makeCode() {
     this.codeBusy = true;
     try {
       if (Account.signedOut()) Account.fresh();
@@ -21741,6 +21772,47 @@ const Onboarding = {
     } catch (e) { this.codeErr = friendlyError(e); }
     finally { this.codeBusy = false; }
     if (this.codeWrap && this.codeWrap.isConnected) this.paintCode();
+  },
+  step_account() {
+    if (this.acct === 'new') {
+      this.codeWrap = h('div.setup-mycode');
+      this.paintCode();
+      return [h('p.setup-lead', 'What should we call you?'), h('div.setup-acct', this.nameInput(), this.codeWrap)];
+    }
+    // a returning player: your code — then what it brings (your settings, your skin) on its way here
+    if (!this.linked) return [h('p.setup-lead', 'Type your code to play as yourself here.'), h('div.setup-acct', this.codeEntry())];
+    this.restoreEl = h('div.setup-restore');
+    this.paintRestore();
+    return [h('p.setup-lead', `Playing as ${ProfileManager.profile.name}`), h('div.setup-acct', this.restoreEl)];
+  },
+  /** Your settings and skin, from the server, shown on this page as they come. */
+  async bringBack() {
+    this.busy = true;
+    this.got = null; this.restoreErr = null; this.restoreMsg = 'Bringing your settings…'; this.restoreFrac = null;
+    this.animate = false; this.render();
+    try {
+      this.got = await Sync.restore((m, f) => { this.restoreMsg = m; this.restoreFrac = f == null ? null : f; this.paintRestore(); });
+    } catch (e) {
+      this.got = { settings: false, skin: '' };
+      if (e.status !== 503 && e.status !== 404) this.restoreErr = friendlyError(e);
+    }
+    this.paintRestore();
+    await sleep(this.got.settings || this.got.skin ? 900 : 300); // (a moment to see what came)
+    this.busy = false;
+  },
+  paintRestore() {
+    const w = this.restoreEl;
+    if (!w || !w.isConnected) return;
+    if (!this.got) {
+      const bar = this.restoreFrac != null ? h('div.setup-restore-bar', h('i', { style: { width: `${Math.round(this.restoreFrac * 100)}%` } })) : null;
+      clearEl(w).append(h('div.setup-codewait', h('span.spinner'), this.restoreMsg || 'Bringing your settings…'), bar);
+      return;
+    }
+    const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
+    clearEl(w).append(
+      line(true, 'Your scores, rank and friends'),
+      this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${this.restoreErr})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
+      this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : null);
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */
   paintCode() {
@@ -26634,7 +26706,7 @@ const Account = {
     try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
     catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
     const d = await r.json().catch(() => ({}));
-    if (!r.ok || !d.ok) throw new Error(d.error || `The server couldn't do that (${r.status}).`);
+    if (!r.ok || !d.ok) throw Object.assign(new Error(d.error || `The server couldn't do that (${r.status}).`), { status: r.status });
     return d;
   },
   /** This device's player now (pid and its key), as far as the server knows it. */
@@ -26656,6 +26728,7 @@ const Account = {
       localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
       localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
       localStorage.removeItem('am.signedOut');
+      localStorage.setItem('am.restore', '1'); // (your settings and skin to come: Sync.restore)
     } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
     if (d.name && d.name !== ProfileManager.profile.name) await ProfileManager.setName(d.name);
@@ -26779,15 +26852,146 @@ const CodePanel = {
     const submit = async () => {
       if (!inp.value.trim()) { inp.focus(); return; }
       this.busy(go, true); err.hidden = true;
-      try { const d = await Account.link(inp.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
+      try { const d = await Account.link(inp.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); Sync.restoreToast(); }
       catch (e) { err.hidden = false; err.textContent = friendlyError(e); inp.select(); this.panel.classList.remove('shake'); void this.panel.offsetWidth; this.panel.classList.add('shake'); }
       finally { this.busy(go, false); }
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
-    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.'), inp, err, go,
+    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings and skin come along.'), inp, err, go,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
+  },
+};
+
+/* ===== 19o-sync.js ===== */
+/* Your settings and skin, kept with your code: a device playing through a code sends its settings — not the ones that
+ * belong to the device (performance and sharpness, audio offset, what song select last showed) — and the skin it uses,
+ * if it's one you imported (Kori and the Custom skin are on every device already). Typing your code on another
+ * device brings both there (Sync.restore, from the first-run setup and Your code → Use a code). */
+
+const Sync = {
+  /** Settings that belong to the device, not to you: never sent, never taken from another device. */
+  LOCAL: /^(graphics\.|perf\.|setup\.|debug\.|migr\.|last\.|songselect\.(lastDiff|collection|hidden)$|audio\.offset$|input\.latency$|gameplay\.video$|ui\.(parallax|scale)$|skin\.hd$)/,
+  local(k) { return this.LOCAL.test(k); },
+  /** The biggest skin the server keeps (worker/vault.js). */
+  SKIN_MAX: 30 * 1024 * 1024,
+  mark(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private mode */ } },
+  marked(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+  /** A code was just typed here: until what it brings has arrived, nothing from this device is sent (it would replace
+   *  yours). Kept across a reload, so a restore cut short is finished at the next start. */
+  pending() { return this.marked('am.restore') === '1'; },
+
+  init() {
+    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) this.later(); });
+    Bus.on('skin:changed', () => this.later());
+    Bus.on('account:changed', () => this.later());
+    if (this.pending() && Account.linked()) setTimeout(() => this.restore().catch(e => console.warn('restore', e)), 2000);
+    else this.later(3000);
+  },
+  later(ms = 4000) {
+    clearTimeout(this.t);
+    this.t = setTimeout(() => this.push().catch(e => console.warn('settings not kept', e)), ms);
+  },
+  ready() { return Account.linked() && !Account.signedOut() && !this.pending() && Multiplayer.available() && !!Account.me().pid; },
+
+  /** What's sent: your settings, and which skin you use (by id and name: the same skin has another id on a device it
+   *  was brought to). */
+  payload() {
+    const values = {};
+    for (const [k, v] of Object.entries(Settings.values)) if (!this.local(k) && !(typeof v === 'string' && v.length > 100000)) values[k] = v;
+    const cur = SkinManager.current;
+    return { v: 1, values, skin: cur ? { id: cur.id, name: cur.builtin ? 'Custom' : (cur.meta && cur.meta.name) || '' } : null };
+  },
+  async push() {
+    if (!this.ready()) return;
+    const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
+    if (this.marked('am.setSent') !== sum) {
+      await Account.call('settings', { ...me, settings: p });
+      this.mark('am.setSent', sum);
+    }
+    await this.pushSkin();
+  },
+  /** The skin you use, if you imported it, once (again when you change skins). */
+  async pushSkin() {
+    const cur = SkinManager.current, meta = cur && !cur.builtin && SkinManager.skins.find(s => s.id === cur.id);
+    if (!meta || SkinManager.bundled(meta)) return;
+    const me = Account.me(), sent = `${me.pid}|${meta.id}`;
+    if (this.marked('am.skinSent') === sent) return;
+    const blob = await SkinManager.oskBlob(meta.id);
+    if (!blob) return;
+    if (blob.size > this.SKIN_MAX) { this.mark('am.skinSent', sent); console.warn('skin too big to keep', blob.size); return; }
+    const r = await fetch(Host.api('api/account/skin-up'), { method: 'POST', body: blob,
+      headers: { 'content-type': 'application/zip', 'x-am-auth': `${me.pid}.${me.key}`, 'x-am-skin': encodeURIComponent(JSON.stringify({ id: meta.id, name: meta.name })) } });
+    if (!r.ok) throw new Error(`skin not kept (${r.status})`);
+    this.mark('am.skinSent', sent);
+  },
+
+  /** After typing your code: your settings and skin from the server. `onStatus(text, fraction)` shows how it's going.
+   *  Resolves to what came: { settings, skin } (skin: its name, if it was downloaded). */
+  async restore(onStatus = () => {}) {
+    this.mark('am.restore', '1');
+    onStatus('Bringing your settings…');
+    let d;
+    try { d = await Account.call('restore', Account.me()); }
+    catch (e) {
+      // (the server answered no — none kept there, or it doesn't keep them: this device carries on as it is; no answer
+      // at all, or too many at once: tried again at the next start)
+      if (e.status && e.status !== 429) { this.mark('am.restore', null); this.later(); }
+      throw e;
+    }
+    const got = { settings: false, skin: '' }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
+    const want = s && s.skin;
+    if (want && want.id) {
+      if (want.id === 'default') await SkinManager.select('default');
+      else {
+        const here = SkinManager.skins.find(k => k.id === want.id) || SkinManager.skins.find(k => want.name && k.name === want.name);
+        if (here) await SkinManager.select(here.id);
+        else if (d.skin && (d.skin.id === want.id || d.skin.name === want.name)) {
+          onStatus(`Downloading your skin (${d.skin.name})…`, 0);
+          const meta = await SkinManager.importOsk(await this.skinFile(d.skin, f => onStatus(`Downloading your skin (${d.skin.name})…`, f)));
+          await SkinManager.select(meta.id);
+          this.mark('am.skinSent', `${Account.me().pid}|${meta.id}`); // (it's the one the server has)
+          got.skin = meta.name;
+        }
+      }
+    }
+    this.mark('am.restore', null);
+    this.mark('am.setSent', null);
+    this.later();
+    return got;
+  },
+  /** Restored outside the setup (Your code → Use a code): said in a toast. */
+  async restoreToast() {
+    try {
+      const got = await this.restore();
+      if (got.settings || got.skin) Toast.ok('Your settings came along', got.skin ? `And your skin, ${got.skin}.` : 'Everything\'s set the way you had it.');
+    } catch (e) { if (e.status !== 503 && e.status !== 404) Toast.err('Your settings didn\'t come along', friendlyError(e)); }
+  },
+  /** The kept skin, downloaded (as a file importOsk takes). */
+  async skinFile(info, onProgress) {
+    let r;
+    try { r = await fetch(Host.api('api/account/skin'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Account.me()) }); }
+    catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Your skin couldn't be downloaded (${r.status}).`); }
+    const total = Number(r.headers.get('content-length')) || info.size || 0, parts = [];
+    let n = 0;
+    if (r.body && r.body.getReader) {
+      const rd = r.body.getReader();
+      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; if (total) onProgress(Math.min(1, n / total)); }
+    } else parts.push(new Uint8Array(await r.arrayBuffer()));
+    return new File(parts, `${info.name || 'skin'}.osk`, { type: 'application/zip' });
+  },
+  /** Your settings in place of this device's — except the ones that belong to the device; medals from both. */
+  async apply(remote) {
+    const next = {};
+    for (const [k, v] of Object.entries(remote)) if (!this.local(k)) next[k] = v;
+    for (const [k, v] of Object.entries(Settings.values)) if (this.local(k)) next[k] = v;
+    const mine = Settings.values['medals.unlocked'];
+    if (mine && typeof mine === 'object') next['medals.unlocked'] = { ...mine, ...(next['medals.unlocked'] || {}) };
+    next['skin.current'] = Settings.values['skin.current']; // (chosen once it's here: SkinManager.select)
+    await Settings.import(next);
   },
 };
 
@@ -26846,7 +27050,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -26857,6 +27061,7 @@ const App = {
     this.globalLoop();
     this.initPWA();
     Mobile.early(); // (on a phone: recommend the app before anything else)
+    Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }

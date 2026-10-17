@@ -20,7 +20,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript' };
 const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, port: 0, host: '127.0.0.1',
-  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker' },
+  durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker', VAULT: 'PlayerVault' },
   bindings: { TEST_ALL_RANKED: '1' },
   serviceBindings: {
     ASSETS: async req => {
@@ -165,6 +165,37 @@ try {
   await b.waitForFunction(() => AshtonkMania.Account.linked() && !AshtonkMania.Account.signedOut() && !document.querySelector('.setup'), null, { timeout: 10000 });
   check('a signed-out device comes back with the new code', await b.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
   check('…still one Kai on the rankings', (await rankings(a)).total === 1);
+
+  // ── your settings and skin come along: device A uses a skin it imported, and settings of its own
+  const osk = readFileSync(join(root, 'tests/fixtures/chemuss.osk')).toString('base64');
+  const mineA = await a.evaluate(async b64 => {
+    const A = AshtonkMania, bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const meta = await A.SkinManager.importOsk(new File([bytes], 'chemuss.osk'));
+    await A.SkinManager.select(meta.id);
+    A.Settings.set('gameplay.scrollSpeed', 33); A.Settings.set('wom.hue', 200); A.Settings.set('audio.offset', 25); A.Settings.set('graphics.performanceMode', true);
+    await A.Sync.push();
+    return { skin: meta.name, sent: localStorage.getItem('am.skinSent') || '' };
+  }, osk);
+  check('device A keeps its settings and the skin it imported on the server', !!mineA.skin && mineA.sent.endsWith(await a.evaluate(() => AshtonkMania.SkinManager.current.id)), JSON.stringify(mineA));
+  // a new device: "Yes, I have a code" → its own page for the code → your settings and skin arrive → only the device's own page is left
+  const ectx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
+  const e = await ectx.newPage();
+  e.on('pageerror', x => errors.push(`E pageerror: ${x.message}`));
+  await e.goto(url);
+  await e.waitForSelector('.setup-step-welcome .setup-choice[data-id="have"]', { timeout: 30000 });
+  await e.click('.setup-choice[data-id="have"]');
+  await e.waitForSelector('.setup-step-account .setup-code-in');
+  check('a new device: "Yes, I have a code" leads to a page of its own for the code', !(await e.$('.setup-step-welcome')));
+  await e.fill('.setup-code-in', code2);
+  await e.keyboard.press('Enter');
+  await e.waitForSelector('.setup-step-device', { timeout: 20000 });
+  const got = await e.evaluate(() => { const A = AshtonkMania, S = A.Settings; return { steps: A.Onboarding.steps.map(x => x.id).join(), got: A.Onboarding.got, speed: S.get('gameplay.scrollSpeed'), hue: S.get('wom.hue'), offset: S.get('audio.offset'), perf: S.get('graphics.performanceMode'), skin: A.SkinManager.current.meta && A.SkinManager.current.meta.name, files: (A.SkinManager.current.meta && A.SkinManager.current.meta.files || []).length, pid: A.Presence.pid() }; });
+  check('…your settings come along (not the ones that belong to a device: audio offset, performance)', got.speed === 33 && got.hue === 200 && got.offset !== 25 && got.perf !== true && got.got && got.got.settings, JSON.stringify(got));
+  check('…and the skin you imported, downloaded and in use', got.skin === mineA.skin && got.files > 5 && got.got.skin === mineA.skin, JSON.stringify(got));
+  check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
+  await e.click('.setup-choice[data-id="pc"]');
+  await e.waitForFunction(() => !document.querySelector('.setup'), null, { timeout: 8000 });
+  check('…and it\'s done (Finish on that page)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending()));
 
   // ── guessing: a few tries per address, then turned away (codes have 80 random bits anyway)
   const tries = await c.evaluate(async () => {

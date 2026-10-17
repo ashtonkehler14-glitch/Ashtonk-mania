@@ -336,12 +336,13 @@ export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) 
 }
 
 export { MatchRoom, Matchmaker } from './multiplayer.js';
+export { PlayerVault } from './vault.js';
 import { handleMultiplayer, handleAccount } from './multiplayer.js';
 
 /** The game saved as one HTML file (Settings → Maintenance) runs from the device — origin "null" — and calls this
  *  server from there: every /api answer allows any origin (nothing here uses cookies; players prove who they are with
  *  their own key), and the browser's preflight for a JSON POST is answered. */
-const PREFLIGHT = { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Max-Age': '86400' };
+const PREFLIGHT = { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'content-type, x-am-auth, x-am-skin', 'Access-Control-Max-Age': '86400' };
 function withCors(res) {
   if (res.status === 101 || res.webSocket) return res; // (a WebSocket upgrade: no CORS for those)
   const r = new Response(res.body, res);

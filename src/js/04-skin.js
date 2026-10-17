@@ -1051,16 +1051,23 @@ const SkinManager = {
     Bus.emit('skins:changed');
   },
 
-  async exportOsk(id) {
+  /** An installed skin as an .osk (a Blob), or null. */
+  async oskBlob(id) {
     const meta = this.skins.find(s => s.id === id);
-    if (!meta) return;
+    if (!meta) return null;
     const files = [];
     for (const f of meta.files) {
       const b = await DB.get('files', `skin:${id}/${f}`);
       if (b) files.push({ name: f, data: new Uint8Array(await b.arrayBuffer()) });
     }
-    downloadBlob(writeZip(files), `${meta.name}.osk`);
+    return writeZip(files);
   },
+  async exportOsk(id) {
+    const meta = this.skins.find(s => s.id === id), blob = await this.oskBlob(id);
+    if (blob) downloadBlob(blob, `${meta.name}.osk`);
+  },
+  /** A skin that comes with the game (every device has it): Kori. */
+  bundled(meta) { return !!meta && (/^(default|kori|kori 3\.0)\.osk$/i.test(meta.source || '') || /^kori 3\.0$/i.test(meta.name || '')); },
 
   /** Skin number font (score-0..9 etc). Returns null when the skin has none. */
   async loadFont(skin, prefix, overlap) {

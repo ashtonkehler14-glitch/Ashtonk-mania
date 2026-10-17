@@ -680,7 +680,9 @@ const CHANGELOG = [
       'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
       'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
       'Sign out on this device from the same place, for a shared or school computer',
-      'The first-run setup asks whether you\'ve played before: if you have, type your code (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, you get your code there — save it somewhere safe',
+      'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
+      'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
+      'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
       'Signing out brings you back to that question'] },
     { icon: 'trophy', title: 'Rankings', items: [
       'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',

@@ -28,6 +28,7 @@
 // every player's vote.
 
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
+import { SETTINGS_MAX, SKIN_MAX } from './vault.js';
 export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1917,6 +1918,8 @@ export class Matchmaker {
       else await this.preloadPlayer(target, false);
       const newKey = randomHex(32), r = P.linkDevice(target, pid, key, newKey);
       this.send(r.out);
+      // (the player this device was is part of the code's player now: their own settings and skin aren't kept)
+      if (r.merged && pid !== r.pid && this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
       await settle();
       return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged });
     }
@@ -1932,6 +1935,18 @@ export class Matchmaker {
       return json({ ok: true, n: r.n });
     }
     return json({ error: 'Not found' }, 404);
+  }
+  /** Before a player's settings or skin are kept or handed out (PlayerVault): is this device that player? Keeping
+   *  them is for players with a code (only they can bring them to another device); each is limited per player. */
+  async vaultAuth(request) {
+    await this.loadFriends();
+    const b = await request.json().catch(() => ({})), P = this.presence, pid = String(b.pid || ''), what = String(b.what || '');
+    const limit = { settings: 60, 'skin-up': 6, restore: 30, skin: 10 }[what];
+    if (!limit) return json({ error: 'Not found' }, 404);
+    if (!/^[a-z0-9]{6,24}$/.test(pid) || !P.keyOk(pid, String(b.key || ''))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
+    if ((what === 'settings' || what === 'skin-up') && !P.codeOf.has(pid)) return json({ error: 'Get your code first: your settings are kept for the devices that use it.' }, 403);
+    if (!this.allowTry(`v:${what}:${pid}`, limit)) return json({ error: 'Too many at once. Try again in a few minutes.' }, 429);
+    return json({ ok: true });
   }
   /** At most `n` tries per 10 minutes for this key (an address, a player, or everyone). */
   allowTry(k, n) {
@@ -2223,6 +2238,7 @@ export class Matchmaker {
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
     if (url.pathname.startsWith('/api/account/') && request.method === 'POST') return this.account(url.pathname.slice(13), request);
+    if (url.pathname === '/vault-auth' && request.method === 'POST') return this.vaultAuth(request);
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const now = Date.now();
     if (url.pathname.endsWith('/rooms/update')) {
@@ -2299,13 +2315,42 @@ export async function beatmapStatus(r, md5, env, get = officialGet) {
   } catch { return { status: '', setId: 0 }; }
 }
 
-/** /api/account/*: to the server object that keeps the players (Matchmaker), with the caller's address for its limits. */
+/** /api/account/*: to the server object that keeps the players (Matchmaker), with the caller's address for its limits.
+ *  Your settings and skin (settings, restore, skin, skin-up) are kept in a PlayerVault of your own, once the
+ *  Matchmaker has checked this device is you: settings {pid, key, settings} keeps them; restore {pid, key} says what
+ *  there is (the settings, which skin); skin {pid, key} sends the skin; skin-up sends one to keep (the .osk as the body,
+ *  `x-am-auth: pid.key`, `x-am-skin`: its id and name). */
 export async function handleAccount(request, env, url) {
   if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
-  if (request.method !== 'POST' || !/^\/api\/account\/(code|link|logout|others)$/.test(url.pathname)) return json({ error: 'Not found' }, 404);
-  const body = (await request.text()).slice(0, 4096);
-  const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
-  return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
+  const m = /^\/api\/account\/(code|link|logout|others|settings|restore|skin|skin-up)$/.exec(url.pathname);
+  if (request.method !== 'POST' || !m) return json({ error: 'Not found' }, 404);
+  const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global')), what = m[1];
+  if (/^(code|link|logout|others)$/.test(what)) {
+    const body = (await request.text()).slice(0, 4096);
+    return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
+  }
+  if (!env.VAULT) return json({ error: 'Keeping settings isn\'t available on this server.' }, 503);
+  let pid = '', key = '', settings = null;
+  if (what === 'skin-up') {
+    [pid = '', key = ''] = (request.headers.get('x-am-auth') || '').split('.');
+    if (Number(request.headers.get('content-length')) > SKIN_MAX) return json({ error: 'Your skin is too big to keep (30 MB at most).' }, 413);
+  } else {
+    const text = await request.text();
+    if (text.length > SETTINGS_MAX + 4096) return json({ error: 'Your settings are too big to keep.' }, 413);
+    let b = null;
+    try { b = JSON.parse(text); } catch { /* below */ }
+    if (!b || typeof b !== 'object') return json({ error: 'Bad request.' }, 400);
+    pid = String(b.pid || ''); key = String(b.key || ''); settings = b.settings;
+  }
+  const auth = await stub.fetch(new Request(new URL('/vault-auth', url), { method: 'POST', body: JSON.stringify({ pid, key, what }), headers: { 'content-type': 'application/json' } }));
+  if (!auth.ok) return auth;
+  const vault = env.VAULT.get(env.VAULT.idFromName(pid)), at = new URL('/' + what, url);
+  if (what === 'settings') {
+    if (!settings || typeof settings !== 'object') return json({ error: 'Bad settings.' }, 400);
+    return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify(settings) }));
+  }
+  if (what === 'skin-up') return vault.fetch(new Request(at, { method: 'POST', body: request.body, headers: { 'x-am-skin': request.headers.get('x-am-skin') || '' } }));
+  return vault.fetch(new Request(at, { method: 'POST' }));
 }
 
 export async function handleMultiplayer(request, env, url) {

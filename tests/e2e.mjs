@@ -1221,22 +1221,24 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('setup: the first page asks whether you\'ve played before (yes, with a code / no, new)', /played Ashtonk!mania before/.test(await sp.textContent('.setup-step-welcome')) && (await sp.$$('.setup-step-welcome .setup-choice')).length === 2);
   await sp.click('.setup-next');
   check('setup: you have to answer it', /Pick one/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
-  // "Yes": the code box, and how to find your code
+  // "Yes": a page of its own — the code box, and how to find your code
   await sp.click('.setup-choice[data-id="have"]');
-  await sp.waitForSelector('.setup-code-in');
+  await sp.waitForSelector('.setup-step-account .setup-code-in');
+  check('setup, "I have a code": on to the next page ("Welcome back"), where the code goes', !(await sp.$('.setup-step-welcome')) && /Welcome back/.test(await sp.textContent('.setup h2')));
   const helpHidden = await sp.$eval('.setup-help', e => e.hidden);
   await sp.click('.setup-help-link');
   const help = await sp.$eval('.setup-help', e => ({ shown: !e.hidden, text: e.textContent }));
   check('setup, "I have a code": a code box, and "Where do I find my code?" says how (your name in the top bar → Your code → My code)', helpHidden && help.shown && /Your code/.test(help.text) && /My code/.test(help.text) && /top bar/.test(help.text), help.text.slice(0, 160));
   await sp.click('.setup-next');
   check('…Next without a code asks for it', /Type your code/.test(await sp.textContent('.ob-err')));
-  // "No": your name, and your new code with why to keep it safe
+  // Back, and "No": a page with your name, and your new code with why to keep it safe
+  await sp.click('.setup-back'); await sp.waitForSelector('.setup-step-welcome');
   await sp.click('.setup-choice[data-id="new"]');
-  await sp.waitForSelector('.setup-mycode .lp-code');
-  const mine = await sp.evaluate(() => ({ code: document.querySelector('.setup-mycode .lp-code').textContent, save: document.querySelector('.setup-save').textContent, name: !!document.querySelector('.setup-acct .ob-name') }));
-  check('setup, "I\'m new": your name, and your code shown with "save it somewhere safe"', mine.name && mine.code === 'K7QM-3XRA-9DPZ-W2HF' && /Save it somewhere safe/.test(mine.save), JSON.stringify(mine));
+  await sp.waitForSelector('.setup-step-account .setup-mycode .lp-code');
+  const mine = await sp.evaluate(() => ({ code: document.querySelector('.setup-mycode .lp-code').textContent, save: document.querySelector('.setup-save').textContent, name: !!document.querySelector('.setup-acct .ob-name'), h: document.querySelector('.setup h2').textContent }));
+  check('setup, "I\'m new": a page with your name, and your code shown with "save it somewhere safe"', mine.name && mine.code === 'K7QM-3XRA-9DPZ-W2HF' && /Save it somewhere safe/.test(mine.save) && /Nice to meet you/.test(mine.h), JSON.stringify(mine));
   await sp.click('.setup-next');
-  check('setup: a name is required', /name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
+  check('setup: a name is required', /name/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-account')));
   await setupName(sp, 'Newbie');
   await sp.waitForSelector('.setup-step-wom');
   check('setup: no skipping — after the name it asks about Web-Osu-Mania (yes / no)', !(await sp.$('.ob-skip')) && (await sp.$$('.setup-step-wom .setup-choice')).length === 2);
@@ -1310,7 +1312,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await wp.fill('.setup-code-in', 'k7qm3xra9dpzw2hf');
   await wp.keyboard.press('Enter');
   await wp.waitForSelector('.setup-step-wom');
-  check('setup, "I have a code": typing it makes this device you (your name from it), then on to the rest of the setup', await wp.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Kiwi' && AshtonkMania.Presence.pid() === 'kiwiplay1' && AshtonkMania.Account.linked()));
+  check('setup, "I have a code": typing it makes this device you (your name from it); no settings kept for you yet, so on to the rest of the setup', await wp.evaluate(() => AshtonkMania.ProfileManager.profile.name === 'Kiwi' && AshtonkMania.Presence.pid() === 'kiwiplay1' && AshtonkMania.Account.linked() && !AshtonkMania.Sync.pending()));
   await wp.click('.setup-choice[data-id="yes"]');
   await wp.waitForSelector('.setup-step-wom .setup-wom-btn');
   check('setup: "Yes" explains where Web-Osu-Mania keeps its backup (Settings → Backup & Restore)', /Backup & Restore/.test(await wp.textContent('.setup-wom')));
@@ -1340,7 +1342,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await wp.click('.login-panel >> text=Sign out here');
   await wp.click('.dialog .pd-btn.ok');
   const back = await wp.waitForSelector('.setup .setup-step-welcome .setup-choice[data-id="have"]', { timeout: 5000 }).then(() => true, () => false);
-  check('Sign out here: the setup comes back at "Have you played before?" (just that page)', back && /Play as yourself/.test(await wp.textContent('.setup h2')) && await wp.evaluate(() => AshtonkMania.Account.signedOut() && AshtonkMania.Onboarding.steps.length === 1));
+  check('Sign out here: the setup comes back at "Have you played before?" (just that, and the page for your code or name)', back && /Play as yourself/.test(await wp.textContent('.setup h2')) && await wp.evaluate(() => AshtonkMania.Account.signedOut() && AshtonkMania.Onboarding.steps.map(s => s.id).join() === 'welcome,account'));
   await wp.click('.setup-choice[data-id="new"]');
   await wp.waitForFunction(() => /M4RT-9QZX-W2HF-K7PA/.test(document.querySelector('.setup .lp-code')?.textContent || ''), null, { timeout: 5000 });
   await wp.keyboard.press('Enter');
