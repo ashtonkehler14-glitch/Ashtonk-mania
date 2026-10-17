@@ -4658,6 +4658,12 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (notifications go beside the sign-in panel while it's open, not over its fields) */
 html.lp-open #toasts { right: 380px; }
 @media (max-width: 760px) { html.lp-open #toasts { opacity: 0; pointer-events: none; } }
+/* Your code: the code in a monospace box (hidden as dots until Show), Copy beside it; Use a code below a rule */
+.lp-code-row { display: flex; align-items: center; gap: 6px; }
+.lp-code { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 6px; background: hsl(255 10% 12%); font: 600 16px/1.2 ui-monospace, 'RobotoMono', 'Consolas', monospace; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: all; cursor: pointer; }
+.lp-code-in { font-family: ui-monospace, 'Consolas', monospace; letter-spacing: .08em; text-transform: uppercase; }
+.lp-sep { margin-top: 10px; padding-top: 12px; border-top: 1px solid hsl(255 10% 28%); }
+.login-panel > .lp-title:first-child.lp-sep { margin-top: 2px; padding-top: 0; border-top: 0; }
 
 </style>
 </head>
@@ -11583,7 +11589,6 @@ const DataManager = {
     if (obj.kind === 'settings') return;
     if (obj.profile) {
       ProfileManager.profile = { ...ProfileManager.profile, ...obj.profile };
-      if (typeof Account !== 'undefined' && Account.signedIn()) ProfileManager.profile.name = Account.name(); // (the account's name, not the save's)
       await ProfileManager.save();
     }
     if (Array.isArray(obj.favorites)) { for (const f of obj.favorites) Favorites.set.add(f); await DB.kvSet('favorites', [...Favorites.set]); }
@@ -11594,13 +11599,15 @@ const DataManager = {
       }
       await Collections.save();
     }
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: s })));
+    // (a backup's scores are marked as imported: they're yours to look at here, but never go online — the rankings and
+    // leaderboards only take plays the server judged as they were played)
+    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: { ...s, imported: s.imported || 'backup' } })));
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
-    // (a save from another device, imported by a guest: signing in to your account here keeps you one player online)
-    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !Account.signedIn() && Multiplayer.available())
-      setTimeout(() => Toast.show('Playing on more than one device?', 'Sign in to your account here too (your name in the top bar), so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
+    // (a save from another device: typing your code here keeps you one player online, not one for each device)
+    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !Account.linked() && Multiplayer.available())
+      setTimeout(() => Toast.show('Playing on more than one device?', 'Get your code on your other device (right-click your name in the top bar → Your code) and type it here, so you\'re one player on the rankings — not one for each device.', { timeout: 12000 }), 1200);
   },
   async resetEverything() {
     DB.db && DB.db.close(); DB.db = null;
@@ -12614,8 +12621,7 @@ const Toolbar = {
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
-        // (lazer's ToolbarUserButton: signed out, it opens the sign-in panel; signed in, your profile)
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); if (Account.signedIn() || !Multiplayer.available()) this.pages.profile(); else LoginPanel.open(); },
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.clock,
         this.bell),
@@ -12753,10 +12759,10 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
-      // (lazer's UserDropdown ends with Sign out)
-      ...(!Multiplayer.available() ? [] : [{ sep: true }, ...(Account.signedIn()
-        ? [{ label: `Signed in as ${Account.name()}`, icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Sign out', icon: 'x', onClick: () => LoginPanel.open() }]
-        : [{ label: 'Sign in', icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Create an account', icon: 'user-plus', onClick: () => LoginPanel.open({ page: 'register' }) }])]),
+      // (playing as yourself on another device: your code)
+      ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
+        ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
+        : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
     ]);
     return m;
   },
@@ -19324,7 +19330,8 @@ const ProfileScreen = {
   },
   /** The same, for sending: without the local score objects. */
   summary() {
-    const d = this.localData(), strip = a => a.map(({ _s, ...x }) => x);
+    // (imported scores — a backup, a Web-Osu-Mania save — stay on this device: others never see them)
+    const d = this.localData(), strip = a => a.filter(x => !(x._s && x._s.imported)).map(({ _s, ...x }) => x);
     return { ...d, top: strip(d.top), recent: strip(d.recent) };
   },
   render() {
@@ -19359,9 +19366,9 @@ const ProfileScreen = {
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
       h('div.pf-id',
-        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) Account.setName(n); } }, icon('edit')) : null,
-          // (a guest's own profile: signing in makes it the same player on every device)
-          own && !Account.signedIn() && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => LoginPanel.open() }, icon('user'), Account.signedOut() ? 'Sign in' : 'Guest · Sign in') : null),
+        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
+          // (your code: play as yourself on another device)
+          own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
         h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
@@ -19667,13 +19674,19 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.16', title: 'Accounts', sections: [
-    { icon: 'user', title: 'Accounts', items: [
-      'Make an account (click your name in the top bar while you\'re a guest) and sign in to it on every device you play on: they\'re all the same player — one entry on the rankings and beatmap leaderboards, one profile, one friends list',
-      'Signing in on a device you already played on as a guest moves what that guest had online into your account, so importing a save onto another device no longer puts you on the leaderboards twice',
-      'Your username is yours: nobody else can use it (someone trying shows as a guest)',
-      'Sign out from the same place, or by right-clicking your name; your beatmaps, scores and settings stay on the device',
-      'The first-run setup has "Already have an account? Sign in" for a new device'] },
+  { id: '2026.10.17', title: 'Your code', sections: [
+    { icon: 'lock', title: 'Your code', items: [
+      'Play as yourself on another device with your code: right-click your name in the top bar → Your code, then type it on the other device. It\'s you there too — one entry on the rankings and leaderboards, one profile and friends list — with no username or password',
+      'What the other device had online before is added to you, so playing on two devices never puts you on the leaderboards twice',
+      'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
+      'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
+      'Sign out on this device from the same place, for a shared or school computer',
+      'The first-run setup has "Playing on another device already? Use your code"'] },
+    { icon: 'trophy', title: 'Rankings', items: [
+      'Only plays the server checked as you played them count on the rankings and leaderboards now: a backup someone imported never shows up there, and standings that came from imported backups are gone',
+      'A backup\'s scores stay on your device to look at, marked as imported, and aren\'t shown to other players'] },
+  ] },
+  { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [
       'Watching someone in the menus is much smoother: their screen is no longer rebuilt every frame (their main menu\'s animations used to make it go out constantly), and your own menu stops drawing underneath it',
       'Nothing on the screen you\'re watching lights up under your pointer any more — it\'s theirs, to watch'] },
@@ -21596,7 +21609,7 @@ const Onboarding = {
     if (this.step.id === 'welcome') {
       const n = this.nameEl.value.trim();
       if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
-      if (n !== ProfileManager.profile.name) await Account.setName(n);
+      if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
       Toolbar.updateProfile();
     }
     return true;
@@ -21629,8 +21642,8 @@ const Onboarding = {
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; });
     this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-    // (already playing on another device: sign in, and this one is the same player)
-    const signIn = Multiplayer.available() && !Account.signedIn() ? h('button.setup-signin', { onclick: () => { UISounds.click(); LoginPanel.open({ onDone: n => { this.nameEl.value = n; this.next(); } }); } }, 'Already have an account? Sign in') : null;
+    // (already playing on another device: their code, and this one is the same player)
+    const signIn = Multiplayer.available() ? h('button.setup-signin', { onclick: () => { UISounds.click(); CodePanel.open({ use: true, onDone: n => { if (n) this.nameEl.value = n; this.next(); } }); } }, 'Playing on another device already? Use your code') : null;
     return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl, signIn];
   },
 
@@ -22611,8 +22624,10 @@ const Presence = {
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
-      // (signed in: the account's key here doesn't work any more — signed out, not quietly made a guest)
-      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.signedIn()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
+      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.linked()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (your code was just used on another device)
+      else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000 });
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {
@@ -24374,6 +24389,10 @@ const Spectate = {
     if (p) this.watch(p);
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
+  // what's taken out of a watched player's screen before it's shown (see showRk)
+  DROP_TAGS: /^(script|iframe|frame|frameset|object|embed|applet|link|meta|form|base|style|template|noscript|portal|audio|video|source|track|animate|set|animatemotion|animatetransform|use|foreignobject|discard|handler|listener)$/i,
+  DROP_ATTRS: /^(href|xlink:href|srcdoc|formaction|action|ping|poster|background|lowsrc|dynsrc|data|codebase|archive|attributename|values|from|to|by|begin)$/, // (data-* stay: the copy needs those)
+  IMG_HOSTS: /(^|\.)(ppy\.sh|sayobot\.cn|catboy\.best|nerinyan\.moe|osu\.direct|nekoha\.moe)$/i,
   on(m) {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     if (!this.target || m.id !== this.target.id) return;
@@ -24613,18 +24632,27 @@ const Spectate = {
     this._rkApplied = html;
     const t = document.createElement('template');
     t.innerHTML = html;
-    const ok = u => /^(https:|data:image\/)/i.test(u.trim());
+    // (pictures only as data: images or from osu! and the beatmap providers — never from anywhere their page names, which
+    // would tell that site who's watching)
+    const ok = u => {
+      u = String(u).trim();
+      if (/^data:image\//i.test(u)) return true;
+      try { const x = new URL(u); return x.protocol === 'https:' && (Spectate.IMG_HOSTS.test(x.hostname) || x.host === location.host); } catch { return false; }
+    };
     for (const el of t.content.querySelectorAll('*')) {
-      if (/^(SCRIPT|IFRAME|OBJECT|EMBED|LINK|META|FORM|BASE|STYLE|TEMPLATE)$/.test(el.tagName)) { el.remove(); continue; }
+      // (anything that runs, loads or animates something of its own goes — SVG's tags are lower case, so the check is too)
+      if (Spectate.DROP_TAGS.test(el.tagName)) { el.remove(); continue; }
       for (const a of [...el.attributes]) {
-        const n = a.name.toLowerCase();
-        if (n.startsWith('on') || n === 'href' || n === 'srcdoc' || n === 'formaction' || n === 'action' || n === 'xlink:href') el.removeAttribute(a.name);
-        else if ((n === 'src' || n === 'srcset') && !ok(a.value)) el.removeAttribute(a.name);
-        // (each url() on its own: a picture over https or a data: image stays, anything else goes — browsers write
-        // these quoted, and a check over the whole value took the quote for the start of an address and dropped them all)
+        const n = a.name.toLowerCase(), v0 = a.value;
+        if (n.startsWith('on') || Spectate.DROP_ATTRS.test(n) || /(java|vb)script:|data:text\/html/i.test(v0.replace(/[\s\u0000-\u001f]/g, ''))) el.removeAttribute(a.name);
+        else if (n === 'src' && !ok(v0)) el.removeAttribute(a.name);
+        else if (n === 'srcset' && !v0.split(',').every(c => ok(c.trim().split(/\s+/)[0] || ''))) el.removeAttribute(a.name);
+        // (each url() on its own: an allowed picture stays, anything else goes — browsers write these quoted, and a check
+        // over the whole value took the quote for the start of an address and dropped them all)
         else if (n === 'style') {
-          const v = a.value.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (all, q, u) => ok(u) ? all : 'none');
-          if (/expression|javascript:/i.test(v)) el.removeAttribute('style'); else if (v !== a.value) el.setAttribute('style', v);
+          const v = v0.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (all, q, u) => ok(u) ? all : 'none');
+          // (and nothing that could fetch some other way: escapes, image-set(), old expression())
+          if (/\\|image-set|expression|@import|javascript:/i.test(v)) el.removeAttribute('style'); else if (v !== v0) el.setAttribute('style', v);
         }
       }
     }
@@ -26453,20 +26481,29 @@ function blobToDataURL(blob) {
 function jsString(v) { return JSON.stringify(v).replace(/</g, '\\u003c'); }
 
 /* ===== 19n-account.js ===== */
-/* Accounts: osu!lazer's sign-in (its LoginOverlay, under the user button on the toolbar). An account is a username and
- * password on the game's server, and every device signed in to it is the same player — one entry on the rankings and
- * the beatmap boards, one profile and friends list. Without one you play as a guest of this browser, as before.
- * Signing in on a device that was playing as a guest moves that guest's scores, rank and friends into the account
- * (the server does it), so a save imported onto a second device doesn't put you on the leaderboards twice.
- * After Sign out a device has no online identity — it plays, chats and joins rooms, but sends no scores — until it
- * signs in again or goes back to being a guest. Beatmaps, scores and settings stay on each device (Export / Import data). */
+/* Your code: play as yourself on another device. Every player can get a secret code (Your code, from the menu under
+ * your name in the top bar); typing it on another device makes that device you — one entry on the rankings and the
+ * beatmap leaderboards, one profile and friends list — and what that device had online before is added to you, so a
+ * save imported onto it doesn't put you on the leaderboards twice. No username or password.
+ * Keeping it safe: a code is 16 characters, 80 random bits made by the server (guessing one is hopeless, and the server
+ * only lets a few be tried); the server keeps only its fingerprint; each device gets a key of its own, so New code
+ * (the old one stops working) and Sign out other devices shut out anyone who got hold of it, and your devices are told
+ * whenever a new one starts playing as you. This device keeps its own copy of the code to show you. */
 
 const Account = {
-  /** The username this device is signed in as ('' when it isn't). */
-  name() { try { return localStorage.getItem('am.account') || ''; } catch { return ''; } },
-  signedIn() { return !!this.name(); },
-  /** Signed out (no online identity) rather than a guest. */
+  /** The code, as this device has it to show (it made the code, or one was typed into it). */
+  code() { try { return localStorage.getItem('am.code') || ''; } catch { return ''; } },
+  /** This device plays as a player through a code (made or typed here). */
+  linked() { try { return localStorage.getItem('am.linked') === '1'; } catch { return false; } },
+  /** Signed out on this device: no online identity until a code is typed, or it starts over as a new player. */
   signedOut() { try { return localStorage.getItem('am.signedOut') === '1'; } catch { return false; } },
+  ALPHABET: '0123456789ABCDEFGHJKMNPQRSTVWXYZ',
+  /** A code as typed — any case, dashes and spaces or not, O for 0, I or L for 1 — or '' if it can't be one. */
+  clean(s) {
+    const c = String(s || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+    return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
+  },
+  format(c) { return String(c || '').replace(/(.{4})(?=.)/g, '$1-'); },
   async call(what, body) {
     let r;
     try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
@@ -26475,166 +26512,153 @@ const Account = {
     if (!r.ok || !d.ok) throw new Error(d.error || `The server couldn't do that (${r.status}).`);
     return d;
   },
-  /** This device's guest, to go into the account (its key proves it's this device's). */
-  guestId() { const pid = Presence.pid(); return pid && !this.signedIn() ? { pid, key: Presence.key() } : {}; },
-  /** This device is the account's player now. */
-  async become({ name, pid, key }) {
+  /** This device's player now (pid and its key), as far as the server knows it. */
+  me() { const pid = Presence.pid(); return pid ? { pid, key: Presence.key() } : {}; },
+  /** A new code for you (any one you had before stops working). */
+  async newCode() {
+    if (this.signedOut()) throw new Error('This device is signed out. Type your code to play as yourself here.');
+    const d = await this.call('code', this.me());
+    try { localStorage.setItem('am.code', this.format(d.code)); localStorage.setItem('am.linked', '1'); } catch { /* private mode */ }
+    Bus.emit('account:changed');
+    return this.format(d.code);
+  },
+  /** Type a code: this device becomes that player. */
+  async link(typed) {
+    const c = this.clean(typed);
+    if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
+    const d = await this.call('link', { code: c, ...this.me() });
     try {
-      if (pid) localStorage.setItem('am.pid', pid);
-      if (key) localStorage.setItem('am.key', key);
-      localStorage.setItem('am.account', name);
+      localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
+      localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
       localStorage.removeItem('am.signedOut');
     } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
-    if (ProfileManager.profile.name !== name) await ProfileManager.setName(name);
+    if (d.name && d.name !== ProfileManager.profile.name) await ProfileManager.setName(d.name);
     Toolbar.updateProfile();
     Presence.reconnect();
     Bus.emit('account:changed');
-  },
-  async register(name, password) {
-    const d = await this.call('register', { name, password, ...this.guestId() });
-    await this.become(d);
     UISounds.play('check-on');
-    Toast.ok(`Welcome, ${d.name}!`, 'Your account is ready. Sign in with it on your other devices to be the same player there.');
+    Toast.ok(d.name ? `Playing as ${d.name}` : 'Code accepted', d.merged ? 'What this device had online is part of you now — one player on the rankings.' : 'This device plays as you now.');
     return d;
   },
-  async login(name, password) {
-    const d = await this.call('login', { name, password, ...this.guestId() });
-    await this.become(d);
-    UISounds.play('check-on');
-    Toast.ok(`Signed in as ${d.name}`, d.merged ? 'What this device had online as a guest is part of your account now — one player on the rankings.' : 'This device plays as your account now.');
-    return d;
+  /** Every device but this one stops playing as you (a code that got out: make a new one too). */
+  async signOutOthers() {
+    const d = await this.call('others', this.me());
+    Toast.ok(d.n ? `Signed out ${plural(d.n, 'other device')}` : 'No other devices were signed in', 'Only this device plays as you now. Make a new code too if someone else may have yours.');
   },
-  async logout() {
-    const pid = Presence.pid(), key = Presence.key();
-    if (pid) this.call('logout', { pid, key }).catch(() => {}); // (the key's forgotten here either way)
+  /** Stop playing as yourself on this device (a shared or school computer). */
+  logout() {
+    const me = this.me();
+    if (me.pid) this.call('logout', me).catch(() => {}); // (its key is forgotten here either way)
     this.forget();
-    Toast.show('Signed out', 'Scores from this device don\'t go online until you sign in again.');
+    Toast.show('Signed out on this device', 'Type your code to play as yourself here again.');
   },
-  /** The account's key stopped working here (it was signed out on the server): signed out. */
+  /** This device's key doesn't work any more (signed out from another device): signed out here. */
   expired() {
     this.forget();
-    Toast.err('You were signed out', 'Sign in again (your name in the top bar) to send scores from this device.');
+    Toast.err('Signed out on this device', 'Another of your devices signed this one out. Type your code to play as yourself here again.');
   },
   forget() {
-    try { ['am.account', 'am.pid', 'am.key'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
+    try { ['am.pid', 'am.key', 'am.code', 'am.linked'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
-    Toolbar.updateProfile();
     Presence.reconnect();
     Bus.emit('account:changed');
   },
-  /** Back to playing as a guest of this browser. */
-  guest() {
+  /** Signed out: start over as a new player here instead. */
+  fresh() {
     try { localStorage.removeItem('am.signedOut'); } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
-    Toolbar.updateProfile();
     Presence.reconnect();
     Bus.emit('account:changed');
-  },
-  /** Your name: an account's is changed on the server (it has to stay unique), a guest's only here. */
-  async setName(n) {
-    n = String(n || '').trim();
-    if (!n) return;
-    if (!this.signedIn()) { await ProfileManager.setName(n); Toolbar.updateProfile(); return; }
-    try {
-      const d = await this.call('rename', { pid: Presence.pid(), key: Presence.key(), name: n });
-      try { localStorage.setItem('am.account', d.name); } catch { /* private mode */ }
-      await ProfileManager.setName(d.name);
-      Toolbar.updateProfile();
-      Bus.emit('account:changed');
-    } catch (e) { Toast.err('Couldn\'t change your username', friendlyError(e)); }
-  },
-  /** On every start: a signed-in device keeps the account's name (an imported save can bring another one along). */
-  init() {
-    const n = this.name();
-    if (n && ProfileManager.profile.name !== n) ProfileManager.setName(n).then(() => Toolbar.updateProfile()).catch(() => {});
   },
 };
 
-/** lazer's LoginOverlay: a 360px panel under the right of the toolbar (Purple Background4) — ACCOUNT, username,
- *  password and Sign in, then Register; signed in, the player and Sign out. Account creation (lazer's own overlay)
- *  is the same panel's second page, with lazer's words under each field. */
-const LoginPanel = {
-  o: null, page: 'signin',
+/** The Your code panel: lazer's LoginOverlay look — a 360px panel under the right of the toolbar on Purple Background4 —
+ *  with your code (hidden until you ask; Copy), New code and Sign out other devices; and Use a code, for this device. */
+const CodePanel = {
+  o: null,
   open(opts = {}) {
     if (this.o) { this.close(); return; }
     this.opts = opts;
-    this.page = opts.page || 'signin';
-    this.panel = h('div.login-panel', { role: 'dialog', 'aria-label': 'Account' });
+    this.shown = false;
+    this.panel = h('div.login-panel', { role: 'dialog', 'aria-label': 'Your code' });
     this.o = makeOverlay(this.panel, { onClose: () => { this.o = null; document.documentElement.classList.remove('lp-open'); } });
     this.o.el.classList.add('login-ov');
     document.documentElement.classList.add('lp-open');
     this.render();
   },
   close() { if (this.o) this.o.close(); },
+  busy(btn, on) { btn.disabled = on; btn.classList.toggle('busy', on); },
   render() {
     const p = this.panel;
     clearEl(p);
-    if (!Multiplayer.available()) { p.append(h('div.lp-title', 'ACCOUNT'), h('p.lp-note', 'Accounts need the game\'s server. Play on the website, or set its address in Settings → Maintenance.')); return; }
-    if (Account.signedIn()) { this.signedIn(p); return; }
-    if (this.page === 'register') { this.register(p); return; }
-    this.signIn(p);
+    if (!Multiplayer.available()) { p.append(h('div.lp-title', 'YOUR CODE'), h('p.lp-note', 'Codes need the game\'s server. Play on the website, or set its address in Settings → Maintenance.')); return; }
+    if (!Account.signedOut() && !this.opts.use) this.mine(p);
+    this.use(p);
   },
-  field(placeholder, type, autocomplete) {
-    const inp = h('input.input.lp-in', { type, placeholder, autocomplete, spellcheck: 'false', autocapitalize: 'off', maxlength: type === 'password' ? 200 : 15, 'aria-label': placeholder });
-    inp.addEventListener('keydown', e => e.stopPropagation());
-    return inp;
+  /** Your code: hidden until shown, Copy, New code, Sign out other devices — and this device's sign out. */
+  mine(p) {
+    const code = Account.code(), err = h('div.lp-err', { hidden: true });
+    const fail = e => { err.hidden = false; err.textContent = friendlyError(e); };
+    p.append(h('div.lp-title', 'YOUR CODE'));
+    if (code) {
+      const val = h('div.lp-code', { title: this.shown ? '' : 'Show it' }, this.shown ? code : code.replace(/[^-]/g, '•'));
+      val.addEventListener('click', () => { if (!this.shown) { this.shown = true; this.render(); } });
+      const copy = h('button.btn.sm', { onclick: async () => { try { await navigator.clipboard.writeText(code); Toast.ok('Code copied', 'Type or paste it on your other device.'); } catch { this.shown = true; this.render(); } } }, icon('copy'), 'Copy');
+      p.append(h('div.lp-code-row', val, this.shown ? null : h('button.btn.sm', { onclick: () => { this.shown = true; this.render(); } }, icon('eye'), 'Show'), copy));
+      p.append(h('p.lp-note', 'Type it on another device to play there as you: your scores, rank and friends. ', h('b', 'Keep it secret'), ' — anyone with it can play as you.'));
+    } else {
+      const get = h('button.btn.primary.lp-btn', icon('lock'), Account.linked() ? 'Make a new code' : 'Get my code');
+      get.addEventListener('click', async () => { this.busy(get, true); try { await Account.newCode(); this.shown = true; this.render(); } catch (e) { fail(e); } finally { this.busy(get, false); } });
+      p.append(h('p.lp-note', Account.linked()
+        ? 'This device doesn\'t have your code to show. Making a new one replaces it (the old one stops working).'
+        : 'A code lets you play as yourself on another device — your scores, rank and friends — with no username or password.'), get);
+    }
+    p.append(err);
+    if (code) {
+      const again = h('button.btn.lp-btn', icon('retry'), 'New code');
+      again.addEventListener('click', async () => {
+        if (!(await Dialog.confirm('Make a new code?', 'Your current code stops working. Devices already playing as you stay signed in — use Sign out other devices for those.', { ok: 'New code' }))) return;
+        this.busy(again, true); try { await Account.newCode(); this.shown = true; this.render(); Toast.ok('New code made', 'Your old code doesn\'t work any more.'); } catch (e) { fail(e); } finally { this.busy(again, false); }
+      });
+      const others = h('button.btn.lp-btn', icon('user-times'), 'Sign out other devices');
+      others.addEventListener('click', async () => {
+        if (!(await Dialog.confirm('Sign out your other devices?', 'Only this device will play as you. On the others, typing your code brings them back.', { ok: 'Sign them out' }))) return;
+        this.busy(others, true); try { await Account.signOutOthers(); } catch (e) { fail(e); } finally { this.busy(others, false); }
+      });
+      p.append(again, others);
+    }
+    if (Account.linked()) {
+      const out = h('button.btn.lp-btn.danger', 'Sign out on this device');
+      out.addEventListener('click', async () => {
+        if (!(await Dialog.confirm('Sign out on this device?', 'It stops playing as you (good for a shared or school computer). Your beatmaps, scores and settings here stay. Make sure you have your code to come back.', { ok: 'Sign out' }))) return;
+        this.close(); Account.logout();
+      });
+      p.append(out);
+    }
   },
-  busy(btn, on) { btn.disabled = on; btn.classList.toggle('busy', on); },
-  signIn(p) {
-    const user = this.field('username', 'text', 'username'), pass = this.field('password', 'password', 'current-password');
+  /** Use a code: this device becomes the code's player. */
+  use(p) {
+    const inp = h('input.input.lp-in.lp-code-in', { placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Your code', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', maxlength: 24 });
+    inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submit(); });
+    // (tidied as it's typed: capitals, a dash every four)
+    inp.addEventListener('input', () => { const raw = inp.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 16); const f = Account.format(raw); if (f !== inp.value) inp.value = f; err.hidden = true; });
     const err = h('div.lp-err', { hidden: true });
-    const go = h('button.btn.primary.lp-btn', 'Sign in');
+    const go = h('button.btn.primary.lp-btn', 'Use code');
     const submit = async () => {
-      if (!user.value.trim() || !pass.value) { err.hidden = false; err.textContent = 'Type your username and password.'; (user.value.trim() ? pass : user).focus(); return; }
+      if (!inp.value.trim()) { inp.focus(); return; }
       this.busy(go, true); err.hidden = true;
-      try { const d = await Account.login(user.value, pass.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
-      catch (e) { err.hidden = false; err.textContent = friendlyError(e); pass.select(); this.panel.classList.remove('shake'); void this.panel.offsetWidth; this.panel.classList.add('shake'); }
+      try { const d = await Account.link(inp.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
+      catch (e) { err.hidden = false; err.textContent = friendlyError(e); inp.select(); this.panel.classList.remove('shake'); void this.panel.offsetWidth; this.panel.classList.add('shake'); }
       finally { this.busy(go, false); }
     };
     go.addEventListener('click', submit);
-    pass.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-    user.addEventListener('keydown', e => { if (e.key === 'Enter') pass.focus(); });
-    p.append(h('div.lp-title', 'ACCOUNT'), user, pass, err, go,
-      h('button.btn.lp-btn', { onclick: () => { UISounds.click(); this.page = 'register'; this.render(); } }, 'Create an account'),
-      Account.signedOut()
-        ? h('p.lp-note', 'Signed out: scores from this device don\'t go online. ', h('button.lp-link', { onclick: () => { Account.guest(); this.close(); Toast.show('Playing as a guest', 'Scores from this device go online as a guest of this browser.'); } }, 'Play as a guest instead'))
-        : h('p.lp-note', 'You\'re playing as a guest of this browser. Sign in to be the same player on every device — what you have here as a guest comes with you.'));
-    setTimeout(() => user.focus(), 60);
-  },
-  register(p) {
-    const user = this.field('username', 'text', 'username'), pass = this.field('password', 'password', 'new-password');
-    user.value = Account.signedOut() ? '' : (ProfileManager.profile.name || '').slice(0, 15);
-    const err = h('div.lp-err', { hidden: true });
-    const go = h('button.btn.primary.lp-btn', 'Create account');
-    const submit = async () => {
-      this.busy(go, true); err.hidden = true;
-      try { const d = await Account.register(user.value, pass.value); this.close(); this.opts.onDone && this.opts.onDone(d.name); }
-      catch (e) { err.hidden = false; err.textContent = friendlyError(e); }
-      finally { this.busy(go, false); }
-    };
-    go.addEventListener('click', submit);
-    pass.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-    user.addEventListener('keydown', e => { if (e.key === 'Enter') pass.focus(); });
-    // (lazer's account creation, without the email: what each field is for, in its words)
-    p.append(h('div.lp-title', 'CREATE AN ACCOUNT'),
-      user, h('p.lp-hint', 'This will be your public presence. No profanity, no impersonation. Avoid exposing your own personal details, too! (3 to 15 letters, numbers or spaces.)'),
-      pass, h('p.lp-hint', 'At least 8 characters long. Choose something long but also something you will remember, like a line from your favourite song. There\'s no way to get it back if you forget it.'),
-      err, go,
-      h('button.btn.lp-btn', { onclick: () => { UISounds.back(); this.page = 'signin'; this.render(); } }, 'I have an account'),
-      Account.signedOut() ? null : h('p.lp-note', 'Your scores, rank and friends as a guest on this device become the account\'s.'));
-    setTimeout(() => (user.value ? pass : user).focus(), 60);
-  },
-  signedIn(p) {
-    const out = h('button.btn.lp-btn.danger', 'Sign out');
-    out.addEventListener('click', async () => {
-      if (!(await Dialog.confirm('Sign out?', 'Scores from this device won\'t go online until you sign in again. Your beatmaps, scores and settings here stay.', { ok: 'Sign out' }))) return;
-      this.close(); Account.logout();
-    });
-    p.append(h('div.lp-title', 'SIGNED IN'),
-      h('button.lp-user', { onclick: () => { this.close(); Screens.go('profile'); } }, ProfileManager.avatarEl(48), h('span.lp-user-t', h('b', Account.name()), h('small', 'View profile'))),
-      h('p.lp-note', 'Every device signed in to this account is the same player. Beatmaps and settings stay on each device — move them with Settings → Maintenance → Export / Import data.'),
-      out);
+    const signedOut = Account.signedOut();
+    p.append(h('div.lp-title.lp-sep', signedOut || this.opts.use ? 'PLAY AS YOURSELF HERE' : 'USE A CODE ON THIS DEVICE'),
+      h('p.lp-hint', signedOut ? 'This device is signed out. Type your code (from Your code on your other device) to play as yourself here.' : 'Got a code from your other device? Type it here and this device plays as you — what it has online now is added to you.'),
+      inp, err, go,
+      signedOut ? h('p.lp-note', 'Or ', h('button.lp-link', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'start over as a new player'), ' on this device.') : null);
+    if (signedOut || this.opts.use) setTimeout(() => inp.focus(), 60);
   },
 };
 
@@ -26692,7 +26716,7 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, LoginPanel };
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);
@@ -26715,7 +26739,6 @@ const App = {
     Bus.on('library:changed', () => { clearTimeout(this._bsT); this._bsT = setTimeout(() => BeatmapStatus.sync(), 3000); });
     Multiplayer.joinFromLink();
     Multiplayer.resume(); // (the page was reloaded in a room: back into it)
-    Account.init();
     Presence.start();
     setTimeout(() => BeatmapManager.migrateStarRatings().catch(e => console.warn('SR migration', e))
       .then(() => BeatmapManager.addConverts()).catch(e => console.warn('converts', e)), 1500);

@@ -98,6 +98,10 @@ const Spectate = {
     if (p) this.watch(p);
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
+  // what's taken out of a watched player's screen before it's shown (see showRk)
+  DROP_TAGS: /^(script|iframe|frame|frameset|object|embed|applet|link|meta|form|base|style|template|noscript|portal|audio|video|source|track|animate|set|animatemotion|animatetransform|use|foreignobject|discard|handler|listener)$/i,
+  DROP_ATTRS: /^(href|xlink:href|srcdoc|formaction|action|ping|poster|background|lowsrc|dynsrc|data|codebase|archive|attributename|values|from|to|by|begin)$/, // (data-* stay: the copy needs those)
+  IMG_HOSTS: /(^|\.)(ppy\.sh|sayobot\.cn|catboy\.best|nerinyan\.moe|osu\.direct|nekoha\.moe)$/i,
   on(m) {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     if (!this.target || m.id !== this.target.id) return;
@@ -337,18 +341,27 @@ const Spectate = {
     this._rkApplied = html;
     const t = document.createElement('template');
     t.innerHTML = html;
-    const ok = u => /^(https:|data:image\/)/i.test(u.trim());
+    // (pictures only as data: images or from osu! and the beatmap providers — never from anywhere their page names, which
+    // would tell that site who's watching)
+    const ok = u => {
+      u = String(u).trim();
+      if (/^data:image\//i.test(u)) return true;
+      try { const x = new URL(u); return x.protocol === 'https:' && (Spectate.IMG_HOSTS.test(x.hostname) || x.host === location.host); } catch { return false; }
+    };
     for (const el of t.content.querySelectorAll('*')) {
-      if (/^(SCRIPT|IFRAME|OBJECT|EMBED|LINK|META|FORM|BASE|STYLE|TEMPLATE)$/.test(el.tagName)) { el.remove(); continue; }
+      // (anything that runs, loads or animates something of its own goes — SVG's tags are lower case, so the check is too)
+      if (Spectate.DROP_TAGS.test(el.tagName)) { el.remove(); continue; }
       for (const a of [...el.attributes]) {
-        const n = a.name.toLowerCase();
-        if (n.startsWith('on') || n === 'href' || n === 'srcdoc' || n === 'formaction' || n === 'action' || n === 'xlink:href') el.removeAttribute(a.name);
-        else if ((n === 'src' || n === 'srcset') && !ok(a.value)) el.removeAttribute(a.name);
-        // (each url() on its own: a picture over https or a data: image stays, anything else goes — browsers write
-        // these quoted, and a check over the whole value took the quote for the start of an address and dropped them all)
+        const n = a.name.toLowerCase(), v0 = a.value;
+        if (n.startsWith('on') || Spectate.DROP_ATTRS.test(n) || /(java|vb)script:|data:text\/html/i.test(v0.replace(/[\s\u0000-\u001f]/g, ''))) el.removeAttribute(a.name);
+        else if (n === 'src' && !ok(v0)) el.removeAttribute(a.name);
+        else if (n === 'srcset' && !v0.split(',').every(c => ok(c.trim().split(/\s+/)[0] || ''))) el.removeAttribute(a.name);
+        // (each url() on its own: an allowed picture stays, anything else goes — browsers write these quoted, and a check
+        // over the whole value took the quote for the start of an address and dropped them all)
         else if (n === 'style') {
-          const v = a.value.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (all, q, u) => ok(u) ? all : 'none');
-          if (/expression|javascript:/i.test(v)) el.removeAttribute('style'); else if (v !== a.value) el.setAttribute('style', v);
+          const v = v0.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (all, q, u) => ok(u) ? all : 'none');
+          // (and nothing that could fetch some other way: escapes, image-set(), old expression())
+          if (/\\|image-set|expression|@import|javascript:/i.test(v)) el.removeAttribute('style'); else if (v !== v0) el.setAttribute('style', v);
         }
       }
     }

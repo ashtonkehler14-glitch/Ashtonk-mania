@@ -529,8 +529,10 @@ const Presence = {
       else if (m.t === 'profile') Bus.emit('profile:remote', m);
       else if (m.t === 'invited') Bus.emit('presence:invited', m.to);
       // this browser's id is taken (by another key: copied browser data, a cleared key): start a new one and reconnect
-      // (signed in: the account's key here doesn't work any more — signed out, not quietly made a guest)
-      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.signedIn()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
+      else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.linked()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
+      // (your code was just used on another device)
+      else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000 });
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {

@@ -4639,3 +4639,9 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 /* (notifications go beside the sign-in panel while it's open, not over its fields) */
 html.lp-open #toasts { right: 380px; }
 @media (max-width: 760px) { html.lp-open #toasts { opacity: 0; pointer-events: none; } }
+/* Your code: the code in a monospace box (hidden as dots until Show), Copy beside it; Use a code below a rule */
+.lp-code-row { display: flex; align-items: center; gap: 6px; }
+.lp-code { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 6px; background: hsl(255 10% 12%); font: 600 16px/1.2 ui-monospace, 'RobotoMono', 'Consolas', monospace; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: all; cursor: pointer; }
+.lp-code-in { font-family: ui-monospace, 'Consolas', monospace; letter-spacing: .08em; text-transform: uppercase; }
+.lp-sep { margin-top: 10px; padding-top: 12px; border-top: 1px solid hsl(255 10% 28%); }
+.login-panel > .lp-title:first-child.lp-sep { margin-top: 2px; padding-top: 0; border-top: 0; }

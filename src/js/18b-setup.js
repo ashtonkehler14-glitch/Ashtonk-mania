@@ -101,7 +101,7 @@ const Onboarding = {
     if (this.step.id === 'welcome') {
       const n = this.nameEl.value.trim();
       if (!n) { this.err.textContent = 'Type a name first.'; this.nameEl.focus(); return false; }
-      if (n !== ProfileManager.profile.name) await Account.setName(n);
+      if (n !== ProfileManager.profile.name) await ProfileManager.setName(n);
       Toolbar.updateProfile();
     }
     return true;
@@ -134,8 +134,8 @@ const Onboarding = {
     this.nameEl.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); this.next(); } });
     this.nameEl.addEventListener('input', () => { this.err.textContent = ''; });
     this.afterRender = () => setTimeout(() => this.nameEl && this.nameEl.focus(), 60);
-    // (already playing on another device: sign in, and this one is the same player)
-    const signIn = Multiplayer.available() && !Account.signedIn() ? h('button.setup-signin', { onclick: () => { UISounds.click(); LoginPanel.open({ onDone: n => { this.nameEl.value = n; this.next(); } }); } }, 'Already have an account? Sign in') : null;
+    // (already playing on another device: their code, and this one is the same player)
+    const signIn = Multiplayer.available() ? h('button.setup-signin', { onclick: () => { UISounds.click(); CodePanel.open({ use: true, onDone: n => { if (n) this.nameEl.value = n; this.next(); } }); } }, 'Playing on another device already? Use your code') : null;
     return [this.logo(), h('p.setup-lead', 'What should we call you?'), this.nameEl, signIn];
   },
 

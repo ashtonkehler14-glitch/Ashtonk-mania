@@ -658,8 +658,7 @@ const Toolbar = {
         // lazer's ToolbarWikiButton: here, the help — every keyboard shortcut, screen by screen
         this.npBtn,
         // (lazer's order: you, then the clock, then notifications)
-        // (lazer's ToolbarUserButton: signed out, it opens the sign-in panel; signed in, your profile)
-        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); if (Account.signedIn() || !Multiplayer.available()) this.pages.profile(); else LoginPanel.open(); },
+        this.profileBtn = h('button.tb-btn.tb-profile', { dataset: { tab: 'profile' }, 'aria-label': 'your profile', onclick: () => { UISounds.click(); this.pages.profile(); },
           oncontextmenu: e => { e.preventDefault(); this.userMenu(e); } }),
         this.clock,
         this.bell),
@@ -797,10 +796,10 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => WhatsNew.show() },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
-      // (lazer's UserDropdown ends with Sign out)
-      ...(!Multiplayer.available() ? [] : [{ sep: true }, ...(Account.signedIn()
-        ? [{ label: `Signed in as ${Account.name()}`, icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Sign out', icon: 'x', onClick: () => LoginPanel.open() }]
-        : [{ label: 'Sign in', icon: 'user', onClick: () => LoginPanel.open() }, { label: 'Create an account', icon: 'user-plus', onClick: () => LoginPanel.open({ page: 'register' }) }])]),
+      // (playing as yourself on another device: your code)
+      ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
+        ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
+        : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
     ]);
     return m;
   },

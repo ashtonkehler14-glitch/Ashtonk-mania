@@ -706,17 +706,21 @@ function rateOf(mods, cfg) {
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
-// ── account passwords: PBKDF2-SHA-256 with a salt of their own (Workers cap the rounds at 100,000)
-const PASSWORD_ITER = 60000;
+// ── player codes: 16 characters from Crockford's base32 (no I, L, O or U — nothing to misread), 80 random bits, made
+// here with the platform's secure random numbers. Only each code's SHA-256 is kept: with 2^80 possible codes, neither
+// guessing one nor working one back from a stolen fingerprint is possible in practice.
+export const CODE_ALPHABET32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const randomHex = bytes => [...crypto.getRandomValues(new Uint8Array(bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
-export async function passwordHash(password, saltHex, iter = PASSWORD_ITER) {
-  const salt = Uint8Array.from((String(saltHex).match(/../g) || []).map(x => parseInt(x, 16)));
-  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(password)), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: Math.min(100000, iter || PASSWORD_ITER) }, base, 256);
-  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+export function newPlayerCode() {
+  // (256 is a multiple of 32: each character is exactly uniform)
+  return [...crypto.getRandomValues(new Uint8Array(16))].map(b => CODE_ALPHABET32[b & 31]).join('');
 }
-/** Two hashes compared without stopping at the first difference. */
-const sameHex = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.min(a.length, b.length); i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
+/** A code as typed — any case, with or without its dashes and spaces, O for 0 and I or L for 1 — or '' if it can't be one. */
+export function cleanPlayerCode(s) {
+  const c = String(s ?? '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
+}
+export const codeHash = c => sha256hex('ashtonk-code:' + c);
 
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
@@ -883,8 +887,8 @@ export class PresenceLogic {
     // players' keys, by public id (only each key's SHA-256 is kept): pid → hash, or a list of them for an account (a key
     // for each device signed in to it)
     this.auth = new Map(); this.persistAuth = null;
-    // accounts (lazer's sign-in): username (lower case) → { name, pid, salt, hash, iter, at }, and pid → username
-    this.accounts = new Map(); this.accountOf = new Map(); this.persistAccount = null;
+    // player codes (one per player, for playing as them on another device): code fingerprint → pid, and pid → fingerprint
+    this.codes = new Map(); this.codeOf = new Map(); this.persistCode = null;
     // each player's profile as their game last shared it (lazer's user profile, opened by other players): pid → data
     this.profiles = new Map(); this.profileJson = new Map(); this.persistProfile = null;
     // lazer's playlists: lists of beatmaps a player puts up for a while, each with everyone's best score on each
@@ -951,7 +955,7 @@ export class PresenceLogic {
     if (k.length < 16 || k.length > 100) return false;
     const hash = sha256hex(k), have = this.keyHashes(pid);
     if (have.length) return have.includes(hash);
-    if (this.accountOf.has(pid)) return false; // (an account every device has signed out of isn't up for grabs)
+    if (this.codeOf.has(pid)) return false; // (a player with a code whose every device signed out isn't up for grabs)
     this.auth.set(pid, hash);
     if (this.persistAuth) this.persistAuth(pid, hash);
     return true;
@@ -961,91 +965,62 @@ export class PresenceLogic {
   /** Is this one of the keys for this public id? */
   keyOk(pid, key) { const k = String(key || ''); return k.length >= 16 && k.length <= 100 && this.keyHashes(pid).includes(sha256hex(k)); }
 
-  // ── accounts: lazer's sign-in. A username and password belong to one public id, and every device signed in to it is
-  //    that player — one entry on the rankings and the beatmap boards, one profile, one friends list. Each device gets
-  //    a key of its own for the id, so signing out on one leaves the others signed in.
-  static ACCOUNT_KEYS = 20; // devices signed in at once (past that, the one signed in longest ago is signed out)
-  /** A username as accounts take it (osu!'s rules: 3 to 15 letters, numbers, spaces, - _ [ ]), or '' when it doesn't fit. */
-  static accountName(n) {
-    const s = String(n ?? '').replace(/\s+/g, ' ').trim();
-    return /^[A-Za-z0-9_\-\[\] ]{3,15}$/.test(s) ? s : '';
+  // ── player codes: a secret code belongs to a player, and typing it on another device makes that device the same
+  //    player — one entry on the rankings and the beatmap boards, one profile and friends list. Each device gets a key
+  //    of its own for the player's id, so one can be signed out without the others.
+  static DEVICE_KEYS = 20; // devices playing as one player at once (past that, the one that joined longest ago is signed out)
+  loadCodes(all) {
+    for (const [h, v] of Object.entries(all || {})) if (v && typeof v === 'object' && /^[a-z0-9]{6,24}$/.test(String(v.pid || ''))) { this.codes.set(h, v.pid); this.codeOf.set(v.pid, h); }
   }
-  loadAccounts(all) {
-    for (const a of Object.values(all || {})) if (a && typeof a === 'object' && a.pid && a.name) { this.accounts.set(a.name.toLowerCase(), a); this.accountOf.set(a.pid, a.name.toLowerCase()); }
-  }
-  accountFor(pid) { const k = pid && this.accountOf.get(pid); return (k && this.accounts.get(k)) || null; }
-  /** Another device signed in: a key of its own for the id. */
+  /** Another device joined: a key of its own for the id. */
   addKey(pid, key) {
-    const h = sha256hex(String(key)), list = [...this.keyHashes(pid).filter(x => x !== h), h].slice(-PresenceLogic.ACCOUNT_KEYS);
+    const h = sha256hex(String(key)), list = [...this.keyHashes(pid).filter(x => x !== h), h].slice(-PresenceLogic.DEVICE_KEYS);
     this.auth.set(pid, list);
     if (this.persistAuth) this.persistAuth(pid, list);
   }
-  /** A device signed out: its key stops working (the account's other devices stay signed in). */
+  /** A device signed out: its key stops working (the player's other devices stay). */
   dropKey(pid, key) {
     const h = sha256hex(String(key || '')), list = this.keyHashes(pid).filter(x => x !== h);
     if (list.length) this.auth.set(pid, list); else this.auth.delete(pid);
     if (this.persistAuth) this.persistAuth(pid, list);
   }
-  /** The name a player shows as: an account's username, whatever its game says; a guest using an account's name is
-   *  marked as a guest (nobody can pass themselves off as someone with an account). */
-  shownName(pid, name) {
-    const a = this.accountFor(pid);
-    if (a) return a.name;
-    return this.accounts.has(String(name).toLowerCase()) ? `${String(name).slice(0, 16)} (guest)` : name;
+  /** Every device but this one signed out (a code that got out): the others are told at once and dropped. */
+  onlyKey(pid, key) {
+    const h = sha256hex(String(key || '')), before = this.keyHashes(pid).length;
+    this.auth.set(pid, [h]);
+    if (this.persistAuth) this.persistAuth(pid, [h]);
+    const out = [], gone = [];
+    for (const [id, u] of this.users) if (u.pid === pid && u.kh !== h) { out.push({ to: id, msg: { t: 'repid' } }); gone.push(id); }
+    return { n: Math.max(0, before - 1), out, gone };
   }
-  /** An account's name is the player's everywhere they're kept by name: online, on the rankings, their profile and their friends' lists. */
-  renamed(pid, name) {
-    for (const u of this.users.values()) if (u.pid === pid) u.name = name;
-    const r = this.ranks.get(pid);
-    if (r && r.name !== name) { r.name = name; if (this.persistRank) this.persistRank(pid, r); }
-    const pf = this.profiles.get(pid);
-    if (pf && pf.name !== name) { pf.name = name; if (this.persistProfile) this.persistProfile(pid, pf); }
-    const touched = [];
-    for (const [p, m] of this.friends) if (m.has(pid) && m.get(pid) !== name) { m.set(pid, name); this.save('fr', p); touched.push(p); }
-    return [this.broadcast(), ...this.friendsOut(...touched)];
+  /** A new code for this player (the old one stops working): its fingerprint is all that's kept. */
+  setCode(pid, hash) {
+    const old = this.codeOf.get(pid);
+    if (old) this.codes.delete(old);
+    this.codes.set(hash, pid); this.codeOf.set(pid, hash);
+    if (this.persistCode) this.persistCode(hash, pid, old || null);
   }
-  /** A new account, with the password's stored form (`pass`: {salt, hash, iter}). The guest on the device it's made on
-   *  becomes the account — keeping its scores, rank and friends — when the key shows it's theirs; otherwise the account
-   *  starts on a new id (`fresh()` → {pid, key}). */
-  createAccount({ name, pass, pid, key, fresh }) {
-    const n = PresenceLogic.accountName(name);
-    if (!n) return { error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).', status: 400 };
-    if (this.accounts.has(n.toLowerCase())) return { error: 'That username is taken.', status: 409 };
-    let id = /^[a-z0-9]{6,24}$/.test(String(pid || '')) ? String(pid) : '', issued = null;
-    if (!id || this.accountOf.has(id) || !this.claim(id, key)) {
-      const f = fresh();
-      id = f.pid; issued = f.key; this.addKey(id, issued);
-    }
-    const acct = { name: n, pid: id, salt: pass.salt, hash: pass.hash, iter: pass.iter, at: this.now() };
-    this.accounts.set(n.toLowerCase(), acct); this.accountOf.set(id, n.toLowerCase());
-    if (this.persistAccount) this.persistAccount(acct, null);
-    return { ok: true, name: n, pid: id, key: issued, out: this.renamed(id, n) };
-  }
-  /** Signing in on a device: it gets a key for the account's id. The guest it was playing as (`from`, proved by its
-   *  key) goes into the account — so the same player isn't on the rankings twice. */
-  signIn(acct, from, fromKey, newKey) {
-    const merge = /^[a-z0-9]{6,24}$/.test(String(from || '')) && from !== acct.pid && !this.accountOf.has(from) && this.keyOk(from, fromKey);
-    const out = merge ? this.mergePlayer(from, acct.pid) : [];
-    this.addKey(acct.pid, newKey);
-    return { ok: true, name: acct.name, pid: acct.pid, merged: merge, out: [...out, ...this.renamed(acct.pid, acct.name)] };
-  }
-  renameAccount(pid, key, name) {
-    const a = this.accountFor(pid);
-    if (!a || !this.keyOk(pid, key)) return { error: 'Sign in again to change your username.', status: 403 };
-    const n = PresenceLogic.accountName(name);
-    if (!n) return { error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).', status: 400 };
-    const old = a.name.toLowerCase();
-    if (n.toLowerCase() !== old && this.accounts.has(n.toLowerCase())) return { error: 'That username is taken.', status: 409 };
-    this.accounts.delete(old); a.name = n; this.accounts.set(n.toLowerCase(), a); this.accountOf.set(pid, n.toLowerCase());
-    if (this.persistAccount) this.persistAccount(a, old === n.toLowerCase() ? null : old);
-    return { ok: true, name: n, out: this.renamed(pid, n) };
+  /** A device typed the player's code: it gets a key for their id, and the player it was until now (`from`, proved by
+   *  its key) goes into them — so they aren't on the rankings twice. Their other devices are told. */
+  linkDevice(pid, from, fromKey, newKey) {
+    const merge = /^[a-z0-9]{6,24}$/.test(String(from || '')) && from !== pid && this.keyOk(from, fromKey);
+    const out = merge ? this.mergePlayer(from, pid) : [];
+    this.addKey(pid, newKey);
+    // (the player's other devices — not the one that typed the code, whose tabs are still on their old key)
+    const self = new Set([sha256hex(newKey), sha256hex(String(fromKey || ''))]);
+    for (const [id, u] of this.users) if (u.pid === pid && !self.has(u.kh)) out.push({ to: id, msg: { t: 'codeUsed' } });
+    const r = this.ranks.get(pid), pf = this.profiles.get(pid);
+    return { ok: true, pid, merged: merge, name: (r && r.name) || (pf && pf.name) || '', out };
   }
   /** Everything the server keeps about one player (`from`) moved to another (`to`): their best plays, rank, places on the
    *  beatmap boards and first places, daily challenge record and today's score, playlist scores, friends and friend
    *  requests, tag votes and profile. `from` is gone afterwards. The boards and tags it's on, and both players' best
    *  plays, must be loaded first (Matchmaker.preloadPlayer). */
   mergePlayer(from, to) {
-    const acct = this.accountFor(to), name = acct ? acct.name : (this.ranks.get(to) || this.ranks.get(from) || {}).name || 'Player';
+    const name = (this.ranks.get(to) || {}).name || (this.profiles.get(to) || {}).name || (this.ranks.get(from) || {}).name || 'Player';
+    // (a code `from` had is no more: the one to play as them now is `to`'s)
+    const fc = this.codeOf.get(from);
+    if (fc) { this.codes.delete(fc); this.codeOf.delete(from); if (this.persistCode) this.persistCode(null, from, fc); }
     // rankings: the best play on each beatmap from either, and the totals worked out again from them
     const a = this.ranks.get(from);
     if (a) {
@@ -1272,12 +1247,8 @@ export class PresenceLogic {
     const firsts = f1.slice(0, 20).map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, stars: b.stars, passed: true }));
     // (the best plays their profile lists: only the ones checked to be on ranked beatmaps — and when their standing is
     //  the plays judged here, those instead — with the numbers the total is made of: the bonus pp and how many plays)
-    let shown = data;
-    if (data && Array.isArray(data.top)) {
-      const ok = r && r.okh ? new Set(r.okh) : null;
-      const vt = r && r.src === 'judged' && top.length ? [] : data.top.filter(x => x && x.pp > 0 && x.passed !== false && (ok ? ok.has(PresenceLogic.playId(x)) : x.ranked === true));
-      shown = { ...data, top: vt, pp: r ? r.pp : data.pp };
-    }
+    // (the best plays listed are the judged ones, never a list their game sent — that could be an imported save's)
+    const shown = data ? { ...data, top: [], pp: r ? r.pp : 0 } : data;
     const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
     return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
       rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
@@ -1384,13 +1355,16 @@ export class PresenceLogic {
         r.pol = 3; r.reset = true; r.rew = 1;
         if (r.bests) { PresenceLogic.revalue(r); delete r.rew; }
       }
+      // (policy 4: standing only from plays judged here — what came from players' own reports, an imported save's scores
+      //  among them, is gone: someone with no judged plays leaves the rankings)
+      if (r.pol < 4) { r.pol = 4; r.rep = null; delete r.okh; r.reset = true; }
       PresenceLogic.settleRank(r);
       this.ranks.set(pid, r);
     }
   }
   /** A player's standing: the pp of the plays judged here or, while that's lower (a small server can't always judge a
    *  long song in time), what their game reports from their own scores — whichever is higher. */
-  static RANK_POLICY = 3;
+  static RANK_POLICY = 4;
   /** A standing from the best plays a player's profile lists (only the ones on ranked beatmaps: `isRanked(entry)`),
    *  weighted as osu! weights them; null when none count. */
   static rankFromTop(top, isRanked) {
@@ -1425,13 +1399,14 @@ export class PresenceLogic {
     PresenceLogic.settleRank(rec);
     return rec;
   }
+  /** A player's standing: only the plays judged here, from their key presses as they played. What a player's game says
+   *  about its scores — a save imported from somewhere else, plays from before plays were judged, or anything a
+   *  changed game might claim — never counts (policy 4). */
   static settleRank(r) {
-    const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 }, rep = r.rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
-    const use = rep.pp > v.pp ? rep : v;
-    r.pp = use.pp; r.acc = use.acc; r.ss = use.ss; r.s = use.s; r.a = use.a;
-    // (how many ranked plays the total counts, for its bonus pp, and where it came from: plays judged here, or their profile's plays checked on osu!)
-    r.n = use.n || 0; r.src = use === rep ? 'profile' : 'judged';
-    r.rscore = Math.max(v.rscore || 0, rep.rscore || 0);
+    const v = r.v || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
+    r.pp = v.pp || 0; r.acc = v.acc || 0; r.ss = v.ss || 0; r.s = v.s || 0; r.a = v.a || 0;
+    r.n = v.n || 0; r.src = 'judged';
+    r.rscore = v.rscore || 0;
     return r;
   }
   /** The top 50 by pp, and where you stand. */
@@ -1476,7 +1451,7 @@ export class PresenceLogic {
     // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
     if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
-    this.users.set(id, { name: this.shownName(pid, str(msg && msg.name, 24) || 'Player'), status: cleanStatus(msg && msg.status), avatar: cleanAvatar(msg && msg.avatar), cid,
+    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
@@ -1524,7 +1499,7 @@ export class PresenceLogic {
         const json = JSON.stringify(msg.profile);
         if (json.length <= PresenceLogic.PROFILE_MAX && json !== this.profileJson.get(u.pid)) {
           // (an account's: what this device sent, put together with what its other devices did)
-          const sent = JSON.parse(json), data = { ...(this.accountOf.has(u.pid) ? PresenceLogic.mergeProfile(this.profiles.get(u.pid), sent) : sent), name: u.name };
+          const sent = JSON.parse(json), data = { ...(this.codeOf.has(u.pid) ? PresenceLogic.mergeProfile(this.profiles.get(u.pid), sent) : sent), name: u.name };
           this.profiles.set(u.pid, data); this.profileJson.set(u.pid, json);
           if (this.persistProfile) this.persistProfile(u.pid, data);
         }
@@ -1540,8 +1515,8 @@ export class PresenceLogic {
         if (p && Number.isFinite(+p.plays)) rec.plays = Math.max(rec.plays || 0, num(p.plays, 1e9));
         if (JSON.stringify([rec.name, rec.avatar, rec.plays]) !== before && this.persistRank) this.persistRank(u.pid, rec);
       }
-      const top = this.accountOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (an account: every device's best plays)
-      if (Array.isArray(top) && top.length && this.verifyTop) this.verifyTop(u.pid, top.slice(0, 50), { name: u.name, avatar: u.avatar });
+      const top = this.codeOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (a player on several devices: all their best plays)
+      // (their reported plays are only for showing on their profile: the rankings take judged plays alone — see settleRank)
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
@@ -1614,7 +1589,7 @@ export class PresenceLogic {
       return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
     }
     if (msg.t === 'status') {
-      const st = cleanStatus(msg.status), name = msg.name != null ? this.shownName(u.pid, str(msg.name, 24) || u.name) : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
       if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return [];
       u.status = st; u.name = name; u.avatar = av; u.song = song;
@@ -1827,7 +1802,7 @@ export class Matchmaker {
       // (an account's profile is put together from what each of its devices reports: the kept one is read in first, or
       // the first report after a restart would stand in for all of them)
       const su = msg.t === 'stats' ? this.presence.users.get(id) : null;
-      if (su && su.pid && this.presence.accountOf.has(su.pid) && !this.presence.profiles.has(su.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(su.pid)) {
+      if (su && su.pid && this.presence.codeOf.has(su.pid) && !this.presence.profiles.has(su.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(su.pid)) {
         this._pfLoaded.add(su.pid);
         this.state.storage.get(`pf:${su.pid}`).catch(() => null).then(v => {
           if (v && typeof v === 'object' && !this.presence.profiles.has(su.pid)) this.presence.profiles.set(su.pid, v);
@@ -1881,54 +1856,57 @@ export class Matchmaker {
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
   }
-  /** Accounts: register {name, password, pid, key} (the device's guest becomes the account), login {name, password,
-   *  pid, key} (the device gets a key for the account; its guest goes into it), logout {pid, key}, rename {pid, key,
-   *  name}. Passwords are kept only as PBKDF2 hashes; sign-in attempts are limited per address and per username. */
+  /** Player codes: code {pid, key} → a new code for this player (the old one stops working); link {code, pid, key} →
+   *  this device becomes the code's player (a key of its own; the player it was goes into them); logout {pid, key} →
+   *  this device's key stops working; others {pid, key} → every other device's does. Codes are tried a few times per
+   *  address and only so often overall; a wrong one gets the same answer, after the same pause, as any other. */
   async account(what, request) {
     await this.loadFriends();
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
-    const P = this.presence, ip = request.headers.get('x-ip') || '', pw = String(body.password ?? '');
-    const pid = String(body.pid || ''), key = String(body.key || '');
-    if (what === 'register') {
-      if (!this.allowTry('r:' + ip, 10)) return json({ error: 'Too many new accounts from here. Try again later.' }, 429);
-      if (!PresenceLogic.accountName(body.name)) return json({ error: 'A username is 3 to 15 letters, numbers or spaces (and - _ [ ] ).' }, 400);
-      if (pw.length < 8 || pw.length > 200) return json({ error: 'A password is at least 8 characters.' }, 400);
-      if (pw.trim().toLowerCase() === String(body.name).trim().toLowerCase()) return json({ error: 'Your password can\'t be your username.' }, 400);
-      if (P.accounts.has(PresenceLogic.accountName(body.name).toLowerCase())) return json({ error: 'That username is taken.' }, 409);
-      const salt = randomHex(16), hash = await passwordHash(pw, salt, PASSWORD_ITER);
-      const r = P.createAccount({ name: body.name, pass: { salt, hash, iter: PASSWORD_ITER }, pid, key, fresh: () => this.freshId() });
-      if (r.error) return json({ error: r.error }, r.status || 400);
-      this.send(r.out);
-      return json({ ok: true, name: r.name, pid: r.pid, ...(r.key ? { key: r.key } : {}) });
+    const P = this.presence, ip = request.headers.get('x-ip') || '', pid = String(body.pid || ''), key = String(body.key || '');
+    const mine = /^[a-z0-9]{6,24}$/.test(pid) && P.keyOk(pid, key);
+    if (what === 'code') {
+      // (a player that's never been online yet claims its id first)
+      if (!mine && !(/^[a-z0-9]{6,24}$/.test(pid) && !P.keyHashes(pid).length && P.claim(pid, key))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
+      if (!this.allowTry('c:' + pid, 6) || !this.allowTry('ci:' + ip, 20)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
+      let code;
+      do code = newPlayerCode(); while (P.codes.has(codeHash(code)));
+      P.setCode(pid, codeHash(code));
+      return json({ ok: true, code });
     }
-    if (what === 'login') {
-      const lower = String(body.name ?? '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 40);
-      if (!this.allowTry('i:' + ip, 30) || !this.allowTry('n:' + lower, 10)) return json({ error: 'Too many sign-in attempts. Wait a few minutes and try again.' }, 429);
-      const a = P.accounts.get(lower);
-      // (the same work whether or not the username exists)
-      const got = await passwordHash(pw.slice(0, 200), a ? a.salt : '00000000000000000000000000000000', a ? a.iter : PASSWORD_ITER);
-      if (!a || !sameHex(got, a.hash)) return json({ error: 'Wrong username or password.' }, 401);
-      if (/^[a-z0-9]{6,24}$/.test(pid) && pid !== a.pid && !P.accountOf.has(pid) && P.keyOk(pid, key)) {
-        await Promise.all([this.preloadPlayer(pid), this.preloadPlayer(a.pid, false)]);
+    if (what === 'link') {
+      const t0 = Date.now(), c = cleanPlayerCode(body.code);
+      const settle = async () => { const w = 400 - (Date.now() - t0); if (w > 0) await new Promise(r => setTimeout(r, w)); }; // (every answer takes as long)
+      if (!this.allowTry('l:' + ip, 10)) return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429);
+      const target = c ? P.codes.get(codeHash(c)) : null;
+      if (!target) {
+        // (wrong codes count against everyone too: spread over many addresses, guessing still gets nowhere)
+        if (!this.allowTry('l:all', 2000)) { await settle(); return json({ error: 'Too many wrong codes have been tried. Try again later.' }, 429); }
+        await settle();
+        return json({ error: c ? 'That code doesn\'t belong to anyone. Check it and try again.' : 'A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF.' }, c ? 401 : 400);
       }
-      const newKey = randomHex(32), r = P.signIn(a, pid, key, newKey);
+      if (/^[a-z0-9]{6,24}$/.test(pid) && pid !== target && P.keyOk(pid, key)) await Promise.all([this.preloadPlayer(pid), this.preloadPlayer(target, false)]);
+      else await this.preloadPlayer(target, false);
+      const newKey = randomHex(32), r = P.linkDevice(target, pid, key, newKey);
       this.send(r.out);
-      return json({ ok: true, name: r.name, pid: r.pid, key: newKey, merged: r.merged });
+      await settle();
+      return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged });
     }
     if (what === 'logout') {
-      if (P.accountOf.has(pid) && P.keyOk(pid, key)) P.dropKey(pid, key);
+      if (mine) P.dropKey(pid, key);
       return json({ ok: true });
     }
-    if (what === 'rename') {
-      const r = P.renameAccount(pid, key, body.name);
-      if (r.error) return json({ error: r.error }, r.status || 400);
+    if (what === 'others') {
+      if (!mine) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
+      const r = P.onlyKey(pid, key);
       this.send(r.out);
-      return json({ ok: true, name: r.name });
+      setTimeout(() => this.closeGone(r.gone), 200); // (after they've been told)
+      return json({ ok: true, n: r.n });
     }
     return json({ error: 'Not found' }, 404);
   }
-  /** At most `n` tries per 10 minutes for this address or username. */
+  /** At most `n` tries per 10 minutes for this key (an address, a player, or everyone). */
   allowTry(k, n) {
     const t = Date.now(), m = this._tries || (this._tries = new Map());
     if (m.size > 20000) m.clear();
@@ -1936,12 +1914,6 @@ export class Matchmaker {
     if (list.length >= n) { m.set(k, list); return false; }
     list.push(t); m.set(k, list);
     return true;
-  }
-  /** A new public id nobody has used, with its key. */
-  freshId() {
-    let pid;
-    do pid = randomHex(8); while (this.presence.auth.has(pid) || this.presence.ranks.has(pid) || this.presence.accountOf.has(pid));
-    return { pid, key: randomHex(32) };
   }
   /** What has to be in memory before a player is merged into another (PresenceLogic.mergePlayer): their best plays,
    *  their profile, and — `all` — every beatmap board and tag list they're on (kept in storage, read only when asked
@@ -1998,8 +1970,8 @@ export class Matchmaker {
         const rk = {}; for (const [k, v] of await st.list({ prefix: 'rk:' })) rk[k.slice(3)] = v;
         const au = {}; for (const [k, v] of await st.list({ prefix: 'au:' })) au[k.slice(3)] = v;
         this.presence.loadAuth(au);
-        const ac = {}; for (const [k, v] of await st.list({ prefix: 'ac:' })) ac[k.slice(3)] = v;
-        this.presence.loadAccounts(ac);
+        const cd = {}; for (const [k, v] of await st.list({ prefix: 'cd:' })) cd[k.slice(3)] = v;
+        this.presence.loadCodes(cd);
         this.presence.loadRanks(rk);
         const ds = {}; for (const [k, v] of await st.list({ prefix: 'ds:' })) ds[k.slice(3)] = v;
         this.presence.loadDailyStats(ds);
@@ -2027,9 +1999,8 @@ export class Matchmaker {
       const rew = [...this.presence.ranks].filter(([, r]) => r.rew).map(([pid]) => pid);
       const revalue = async () => { for (const pid of rew.splice(0, 10)) { const r = this.presence.ranks.get(pid); if (!r) continue; await this.ensureBests(pid); delete r.rew; PresenceLogic.revalue(r); this.presence.persistRank(pid, r); } if (rew.length) setTimeout(() => revalue().catch(() => {}), 500); };
       if (rew.length) setTimeout(() => revalue().catch(() => {}), 2000);
-      this.restoreRanks().catch(e => console.error('restoreRanks', e));
       this.presence.persistAuth = (pid, h) => { (Array.isArray(h) && !h.length ? st.delete(`au:${pid}`) : st.put(`au:${pid}`, h)).catch(() => {}); };
-      this.presence.persistAccount = (a, oldName) => { st.put(`ac:${a.name.toLowerCase()}`, a).catch(() => {}); if (oldName) st.delete(`ac:${oldName}`).catch(() => {}); };
+      this.presence.persistCode = (hash, pid, old) => { if (hash) st.put(`cd:${hash}`, { pid, at: Date.now() }).catch(() => {}); if (old) st.delete(`cd:${old}`).catch(() => {}); };
       // (a player merged into an account: what was kept under their old id goes)
       this.presence.dropPlayer = (pid, what) => {
         const keys = { rank: [`rk:${pid}`, `rb:${pid}`], daily: [`ds:${pid}`], profile: [`pf:${pid}`], seen: [`ls:${pid}`], auth: [`au:${pid}`] }[what];
@@ -2298,7 +2269,7 @@ export async function beatmapStatus(r, md5, env, get = officialGet) {
 /** /api/account/*: to the server object that keeps the players (Matchmaker), with the caller's address for its limits. */
 export async function handleAccount(request, env, url) {
   if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
-  if (request.method !== 'POST' || !/^\/api\/account\/(register|login|logout|rename)$/.test(url.pathname)) return json({ error: 'Not found' }, 404);
+  if (request.method !== 'POST' || !/^\/api\/account\/(code|link|logout|others)$/.test(url.pathname)) return json({ error: 'Not found' }, 404);
   const body = (await request.text()).slice(0, 4096);
   const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
   return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));

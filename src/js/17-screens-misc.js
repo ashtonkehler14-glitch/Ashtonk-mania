@@ -329,7 +329,8 @@ const ProfileScreen = {
   },
   /** The same, for sending: without the local score objects. */
   summary() {
-    const d = this.localData(), strip = a => a.map(({ _s, ...x }) => x);
+    // (imported scores — a backup, a Web-Osu-Mania save — stay on this device: others never see them)
+    const d = this.localData(), strip = a => a.filter(x => !(x._s && x._s.imported)).map(({ _s, ...x }) => x);
     return { ...d, top: strip(d.top), recent: strip(d.recent) };
   },
   render() {
@@ -364,9 +365,9 @@ const ProfileScreen = {
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,
       h('div.pf-id',
-        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) Account.setName(n); } }, icon('edit')) : null,
-          // (a guest's own profile: signing in makes it the same player on every device)
-          own && !Account.signedIn() && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => LoginPanel.open() }, icon('user'), Account.signedOut() ? 'Sign in' : 'Guest · Sign in') : null),
+        h('div.pf-name', p.name, own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
+          // (your code: play as yourself on another device)
+          own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
         h('div.pf-tags', h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
           u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
       u ? h('div.pf-acts', ...UserPanels.menuItems(u).filter(it => !it.sep && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label))) : null));
@@ -672,13 +673,19 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.16', title: 'Accounts', sections: [
-    { icon: 'user', title: 'Accounts', items: [
-      'Make an account (click your name in the top bar while you\'re a guest) and sign in to it on every device you play on: they\'re all the same player — one entry on the rankings and beatmap leaderboards, one profile, one friends list',
-      'Signing in on a device you already played on as a guest moves what that guest had online into your account, so importing a save onto another device no longer puts you on the leaderboards twice',
-      'Your username is yours: nobody else can use it (someone trying shows as a guest)',
-      'Sign out from the same place, or by right-clicking your name; your beatmaps, scores and settings stay on the device',
-      'The first-run setup has "Already have an account? Sign in" for a new device'] },
+  { id: '2026.10.17', title: 'Your code', sections: [
+    { icon: 'lock', title: 'Your code', items: [
+      'Play as yourself on another device with your code: right-click your name in the top bar → Your code, then type it on the other device. It\'s you there too — one entry on the rankings and leaderboards, one profile and friends list — with no username or password',
+      'What the other device had online before is added to you, so playing on two devices never puts you on the leaderboards twice',
+      'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
+      'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
+      'Sign out on this device from the same place, for a shared or school computer',
+      'The first-run setup has "Playing on another device already? Use your code"'] },
+    { icon: 'trophy', title: 'Rankings', items: [
+      'Only plays the server checked as you played them count on the rankings and leaderboards now: a backup someone imported never shows up there, and standings that came from imported backups are gone',
+      'A backup\'s scores stay on your device to look at, marked as imported, and aren\'t shown to other players'] },
+  ] },
+  { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [
       'Watching someone in the menus is much smoother: their screen is no longer rebuilt every frame (their main menu\'s animations used to make it go out constantly), and your own menu stops drawing underneath it',
       'Nothing on the screen you\'re watching lights up under your pointer any more — it\'s theirs, to watch'] },

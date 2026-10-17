@@ -1067,10 +1067,11 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   assert.deepEqual([r.list[0].s, r.list[0].a, r.list[1].ss], [1, 1, 1]);
   assert.equal(r.list[0].bests, undefined, 'not each player\'s whole list');
   assert.equal(r.you.rank, 1);
-  // Bob's game says 400pp: not taken — its best plays go to be checked on osu! instead (verifyTop)
+  // Bob's game says 400pp, with a list of plays (an imported save's, say): none of it counts, or is even looked at —
+  // only plays judged here do (policy 4)
   p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 }, top: [{ title: 'T', pp: 400, onlineId: 5 }] } });
   assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))], ['Bob', r2(150 + bonus(1))]]);
-  assert.deepEqual(checked, [['bobpid22', 1]]);
+  assert.deepEqual(checked, []);
   // kept across a restart; records from before judged plays (policy 1) start over, and a game's word on its pp no longer counts
   const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9, rep: { pp: 5000 } } });
   q.join('c', { name: 'Cat', pid: 'catpid333', key: 'key-catpid333-0123456789' });
@@ -1079,14 +1080,16 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   q.join('o', { name: 'Old', pid: 'oldpid44', key: 'key-oldpid44-0123456789' });
   q.message('o', { t: 'stats', profile: { pp: 120, avgAcc: 0.9, plays: 3, grades: {} } });
   assert.deepEqual(q.message('c', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))]]);
-  // a record from policy 2: its judged plays worked out again with lazer's weighting, and nobody dropped off the
-  // rankings for it — what their game reported stays until their profile has been checked again (restoreRanks)
+  // an older record whose standing came from what its game reported (900pp — an imported save's plays, say): that's
+  // gone when the server starts, leaving only its judged play; and a record with nothing judged leaves the rankings
   const old2 = { pid: 'twopid555', name: 'Two', pol: 2, plays: 1, v: { pp: 100 }, rep: { pp: 900 }, bests: { [K1]: { pp: 100, acc: 1, grade: 'S' } } };
-  const q2 = new PresenceLogic(); q2.loadRanks({ twopid555: old2 });
+  const old3 = { pid: 'imppid666', name: 'Imported', pol: 3, plays: 0, v: { pp: 0 }, rep: { pp: 2500 }, bests: {} };
+  const q2 = new PresenceLogic(); q2.loadRanks({ twopid555: old2, imppid666: old3 });
   assert.equal(q2.ranks.get('twopid555').v.pp, r2(100 + bonus(1)));
-  assert.equal(q2.ranks.get('twopid555').pp, 900);
+  assert.equal(q2.ranks.get('twopid555').pp, r2(100 + bonus(1)));
+  assert.equal(q2.ranks.get('imppid666').pp, 0);
   q2.join('t', { name: 'Two', pid: 'twopid555', key: 'key-twopid555-0123456789' });
-  assert.deepEqual(q2.message('t', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Two', 900]]);
+  assert.deepEqual(q2.message('t', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Two', r2(100 + bonus(1))]]);
 });
 
 test('beatmap leaderboards hold only judged plays: each player\'s best per beatmap, global or friends only', () => {
@@ -1155,12 +1158,10 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   const b1 = Math.round(416.6667 * 0.005 * 100) / 100;
   assert.deepEqual([m.data.top.length, m.rank, m.verified.pp, m.verified.plays, m.online, m.id], [0, 1, Math.round((120 + 416.6667 * 0.005) * 100) / 100, 1, true, 'a']);
   assert.deepEqual([m.verified.n, m.verified.bonus, m.verified.src], [1, b1, 'judged']);
-  // a profile whose plays were checked: only the ones found ranked are shown
-  p.ranks.get('alicepid1').okh = [PresenceLogic.playId({ title: 'Song', version: 'Hard' })];
-  p.ranks.get('alicepid1').src = 'profile';
+  // the plays her game lists (an imported save's could be among them) are never shown to others: only judged ones
   p.message('a', { t: 'stats', profile: { ...prof, top: [...prof.top, { title: 'Loved Song', version: 'X', pp: 500, ranked: true }] } });
   const m2 = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg;
-  assert.deepEqual(m2.data.top.map(x => x.title), ['Song']);
+  assert.deepEqual(m2.data.top, []);
   assert.equal(p.message('b', { t: 'profile', pid: 'nobodyhere' })[0].msg.data, null);
   // the songs of their judged plays come with it, best first (for a profile their game hasn't sent)
   p.recordVerified('alicepid1', K2, judged({ pp: 300, title: 'Big Song', artist: 'Band', version: 'Insane' }));
