@@ -6,6 +6,7 @@ const BUNDLED_KORI_VERSION = 2;
 const App = {
   lastReport: null,
   async boot() {
+    this.dropPreview();
     const status = $('.load-status');
     const say = (msg) => { status.textContent = msg; };
     // each step on its own, so one broken record can't leave the rest of the library unloaded
@@ -322,6 +323,14 @@ const App = {
       if (Screens.currentName !== 'gameplay') notify();
       else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }
     });
+  },
+  /** Chrome on Android, reopening the tab after you've been in another app, shows a picture of the page from when you
+   *  left ("Preview" in the address bar, "Previewing this page") until the reloaded page starts a navigation — which a
+   *  phone's slow load can leave on screen for a while. An in-place history update (same address, same state) counts:
+   *  once the loading screen is up, the live page takes over from the picture. */
+  dropPreview() {
+    if (!/^https?:$/.test(location.protocol)) return; // (only web pages get the picture)
+    requestAnimationFrame(() => setTimeout(() => { try { history.replaceState(history.state, '', location.href); } catch { /* fine */ } }, 0));
   },
   initPWA() {
     if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(location.protocol))

@@ -1422,8 +1422,14 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const mp = await mctx.newPage();
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
+  await mp.addInitScript(() => {
+    const was = history.replaceState.bind(history);
+    history.replaceState = (st, t, u) => { (window.__rs = window.__rs || []).push({ same: String(u) === location.href, state: st === history.state, loading: !!document.querySelector('#loading-screen:not(.done)') }); return was(st, t, u); };
+  });
   await mp.goto(url);
   await mp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  const rs = await mp.evaluate(() => window.__rs || []);
+  check('phone: an in-place history update while the loading screen is up (what takes Chrome\'s "Previewing this page" picture away on a reopened tab)', rs.length >= 1 && rs[0].same && rs[0].state && rs[0].loading, JSON.stringify(rs));
   await mp.waitForSelector('.mob-inst', { timeout: 30000 });
   check('phone: opening in the browser recommends the app straight away, saying the browser isn\'t recommended', /not recommended/.test(await mp.textContent('.mob-inst')));
   await mp.click('.mob-inst-skip'); await mp.waitForTimeout(400);

@@ -686,6 +686,8 @@ const CHANGELOG = [
       'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
       'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',
       'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)'] },
+    { icon: 'sparkle', title: 'Phones', items: [
+      'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [
