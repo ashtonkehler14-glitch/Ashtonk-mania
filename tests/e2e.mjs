@@ -1209,6 +1209,27 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await bctx.close();
 }
 
+{
+  // song select: a beatmap asked for by name is the one shown, even when the filters would hide it
+  const ss = await page.evaluate(async () => {
+    const A = AshtonkMania, maps = [...A.BeatmapManager.maps.values()], m7 = maps.find(x => x.keys === 7);
+    A.Settings.set('songselect.keys', [4]);
+    await A.Screens.go('songselect', { mapId: m7.id, force: true });
+    await new Promise(r => setTimeout(r, 2500));
+    return { want: m7.id, got: A.SongSelect.selectedId, keys: A.Settings.get('songselect.keys') };
+  });
+  check('song select: a beatmap asked for (Play in the library, a download) is shown even when the filters hid it — they\'re cleared', ss.got === ss.want && !ss.keys.length, JSON.stringify(ss));
+  // back from a song: its preview plays again (it was loaded but stopped)
+  const back = await page.evaluate(async () => {
+    const A = AshtonkMania;
+    A.Music.stop(0);
+    await A.Screens.go('songselect', { force: true });
+    await new Promise(r => setTimeout(r, 2500));
+    return A.Music.playing;
+  });
+  check('song select: coming back with the song stopped plays its preview again', back);
+}
+
 // first-run setup wizard on a fresh profile, on a Chromebook
 {
   const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });

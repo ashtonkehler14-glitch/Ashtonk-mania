@@ -51,6 +51,7 @@ const SongSelect = {
     this.searchInput = h('input.input', { type: 'search', placeholder: 'type to search', title: 'Filters: keys=7 stars>4 bpm>180 od>8 length<2m30s ln>30 diff=hard', value: this.query, 'aria-label': 'Search beatmaps', spellcheck: 'false' });
     this.searchInput.addEventListener('input', () => { this.query = this.searchInput.value; this.rebuild(true); });
     this.searchInput.addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; } // (an input method's own keys)
       if (['ArrowUp', 'ArrowDown', 'Enter', 'F1', 'F2', 'F3', 'F4'].includes(e.key) || (e.key === 'Escape')) {
         if (e.key === 'Escape' && this.searchInput.value) { this.searchInput.value = ''; this.query = ''; this.rebuild(true); e.stopPropagation(); e.preventDefault(); return; }
         this.searchInput.blur();
@@ -187,7 +188,19 @@ const SongSelect = {
     this.renderMods();
     // (the list a frame after the screen: both in the same frame was the slow part of opening song select on a slow
     // device; the screen is still fading in, so the list joining a frame later doesn't show)
-    requestAnimationFrame(() => requestAnimationFrame(() => { if (Screens.current !== this) return; this.rebuild(); this.scrollToSelected(false); }));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (Screens.current !== this) return;
+      this.rebuild(); this.scrollToSelected(false);
+      // (a beatmap asked for — Play in the library, a download's "view" — that the search or filters hide: they're
+      // cleared so it's the one selected, rather than whatever came first)
+      const want = params.mapId && BeatmapManager.maps.get(params.mapId);
+      if (want && this.selectedId !== want.id && !params.cleared && !(Settings.get('songselect.hidden') || []).includes(want.hash)) {
+        this.query = '';
+        for (const [k, v] of [['songselect.keys', []], ['songselect.starsMin', 0], ['songselect.starsMax', 10.1], ['songselect.collection', '']]) Settings.set(k, v);
+        Toast.show('Filters cleared', 'To show the beatmap you picked.');
+        Screens.go('songselect', { ...params, force: true, cleared: true }, { replace: true });
+      }
+    }));
     this.beatLoop();
     return el;
   },
@@ -229,6 +242,7 @@ const SongSelect = {
     (this._unsub || []).forEach(f => f());
     this._ro && this._ro.disconnect();
     clearTimeout(this._previewT);
+    this._previewTok = {}; // (a preview still loading stops where it is)
   },
   /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
    *  the range and a nub at each end in the colour of its star rating (grey from 8 stars; the top end is "∞" until
@@ -259,7 +273,7 @@ const SongSelect = {
     let t;
     const commit = () => { Settings.set('songselect.starsMin', lo); Settings.set('songselect.starsMax', hi); clearTimeout(t); t = setTimeout(() => this.rebuild(true), 50); };
     const setLo = v => { lo = clamp(Math.round(v * 10) / 10, 0, LO_MAX); hi = Math.max(hi, Math.round((lo + MIN_RANGE) * 10) / 10); paint(); commit(); };
-    const setHi = v => { hi = clamp(Math.round(v * 10) / 10, 0, HI_MAX); lo = Math.min(lo, Math.max(0, Math.round((hi - MIN_RANGE) * 10) / 10)); paint(); commit(); };
+    const setHi = v => { hi = clamp(Math.round(v * 10) / 10, MIN_RANGE, HI_MAX); lo = Math.min(lo, Math.max(0, Math.round((hi - MIN_RANGE) * 10) / 10)); paint(); commit(); };
     const valueAt = (x, upper) => { const r = track.getBoundingClientRect(), W = track.clientWidth || r.width, k = r.width / W || 1; return ((x - r.left) / k - NUB / 2) / (W - NUB) * (upper ? HI_MAX : LO_MAX); };
     track.addEventListener('pointerdown', e => {
       if (e.button) return;
@@ -389,6 +403,10 @@ const SongSelect = {
       results.push({ set, maps, score: setScore });
     }
     const sort = Settings.get('songselect.sort');
+    // (the sorts by your plays: each song's number worked out once — not twice per comparison on every keystroke)
+    const per = { lastPlayed: r => agg(r, m => ScoreManager.lastPlayed(m.hash)), playCount: r => r.maps.reduce((x, m) => x + ScoreManager.playCount(m.hash), 0),
+      score: r => agg(r, m => ScoreManager.best(m.hash)?.score || 0), accuracy: r => agg(r, m => ScoreManager.best(m.hash)?.accuracy || 0) }[sort];
+    const keyOf = per ? new Map() : null;
     const agg = (r, f, mode = 'max') => r.maps.reduce((a, m) => mode === 'max' ? Math.max(a, f(m)) : Math.min(a, f(m)), mode === 'max' ? -Infinity : Infinity);
     const cmp = {
       title: (a, b) => a.set.title.localeCompare(b.set.title), artist: (a, b) => a.set.artist.localeCompare(b.set.artist) || a.set.title.localeCompare(b.set.title),
@@ -397,11 +415,8 @@ const SongSelect = {
       length: (a, b) => agg(a, m => m.length) - agg(b, m => m.length), added: (a, b) => b.set.added - a.set.added,
       ranked: (a, b) => dateMs(b.set.rankedDate) - dateMs(a.set.rankedDate), submitted: (a, b) => dateMs(b.set.submittedDate) - dateMs(a.set.submittedDate),
       source: (a, b) => (a.set.source || '').localeCompare(b.set.source || ''),
-      lastPlayed: (a, b) => agg(b, m => ScoreManager.lastPlayed(m.hash)) - agg(a, m => ScoreManager.lastPlayed(m.hash)),
-      playCount: (a, b) => b.maps.reduce((x, m) => x + ScoreManager.playCount(m.hash), 0) - a.maps.reduce((x, m) => x + ScoreManager.playCount(m.hash), 0),
-      score: (a, b) => agg(b, m => ScoreManager.best(m.hash)?.score || 0) - agg(a, m => ScoreManager.best(m.hash)?.score || 0),
-      accuracy: (a, b) => agg(b, m => ScoreManager.best(m.hash)?.accuracy || 0) - agg(a, m => ScoreManager.best(m.hash)?.accuracy || 0),
-    }[sort] || ((a, b) => a.set.title.localeCompare(b.set.title));
+    }[sort] || (per ? (a, b) => keyOf.get(b) - keyOf.get(a) : (a, b) => a.set.title.localeCompare(b.set.title));
+    if (per) for (const r of results) keyOf.set(r, per(r));
     results.sort((a, b) => (pq.words.length && sort === 'title' ? b.score - a.score : 0) || cmp(a, b) || a.set.title.localeCompare(b.set.title));
     // lazer (BeatmapCarouselFilterGrouping.ShouldGroupBeatmapsTogether): sorted or grouped by difficulty, or grouped
     // by rank achieved, every difficulty is its own panel (PanelBeatmapStandalone) — by difficulty, easiest first
@@ -435,7 +450,9 @@ const SongSelect = {
     this.renderVisible(true);
     // the selected beatmap's song plays (arriving with nothing playing, or a filter that moved the selection)
     const sel = this.selectedId && BeatmapManager.maps.get(this.selectedId);
-    if (sel && (!Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
+    // (back from that very song: it's loaded but stopped — it plays again, unless you paused the music yourself)
+    const silent = !Music.playing && !(typeof MenuMusic !== 'undefined' && MenuMusic.paused);
+    if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
     else if (sel) this.showBackground(sel);
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
@@ -601,7 +618,7 @@ const SongSelect = {
       const link = (text, fn) => h('a.nr-link', { href: '#', onclick: e => { e.preventDefault(); UISounds.click(); fn(); } }, text);
       const tips = [];
       if (q) tips.push(['Try ', link('clearing', () => { this.query = ''; this.searchInput.value = ''; this.rebuild(true); }), ' your current search criteria.']);
-      if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
+      if (lo > 0 || hi < 10.1) tips.push(['Try ', link('removing', () => { Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1); Screens.go('songselect', { force: true, mpPick: this.mpPick, practice: this.practiceMode }, { replace: true }); }), ` the ${lo.toFixed(1)} - ${hi < 10.1 ? hi.toFixed(1) : '∞'} star difficulty filter.`]);
       if (q) tips.push(['Try ', link('searching online', () => { ExplorerScreen.state.q = q; ExplorerScreen.results = []; Screens.go('explore'); }), ` for "${q}".`]);
       this.emptyEl.append(h('div.nr',
         h('span.nr-ghost', icon('ghost')),
@@ -715,7 +732,7 @@ const SongSelect = {
           const pick = this.pickDiff(maps);
           this.select(pick.id);
         },
-        oncontextmenu: e => { e.preventDefault(); this.options(e, maps[0]); },
+        oncontextmenu: e => { e.preventDefault(); const pick = this.pickDiff(maps); this.select(pick.id); this.options(e, pick); },
       }, bg, h('span.sp-chev', icon('chevron')), h('div.sp-body',
         h('div.sp-t', set.title),
         h('div.sp-a', set.artist),
@@ -839,6 +856,7 @@ const SongSelect = {
     this.select(id);
   },
   onKey(e) {
+    if (e.target && e.target.tagName === 'SELECT') return false; // (a dropdown's arrows and Enter are its own)
     // (the keys the search box hands on — it lets go of them — work as anywhere else: type a search, Enter plays the
     // pick, ↑ / ↓ move it, Esc on an empty box leaves; everything else stays the box's own)
     if (e.target === this.searchInput) {
@@ -871,7 +889,7 @@ const SongSelect = {
   changeSpeed(delta) {
     const mods = Settings.get('songselect.mods') || [];
     const target = clamp(Math.round((ModSystem.rate(mods) + delta) * 20) / 20, 0.5, 2);
-    const rest = mods.filter(m => !['DT', 'NC', 'HT', 'DC', 'RT'].includes(m));
+    const rest = mods.filter(m => !['DT', 'NC', 'HT', 'DC', 'RT', 'WU', 'WD', 'AS'].includes(m));
     if (Math.abs(target - 1) < 0.005) Settings.set('songselect.mods', rest);
     else { Settings.set('mods.config', { ...ModSystem.config(), rate: target }); Settings.set('songselect.mods', [...rest, 'RT']); }
     Bus.emit('mods:changed');
@@ -1037,14 +1055,14 @@ const SongSelect = {
    *  the avatar, the time since ("3hrs") over the name, COMBO and ACCURACY (lime when perfect), and on the right the
    *  score with its mods over a gradient into the grade's colour, the grade letter in a 35px strip of it. Narrower
    *  leaderboards drop the rank, then stack the statistics, then hide them (as lazer's display modes do). */
-  lbScore(s, i, who, m) {
+  lbScore(s, i, who, m, delay = i) {
     const own = s.online ? s.own : !s.player || s.player === who;
     const g = s.grade || 'D', letter = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
     const stat = (k, v, perfect) => h('span.lbs-stat', h('i', k), h(`b${perfect ? '.perfect' : ''}`, v));
     const c = s.counts || [];
     const pp = s.passed ? ScoreManager.ppOf(s) : 0;
     const row = h(`button.lbs${own ? '.own' : ''}`, {
-      style: { animationDelay: `${i * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
+      style: { animationDelay: `${Math.min(delay, 20) * 25}ms`, '--rc': RANK_COLOURS[g] || '#3f3f3f', '--rt': RANK_INK[g] || '#fff' },
       title: `${s.player || who} · ${fmtScore(ScoreManager.value(s))} · ${fmtAcc(s.accuracy)} · ${fmtInt(s.maxCombo)}x${pp ? ` · ${fmtInt(pp)}pp` : ''}\n${new Date(s.date).toLocaleString()}`,
       onclick: () => { UISounds.click(); Screens.go('results', s.online ? { score: { ...s, mapHash: m.hash, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: s.stars || m.stars, counts: s.counts || [0, 0, 0, 0, 0, 0], replayId: null }, fromList: true, browse: true, watched: 'online' } : { score: s, fromList: true, browse: true }, { transition: 'right' }); },
       oncontextmenu: e => { e.preventDefault(); this.lbMenu(e, s, m); },
@@ -1080,7 +1098,7 @@ const SongSelect = {
     if (!scores.length) list.append(h('div.lb-empty', h('span.lb-empty-i', '!'), scope === 'friends' ? 'None of your friends have set a score on this map yet.' : 'No records yet!'));
     scores.forEach((s, i) => list.append(this.lbScore(s, i, who, m)));
     // (lazer pins your personal best below the list when it isn't in it)
-    if (d.you && d.you.rank > 50 && !modsOn) list.append(h('div.lb-sep', '…'), this.lbScore(asScore(d.you), d.you.rank - 1, who, m));
+    if (d.you && d.you.rank > 50 && !modsOn) list.append(h('div.lb-sep', '…'), this.lbScore(asScore(d.you), d.you.rank - 1, who, m, scores.length));
     return list;
   },
   /** lazer's leaderboard score menu: use these mods, watch the replay, delete. */
@@ -1213,7 +1231,10 @@ const SongSelect = {
     const away = ev => { if (!el.contains(ev.target) && !this.optionsBtn.contains(ev.target)) this.closeOptions(); };
     const keys = ev => {
       if (ev.key === 'Escape' || ev.key === 'F3') { ev.preventDefault(); ev.stopImmediatePropagation(); this.closeOptions(); return; }
-      if (!ev.ctrlKey && /^Digit[1-9]$/.test(ev.code)) { const b = items[+ev.code.slice(5) - 1]; if (b) { ev.preventDefault(); ev.stopImmediatePropagation(); b.click(); } }
+      const typing = ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
+      if (!ev.ctrlKey && !typing && /^Digit[1-9]$/.test(ev.code)) { const b = items[+ev.code.slice(5) - 1]; if (b) { ev.preventDefault(); ev.stopImmediatePropagation(); b.click(); } return; }
+      // (anything else — another beatmap, a search — and the menu goes: its buttons were for the beatmap it opened on)
+      if (!/^(Shift|Control|Alt|Meta)/.test(ev.key)) this.closeOptions();
     };
     setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
     window.addEventListener('keydown', keys, true);

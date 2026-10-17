@@ -710,6 +710,16 @@ const CHANGELOG = [
       'Friends in a Ranked Play match can\'t be invited out of it',
       'Results of a match you weren\'t in say who won, not "You lose"',
       'A failed join goes back to the lounge instead of showing the room you left'] },
+    { icon: 'music', title: 'Song select', items: [
+      'Back from a song, its preview plays again (it stayed silent)',
+      'Right-click (or press and hold) a song: its menu\'s Play plays that song, not the one selected before',
+      'A beatmap you open from the library or a download is the one selected, even when your filters hid it (they\'re cleared)',
+      'Your pinned best score on the online leaderboard shows straight away (it could take seconds to appear)',
+      'Arrow keys in the Sort, Group and Keys dropdowns change them, instead of moving through the songs',
+      'Typing with an input method (Japanese, Chinese…) no longer starts a song when you press Enter to pick a word',
+      'Ctrl+Up / Down replaces Wind Up, Wind Down and Adaptive Speed too, instead of mixing them',
+      'The beatmap options\' number keys only work while the menu is all you\'re doing',
+      'Sorting by your scores, accuracy, play count or last played is quick with a big library'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [
