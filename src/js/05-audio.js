@@ -247,7 +247,7 @@ const TimeStretch = {
     const res = AudioManager.ctx.createBuffer(chs, outLen, sr);
     for (let c = 0; c < chs; c++) res.copyToChannel ? res.copyToChannel(out[c], 0) : res.getChannelData(c).set(out[c]);
     this.cache.set(ck, res);
-    while (this.cache.size > 3) this.cache.delete(this.cache.keys().next().value);
+    trimAudioCache(this.cache, 3, v => v);
     return res;
   },
 };
@@ -426,9 +426,31 @@ const Music = {
   },
 };
 
+/** How much decoded audio a cache keeps: a 4-minute song is about 90 MB once decoded, so four of them could be most
+ *  of a phone's or a small Chromebook's memory for the tab — and the tab is closed ("Aw, Snap!") when it runs out. */
+function audioBudget() {
+  const gb = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 4;
+  return clamp(gb * 40, 100, 400) * 1048576;
+}
+const audioBytes = b => b && b.length ? b.length * b.numberOfChannels * 4 : 0;
+/** Drop the oldest entries past `max`, then while the decoded audio is over the budget — never the newest one.
+ *  `buf(v)` is an entry's AudioBuffer, or null while it's still being decoded. */
+function trimAudioCache(map, max, buf) {
+  while (map.size > max) map.delete(map.keys().next().value);
+  const keys = [...map.keys()];
+  let total = 0;
+  for (const k of keys) total += audioBytes(buf(map.get(k)));
+  for (const k of keys.slice(0, -1)) {
+    if (total <= audioBudget()) break;
+    const b = audioBytes(buf(map.get(k)));
+    if (b) { total -= b; map.delete(k); }
+  }
+}
+
 /** Loads & caches decoded beatmap audio (small LRU so browsing song select stays fast). */
 const TrackCache = {
   map: new Map(),
+  _bufs: new WeakMap(), // (each entry's decoded buffer, once it's there)
   async get(setId, audioFile) {
     const key = `${setId}/${audioFile}`.toLowerCase();
     if (this.map.has(key)) { const v = this.map.get(key); this.map.delete(key); this.map.set(key, v); return v; }
@@ -440,10 +462,11 @@ const TrackCache = {
       });
     })();
     this.map.set(key, p);
-    p.catch(() => this.map.delete(key));
-    while (this.map.size > 4) this.map.delete(this.map.keys().next().value);
+    p.then(buf => { this._bufs.set(p, buf); this.trim(); }, () => { if (this.map.get(key) === p) this.map.delete(key); });
+    this.trim();
     return p;
   },
+  trim() { trimAudioCache(this.map, 4, p => this._bufs.get(p) || null); },
 };
 
 /** A beatmap's online song preview. On computers an <audio> element; on phones fetched (directly, else through the
