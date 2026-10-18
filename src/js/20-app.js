@@ -303,8 +303,8 @@ const App = {
     // it by themselves — the notice takes you to the beatmap)
     const firstMap = (report.sets.flatMap(st => st.maps).find(m => !m.problems.length)) || null;
     const view = firstMap && !['songselect', 'home'].includes(Screens.currentName);
-    if (parts.length) Toast.show('Imported ' + parts.join(', '), view ? kbHint('Click to view.', 'Tap to view.') : '', { type: 'ok', onClick: view ? () => Screens.go('songselect', { mapId: firstMap.id }) : null });
-    if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''));
+    if (parts.length) Toast.show('Imported ' + parts.join(', '), view ? kbHint('Click to view.', 'Tap to view.') : '', { type: 'ok', onClick: view ? () => Screens.go('songselect', { mapId: firstMap.id }) : null, hold: true });
+    if (report.errors.length) Toast.err(`Import problem${report.errors.length === 1 ? '' : 's'}`, report.errors.slice(0, 6).join('\n') + (report.errors.length > 6 ? `\n…and ${report.errors.length - 6} more` : ''), { hold: true });
     if (report.sets.length || report.skins.length) this.keepStorage();
     if (report.skins.length) await SkinManager.select(report.skins[report.skins.length - 1].id);
     if (report.data) Toolbar.updateProfile();

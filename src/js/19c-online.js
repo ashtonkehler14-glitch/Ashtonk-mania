@@ -45,7 +45,7 @@ const Friends = {
   async onRequest(m) {
     const from = m.from || {};
     // (in a song, or set to Do not disturb: a quiet note instead of a question)
-    if (Screens.currentName === 'gameplay' || Settings.get('online.status') === 'dnd') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.'); return; }
+    if (Screens.currentName === 'gameplay' || Settings.get('online.status') === 'dnd') { Toast.show(`${from.name} sent you a friend request`, 'Answer it from the online users list.', { hold: true }); return; }
     UISounds.play('check-on');
     const ok = await Dialog.confirm(`${from.name} wants to be friends`, 'Friends can invite each other to rooms and chat.', { ok: 'Accept', cancel: 'Not now' });
     if (ok) this.answer(from.pid, true);

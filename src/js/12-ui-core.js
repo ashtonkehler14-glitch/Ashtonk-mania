@@ -263,7 +263,15 @@ const Toast = {
     const a = app.getBoundingClientRect(), k = a.width / (app.offsetWidth || a.width) || 1;
     box.style.top = Math.round((bottom - a.top) / k + 12) + 'px';
   },
-  show(title, body = '', { type = 'info', timeout = 4200, log = true, onClick = null } = {}) {
+  show(title, body = '', { type = 'info', timeout = 4200, log = true, onClick = null, hold = false } = {}) {
+    // (as lazer holds notifications while you play: one that isn't about the play — a friend online, a download done —
+    // waits for the song to be over to pop up, over the score; it's in the notifications straight away)
+    if (hold && Toast.playing()) {
+      if (log && typeof Notifications !== 'undefined') Notifications.add(title, body, type, { onClick });
+      const held = { title, body, opts: { type, timeout, onClick, log: false } };
+      Toast.later(held);
+      return () => { held.gone = true; };
+    }
     const ico = { info: 'info', ok: 'star', err: 'x' }[type] || 'info';
     const box = $('#toasts');
     const key = `${type}\n${title}\n${body}`;
@@ -378,8 +386,21 @@ const Toast = {
   },
   /** Fade out every toast on screen (lazer holds notifications back while you play; ours just go). */
   clear() { for (const el of $('#toasts').children) { el.classList.add('out'); setTimeout(() => el.remove(), 300); } },
-  ok(t, b) { return this.show(t, b, { type: 'ok' }); },
-  err(t, b) { return this.show(t, b, { type: 'err', timeout: 8000 }); },
+  ok(t, b, o) { return this.show(t, b, { type: 'ok', ...o }); },
+  err(t, b, o) { return this.show(t, b, { type: 'err', timeout: 8000, ...o }); },
+  playing() { return typeof Screens !== 'undefined' && Screens.currentName === 'gameplay'; },
+  _held: [],
+  /** Show what was held once the song is over (the latest few: the rest are in the notifications). */
+  later(held) {
+    this._held.push(held);
+    if (this._heldOff) return;
+    this._heldOff = Bus.on('screen:changed', () => {
+      if (this.playing()) return;
+      this._heldOff(); this._heldOff = null;
+      const list = this._held.splice(0).filter(x => !x.gone).slice(-3);
+      list.forEach((x, i) => setTimeout(() => this.show(x.title, x.body, x.opts), 400 + i * 250));
+    });
+  },
 };
 
 // (toasts move clear of what's on the new screen, or of the window's new shape)

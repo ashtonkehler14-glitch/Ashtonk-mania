@@ -256,7 +256,7 @@ const OnlineBeatmaps = {
       Object.assign(s, { status: set.status || s.status, genreId: set.genreId ?? s.genreId, languageId: set.languageId ?? s.languageId, rankedDate: set.rankedDate || s.rankedDate, submittedDate: set.submittedDate || s.submittedDate });
       await DB.put('sets', { ...s, maps: undefined });
     }
-    if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`);
+    if (!quiet) Toast.ok(`Downloaded ${set.artist} - ${set.title}`, `${plural(report.sets.reduce((a, s) => a + s.maps.length, 0), 'difficulty', 'difficulties')} added to your library.`, { hold: true });
     Bus.emit('library:changed');
     return report;
   },

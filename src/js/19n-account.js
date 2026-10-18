@@ -90,7 +90,7 @@ const Account = {
   /** This device's key doesn't work any more (signed out from another device): signed out here. */
   expired() {
     this.forget();
-    Toast.err('Signed out on this device', 'Another of your devices signed this one out. Type your code to play as yourself here again.');
+    Toast.err('Signed out on this device', 'Another of your devices signed this one out. Type your code to play as yourself here again.', { hold: true });
     this.askAgain();
   },
   forget() {

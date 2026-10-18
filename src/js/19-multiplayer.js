@@ -534,7 +534,7 @@ const Presence = {
         const settled = this._listed && now - (this._openAt || 0) > 20000;
         for (const x of this.players) {
           if (!x.pid || x.id === this.me) continue;
-          if (settled && !before.has(x.pid) && Friends.has(x.pid) && now - (seen.get(x.pid) || 0) > 180000) Toast.show(`${x.name} is online`, 'Your friend just came online.');
+          if (settled && !before.has(x.pid) && Friends.has(x.pid) && now - (seen.get(x.pid) || 0) > 180000) Toast.show(`${x.name} is online`, 'Your friend just came online.', { hold: true });
           seen.set(x.pid, now);
         }
         this._listed = true;
@@ -551,7 +551,7 @@ const Presence = {
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
       else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
-      else if (m.t === 'friendAdded') { UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite each other to rooms.'); }
+      else if (m.t === 'friendAdded') { if (!Toast.playing()) UISounds.play('check-on'); Toast.ok(`${m.name} accepted your friend request`, 'You can now invite each other to rooms.', { hold: true }); }
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
@@ -564,7 +564,7 @@ const Presence = {
       // (playing as yourself through a code: this device's key doesn't work any more — signed out, not quietly made new)
       else if (m.t === 'repid') { if (typeof Account !== 'undefined' && Account.linked()) Account.expired(); else if (!this._repid) { this._repid = true; try { localStorage.removeItem('am.pid'); } catch { /* private mode */ } this._pid = null; this.retry = 0; ws.close(); } }
       // (your code was just used on another device)
-      else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000 });
+      else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') Toast.err(m.msg);
     };
     ws.onclose = () => {

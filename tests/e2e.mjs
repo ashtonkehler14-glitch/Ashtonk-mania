@@ -899,6 +899,23 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     for (const t of document.querySelectorAll('#toasts .toast')) if (/Import problem/.test(t.textContent)) t.remove();
     return r.errors;
   });
+  // a notice that isn't about the play (a friend online, a download done) waits for the song to be over, as lazer holds
+  // notifications while you play; it's in the notifications at once. One about the play itself shows straight away.
+  const held = await page.evaluate(async () => {
+    const shown = t => [...document.querySelectorAll('#toasts .toast')].some(x => x.textContent.includes(t));
+    const real = Toast.playing; Toast.playing = () => true;
+    try {
+      Toast.show('Held friend notice', 'came online', { hold: true }); Toast.show('Match notice', 'opponent left');
+      await new Promise(r => setTimeout(r, 100));
+      const during = { held: shown('Held friend notice'), listed: Notifications.list.some(n => n.title === 'Held friend notice'), match: shown('Match notice') };
+      Toast.playing = real; Bus.emit('screen:changed', 'results');
+      await new Promise(r => setTimeout(r, 900));
+      const after = shown('Held friend notice'), copies = Notifications.list.filter(n => n.title === 'Held friend notice').length;
+      for (const t of document.querySelectorAll('#toasts .toast')) if (/Held friend notice|Match notice/.test(t.textContent)) t.remove();
+      return { during, after, copies };
+    } finally { Toast.playing = real; }
+  });
+  check('a notice that isn\'t about the song waits for it to be over (listed in the notifications at once); one about the match shows at once', !held.during.held && held.during.listed && held.during.match && held.after && held.copies === 1, JSON.stringify(held));
   // keeping the library when space runs low: Chromium decides silently, so it's asked again at every start (a first
   // "no" isn't final); where the browser would ask the player (no userAgentData: Firefox), not again at start
   const keep = await page.evaluate(async () => {

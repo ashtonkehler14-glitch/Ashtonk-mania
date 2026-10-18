@@ -38,7 +38,7 @@ const Chat = {
       this.add(key, m);
       // lazer: a private message while you're not looking at it is a notification that opens the conversation
       if (!m.mine && !(this.o && this.cur === key)) {
-        Toast.show(`${m.from.name} sent you a message`, m.text.length > 80 ? m.text.slice(0, 80) + '…' : m.text, { onClick: () => this.open(key) });
+        Toast.show(`${m.from.name} sent you a message`, m.text.length > 80 ? m.text.slice(0, 80) + '…' : m.text, { onClick: () => this.open(key), hold: true });
       }
     }
   },
