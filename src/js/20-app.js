@@ -237,9 +237,8 @@ const App = {
     // lazer's Ctrl+Shift+S: the skin editor (not while playing for real)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS' && !(Screens.currentName === 'gameplay' && GameplayScreen.s && GameplayScreen.s.mp)) { e.preventDefault(); SkinEditor.toggle(); return; }
     // Ctrl+S: save the game as one HTML file, everything inside (the browser's own "Save page" leaves the skins and
-    // pictures behind); from a saved file, its newest version. (The beatmap editor keeps Ctrl+S for saving the beatmap;
-    // not while a song is playing.)
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS' && Screens.currentName !== 'editor') {
+    // pictures behind); from a saved file, its newest version. (Not while a song is playing.)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyS') {
       e.preventDefault();
       if (Screens.current !== GameplayScreen) HtmlFile.save();
       return;

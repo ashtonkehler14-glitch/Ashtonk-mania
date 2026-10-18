@@ -50,17 +50,6 @@ const ScoreManager = {
     return [...best.values()].sort((a, b) => b.pp - a.pp);
   },
   totalPp(scores = this.scores) { return OsuMath.totalPp(this.bestPpPerMap(scores).map(x => x.pp)); },
-  /** Total pp after each play, for the profile/statistics history graph. */
-  ppHistory() {
-    const out = [], best = new Map();
-    for (const s of this.scores) {
-      const pp = this.isRanked(s) ? this.ppOf(s) : 0;
-      if (pp > (best.get(s.mapHash) || 0)) best.set(s.mapHash, pp);
-      else if (!pp) continue;
-      out.push({ date: s.date, pp: OsuMath.totalPp([...best.values()]).total, title: s.title, version: s.version });
-    }
-    return out;
-  },
   async add(score) {
     const prev = this.best(score.mapHash);
     score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));
@@ -185,7 +174,6 @@ const Collections = {
     await this.save();
     return c.hashes.includes(hash);
   },
-  containing(hash) { return this.list.filter(c => c.hashes.includes(hash)); },
 };
 
 const ProfileManager = {

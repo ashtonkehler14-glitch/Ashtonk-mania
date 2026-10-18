@@ -310,7 +310,6 @@ const Multiplayer = {
     }).catch(e => { f.error = friendlyError(e); if (this.fetch === f) Bus.emit('mp:changed'); });
   },
   isTemp(map = this.room && this.room.map) { const l = this.localMap(map); return !!(l && this.temp.has(l.setId)); },
-  keepTemp() { const l = this.localMap(); if (l) { this.temp.delete(l.setId); this.saveTemp(); Toast.ok('Kept in your library', `${l.artist} - ${l.title}`); Bus.emit('mp:changed'); } },
   saveTemp() { DB.kvSet('mp.tempSets', [...this.temp]).catch(() => {}); },
   /** Remove beatmaps that were only installed for a room (also run at startup, in case the tab was closed). */
   async cleanupTemp({ startup = false } = {}) {

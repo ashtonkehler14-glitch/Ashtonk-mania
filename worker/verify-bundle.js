@@ -1774,25 +1774,6 @@ class GameplayEngine {
   get finished() { return this.remaining <= 0; }
   get endTime() { return this.notes.length ? Math.max(...this.notes.slice(-this.keys * 4).map(n => n.end)) : 0; }
 
-  /** Reset notes in [from, to] (practice looping). */
-  resetRange(from, to) {
-    for (let c = 0; c < this.keys; c++) {
-      const col = this.columns[c];
-      let first = -1;
-      for (let i = 0; i < col.length; i++) {
-        const n = col[i];
-        if (n.time >= from - 1 && n.time <= to) {
-          if (n.state !== NS.PENDING) this.remaining += n.isLN ? 2 : 1;
-          n.state = NS.PENDING; n.headJ = -1; n.tailJ = -1; n.capped = false; n.bodyBroken = false;
-          if (first < 0) first = i;
-        }
-      }
-      if (first >= 0) this.ptr[c] = Math.min(this.ptr[c], first);
-      this.held[c] = false; this.holding[c] = null;
-    }
-    this.lastTime = from - 1;
-  }
-
   summary() {
     const errs = this.hitErrors.filter(e => !e.tail).map(e => e.err);
     const mean = errs.length ? errs.reduce((a, b) => a + b, 0) / errs.length : 0;

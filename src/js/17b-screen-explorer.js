@@ -723,20 +723,6 @@ const ExplorerScreen = {
     card._loadCovers = loadCovers;
     return card;
   },
-  /** The card's / overlay's main action: Play, Download (with progress), or Pick / Suggest for a room. */
-  actionFor(set, diff = null) {
-    const owned = this.owned(set.id), dl = this.downloads.get(set.id);
-    if (dl && dl.state === 'downloading') return h('div.ex-progress', { style: { '--p': ((dl.progress || 0) * 100).toFixed(0) + '%' } }, h('span', dl.progress != null ? `${Math.round(dl.progress * 100)}%` : fmtBytes(dl.bytes || 0)));
-    if (this.mpPick) {
-      const host = Multiplayer.isHost();
-      return h('button.btn.sm.primary', { onclick: e => diff ? this.mpPickDiff(set, diff) : this.mpChoose(set, e.currentTarget) }, icon(host ? 'play' : 'multi'), host ? 'Pick' : 'Recommend');
-    }
-    if (owned) {
-      const m = (diff && owned.maps.find(x => x.onlineId === diff.id)) || owned.maps.find(x => !x.problems.length) || owned.maps[0];
-      return h('button.btn.sm.primary', { onclick: () => this.playLocal(m) }, icon('play'), 'Play');
-    }
-    return h('button.btn.sm', { onclick: () => this.download(set) }, icon('download'), dl && dl.state === 'error' ? 'Retry' : 'Download');
-  },
 
   // ─────────────────────────────── beatmap set overlay ───────────────────────────────
   /** osu!lazer's BeatmapSetOverlay: a full page over the listing — the cover header with the difficulty picker, the

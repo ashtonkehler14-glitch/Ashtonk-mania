@@ -1192,14 +1192,6 @@ const GameplayScreen = {
     if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
     if (me._st !== st) { me._st = st; setText(me.sc, String(st)); }
   },
-  /** lazer's HoldForMenuButton (mouse): a 60px circle in the bottom-right corner, unseen until the pointer is over it
-   *  ("menu" slides in beside it) — here a single press opens the menu, no holding. */
-  holdForMenu() {
-    const ring = h('i.hfm-ring'), btn = h('span.hfm-btn', ring, h('i.hfm-dot'), icon('x'));
-    const el = h('div.hud-hfm', h('span.hfm-t', 'menu'), btn);
-    btn.addEventListener('pointerdown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); el.style.setProperty('--p', 1); setTimeout(() => el.style.setProperty('--p', 0), 150); this.onBack(); });
-    return el;
-  },
   /** lazer's DrawableGameplayLeaderboardScore: a 38px sheared panel — the place on the left, the avatar on the seam,
    *  then the name and accuracy over the score and combo; lime for first place, orange for you (or team colours). */
   lbPanel(name, avatar, me, team = '') {

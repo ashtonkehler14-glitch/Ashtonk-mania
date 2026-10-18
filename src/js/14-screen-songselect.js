@@ -626,11 +626,6 @@ const SongSelect = {
         h('div.nr-text', h('p', 'No beatmaps match your filter criteria!'), ...tips.map(t => h('p.nr-tip', h('i.nr-dot'), ...t)))));
     }
   },
-  clearFilters() {
-    this.query = ''; this.searchInput.value = '';
-    Settings.set('songselect.keys', []); Settings.set('songselect.collection', ''); Settings.set('songselect.starsMin', 0); Settings.set('songselect.starsMax', 10.1);
-    Screens.go('songselect', { force: true }, { replace: true });
-  },
   renderVisible(force = false) {
     if (!this.rows) return;
     const st = this.scroller.scrollTop, vh = this._vh || this.scroller.clientHeight || 600;
