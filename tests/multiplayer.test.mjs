@@ -1508,3 +1508,57 @@ test('Team Versus: someone who drops out and comes back is put back on their own
   assert.ok(res.msg.results.rows.some(x => x.id === 'b2' && x.score === 800000), 'his row is his again');
   assert.equal(res.msg.results.rows.length, 2, 'and everyone else\'s is still there');
 });
+
+test('a room\'s Rate Adjust speed is part of its mods; a new speed is a new vote; leaving and un-readying leave nothing armed', () => {
+  const clock = { t: 0 };
+  const r = new RoomLogic('RTROOM', () => clock.t);
+  r.join('a', 'Alice', true); r.join('b', 'Bob', false); r.join('c', 'Cat', false);
+  r.message('a', { t: 'map', map: { hash: 'h'.repeat(64), title: 'Song', artist: 'Art', keys: 4, onlineSetId: 5, length: 60000 } });
+  // the room agrees on RT 1.5x; a new speed (1.2x) under the same mod is a vote of its own, not dropped
+  r.mods = ['RT']; r.modConfig = { rate: 1.5 };
+  const out = r.propose(r.get('a'), ['RT'], { rate: 1.2 });
+  assert.ok(r.vote && r.vote.modConfig.rate === 1.2 && out.length, 'a new Rate Adjust speed starts a vote');
+  r.vote = null;
+  // a play judged at another speed under RT isn't the room's play
+  for (const id of ['a', 'b', 'c']) { r.message(id, { t: 'hasMap', has: true }); r.message(id, { t: 'ready', ready: true }); }
+  r.message('a', { t: 'start' });
+  assert.equal(r.state, 'playing');
+  const judged = { score: 900000, accuracy: 0.98, maxCombo: 100, counts: [90, 5, 0, 0, 0, 0], grade: 'S', failed: false, pp: 50, mods: ['RT'], beatmapSetId: 5 };
+  assert.equal(r.verify('a', r.get('a').token, { ...judged, rate: 0.5 }, { hash: 'h'.repeat(64) }).error, 'Not the room\'s mods.', 'half speed under the room\'s RT 1.5x');
+  assert.equal(r.verify('b', r.get('b').token, { ...judged, rate: 1.5 }, { hash: 'h'.repeat(64) }).ok, true, 'the room\'s speed');
+  // someone who isn't in the match leaving doesn't end it for those who are
+  const r2 = new RoomLogic('SOLO01', () => clock.t);
+  r2.join('a', 'Alice', true); r2.join('b', 'Bob', false); r2.join('c', 'Cat', false);
+  r2.message('a', { t: 'settings', settings: { autoStart: 30 } });
+  r2.message('a', { t: 'map', map: { hash: 'k'.repeat(64), title: 'S', artist: 'A', keys: 4, onlineSetId: 6, length: 60000 } });
+  r2.message('a', { t: 'hasMap', has: true }); r2.message('a', { t: 'ready', ready: true });
+  clock.t += 31000; r2.tick(); // (auto start: the match starts with whoever's ready — Alice alone)
+  assert.equal(r2.state, 'playing');
+  assert.deepEqual(['a', 'b', 'c'].map(id => r2.get(id).playing), [true, false, false]);
+  r2.leave('c');
+  assert.equal(r2.state, 'playing', 'Cat (not playing) left: the match goes on');
+  // un-readying everyone (a new map) disarms auto start
+  const r3 = new RoomLogic('AUTO01', () => clock.t);
+  r3.join('a', 'Alice', true); r3.join('b', 'Bob', false);
+  r3.message('a', { t: 'settings', settings: { autoStart: 30 } });
+  r3.message('a', { t: 'map', map: { hash: 'm'.repeat(64), title: 'S', artist: 'A', keys: 4, onlineSetId: 7, length: 60000 } });
+  r3.message('b', { t: 'hasMap', has: true }); r3.message('b', { t: 'ready', ready: true });
+  assert.ok(r3.autoAt > 0, 'auto start armed by a ready player');
+  r3.message('a', { t: 'map', map: { hash: 'n'.repeat(64), title: 'T', artist: 'A', keys: 4, onlineSetId: 8, length: 60000 } });
+  assert.equal(r3.autoAt, 0, 'a new map: nobody ready, nothing armed');
+});
+
+test('outside requests can\'t reach the rooms\' internal Matchmaker routes', async () => {
+  const { handleMultiplayer } = await import('../worker/multiplayer.js');
+  const seen = [];
+  const stub = { fetch: req => { seen.push(new URL(req.url).pathname); return new Response('{}'); } };
+  const env = { ROOMS: {}, MATCHMAKER: { idFromName: () => 'x', get: () => stub } };
+  for (const path of ['/api/mp/quick/rooms/update', '/api/mp/quick/x/api/mp/rq/ban', '/api/mp/quickz']) {
+    const url = new URL('https://game' + path);
+    await handleMultiplayer(new Request(url, { method: 'POST', body: '{}' }), env, url).catch(() => null);
+  }
+  assert.deepEqual(seen, [], JSON.stringify(seen));
+  const ok = new URL('https://game/api/mp/quick/keep');
+  await handleMultiplayer(new Request(ok, { method: 'POST', body: '{}' }), env, ok);
+  assert.deepEqual(seen, ['/api/mp/quick/keep']);
+});

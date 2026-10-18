@@ -277,7 +277,7 @@ export class RoomLogic {
   leave(id) {
     const p = this.get(id);
     if (!p) return [];
-    const out = [];
+    const out = [], wasPlaying = !!p.playing;
     if (this.rp) out.push(...this.rp.leave(id));
     if (this.state === 'playing' && p.playing) {
       if (!p.finished) p.finished = { ...cleanResult(p.live ? { score: p.live.score, accuracy: p.live.acc, pp: p.live.pp } : {}), forfeit: true };
@@ -286,11 +286,11 @@ export class RoomLogic {
     this.players = this.players.filter(x => x !== p);
     this.remember(p);
     if (this.qp) delete this.qp.points[id];
-    if (this.state === 'playing') out.push(...this.checkFinished(true));
+    if (this.state === 'playing') out.push(...this.checkFinished(wasPlaying));
     if (!this.players.length) { this.reset(); return out; }
     const wasHost = this.hostId === id;
     if (wasHost) this.hostId = this.players[0].id;
-    for (const x of this.players) x.ready = false;
+    this.unreadyAll();
     if (this.vote) { this.vote = null; out.push(this.system('Speed mod vote cancelled')); }
     out.push(this.system(`${p.name} left the room`));
     const q = this.qp;
@@ -333,7 +333,7 @@ export class RoomLogic {
         if (AUTO_STARTS.includes(o.autoStart) && o.autoStart !== st.autoStart) { st.autoStart = o.autoStart; changes.push(o.autoStart ? `auto start after ${o.autoStart >= 60 ? `${o.autoStart / 60} min` : `${o.autoStart}s`}` : 'auto start off'); this.armAuto(); }
         if (typeof o.autoSkip === 'boolean' && o.autoSkip !== st.autoSkip) { st.autoSkip = o.autoSkip; changes.push(o.autoSkip ? 'intros skipped automatically' : 'auto skip off'); }
         if (!changes.length) return [];
-        for (const x of this.players) x.ready = false;
+        this.unreadyAll();
         return [this.roomMsg(), this.system(`Room settings: ${changes.join(', ')}`)];
       }
       // lazer's participant panel, for the host: kick a player (between matches), or hand the room to them
@@ -391,8 +391,8 @@ export class RoomLogic {
         const map = cleanMap(m.map);
         if (!map) return [{ to: id, msg: { t: 'error', msg: 'Invalid beatmap' } }];
         this.map = map;
-        for (const x of this.players) { x.ready = false; x.diff = null; if (x.id !== id) x.hasMap = false; }
-        this.pendingStart = false;
+        this.unreadyAll();
+        for (const x of this.players) { x.diff = null; if (x.id !== id) x.hasMap = false; }
         p.hasMap = true;
         const out = [this.system(`Beatmap changed to ${map.artist} - ${map.title} [${map.version}]`)];
         if (Array.isArray(m.mods)) {
@@ -486,6 +486,8 @@ export class RoomLogic {
   here() { return this.players.filter(x => !x.away); }
   /** Start a match for `list` (everyone in a custom room; whoever loaded the beatmap in Quick Play). */
   /** lazer's auto start: the countdown runs while anyone's ready (and stops when nobody is). */
+  /** Everyone un-readied (a new map, new rules, someone leaving, a new speed mod): nothing is left armed to start. */
+  unreadyAll() { for (const x of this.players) x.ready = false; this.autoAt = 0; this.pendingStart = false; }
   armAuto() {
     const sec = this.settings.autoStart || 0, anyReady = this.players.some(x => x.ready);
     if (!sec || !anyReady || this.state !== 'lobby' || this.qp || this.rp) { this.autoAt = 0; return; }
@@ -586,9 +588,10 @@ export class RoomLogic {
 
   /** A player asks for a room speed mod (or none). It applies once everyone has accepted. */
   propose(p, mods, modConfig) {
-    const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
-    if (!this.vote && same(mods, this.mods)) return [];
-    if (this.vote && same(mods, this.vote.mods)) return [];
+    const rateOfCfg = c => (c && Number.isFinite(+c.rate) ? +c.rate : 1);
+    const same = (a, b, ca, cb) => a.length === b.length && a.every(x => b.includes(x)) && (!a.includes('RT') || Math.abs(rateOfCfg(ca) - rateOfCfg(cb)) < 0.005);
+    if (!this.vote && same(mods, this.mods, modConfig, this.modConfig)) return [];
+    if (this.vote && same(mods, this.vote.mods, modConfig, this.vote.modConfig)) return [];
     this.vote = { mods, modConfig, by: p.id, yes: [p.id] };
     const settled = this.settleVote();
     if (settled.length) return settled;
@@ -597,7 +600,7 @@ export class RoomLogic {
   settleVote() {
     const v = this.vote;
     if (!v || !this.players.every(x => v.yes.includes(x.id))) return [];
-    this.mods = v.mods; this.modConfig = v.mods.includes('RT') ? v.modConfig : null; this.vote = null;
+    this.mods = v.mods; this.modConfig = v.mods.includes('RT') ? v.modConfig : null; this.vote = null; this.autoAt = 0; this.pendingStart = false;
     for (const x of this.players) x.ready = false;
     return [this.system(this.mods.length ? `Everyone accepted — playing with ${this.mods.join('')}` : 'Speed mods removed')];
   }
@@ -644,7 +647,10 @@ export class RoomLogic {
     // (a play the judge turned down has no mods to compare: it counts for nothing — reading them threw, the judging
     // failed, and the player's own unchecked result stood instead)
     const want = [...new Set([...this.mods, ...(p.mods || [])])].sort().join(), got = !r.error && Array.isArray(r.mods) ? [...r.mods].sort().join() : '';
-    if (r.error || !sameMap || want !== got) {
+    // (Rate Adjust: the room's speed too — a slower play under the same mod isn't the room's)
+    const rt = this.mods.includes('RT') && this.modConfig && Number.isFinite(+this.modConfig.rate) ? +this.modConfig.rate : null;
+    const speedOk = rt == null || (Number.isFinite(+r.rate) && Math.abs(+r.rate - rt) < 0.005);
+    if (r.error || !sameMap || want !== got || !speedOk) {
       p.finished = { ...cleanResult({}), grade: 'F', unverified: true };
       return { error: r.error || (!sameMap ? 'Not this room\'s beatmap.' : 'Not the room\'s mods.'), out: this.checkFinished() };
     }
@@ -734,7 +740,7 @@ export class MatchRoom {
     this._listed = body;
     if (!this.env.MATCHMAKER) return;
     const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
-    stub.fetch('https://mm/api/mp/rooms/update', { method: 'POST', body, headers: { 'content-type': 'application/json' } }).catch(() => {});
+    stub.fetch('https://mm/internal/rooms/update', { method: 'POST', body, headers: { 'content-type': 'application/json' } }).catch(() => {});
     if (l && !this.beat) this.beat = setInterval(() => this.announce(true), 15000);
     if (!l && this.beat) { clearInterval(this.beat); this.beat = null; }
   }
@@ -848,7 +854,7 @@ export class MatchRoom {
     const rp = this.logic && this.logic.rp;
     if (rp && rp.bans.length && this.env.MATCHMAKER) {
       const stub = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
-      for (const b of rp.bans.splice(0)) stub.fetch('https://mm/api/mp/rq/ban', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json' } }).catch(() => {});
+      for (const b of rp.bans.splice(0)) stub.fetch('https://mm/internal/rq/ban', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json' } }).catch(() => {});
     }
   }
 }
@@ -1830,13 +1836,18 @@ export class Matchmaker {
       // (an account's profile is put together from what each of its devices reports: the kept one is read in first, or
       // the first report after a restart would stand in for all of them)
       const su = msg.t === 'stats' ? this.presence.users.get(id) : null;
-      if (su && su.pid && this.presence.codeOf.has(su.pid) && !this.presence.profiles.has(su.pid) && !(this._pfLoaded || (this._pfLoaded = new Set())).has(su.pid)) {
-        this._pfLoaded.add(su.pid);
-        this.state.storage.get(`pf:${su.pid}`).catch(() => null).then(v => {
-          if (v && typeof v === 'object' && !this.presence.profiles.has(su.pid)) this.presence.profiles.set(su.pid, v);
-          if (this.presence.users.has(id)) this.send(this.presence.message(id, msg));
-        });
-        return;
+      if (su && su.pid && this.presence.codeOf.has(su.pid) && !this.presence.profiles.has(su.pid)) {
+        const L = this._pfLoading || (this._pfLoading = new Map()), done = this._pfLoaded || (this._pfLoaded = new Set());
+        let pr = L.get(su.pid);
+        if (!pr && !done.has(su.pid)) {
+          done.add(su.pid);
+          pr = this.state.storage.get(`pf:${su.pid}`).catch(() => null).then(v => {
+            if (v && typeof v === 'object' && !this.presence.profiles.has(su.pid)) this.presence.profiles.set(su.pid, v);
+            L.delete(su.pid);
+          });
+          L.set(su.pid, pr);
+        }
+        if (pr) { pr.then(() => { if (this.presence.users.has(id)) this.send(this.presence.message(id, msg)); }); return; }
       }
       // (a beatmap's user tags come out of storage the first time they're asked for — with its board, and the voter's
       // best plays when they aren't read yet: they decide whether that player may tag it)
@@ -1895,10 +1906,12 @@ export class Matchmaker {
     const P = this.presence, ip = request.headers.get('x-ip') || '', pid = String(body.pid || ''), key = String(body.key || '');
     const mine = /^[a-z0-9]{6,24}$/.test(pid) && P.keyOk(pid, key);
     if (what === 'code') {
+      // (every new player gets one in the first-run setup: a class setting up at once behind one school address has room;
+      // the address is checked before anything is made or kept)
+      if (!this.allowTry('ci:' + ip, 150)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
       // (a player that's never been online yet claims its id first)
       if (!mine && !(/^[a-z0-9]{6,24}$/.test(pid) && !P.keyHashes(pid).length && P.claim(pid, key))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
-      // (every new player gets one in the first-run setup: a class setting up at once behind one school address has room)
-      if (!this.allowTry('c:' + pid, 6) || !this.allowTry('ci:' + ip, 150)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
+      if (!this.allowTry('c:' + pid, 6)) return json({ error: 'Too many new codes. Try again in a few minutes.' }, 429);
       let code;
       do code = newPlayerCode(); while (P.codes.has(codeHash(code)));
       P.setCode(pid, codeHash(code));
@@ -1907,9 +1920,12 @@ export class Matchmaker {
     if (what === 'link') {
       const t0 = Date.now(), c = cleanPlayerCode(body.code);
       const settle = async () => { const w = 400 - (Date.now() - t0); if (w > 0) await new Promise(r => setTimeout(r, w)); }; // (every answer takes as long)
-      if (!this.allowTry('l:' + ip, 10)) return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429);
+      // (wrong codes are what's limited per address — 10 every 10 minutes; right ones, a class's returning players behind
+      // one school address, have room for 100)
+      if (this.triesOf('lw:' + ip) >= 10 || !this.allowTry('l:' + ip, 100)) { await settle(); return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429); }
       const target = c ? P.codes.get(codeHash(c)) : null;
       if (!target) {
+        this.allowTry('lw:' + ip, 1e9);
         // (wrong codes count against everyone too: spread over many addresses, guessing still gets nowhere)
         if (!this.allowTry('l:all', 2000)) { await settle(); return json({ error: 'Too many wrong codes have been tried. Try again later.' }, 429); }
         await settle();
@@ -1949,10 +1965,13 @@ export class Matchmaker {
     if (!this.allowTry(`v:${what}:${pid}`, limit)) return json({ error: 'Too many at once. Try again in a few minutes.' }, 429);
     return json({ ok: true });
   }
+  /** How many tries this key has had in the last 10 minutes (without counting one). */
+  triesOf(k) { const t = Date.now(), list = (this._tries && this._tries.get(k)) || []; return list.filter(x => t - x < 600000).length; }
   /** At most `n` tries per 10 minutes for this key (an address, a player, or everyone). */
   allowTry(k, n) {
     const t = Date.now(), m = this._tries || (this._tries = new Map());
-    if (m.size > 20000) m.clear();
+    // (too many keys: the ones not used for 10 minutes go — never all of them, which reset every limit at once)
+    if (m.size > 20000) { for (const [key, list] of m) if (!list.length || t - list[list.length - 1] >= 600000) m.delete(key); if (m.size > 20000) for (const key of [...m.keys()].slice(0, 5000)) if (!/^(l|lw|ci):/.test(key)) m.delete(key); }
     const list = (m.get(k) || []).filter(x => t - x < 600000);
     if (list.length >= n) { m.set(k, list); return false; }
     list.push(t); m.set(k, list);
@@ -2030,7 +2049,10 @@ export class Matchmaker {
         // (#lobby's last lines outlive the server restarting: it used to come back empty, and wiped everyone's chat)
         for (const [k, v] of await st.list({ prefix: 'ls:' })) if (typeof v === 'number') this.presence.seen.set(k.slice(3), v);
         const ch = await st.get('chat'); if (Array.isArray(ch)) this.presence.chat = ch.slice(-PresenceLogic.CHAT_KEEP);
-      } catch { /* storage unavailable: start empty */ }
+      } catch (e) {
+        this._friendsLoaded = null; // (tried again with the next request)
+        throw new Error('The game\'s server couldn\'t read its players just now. Try again in a moment.');
+      }
       this.presence.load(fr, fq);
       // (a player's totals and their best plays are kept apart: the totals load with the server, the plays when needed)
       this.presence.persistRank = (pid, r) => { const { bests, _lazy, ...rest } = r; st.put(`rk:${pid}`, { ...rest, sb: 1 }).catch(() => {}); if (bests) st.put(`rb:${pid}`, bests).catch(() => {}); r.sb = 1; };
@@ -2113,7 +2135,8 @@ export class Matchmaker {
   async ensureBests(pid) {
     const r = this.presence.ranks.get(pid);
     if (!r || !r._lazy || r.bests) return;
-    const b = await this.state.storage.get(`rb:${pid}`).catch(() => null);
+    let b;
+    try { b = await this.state.storage.get(`rb:${pid}`); } catch (e) { throw new Error('Couldn\'t read the player\'s best plays just now.'); }
     if (!r.bests) r.bests = b && typeof b === 'object' ? b : {};
     delete r._lazy;
   }
@@ -2146,9 +2169,8 @@ export class Matchmaker {
       statusOf.set(id, found);
     }
     const v = statusOf.get(id);
-    // (osu! had nothing to match a play shared by an older game without its ids: what that game found when it looked
-    //  the beatmap up itself stands)
-    if (v === '' && !(+x.onlineId > 0) && !(+x.onlineSetId > 0)) return x.ranked === true;
+    // (osu! had nothing to match it: not ranked — what the game itself says isn't taken on trust, or a made-up play
+    // would count)
     return v === 'ranked' || v === 'approved';
   }
   /** A player's profile plays, checked (see rankedEntry): their standing from the ones on ranked beatmaps. */
@@ -2164,6 +2186,7 @@ export class Matchmaker {
     const P = this.presence, rep = PresenceLogic.rankFromTop(top.filter((x, i) => flags[i] === true), () => true);
     let rec = P.ranks.get(pid);
     if (!rec && !rep) return;
+    if (!rec && !P.keyHashes(pid).length) return; // (merged into another player while osu! was asked: gone)
     if (!rec) { rec = { pid, name: who.name || 'Player', avatar: who.avatar || '', plays: 0, bests: {}, pol: PresenceLogic.RANK_POLICY }; P.ranks.set(pid, rec); }
     rec.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
     rec.okh = PresenceLogic.okIds(top, flags);
@@ -2194,7 +2217,7 @@ export class Matchmaker {
         // (lookups used up or failing: this player's standing stays as it is, and they're checked again next round)
         if (flags.some(f => f === null)) { deferred = true; break; }
         const rep = PresenceLogic.rankFromTop(mine.filter((x, i) => flags[i] === true), () => true);
-        if (rec || rep) {
+        if (rec || (rep && P.keyHashes(pid).length)) { // (a player merged into another has no keys: not brought back)
           const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
           r.restored = true;
           r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
@@ -2240,18 +2263,21 @@ export class Matchmaker {
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
     if (url.pathname.startsWith('/api/account/') && request.method === 'POST') return this.account(url.pathname.slice(13), request);
     if (url.pathname === '/vault-auth' && request.method === 'POST') return this.vaultAuth(request);
-    const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+    // (8: a body that isn't an object — `null` parses fine — is an empty one)
+    const body = (request.method === 'POST' ? await request.json().catch(() => null) : null) || {};
+    if (typeof body !== 'object') return json({ error: 'Bad request.' }, 400);
     const now = Date.now();
-    if (url.pathname.endsWith('/rooms/update')) {
+    // (the rooms' own reports and bans: internal paths — handleMultiplayer never passes these on from outside)
+    if (url.pathname === '/internal/rooms/update') {
       if (body.room && validCode(body.room.code)) this.rooms.set(body.room.code, { ...body.room, at: now });
       else if (typeof body.remove === 'string') this.rooms.delete(body.remove);
       return json({ ok: true });
     }
-    if (url.pathname.endsWith('/rooms')) {
+    if (url.pathname === '/api/mp/rooms') {
       for (const [c, r] of this.rooms) if (now - r.at > 40000) this.rooms.delete(c); // (live rooms check in every 15 s)
       return json({ rooms: [...this.rooms.values()].sort((a, b) => (a.state === 'playing') - (b.state === 'playing') || b.players - a.players).slice(0, 50) });
     }
-    const rq = /\/api\/mp\/rq\/(join|poll|accept|decline|leave|ban|count)$/.exec(url.pathname);
+    const rq = /^\/api\/mp\/rq\/(join|poll|accept|decline|leave|count)$/.exec(url.pathname) || /^\/internal\/rq\/(ban)$/.exec(url.pathname);
     if (rq) {
       // the Ranked Play queue
       const q = this.rq, t = String(body.ticket || '');
@@ -2265,7 +2291,7 @@ export class Matchmaker {
         case 'count': return json({ queued: q.counts() });
       }
     }
-    if (url.pathname.endsWith('/quickplay')) {
+    if (url.pathname === '/api/mp/quickplay') {
       // Quick Play: everyone asking within a minute for the same key count shares one lobby (the room turns away
       // late arrivals once it has started, and the client asks again with `not` for a fresh one)
       const keys = Number(body.keys) === 7 ? 7 : 4, cur = this.qp[keys];
@@ -2275,8 +2301,9 @@ export class Matchmaker {
       return json({ code, host: true });
     }
     if (this.waiting && now - this.waiting.at > 40000) this.waiting = null;
-    if (url.pathname.endsWith('/cancel')) { if (this.waiting && this.waiting.code === body.code) this.waiting = null; return json({ ok: true }); }
-    if (url.pathname.endsWith('/keep')) { if (this.waiting && this.waiting.code === body.code) this.waiting.at = now; return json({ ok: !!this.waiting && this.waiting.code === body.code }); }
+    if (url.pathname === '/api/mp/quick/cancel') { if (this.waiting && this.waiting.code === body.code) this.waiting = null; return json({ ok: true }); }
+    if (url.pathname === '/api/mp/quick/keep') { if (this.waiting && this.waiting.code === body.code) this.waiting.at = now; return json({ ok: !!this.waiting && this.waiting.code === body.code }); }
+    if (url.pathname !== '/api/mp/quick') return json({ error: 'Not found' }, 404);
     if (this.waiting && this.waiting.code !== body.not) { const { code } = this.waiting; this.waiting = null; return json({ code, host: false }); }
     const code = makeCode();
     this.waiting = { code, at: now };
@@ -2305,7 +2332,7 @@ async function judgePlay(request, { noFail = false } = {}) {
 }
 
 /** A judged beatmap's ranked status on osu!: by its set id, else its beatmap id, else its file's MD5 ('' when unknown). */
-export async function beatmapStatus(r, md5, env, get = officialGet) {
+export async function beatmapStatus(r, md5, env, get = officialGet, again = true) {
   const week = 7 * 86400000;
   try {
     if (r.beatmapSetId > 0) return { status: String((await get(`beatmapsets/${r.beatmapSetId}`, env, fetch, week)).status || ''), setId: r.beatmapSetId };
@@ -2313,7 +2340,11 @@ export async function beatmapStatus(r, md5, env, get = officialGet) {
     if (!path) return { status: '', setId: 0 };
     const b = await get(path, env, fetch, week), set = b && b.beatmapset;
     return { status: String((set && set.status) || (b && b.status) || ''), setId: (b && b.beatmapset_id) || (set && set.id) || 0 };
-  } catch { return { status: '', setId: 0 }; }
+  } catch (e) {
+    // (osu! busy or a blip: once more in a moment — a pass on a ranked map taken as unranked kept 0pp for good)
+    if (again && !(e && e.status === 404)) { await new Promise(res => setTimeout(res, 1500)); return beatmapStatus(r, md5, env, get, false); }
+    return { status: '', setId: 0 };
+  }
 }
 
 /** /api/account/*: to the server object that keeps the players (Matchmaker), with the caller's address for its limits.
@@ -2336,6 +2367,7 @@ export async function handleAccount(request, env, url) {
     [pid = '', key = ''] = (request.headers.get('x-am-auth') || '').split('.');
     if (Number(request.headers.get('content-length')) > SKIN_MAX) return json({ error: 'Your skin is too big to keep (30 MB at most).' }, 413);
   } else {
+    if (Number(request.headers.get('content-length')) > SETTINGS_MAX + 4096) return json({ error: 'Your settings are too big to keep.' }, 413);
     const text = await request.text();
     if (text.length > SETTINGS_MAX + 4096) return json({ error: 'Your settings are too big to keep.' }, 413);
     let b = null;
@@ -2384,7 +2416,7 @@ export async function handleMultiplayer(request, env, url) {
     return stub.fetch(new Request(new URL(path, url)));
   }
   // (the queue's ban is only called by the rooms themselves, straight to the Durable Object)
-  if ((path.startsWith('/api/mp/quick') || /^\/api\/mp\/rq\/(join|poll|accept|decline|leave|count)$/.test(path)) && request.method === 'POST') {
+  if ((/^\/api\/mp\/(quick|quick\/cancel|quick\/keep|quickplay)$/.test(path) || /^\/api\/mp\/rq\/(join|poll|accept|decline|leave|count)$/.test(path)) && request.method === 'POST') {
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
     return stub.fetch(new Request(new URL(path, url), { method: 'POST', body: await request.text(), headers: { 'content-type': 'application/json' } }));
   }
