@@ -60,7 +60,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
     engine.advance(ev[i]);
     engine.input(ev[i + 1], ev[i + 2] === 1, ev[i]);
   }
-  const end = Math.max(...playNotes.map(n => n.end)) + 10000;
+  const end = maxOf(playNotes, n => n.end) + 10000;
   engine.advance(end);
   // (multiplayer: health running out marks the play failed, though it played on)
   const failed = noFail ? engine.health.min <= 0 : engine.health.failed && !mods.includes('NF');

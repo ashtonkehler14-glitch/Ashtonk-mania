@@ -128,7 +128,10 @@ const Storyboard = {
     for (const s of sprites) {
       for (const l of s.loops || []) {
         if (l.trigger || !l.cmds.length) continue;
-        const a = Math.min(...l.cmds.map(c => c.s)), b = Math.max(...l.cmds.map(c => c.e)), dur = b - a;
+        // (a loop's span by hand: Math.min(...) of a loop with a few hundred thousand commands throws)
+        let a = Infinity, b = -Infinity;
+        for (const c of l.cmds) { if (c.s < a) a = c.s; if (c.e > b) b = c.e; }
+        const dur = b - a;
         const n = dur > 0 ? Math.min(l.count, 4000) : 1;
         for (let i = 0; i < n && budget > 0; i++) for (const c of l.cmds) { s.cmds.push({ ...c, s: c.s + l.start + i * dur, e: c.e + l.start + i * dur }); budget--; }
       }

@@ -50,6 +50,9 @@ function appendChildren(el, children) {
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+/** The latest note end (or any value) in a list — by hand: Math.max(...list) throws for a list of a hundred thousand or
+ *  more (a marathon map's notes). */
+function maxOf(list, f = x => x, empty = 0) { let m = -Infinity; for (const x of list) { const v = f(x); if (v > m) m = v; } return m === -Infinity ? empty : m; }
 const lerp = (a, b, t) => a + (b - a) * t;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** A message to go inside a sentence of ours: without its own full stop. */
@@ -1957,24 +1960,36 @@ function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp) {
   if (!notes.length) return 1;
   const heads = notes.slice().sort((a, b) => a.time - b.time);
   const drainStart = heads[0].time;
-  const increaseFor = (j, hold) => healthIncrease(j, rawHp, hold, hpMultiplierNormal);
+  // (osu!'s calibration plays the map through again and again — up to 4,000 times — until the drain fits: the notes go
+  // in flat arrays and the loop does nothing but arithmetic, the same operations in the same order as before, so the
+  // result is exactly the same. A long dense map took seconds to start, and as long to be judged on the server)
+  const n = heads.length, T = new Float64Array(n), E = new Float64Array(n), LN = new Uint8Array(n);
+  for (let i = 0; i < n; i++) { T[i] = heads[i].time; E[i] = heads[i].end; LN[i] = heads[i].isLN ? 1 : 0; }
+  const nb = breaks.length, breakEnd = new Float64Array(nb);
+  for (let i = 0; i < nb; i++) breakEnd[i] = breaks[i].end;
+  const marv = 0.0055 - rawHp * 0.0005; // (healthIncrease for a MAX, before the multiplier: hold or not, the same)
   let testDrop = 0.00025;
   for (let guard = 0; guard < 4000; guard++) {
     let currentHp = 1, currentHpUncapped = 1, lastTime = drainStart, currentBreak = 0, fail = false, count = 0;
-    const reduce = amt => { currentHpUncapped = Math.max(0, currentHpUncapped - amt); currentHp = Math.max(0, currentHp - amt); };
-    const increase = hold => { const a = increaseFor(J.MARV, hold); currentHpUncapped += a; currentHp = Math.max(0, Math.min(1, currentHp + a)); };
-    for (const h of heads) {
+    const a = hpMultiplierNormal * marv;
+    for (let i = 0; i < n; i++) {
+      const time = T[i], end = E[i];
       count++;
-      while (currentBreak < breaks.length && breaks[currentBreak].end <= h.time) { lastTime = h.time; currentBreak++; }
-      reduce(testDrop * (h.time - lastTime));
-      lastTime = h.end;
+      while (currentBreak < nb && breakEnd[currentBreak] <= time) { lastTime = time; currentBreak++; }
+      let amt = testDrop * (time - lastTime);
+      currentHpUncapped = Math.max(0, currentHpUncapped - amt); currentHp = Math.max(0, currentHp - amt);
+      lastTime = end;
       if (currentHp <= lowestHpEver) { fail = true; testDrop *= 0.96; break; }
-      const reduction = testDrop * (h.end - h.time);
+      const reduction = testDrop * (end - time);
       const overkill = Math.max(0, reduction - currentHp);
-      reduce(reduction);
-      if (h.isLN) { increase(true); increase(true); }
+      amt = reduction;
+      currentHpUncapped = Math.max(0, currentHpUncapped - amt); currentHp = Math.max(0, currentHp - amt);
+      if (LN[i]) {
+        currentHpUncapped += a; currentHp = Math.max(0, Math.min(1, currentHp + a));
+        currentHpUncapped += a; currentHp = Math.max(0, Math.min(1, currentHp + a));
+      }
       if (overkill > 0 && currentHp - overkill <= lowestHpEver) { fail = true; testDrop *= 0.96; break; }
-      if (!h.isLN) increase(false);
+      if (!LN[i]) { currentHpUncapped += a; currentHp = Math.max(0, Math.min(1, currentHp + a)); }
     }
     if (!fail && currentHp < lowestHpEnd) { fail = true; testDrop *= 0.94; hpMultiplierNormal *= 1.01; }
     const recovery = (currentHpUncapped - 1) / Math.max(1, count);
@@ -2134,7 +2149,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
     engine.advance(ev[i]);
     engine.input(ev[i + 1], ev[i + 2] === 1, ev[i]);
   }
-  const end = Math.max(...playNotes.map(n => n.end)) + 10000;
+  const end = maxOf(playNotes, n => n.end) + 10000;
   engine.advance(end);
   // (multiplayer: health running out marks the play failed, though it played on)
   const failed = noFail ? engine.health.min <= 0 : engine.health.failed && !mods.includes('NF');

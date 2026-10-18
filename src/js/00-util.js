@@ -48,6 +48,9 @@ function appendChildren(el, children) {
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+/** The latest note end (or any value) in a list — by hand: Math.max(...list) throws for a list of a hundred thousand or
+ *  more (a marathon map's notes). */
+function maxOf(list, f = x => x, empty = 0) { let m = -Infinity; for (const x of list) { const v = f(x); if (v > m) m = v; } return m === -Infinity ? empty : m; }
 const lerp = (a, b, t) => a + (b - a) * t;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** A message to go inside a sentence of ours: without its own full stop. */

@@ -703,7 +703,10 @@ const CHANGELOG = [
       'Muted with its metronome on a map without timing points no longer freezes the HUD',
       'Phones: turning the phone during the 3-2-1 countdown stops for a tap too, and Back on "Tap to resume" opens the pause menu',
       'Dragging background dim and blur before a song is smooth; a background video can no longer start twice',
-      'Practice: changing the speed twice quickly no longer puts the music out of step'] },
+      'Practice: changing the speed twice quickly no longer puts the music out of step',
+      'The very longest beatmaps (about 150,000 notes and up) can be played: they failed to start',
+      'A long beatmap\'s health drain is worked out about four times faster as the song loads (the same drain as before), on slow devices most of all',
+      'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing'] },
     { icon: 'multi', title: 'Multiplayer', items: [
       'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
       'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',
@@ -725,7 +728,8 @@ const CHANGELOG = [
       'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
       'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
       'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
-      'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen'] },
+      'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen',
+      'The notifications\' unread count never counts more than the list keeps'] },
     { icon: 'music', title: 'Song select', items: [
       'Back from a song, its preview plays again (it stayed silent)',
       'The selected beatmap\'s song starts over when it ends, as in lazer — coming in from the main menu with its song already playing, the end of it used to jump to another beatmap',

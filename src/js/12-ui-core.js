@@ -1181,7 +1181,7 @@ const Notifications = {
     const n = { id: Math.random().toString(36).slice(2), title: String(title), body: body ? String(body) : '', type, at: Date.now(), prog, onCancel, onClick };
     this.list.unshift(n);
     if (this.list.length > 60) this.list.length = 60;
-    if (!this.isOpen() && prog == null) this.unread++;
+    if (!this.isOpen() && prog == null) this.unread = Math.min(this.unread + 1, this.list.length); // (never more than are kept)
     Bus.emit('notif:changed');
     if (this.isOpen()) this.render();
     return n;

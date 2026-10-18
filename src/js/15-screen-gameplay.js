@@ -446,7 +446,7 @@ const GameplayScreen = {
     const accuracyMode = replay ? replay.accuracyMode : Settings.get('gameplay.accuracyMode');
     const scrollMode = mods.includes('CS') ? 'constant' : Settings.get('gameplay.scrollMode');
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
-    const endTime = baseNotes.length ? Math.max(...baseNotes.map(n => n.end)) : 0;
+    const endTime = maxOf(baseNotes, n => n.end);
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,

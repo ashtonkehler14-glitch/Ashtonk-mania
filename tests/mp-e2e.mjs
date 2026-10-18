@@ -125,7 +125,8 @@ check('…and nobody can send scores as someone else (their key)', forged === 40
 // lazer's user tags: only a player with a score on the beatmap can tag it; everyone sees the votes
 {
   const hash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);
-  const ask = (pg, h) => pg.evaluate(async h => { AshtonkMania.UserTags.ask(h, true); for (let i = 0; i < 50; i++) { const c = AshtonkMania.UserTags.get(h); if (c && !c.pending && c.all.length) return c; await new Promise(r => setTimeout(r, 100)); } return AshtonkMania.UserTags.get(h); }, h);
+  // (a fresh answer each time: the one already here can be from before the last votes arrived)
+  const ask = (pg, h) => pg.evaluate(async h => { AshtonkMania.UserTags.cache.delete(h); AshtonkMania.UserTags.ask(h, true); for (let i = 0; i < 50; i++) { const c = AshtonkMania.UserTags.get(h); if (c && !c.pending && c.all.length) return c; await new Promise(r => setTimeout(r, 100)); } return AshtonkMania.UserTags.get(h); }, h);
   const a0 = await ask(alice, hash), b0 = await ask(bob, hash);
   await bob.evaluate(h => { AshtonkMania.UserTags.vote(h, 'jumpstream', true); AshtonkMania.UserTags.vote(h, 'stamina', true); }, hash);
   await alice.evaluate(h => AshtonkMania.UserTags.vote(h, 'gimmick', true), hash);
