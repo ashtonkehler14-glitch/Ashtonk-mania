@@ -1,6 +1,6 @@
 // Monkey test: thousands of random clicks, keys, screen changes, plays and window resizes in headless Chromium;
 // fails on any uncaught page error and prints the steps that led to it.
-// Usage: node tests/monkey.mjs [steps=600] [seed=7]
+// Usage: node tests/monkey.mjs [steps=600] [seed=7]   (MONKEY_PHONE=1: a phone held sideways — touch, taps, rotations)
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
@@ -25,11 +25,13 @@ async function setupName(pg, name) {
   await pg.fill('.onboarding .ob-name', name); await pg.keyboard.press('Enter');
 }
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, serviceWorkers: 'block' })).newPage();
+const PHONE = process.env.MONKEY_PHONE === '1';
+const page = await (await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1600, height: 900 }, serviceWorkers: 'block' })).newPage();
 let failures = 0;
 const errs = [];
 page.on('pageerror', e => errs.push(e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' | ')));
 page.on('dialog', d => d.dismiss().catch(() => {}));
+if (PHONE) await page.addInitScript(() => { try { localStorage.setItem('am.noInstallPrompt', '1'); } catch { /* fine */ } }); // (the install prompt, before the setup)
 await page.route('**/api/**', r => r.fulfill({ status: 503, body: '' }));
 await page.route('https://**', r => r.abort());
 await page.goto(url);
@@ -49,7 +51,11 @@ for (let i = 0; i < STEPS; i++) {
     if (r < 0.5) {
       // click a random visible, enabled button / chip / row
       const n = await page.evaluate(() => { window.__btns = [...document.querySelectorAll('button, .chip, [role=button], .lb-row, .ex-card, .c-item')].filter(b => { const x = b.getBoundingClientRect(); return x.width > 2 && x.height > 2 && x.bottom > 0 && x.top < innerHeight && !b.disabled && !/Reset everything|Clear beatmaps|Delete|Clear scores|Clear replays|Import|Export|Save PNG|Copy image|Share…/i.test(b.textContent) && !b.closest('.danger') && !b.classList.contains('danger'); }); return window.__btns.length; });
-      if (n) { const k = Math.floor(rnd() * n); const label = await page.evaluate(k => { const b = window.__btns[k]; const t = (b.textContent || b.title || b.className).trim().slice(0, 30); b.click(); return t; }, k); trail.push('click ' + label); }
+      if (n && PHONE) {
+        // (a real tap on it: touch events, as a phone sends them)
+        const k = Math.floor(rnd() * n), at = await page.evaluate(k => { const b = window.__btns[k], x = b.getBoundingClientRect(); return { x: x.left + x.width / 2, y: x.top + x.height / 2, t: (b.textContent || b.title || b.className).trim().slice(0, 30) }; }, k);
+        await page.touchscreen.tap(at.x, at.y); trail.push('tap ' + at.t);
+      } else if (n) { const k = Math.floor(rnd() * n); const label = await page.evaluate(k => { const b = window.__btns[k]; const t = (b.textContent || b.title || b.className).trim().slice(0, 30); b.click(); return t; }, k); trail.push('click ' + label); }
     } else if (r < 0.8) {
       const key = KEYS[Math.floor(rnd() * KEYS.length)];
       if (key === 'KeyR' && rnd() < 0.5) { await page.keyboard.down('KeyR'); await page.waitForTimeout(600); await page.keyboard.up('KeyR'); } else await page.keyboard.press(key);
@@ -60,13 +66,14 @@ for (let i = 0; i < STEPS; i++) {
     } else if (r < 0.95) {
       await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()]; if (!m.length) return; const x = m[Math.floor(Math.random() * m.length)]; AshtonkMania.Screens.go('gameplay', { mapId: x.id, mods: Math.random() < 0.5 ? ['AT'] : [], force: true }); }); trail.push('play');
     } else {
-      const w = 900 + Math.floor(rnd() * 900), hh = 600 + Math.floor(rnd() * 400);
+      // (a phone: turned upright or sideways)
+      const turn = PHONE && rnd() < 0.5, w = PHONE ? (turn ? 390 : 844) : 900 + Math.floor(rnd() * 900), hh = PHONE ? (turn ? 844 : 390) : 600 + Math.floor(rnd() * 400);
       await page.setViewportSize({ width: w, height: hh }); trail.push(`resize ${w}x${hh}`);
     }
   } catch (e) { trail.push('step error ' + e.message.slice(0, 80)); }
   await page.waitForTimeout(40 + Math.floor(rnd() * 160));
   if (errs.length) { failures++; console.log('✖ page error after:', trail.slice(-8).join(' → ')); console.log(errs.join('\n')); errs.length = 0; }
 }
-console.log(`${failures ? '✖' : '✔'} ${STEPS} random steps (seed ${process.argv[3] || 7}), ${failures} page error(s)`);
+console.log(`${failures ? '✖' : '✔'} ${STEPS} random steps (seed ${process.argv[3] || 7}${PHONE ? ', phone' : ''}), ${failures} page error(s)`);
 await browser.close(); server.close();
 process.exit(failures ? 1 : 0);

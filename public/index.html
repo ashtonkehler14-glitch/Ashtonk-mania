@@ -15083,7 +15083,7 @@ const SongSelect = {
     if (this.standalone) {
       const flat = results.flatMap(r => r.maps.map(m => ({ set: r.set, maps: [m], score: r.score, std: true })));
       if (sort === 'stars') flat.sort((a, b) => a.maps[0].stars - b.maps[0].stars || a.set.title.localeCompare(b.set.title));
-      results.length = 0; results.push(...flat);
+      results.length = 0; for (const r of flat) results.push(r); // (not push(...flat): that throws past ~125,000 difficulties)
     }
     this.results = results;
     this.makeGroups();
@@ -16920,7 +16920,8 @@ const GameplayScreen = {
   // ─────────────────────────────── automatic resolution ───────────────────────────────
   /** Slow devices: most of a frame's cost is the canvas's pixel count (profiled on a throttled Chromebook-sized
    *  run: 75% resolution took 31 fps to 47). While playing, every 2 s the median frame time is checked; two slow
-   *  windows in a row (under ~45 fps, or the FPS limit) lower the playfield's resolution by 10%, down to 60%.
+   *  windows in a row (under ~45 fps, or the FPS limit), or one far behind, lower the playfield's resolution by 10%,
+   *  down to 60%.
    *  The device remembers it, and after a play that ran smoothly it starts 5% higher next time. */
   AUTO_SCALE_MIN: 0.6,
   initAutoScale() {
@@ -16942,7 +16943,10 @@ const GameplayScreen = {
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
     const stutter = late / t.length;
-    a.bad = med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0; // slower than ~45 fps, or dropping frames
+    // slower than ~45 fps, or dropping frames — and far behind (a quarter of the frames late, or ~35 fps) counts twice,
+    // so a device that can't keep up gets there in a few seconds, not ten or more of stutter
+    const far = med > target * 1.7 || stutter > 0.25;
+    a.bad = far ? a.bad + 2 : med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0;
     if (med < target * 1.08 && stutter < 0.02) a.smooth++;           // comfortably at full speed
     if (a.bad >= 2 && a.scale > this.AUTO_SCALE_MIN + 1e-6) {
       a.bad = 0;
@@ -20011,7 +20015,7 @@ const CHANGELOG = [
       'The very longest beatmaps (about 150,000 notes and up) can be played: they failed to start',
       'A long beatmap\'s health drain is worked out about four times faster as the song loads (the same drain as before), on slow devices most of all',
       'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing',
-      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth — it only reacted when most frames were slow. After a smooth play it tries a little higher again, as it was meant to (it never did)'] },
+      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth, within a few seconds — it only reacted when most frames were slow, and slowly. After a smooth play it tries a little higher again, as it was meant to (it never did)'] },
     { icon: 'multi', title: 'Multiplayer', items: [
       'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
       'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',
@@ -27485,7 +27489,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'fb9811e51fcf';
+const APP_BUILD = 'faaa73aabb49';
 
 const App = {
   lastReport: null,

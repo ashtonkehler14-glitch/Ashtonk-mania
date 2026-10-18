@@ -425,7 +425,7 @@ const SongSelect = {
     if (this.standalone) {
       const flat = results.flatMap(r => r.maps.map(m => ({ set: r.set, maps: [m], score: r.score, std: true })));
       if (sort === 'stars') flat.sort((a, b) => a.maps[0].stars - b.maps[0].stars || a.set.title.localeCompare(b.set.title));
-      results.length = 0; results.push(...flat);
+      results.length = 0; for (const r of flat) results.push(r); // (not push(...flat): that throws past ~125,000 difficulties)
     }
     this.results = results;
     this.makeGroups();

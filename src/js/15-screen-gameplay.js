@@ -978,7 +978,8 @@ const GameplayScreen = {
   // ─────────────────────────────── automatic resolution ───────────────────────────────
   /** Slow devices: most of a frame's cost is the canvas's pixel count (profiled on a throttled Chromebook-sized
    *  run: 75% resolution took 31 fps to 47). While playing, every 2 s the median frame time is checked; two slow
-   *  windows in a row (under ~45 fps, or the FPS limit) lower the playfield's resolution by 10%, down to 60%.
+   *  windows in a row (under ~45 fps, or the FPS limit), or one far behind, lower the playfield's resolution by 10%,
+   *  down to 60%.
    *  The device remembers it, and after a play that ran smoothly it starts 5% higher next time. */
   AUTO_SCALE_MIN: 0.6,
   initAutoScale() {
@@ -1000,7 +1001,10 @@ const GameplayScreen = {
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
     const stutter = late / t.length;
-    a.bad = med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0; // slower than ~45 fps, or dropping frames
+    // slower than ~45 fps, or dropping frames — and far behind (a quarter of the frames late, or ~35 fps) counts twice,
+    // so a device that can't keep up gets there in a few seconds, not ten or more of stutter
+    const far = med > target * 1.7 || stutter > 0.25;
+    a.bad = far ? a.bad + 2 : med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0;
     if (med < target * 1.08 && stutter < 0.02) a.smooth++;           // comfortably at full speed
     if (a.bad >= 2 && a.scale > this.AUTO_SCALE_MIN + 1e-6) {
       a.bad = 0;
