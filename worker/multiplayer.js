@@ -2283,7 +2283,7 @@ export class Matchmaker {
       const q = this.rq, t = String(body.ticket || '');
       q.update();
       switch (rq[1]) {
-        case 'join': return json(q.join(body));
+        case 'join': return json(q.join({ ...body, avatar: cleanAvatar(body.avatar) })); // (shown to the player it's matched with)
         case 'poll': return json(q.status(t));
         case 'accept': return json(q.accept(t));
         case 'decline': case 'leave': return json(q.decline(t));

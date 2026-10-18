@@ -193,6 +193,11 @@ test('Web-Osu-Mania\'s /api/downloadBeatmap: passes a provider\'s file through, 
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://evil.example/x')), async () => res('x'))).status, 403);
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap'), async () => res('x'))).status, 400);
   assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://osu.direct/api/d/5')), async () => res('nope', 404, 'text/plain'))).status, 404);
+  // a page where the file should be (a mirror's check page): refused, so the game tries its next source
+  assert.equal((await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5')), async () => res('<html>wait</html>', 200, 'text/html'))).status, 502);
+  // a file is served as one, never as something the browser would run
+  const f = await handleProxyDownload(new URL('https://x/api/downloadBeatmap?destinationUrl=' + encodeURIComponent('https://catboy.best/d/5')), async () => res(new Uint8Array(300), 200, 'application/x-osu-beatmap-archive'));
+  assert.equal(f.headers.get('x-content-type-options'), 'nosniff'); assert.equal(f.headers.get('content-security-policy'), 'sandbox');
 });
 
 test('/api/osuFile: one difficulty\'s .osu for spectating, from osu! or else a mirror; nothing else passes', async () => {

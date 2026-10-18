@@ -46,6 +46,13 @@ const STATUS_MESSAGES = {
 /** An osu! API failure, with the HTTP status the browser gets (as WOM answers it). */
 export class OsuApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
 
+/** One beatmap (osu!'s beatmaps/<id> and beatmaps/lookup answers): its set and the set's status come with it — the
+ *  game's status lookups and the score judge need them. */
+export function trimBeatmap(b) {
+  const set = b && b.beatmapset;
+  return { id: b.id, beatmapset_id: b.beatmapset_id || (set && set.id) || 0, mode: b.mode, version: b.version, status: b.status, difficulty_rating: b.difficulty_rating, checksum: b.checksum,
+    beatmapset: set ? { id: set.id, status: set.status, title: set.title, artist: set.artist, creator: set.creator } : null };
+}
 /** WOM's trimBeatmapSet (only what the listing uses is kept and cached), plus the few things the explorer's cards show. */
 export function trimBeatmapSet(s) {
   return {
@@ -115,11 +122,13 @@ async function getOfficialToken(env, fetchImpl) {
         L.blockedUntil = Date.now() + wait * 1000;
         throw new OsuApiError(429, rateLimitMessage(wait));
       }
+      if (!r.ok) L.blockedUntil = Date.now() + 60000; // (wrong key, osu! down: not a login on every request meanwhile)
       if (!r.ok) throw new OsuApiError(r.status >= 500 ? r.status : 500, r.status === 400 || r.status === 401
         ? `The game's server couldn't log in to osu! with ${c.name} (${r.status}): check the client ID and secret.`
         : `The game's server couldn't log in to osu! (${r.status}).`);
-      const d = await r.json();
-      L.token = { value: d.access_token, exp: Date.now() + d.expires_in * 1000 };
+      const d = await r.json().catch(() => null);
+      if (!d || typeof d.access_token !== 'string' || !(Number(d.expires_in) > 0)) { L.blockedUntil = Date.now() + 60000; throw new OsuApiError(502, 'osu! answered the login with something that isn\'t a login.'); }
+      L.token = { value: d.access_token, exp: Date.now() + Number(d.expires_in) * 1000 };
       return L.token.value;
     })().finally(() => { L.pending = null; });
     try { return { i, token: await L.pending }; } catch (e) { lastErr = e; }
@@ -160,15 +169,16 @@ async function askOsu(path, env, fetchImpl, retried = false) {
   if (r.ok) {
     const d = await r.json().catch(() => null);
     if (!d || typeof d !== 'object') throw new OsuApiError(500, STATUS_MESSAGES[500]);
+    if (path.startsWith('beatmaps/')) return trimBeatmap(d);
     if (!path.startsWith('beatmapsets/search')) return trimBeatmapSet(d);
     return { beatmapsets: (Array.isArray(d.beatmapsets) ? d.beatmapsets : []).map(trimBeatmapSet), search: d.search, total: d.total, cursor_string: d.cursor_string || null };
   }
-  await noteRefusal('search', r);
+  if (r.status === 429 || r.status === 403 || r.status >= 500) await noteRefusal('search', r);
   const retryAfter = Number(r.headers.get('Retry-After')) || 0;
   if (r.status === 429) {
     // (another app can carry on while this one waits; with none left, stop asking — like WOM — for Retry-After or 5 min)
     const wait = (retryAfter || 300) * 1000;
-    logins[i].blockedUntil = Date.now() + wait; logins[i].token = null;
+    logins[i].blockedUntil = Date.now() + wait;
     if (osuCredentials(env).some((_, k) => k !== i && Date.now() >= ((logins[k] || {}).blockedUntil || 0))) return askOsu(path, env, fetchImpl, retried);
     osuApi.blockedUntil = Date.now() + wait;
     throw new OsuApiError(429, rateLimitMessage(retryAfter));
@@ -180,13 +190,17 @@ async function askOsu(path, env, fetchImpl, retried = false) {
 /** An osu! API answer: from the last hour's (a set: the last day's) answers, or osu! itself. While osu! refuses or is
  *  down, an older answer to the same request (up to a week old) is given rather than an error. Runs in one shared
  *  place (the "osu-api" Durable Object) on the live server, so every request shares one login, cache and back-off. */
+const inflight = new Map();
 export async function officialGet(path, env, fetchImpl = fetch, ttl = SEARCH_TTL) {
   if (!OSU_PATH.test(path)) throw new OsuApiError(400, 'Bad request.');
   let hit = osuApi.cache.get(path) || null;
   if (!hit && osuApi.store) { hit = await osuApi.store.get(path); if (hit) remember(path, hit); }
   if (hit && Date.now() - hit.at < ttl) return hit.data;
   try {
-    const data = await askOsu(path, env, fetchImpl);
+    // (players opening Browse together when the listing's hour is up: one request to osu!, not one each)
+    let ask = inflight.get(path);
+    if (!ask) { ask = askOsu(path, env, fetchImpl).finally(() => inflight.delete(path)); inflight.set(path, ask); }
+    const data = await ask;
     const e = { at: Date.now(), data };
     remember(path, e);
     if (osuApi.store) await osuApi.store.put(path, e);
@@ -263,7 +277,7 @@ export async function handleLookupBeatmap(url, env, fetchImpl = fetch) {
   const path = /^\d{1,10}$/.test(id) ? `beatmaps/${id}` : /^[a-f0-9]{32}$/.test(sum) ? `beatmaps/lookup?checksum=${sum}` : '';
   if (!path) return json({ error: 'Give a beatmap id or checksum.' }, 400);
   try {
-    const b = await officialGet(path, env, fetchImpl, 7 * 86400000);
+    const b = await osuRequest(path, 7 * 86400000, env, fetchImpl);
     const set = b && b.beatmapset;
     return json({ beatmapId: b.id || 0, setId: b.beatmapset_id || (set && set.id) || 0, status: String((set && set.status) || b.status || '') }, 200, { 'Cache-Control': 'public, max-age=86400' });
   } catch (e) { return json({ error: e.message || 'Not found' }, e.status === 404 ? 404 : e.status || 500); }
@@ -276,7 +290,9 @@ export async function handleDownload(id, fetchImpl = fetch, provider = '') {
   for (const m of order) {
     try {
       // (a mirror that doesn't answer within 20 s is skipped instead of holding the download)
-      const r = await fetchImpl(m.url(id), { headers: UA, redirect: 'follow', signal: timeout(20000) });
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+      let r;
+      try { r = await fetchImpl(m.url(id), { headers: UA, redirect: 'follow', signal: ctl.signal }); } finally { clearTimeout(t); }
       const ct = r.headers.get('content-type') || '';
       if (!r.ok || /json|html|text/.test(ct)) { errors.push(`${m.name}: ${r.status}`); continue; }
       const headers = { 'Content-Type': 'application/x-osu-beatmap-archive', 'Content-Disposition': `attachment; filename="${id}.osz"`, 'X-Mirror': m.name, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' };
@@ -301,7 +317,16 @@ export async function handleProxyDownload(url, fetchImpl = fetch) {
   try {
     const r = await fetchImpl(d.href, { method: 'GET', headers: UA, redirect: 'follow' });
     if (!r.ok) return json({ error: `Proxy fetch failed - ${r.statusText || r.status}` }, r.status >= 400 && r.status < 600 ? r.status : 500, r.headers.get('Retry-After') ? { 'Retry-After': r.headers.get('Retry-After') } : {});
-    const headers = { 'Content-Type': r.headers.get('content-type') || 'application/x-osu-beatmap-archive', 'Access-Control-Allow-Origin': '*' };
+    const ct = (r.headers.get('content-type') || '').toLowerCase(), binary = /^(audio\/|video\/|application\/(octet-stream|zip|x-zip|x-osu|x-osu-beatmap-archive))/.test(ct) || !ct;
+    // (a page where the file should be — a mirror's error or check page: refused, so the game tries the next source
+    // instead of taking the page for the beatmap)
+    if (/html|json|text|xml|javascript/.test(ct)) { if (r.body) r.body.cancel().catch(() => {}); return json({ error: 'The download source sent a page, not a file.' }, 502); }
+    let to = '';
+    try { to = new URL(r.url || d.href).hostname; } catch { /* as asked */ }
+    const listed = h => DOWNLOAD_HOSTS.has(h) || [...DOWNLOAD_HOSTS].some(x => h.endsWith('.' + x));
+    if (to && !listed(to) && !binary) return json({ error: 'That download source isn\'t allowed.' }, 403);
+    // (served as a file — never a page that would run on the game's own address, with the players' keys)
+    const headers = { 'Content-Type': binary && ct ? ct : 'application/octet-stream', 'Access-Control-Allow-Origin': '*', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox', 'Content-Disposition': 'attachment' };
     if (r.headers.get('content-length')) headers['Content-Length'] = r.headers.get('content-length');
     return new Response(r.body, { status: r.status, headers });
   } catch (e) { return json({ error: `Proxy fetch failed - ${e.message}` }, 500); }
@@ -314,8 +339,8 @@ export async function handleOsuFile(url, fetchImpl = fetch) {
   if (!/^[1-9][0-9]{0,9}$/.test(id)) return json({ error: 'Missing or invalid "id".' }, 400);
   for (const src of [`https://osu.ppy.sh/osu/${id}`, `https://catboy.best/osu/${id}`]) {
     try {
-      const r = await fetchImpl(src, { headers: UA, redirect: 'follow' });
-      if (!r.ok) continue;
+      const r = await fetchImpl(src, { headers: UA, redirect: 'follow', signal: timeout(10000) });
+      if (!r.ok || Number(r.headers.get('content-length')) > 4 * 1024 * 1024) continue;
       const text = await r.text();
       if (text.length > 4 * 1024 * 1024 || !/^\s*(\ufeff)?osu file format/.test(text)) continue;
       return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' } });
@@ -326,13 +351,14 @@ export async function handleOsuFile(url, fetchImpl = fetch) {
 
 /** Per-visitor limit on listing requests (Web-Osu-Mania allows 25 a minute; paging is cheap here, so 40), kept per isolate. */
 const searchHits = new Map();
-export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000) {
+export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000, kind = 'search') {
   if (!ip) return true;
-  const hits = (searchHits.get(ip) || []).filter(t => now - t < windowMs);
+  const key = kind + '|' + ip, hits = (searchHits.get(key) || []).filter(t => now - t < windowMs);
+  if (hits.length >= limit) { searchHits.set(key, hits); return false; }
   hits.push(now);
-  searchHits.set(ip, hits);
+  searchHits.set(key, hits);
   if (searchHits.size > 5000) searchHits.delete(searchHits.keys().next().value);
-  return hits.length <= limit;
+  return true;
 }
 
 export { MatchRoom, Matchmaker } from './multiplayer.js';
@@ -358,7 +384,10 @@ export default {
     if (url.pathname === '/share-target') return Response.redirect(new URL('/', url).href, 303);
     if (url.pathname.startsWith('/api/')) {
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: PREFLIGHT });
-      return withCors(await api(request, env, url));
+      let res;
+      try { res = await api(request, env, url); }
+      catch (e) { console.error('api', e); res = json({ error: 'The game\'s server had a problem. Try again in a moment.' }, 500); }
+      return withCors(res);
     }
     return env.ASSETS.fetch(request);
   },
@@ -374,12 +403,16 @@ async function api(request, env, url) {
     return json({ ok: true, official: osuCredentials(env).length > 0, osuApps: osuCredentials(env).length, proxy: !!env.OSU_API_PROXY_URL, multiplayer: !!env.ROOMS, osu, womFallbackError: womApi.lastError }, 200, { 'Cache-Control': 'no-store' });
   }
   if (url.pathname === '/api/getBeatmaps' || url.pathname === '/api/getBeatmap') {
-    if (!allowSearch(request.headers.get('cf-connecting-ip'))) return text('Too many requests. Slow down!', 429);
+    const one = url.pathname === '/api/getBeatmap';
+    if (!allowSearch(request.headers.get('cf-connecting-ip'), Date.now(), one ? 120 : 40, 60000, one ? 'set' : 'search')) return text('Too many requests. Slow down!', 429);
     return url.pathname === '/api/getBeatmaps' ? handleGetBeatmaps(url, env) : handleGetBeatmap(url, env);
   }
   if (url.pathname === '/api/downloadBeatmap') return handleProxyDownload(url);
   if (url.pathname === '/api/osuFile') return handleOsuFile(url);
-  if (url.pathname === '/api/lookupBeatmap') return handleLookupBeatmap(url, env);
+  if (url.pathname === '/api/lookupBeatmap') {
+    if (!allowSearch(request.headers.get('cf-connecting-ip'), Date.now(), 120, 60000, 'lookup')) return json({ error: 'Too many requests. Slow down!' }, 429);
+    return handleLookupBeatmap(url, env);
+  }
   const dl = /^\/api\/download\/(\d+)(?:\.osz)?$/.exec(url.pathname);
   if (dl) return handleDownload(dl[1], fetch, url.searchParams.get('provider') || '');
   if (url.pathname.startsWith('/api/mp/')) return handleMultiplayer(request, env, url);
