@@ -16934,8 +16934,10 @@ const GameplayScreen = {
     a.times.push(dt);
     if (!a.t0) a.t0 = realNow;
     if (realNow - a.t0 < 2000) return;
+    // (a new list for the next window: emptying this one in place emptied `t` too, so late frames were never counted —
+    // stutter went unseen, and a smooth play was never seen as smooth either)
     const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
-    a.times.length = 0; a.t0 = realNow; a.windows++;
+    a.times = []; a.t0 = realNow; a.windows++;
     const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
@@ -20008,7 +20010,8 @@ const CHANGELOG = [
       'Practice: changing the speed twice quickly no longer puts the music out of step',
       'The very longest beatmaps (about 150,000 notes and up) can be played: they failed to start',
       'A long beatmap\'s health drain is worked out about four times faster as the song loads (the same drain as before), on slow devices most of all',
-      'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing'] },
+      'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing',
+      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth — it only reacted when most frames were slow. After a smooth play it tries a little higher again, as it was meant to (it never did)'] },
     { icon: 'multi', title: 'Multiplayer', items: [
       'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
       'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',
@@ -27482,7 +27485,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '012c11130495';
+const APP_BUILD = 'fb9811e51fcf';
 
 const App = {
   lastReport: null,

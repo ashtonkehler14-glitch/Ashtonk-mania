@@ -899,6 +899,18 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     for (const t of document.querySelectorAll('#toasts .toast')) if (/Import problem/.test(t.textContent)) t.remove();
     return r.errors;
   });
+  // automatic resolution: one frame in four late (17, 17, 17, 33…) — the median looks fine, but it stutters
+  const asr = await page.evaluate(() => {
+    const G = GameplayScreen, keep = { as: G._as, r: G.renderer, set: Settings.get('perf.autoScale'), toast: G._asToast, pend: G._asPending };
+    const run = (dts) => { G._as = { on: true, scale: 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 }; let now = 1000; for (const dt of dts) { now += dt; G.adaptResolution(dt, now, 0); } return { scale: G._as.scale, smooth: G._as.smooth, windows: G._as.windows }; };
+    try {
+      G.renderer = { autoScale: 1, resize() {} };
+      const stutter = run(Array.from({ length: 1000 }, (_, i) => i % 4 === 3 ? 33.4 : 16.7));
+      const smooth = run(Array.from({ length: 1000 }, () => 16.7));
+      return { stutter, smooth };
+    } finally { G._as = keep.as; G.renderer = keep.r; G._asToast = keep.toast; G._asPending = keep.pend; Settings.set('perf.autoScale', keep.set); }
+  });
+  check('automatic resolution: a play that stutters (one frame in four late) is drawn smaller; a smooth one counts as smooth', asr.stutter.scale < 1 && asr.smooth.scale === 1 && asr.smooth.smooth >= asr.smooth.windows - 1 && asr.smooth.windows >= 5, JSON.stringify(asr));
   check('a damaged replay or data file says what it isn\'t, not a JSON error', bad.length === 2 && /broken\.amr: Not a valid Ashtonk!mania replay/.test(bad[0]) && /broken\.json: not an Ashtonk!mania data file/.test(bad[1]) && !bad.some(e => /Unexpected|SyntaxError|is not valid JSON/.test(e)), JSON.stringify(bad));
   const wn = await page.evaluate(async () => {
     const W = WhatsNew; await DB.kvSet('changelog.seen', W.latest()); await DB.kvSet('changelog.seenLines', W.lines());

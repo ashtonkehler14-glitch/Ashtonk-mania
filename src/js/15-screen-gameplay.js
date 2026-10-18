@@ -992,8 +992,10 @@ const GameplayScreen = {
     a.times.push(dt);
     if (!a.t0) a.t0 = realNow;
     if (realNow - a.t0 < 2000) return;
+    // (a new list for the next window: emptying this one in place emptied `t` too, so late frames were never counted —
+    // stutter went unseen, and a smooth play was never seen as smooth either)
     const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
-    a.times.length = 0; a.t0 = realNow; a.windows++;
+    a.times = []; a.t0 = realNow; a.windows++;
     const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
