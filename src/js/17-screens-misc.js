@@ -709,7 +709,7 @@ const CHANGELOG = [
       'The very longest beatmaps (about 150,000 notes and up) can be played: they failed to start',
       'A long beatmap\'s health drain is worked out about four times faster as the song loads (the same drain as before), on slow devices most of all',
       'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing',
-      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth, within a few seconds — it only reacted when most frames were slow, and slowly. After a smooth play it tries a little higher again, as it was meant to (it never did)'] },
+      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth, within a few seconds — it only reacted when most frames were slow, and slowly. After a smooth play it tries a little higher again, as it was meant to (it never did). A storyboard is drawn at the lower resolution too'] },
     { icon: 'multi', title: 'Multiplayer', items: [
       'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
       'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',

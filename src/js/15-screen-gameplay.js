@@ -709,7 +709,8 @@ const GameplayScreen = {
   drawStoryboard(now) {
     const c = this.sbCanvas, sb = this.sb;
     if (!sb || !c) return;
-    const k = Math.min(1.5, typeof Zoom !== 'undefined' ? Zoom.dpr() : (window.devicePixelRatio || 1));
+    // (and lower with the playfield's automatic resolution: a full-screen storyboard is often the bigger cost)
+    const k = Math.min(1.5, typeof Zoom !== 'undefined' ? Zoom.dpr() : (window.devicePixelRatio || 1)) * ((this.renderer && this.renderer.autoScale) || 1);
     const W = Math.round(c.clientWidth * k), H = Math.round(c.clientHeight * k);
     if (!W || !H) return;
     if (c.width !== W || c.height !== H) { c.width = W; c.height = H; this._sbCtx = null; }
@@ -979,12 +980,15 @@ const GameplayScreen = {
   /** Slow devices: most of a frame's cost is the canvas's pixel count (profiled on a throttled Chromebook-sized
    *  run: 75% resolution took 31 fps to 47). While playing, every 2 s the median frame time is checked; two slow
    *  windows in a row (under ~45 fps, or the FPS limit), or one far behind, lower the playfield's resolution by 10%,
-   *  down to 60%.
+   *  down to 60% (lower on sharp phone screens: autoMin).
    *  The device remembers it, and after a play that ran smoothly it starts 5% higher next time. */
   AUTO_SCALE_MIN: 0.6,
+  /** How low it goes: 60%, or on a sharp phone screen as far as one pixel per point (the page's own sharpness), where
+   *  60% of its 2–3× was still more pixels than a slow phone could draw. (Only ever used when frames are late.) */
+  autoMin() { return Math.min(this.AUTO_SCALE_MIN, 1 / Math.max(1e-3, Zoom.dpr() * Settings.get('graphics.renderScale'))); },
   initAutoScale() {
     const on = Settings.get('graphics.autoScale');
-    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.AUTO_SCALE_MIN, 1) : 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 };
+    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 };
     this.renderer.autoScale = this._as.scale;
   },
   adaptResolution(dt, realNow, lim) {
@@ -1006,9 +1010,10 @@ const GameplayScreen = {
     const far = med > target * 1.7 || stutter > 0.25;
     a.bad = far ? a.bad + 2 : med > target * 1.33 || stutter > 0.08 ? a.bad + 1 : 0;
     if (med < target * 1.08 && stutter < 0.02) a.smooth++;           // comfortably at full speed
-    if (a.bad >= 2 && a.scale > this.AUTO_SCALE_MIN + 1e-6) {
+    const min = this.autoMin();
+    if (a.bad >= 2 && a.scale > min + 1e-6) {
       a.bad = 0;
-      a.scale = Math.max(this.AUTO_SCALE_MIN, Math.round((a.scale - 0.1) * 100) / 100);
+      a.scale = Math.max(min, Math.round((a.scale - 0.1) * 100) / 100);
       this.renderer.autoScale = a.scale;
       this.renderer.resize(true);
       Settings.set('perf.autoScale', a.scale);
