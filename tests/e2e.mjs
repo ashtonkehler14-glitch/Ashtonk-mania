@@ -22,8 +22,8 @@ const server = createServer((req, res) => {
   try {
     let data;
     try { data = readFileSync(file); } catch { data = readFileSync(join(root, 'public', p)); } // bundled assets (neru.png…)
-    if (p === '/sw.js' && swAs) data = data.toString().replace(/const VERSION = '[^']*'/, `const VERSION = '${swAs}'`);
-    res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
+    if (p === '/sw.js' && swAs) data = Buffer.from(data.toString().replace(/const VERSION = '[^']*'/, `const VERSION = '${swAs}'`));
+    res.writeHead(200, { 'Content-Length': data.length, 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
 }).listen(0);
@@ -1276,10 +1276,14 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const sp = await sctx.newPage();
   sp.on('pageerror', e => errors.push('setup: ' + e.message));
+  // (what the loading screen says as it goes)
+  await sctx.addInitScript(() => { window.__said = []; new MutationObserver(() => { const el = document.querySelector('.load-status'); if (el && window.__said[window.__said.length - 1] !== el.textContent) window.__said.push(el.textContent); }).observe(document, { subtree: true, childList: true, characterData: true }); });
   await sp.goto(url);
   // (the game server's answers, as it gives them)
   await sp.route('**/api/account/code', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true,"code":"K7QM3XRA9DPZW2HF"}' }));
   await sp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
+  const said = await sp.evaluate(() => window.__said);
+  check('first start: the loading screen shows how far Kori\'s download has got', said.some(t => /^Downloading Kori 3\.0… \d+%$/.test(t)) && said.filter(t => /^Downloading/.test(t)).length > 3 && said.includes('Installing Kori 3.0…') && !!(await sp.evaluate(() => AshtonkMania.SkinManager.skins.some(s => /kori/i.test(s.name)))), JSON.stringify(said.slice(0, 6)));
   check('setup: the first page asks whether you\'ve played before (yes, with a code / no, new)', /played Ashtonk!mania before/.test(await sp.textContent('.setup-step-welcome')) && (await sp.$$('.setup-step-welcome .setup-choice')).length === 2);
   await sp.click('.setup-next');
   check('setup: you have to answer it', /Pick one/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));

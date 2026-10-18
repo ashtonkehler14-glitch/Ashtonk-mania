@@ -729,6 +729,10 @@ const CHANGELOG = [
       'Opening the game after an update no longer asks you to update — what opens is the new version already. "Update ready to install" only comes when an update goes up while you have the game open',
       'Signing in, the rankings, multiplayer, the beatmap listing and your kept settings give up on a server that doesn\'t answer and say so, instead of waiting for ever; a skin download that stalls part-way says so too',
       'The first start on a connection that stops answering no longer sits on "Loading skin…" for ever: the game opens, and Kori is put in next time. Online players, the room list, spectating and song previews give up the same way instead of "Connecting…" for ever',
+      'The first start shows how far the Kori skin\'s download has got, instead of "Loading skin…" for as long as it takes',
+      'A server hiccup while the game is saved for offline play no longer leaves an error page as the copy that opens offline',
+      'What\'s new waits for the song to be over when the game reopens straight into a multiplayer match',
+      'Save as an HTML file says so when the connection stops part-way, instead of staying stuck at its percent; with Google\'s fonts blocked (a school network) it\'s saved without them after a few seconds',
       'Changing settings while your skin is still uploading no longer sends it again each time',
       'A skin\'s animations load faster (their frames are read together), and a skin picture or sound that failed to load once is tried again instead of staying missing until a reload',
       'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
@@ -905,6 +909,11 @@ const WhatsNew = {
     const seen = await DB.kvGet('changelog.seen', null).catch(() => null);
     const seenLines = await DB.kvGet('changelog.seenLines', null).catch(() => null);
     if (seen === this.latest() && seenLines >= this.lines()) return;
+    // (the game reopened straight into a song — a multiplayer match it was reloaded in: after the song, not over it)
+    if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') {
+      const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(() => this.maybeShow(), 1200); } });
+      return;
+    }
     await this.markSeen();
     if (!seen && !ProfileManager.profile.onboarded) return; // brand new: nothing to catch up on
     // (every update since the one you saw — up to three; the whole history is in Settings)

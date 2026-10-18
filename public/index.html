@@ -20000,6 +20000,10 @@ const CHANGELOG = [
       'Opening the game after an update no longer asks you to update — what opens is the new version already. "Update ready to install" only comes when an update goes up while you have the game open',
       'Signing in, the rankings, multiplayer, the beatmap listing and your kept settings give up on a server that doesn\'t answer and say so, instead of waiting for ever; a skin download that stalls part-way says so too',
       'The first start on a connection that stops answering no longer sits on "Loading skin…" for ever: the game opens, and Kori is put in next time. Online players, the room list, spectating and song previews give up the same way instead of "Connecting…" for ever',
+      'The first start shows how far the Kori skin\'s download has got, instead of "Loading skin…" for as long as it takes',
+      'A server hiccup while the game is saved for offline play no longer leaves an error page as the copy that opens offline',
+      'What\'s new waits for the song to be over when the game reopens straight into a multiplayer match',
+      'Save as an HTML file says so when the connection stops part-way, instead of staying stuck at its percent; with Google\'s fonts blocked (a school network) it\'s saved without them after a few seconds',
       'Changing settings while your skin is still uploading no longer sends it again each time',
       'A skin\'s animations load faster (their frames are read together), and a skin picture or sound that failed to load once is tried again instead of staying missing until a reload',
       'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
@@ -20176,6 +20180,11 @@ const WhatsNew = {
     const seen = await DB.kvGet('changelog.seen', null).catch(() => null);
     const seenLines = await DB.kvGet('changelog.seenLines', null).catch(() => null);
     if (seen === this.latest() && seenLines >= this.lines()) return;
+    // (the game reopened straight into a song — a multiplayer match it was reloaded in: after the song, not over it)
+    if (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') {
+      const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(() => this.maybeShow(), 1200); } });
+      return;
+    }
     await this.markSeen();
     if (!seen && !ProfileManager.profile.onboarded) return; // brand new: nothing to catch up on
     // (every update since the one you saw — up to three; the whole history is in Settings)
@@ -26979,9 +26988,11 @@ const HtmlFile = {
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
       let r;
-      try { r = await fetch(new URL(path, base), { cache: 'no-cache' }); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
+      // (a file that stops coming part-way is given up on, not waited for with the save stuck at its percent)
+      try { r = await fetchStalled(new URL(path, base), { cache: 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
       if (!r.ok) throw new Error(`${path}: ${r.status}`);
-      return as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob();
+      try { return await (as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob()); }
+      catch (e) { if (e instanceof SyntaxError) throw e; throw new Error('The download stopped part-way. Check your connection and try again.'); }
     };
     let page = await get('index.html', 'text');
     const list = await get('files.json', 'json');
@@ -27014,7 +27025,8 @@ const HtmlFile = {
   async inlineFonts(page) {
     const m = /<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet">/.exec(page);
     if (!m) return page;
-    let css = await (await fetch(m[1].replace(/&amp;/g, '&'))).text();
+    // (Google's servers blocked or not answering — a school network: the link stays, after 15 s at most)
+    let css = await (await fetch(m[1].replace(/&amp;/g, '&'), { signal: timeoutSignal(15000) })).text();
     // (Outfit is one variable font per alphabet: every weight's @font-face names the same file — kept once, as a range)
     const faces = new Map();
     for (const [, body] of css.matchAll(/@font-face\s*{([^}]*)}/g)) {
@@ -27026,7 +27038,7 @@ const HtmlFile = {
     }
     if (faces.size) css = [...faces.values()].map(f => `@font-face {${f.body.replace(/font-weight:\s*\d+/, `font-weight: ${f.lo} ${f.hi}`)}}`).join('\n');
     const urls = [...new Set(css.match(/https:\/\/fonts\.gstatic\.com\/[^)\s'"]+/g) || [])];
-    for (const u of urls) css = css.split(u).join(await blobToDataURL(await (await fetch(u)).blob()));
+    for (const u of urls) css = css.split(u).join(await blobToDataURL(await (await fetch(u, { signal: timeoutSignal(30000) })).blob()));
     return page.replace(m[0], () => `<style>${css}</style>`).replace(/<link rel="preconnect"[^>]*>\n?/g, '');
   },
   async save() {
@@ -27439,7 +27451,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'c0f2e6757c48';
+const APP_BUILD = 'df79177523df';
 
 const App = {
   lastReport: null,
@@ -27536,9 +27548,21 @@ const App = {
     for (const name of Host.standalone ? ['skins/kori.osk'] : ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
         const r = await fetchStalled(Host.asset(encodeURI(name)), { cache: 'no-cache' });
-        if (!r.ok) continue;
-        const blob = await r.blob();
-        if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        if (!r.ok || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        // (how far along, on the loading screen: on a slow phone connection this is most of the first start)
+        let blob;
+        if (r.body && r.body.getReader) {
+          const total = Number(r.headers.get('content-length')) || 0, rd = r.body.getReader(), parts = [];
+          let n = 0;
+          for (;;) {
+            const { done, value } = await rd.read();
+            if (done) break;
+            parts.push(value); n += value.length;
+            say(`Downloading Kori 3.0… ${total ? Math.min(99, Math.floor(n / total * 100)) + '%' : (n / 1048576).toFixed(1) + ' MB'}`);
+          }
+          blob = new Blob(parts, { type: r.headers.get('content-type') || '' });
+        } else blob = await r.blob();
+        if (blob.size < 1000) continue;
         say('Installing Kori 3.0…');
         const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
         if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });

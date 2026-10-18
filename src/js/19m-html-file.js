@@ -15,9 +15,11 @@ const HtmlFile = {
     if (!base) throw new Error('Set the game\'s website address first.');
     const get = async (path, as) => {
       let r;
-      try { r = await fetch(new URL(path, base), { cache: 'no-cache' }); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
+      // (a file that stops coming part-way is given up on, not waited for with the save stuck at its percent)
+      try { r = await fetchStalled(new URL(path, base), { cache: 'no-cache' }, 30000); } catch { throw new Error('Couldn\'t reach the game\'s website. Check your connection and try again.'); }
       if (!r.ok) throw new Error(`${path}: ${r.status}`);
-      return as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob();
+      try { return await (as === 'text' ? r.text() : as === 'json' ? r.json() : r.blob()); }
+      catch (e) { if (e instanceof SyntaxError) throw e; throw new Error('The download stopped part-way. Check your connection and try again.'); }
     };
     let page = await get('index.html', 'text');
     const list = await get('files.json', 'json');
@@ -50,7 +52,8 @@ const HtmlFile = {
   async inlineFonts(page) {
     const m = /<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet">/.exec(page);
     if (!m) return page;
-    let css = await (await fetch(m[1].replace(/&amp;/g, '&'))).text();
+    // (Google's servers blocked or not answering — a school network: the link stays, after 15 s at most)
+    let css = await (await fetch(m[1].replace(/&amp;/g, '&'), { signal: timeoutSignal(15000) })).text();
     // (Outfit is one variable font per alphabet: every weight's @font-face names the same file — kept once, as a range)
     const faces = new Map();
     for (const [, body] of css.matchAll(/@font-face\s*{([^}]*)}/g)) {
@@ -62,7 +65,7 @@ const HtmlFile = {
     }
     if (faces.size) css = [...faces.values()].map(f => `@font-face {${f.body.replace(/font-weight:\s*\d+/, `font-weight: ${f.lo} ${f.hi}`)}}`).join('\n');
     const urls = [...new Set(css.match(/https:\/\/fonts\.gstatic\.com\/[^)\s'"]+/g) || [])];
-    for (const u of urls) css = css.split(u).join(await blobToDataURL(await (await fetch(u)).blob()));
+    for (const u of urls) css = css.split(u).join(await blobToDataURL(await (await fetch(u, { signal: timeoutSignal(30000) })).blob()));
     return page.replace(m[0], () => `<style>${css}</style>`).replace(/<link rel="preconnect"[^>]*>\n?/g, '');
   },
   async save() {

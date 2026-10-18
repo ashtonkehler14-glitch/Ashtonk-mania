@@ -5,7 +5,7 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = 'c0f2e6757c48'; // (changes with every build, so browsers pick up a new service worker after a deploy)
+const VERSION = 'df79177523df'; // (changes with every build, so browsers pick up a new service worker after a deploy)
 const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts', SHARED = 'ashtonk-shared';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 
@@ -13,7 +13,9 @@ self.addEventListener('install', e => {
   e.waitUntil((async () => {
     try {
       const pages = await caches.open(PAGES), assets = await caches.open(ASSETS);
-      await pages.put('./', await fetch('./', { cache: 'reload' }));
+      // (only a page that came: a server error saved here would be what opens offline)
+      const res = await fetch('./', { cache: 'reload' });
+      if (res.ok) await pages.put('./', res);
       await Promise.all(CORE.slice(1).map(u => fetch(u, { cache: 'reload' }).then(r => r.ok && assets.put(u, r)).catch(() => {})));
     } catch (err) { /* offline while installing: the next visit fills the caches */ }
     await self.skipWaiting();

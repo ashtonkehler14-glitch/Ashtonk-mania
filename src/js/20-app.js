@@ -101,9 +101,21 @@ const App = {
     for (const name of Host.standalone ? ['skins/kori.osk'] : ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
         const r = await fetchStalled(Host.asset(encodeURI(name)), { cache: 'no-cache' });
-        if (!r.ok) continue;
-        const blob = await r.blob();
-        if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        if (!r.ok || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
+        // (how far along, on the loading screen: on a slow phone connection this is most of the first start)
+        let blob;
+        if (r.body && r.body.getReader) {
+          const total = Number(r.headers.get('content-length')) || 0, rd = r.body.getReader(), parts = [];
+          let n = 0;
+          for (;;) {
+            const { done, value } = await rd.read();
+            if (done) break;
+            parts.push(value); n += value.length;
+            say(`Downloading Kori 3.0… ${total ? Math.min(99, Math.floor(n / total * 100)) + '%' : (n / 1048576).toFixed(1) + ' MB'}`);
+          }
+          blob = new Blob(parts, { type: r.headers.get('content-type') || '' });
+        } else blob = await r.blob();
+        if (blob.size < 1000) continue;
         say('Installing Kori 3.0…');
         const meta = await SkinManager.importOsk(new File([blob], name.split('/').pop()));
         if (SkinManager.current.builtin || name === 'skins/default.osk') await SkinManager.select(meta.id, { silent: true });
