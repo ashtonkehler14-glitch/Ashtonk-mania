@@ -857,26 +857,31 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.waitForTimeout(200);
   check('clicking a notification does what its toast does, and it\'s done with', await page.evaluate(() => window.__nfClicked === 1 && !Notifications.isOpen() && !Notifications.list.some(n => n.title === 'Clickable notice')));
   // lazer's "Update ready to install": a new version taking over while the game is open (not the first install) says so
-  // (opening the game after a deploy already shows the new version: its worker taking over then says nothing)
+  // (opening the game after a deploy: the browser finds the update as it opens — it was there before you opened the
+  // game — and nothing is said, whichever version opened; only one found by the game's own checks later is news)
   const upd = await page.evaluate(async () => {
-    const sw = navigator.serviceWorker, had = !!sw.controller, real = App.swBuild;
+    const sw = navigator.serviceWorker, had = !!sw.controller, real = App.swBuild, later = App.UPDATE_LATER;
     const said = () => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)) || Notifications.list.some(x => /Update ready/.test(x.title));
+    const reg = window.__updReg = Object.assign(new EventTarget(), { update: () => Promise.resolve() });
     try {
-      App.watchUpdates({ update: () => Promise.resolve() });
+      App.watchUpdates(reg);
       if (!had) { sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 50)); }
       const first = said();
-      App.swBuild = async () => APP_BUILD;
-      sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+      App.UPDATE_LATER = Infinity; App.swBuild = async () => 'a-newer-build';
+      reg.dispatchEvent(new Event('updatefound')); sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
       const opened = said();
-      App.swBuild = async () => 'a-newer-build';
+      App._checkUpdate(); reg.dispatchEvent(new Event('updatefound')); App.swBuild = async () => APP_BUILD;
+      sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+      const same = said();
+      App._checkUpdate(); reg.dispatchEvent(new Event('updatefound')); App.swBuild = async () => 'a-newer-build';
       sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
       const toast = [...document.querySelectorAll('#toasts .toast')].find(t => /Update ready to install/.test(t.textContent));
       const n = Notifications.list.find(x => /Update ready/.test(x.title));
       if (toast) toast.remove();
-      return { first, opened, toast: !!toast, clickable: !!(n && n.onClick) };
-    } finally { App.swBuild = real; }
+      return { first, opened, same, toast: !!toast, clickable: !!(n && n.onClick) };
+    } finally { App.swBuild = real; App.UPDATE_LATER = later; }
   });
-  check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install and opening the game after an update don\'t', !upd.first && !upd.opened && upd.toast && upd.clickable, JSON.stringify(upd));
+  check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install and opening the game after an update don\'t (even on an older copy, as a weak signal opens)', !upd.first && !upd.opened && !upd.same && upd.toast && upd.clickable, JSON.stringify(upd));
   // (found while the game is in the background: it waits for you to be back, or the toast is gone before you see it)
   const hid = await page.evaluate(async () => {
     const sw = navigator.serviceWorker, real = App.swBuild;
@@ -884,6 +889,7 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
     try {
       App._updateReady = false; App.swBuild = async () => 'another-build';
+      App._checkUpdate(); window.__updReg.dispatchEvent(new Event('updatefound'));
       sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
       const away = said();
       delete document.hidden;
@@ -1306,7 +1312,8 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   // an update put up while the game is open says so; opening the game after one (the page is new already) doesn't
   const updSaid = () => op.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)) || Notifications.list.some(n => /Update ready/.test(n.title)));
   swAs = 'aaaaaaaaaaaa';
-  await op.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  await op.waitForFunction(() => !!AshtonkMania.App._checkUpdate, null, { timeout: 10000 }).catch(() => {});
+  await op.evaluate(() => AshtonkMania.App._checkUpdate()); // (the game's own check, as every half hour)
   const pushed = await op.waitForFunction(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)), null, { timeout: 15000 }).then(() => true, () => false);
   swAs = null;
   await op.reload();
@@ -1315,6 +1322,16 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await op.waitForTimeout(1500);
   const reopened = await updSaid();
   check('an update put up while the game is open says "Update ready to install"; opening the game after it doesn\'t ask again', pushed && took && !reopened, JSON.stringify({ pushed, took, reopened }));
+  // …nor when a weak signal opens the saved (older) copy while a newer version is already out: the browser finds it as
+  // the game opens, and the next start is that version
+  swAs = 'bbbbbbbbbbbb'; slowPage = true;
+  await op.reload({ timeout: 14000 }).catch(() => {});
+  await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  const weakTook = await op.waitForFunction(async () => await AshtonkMania.App.swBuild(navigator.serviceWorker.controller) === 'bbbbbbbbbbbb', null, { timeout: 30000, polling: 500 }).then(() => true, () => false);
+  await op.waitForTimeout(1500);
+  const weakSaid = await updSaid();
+  swAs = null; slowPage = false;
+  check('a weak signal opening the saved copy while a newer version is out doesn\'t ask you to update either', weakTook && !weakSaid, JSON.stringify({ weakTook, weakSaid }));
   await octx.close();
 }
 

@@ -328,19 +328,26 @@ const App = {
    *  into it. (every build's service worker is different, so the browser's own update check is what finds it)
    *  Opening the game after a deploy already gets the new page — its service worker taking over a moment later is
    *  nothing to install, so that says nothing: only a build other than this page's does. */
+  UPDATE_LATER: 5 * 60e3, // (found by the browser this long after the page opened: put up while it was open)
   watchUpdates(reg) {
     if (!reg || !reg.update) return; // (no registration: a browser — or test — that blocks service workers)
     const sw = navigator.serviceWorker;
-    let had = !!sw.controller, last = Date.now();
-    const check = () => { last = Date.now(); reg.update().catch(() => {}); };
+    let had = !!sw.controller, last = Date.now(), asked = 0, pushed = false;
+    // An update put up while the game is open is found by one of its own checks (below), or — another tab opening the
+    // new version — by the browser long after this page opened. One the browser finds as the game opens was there
+    // before you opened it (the next start is that version anyway): nothing is said about it, even when a weak signal
+    // opened the saved copy first.
+    const check = () => { last = asked = Date.now(); reg.update().catch(() => {}); };
+    this._checkUpdate = check;
+    if (reg.addEventListener) reg.addEventListener('updatefound', () => { pushed = (asked > 0 && Date.now() - asked < 120e3) || performance.now() > this.UPDATE_LATER; });
     setInterval(check, 30 * 60e3);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 5 * 60e3) check(); });
     sw.addEventListener('controllerchange', async () => {
       if (!had) { had = true; return; } // (the first install taking over isn't an update)
       if (this._updateReady) return;
+      if (!pushed) return;
       const build = await this.swBuild(sw.controller);
-      // (one that doesn't say: an update only once the game has been open a while, not just after it opened)
-      if (build === APP_BUILD || (build == null && performance.now() < 60e3) || this._updateReady) return;
+      if (build === APP_BUILD || this._updateReady) return; // (this page's own version: nothing to install)
       this._updateReady = true;
       const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
       // (as lazer holds notifications while you play, it waits for the song to be over — and, found while the game
