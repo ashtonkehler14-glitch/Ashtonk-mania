@@ -14,6 +14,7 @@ const SHOTS = process.argv.includes('--shots');
 const shotDir = process.env.SHOT_DIR || join(root, 'tests', 'shots');
 if (SHOTS) mkdirSync(shotDir, { recursive: true });
 let slowPage = false; // (a connection that's there but barely: the page takes 15 s — see the offline checks)
+let swAs = null; // (the service worker as another build's: an update put up — see the offline checks)
 const server = createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
   if (slowPage && p === '/') { setTimeout(() => { try { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(readFileSync(join(root, 'index.html'))); } catch { /* gone */ } }, 15000); return; }
@@ -21,6 +22,7 @@ const server = createServer((req, res) => {
   try {
     let data;
     try { data = readFileSync(file); } catch { data = readFileSync(join(root, 'public', p)); } // bundled assets (neru.png…)
+    if (p === '/sw.js' && swAs) data = data.toString().replace(/const VERSION = '[^']*'/, `const VERSION = '${swAs}'`);
     res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' }[extname(file)] || 'application/octet-stream' });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
@@ -855,18 +857,26 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await page.waitForTimeout(200);
   check('clicking a notification does what its toast does, and it\'s done with', await page.evaluate(() => window.__nfClicked === 1 && !Notifications.isOpen() && !Notifications.list.some(n => n.title === 'Clickable notice')));
   // lazer's "Update ready to install": a new version taking over while the game is open (not the first install) says so
+  // (opening the game after a deploy already shows the new version: its worker taking over then says nothing)
   const upd = await page.evaluate(async () => {
-    const sw = navigator.serviceWorker, had = !!sw.controller;
-    App.watchUpdates({ update: () => Promise.resolve() });
-    if (!had) { sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 50)); }
-    const first = [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent));
-    sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
-    const toast = [...document.querySelectorAll('#toasts .toast')].find(t => /Update ready to install/.test(t.textContent));
-    const n = Notifications.list.find(x => /Update ready/.test(x.title));
-    if (toast) toast.remove();
-    return { first, toast: !!toast, clickable: !!(n && n.onClick) };
+    const sw = navigator.serviceWorker, had = !!sw.controller, real = App.swBuild;
+    const said = () => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)) || Notifications.list.some(x => /Update ready/.test(x.title));
+    try {
+      App.watchUpdates({ update: () => Promise.resolve() });
+      if (!had) { sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 50)); }
+      const first = said();
+      App.swBuild = async () => APP_BUILD;
+      sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+      const opened = said();
+      App.swBuild = async () => 'a-newer-build';
+      sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+      const toast = [...document.querySelectorAll('#toasts .toast')].find(t => /Update ready to install/.test(t.textContent));
+      const n = Notifications.list.find(x => /Update ready/.test(x.title));
+      if (toast) toast.remove();
+      return { first, opened, toast: !!toast, clickable: !!(n && n.onClick) };
+    } finally { App.swBuild = real; }
   });
-  check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install doesn\'t', !upd.first && upd.toast && upd.clickable, JSON.stringify(upd));
+  check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install and opening the game after an update don\'t', !upd.first && !upd.opened && upd.toast && upd.clickable, JSON.stringify(upd));
   const wn = await page.evaluate(async () => {
     const W = WhatsNew; await DB.kvSet('changelog.seen', W.latest()); await DB.kvSet('changelog.seenLines', W.lines());
     await W.maybeShow(); const same = !!document.querySelector('.cl');
@@ -1192,6 +1202,18 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const waited = Date.now() - t0;
   slowPage = false;
   check('a barely-there connection: the game opens from its saved copy within seconds, not when the network finally answers', opened && waited < 12000, String(waited));
+  // an update put up while the game is open says so; opening the game after one (the page is new already) doesn't
+  const updSaid = () => op.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)) || Notifications.list.some(n => /Update ready/.test(n.title)));
+  swAs = 'aaaaaaaaaaaa';
+  await op.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  const pushed = await op.waitForFunction(() => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent)), null, { timeout: 15000 }).then(() => true, () => false);
+  swAs = null;
+  await op.reload();
+  await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
+  const took = await op.waitForFunction(async () => await AshtonkMania.App.swBuild(navigator.serviceWorker.controller) === APP_BUILD, null, { timeout: 15000, polling: 300 }).then(() => true, () => false);
+  await op.waitForTimeout(1500);
+  const reopened = await updSaid();
+  check('an update put up while the game is open says "Update ready to install"; opening the game after it doesn\'t ask again', pushed && took && !reopened, JSON.stringify({ pushed, took, reopened }));
   await octx.close();
 }
 

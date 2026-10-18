@@ -45,13 +45,21 @@ const Sync = {
   },
   async push() {
     if (!this.ready()) return;
-    const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
-    let kept; // (undefined: not asked this time; null: the server keeps no skin)
-    if (this.marked('am.setSent') !== sum) {
-      kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
-      this.mark('am.setSent', sum);
+    // (one at a time: a skin still uploading on a slow connection was sent again by every settings change meanwhile)
+    if (this._pushing) { this._again = true; return; }
+    this._pushing = true;
+    try {
+      const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
+      let kept; // (undefined: not asked this time; null: the server keeps no skin)
+      if (this.marked('am.setSent') !== sum) {
+        kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
+        this.mark('am.setSent', sum);
+      }
+      await this.pushSkin(kept);
+    } finally {
+      this._pushing = false;
+      if (this._again) { this._again = false; this.later(); }
     }
-    await this.pushSkin(kept);
   },
   /** The skin you use, if you imported it, once (again when you change skins — or when the server says it keeps
    *  another one: your other device sent its own since). `kept`: the server's, as it answered the settings. */
@@ -64,7 +72,7 @@ const Sync = {
     const blob = await SkinManager.oskBlob(meta.id);
     if (!blob) return;
     if (blob.size > this.SKIN_MAX) { this.mark('am.skinBig', sent); console.warn('skin too big to keep', blob.size); return; }
-    const r = await fetch(Host.api('api/account/skin-up'), { method: 'POST', body: blob,
+    const r = await fetch(Host.api('api/account/skin-up'), { method: 'POST', body: blob, signal: timeoutSignal(600000), // (10 minutes even on a slow connection)
       headers: { 'content-type': 'application/zip', 'x-am-auth': `${me.pid}.${me.key}`, 'x-am-skin': encodeURIComponent(JSON.stringify({ id: meta.id, name: meta.name })) } });
     if (!r.ok) throw new Error(`skin not kept (${r.status})`);
     this.mark('am.skinSent', sent);
@@ -126,17 +134,26 @@ const Sync = {
   },
   /** The kept skin, downloaded (as a file importOsk takes). */
   async skinFile(info, onProgress) {
-    let r;
-    try { r = await fetch(Host.api('api/account/skin'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Account.me()) }); }
-    catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
-    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Your skin couldn't be downloaded (${r.status}).`); }
-    const total = Number(r.headers.get('content-length')) || info.size || 0, parts = [];
-    let n = 0;
-    if (r.body && r.body.getReader) {
-      const rd = r.body.getReader();
-      for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; if (total) onProgress(Math.min(1, n / total)); }
-    } else parts.push(new Uint8Array(await r.arrayBuffer()));
-    return new File(parts, `${info.name || 'skin'}.osk`, { type: 'application/zip' });
+    // (given up on when nothing comes for 30 s — no answer at all, or the download stalling part-way)
+    const ctl = new AbortController();
+    let timer = setTimeout(() => ctl.abort(), 30000);
+    const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 30000); };
+    try {
+      let r;
+      try { r = await fetch(Host.api('api/account/skin'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Account.me()), signal: ctl.signal }); }
+      catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Your skin couldn't be downloaded (${r.status}).`); }
+      const total = Number(r.headers.get('content-length')) || info.size || 0, parts = [];
+      let n = 0;
+      kick();
+      try {
+        if (r.body && r.body.getReader) {
+          const rd = r.body.getReader();
+          for (;;) { const { done, value } = await rd.read(); if (done) break; kick(); parts.push(value); n += value.length; if (total) onProgress(Math.min(1, n / total)); }
+        } else parts.push(new Uint8Array(await r.arrayBuffer()));
+      } catch (e) { throw ctl.signal.aborted ? new Error('Your skin stopped downloading. Check your connection and try again.') : e; }
+      return new File(parts, `${info.name || 'skin'}.osk`, { type: 'application/zip' });
+    } finally { clearTimeout(timer); }
   },
   /** Your settings in place of this device's — except the ones that belong to the device; medals from both. */
   async apply(remote) {

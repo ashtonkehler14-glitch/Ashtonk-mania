@@ -28,10 +28,12 @@ const Account = {
   /** Where Your code is, said for this device (a phone has no right-click). */
   where() { return Mobile.touch ? 'press and hold your name in the top bar → Your code' : 'right-click your name in the top bar → Your code'; },
   async call(what, body) {
-    let r;
-    try { r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
-    catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
-    const d = await r.json().catch(() => ({}));
+    let r, d;
+    try {
+      // (the answer itself is waited for within the time too: a connection that stalls half-way gives up as well)
+      r = await fetch(Host.api('api/account/' + what), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: timeoutSignal(20000) });
+      d = await r.json().catch(e => { if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw e; return {}; });
+    } catch { throw new Error('Couldn\'t reach the game\'s server. Check your connection and try again.'); }
     if (!r.ok || !d.ok) throw Object.assign(new Error(d.error || `The server couldn't do that (${r.status}).`), { status: r.status });
     return d;
   },

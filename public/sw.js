@@ -5,7 +5,7 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = '05e19a3ccd42';
+const VERSION = 'c0f2e6757c48'; // (changes with every build, so browsers pick up a new service worker after a deploy)
 const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts', SHARED = 'ashtonk-shared';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 
@@ -41,6 +41,11 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') e.respondWith(cacheFirst(req, FONTS, e));
+});
+
+// (the page asks which build this is: a worker taking over with the page's own build isn't an update to offer)
+self.addEventListener('message', e => {
+  if (e.data && e.data.t === 'version' && e.ports && e.ports[0]) e.ports[0].postMessage(VERSION);
 });
 
 async function shared(req) {
@@ -94,5 +99,3 @@ async function cacheFirst(req, name, e) {
   if (hit) { e.waitUntil(refresh.catch(() => {})); return hit; }
   return refresh;
 }
-
-void VERSION; // (changes with every build, so browsers pick up a new service worker after a deploy)

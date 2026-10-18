@@ -2,6 +2,9 @@
 
 /** Version of public/skins/kori.osk: 2 added its health bar (scorebar-bg / scorebar-colour). */
 const BUNDLED_KORI_VERSION = 2;
+/** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
+ *  already have. */
+const APP_BUILD = '__BUILD__';
 
 const App = {
   lastReport: null,
@@ -94,9 +97,10 @@ const App = {
       if (SkinManager.current.builtin) await SkinManager.select(existing.id, { silent: true });
       return;
     }
+    // (the loading screen waits for it, so a connection that stops answering gives up — it's tried again next time)
     for (const name of Host.standalone ? ['skins/kori.osk'] : ['skins/default.osk', 'skins/kori.osk', 'public/skins/kori.osk', 'skins/Kori 3.0.osk']) {
       try {
-        const r = await fetch(Host.asset(encodeURI(name)), { cache: 'no-cache' });
+        const r = await fetchStalled(Host.asset(encodeURI(name)), { cache: 'no-cache' });
         if (!r.ok) continue;
         const blob = await r.blob();
         if (blob.size < 1000 || !/zip|octet|osk/i.test(r.headers.get('content-type') || 'zip')) continue;
@@ -149,7 +153,7 @@ const App = {
     try {
       const kori = SkinManager.skins.find(sk => (sk.source === 'kori.osk' || /kori 3\.0$/i.test(sk.name || '')) && !sk.files.some(f => /^scorebar-colour/i.test(f)));
       if (kori) {
-        const r = await fetch(Host.asset('skins/kori.osk'), { cache: 'no-cache' });
+        const r = await fetchStalled(Host.asset('skins/kori.osk'), { cache: 'no-cache' }); // (as the install: the loading screen waits)
         if (!r.ok) return; // try again next launch
         const zip = new ZipReader(await r.arrayBuffer());
         const files = [];
@@ -308,21 +312,35 @@ const App = {
   installPrompt: null,
   /** lazer's UpdateManager: a new version put up while the game is open — an installed app can sit in the background
    *  for days — is noticed (every half hour, and on coming back to the game), and a notification offers to restart
-   *  into it. (every build's service worker is different, so the browser's own update check is what finds it) */
+   *  into it. (every build's service worker is different, so the browser's own update check is what finds it)
+   *  Opening the game after a deploy already gets the new page — its service worker taking over a moment later is
+   *  nothing to install, so that says nothing: only a build other than this page's does. */
   watchUpdates(reg) {
     const sw = navigator.serviceWorker;
     let had = !!sw.controller, last = Date.now();
     const check = () => { last = Date.now(); reg.update().catch(() => {}); };
     setInterval(check, 30 * 60e3);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 5 * 60e3) check(); });
-    sw.addEventListener('controllerchange', () => {
+    sw.addEventListener('controllerchange', async () => {
       if (!had) { had = true; return; } // (the first install taking over isn't an update)
       if (this._updateReady) return;
+      const build = await this.swBuild(sw.controller);
+      // (one that doesn't say: an update only once the game has been open a while, not just after it opened)
+      if (build === APP_BUILD || (build == null && performance.now() < 60e3) || this._updateReady) return;
       this._updateReady = true;
       const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
       // (as lazer holds notifications while you play, it waits for the song to be over)
       if (Screens.currentName !== 'gameplay') notify();
       else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }
+    });
+  },
+  /** The build the service worker now in charge carries (null when there's none, or it doesn't answer in time). */
+  swBuild(ctl) {
+    return new Promise(resolve => {
+      if (!ctl) { resolve(null); return; }
+      const ch = new MessageChannel(), timer = setTimeout(() => resolve(null), 3000);
+      ch.port1.onmessage = e => { clearTimeout(timer); resolve(typeof e.data === 'string' ? e.data : null); };
+      try { ctl.postMessage({ t: 'version' }, [ch.port2]); } catch { clearTimeout(timer); resolve(null); }
     });
   },
   /** Chrome on Android, reopening the tab after you've been in another app, shows a picture of the page from when you

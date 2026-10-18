@@ -39,7 +39,7 @@ const Verified = {
     const body = JSON.stringify({ id: Multiplayer.me, token, osu, play: { mods, modConfig, seed, events: [...events] } }), until = Date.now() + 22000;
     for (let i = 0; Date.now() < until && Multiplayer.code === code; i++) {
       try {
-        const r = await fetch(Host.api(`api/mp/room/${code}/verify`), { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+        const r = await fetch(Host.api(`api/mp/room/${code}/verify`), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(15000) });
         if (r.ok || r.status === 422 || r.status === 403) return;
       } catch { /* network: try again */ }
       await new Promise(res => { const t = setTimeout(done, Math.min(4000, 1000 * (i + 1))); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
@@ -57,7 +57,7 @@ const Verified = {
     const until = Date.now() + 120000;
     let r = null;
     for (let i = 0; !r; i++) {
-      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body }); if (r.status >= 500 && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if (r.status >= 500 && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
       if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
     try {

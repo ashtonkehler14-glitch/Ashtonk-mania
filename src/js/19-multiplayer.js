@@ -28,7 +28,9 @@ const Multiplayer = {
   self() { return this.room ? this.room.players.find(p => p.id === this.me) || null : null; },
 
   async api(path, body) {
-    const r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    let r;
+    try { r = await fetch(Host.api(path), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}), signal: timeoutSignal(20000) }); }
+    catch (e) { throw (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) ? new Error('The game\'s server didn\'t answer. Check your connection and try again.') : e; }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || `Server error (${r.status})`);
     return d;
@@ -460,7 +462,8 @@ const Presence = {
     // only where the Worker serves multiplayer (a plain static copy has no /api): 'checking' until we know
     this.health = 'checking';
     const none = () => { this.health = 'none'; Bus.emit('presence:changed'); clearTimeout(this._hT); this._hT = setTimeout(() => this.tryNow(true), 60000); };
-    fetch(Host.api('api/health'), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
+    // (no answer in 15 s counts as no server: "Connecting…" otherwise stays up for as long as the request hangs)
+    fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.multiplayer) { this.health = 'ok'; this.connect(); } else none(); }).catch(none);
     const push = () => this.pushStatus();
     Bus.on('mp:changed', push); Bus.on('profile:changed', push); Bus.on('screen:changed', push);
     Bus.on('scores:changed', () => { clearTimeout(this._rkT); this._rkT = setTimeout(() => Rankings.report(), 2000); });
@@ -582,7 +585,7 @@ const Presence = {
     if (this.health === 'ok') this.connect();
     else {
       this.health = 'checking';
-      fetch(Host.api('api/health'), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+      fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) }).then(r => r.ok ? r.json() : null).then(d => {
         if (d && d.multiplayer) { this.health = 'ok'; this.connect(); return; }
         this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000);
       }).catch(() => { this.health = 'none'; Bus.emit('presence:changed'); this._hT = setTimeout(() => this.tryNow(true), 60000); });
@@ -852,7 +855,7 @@ const MultiplayerScreen = {
     const el = this.roomsEl;
     if (!el || !el.isConnected || Multiplayer.inRoom()) return;
     let rooms = null;
-    try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store' }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
+    try { const r = await fetch(Host.api('api/mp/rooms'), { cache: 'no-store', signal: timeoutSignal(15000) }); rooms = r.ok ? (await r.json()).rooms : null; } catch { rooms = null; }
     if (!el.isConnected || Multiplayer.inRoom()) return;
     // one request that didn't make it (a network blip) keeps the list as it was, rather than flashing "offline"
     if (rooms) this._roomsMiss = 0;

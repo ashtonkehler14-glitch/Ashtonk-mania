@@ -50,6 +50,25 @@ function appendChildren(el, children) {
 function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+/** A signal that gives up on a request after `ms`: a connection that's open but answers nothing otherwise leaves the
+ *  request waiting for minutes (a spinner that never stops). */
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) return AbortSignal.timeout(ms);
+  const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal;
+}
+/** fetch, given up on when nothing comes for `ms` — no answer, or a download that stops part-way — while a slow one that
+ *  keeps coming is waited for, however long it takes. */
+async function fetchStalled(url, opts = {}, ms = 15000) {
+  const ctl = new AbortController();
+  let timer = setTimeout(() => ctl.abort(), ms);
+  const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), ms); };
+  let r;
+  try { r = await fetch(url, { ...opts, signal: ctl.signal }); } catch (e) { clearTimeout(timer); throw e; }
+  if (!r.body || typeof TransformStream === 'undefined' || !r.status) { clearTimeout(timer); return r; }
+  kick();
+  const body = r.body.pipeThrough(new TransformStream({ transform(chunk, out) { kick(); out.enqueue(chunk); }, flush() { clearTimeout(timer); } }));
+  return new Response(body, { status: r.status, statusText: r.statusText, headers: r.headers });
+}
 /** The latest note end (or any value) in a list — by hand: Math.max(...list) throws for a list of a hundred thousand or
  *  more (a marathon map's notes). */
 function maxOf(list, f = x => x, empty = 0) { let m = -Infinity; for (const x of list) { const v = f(x); if (v > m) m = v; } return m === -Infinity ? empty : m; }

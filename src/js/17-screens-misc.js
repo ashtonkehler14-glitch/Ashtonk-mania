@@ -726,6 +726,11 @@ const CHANGELOG = [
       'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
+      'Opening the game after an update no longer asks you to update — what opens is the new version already. "Update ready to install" only comes when an update goes up while you have the game open',
+      'Signing in, the rankings, multiplayer, the beatmap listing and your kept settings give up on a server that doesn\'t answer and say so, instead of waiting for ever; a skin download that stalls part-way says so too',
+      'The first start on a connection that stops answering no longer sits on "Loading skin…" for ever: the game opens, and Kori is put in next time. Online players, the room list, spectating and song previews give up the same way instead of "Connecting…" for ever',
+      'Changing settings while your skin is still uploading no longer sends it again each time',
+      'A skin\'s animations load faster (their frames are read together), and a skin picture or sound that failed to load once is tried again instead of staying missing until a reload',
       'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
       'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
       'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',

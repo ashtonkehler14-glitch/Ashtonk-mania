@@ -50,7 +50,7 @@ const OnlineBeatmaps = {
     if (this.apiAvailable !== null) return this.apiAvailable;
     if (!Host.online()) return (this.apiAvailable = false);
     try {
-      const r = await fetch(Host.api('api/health'), { cache: 'no-store' });
+      const r = await fetch(Host.api('api/health'), { cache: 'no-store', signal: timeoutSignal(15000) });
       this.apiAvailable = r.ok && /json/.test(r.headers.get('content-type') || '');
     } catch (e) { this.apiAvailable = false; }
     return this.apiAvailable;
@@ -148,7 +148,7 @@ const OnlineBeatmaps = {
    *  the server itself is down (an error with nothing to say), as every other online page says it. */
   async api(url) {
     let r;
-    try { r = await fetch(Host.api(url)); } catch (e) { throw this.serverDown(); }
+    try { r = await fetch(Host.api(url), { signal: timeoutSignal(20000) }); } catch (e) { throw this.serverDown(); } // (no answer in 20 s: as if down)
     if (!r.ok) {
       let t = '';
       try { t = (await r.text()).trim(); if (/^\s*</.test(t)) t = ''; } catch { /* no body */ }
@@ -1040,7 +1040,7 @@ const BeatmapStatus = {
     if (!m) return null;
     let q = m.onlineId > 0 ? `id=${m.onlineId}` : '';
     if (!q) { const b = await BeatmapManager.getFile(set.id, m.osuPath); if (!b) return null; q = `checksum=${md5Hex(new Uint8Array(await b.arrayBuffer()))}`; }
-    const r = await fetch(Host.api(`api/lookupBeatmap?${q}`));
+    const r = await fetch(Host.api(`api/lookupBeatmap?${q}`), { signal: timeoutSignal(20000) });
     if (r.status === 404 || r.status === 400) return null;
     if (!r.ok) throw Object.assign(new Error(`Code ${r.status}`), { status: r.status });
     const d = await r.json();

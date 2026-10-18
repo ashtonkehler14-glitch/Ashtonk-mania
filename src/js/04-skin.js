@@ -112,7 +112,9 @@ async function decodeImage(blob) {
   try {
     if (typeof createImageBitmap === 'function') return await createImageBitmap(blob);
   } catch (e) { /* fall through */ }
-  return loadImageBlob(blob);
+  const img = await loadImageBlob(blob);
+  if (img) URL.revokeObjectURL(img.src); // (loaded: it's drawn from memory, the address isn't needed again)
+  return img;
 }
 
 /** Base skin: file-backed (imported .osk). */
@@ -157,20 +159,26 @@ class Skin {
     if (this.texCache.has(key)) return this.texCache.get(key);
     const p = this._loadTexture(key, fps);
     this.texCache.set(key, p);
-    return p;
+    return Skin.unstick(this.texCache, key, p);
   }
+  /** A load that failed (storage busy for a moment) isn't kept: the next ask tries again, instead of the skin failing
+   *  until the page is reloaded. */
+  static unstick(cache, key, p) { p.catch(() => { if (cache.get(key) === p) cache.delete(key); }); return p; }
   async _loadTexture(key, fps) {
     const want2x = SkinManager.prefer2x();
     const pick = e => (want2x && e.hd) ? { path: e.hd, scale: 2 } : e.sd ? { path: e.sd, scale: 1 } : e.hd ? { path: e.hd, scale: 2 } : null;
     const frames = [];
     let scale = 1;
     if (this.index.has(key + '-0')) {
-      for (let i = 0; i < 240 && this.index.has(`${key}-${i}`); i++) {
-        const p = pick(this.index.get(`${key}-${i}`));
-        const img = p && await decodeImage(await this._blob(p.path));
-        if (!img) break;
-        frames.push(img); scale = p.scale;
-      }
+      let n = 0;
+      while (n < 240 && this.index.has(`${key}-${n}`)) n++;
+      // (an animation's frames read and decoded together: one after another, a long one held up loading the song)
+      const picks = Array.from({ length: n }, (_, i) => pick(this.index.get(`${key}-${i}`)));
+      const imgs = await Promise.all(picks.map(async p => p && await decodeImage(await this._blob(p.path))));
+      // (up to the first frame that's missing or can't be read, as before)
+      let i = 0;
+      for (; i < n && imgs[i]; i++) { frames.push(imgs[i]); scale = picks[i].scale; }
+      for (; i < n; i++) if (imgs[i] && imgs[i].close) imgs[i].close();
     }
     if (!frames.length && this.index.has(key)) {
       const p = pick(this.index.get(key));
@@ -201,7 +209,7 @@ class Skin {
       return AudioManager.decode(await blob.arrayBuffer()).catch(() => null);
     })();
     this.soundCache.set(key, p);
-    return p;
+    return Skin.unstick(this.soundCache, key, p);
   }
 
   /** The [Mania] section for a key count. When a skin has several for the same count (edits often paste a new
@@ -306,7 +314,7 @@ class Skin {
     if (this.layoutCache.has(keys)) return this.layoutCache.get(keys);
     const p = ManiaLayout.resolve(this, keys);
     this.layoutCache.set(keys, p);
-    return p;
+    return Skin.unstick(this.layoutCache, keys, p);
   }
   dispose() {
     for (const p of this.texCache.values()) Promise.resolve(p).then(t => t && t.frames.forEach(f => f.close && f.close()));
@@ -346,7 +354,7 @@ class BeatmapSkin extends Skin {
       return frames.length ? new Texture(frames, 1, opts.fps || 60) : this.base.texture(name, opts);
     })();
     this.texCache.set(key, p);
-    return p;
+    return Skin.unstick(this.texCache, key, p);
   }
   sound(name) { return this.base.sound(name); }
   dispose() {
@@ -400,7 +408,7 @@ class DefaultSkin extends Skin {
       return L;
     })();
     this.layoutCache.set(keys, p);
-    return p;
+    return Skin.unstick(this.layoutCache, keys, p);
   }
   async texture(name) {
     const key = this._key(name);

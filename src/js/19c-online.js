@@ -194,7 +194,7 @@ const Spectate = {
   findMap(head) { return BeatmapManager.mapByHash(head.mapHash) || (head.onlineId > 0 ? [...BeatmapManager.maps.values()].find(x => x.onlineId === head.onlineId) : null); },
   /** The difficulty they're playing, on its own (not imported): enough to show their play. */
   async tempMap(head) {
-    const r = await fetch(Host.api('api/osuFile?id=' + head.onlineId));
+    const r = await fetch(Host.api('api/osuFile?id=' + head.onlineId), { signal: timeoutSignal(20000) });
     if (!r.ok) throw new Error(`osu file ${r.status}`);
     const bm = BeatmapParser.parse(await r.text());
     const notes = BeatmapParser.toManiaNotes(bm);

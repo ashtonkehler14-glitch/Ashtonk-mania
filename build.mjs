@@ -16,15 +16,18 @@ const workerSrc = '"use strict";\n' + WORKER_FILES.map(f => readFileSync(join(js
 if (/<\/script|<!--/i.test(workerSrc)) throw new Error('the install worker\'s code has text that would end the page\'s script early');
 const js = `const IMPORT_WORKER_SRC = ${JSON.stringify(workerSrc)};\n` + readdirSync(jsDir).filter(f => f.endsWith('.js')).sort()
   .map(f => `/* ===== ${f} ===== */\n` + readFileSync(join(jsDir, f), 'utf8')).join('\n');
-const out = tpl
+let out = tpl
   .replace('/*__CSS__*/', () => css)
   .replace('/*__JS__*/', () => '"use strict";\n' + js);
+// the build's hash: in the service worker (so browsers update it after each deploy) and in the page (APP_BUILD in
+// src/js/20-app.js), so the game can tell a new version from the one it's showing
+const version = createHash('sha256').update(out).digest('hex').slice(0, 12);
+if (!out.includes("const APP_BUILD = '__BUILD__';")) throw new Error('APP_BUILD is missing from src/js/20-app.js');
+out = out.replace("const APP_BUILD = '__BUILD__';", () => `const APP_BUILD = '${version}';`);
 writeFileSync(join(root, 'index.html'), out);
 // public/ is what Cloudflare serves (see wrangler.jsonc): only the built client, never sources or tests.
 mkdirSync(join(root, 'public'), { recursive: true });
 writeFileSync(join(root, 'public', 'index.html'), out);
-// the service worker (offline play) carries the build's hash, so browsers update it after each deploy
-const version = createHash('sha256').update(out).digest('hex').slice(0, 12);
 writeFileSync(join(root, 'public', 'sw.js'), readFileSync(join(root, 'src/sw.js'), 'utf8').replace('__VERSION__', version));
 console.log(`index.html written (${(out.length / 1024).toFixed(1)} KiB)`);
 // the files the page loads (skins, Neru, avatars, cursor, WOM images): what "Save as an HTML file" puts inside the file
