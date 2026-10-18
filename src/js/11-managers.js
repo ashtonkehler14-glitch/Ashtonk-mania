@@ -121,7 +121,11 @@ const ReplayManager = {
     if (!Array.isArray(obj.windows) || obj.windows.length !== 6) throw new Error('Replay is missing timing windows');
     return obj;
   },
-  async importFile(f) { return this.importObject(JSON.parse(await f.text())); },
+  async importFile(f) {
+    let obj;
+    try { obj = JSON.parse(await f.text()); } catch { throw new Error('Not a valid Ashtonk!mania replay'); } // (damaged, or not one at all)
+    return this.importObject(obj);
+  },
   async importObject(obj) { this.validate(obj); return this.save({ ...obj, imported: true }); },
 };
 

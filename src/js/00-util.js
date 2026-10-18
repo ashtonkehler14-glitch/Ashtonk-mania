@@ -407,6 +407,7 @@ function friendlyError(e) {
     return navigator.onLine === false ? 'You\'re offline. Connect to the internet and try again.' : 'Couldn\'t reach the server. Check your connection and try again.';
   if (name === 'EncodingError' || /unable to decode|decodeaudiodata/i.test(msg))
     return 'This browser can\'t decode that audio file (it may be damaged or in an unsupported format).';
+  if (name === 'TimeoutError') return 'The server didn\'t answer in time. Check your connection and try again.';
   if (name === 'NotReadableError') return 'The file couldn\'t be read. Was it moved, deleted, or is it still downloading?';
   return msg;
 }

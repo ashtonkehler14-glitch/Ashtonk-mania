@@ -159,7 +159,8 @@ const BeatmapManager = {
         }
         else if (ext === 'zip') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
         else if (ext === 'json' && !name.includes('/')) {
-          const obj = JSON.parse(await f.text());
+          let obj = null;
+          try { obj = JSON.parse(await f.text()); } catch { /* not JSON at all: said below */ }
           if (obj && obj.app === APP_NAME && obj.kind === 'replay') report.replays.push(await ReplayManager.importObject(obj));
           else if (obj && obj.app === APP_NAME) { await DataManager.importAll(obj); report.data = true; }
           else report.errors.push(`${f.name}: not an ${APP_NAME} data file`);

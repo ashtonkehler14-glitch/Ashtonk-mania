@@ -487,7 +487,7 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && Ashto
     G.replaySeek(0); const z = s.engine.score.judged;
     G.replaySeek(mid); const b = { score: s.engine.score.score, judged: s.engine.score.judged, combo: s.engine.score.combo, hp: s.engine.health.value };
     const expect = s.baseNotes.filter(n => n.time < mid - 200).length;
-    return { a, b, z, expect, near: Math.abs(G.gameTime() - mid) < 250 };
+    return { a, b, z, expect, near: Math.abs(G.gameTime() - mid) < 250, at: Math.round(G.gameTime()), mid: Math.round(mid) };
   });
   check('replay seek re-judges the recorded inputs up to that point (the same every time)', seek.a.judged >= seek.expect && seek.a.judged > 0 && seek.z === 0 && JSON.stringify(seek.a) === JSON.stringify(seek.b) && seek.near, JSON.stringify(seek));
   await page.keyboard.press('Space'); await page.waitForTimeout(250);
@@ -877,6 +877,29 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     } finally { App.swBuild = real; }
   });
   check('a new version going live while the game is open shows lazer\'s "Update ready to install" (click to restart); the first install and opening the game after an update don\'t', !upd.first && !upd.opened && upd.toast && upd.clickable, JSON.stringify(upd));
+  // (found while the game is in the background: it waits for you to be back, or the toast is gone before you see it)
+  const hid = await page.evaluate(async () => {
+    const sw = navigator.serviceWorker, real = App.swBuild;
+    const said = () => [...document.querySelectorAll('#toasts .toast')].some(t => /Update ready/.test(t.textContent));
+    Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+    try {
+      App._updateReady = false; App.swBuild = async () => 'another-build';
+      sw.dispatchEvent(new Event('controllerchange')); await new Promise(r => setTimeout(r, 100));
+      const away = said();
+      delete document.hidden;
+      document.dispatchEvent(new Event('visibilitychange')); await new Promise(r => setTimeout(r, 100));
+      const back = said();
+      for (const t of document.querySelectorAll('#toasts .toast')) if (/Update ready/.test(t.textContent)) t.remove();
+      return { away, back };
+    } finally { App.swBuild = real; delete document.hidden; }
+  });
+  check('an update found while the game is in the background says so once you\'re back', !hid.away && hid.back, JSON.stringify(hid));
+  const bad = await page.evaluate(async () => {
+    const r = await App.importFiles([new File(['not a replay'], 'broken.amr'), new File(['{"app": oops'], 'broken.json')]);
+    for (const t of document.querySelectorAll('#toasts .toast')) if (/Import problem/.test(t.textContent)) t.remove();
+    return r.errors;
+  });
+  check('a damaged replay or data file says what it isn\'t, not a JSON error', bad.length === 2 && /broken\.amr: Not a valid Ashtonk!mania replay/.test(bad[0]) && /broken\.json: not an Ashtonk!mania data file/.test(bad[1]) && !bad.some(e => /Unexpected|SyntaxError|is not valid JSON/.test(e)), JSON.stringify(bad));
   const wn = await page.evaluate(async () => {
     const W = WhatsNew; await DB.kvSet('changelog.seen', W.latest()); await DB.kvSet('changelog.seenLines', W.lines());
     await W.maybeShow(); const same = !!document.querySelector('.cl');

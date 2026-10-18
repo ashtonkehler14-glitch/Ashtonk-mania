@@ -341,9 +341,14 @@ const App = {
       if (build === APP_BUILD || (build == null && performance.now() < 60e3) || this._updateReady) return;
       this._updateReady = true;
       const notify = () => Toast.show('Update ready to install', kbHint('Click to restart!', 'Tap to restart!'), { timeout: 15000, onClick: () => location.reload() });
-      // (as lazer holds notifications while you play, it waits for the song to be over)
-      if (Screens.currentName !== 'gameplay') notify();
-      else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); notify(); } }); }
+      // (as lazer holds notifications while you play, it waits for the song to be over — and, found while the game
+      // was in the background, for you to be back: the toast would be gone before you saw it)
+      const when = () => {
+        if (document.hidden) { const back = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', back); when(); } }; document.addEventListener('visibilitychange', back); }
+        else if (Screens.currentName !== 'gameplay') notify();
+        else { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); when(); } }); }
+      };
+      when();
     });
   },
   /** The build the service worker now in charge carries (null when there's none, or it doesn't answer in time). */
