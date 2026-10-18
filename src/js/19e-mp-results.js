@@ -95,6 +95,7 @@ const MpResults = {
     const fromRect = fromEl.getBoundingClientRect(), oldRect = this.card.getBoundingClientRect(), oldId = this.focus;
     const card = ResultsScreen.gradeCard(me ? this.my : this.scoreOf(r, res), me ? { mp: true } : { watched: 'online', mp: true });
     if (this.place) card.prepend(this.place);
+    if (this.grid) ResultsScreen.statsToggle(card, this.grid);
     this.card.replaceWith(card); this.card = card;
     this.focus = r.id; this._key = null;
     this.paint();

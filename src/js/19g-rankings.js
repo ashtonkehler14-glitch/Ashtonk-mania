@@ -47,6 +47,7 @@ const Verified = {
   },
   async submit({ rec, mods, modConfig, seed, events, daily = null }) {
     if (!Multiplayer.available() || !Presence.pid()) return null; // (signed out: no scores go up)
+    const sent = Date.now(); // (which play an answer is for: the results screen only shows its own play's rank)
     const osu = await this.file(rec);
     if (!osu) return null;
     const body = JSON.stringify({ pid: Presence.pid(), key: Presence.key(), osu, play: { mods, modConfig, seed, events: [...events] }, daily });
@@ -68,8 +69,8 @@ const Verified = {
       }
       if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
       else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
-      this.last = { d, at: Date.now() };
-      Bus.emit('verified', d);
+      this.last = { d, at: Date.now(), sent };
+      Bus.emit('verified', d, sent);
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
   },

@@ -235,8 +235,10 @@ const Tooltip = {
  *  SS / S, silver-blue for their Hidden variants (XH / SH). */
 const RANK_COLOURS = { XH: '#de31ae', X: '#de31ae', SS: '#de31ae', SH: '#02b5c3', S: '#02b5c3', A: '#88da20', B: '#e3b130', C: '#ff8e5d', D: '#ff5a5a', F: '#9a9a9a' };
 const RANK_INK = { XH: '#dff3fb', SH: '#dff3fb', X: '#ffd257', SS: '#ffd257', S: '#ffd257', A: '#275227', B: '#553a2b', C: '#473625', D: '#512525', F: '#303030' };
+/** A grade as it's shown: SS for X and XH (SS with Hidden), S for SH. */
+function gradeLabel(g) { return g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g; }
 function rankPill(g) {
-  const label = g === 'XH' || g === 'X' ? 'SS' : g === 'SH' ? 'S' : g;
+  const label = gradeLabel(g);
   return h('span.rank-pill', { style: { '--rc': RANK_COLOURS[g] || '#888', '--rt': RANK_INK[g] || '#222' }, title: g === 'XH' || g === 'SH' ? `${label} (Hidden)` : label }, label);
 }
 function gradeEl(g, cls = '') {

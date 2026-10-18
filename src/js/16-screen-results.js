@@ -22,13 +22,7 @@ const ResultsScreen = {
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
     const grid = h('div.res-grid');
     const card = this.gradeCard(s, p);
-    card.title = 'Click for statistics';
-    card.addEventListener('click', e => {
-      if (e.target.closest('button, a, input')) return;
-      UISounds.click();
-      grid.classList.toggle('stats-open');
-      card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
-    });
+    this.statsToggle(card, grid);
     grid.append(card, this.rightCol(s));
     body.append(grid);
     if (p.mp) { body.classList.add('mp'); MpResults.mount(body, grid, card, s); }
@@ -36,8 +30,19 @@ const ResultsScreen = {
     const actions = this.actions(s, p, map);
     el.append(body, actions);
     this.fitToScreen(body, grid);
-    if (p.fresh && s.passed) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
+    if (!this._swapping) this._origP = p; // (the results as they opened: switching back to that score restores them)
+    if (p.fresh && s.passed && !this._swapping) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
     return el;
+  },
+  /** Clicking the big panel slides it aside for the statistics, and back (any card that becomes the big one). */
+  statsToggle(card, grid) {
+    card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
+    card.addEventListener('click', e => {
+      if (e.target.closest('button, a, input')) return;
+      UISounds.click();
+      grid.classList.toggle('stats-open');
+      card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
+    });
   },
   /** Never scroll: the panels shrink as one to fit whatever space is left (opening the statistics, or more of them,
    *  or a small window / phone), the way lazer's results always sit whole on screen. */
@@ -55,7 +60,7 @@ const ResultsScreen = {
       let others = 0;
       for (const c of body.children) if (c !== grid && c.offsetParent) others += c.offsetHeight + (parseFloat(cs.rowGap) || 0);
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
-      const k = Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight);
+      const k = Math.max(0.35, Math.min(1, aw / grid.offsetWidth, ah / grid.offsetHeight));
       const on = k < 0.995;
       grid.style.scale = on ? k.toFixed(4) : '';
       // (shrunk from the top, and giving back the height it no longer uses, so the column stays centred on screen)
@@ -71,7 +76,10 @@ const ResultsScreen = {
     const fromRect = fromEl && fromEl.getBoundingClientRect(), oldCard = old.querySelector('.res-grid > .rs'), oldRect = oldCard && oldCard.getBoundingClientRect();
     (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = [];
     // (the screen keeps its own element — the one the screen manager removes on leaving — and takes the new contents)
-    const built = this.enter({ ...this.p, score, fromList: true, fresh: false, replay: null });
+    const base = this._origP, back = base && score === base.score;
+    this._swapping = true;
+    let built;
+    try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
     this._el = old;
     const fresh = old;
@@ -95,10 +103,12 @@ const ResultsScreen = {
   /** lazer's results sounds: a tick each step of the accuracy circle (slowing down and rising in pitch as the
    *  fill eases out), then the rank's impact as the grade lands. */
   async introSounds(acc, fillMs, failed) {
+    (this._srcs || []).forEach(x => { try { x.stop(); } catch { /* ended */ } });
+    const tok = this._sndTok = {};
     this._srcs = [];
     if (!fillMs || !Settings.get('audio.uiSounds') || !AudioManager.ctx || AudioManager.ctx.state !== 'running') return;
     const [tick, impact] = await Promise.all([UISounds._get('score-tick'), UISounds._get(failed ? 'rank-impact-fail' : 'rank-impact-pass')]);
-    if (Screens.currentName !== 'results') return;
+    if (Screens.currentName !== 'results' || tok !== this._sndTok) return;
     const t0 = AudioManager.ctx.currentTime + 0.03, N = Math.max(1, Math.round(acc * 40));
     let last = -1;
     for (let k = 1; k <= N; k++) {
@@ -112,6 +122,8 @@ const ResultsScreen = {
   },
   onKey(e) {
     if (this.p.mp || this.p.browse) return false; // (a room's match isn't yours to retry; nor, as in lazer, a score opened from a leaderboard or profile)
+    if (e.repeat) return true; // (a column key still held as the song ended)
+    if ((e.code === 'Enter' || e.code === 'Space') && e.target && e.target.closest && e.target.closest('button, summary, a, input, select')) return false;
     if (e.code === 'KeyR' || (e.ctrlKey && e.code === 'KeyR')) { this.retry(); return true; }
     if (e.code === 'Enter' || e.code === 'Space') { this.retry(); return true; }
     return false;
@@ -122,13 +134,13 @@ const ResultsScreen = {
     const map = BeatmapManager.mapByHash(s.mapHash);
     if (!map) { Toast.err('Beatmap not found', 'This beatmap is no longer in your library.'); return; }
     UISounds.click();
-    Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), mode: 'play', back: this.p.back && this.p.back.name !== 'results' ? this.p.back : null, daily: this.p.daily || undefined }); // (a retry still counts for the daily challenge)
+    Game.launch({ mapId: map.id, mods: this.p.watched === 'auto' ? s.mods : s.mods.filter(m => m !== 'AT'), modConfig: s.modConfig || undefined, mode: 'play', back: this.p.back && this.p.back.name !== 'results' ? this.p.back : null, daily: this.p.daily || undefined }); // (a retry still counts for the daily challenge)
   },
   /** osu!lazer's expanded score panel: the player on top; then the beatmap, the accuracy circle (grade segments
    *  around it, the grade in the middle), mods, the score and the statistics. Colours are lazer's rank colours. */
   gradeCard(s, p) {
     const RANK = RANK_COLOURS;
-    const letter = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
+    const letter = gradeLabel(s.grade);
     const rc = RANK[s.grade] || '#fff';
     // the player
     const mine = !p.watched || p.watched === 'replay' && s.player === ProfileManager.profile.name;
@@ -201,13 +213,14 @@ const ResultsScreen = {
     // lazer: where the play stands on the beatmap's global ranking, once the server has judged it
     if (p.fresh && s.passed && !(s.mods || []).includes('AT') && typeof Verified !== 'undefined') {
       const el = h('div.res-grank', { hidden: true });
-      const show = d => {
-        if (!d || d.key !== s.mapHash || !d.rank) return;
+      const ours = sent => !(sent < (s.date || 0) - 3000); // (sent as this play ended, or later)
+      const show = (d, sent) => {
+        if (!d || d.key !== s.mapHash || !d.rank || !ours(sent)) return;
         el.hidden = false;
         clearEl(el).append(icon('trophy'), h('span', d.best ? 'Global rank ' : 'Your best is '), h('b', `#${fmtInt(d.rank)}`), h('span.muted', ` of ${fmtInt(d.of)}`));
       };
       const last = Verified.last;
-      if (last && Date.now() - last.at < 60000) show(last.d);
+      if (last && Date.now() - last.at < 60000) show(last.d, last.sent);
       const off = Bus.on('verified', show);
       (this._offs || (this._offs = [])).push(off);
       mid.append(el);
@@ -239,7 +252,8 @@ const ResultsScreen = {
     // Performance Breakdown: the pp this play got and what a perfect play (all MAX) would, and each attribute's share
     const total = (s.counts || []).reduce((a, b) => a + b, 0);
     let maxPp = 0;
-    try { maxPp = total && s.stars ? OsuMath.pp(s.stars, [total, 0, 0, 0, 0, 0], (s.mods || []).filter(m => m !== 'AT')) : 0; } catch { maxPp = 0; }
+    const lm = BeatmapManager.mapByHash(s.mapHash), ppStars = !s.online && (s.rate || 1) === 1 && s.srVersion !== SR_VERSION && lm && lm.srVersion === SR_VERSION ? lm.stars : s.stars;
+    try { maxPp = total && ppStars ? OsuMath.pp(ppStars, [total, 0, 0, 0, 0, 0], (s.mods || []).filter(m => m !== 'AT')) : 0; } catch { maxPp = 0; }
     const got = s.passed ? (s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s) || s.pp || 0) : 0;
     const pct = maxPp > 0 ? clamp(got / maxPp, 0, 1) : 0;
     const perf = item('Performance Breakdown',
@@ -274,7 +288,7 @@ const ResultsScreen = {
     if (hl.length > 2) {
       const step = Math.max(1, Math.floor(hl.length / 240));
       const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([t, v]) => ({ y: v * 100, tip: `${fmtTime(t)} · health ${Math.round(v * 100)}%` }));
-      more.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(Math.min(...hl.map(x => x[1])) * 100)}%`)),
+      more.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(hl.reduce((a, x) => Math.min(a, x[1]), 1) * 100)}%`)),
         Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
     }
     if (more.children.length > 1) {
@@ -288,15 +302,20 @@ const ResultsScreen = {
     const bar = h('div.res-actions');
     const watch = h('button.res-ab.wide.green', { onclick: () => this.watch(), title: 'watch replay', 'aria-label': 'Watch replay' }, icon('play'));
     const save = h('button.res-ab', { onclick: async () => {
-      if (!replay) return;
-      await ReplayManager.save(replay);
+      if (!replay || save.disabled) return;
+      save.disabled = true;
+      try {
+        // (a failed play opened from the fail screen isn't kept yet: its score goes with its replay)
+        if (s.id && !ScoreManager.scores.some(x => x.id === s.id)) await ScoreManager.add(s);
+        await ReplayManager.save(replay);
+      } catch (e) { save.disabled = false; Toast.err('Couldn\'t save the replay', friendlyError(e)); return; }
       s.replayId = replay.id;
       Toast.ok('Replay saved', 'Find it in Replays.');
       save.disabled = true; save.title = 'replay saved';
       bar.insertBefore(exp, save.nextSibling);
     }, title: 'save replay', 'aria-label': 'Save replay' }, icon('save'));
     // export: lazer's .osr (opens in osu!lazer), or this game's own .amr
-    const exp = h('button.res-ab', { onclick: async e => { const r = replay || await ReplayManager.get(s.replayId); if (!r) return; const b = e.currentTarget.getBoundingClientRect(); showMenu(b.left, b.top - 6, [{ label: 'Export .osr (osu!lazer)', icon: 'download', onClick: () => Osr.exportReplay(r) }, { label: 'Export .amr', icon: 'download', onClick: () => ReplayManager.export(r) }], { above: true }); }, title: 'export replay', 'aria-label': 'Export replay' }, icon('download'));
+    const exp = h('button.res-ab', { onclick: async e => { const b = e.currentTarget.getBoundingClientRect(), r = replay || await ReplayManager.get(s.replayId); if (!r) return; showMenu(b.left, b.top - 6, [{ label: 'Export .osr (osu!lazer)', icon: 'download', onClick: () => Osr.exportReplay(r) }, { label: 'Export .amr', icon: 'download', onClick: () => ReplayManager.export(r) }], { above: true }); }, title: 'export replay', 'aria-label': 'Export replay' }, icon('download'));
     // lazer's results footer: #333, 50px, the buttons centred — watch replay and retry (300 × 30, green), then the
     // small ones (75 × 30)
     bar.append(backButton(() => this.onBack()));
@@ -345,7 +364,7 @@ const ResultsScreen = {
     if (!replay) { Toast.err('No replay available'); return; }
     const map = BeatmapManager.mapByHash(replay.mapHash);
     if (!map) { Toast.err('Beatmap not found', 'Import the beatmap to watch this replay.'); return; }
-    Game.launch({ mapId: map.id, mode: 'replay', replay, returnTo: { ...this.p } });
+    Game.launch({ mapId: map.id, mode: 'replay', replay, returnTo: { ...this.p, fresh: false } });
   },
 };
 
@@ -396,7 +415,7 @@ const ShareCard = {
     px += pill(`${s.keys}K`, px, 150, 'rgba(255,255,255,.12)') + 8;
     for (const m of s.mods || []) { const d = MOD_BY_ID.get(m); px += pill(m, px, 150, d ? d.color : accent, '#1a1a1a') + 6; }
     // grade
-    const label = s.grade === 'XH' ? 'SS' : s.grade === 'SH' ? 'S' : s.grade;
+    const label = gradeLabel(s.grade);
     const rc = RANK_COLOURS[s.grade] || '#fff', fill = ['#fff', rc];
     x.font = F(800, 210); x.textAlign = 'center';
     g = x.createLinearGradient(0, 250, 0, 450); g.addColorStop(0, fill[0]); g.addColorStop(1, fill[1] || fill[0]);
@@ -469,7 +488,7 @@ const Charts = {
     const { wrap, cv, tip } = this._setup(170);
     // lazer's HitEventTimingDistributionGraph: 50 bins either side of a centre bin, sized from the widest hit
     const SIDE = 50, nb = SIDE * 2 + 1;
-    const maxAbs = Math.max(1, ...errs.map(e => Math.abs(e)));
+    const maxAbs = errs.reduce((a, e) => Math.max(a, Math.abs(e)), 1);
     const bin = Math.max(1, Math.ceil(maxAbs / SIDE));
     const range = (SIDE + 0.5) * bin;
     const bins = new Array(nb).fill(0);
@@ -509,7 +528,7 @@ const Charts = {
     const io = new IntersectionObserver(es => {
       if (!es.some(e => e.isIntersecting)) return;
       io.disconnect();
-      const t0 = performance.now(), D = 300 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')) || 1);
+      const a = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--anim')), t0 = performance.now(), D = 300 * (Number.isFinite(a) ? a : 1);
       const step = now => { const t = D > 0 ? Math.min(1, (now - t0) / D) : 1; grow = 1 - (1 - t) ** 5; draw(-1); if (t < 1 && cv.isConnected) requestAnimationFrame(step); };
       requestAnimationFrame(step);
     });
@@ -519,11 +538,11 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo) return;
       const r = cv.getBoundingClientRect();
-      const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
+      const i = Math.floor(((e.clientX - r.left) * (cv.clientWidth / r.width) - geo.pad.l) / geo.bw);
       if (i < 0 || i >= nb) { tip.hidden = true; draw(-1); return; }
       const c = (i - SIDE) * bin;
       tip.hidden = false; tip.textContent = `${bin > 1 ? `${c - Math.floor(bin / 2)} to ${c + Math.ceil(bin / 2) - 1}` : c}ms: ${bins[i]} hit${bins[i] === 1 ? '' : 's'}`;
-      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
+      tip.style.left = (e.clientX - r.left) * (cv.clientWidth / r.width) + 'px'; tip.style.top = (e.clientY - r.top) * (cv.clientHeight / r.height) + 'px';
       draw(i);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -563,12 +582,12 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo || !pts.length) return;
       const r = cv.getBoundingClientRect();
-      const t = t0 + ((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.pw * (t1 - t0);
+      const t = t0 + ((e.clientX - r.left) * (cv.clientWidth / r.width) - geo.pad.l) / geo.pw * (t1 - t0);
       let best = 0, bd = Infinity;
       for (let i = 0; i < pts.length; i++) { const d = Math.abs(pts[i][0] - t); if (d < bd) { bd = d; best = i; } }
       const p = pts[best];
       tip.hidden = false; tip.textContent = `${fmtTime(p[0])} · ${p[1] > 0 ? '+' : ''}${p[1]}ms · ${JUDGEMENTS[p[2]].name}`;
-      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
+      tip.style.left = (e.clientX - r.left) * (cv.clientWidth / r.width) + 'px'; tip.style.top = (e.clientY - r.top) * (cv.clientHeight / r.height) + 'px';
       draw(best);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -610,10 +629,10 @@ const Charts = {
     cv.addEventListener('pointermove', e => {
       if (!geo) return;
       const r = cv.getBoundingClientRect();
-      const i = Math.floor(((e.clientX - r.left) * Zoom.z - geo.pad.l) / geo.bw);
+      const i = Math.floor(((e.clientX - r.left) * (cv.clientWidth / r.width) - geo.pad.l) / geo.bw);
       if (i < 0 || i >= data.length) { tip.hidden = true; draw(-1); return; }
       tip.hidden = false; tip.textContent = data[i].tip || `${data[i].label}: ${data[i].value}`;
-      tip.style.left = (e.clientX - r.left) * Zoom.z + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
+      tip.style.left = (e.clientX - r.left) * (cv.clientWidth / r.width) + 'px'; tip.style.top = (e.clientY - r.top) * (cv.clientHeight / r.height) + 'px';
       draw(i);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });
@@ -648,11 +667,11 @@ const Charts = {
     new ResizeObserver(() => draw(-1)).observe(cv);
     cv.addEventListener('pointermove', e => {
       if (!geo || !pts.length) return;
-      const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) * Zoom.z;
+      const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) * (cv.clientWidth / r.width);
       let best = 0, bd = Infinity;
       pts.forEach((p, i) => { const d = Math.abs(geo.X(i) - mx); if (d < bd) { bd = d; best = i; } });
       tip.hidden = false; tip.textContent = pts[best].tip;
-      tip.style.left = geo.X(best) + 'px'; tip.style.top = (e.clientY - r.top) * Zoom.z + 'px';
+      tip.style.left = geo.X(best) + 'px'; tip.style.top = (e.clientY - r.top) * (cv.clientHeight / r.height) + 'px';
       draw(best);
     });
     cv.addEventListener('pointerleave', () => { tip.hidden = true; draw(-1); });

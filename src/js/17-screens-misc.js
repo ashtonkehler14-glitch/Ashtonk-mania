@@ -720,6 +720,17 @@ const CHANGELOG = [
       'Ctrl+Up / Down replaces Wind Up, Wind Down and Adaptive Speed too, instead of mixing them',
       'The beatmap options\' number keys only work while the menu is all you\'re doing',
       'Sorting by your scores, accuracy, play count or last played is quick with a big library'] },
+    { icon: 'trophy', title: 'Results', items: [
+      'Export works on saved replays opened from song select, your profile or Replays (the menu didn\'t open)',
+      'Clicking another of your scores and back keeps your new play as it was: its replay to watch or save, your personal best line',
+      'A column key still held as the song ends no longer skips the results with a retry; Enter on a button presses that button',
+      'Retry plays with the score\'s own mod settings (Difficulty Adjust, Accuracy Challenge…)',
+      'Saving the replay of a failed play keeps its score too, and says so if it can\'t',
+      'The global rank shown is your new play\'s, never one from a play just before it',
+      'Back from watching the replay doesn\'t applaud and offer the offset fix again',
+      'The statistics charts point at the right bar and hit when the panels are shrunk to fit',
+      'In multiplayer results, a player\'s panel made big still opens the statistics',
+      'With animations off the timing bars don\'t grow in'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [
