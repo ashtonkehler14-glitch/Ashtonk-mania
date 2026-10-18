@@ -19813,6 +19813,7 @@ const CHANGELOG = [
       'Checking which songs are ranked waits while you play, instead of skipping songs'] },
     { icon: 'sparkle', title: 'Phones', items: [
       'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
+      'The game asks the browser again at every start to keep your beatmaps and scores when the phone runs low on space — Chrome says yes once the game is installed or played often. It asked only once, so a first no was final, and the library could be cleared',
       'Browsing song select keeps fewer songs ready in memory on phones and small Chromebooks (a song takes about 90 MB once it\'s ready to play), so a long session is far less likely to end with the tab closing for lack of memory',
       'With a weak signal, the installed game opens from its saved copy after a few seconds instead of waiting on the network for as long as it takes',
       'A song played upright ends on its results upright too: Retry without turning your phone',
@@ -21484,7 +21485,12 @@ const Shortcuts = {
 const DataPanel = {
   build() {
     const info = h('div.muted', { style: { fontSize: '.8rem' } }, 'Calculating storage…');
-    DB.estimate().then(e => { info.textContent = e ? `Using ${fmtBytes(e.usage || 0)} of ${fmtBytes(e.quota || 0)} browser storage.` : 'Storage estimate unavailable.'; });
+    // (and whether the browser has agreed to keep it when the device runs low on space: see App.keepStorage)
+    const kept = navigator.storage && navigator.storage.persisted ? navigator.storage.persisted().catch(() => null) : null;
+    Promise.all([DB.estimate(), kept]).then(([e, k]) => {
+      info.textContent = (e ? `Using ${fmtBytes(e.usage || 0)} of ${fmtBytes(e.quota || 0)} browser storage.` : 'Storage estimate unavailable.') +
+        (DB.memory || k == null ? '' : k ? ' The browser keeps it even when space runs low.' : ' The browser may clear it if the device runs low on space — installing the game keeps it, and Export all data saves a copy.');
+    });
     const btn = (label, ic, fn, cls = '') => h(`button.btn.sm${cls}`, { onclick: fn }, icon(ic), label);
     const confirmClear = async (what, fn) => { if (await Dialog.confirm(`Clear ${what}?`, 'This cannot be undone.', { ok: 'Clear', danger: true })) { await fn(); Toast.ok(`${what[0].toUpperCase() + what.slice(1)} cleared`); } };
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, info,
@@ -27288,7 +27294,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '6d78ba573efe';
+const APP_BUILD = '16dec9a89dd4';
 
 const App = {
   lastReport: null,
@@ -27352,6 +27358,7 @@ const App = {
     Mobile.early(); // (on a phone: recommend the app before anything else)
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
+    if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
@@ -27656,7 +27663,7 @@ const App = {
       navigator.serviceWorker.register('sw.js').then(reg => this.watchUpdates(reg)).catch(e => console.warn('service worker', e));
     if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
-    window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
+    window.addEventListener('appinstalled', () => { this.keepStorage({ start: true }); this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
     if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {
       if (!params.files || !params.files.length) return;
       const files = await Promise.all(params.files.map(f => f.getFile()));
@@ -27690,10 +27697,14 @@ const App = {
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low
    *  (Chrome decides silently; Firefox asks once). */
-  async keepStorage() {
+  /** Ask the browser to keep the library when the device runs low on space (otherwise it may clear it). Chrome decides
+   *  without asking anyone — yes once the game is installed or played often, so a no the first time isn't the last
+   *  word: it's asked again at every start and after installing. Firefox asks the player: once, after an import. */
+  async keepStorage({ start = false } = {}) {
     try {
-      if (DB.memory || !navigator.storage || !navigator.storage.persisted || await navigator.storage.persisted()) return;
-      if (await DB.kvGet('storage.persistAsked', false)) return;
+      if (DB.memory || !navigator.storage || !navigator.storage.persist || !navigator.storage.persisted || await navigator.storage.persisted()) return;
+      if (navigator.userAgentData) { await DB.persist(); return; } // (Chromium: never a prompt)
+      if (start || await DB.kvGet('storage.persistAsked', false)) return;
       await DB.kvSet('storage.persistAsked', true);
       await DB.persist();
     } catch (e) { /* not supported */ }

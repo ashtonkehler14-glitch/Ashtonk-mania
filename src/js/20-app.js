@@ -68,6 +68,7 @@ const App = {
     Mobile.early(); // (on a phone: recommend the app before anything else)
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
+    if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
@@ -372,7 +373,7 @@ const App = {
       navigator.serviceWorker.register('sw.js').then(reg => this.watchUpdates(reg)).catch(e => console.warn('service worker', e));
     if (window.__bip) this.installPrompt = window.__bip; // (it came before boot)
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; Bus.emit('install:available', true); });
-    window.addEventListener('appinstalled', () => { this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
+    window.addEventListener('appinstalled', () => { this.keepStorage({ start: true }); this.installPrompt = null; Bus.emit('install:available', false); Toast.ok('Ashtonk!mania installed', 'Open it from your apps — it works offline too.'); });
     if ('launchQueue' in window) window.launchQueue.setConsumer(async params => {
       if (!params.files || !params.files.length) return;
       const files = await Promise.all(params.files.map(f => f.getFile()));
@@ -406,10 +407,14 @@ const App = {
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low
    *  (Chrome decides silently; Firefox asks once). */
-  async keepStorage() {
+  /** Ask the browser to keep the library when the device runs low on space (otherwise it may clear it). Chrome decides
+   *  without asking anyone — yes once the game is installed or played often, so a no the first time isn't the last
+   *  word: it's asked again at every start and after installing. Firefox asks the player: once, after an import. */
+  async keepStorage({ start = false } = {}) {
     try {
-      if (DB.memory || !navigator.storage || !navigator.storage.persisted || await navigator.storage.persisted()) return;
-      if (await DB.kvGet('storage.persistAsked', false)) return;
+      if (DB.memory || !navigator.storage || !navigator.storage.persist || !navigator.storage.persisted || await navigator.storage.persisted()) return;
+      if (navigator.userAgentData) { await DB.persist(); return; } // (Chromium: never a prompt)
+      if (start || await DB.kvGet('storage.persistAsked', false)) return;
       await DB.kvSet('storage.persistAsked', true);
       await DB.persist();
     } catch (e) { /* not supported */ }

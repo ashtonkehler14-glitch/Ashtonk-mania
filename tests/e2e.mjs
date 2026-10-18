@@ -899,6 +899,23 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     for (const t of document.querySelectorAll('#toasts .toast')) if (/Import problem/.test(t.textContent)) t.remove();
     return r.errors;
   });
+  // keeping the library when space runs low: Chromium decides silently, so it's asked again at every start (a first
+  // "no" isn't final); where the browser would ask the player (no userAgentData: Firefox), not again at start
+  const keep = await page.evaluate(async () => {
+    const st = navigator.storage, n = { calls: 0 };
+    Object.defineProperty(st, 'persisted', { value: async () => false, configurable: true });
+    Object.defineProperty(st, 'persist', { value: async () => { n.calls++; return false; }, configurable: true });
+    try {
+      await App.keepStorage({ start: true }); await App.keepStorage({ start: true });
+      const chromium = n.calls;
+      Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true });
+      n.calls = 0; await App.keepStorage({ start: true });
+      return { chromium, otherAtStart: n.calls };
+    } finally { delete st.persisted; delete st.persist; delete navigator.userAgentData; }
+  });
+  const dataInfo = await page.evaluate(async () => { const el = DataPanel.build(); document.body.append(el); await new Promise(r => setTimeout(r, 300)); const t = el.firstChild.textContent; el.remove(); return t; });
+  check('Settings → Maintenance says how much storage is used, and whether the browser keeps it when space runs low', /^Using .+ browser storage\. The browser (keeps it|may clear it)/.test(dataInfo), dataInfo);
+  check('keeping the library: asked again at each start on Chromium (it never prompts), not on browsers that would prompt', keep.chromium === 2 && keep.otherAtStart === 0, JSON.stringify(keep));
   // automatic resolution: one frame in four late (17, 17, 17, 33…) — the median looks fine, but it stutters
   const asr = await page.evaluate(() => {
     const G = GameplayScreen, keep = { as: G._as, r: G.renderer, set: Settings.get('perf.autoScale'), toast: G._asToast, pend: G._asPending };

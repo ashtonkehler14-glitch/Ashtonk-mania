@@ -360,7 +360,12 @@ const Shortcuts = {
 const DataPanel = {
   build() {
     const info = h('div.muted', { style: { fontSize: '.8rem' } }, 'Calculating storage…');
-    DB.estimate().then(e => { info.textContent = e ? `Using ${fmtBytes(e.usage || 0)} of ${fmtBytes(e.quota || 0)} browser storage.` : 'Storage estimate unavailable.'; });
+    // (and whether the browser has agreed to keep it when the device runs low on space: see App.keepStorage)
+    const kept = navigator.storage && navigator.storage.persisted ? navigator.storage.persisted().catch(() => null) : null;
+    Promise.all([DB.estimate(), kept]).then(([e, k]) => {
+      info.textContent = (e ? `Using ${fmtBytes(e.usage || 0)} of ${fmtBytes(e.quota || 0)} browser storage.` : 'Storage estimate unavailable.') +
+        (DB.memory || k == null ? '' : k ? ' The browser keeps it even when space runs low.' : ' The browser may clear it if the device runs low on space — installing the game keeps it, and Export all data saves a copy.');
+    });
     const btn = (label, ic, fn, cls = '') => h(`button.btn.sm${cls}`, { onclick: fn }, icon(ic), label);
     const confirmClear = async (what, fn) => { if (await Dialog.confirm(`Clear ${what}?`, 'This cannot be undone.', { ok: 'Clear', danger: true })) { await fn(); Toast.ok(`${what[0].toUpperCase() + what.slice(1)} cleared`); } };
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, info,

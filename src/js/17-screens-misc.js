@@ -693,6 +693,7 @@ const CHANGELOG = [
       'Checking which songs are ranked waits while you play, instead of skipping songs'] },
     { icon: 'sparkle', title: 'Phones', items: [
       'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
+      'The game asks the browser again at every start to keep your beatmaps and scores when the phone runs low on space — Chrome says yes once the game is installed or played often. It asked only once, so a first no was final, and the library could be cleared',
       'Browsing song select keeps fewer songs ready in memory on phones and small Chromebooks (a song takes about 90 MB once it\'s ready to play), so a long session is far less likely to end with the tab closing for lack of memory',
       'With a weak signal, the installed game opens from its saved copy after a few seconds instead of waiting on the network for as long as it takes',
       'A song played upright ends on its results upright too: Retry without turning your phone',
