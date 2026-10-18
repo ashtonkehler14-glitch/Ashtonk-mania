@@ -8261,15 +8261,28 @@ const Settings = {
 /* BeatmapManager — library, importing (.osz / .osu / folders / drag & drop), validation, file access.
  * Also: BeatmapProvider architecture (local provider now; online providers can plug in later). */
 
+/** The library's difficulties by id — and by their .osu file's hash, an index kept up to date as difficulties come and
+ *  go (finding one by hash went through the whole library each time: a profile's pp, worked out score by score,
+ *  went through it once or twice per score). */
+class MapIndex extends Map {
+  set(k, v) { this._byHash = null; return super.set(k, v); }
+  delete(k) { this._byHash = null; return super.delete(k); }
+  clear() { this._byHash = null; super.clear(); }
+  byHash(hash) {
+    if (!this._byHash) { this._byHash = new Map(); for (const m of this.values()) if (!this._byHash.has(m.hash)) this._byHash.set(m.hash, m); }
+    return this._byHash.get(hash) || null;
+  }
+}
+
 const BeatmapManager = {
   sets: [],                 // set records
-  maps: new Map(),          // id -> map record
+  maps: new MapIndex(),     // id -> map record
   setById: new Map(),
 
   async init() {
     const [sets, maps] = await Promise.all([DB.getAll('sets'), DB.getAll('maps')]);
     this.sets = sets; this.setById = new Map(sets.map(s => [s.id, s]));
-    this.maps = new Map(maps.map(m => [m.id, m]));
+    this.maps = new MapIndex(maps.map(m => [m.id, m]));
     for (const s of this.sets) s.maps = s.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
   },
   /** Recalculate star ratings stored by older versions (runs in the background after boot). */
@@ -8304,7 +8317,7 @@ const BeatmapManager = {
     return bad.length;
   },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
-  mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
+  mapByHash(hash) { return this.maps.byHash(hash); },
 
   async getFile(setId, path) {
     const set = this.setById.get(setId);
@@ -11575,10 +11588,13 @@ const ProfileManager = {
    *  backup's, are kept); a replay is yours when it was recorded here (own) or belongs to one of your scores — an
    *  imported replay of someone else keeps their name. */
   async syncPlays(old = null) {
-    const name = this.profile.name, ids = new Set(ScoreManager.scores.map(x => x.id));
-    const mine = x => x && x.own !== false && (x.own || ScoreManager.scores.includes(x) || (x.scoreId && ids.has(x.scoreId)) || (old != null && x.player === old));
+    const name = this.profile.name, scores = new Set(ScoreManager.scores), ids = new Set(ScoreManager.scores.map(x => x.id));
+    const mine = x => x && x.own !== false && (x.own || scores.has(x) || (x.scoreId && ids.has(x.scoreId)) || (old != null && x.player === old));
     let n = 0;
-    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; await DB.put('scores', sc); n++; }
+    // (written together: one at a time, a rename with thousands of scores took seconds)
+    const changed = [];
+    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; changed.push({ store: 'scores', value: sc }); n++; }
+    for (let i = 0; i < changed.length; i += 200) await DB.putMany(changed.slice(i, i + 200));
     for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
     if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
   },
@@ -19917,7 +19933,9 @@ const CHANGELOG = [
       'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
       'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
       'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen',
-      'The notifications\' unread count never counts more than the list keeps'] },
+      'The notifications\' unread count never counts more than the list keeps',
+      'A big library is quicker wherever a play is matched to its beatmap: your profile\'s pp, results, replays, collections',
+      'Changing your name with thousands of scores is quick (each score was saved on its own), and starting the game no longer checks every score against every other'] },
     { icon: 'music', title: 'Song select', items: [
       'Back from a song, its preview plays again (it stayed silent)',
       'The selected beatmap\'s song starts over when it ends, as in lazer — coming in from the main menu with its song already playing, the end of it used to jump to another beatmap',

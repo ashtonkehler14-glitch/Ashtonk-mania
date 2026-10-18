@@ -1,15 +1,28 @@
 /* BeatmapManager — library, importing (.osz / .osu / folders / drag & drop), validation, file access.
  * Also: BeatmapProvider architecture (local provider now; online providers can plug in later). */
 
+/** The library's difficulties by id — and by their .osu file's hash, an index kept up to date as difficulties come and
+ *  go (finding one by hash went through the whole library each time: a profile's pp, worked out score by score,
+ *  went through it once or twice per score). */
+class MapIndex extends Map {
+  set(k, v) { this._byHash = null; return super.set(k, v); }
+  delete(k) { this._byHash = null; return super.delete(k); }
+  clear() { this._byHash = null; super.clear(); }
+  byHash(hash) {
+    if (!this._byHash) { this._byHash = new Map(); for (const m of this.values()) if (!this._byHash.has(m.hash)) this._byHash.set(m.hash, m); }
+    return this._byHash.get(hash) || null;
+  }
+}
+
 const BeatmapManager = {
   sets: [],                 // set records
-  maps: new Map(),          // id -> map record
+  maps: new MapIndex(),     // id -> map record
   setById: new Map(),
 
   async init() {
     const [sets, maps] = await Promise.all([DB.getAll('sets'), DB.getAll('maps')]);
     this.sets = sets; this.setById = new Map(sets.map(s => [s.id, s]));
-    this.maps = new Map(maps.map(m => [m.id, m]));
+    this.maps = new MapIndex(maps.map(m => [m.id, m]));
     for (const s of this.sets) s.maps = s.mapIds.map(id => this.maps.get(id)).filter(Boolean).sort((a, b) => a.stars - b.stars);
   },
   /** Recalculate star ratings stored by older versions (runs in the background after boot). */
@@ -44,7 +57,7 @@ const BeatmapManager = {
     return bad.length;
   },
   playableMaps() { return [...this.maps.values()].filter(m => !m.problems.length); },
-  mapByHash(hash) { for (const m of this.maps.values()) if (m.hash === hash) return m; return null; },
+  mapByHash(hash) { return this.maps.byHash(hash); },
 
   async getFile(setId, path) {
     const set = this.setById.get(setId);

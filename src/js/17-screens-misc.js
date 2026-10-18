@@ -729,7 +729,9 @@ const CHANGELOG = [
       'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
       'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
       'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen',
-      'The notifications\' unread count never counts more than the list keeps'] },
+      'The notifications\' unread count never counts more than the list keeps',
+      'A big library is quicker wherever a play is matched to its beatmap: your profile\'s pp, results, replays, collections',
+      'Changing your name with thousands of scores is quick (each score was saved on its own), and starting the game no longer checks every score against every other'] },
     { icon: 'music', title: 'Song select', items: [
       'Back from a song, its preview plays again (it stayed silent)',
       'The selected beatmap\'s song starts over when it ends, as in lazer — coming in from the main menu with its song already playing, the end of it used to jump to another beatmap',

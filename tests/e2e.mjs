@@ -1648,8 +1648,21 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('a player who hasn\'t sent a profile still has one (name, rank, pp from the server)', qp.name === 'Quiet' && /#7/.test(qp.pp) && /321pp/.test(qp.pp) && !qp.empty, JSON.stringify(qp));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
   // renaming yourself renames your own scores and replays
-  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name; await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length; await PM.setName(old); return { sc, bad, rp }; });
-  check('changing your name changes it on your scores and replays', ren.sc > 0 && ren.bad === 0 && ren.rp === 0, JSON.stringify(ren));
+  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name; await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length;
+    const saved = (await AshtonkMania.DB.getAll('scores')).filter(s => s.player === 'Renamed').length; // (and stored so: a reload keeps it)
+    const inMem = AshtonkMania.ScoreManager.scores.filter(s => s.player === 'Renamed').length;
+    await PM.setName(old); return { sc, bad, rp, saved, inMem }; });
+  check('changing your name changes it on your scores and replays', ren.sc > 0 && ren.bad === 0 && ren.rp === 0 && ren.saved === ren.inMem && ren.saved > 0, JSON.stringify(ren));
+  // the library found by a difficulty's hash follows it: a difficulty replaced (imported again) or removed
+  const idx = await page.evaluate(() => {
+    const BM = AshtonkMania.BeatmapManager, m = [...BM.maps.values()][0], copy = { ...m };
+    const same = BM.mapByHash(m.hash) === m;
+    BM.maps.set(m.id, copy); const replaced = BM.mapByHash(m.hash) === copy;
+    BM.maps.delete(m.id); const gone = (BM.mapByHash(m.hash) || {}).id !== m.id;
+    BM.maps.set(m.id, m);
+    return { same, replaced, gone, back: BM.mapByHash(m.hash) === m, miss: BM.mapByHash('nope') === null };
+  });
+  check('a difficulty is found by its hash as the library changes', idx.same && idx.replaced && idx.gone && idx.back && idx.miss, JSON.stringify(idx));
 }
 // the profile's cover is the background of your highest-pp play
 {

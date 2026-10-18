@@ -203,10 +203,13 @@ const ProfileManager = {
    *  backup's, are kept); a replay is yours when it was recorded here (own) or belongs to one of your scores — an
    *  imported replay of someone else keeps their name. */
   async syncPlays(old = null) {
-    const name = this.profile.name, ids = new Set(ScoreManager.scores.map(x => x.id));
-    const mine = x => x && x.own !== false && (x.own || ScoreManager.scores.includes(x) || (x.scoreId && ids.has(x.scoreId)) || (old != null && x.player === old));
+    const name = this.profile.name, scores = new Set(ScoreManager.scores), ids = new Set(ScoreManager.scores.map(x => x.id));
+    const mine = x => x && x.own !== false && (x.own || scores.has(x) || (x.scoreId && ids.has(x.scoreId)) || (old != null && x.player === old));
     let n = 0;
-    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; await DB.put('scores', sc); n++; }
+    // (written together: one at a time, a rename with thousands of scores took seconds)
+    const changed = [];
+    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; changed.push({ store: 'scores', value: sc }); n++; }
+    for (let i = 0; i < changed.length; i += 200) await DB.putMany(changed.slice(i, i + 200));
     for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
     if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
   },
