@@ -756,11 +756,20 @@ await page.waitForSelector('.ex-card[data-id="777"]', { timeout: 5000 });
 check('explorer: searches again by itself once back online', !(await page.$('.ex-error')));
 check('explorer filters show no stray "null" text (More filters closed)', !(await page.$eval('.ex-filters', el => /\bnull\b/.test(el.innerText))));
 await page.route('https://b.ppy.sh/**', r => r.abort());
-await page.evaluate(() => { window.__card = document.querySelector('.ex-card[data-id="777"]'); });
+await page.evaluate(() => {
+  window.__card = document.querySelector('.ex-card[data-id="777"]');
+  const b = window.__card.querySelector('.ex-play'); window.__ics = [];
+  new MutationObserver(() => window.__ics.push(b.dataset.ic)).observe(b, { attributes: true, attributeFilter: ['data-ic'] });
+});
 await page.click('.ex-card[data-id="777"] .ex-play');
-await page.waitForTimeout(300);
-check('previewing a song keeps the list in place (no re-render / jump to top)', await page.evaluate(() => window.__card.isConnected && window.__card.querySelector('.ex-play').dataset.ic === 'pause'));
-await page.click('.ex-card[data-id="777"] .ex-play');
+await page.waitForTimeout(800);
+{
+  // (the preview's audio is blocked here: it shows pause in place, then — as it can't play — goes back to play and says so)
+  const pv = await page.evaluate(() => ({ connected: window.__card.isConnected, ics: window.__ics, now: window.__card.querySelector('.ex-play').dataset.ic,
+    toast: [...document.querySelectorAll('#toasts .toast')].some(t => /Preview unavailable/.test(t.textContent)) }));
+  check('previewing a song keeps the list in place (no re-render / jump to top)', pv.connected && pv.ics[0] === 'pause', JSON.stringify(pv));
+  check('a preview that can\'t play goes back to its play button and says so', pv.now === 'play' && pv.toast, JSON.stringify(pv));
+}
 await shot('11b-explorer');
 check('beatmap cards have lazer\'s hover panel with like and download', await page.evaluate(() => !!document.querySelector('.ex-card[data-id="777"] .ex-side .like') && !!document.querySelector('.ex-card[data-id="777"] .ex-side .dl')));
 // as in lazer: clicking the card opens the beatmap info page, and that's where it's downloaded
@@ -1710,6 +1719,120 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const r = await page.evaluate(async () => { const s = window.__shots[0]; if (!s) return null; const bmp = await createImageBitmap(s.b); return { n: s.n, w: bmp.width, h: bmp.height, type: s.b.type }; });
   check('F12 in gameplay saves a PNG screenshot of the screen', !!r && r.type === 'image/png' && r.w >= 800 && /^ashtonk!mania \d{4}-\d\d-\d\d .*\.png$/.test(r.n), JSON.stringify(r));
   await page.evaluate(() => AshtonkMania.GameplayScreen.quit()); await page.waitForTimeout(1200);
+}
+
+// spectating: the watched player's screen can't reach into yours (labels, form / command / popover targets, names
+// that hide the page's functions, autofocus, links, scripts, pictures from anywhere) and takes no clicks or keys
+{
+  const r = await page.evaluate(() => {
+    const S = AshtonkMania.Spectate, view = S.rkView, applied = S._rkApplied;
+    S.rkView = document.createElement('div'); S._rkApplied = null;
+    try {
+      S.applyRk('<div><label for="x">l</label><button form="f" commandfor="d" command="show-modal" popovertarget="p" popovertargetaction="show" name="getElementById" autofocus>b</button>'
+        + '<img name="cookie" src="https://evil.example/x.png"><img src="https://assets.ppy.sh/a.jpg"><svg><a href="javascript:alert(1)"><text>t</text></a><script>alert(1)</script></svg>'
+        + '<p style="background:url(https://evil.example/y)">s</p><input form="f" name="q" value="v"></div>');
+      const v = S.rkView;
+      return { attrs: [...new Set([...v.querySelectorAll('*')].flatMap(e => [...e.attributes].map(a => a.name)))].sort().join(), imgs: [...v.querySelectorAll('img')].map(i => i.getAttribute('src')),
+        script: !!v.querySelector('script'), bg: v.querySelector('p').getAttribute('style'), text: v.textContent };
+    } finally { S.rkView = view; S._rkApplied = applied; }
+  });
+  check('spectating: a watched screen loses for / form / commandfor / popovertarget / name / autofocus, links, scripts and outside pictures',
+    !/(^|,)(for|form|commandfor|command|popovertarget|popovertargetaction|name|autofocus|href)(,|$)/.test(r.attrs) && r.imgs[0] === null && r.imgs[1] === 'https://assets.ppy.sh/a.jpg' && !r.script && !/evil/.test(r.bg) && r.text.includes('b'), JSON.stringify(r));
+  const inert = await page.evaluate(() => {
+    const S = AshtonkMania.Spectate, t = S.target;
+    S.target = { id: 'nobody', name: 'Test' };
+    S.showRk('<div class="x">their screen</div>');
+    const v = !!(S.rkView && S.rkView.inert && S.rkEl && S.rkEl.isConnected);
+    S.showRk(null); S.target = t;
+    return { v, gone: !S.rkEl };
+  });
+  check('spectating: their screen takes no clicks, Tab or keys (inert)', inert.v && inert.gone, JSON.stringify(inert));
+}
+
+// chat: a message that couldn't go out stays in the box; one that did is cleared
+{
+  const r = await page.evaluate(() => {
+    const A = AshtonkMania, C = A.Chat, P = A.Presence, ws = P.ws, sent = [];
+    C.open('#lobby');
+    const enter = () => C.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    try {
+      P.ws = { readyState: 3, send() {} }; // (closed)
+      C.input.value = 'hello there'; enter();
+      const kept = C.input.value;
+      P.ws = { readyState: 1, send: m => sent.push(JSON.parse(m)) };
+      enter();
+      return { kept, after: C.input.value, sent: sent.map(m => m.t + ':' + m.text).join() };
+    } finally { P.ws = ws; C.close(); }
+  });
+  check('chat: a message sent while offline stays in the box; sent, it clears', r.kept === 'hello there' && r.after === '' && r.sent === 'say:hello there', JSON.stringify(r));
+  await page.waitForTimeout(400);
+}
+
+// a phone's song decoded after another was opened is dropped (it used to finish last and play over song select)
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, M = A.Music, AM = A.AudioManager, touchD = Object.getOwnPropertyDescriptor(A.Mobile, 'touch'), dec = AM.decode, tc = TrackCache.get;
+    Object.defineProperty(A.Mobile, 'touch', { get: () => true, configurable: true });
+    TrackCache.get = async () => null;
+    AM.decode = async ab => { const n = new Uint8Array(ab)[0]; await new Promise(res => setTimeout(res, n === 1 ? 300 : 30)); return { fake: n, duration: 1 }; };
+    try {
+      const [ra, rb] = await Promise.all([M.open(new Blob([new Uint8Array([1])]), 'x/slow', {}), M.open(new Blob([new Uint8Array([2])]), 'x/fast', {})]);
+      return { ra, rb, key: M.key, buf: M.buffer && M.buffer.fake };
+    } finally { Object.defineProperty(A.Mobile, 'touch', touchD); AM.decode = dec; TrackCache.get = tc; M.unload(); }
+  });
+  check('phones: a song still decoding when another is opened doesn\'t replace it', r.ra === false && r.rb === true && r.key === 'x/fast' && r.buf === 2, JSON.stringify(r));
+}
+
+// the same beatmap set imported again keeps what was found out about it online (its ranked status gives its plays pp)
+{
+  const r = await page.evaluate(async () => {
+    const BM = AshtonkMania.BeatmapManager, buf = await (await fetch('/tests/fixtures/test-set.osz')).arrayBuffer();
+    const before = BM.sets.find(s => s.maps.some(m => m.version === '4K Normal'));
+    const was = { status: before.status, statusChecked: before.statusChecked, genreId: before.genreId };
+    Object.assign(before, { status: 'ranked', statusChecked: Date.now(), genreId: 3 });
+    await BM.importFiles([new File([buf], 'test-set.osz')]);
+    const after = BM.setById.get(before.id);
+    const out = { replaced: after !== before, status: after.status, genre: after.genreId, checked: !!after.statusChecked };
+    Object.assign(after, was);
+    return out;
+  });
+  check('importing a set again keeps its ranked status, genre and when it was checked', r.replaced && r.status === 'ranked' && r.genre === 3 && r.checked, JSON.stringify(r));
+}
+
+// a screen that fails to open: said so, and back to the main menu (it used to leave a blank page nothing could leave)
+{
+  const r = await page.evaluate(async () => {
+    const S = AshtonkMania.Screens, ce = console.error;
+    console.error = () => {}; // (the failure is logged on purpose)
+    try {
+      S.register('boom', { enter() { throw new Error('boom'); } });
+      if (S.currentName === 'home') { await S.go('songselect'); await new Promise(res => setTimeout(res, 800)); }
+      const from = S.currentName;
+      await S.go('boom');
+      await new Promise(res => setTimeout(res, 1500));
+      return { from, now: S.currentName, el: !!(S.current && S.current.el && S.current.el.isConnected), busy: S.busy, toast: [...document.querySelectorAll('#toasts .toast')].some(t => /couldn.t open/.test(t.textContent)) };
+    } finally { console.error = ce; delete S.registry.boom; }
+  });
+  check('a screen that fails to open says so and goes back to the main menu', r.from !== 'home' && r.now === 'home' && r.el && !r.busy && r.toast, JSON.stringify(r));
+}
+
+// song select: the selected beatmap's song loops when it ends — also when it was already playing as you came back in
+// from the menu (the menu's "next song" took over then, and picked another beatmap for you)
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, S = A.Screens, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'), wait = ms => new Promise(res => setTimeout(res, ms));
+    A.Settings.set('songselect.keys', []);
+    // (another set in the library, for the menu's "next song" to have picked)
+    if (A.BeatmapManager.sets.length < 2) await A.BeatmapManager.importFiles([new File([await (await fetch('/tests/fixtures/online-set.osz')).arrayBuffer()], 'online-set.osz')]);
+    await S.go('songselect', { mapId: m.id, force: true }); await wait(2000);
+    await S.go('home'); await wait(1000);
+    await S.go('songselect', { mapId: m.id, force: true }); await wait(2000);
+    const before = A.SongSelect.selectedId, sets = A.BeatmapManager.sets.length;
+    A.Music.onEnded && A.Music.onEnded(); // (the song reaching its end)
+    await wait(800);
+    return { sets, before, after: A.SongSelect.selectedId, want: m.id, playing: A.Music.playing, same: !!(A.Music.meta && A.Music.meta.setId === m.setId) };
+  });
+  check('song select: the song starts over when it ends, and the selection stays (coming back from the menu too)', r.sets > 1 && r.before === r.want && r.after === r.want && r.playing && r.same, JSON.stringify(r));
 }
 
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));

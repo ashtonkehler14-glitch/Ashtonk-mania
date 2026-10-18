@@ -1372,7 +1372,18 @@ const Screens = {
       }
       this.current = next; this.currentName = name;
       if (next.keepParams) next._lastParams = params; // (Back returns to the same one: someone's profile, not yours)
-      const el = await next.enter(params);
+      let el;
+      try { el = await next.enter(params); if (!el) throw new Error('nothing to show'); }
+      catch (e) {
+        // (a screen that fails to open: said so, and back to the main menu — not a blank page that even the toolbar's
+        // buttons couldn't leave, since leaving it failed too)
+        console.error(`screen "${name}" failed to open`, e);
+        try { next.leave && next.leave(); } catch { /* it never got going */ }
+        this.current = null; this.currentName = null;
+        Toast.err('That screen couldn\'t open', friendlyError(e));
+        if (name !== 'home') setTimeout(() => this.go('home'), 0); // (once this one has let go)
+        return;
+      }
       next.el = el;
       el.classList.add('screen', 'enter');
       if (prevName === 'home') el.classList.add('after-menu');

@@ -361,8 +361,11 @@ const BlobURLs = {
     if (!blob) return null;
     const u = URL.createObjectURL(blob); this.map.set(key, u); return u;
   },
+  /** Forget them (the next ask makes new ones); each is let go of a minute later, not at once — a picture still on
+   *  screen (the background, a card) or about to be read again (the menu's colour from the background) keeps working
+   *  until it's replaced. */
   drop(prefix) {
-    for (const [k, u] of this.map) if (k.startsWith(prefix)) { URL.revokeObjectURL(u); this.map.delete(k); }
+    for (const [k, u] of this.map) if (k.startsWith(prefix)) { this.map.delete(k); setTimeout(() => URL.revokeObjectURL(u), 60000); }
   },
 };
 

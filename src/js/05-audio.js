@@ -268,6 +268,7 @@ const Music = {
   /** Something is loaded and can be (re)played. */
   get loaded() { return !!(this.buffer || this.el); },
   async load(buffer, key, meta) {
+    this._seq = (this._seq || 0) + 1; // (a track still being decoded for open() doesn't replace this one when it's done)
     AudioManager.init();
     if (this.key !== key || this.el) this.stop(0);
     this._dropStream();
@@ -276,15 +277,21 @@ const Music = {
   },
   /** Open a track for menus / song select: streamed through an <audio> element on computers; on phones decoded and
    *  played through Web Audio instead — an <audio> element there puts a "Media output" player in the notifications. */
+  /** Resolves false when another track was opened or loaded while this one was decoding: that one stays, so the
+   *  caller doesn't play this one. */
   async open(blob, key, meta) {
-    if (!(typeof Mobile !== 'undefined' && Mobile.touch)) { this.stream(blob, key, meta); return; }
+    if (!(typeof Mobile !== 'undefined' && Mobile.touch)) { this.stream(blob, key, meta); return true; }
     AudioManager.init();
+    const seq = this._seq = (this._seq || 0) + 1;
     const [setId, ...rest] = key.split('/');
     const buf = await TrackCache.get(setId, rest.join('/')).catch(() => null) || await AudioManager.decode(await blob.arrayBuffer());
+    if (seq !== this._seq) return false;
     await this.load(buf, key, meta);
+    return true;
   },
   /** Stream a track (Blob) for menus / previews: playback starts as soon as the first bytes are read. */
   stream(blob, key, meta) {
+    this._seq = (this._seq || 0) + 1;
     AudioManager.init();
     this.stop(0);
     this._dropStream();

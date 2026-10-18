@@ -32,6 +32,8 @@ const Inflate = (() => {
     let pos = 0, bit = 0, out = new Uint8Array(Math.max(sizeHint, src.length * 4, 1024)), op = 0;
     const need = n => { if (op + n > out.length) { const o = new Uint8Array(Math.max(out.length * 2, op + n)); o.set(out); out = o; } };
     const bits = n => {
+      // (a damaged entry that runs out mid-stream stops here, instead of being read on as zeros — for ever, in a loop)
+      if (pos > src.length) throw new Error('Corrupt archive entry (cut short)');
       let v = 0;
       for (let i = 0; i < n; i++) { v |= ((src[pos] >> bit) & 1) << i; if (++bit === 8) { bit = 0; pos++; } }
       return v;

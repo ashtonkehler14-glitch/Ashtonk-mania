@@ -128,6 +128,8 @@ const SkinEditor = {
   onKey(e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.key !== 'Escape') return;
     const ctrl = e.ctrlKey || e.metaKey;
+    // (the browser's own keys still work: reload, fullscreen, a new tab, closing it)
+    if (/^F(5|11)$/.test(e.key) || (ctrl && !e.shiftKey && /^Key[RTWL]$/.test(e.code))) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat) return;
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }

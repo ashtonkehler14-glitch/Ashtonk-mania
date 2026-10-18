@@ -330,7 +330,7 @@ const ExplorerScreen = {
     let t = 0;
     // (lazer's listing: a new search sorts by relevance, and clearing it goes back to ranked — another sort can be
     // picked after)
-    const setQuery = q => {
+    const setQuery = this.setQuery = q => {
       if (q === st.q) return;
       st.q = q;
       if (q) { st.sort = 'relevance'; st.dir = 'desc'; } else if (st.sort === 'relevance') { st.sort = 'ranked'; st.dir = 'desc'; }
@@ -395,7 +395,8 @@ const ExplorerScreen = {
     // starts stay the same, so the page isn't measured again for it; a different width or header does)
     this._paintRing = paintRing; this._scroller = scroller;
     this._ringRO = new ResizeObserver(es => { maxScroll = scroller.scrollHeight - scroller.clientHeight; if (es.some(e => e.target !== this.grid || e.borderBoxSize?.[0]?.inlineSize !== this._gw)) { this._gw = es.find(e => e.target === this.grid)?.borderBoxSize?.[0]?.inlineSize ?? this._gw; this._mDirty = true; } paintRing(); this._wantWin = true; this.schedule(); });
-    this._ringRO.observe(this.grid, { box: 'border-box' }); // (its outer size: rows swapped for padding as the list scrolls don't change it) this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
+    this._ringRO.observe(this.grid, { box: 'border-box' }); // (its outer size: rows swapped for padding as the list scrolls don't change it)
+    this._ringRO.observe(scroller); this._ringRO.observe(header); // (the header growing moves the grid)
     this._st = undefined; this._m = null; this._mDirty = true; this._ringV = null; // (more results loading in moves the bottom further away)
     // while the list scrolls, cards passing under the pointer don't react to it (hover lifts, side panels
     // and hover sounds flickering past); they do again a moment after it stops
@@ -771,7 +772,7 @@ const ExplorerScreen = {
     const tags = (set.tags || '').split(/\s+/).filter(Boolean).slice(0, 40);
     if (!text && !tags.length) return null;
     return h('div.bso-sec', h('h3', 'Description'), text ? h('div.bso-desc', text) : null,
-      tags.length ? h('div.bso-tagwords', ...tags.map(t => h('button.bso-tagw', { title: 'Search for this tag', onclick: () => { UISounds.click(); this.closeSet(); this.searchInput.value = t; this.state.q = t; this.newSearch(); } }, t))) : null);
+      tags.length ? h('div.bso-tagwords', ...tags.map(t => h('button.bso-tagw', { title: 'Search for this tag', onclick: () => { UISounds.click(); this.closeSet(); this.searchInput.value = t; this.setQuery(t); this.newSearch(); } }, t))) : null);
   },
   /** lazer's UserRatings: negative (1–5) against positive (6–10) votes, and the spread of all ten. */
   ratingsBox(set) {
@@ -930,8 +931,15 @@ const ExplorerScreen = {
           // download (with the card's progress ring) before picking
           const state = { state: 'downloading', progress: 0, bytes: 0 };
           this.downloads.set(set.id, state); this.refreshCard(set);
+          let lastPaint = 0;
           try {
-            await OnlineBeatmaps.downloadAndImport(set, p => { state.progress = p; this.refreshCard(set); });
+            // (its progress written into the card as download() does: rebuilding the card each tick made it jitter)
+            const report = await OnlineBeatmaps.downloadAndImport(set, (p, bytes) => {
+              state.progress = p; state.bytes = bytes;
+              const now = performance.now();
+              if (now - lastPaint > 100) { lastPaint = now; this.paintProgress(set, state); }
+            });
+            this.imported.set(set.id, report.sets.map(x => x.id));
             state.state = 'done';
           } catch (e) { state.state = 'error'; throw e; } finally { this.refreshCard(set); }
           m = findLocal();
@@ -941,7 +949,7 @@ const ExplorerScreen = {
         Toast.ok('Beatmap picked', `${m.title} [${m.version}]`);
       } else {
         const info = { title: set.title, artist: set.artist, version: d.version, creator: set.creator, stars: d.stars, keys: d.keys, onlineSetId: set.id, onlineId: d.id };
-        Multiplayer.send({ t: 'suggest', map: m ? { ...info, hash: m.hash, length: m.length } : info });
+        if (!Multiplayer.send({ t: 'suggest', map: m ? { ...info, hash: m.hash, length: m.length } : info })) throw new Error(Multiplayer.reconnecting ? 'Reconnecting to the room — try again in a moment.' : 'You\'re not connected to the room.');
         Toast.show('Recommended to the host', `${set.title} [${d.version}]`);
       }
       Screens.go('multiplayer', {}, { replace: true });
@@ -973,7 +981,12 @@ const ExplorerScreen = {
     if (Music.playing) { Music.pause(); this._resumeMusic = true; }
     const a = previewPlayer(OnlineBeatmaps.previewURL(id));
     a.volume = clamp(Settings.get('audio.master') * Settings.get('audio.music'), 0, 1);
-    a.play().catch(() => Toast.err('Preview unavailable'));
+    // (one that can't play goes back to its play button; one stopped before it started says nothing)
+    a.play().catch(e => {
+      if (this.audio !== a || (e && e.name === 'AbortError')) return;
+      this.stopPreview(); this.syncPreviewButtons();
+      Toast.err('Preview unavailable');
+    });
     a.onended = () => { this.stopPreview(); this.syncPreviewButtons(); };
     this.audio = a; this.previewId = id;
     this.syncPreviewButtons();
@@ -1004,8 +1017,11 @@ const ExplorerScreen = {
  *  found nothing, the next week. */
 const BeatmapStatus = {
   busy: false, DAY: 86400000,
+  /** Statuses that stay as they are; any other (qualified, pending, WIP, the graveyard) can still become ranked. */
+  FINAL: new Set(['ranked', 'approved', 'loved']),
   due(s, now = Date.now()) {
-    if (s.status) return false;
+    // (a status that can still change is looked at again each week: a qualified beatmap that's since been ranked gives pp)
+    if (s.status) return !this.FINAL.has(s.status) && now - (s.statusChecked || s.added || 0) > 7 * this.DAY;
     if (!s.statusChecked) return true;
     // (a check from before failures were told apart from "not found": once more)
     if (!s.statusMiss && !s.statusErr) return s.statusV !== 2;
@@ -1015,7 +1031,8 @@ const BeatmapStatus = {
   async lookup(set) {
     if (set.onlineId > 0) {
       if (!await OnlineBeatmaps.checkApi()) throw new Error('offline');
-      const d = await OnlineBeatmaps.api(`api/getBeatmap?beatmapSetId=${encodeURIComponent(set.onlineId)}`);
+      // (osu! has no such set: not found — looked for again next week, not tomorrow)
+      const d = await OnlineBeatmaps.api(`api/getBeatmap?beatmapSetId=${encodeURIComponent(set.onlineId)}`).catch(e => { if (e && e.status === 404) return null; throw e; });
       return d ? { status: String(d.status || ''), setId: set.onlineId } : null;
     }
     const maps = set.mapIds.map(id => BeatmapManager.maps.get(id)).filter(Boolean);
@@ -1035,13 +1052,18 @@ const BeatmapStatus = {
     let changed = 0;
     try {
       const todo = BeatmapManager.sets.filter(s => this.due(s)).slice(0, 200);
-      for (const set of todo) {
-        if (Screens.currentName === 'gameplay') { await sleep(5000); continue; } // (never during a song)
+      for (const was of todo) {
+        // (never during a song: this set waits for it to end, rather than being skipped)
+        while (Screens.currentName === 'gameplay') await sleep(5000);
+        // (the library's own copy, as it is now: one deleted meanwhile isn't written back)
+        let set = BeatmapManager.setById.get(was.id);
+        if (!set || !this.due(set)) continue;
         let got;
         try { got = await this.lookup(set); } catch (e) { if (e && e.status === 429) break; got = undefined; }
+        if (!(set = BeatmapManager.setById.get(was.id))) continue;
         set.statusChecked = Date.now(); set.statusV = 2;
         set.statusErr = got === undefined; set.statusMiss = got === null || (got && !got.status);
-        if (got && got.status) { set.status = got.status; changed++; }
+        if (got && got.status && got.status !== set.status) { set.status = got.status; changed++; }
         if (got && got.setId > 0 && !(set.onlineId > 0)) set.onlineId = got.setId;
         await DB.put('sets', { ...set, maps: undefined }).catch(() => {});
         await sleep(700);

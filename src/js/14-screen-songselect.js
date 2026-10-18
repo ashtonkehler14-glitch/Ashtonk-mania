@@ -453,7 +453,7 @@ const SongSelect = {
     // (back from that very song: it's loaded but stopped — it plays again, unless you paused the music yourself)
     const silent = !Music.playing && !(typeof MenuMusic !== 'undefined' && MenuMusic.paused);
     if (sel && (silent || !Music.meta || Music.meta.setId !== sel.setId || this.trackKey(sel) !== (Music.key || '').toLowerCase())) this.schedulePreview(sel);
-    else if (sel) this.showBackground(sel);
+    else if (sel) { this.showBackground(sel); this.loopTrack(sel); }
     if (stay) return;
     if (!keepScroll) this.scrollToSelected(false); else this.scrollToSelected(true);
   },
@@ -782,7 +782,7 @@ const SongSelect = {
     this.updateInfo();
     // a difficulty can have its own song file (and background): the preview follows the difficulty, not just the set
     if (setChanged || !Music.meta || Music.meta.setId !== m.setId || this.trackKey(m) !== (Music.key || '').toLowerCase()) this.schedulePreview(m);
-    else this.showBackground(m); // (another difficulty of the same set can have its own background)
+    else { this.showBackground(m); this.loopTrack(m); } // (another difficulty of the same set can have its own background)
   },
   scrollToSelected(smooth, force = false) {
     const row = this.rows.find(r => (r.type === 'diff' || r.type === 'std') && r.m.id === this.selectedId) || this.rows.find(r => r.type === 'set' && r.r.set.id === this.expandedSet);
@@ -903,6 +903,15 @@ const SongSelect = {
   },
 
   // ── preview audio & background
+  /** As lazer's song select: the selected beatmap's song starts over from its preview point when it ends — also when
+   *  it was already playing as you came in (the menu's "next song" used to take over then, and picked another beatmap
+   *  for you). Left for another screen, the music goes on to the next song as in the menus. */
+  loopTrack(m) {
+    Music.onEnded = () => {
+      if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(previewStart(m), { fadeIn: 600 });
+      else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
+    };
+  },
   schedulePreview(m) {
     clearTimeout(this._previewT);
     this._previewT = setTimeout(() => this.preview(m), 60);
@@ -921,16 +930,15 @@ const SongSelect = {
     // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
     // slower earlier request could start the new song at the old song's preview point)
     const tok = this._previewTok = {};
+    MenuMusic._tok = {}; // (a menu song still loading doesn't start over this one when it's in)
     try {
       await AudioManager.resume();
       const blob = await BeatmapManager.getFile(m.setId, m.audioFile);
       if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
       if (!blob) return;
-      await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null });
-      if (tok !== this._previewTok) return;
-      const start = previewStart(m);
-      Music.play(start, { fadeIn: 400 });
-      Music.onEnded = () => { if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(start, { fadeIn: 600 }); };
+      if (!await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null }) || tok !== this._previewTok) return;
+      Music.play(previewStart(m), { fadeIn: 400 });
+      this.loopTrack(m);
       MenuMusic.setCurrent(m);
       beatTiming(m).then(timing => { if (tok === this._previewTok && Music.meta && Music.meta.setId === m.setId) Music.meta.timing = timing; });
       // decode the full track in the background once the player lingers, so pressing Play starts quickly

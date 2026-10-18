@@ -1014,6 +1014,8 @@ const SkinManager = {
     };
     await DB.put('skins', meta);
     this.skins = this.skins.filter(s => s.id !== id).concat(meta);
+    // (the skin in use imported again: it's drawn from the new files — the old copy's pictures were just deleted)
+    if (this.current && this.current.id === id) { this.retire(this.current); this.current = new Skin(meta); Bus.emit('skin:changed', this.current); }
     Bus.emit('skins:changed');
     return meta;
   },

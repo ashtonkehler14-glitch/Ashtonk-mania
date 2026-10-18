@@ -613,7 +613,8 @@ const HomeScreen = {
     let map = id && BeatmapManager.maps.get(id);
     if (!map || map.problems.length) { const all = BeatmapManager.playableMaps(); map = all[Math.floor(Math.random() * all.length)]; }
     if (!map) { Background.set(null); return; }
-    const url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
+    const seq = Music._seq, url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
+    if (seq !== Music._seq) return; // (left already for a screen that started its own song, with its own background)
     Background.set(url);
     if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
     await MenuMusic.play(map);
@@ -823,8 +824,7 @@ const MenuMusic = {
       const blob = await BeatmapManager.getFile(map.setId, map.audioFile);
       if (tok !== this._tok) return; // another track was requested meanwhile
       if (!blob) throw new Error('missing audio');
-      await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null });
-      if (tok !== this._tok) return;
+      if (!await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null }) || tok !== this._tok) return;
       Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
       Music.onEnded = () => this.next();
       this.paused = false;

@@ -687,11 +687,15 @@ const CHANGELOG = [
     { icon: 'trophy', title: 'Rankings', items: [
       'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
       'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',
-      'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)'] },
+      'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)',
+      'A beatmap that was qualified or pending when it was checked is looked at again each week: once it\'s ranked, its plays give pp',
+      'Importing a beatmap set you already have no longer forgets that it\'s ranked',
+      'Checking which songs are ranked waits while you play, instead of skipping songs'] },
     { icon: 'sparkle', title: 'Phones', items: [
       'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
       'A song played upright ends on its results upright too: Retry without turning your phone',
-      'The setup fits a phone held sideways, and says "press and hold your name" where a computer says right-click'] },
+      'The setup fits a phone held sideways, and says "press and hold your name" where a computer says right-click',
+      'Opening song select while the menu\'s song is still loading no longer ends with the wrong song playing'] },
     { icon: 'mania', title: 'Gameplay', items: [
       'Replays start at 1× (a DT replay\'s speed buttons were off by its rate), and the playfield stays smooth at 2× and 0.25×; Wind Up and Wind Down keep the speed you picked',
       'Seeking a Wind Up / Wind Down replay judges it as it was played',
@@ -709,9 +713,22 @@ const CHANGELOG = [
       'A chat message typed while reconnecting stays in the box instead of vanishing',
       'Friends in a Ranked Play match can\'t be invited out of it',
       'Results of a match you weren\'t in say who won, not "You lose"',
-      'A failed join goes back to the lounge instead of showing the room you left'] },
+      'A failed join goes back to the lounge instead of showing the room you left',
+      'The chat (F8) keeps a message that couldn\'t be sent in the box, too',
+      'Spectating: nothing on the screen you\'re watching can press your own buttons or take your keyboard'] },
+    { icon: 'download', title: 'Beatmap listing', items: [
+      'More filters, or a resized window, no longer leaves the list loading in the wrong place',
+      'A preview that can\'t play goes back to its play button; stopping one quickly no longer says "Preview unavailable"',
+      'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
+      'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
+    { icon: 'sparkle', title: 'Everywhere', items: [
+      'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
+      'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
+      'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
+      'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen'] },
     { icon: 'music', title: 'Song select', items: [
       'Back from a song, its preview plays again (it stayed silent)',
+      'The selected beatmap\'s song starts over when it ends, as in lazer — coming in from the main menu with its song already playing, the end of it used to jump to another beatmap',
       'Right-click (or press and hold) a song: its menu\'s Play plays that song, not the one selected before',
       'A beatmap you open from the library or a download is the one selected, even when your filters hid it (they\'re cleared)',
       'Your pinned best score on the online leaderboard shows straight away (it could take seconds to appear)',
@@ -739,7 +756,10 @@ const CHANGELOG = [
       'Someone who isn\'t in the match leaving the room no longer ends it for the one who is',
       'A new beatmap, new rules or someone leaving stops an auto start that was counting down',
       'A class of returning players behind one school address can all type their codes (wrong codes are what\'s limited)',
-      'Checking whether a beatmap is ranked is tried twice before a pass counts for 0pp'] },
+      'Checking whether a beatmap is ranked is tried twice before a pass counts for 0pp',
+      'A big beatmap set no longer gets cut off after 20 seconds of downloading',
+      'Busy moments on osu!\'s side ask it less often, and the same question asked twice at once is asked once',
+      'The download helper only ever hands over beatmap files, never web pages'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
     { icon: 'film', title: 'Spectating', items: [

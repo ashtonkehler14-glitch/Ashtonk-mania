@@ -260,6 +260,8 @@ const BeatmapManager = {
     return out;
   },
 
+  /** What a set keeps when it's imported again (BeatmapStatus and the beatmap listing found these out). */
+  KEPT: ['status', 'statusChecked', 'statusV', 'statusErr', 'statusMiss', 'genreId', 'languageId', 'rankedDate', 'submittedDate'],
   async _storeSet(keySrc, diffs, entries, lowerIndex, available, sourceName, report) {
     const setId = 'set-' + (await hashHex(keySrc)).slice(0, 16);
     const existing = this.setById.get(setId);
@@ -346,8 +348,14 @@ const BeatmapManager = {
     }
     const mapIds = new Set(existing ? existing.mapIds : []);
     for (const r of mapRecords) mapIds.add(r.id);
+    // (the same set imported again keeps what was found out about it online: its status — which decides whether its
+    // plays give pp — its genre and language, its dates, and the set it was found to be)
+    const known = {};
+    if (existing) for (const k of BeatmapManager.KEPT) if (existing[k] != null) known[k] = existing[k];
+    const onlineId = parseInt(md.BeatmapSetID || '-1', 10);
     const set = {
-      id: setId, onlineId: parseInt(md.BeatmapSetID || '-1', 10),
+      ...known,
+      id: setId, onlineId: onlineId > 0 ? onlineId : existing && existing.onlineId > 0 ? existing.onlineId : onlineId,
       title: md.Title || 'Unknown title', titleUnicode: md.TitleUnicode || md.Title || '',
       artist: md.Artist || 'Unknown artist', artistUnicode: md.ArtistUnicode || md.Artist || '',
       creator: md.Creator || 'Unknown', source: md.Source || '', tags: md.Tags || '',

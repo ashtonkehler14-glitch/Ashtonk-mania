@@ -741,8 +741,7 @@ const RankedMatch = {
     try {
       const blob = await BeatmapManager.getFile(local.setId, local.audioFile);
       if (!blob || !this.g || this.g.stage !== 'ready') return;
-      await Music.open(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null });
-      if (!this.g || this.g.stage !== 'ready') return;
+      if (!await Music.open(blob, `${local.setId}/${local.audioFile}`, { setId: local.setId, mapId: local.id, timing: null }) || !this.g || this.g.stage !== 'ready') return;
       Music.play(previewStart(local), { fadeIn: 600 });
     } catch (e) { /* no preview: the warmup goes on in silence */ }
   },

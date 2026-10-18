@@ -57,6 +57,8 @@ const Chat = {
       for (const c of d) {
         if (!c || typeof c.key !== 'string' || !Array.isArray(c.lines)) continue;
         if (c.key !== '#lobby' && !/^pm:/.test(c.key)) continue;
+        // (only lines that can be shown: a damaged copy mustn't stop the chat from opening)
+        c.lines = c.lines.filter(l => l && typeof l.text === 'string').map(l => ({ ...l, from: l.from && typeof l.from === 'object' ? l.from : {} }));
         const ex = this.channels.get(c.key);
         if (ex) ex.lines = c.lines; else this.channels.set(c.key, { key: c.key, name: String(c.name || c.key), pid: c.pid, pm: !!c.pm, lines: c.lines, unread: 0 });
       }
@@ -94,7 +96,8 @@ const Chat = {
     this.input.addEventListener('keydown', e => {
       if (e.key === 'Escape') { if (this.input.value) { this.input.value = ''; e.stopPropagation(); } else this.input.blur(); return; }
       e.stopPropagation();
-      if (e.key === 'Enter' && this.input.value.trim()) { this.send(this.input.value); this.input.value = ''; }
+      // (a message that couldn't go out stays in the box, to send again)
+      if (e.key === 'Enter' && this.input.value.trim() && this.send(this.input.value)) this.input.value = '';
     });
     const top = h('div.ch-top', icon('chat'), h('span', 'chat'));
     this.panel = h('div.chat', { role: 'dialog', 'aria-label': 'Chat', style: { '--ch-f': clamp(Settings.get('ui.chatHeight') || 0.4, 0.2, 0.7) } },
@@ -116,23 +119,25 @@ const Chat = {
   },
   close() { if (this.o) { UISounds.back(); this.o.close(); } },
 
+  /** Says whether it went (or is going out the moment the connection opens). */
   send(text) {
     const c = this.channels.get(this.cur);
-    if (!Presence.ws) { Toast.err('Chat is offline', 'Can\'t reach the server right now — trying again…'); return; }
+    if (!Presence.ws || Presence.ws.readyState > 1) { Toast.err('Chat is offline', 'Can\'t reach the server right now — trying again…'); return false; }
     // lazer's chat commands: /me does something, /np says what you're listening to (or playing), /help lists them
     const cmd = /^\/(\w+)\s*(.*)$/.exec(text);
     if (cmd) {
       const [, name, rest] = cmd, low = name.toLowerCase();
-      if (low === 'help') { this.local('Commands: /me <action> — /np (what you\'re listening to or playing) — /help'); return; }
+      if (low === 'help') { this.local('Commands: /me <action> — /np (what you\'re listening to or playing) — /help'); return true; }
       if (low === 'np') {
         const G = typeof GameplayScreen !== 'undefined' && Screens.currentName === 'gameplay' && GameplayScreen.s ? GameplayScreen.s.rec : null;
         const m = G || MenuMusic.current;
-        if (!m) { this.local('Nothing is playing right now.'); return; }
+        if (!m) { this.local('Nothing is playing right now.'); return true; }
         text = `/me is ${G ? 'playing' : 'listening to'} ${m.artist} - ${m.title}${m.version ? ` [${m.version}]` : ''}`;
-      } else if (low !== 'me') { this.local(`Unknown command /${name} — try /help.`); return; }
-      else if (!rest.trim()) return;
+      } else if (low !== 'me') { this.local(`Unknown command /${name} — try /help.`); return false; }
+      else if (!rest.trim()) return false;
     }
     if (c.pm) Presence.send({ t: 'pm', to: c.pid, text }); else Presence.send({ t: 'say', text });
+    return true;
   },
   /** A line only you see (a command's answer). */
   local(text) {

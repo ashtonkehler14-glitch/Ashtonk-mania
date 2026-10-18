@@ -32,14 +32,18 @@ function md5Hex(bytes) {
 /** LZMA ("alone" format: 5 property bytes, the 8-byte size, the stream) — a decoder after Igor Pavlov's reference
  *  LzmaSpec, and a small encoder that writes every byte as a literal (valid LZMA, just not much smaller). */
 const LZMA = {
+  MAX: 64 << 20,
   decode(src) {
     let ip = 13;
     const props = src[0], lc = props % 9, lp = Math.floor(props / 9) % 5, pb = Math.floor(props / 45);
     let size = 0, unknown = true;
     for (let i = 0; i < 8; i++) { if (src[5 + i] !== 0xff) unknown = false; size += src[5 + i] * 2 ** (8 * i); }
     if (unknown) size = -1;
-    let range = 0xffffffff, code = 0;
-    const next = () => (ip < src.length ? src[ip++] : 0);
+    // (a damaged or made-up file mustn't run away with the memory: a replay's key presses are a few MB at most, and a
+    // stream that has run out — no end marker — stops instead of making up bytes for ever)
+    if (size > this.MAX) throw new Error('Replay too big');
+    let range = 0xffffffff, code = 0, past = 0;
+    const next = () => { if (ip < src.length) return src[ip++]; if (++past > 64) throw new Error('Corrupt LZMA data'); return 0; };
     next(); for (let i = 0; i < 4; i++) code = ((code << 8) | next()) >>> 0;
     const norm = () => { if (range < 0x1000000) { range = (range * 256) >>> 0; code = ((code << 8) | next()) >>> 0; } };
     const bit = (p, i) => {
@@ -58,7 +62,7 @@ const LZMA = {
     const isMatch = probs(192), isRep = probs(12), isRepG0 = probs(12), isRepG1 = probs(12), isRepG2 = probs(12), isRep0Long = probs(192);
     const lenD = lenCoder(), repLenD = lenCoder();
     let out = new Uint8Array(size > 0 ? size : 1 << 16), pos = 0;
-    const put = b => { if (pos >= out.length) { const o = new Uint8Array(out.length * 2); o.set(out); out = o; } out[pos++] = b; };
+    const put = b => { if (pos >= out.length) { if (out.length >= this.MAX) throw new Error('Replay too big'); const o = new Uint8Array(out.length * 2); o.set(out); out = o; } out[pos++] = b; };
     let state = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
     const pbMask = (1 << pb) - 1, lpMask = (1 << lp) - 1;
     while (size < 0 || pos < size) {

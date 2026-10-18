@@ -101,6 +101,10 @@ const Spectate = {
   // what's taken out of a watched player's screen before it's shown (see showRk)
   DROP_TAGS: /^(script|iframe|frame|frameset|object|embed|applet|link|meta|form|base|style|template|noscript|portal|audio|video|source|track|animate|set|animatemotion|animatetransform|use|foreignobject|discard|handler|listener)$/i,
   DROP_ATTRS: /^(href|xlink:href|srcdoc|formaction|action|ping|poster|background|lowsrc|dynsrc|data|codebase|archive|attributename|values|from|to|by|begin)$/, // (data-* stay: the copy needs those)
+  // (and whatever reaches into the watcher's own page: a label `for`, a button's `form` or `commandfor` / `popovertarget`
+  // pointing at one of your own buttons, forms or panels by its id — a click on their screen would press yours — a
+  // `name` that hides the page's own functions, and `autofocus` taking your keyboard)
+  DROP_REACH: /^(for|form|name|autofocus|command|commandfor|popovertarget|popovertargetaction|interestfor|anchor)$/,
   IMG_HOSTS: /(^|\.)(ppy\.sh|sayobot\.cn|catboy\.best|nerinyan\.moe|osu\.direct|nekoha\.moe)$/i,
   on(m) {
     if (m.t === 'spectators') { this.onSpectators(m); return; }
@@ -166,7 +170,7 @@ const Spectate = {
       // not in your library: their play starts straight away from the difficulty alone (a few KB), on a silent clock and
       // with no picture, while the whole set downloads behind it — the song, background and video come in once it's here
       const dl = OnlineBeatmaps.downloadAndImport({ id: m.head.onlineSetId, title: m.head.title, artist: m.head.artist }, null, { quiet: true })
-        .catch(e => { Toast.err('Couldn\'t download the beatmap', friendlyError(e)); });
+        .catch(e => { if (this.cur === c) Toast.err('Couldn\'t download the beatmap', friendlyError(e)); });
       const temp = m.head.onlineId > 0 ? await this.tempMap(m.head).catch(() => null) : null;
       if (this.cur !== c) return;
       if (temp) {
@@ -324,6 +328,7 @@ const Spectate = {
     if (!html || !this.target || (this.watchingNow() && !this.stalled())) { if (this.rkEl) { this.rkEl.remove(); this.rkEl = null; document.body.classList.remove('spec-rk-on'); } return; }
     if (!this.rkEl) {
       this.rkView = h('div.spec-rk-view');
+      this.rkView.inert = true; // (theirs to look at: nothing on it takes a click, a Tab or a key)
       // (their pointer: lazer's menu cursor at its own proportions, or a tap mark when they're on a touch screen)
       this.rkCur = h('div.spec-cur', { hidden: true }, h('img', { src: Host.asset('lazer/menu-cursor.png'), alt: '', draggable: 'false' }), h('span.spec-tap'));
       this.rkEl = h('div.spec-rk', this.rkView, this.rkCur, h('div.spec-rk-bar', icon('film'), h('span', `Spectating ${this.target.name}`), kbHint(h('small', 'Esc to stop'), null), h('button.btn.sm', { onclick: () => { UISounds.click(); this.stop(); } }, 'Stop spectating')));
@@ -353,7 +358,7 @@ const Spectate = {
       if (Spectate.DROP_TAGS.test(el.tagName)) { el.remove(); continue; }
       for (const a of [...el.attributes]) {
         const n = a.name.toLowerCase(), v0 = a.value;
-        if (n.startsWith('on') || Spectate.DROP_ATTRS.test(n) || /(java|vb)script:|data:text\/html/i.test(v0.replace(/[\s\u0000-\u001f]/g, ''))) el.removeAttribute(a.name);
+        if (n.startsWith('on') || Spectate.DROP_ATTRS.test(n) || Spectate.DROP_REACH.test(n) || /(java|vb)script:|data:text\/html/i.test(v0.replace(/[\s\u0000-\u001f]/g, ''))) el.removeAttribute(a.name);
         else if (n === 'src' && !ok(v0)) el.removeAttribute(a.name);
         else if (n === 'srcset' && !v0.split(',').every(c => ok(c.trim().split(/\s+/)[0] || ''))) el.removeAttribute(a.name);
         // (each url() on its own: an allowed picture stays, anything else goes — browsers write these quoted, and a check
