@@ -1804,11 +1804,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, own: score.own, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     if (!store) { this._unsavedReplay = replay; return { score, replay }; }
-    await ScoreManager.add(score);
+    // (storage that refuses — full, or blocked mid-session — says so, and the play still goes on to its results and up
+    // to the leaderboard: it used to leave the finished song on screen with nowhere to go)
+    try { await ScoreManager.add(score); }
+    catch (e) { console.warn('score not saved', e); score.unsaved = true; Toast.err('Your score couldn\'t be saved on this device', friendlyError(e)); }
     const mode = Settings.get('replays.autosave');
-    if ((mode === 'all' && passed) || (mode === 'pb' && score.isPB)) {
-      await ReplayManager.save(replay);
-      score.replayId = replay.id;
+    if (!score.unsaved && ((mode === 'all' && passed) || (mode === 'pb' && score.isPB))) {
+      try { await ReplayManager.save(replay); score.replayId = replay.id; }
+      catch (e) { console.warn('replay not saved', e); Toast.err('The replay couldn\'t be saved on this device', friendlyError(e)); }
     }
     this._unsavedReplay = replay;
     return { score, replay };

@@ -931,8 +931,37 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     } finally { delete st.persisted; delete st.persist; delete navigator.userAgentData; }
   });
   const dataInfo = await page.evaluate(async () => { const el = DataPanel.build(); document.body.append(el); await new Promise(r => setTimeout(r, 300)); const t = el.firstChild.textContent; el.remove(); return t; });
+  const space = await page.evaluate(async () => {
+    const st = navigator.storage, shown = () => [...document.querySelectorAll('#toasts .toast')].some(t => /Storage is almost full/.test(t.textContent));
+    try {
+      Object.defineProperty(st, 'estimate', { value: async () => ({ usage: 4e9, quota: 64e9 }), configurable: true });
+      App._spaceSaid = false; const plenty = await App.checkSpace();
+      Object.defineProperty(st, 'estimate', { value: async () => ({ usage: 999e6 - 80 * 1048576, quota: 999e6 }), configurable: true });
+      const low = await App.checkSpace(), said = shown(), again = await App.checkSpace();
+      for (const t of document.querySelectorAll('#toasts .toast')) if (/Storage is almost full/.test(t.textContent)) t.remove();
+      return { plenty, low, said, again };
+    } finally { delete st.estimate; }
+  });
+  check('storage almost full (the device running out): said once, before scores and downloads start failing', !space.plenty && space.low && space.said && !space.again, JSON.stringify(space));
   check('Settings → Maintenance says how much storage is used, and whether the browser keeps it when space runs low', /^Using .+ browser storage\. The browser (keeps it|may clear it)/.test(dataInfo), dataInfo);
   check('keeping the library: asked again at each start on Chromium (it never prompts), not on browsers that would prompt', keep.chromium === 2 && keep.otherAtStart === 0, JSON.stringify(keep));
+  // storage refusing the score as a song ends (full): the play still goes on to its results, and says it wasn't kept
+  // (a real play — Auto isn't kept — ended where it is)
+  {
+    const was = await page.evaluate(() => AshtonkMania.Screens.currentName); // (back there afterwards: the checks below go on from it)
+    await page.evaluate(() => { const D = AshtonkMania.DB; D.__put = D.put; D.put = function (store, ...a) { return store === 'scores' ? Promise.reject(new DOMException('full', 'QuotaExceededError')) : D.__put.call(this, store, ...a); }; });
+    await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
+    await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
+    const n0 = await page.evaluate(() => AshtonkMania.ScoreManager.scores.length);
+    await page.evaluate(() => { AshtonkMania.GameplayScreen.complete().catch(e => { window.__completeErr = String(e); }); });
+    const reached = await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 8000 }).then(() => true, () => false);
+    const r = await page.evaluate(n0 => ({ said: [...document.querySelectorAll('#toasts .toast')].some(t => /score couldn't be saved/.test(t.textContent) && /storage is full/i.test(t.textContent)), kept: AshtonkMania.ScoreManager.scores.length - n0, err: window.__completeErr || null }), n0);
+    await page.evaluate(() => { const D = AshtonkMania.DB; D.put = D.__put; delete D.__put; for (const t of document.querySelectorAll('#toasts .toast')) if (/couldn't be saved/.test(t.textContent)) t.remove(); });
+    await page.evaluate(was => AshtonkMania.Screens.go(was, { force: true }), was);
+    await page.waitForFunction(was => AshtonkMania.Screens.currentName === was, was, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    check('storage full as a song ends: the results still show, and it says the score wasn\'t kept', reached && r.said && r.kept === 0 && !r.err, JSON.stringify({ reached, ...r }));
+  }
   // automatic resolution: one frame in four late (17, 17, 17, 33…) — the median looks fine, but it stutters
   const asr = await page.evaluate(() => {
     const G = GameplayScreen, keep = { as: G._as, r: G.renderer, set: Settings.get('perf.autoScale'), toast: G._asToast, pend: G._asPending };
@@ -1156,7 +1185,10 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   }));
   check('Space starts from the loader; the beatmap offset is applied', await page.evaluate(() => AshtonkMania.GameplayScreen.s.mapOffset === 20 && AshtonkMania.GameplayScreen.offsetMs() === AshtonkMania.Settings.get('audio.offset') + 20));
   check('automatic resolution: two slow 2-second windows lower the playfield resolution by 10% and remember it', await page.evaluate(() => {
-    const G = AshtonkMania.GameplayScreen, S = AshtonkMania.Settings, r0 = G.renderer.autoScale, w0 = G.renderer.canvas.width;
+    const G = AshtonkMania.GameplayScreen, S = AshtonkMania.Settings;
+    // (from full resolution: an earlier play on a busy test machine may have lowered it, as it should)
+    G._as = { on: true, scale: 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 }; G.renderer.autoScale = 1; G.renderer.resize(true);
+    const r0 = G.renderer.autoScale, w0 = G.renderer.canvas.width;
     let t = performance.now();
     for (let i = 0; i < 300; i++) { t += 30; G.adaptResolution(30, t, 0); } // ~33 fps for 9 s
     const r1 = G.renderer.autoScale, w1 = G.renderer.canvas.width, saved = S.get('perf.autoScale');

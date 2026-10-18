@@ -17584,11 +17584,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       events: s.events, summary: { ...summary, grade: score.grade }, scoreId: score.id, player: score.player, own: score.own, duration: score.duration, noFail: !!s.mp, rules: s.rules,
     });
     if (!store) { this._unsavedReplay = replay; return { score, replay }; }
-    await ScoreManager.add(score);
+    // (storage that refuses — full, or blocked mid-session — says so, and the play still goes on to its results and up
+    // to the leaderboard: it used to leave the finished song on screen with nowhere to go)
+    try { await ScoreManager.add(score); }
+    catch (e) { console.warn('score not saved', e); score.unsaved = true; Toast.err('Your score couldn\'t be saved on this device', friendlyError(e)); }
     const mode = Settings.get('replays.autosave');
-    if ((mode === 'all' && passed) || (mode === 'pb' && score.isPB)) {
-      await ReplayManager.save(replay);
-      score.replayId = replay.id;
+    if (!score.unsaved && ((mode === 'all' && passed) || (mode === 'pb' && score.isPB))) {
+      try { await ReplayManager.save(replay); score.replayId = replay.id; }
+      catch (e) { console.warn('replay not saved', e); Toast.err('The replay couldn\'t be saved on this device', friendlyError(e)); }
     }
     this._unsavedReplay = replay;
     return { score, replay };
@@ -19871,6 +19874,8 @@ const CHANGELOG = [
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
       'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
+      'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',
+      'Storage that\'s full as a song ends no longer leaves the finished song on screen with nowhere to go: the results show, the play still goes up to the leaderboard, and it says your score couldn\'t be kept on this device',
       'Opening the game after an update no longer asks you to update — what opens is the new version already. "Update ready to install" only comes when an update goes up while you have the game open, and waits for you to be back if the game was in the background',
       'Signing in, the rankings, multiplayer, the beatmap listing and your kept settings give up on a server that doesn\'t answer and say so, instead of waiting for ever; a skin download that stalls part-way says so too',
       'The first start on a connection that stops answering no longer sits on "Loading skin…" for ever: the game opens, and Kori is put in next time. Online players, the room list, spectating and song previews give up the same way instead of "Connecting…" for ever',
@@ -27316,7 +27321,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '5c5719e5d101';
+const APP_BUILD = '866462c11f30';
 
 const App = {
   lastReport: null,
@@ -27381,6 +27386,7 @@ const App = {
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
+    setTimeout(() => this.checkSpace().catch(() => {}), 8000);
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
@@ -27640,6 +27646,7 @@ const App = {
    *  Opening the game after a deploy already gets the new page — its service worker taking over a moment later is
    *  nothing to install, so that says nothing: only a build other than this page's does. */
   watchUpdates(reg) {
+    if (!reg || !reg.update) return; // (no registration: a browser — or test — that blocks service workers)
     const sw = navigator.serviceWorker;
     let had = !!sw.controller, last = Date.now();
     const check = () => { last = Date.now(); reg.update().catch(() => {}); };
@@ -27719,6 +27726,19 @@ const App = {
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low
    *  (Chrome decides silently; Firefox asks once). */
+  /** Storage almost full (the device itself running out): said once a session, before scores and downloads start
+   *  failing to save — a beatmap set is 5–20 MB. */
+  async checkSpace() {
+    if (DB.memory || this._spaceSaid) return false;
+    const e = await DB.estimate();
+    if (!e || !(e.quota > 0)) return false;
+    const free = e.quota - (e.usage || 0);
+    if (free > 150 * 1048576) return false;
+    this._spaceSaid = true;
+    Toast.show('Storage is almost full', `${fmtBytes(Math.max(0, free))} left for the game on this device. Delete beatmaps you don't play (Settings → Maintenance), or free up space on the device, so your scores and downloads can be saved.`,
+      { type: 'err', timeout: 15000, hold: true, onClick: () => SettingsPanel.open('Maintenance') });
+    return true;
+  },
   /** Ask the browser to keep the library when the device runs low on space (otherwise it may clear it). Chrome decides
    *  without asking anyone — yes once the game is installed or played often, so a no the first time isn't the last
    *  word: it's asked again at every start and after installing. Firefox asks the player: once, after an import. */

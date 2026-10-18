@@ -69,6 +69,7 @@ const App = {
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
     if (BeatmapManager.sets.length) this.keepStorage({ start: true }); // (a library to keep: see keepStorage)
+    setTimeout(() => this.checkSpace().catch(() => {}), 8000);
     const returning = !!ProfileManager.profile.onboarded;
     if (!returning) { await Onboarding.run(); WhatsNew.markSeen(); }
     else setTimeout(() => WhatsNew.maybeShow(), 1200);
@@ -328,6 +329,7 @@ const App = {
    *  Opening the game after a deploy already gets the new page — its service worker taking over a moment later is
    *  nothing to install, so that says nothing: only a build other than this page's does. */
   watchUpdates(reg) {
+    if (!reg || !reg.update) return; // (no registration: a browser — or test — that blocks service workers)
     const sw = navigator.serviceWorker;
     let had = !!sw.controller, last = Date.now();
     const check = () => { last = Date.now(); reg.update().catch(() => {}); };
@@ -407,6 +409,19 @@ const App = {
 
   /** Once there's a library worth keeping, ask the browser not to evict it when disk space runs low
    *  (Chrome decides silently; Firefox asks once). */
+  /** Storage almost full (the device itself running out): said once a session, before scores and downloads start
+   *  failing to save — a beatmap set is 5–20 MB. */
+  async checkSpace() {
+    if (DB.memory || this._spaceSaid) return false;
+    const e = await DB.estimate();
+    if (!e || !(e.quota > 0)) return false;
+    const free = e.quota - (e.usage || 0);
+    if (free > 150 * 1048576) return false;
+    this._spaceSaid = true;
+    Toast.show('Storage is almost full', `${fmtBytes(Math.max(0, free))} left for the game on this device. Delete beatmaps you don't play (Settings → Maintenance), or free up space on the device, so your scores and downloads can be saved.`,
+      { type: 'err', timeout: 15000, hold: true, onClick: () => SettingsPanel.open('Maintenance') });
+    return true;
+  },
   /** Ask the browser to keep the library when the device runs low on space (otherwise it may clear it). Chrome decides
    *  without asking anyone — yes once the game is installed or played often, so a no the first time isn't the last
    *  word: it's asked again at every start and after installing. Firefox asks the player: once, after an import. */
