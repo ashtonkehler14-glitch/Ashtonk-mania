@@ -28,9 +28,12 @@ const Inflate = (() => {
     fixedL = buildHuff(l, 288);
     fixedD = buildHuff(new Uint8Array(30).fill(5), 30);
   }
-  return function inflate(src, sizeHint = 0) {
-    let pos = 0, bit = 0, out = new Uint8Array(Math.max(sizeHint, src.length * 4, 1024)), op = 0;
-    const need = n => { if (op + n > out.length) { const o = new Uint8Array(Math.max(out.length * 2, op + n)); o.set(out); out = o; } };
+  return function inflate(src, sizeHint = 0, max = Infinity) {
+    let pos = 0, bit = 0, out = new Uint8Array(Math.min(max, Math.max(sizeHint, src.length * 4, 1024))), op = 0;
+    const need = n => {
+      if (op + n > max) throw new Error('Corrupt archive entry (bigger than it says)');
+      if (op + n > out.length) { const o = new Uint8Array(Math.min(max, Math.max(out.length * 2, op + n))); o.set(out); out = o; }
+    };
     const bits = n => {
       // (a damaged entry that runs out mid-stream stops here, instead of being read on as zeros — for ever, in a loop)
       if (pos > src.length) throw new Error('Corrupt archive entry (cut short)');
@@ -134,6 +137,17 @@ class ZipReader {
   }
   static _looksUtf8(b) { try { new TextDecoder('utf-8', { fatal: true }).decode(b); return true; } catch (e) { return false; } }
 
+  /** The most an entry may unpack to: twice what the archive says (8 MB at least, for archives that say too little) —
+   *  a tiny file claiming to be small that unpacks into gigabytes (a "zip bomb") stops there instead of filling the
+   *  memory or the disk. */
+  static limit(entry) { return Math.max(entry.usize * 2, 1 << 23); }
+  /** The browser's inflater, stopped once it has given more than `max` bytes. */
+  static inflated(stream, max) {
+    let n = 0;
+    return stream.pipeThrough(new DecompressionStream('deflate-raw')).pipeThrough(new TransformStream({
+      transform(chunk, c) { n += chunk.length; if (n > max) c.error(Object.assign(new Error('Corrupt archive entry (bigger than it says)'), { tooBig: true })); else c.enqueue(chunk); },
+    }));
+  }
   /** Where an entry's (compressed) bytes start. */
   _start(entry) {
     const { dv } = this;
@@ -148,9 +162,9 @@ class ZipReader {
       try {
         const start = this._start(entry), part = this.file.slice(start, start + entry.csize);
         if (entry.method === 0) return new Blob([part], { type });
-        const b = await new Response(part.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
+        const b = await new Response(ZipReader.inflated(part.stream(), ZipReader.limit(entry))).blob();
         return new Blob([b], { type });
-      } catch (e) { /* the copying way, below */ }
+      } catch (e) { if (e && e.tooBig) throw e; /* the copying way, below */ }
     }
     return new Blob([await this.read(entry)], { type });
   }
@@ -160,13 +174,10 @@ class ZipReader {
     if (entry.method === 0) return data.slice();
     if (entry.method !== 8) throw new Error(`Unsupported compression in ${entry.name}`);
     if (typeof DecompressionStream !== 'undefined') {
-      try {
-        const ds = new DecompressionStream('deflate-raw');
-        const stream = new Blob([data]).stream().pipeThrough(ds);
-        return new Uint8Array(await new Response(stream).arrayBuffer());
-      } catch (e) { /* fall back to JS inflate */ }
+      try { return new Uint8Array(await new Response(ZipReader.inflated(new Blob([data]).stream(), ZipReader.limit(entry))).arrayBuffer()); }
+      catch (e) { if (e && e.tooBig) throw e; /* fall back to JS inflate */ }
     }
-    return Inflate(data, entry.usize);
+    return Inflate(data, entry.usize, ZipReader.limit(entry));
   }
   async readText(entry) { return new TextDecoder('utf-8').decode(await this.read(entry)); }
 }

@@ -1858,6 +1858,26 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('song select: the song starts over when it ends, and the selection stays (coming back from the menu too)', r.sets > 1 && r.before === r.want && r.after === r.want && r.playing && r.same, JSON.stringify(r));
 }
 
+// installing: a difficulty whose reading thread hangs is given up on (and the thread replaced) instead of the import
+// waiting for ever; what that thread had queued behind it goes to the new one
+{
+  const r = await page.evaluate(async () => {
+    const IW = ImportWorkers;
+    IW.start();
+    if (!IW.pool) return { skipped: true };
+    const url = IW._url, T = IW.TIMEOUT, pool = IW.pool;
+    IW._url = URL.createObjectURL(new Blob(['onmessage = () => {}'], { type: 'text/javascript' })); // (a thread that never answers)
+    IW.pool = [IW.make()]; IW.TIMEOUT = 300;
+    const t0 = performance.now();
+    const got = await Promise.allSettled([IW.inspect('x', new Set()), IW.inspect('y', new Set())]);
+    const out = { states: got.map(g => g.status).join(), msg: got[0].reason && got[0].reason.message, ms: Math.round(performance.now() - t0), threads: IW.pool.length, left: IW.waiting.size };
+    for (const w of IW.pool) w.terminate();
+    IW.pool = pool; IW._url = url; IW.TIMEOUT = T;
+    return out;
+  });
+  check('installing: a difficulty that hangs its reading thread is given up on, and the rest carry on', r.skipped || (r.states === 'rejected,rejected' && /too long/.test(r.msg) && r.ms < 3000 && r.threads === 1 && r.left === 0), JSON.stringify(r));
+}
+
 const realErrors = errors.filter(e => !/favicon|fonts\.g|ERR_CERT|ERR_NAME|ERR_INTERNET|ERR_FAILED|status of 404/.test(e));
 check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 8).join('\n'));
 await browser.close();

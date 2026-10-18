@@ -729,6 +729,7 @@ const CHANGELOG = [
       'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
       'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
       'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
+      'A beatmap archive that unpacks into far more than it says (a "zip bomb") is stopped, and a difficulty that hangs while it\'s read is given up on after a minute: the rest of the import carries on',
       'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen',
       'The notifications\' unread count never counts more than the list keeps',
       'A big library is quicker wherever a play is matched to its beatmap: your profile\'s pp, results, replays, collections',
