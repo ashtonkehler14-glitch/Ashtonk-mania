@@ -13,8 +13,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = process.argv.includes('--shots');
 const shotDir = process.env.SHOT_DIR || join(root, 'tests', 'shots');
 if (SHOTS) mkdirSync(shotDir, { recursive: true });
+let slowPage = false; // (a connection that's there but barely: the page takes 15 s — see the offline checks)
 const server = createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
+  if (slowPage && p === '/') { setTimeout(() => { try { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(readFileSync(join(root, 'index.html'))); } catch { /* gone */ } }, 15000); return; }
   const file = p === '/' ? join(root, 'index.html') : join(root, p);
   try {
     let data;
@@ -1182,6 +1184,14 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   check('offline: beatmaps play', await op.waitForFunction(() => AshtonkMania.GameplayScreen.s.engine.score.judged > 0, null, { timeout: 15000 }).then(() => true, () => false));
   check('offline: no page errors', oErr.length === 0, oErr.join(' | '));
   await octx.setOffline(false);
+  // a weak signal (the page answering, but only after 15 s): the saved copy opens after a few seconds instead
+  slowPage = true;
+  const t0 = Date.now();
+  await op.reload({ timeout: 14000 }).catch(() => {});
+  const opened = await op.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 14000 }).then(() => true, () => false);
+  const waited = Date.now() - t0;
+  slowPage = false;
+  check('a barely-there connection: the game opens from its saved copy within seconds, not when the network finally answers', opened && waited < 12000, String(waited));
   await octx.close();
 }
 

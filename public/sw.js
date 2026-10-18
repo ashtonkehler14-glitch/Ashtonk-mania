@@ -5,7 +5,7 @@
  *  - Google Fonts: cached, so the text looks right offline.
  *  - /api/* (search, downloads, multiplayer) and other sites (mirrors, covers, previews) are never cached here.
  *  Beatmaps, skins, scores and settings live in IndexedDB, not in these caches. */
-const VERSION = '284448961a53';
+const VERSION = '989d55e2bf24';
 const PAGES = 'ashtonk-pages', ASSETS = 'ashtonk-assets', FONTS = 'ashtonk-fonts', SHARED = 'ashtonk-shared';
 const CORE = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'neru.png', 'neru-happy.png', 'avatars/avatars.json'];
 
@@ -36,7 +36,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     if (url.pathname.startsWith('/api/')) return; // live data
-    if (req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) { e.respondWith(page(req)); return; }
+    if (req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) { e.respondWith(page(req, e)); return; }
     e.respondWith(req.cache === 'no-cache' || req.cache === 'reload' || req.cache === 'no-store' ? networkFirst(req, ASSETS) : cacheFirst(req, ASSETS, e));
     return;
   }
@@ -54,16 +54,21 @@ async function shared(req) {
   return Response.redirect('./?shared=1', 303);
 }
 
-/** The game page: the network's copy (saved for offline), else the saved one — whatever the query string. */
-async function page(req) {
-  const cache = await caches.open(PAGES);
+/** The game page: the network's copy (saved for offline), else the saved one — whatever the query string. On a
+ *  connection that's there but barely (a weak signal), the saved copy opens after a few seconds instead of the game
+ *  waiting on the network for as long as it takes; the network's copy is still saved when it arrives, for next time. */
+const PAGE_WAIT = 4000;
+async function page(req, e) {
+  const cache = await caches.open(PAGES), saved = await cache.match('./');
+  const net = fetch(req).then(async res => { if (res.ok && res.type === 'basic') await cache.put('./', res.clone()); return res; });
+  if (e) e.waitUntil(net.catch(() => {}));
+  let timer;
+  const slow = saved ? new Promise(res => { timer = setTimeout(() => res(null), PAGE_WAIT); }) : null;
   try {
-    const res = await fetch(req);
-    if (res.ok && res.type === 'basic') await cache.put('./', res.clone());
-    return res;
-  } catch (err) {
-    return (await cache.match('./')) || new Response('<!doctype html><meta charset="utf-8"><title>Ashtonk!mania</title><body style="background:#18171c;color:#fff;font-family:sans-serif;padding:40px">You\'re offline, and the game hasn\'t been saved for offline play yet. Open it once while online.', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-  }
+    const res = await (slow ? Promise.race([net, slow]) : net);
+    if (res && (res.ok || !saved)) return res; // (the server failing: the saved copy, as when offline)
+  } catch (err) { /* offline */ } finally { clearTimeout(timer); }
+  return saved || new Response('<!doctype html><meta charset="utf-8"><title>Ashtonk!mania</title><body style="background:#18171c;color:#fff;font-family:sans-serif;padding:40px">You\'re offline, and the game hasn\'t been saved for offline play yet. Open it once while online.', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
 async function networkFirst(req, name) {
