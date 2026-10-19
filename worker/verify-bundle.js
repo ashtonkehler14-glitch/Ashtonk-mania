@@ -400,10 +400,13 @@ function parseColour(str, fallback = null) {
 }
 const rgba = (c, mul = 1) => c ? `rgba(${c.r},${c.g},${c.b},${(c.a ?? 1) * mul})` : 'transparent';
 
+/** The browser's storage refused a write for lack of room. */
+const storageFull = e => !!e && (e.name === 'QuotaExceededError' || /quota|storage full/i.test(e.message || String(e)));
+
 /** A message people can act on for the errors browsers throw (storage full, network down, unreadable files, audio). */
 function friendlyError(e) {
   const name = e && e.name, msg = (e && e.message) || String(e || 'Unknown error');
-  if (name === 'QuotaExceededError' || /quota|storage full/i.test(msg))
+  if (storageFull(e))
     return 'Browser storage is full. Delete beatmaps or replays you don\'t need (Settings → Maintenance shows how much is used), then try again.';
   if (name === 'TypeError' && /failed to fetch|networkerror|load failed|network connection/i.test(msg))
     return navigator.onLine === false ? 'You\'re offline. Connect to the internet and try again.' : 'Couldn\'t reach the server. Check your connection and try again.';

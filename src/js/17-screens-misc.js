@@ -739,6 +739,7 @@ const CHANGELOG = [
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
       'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
+      'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
       'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
       'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',

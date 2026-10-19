@@ -190,6 +190,21 @@ await shot('02-songselect');
   check('import: a beatmap pack (a .zip of .osz files) imports each one inside, and says which couldn\'t be',
     r.added === 1 && r.errors.length === 1 && /broken\.osz/.test(r.errors[0]) && r.said.length === 2 && r.after, JSON.stringify(r));
 }
+// storage full while importing several files: it stops and says so, instead of failing each of the rest in turn
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, D = A.DB, n0 = A.BeatmapManager.sets.length, put = D.put, putMany = D.putMany;
+    const full = () => Promise.reject(new DOMException('full', 'QuotaExceededError'));
+    D.put = function (store, ...a) { return store === 'files' ? full() : put.call(this, store, ...a); };
+    D.putMany = function (items) { return items.some(i => i.store === 'files') ? full() : putMany.call(this, items); };
+    const bytes = async n => new Uint8Array(await (await fetch('/tests/fixtures/' + n)).arrayBuffer());
+    try { await A.App.importFiles([new File([await bytes('online-set.osz')], 'one.osz'), new File([await bytes('online-set.osz')], 'two.osz'), new File([await bytes('online-set.osz')], 'three.osz')]); }
+    finally { D.put = put; D.putMany = putMany; }
+    for (const t of document.querySelectorAll('#toasts .toast')) if (/storage is full|no room left|couldn't be imported/i.test(t.textContent)) t.remove();
+    return { errors: A.App.lastReport.errors, added: A.BeatmapManager.sets.length - n0 };
+  });
+  check('storage full while importing several files: it stops at the first and says the rest weren\'t tried', r.errors.length === 2 && /storage is full/i.test(r.errors[0]) && /^2 more files weren't imported/.test(r.errors[1]) && r.added === 0, JSON.stringify(r));
+}
 {
   // installing goes through the background threads (the same answers as the page's own parser), and an install asked
   // for while a song is being played waits for it to end

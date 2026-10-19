@@ -143,7 +143,9 @@ const BeatmapManager = {
     const archives = [...files].filter(f => ['osz', 'zip', 'osk'].includes(fileExt(f.name))).length;
     let nth = 0;
     const status = (what, f) => { nth++; Bus.emit('import:status', `Importing ${what}${f.name.replace(/\.(osz|osk|zip)$/i, '')}${archives > 1 ? ` (${nth}/${archives})` : ''}…`); };
+    let left = files.length, full = false;
     for (const f of files) {
+      left--;
       const name = f.relPath || f.webkitRelativePath || f.name;
       const ext = fileExt(f.name);
       await this.breathe();
@@ -170,10 +172,12 @@ const BeatmapManager = {
         else loose.push({ path: normPath(name), file: f });
       } catch (e) {
         console.warn(e); report.errors.push(`${f.name}: ${friendlyError(e)}`);
+        // (storage full: the rest would only fail the same way, one at a time)
+        if (storageFull(e)) { full = true; if (left) report.errors.push(`${plural(left, 'more file')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
       }
     }
     // Loose files / folders: group by directory that contains .osu files
-    if (loose.length) {
+    if (loose.length && !full) {
       const dirs = new Map();
       for (const l of loose) {
         const i = l.path.lastIndexOf('/');
@@ -224,7 +228,11 @@ const BeatmapManager = {
         const nm = inner[i].name.split('/').pop();
         Bus.emit('import:status', `Importing ${nm.replace(/\.osz$/i, '')} (${i + 1}/${inner.length})…`);
         try { out.push(...await this.importOsz(new File([await inner[i].blob('application/zip')], nm, { type: 'application/zip' }), report)); }
-        catch (e) { if (!report) throw e; report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`); }
+        catch (e) {
+          if (!report) throw e;
+          report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`);
+          if (storageFull(e)) { const left = inner.length - i - 1; if (left) report.errors.push(`${base}: ${plural(left, 'more beatmap')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
+        }
       }
       return out;
     }
