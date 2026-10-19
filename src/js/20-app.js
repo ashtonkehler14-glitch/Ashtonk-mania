@@ -325,9 +325,8 @@ const App = {
   installPrompt: null,
   /** lazer's UpdateManager: a new version put up while the game is open — an installed app can sit in the background
    *  for days — is noticed (every half hour, and on coming back to the game), and a notification offers to restart
-   *  into it. (every build's service worker is different, so the browser's own update check is what finds it)
-   *  Opening the game after a deploy already gets the new page — its service worker taking over a moment later is
-   *  nothing to install, so that says nothing: only a build other than this page's does. */
+   *  into it. (every build's service worker is different, so the browser's own update check is what finds it) Only an
+   *  update put up while the game is open is news — opening the game after a deploy says nothing (see below). */
   UPDATE_LATER: 5 * 60e3, // (found by the browser this long after the page opened: put up while it was open)
   watchUpdates(reg) {
     if (!reg || !reg.update) return; // (no registration: a browser — or test — that blocks service workers)
