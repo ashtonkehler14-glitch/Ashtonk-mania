@@ -181,6 +181,8 @@ try {
   // (as a beatmap from osu! has: its ids there — the fixture's are made up)
   await a.evaluate(() => { const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0]; m.onlineId = 4242; A.BeatmapManager.setById.get(m.setId).onlineId = 77; });
   const scA = await keepScore(a), scImp = await keepScore(a, { imported: 'backup' });
+  // (and a collection of its own)
+  await a.evaluate(async () => { const c = await Collections.create('Jumps'); await Collections.toggle(c.id, [...AshtonkMania.BeatmapManager.maps.values()][0].hash); });
   // ── your settings and skin come along: device A uses a skin it imported, and settings of its own
   const osk = readFileSync(join(root, 'tests/fixtures/chemuss.osk')).toString('base64');
   const mineA = await a.evaluate(async b64 => {
@@ -216,7 +218,9 @@ try {
   check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
   const scE = await e.evaluate(id => { const A = AshtonkMania, l = A.ScoreManager.scores, s = l.find(x => x.id === id); return { n: l.length, s: s && { synced: s.synced, timing: !!s.hitErrors, ur: s.unstableRate, mean: s.meanError, counts: s.counts.join(), oid: `${s.onlineId}/${s.onlineSetId}` }, plays: StatisticsManager.compute().plays }; }, scA);
   check('…and your play from device A, without its hit-by-hit timing (the backup\'s stays there), with the beatmap\'s osu! ids', scE.s && scE.s.oid === '4242/77' && scE.n === 1 && scE.s && scE.s.synced && !scE.s.timing && scE.s.ur === 120 && scE.s.mean === -3.2 && scE.s.counts === '200,50,10,0,0,2' && scE.plays === 1 && got.got.scores === 1, JSON.stringify(scE));
-  check('…the page says your scores came', said.some(t => /Your scores \(1 play from your other devices\)/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));
+  const colE = await e.evaluate(() => Collections.list.map(c => `${c.name}:${c.hashes.length}`).join());
+  check('…and your collections (merged with the ones a new device has)', /Jumps:1/.test(colE) && /Practice:0/.test(colE) && got.got.collections === 1 && said.some(t => /Your collections/.test(t)), colE);
+  check('…the page says your scores came', said.some(t => /Your scores \(1 play\)/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));
   // closed before Finish: back on this player's page (never "I'm new", which would rename them), then the device's page
   await e.reload();
   await e.waitForSelector('.setup-step-account .setup-restore', { timeout: 30000 });
@@ -238,6 +242,15 @@ try {
   const res = await a.evaluate(async id => { const A = AshtonkMania; await A.Screens.go('results', { score: A.ScoreManager.scores.find(s => s.id === id), fromList: true, browse: true }); await new Promise(r => setTimeout(r, 800)); const t = document.querySelector('.res-right')?.textContent || ''; await A.Screens.go('home'); return t; }, scE2);
   check('…its results show the unstable rate, and that the hit-by-hit timing stays on the device it was played on', /Unstable Rate/.test(res) && /stays on the device this was played on/.test(res), res.slice(0, 200));
   check('…and it\'s done (Finish on that page — once, even tapped twice)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending() && AshtonkMania.ProfileManager.profile.name === 'Kai') && (await toasts(e)).split('Welcome, Kai!').length <= 2);
+
+  // ── Reset everything on a device playing through a code: still you — your name (not "Player", which the server would
+  // take as a rename), and your settings and every play kept for you come back
+  await e.evaluate(() => DataManager.resetEverything());
+  await e.waitForSelector('.setup-step-account .setup-restore', { timeout: 30000 });
+  await e.waitForFunction(() => /Your settings/.test(document.querySelector('.setup-restore')?.textContent || ''), null, { timeout: 20000 });
+  const reset = await e.evaluate(() => { const A = AshtonkMania; return { name: A.ProfileManager.profile.name, page: document.querySelector('.setup-restore').textContent, n: A.ScoreManager.scores.length, hue: A.Settings.get('wom.hue') }; });
+  check('Reset everything on a device with your code: still Kai, with your settings and both plays back', reset.name === 'Kai' && /Your scores \(2 plays\)/.test(reset.page) && reset.n === 2 && reset.hue === 200, JSON.stringify(reset));
+  check('…and the server still has Kai, not "Player"', (await rankings(a)).names.join() === 'Kai');
 
   // ── guessing: a few tries per address, then turned away (codes have 80 random bits anyway)
   const tries = await c.evaluate(async () => {

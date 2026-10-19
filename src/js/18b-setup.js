@@ -250,8 +250,9 @@ const Onboarding = {
     }
     const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
     clearEl(w).append(...[
-      line(true, this.got.scores ? `Your scores (${plural(this.got.scores, 'play')} from your other devices), rank and friends` : 'Your scores, rank and friends'),
+      line(true, this.got.scores ? `Your scores (${plural(this.got.scores, 'play')}), rank and friends` : 'Your scores, rank and friends'),
       this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
+      this.got.collections ? line(true, 'Your collections') : null,
       this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : this.got.skinErr ? line(false, `Your skin didn't come along (${noStop(this.got.skinErr)})`) : null].filter(Boolean));
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */

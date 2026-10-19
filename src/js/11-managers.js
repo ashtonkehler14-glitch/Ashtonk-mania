@@ -192,16 +192,40 @@ const Collections = {
     await this.save();
     return c.hashes.includes(hash);
   },
+  /** Collections from your other device (Sync.restore): one with the same name here gets their beatmaps too, the
+   *  others are added. Resolves to how many changed. */
+  async merge(list) {
+    let n = 0;
+    for (const r of list) {
+      if (!r || typeof r.name !== 'string' || !r.name.trim() || !Array.isArray(r.hashes)) continue;
+      const hashes = r.hashes.filter(x => typeof x === 'string' && x.length <= 64), c = this.list.find(x => x.name === r.name);
+      if (c) { const was = c.hashes.length; c.hashes = [...new Set([...c.hashes, ...hashes])]; if (c.hashes.length !== was) n++; }
+      else { this.list.push({ id: uid(), name: r.name.slice(0, 60), hashes: [...new Set(hashes)], created: Date.now() }); n++; }
+    }
+    if (n) await this.save();
+    return n;
+  },
 };
 
 const ProfileManager = {
   profile: null,
   async init() {
     this.profile = await DB.kvGet('profile', null);
-    if (!this.profile) { this.profile = { name: 'Player', avatar: 'default', created: Date.now(), banner: 'kori', onboarded: false }; await this.save(); }
+    if (!this.profile) {
+      // (the game's data gone — Reset everything, or cleared by the browser — but this device still the same player
+      // online: still called what you were, or the next connection would tell the server you're "Player" now)
+      let name = 'Player';
+      try { if (localStorage.getItem('am.pid')) name = localStorage.getItem('am.name') || name; } catch { /* private mode */ }
+      this.profile = { name, avatar: 'default', created: Date.now(), banner: 'kori', onboarded: false };
+      await this.save();
+    }
     await this.loadAvatar();
   },
-  async save() { await DB.kvSet('profile', this.profile); Bus.emit('profile:changed'); },
+  async save() {
+    await DB.kvSet('profile', this.profile);
+    try { localStorage.setItem('am.name', this.profile.name); } catch { /* private mode */ }
+    Bus.emit('profile:changed');
+  },
   async setName(n) {
     const old = this.profile.name;
     this.profile.name = n.trim().slice(0, 24) || 'Player';
@@ -354,6 +378,9 @@ const DataManager = {
       setTimeout(() => Toast.show('Playing on more than one device?', `Get your code on your other device (${Account.where()}) and type it here under Use a code, so you're one player on the rankings — not one for each device.`, { timeout: 12000 }), 1200);
   },
   async resetEverything() {
+    // (what was sent from here is forgotten too: a device playing through a code gets everything kept for you back
+    // from the setup that follows)
+    try { ['am.setSent', 'am.skinSent', 'am.skinBig', 'am.scPulled'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
     DB.db && DB.db.close(); DB.db = null;
     await new Promise(r => { const q = indexedDB.deleteDatabase(DB.name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
     location.reload();
