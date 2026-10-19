@@ -762,6 +762,7 @@ const CHANGELOG = [
       'The beatmap options\' number keys only work while the menu is all you\'re doing',
       'Sorting by your scores, accuracy, play count or last played is quick with a big library'] },
     { icon: 'trophy', title: 'Results', items: [
+      'Tags say when the online service can\'t be reached, instead of saying for ever that your score hasn\'t reached the server',
       'Export works on saved replays opened from song select, your profile or Replays (the menu didn\'t open)',
       'Clicking another of your scores and back keeps your new play as it was: its replay to watch or save, your personal best line',
       'A column key still held as the song ends no longer skips the results with a retry; Enter on a button presses that button',

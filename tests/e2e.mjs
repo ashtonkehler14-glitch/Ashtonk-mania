@@ -922,6 +922,13 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     } finally { Toast.playing = real; }
   });
   check('a notice that isn\'t about the song waits for it to be over (listed in the notifications at once); one about the match shows at once', !held.during.held && held.during.listed && held.during.match && held.after && held.copies === 1, JSON.stringify(held));
+  // the results screen's tags with no online service: says so, instead of "Loading…" for ever
+  const tagsOff = await page.evaluate(async () => {
+    const P = AshtonkMania.Presence, was = P.health, send = P.send; P.health = 'none'; P.send = () => {}; // (nothing reaches a server)
+    try { UserTags.cache.delete('tags-offline-test'); const el = UserTags.panel('tags-offline-test'); document.body.append(el); await new Promise(r => setTimeout(r, 50)); const t = el.textContent; el.remove(); return t; }
+    finally { P.health = was; P.send = send; }
+  });
+  check('tags on the results screen say when the online service can\'t be reached (not "Loading…" for ever)', /not connected/.test(tagsOff) && !/Loading/.test(tagsOff), tagsOff);
   // keeping the library when space runs low: Chromium decides silently, so it's asked again at every start (a first
   // "no" isn't final); where the browser would ask the player (no userAgentData: Firefox), not again at start
   const keep = await page.evaluate(async () => {

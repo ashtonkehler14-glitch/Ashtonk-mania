@@ -32,6 +32,8 @@ const UserTags = {
     if (m.err) Toast.show('Tag not added', m.err);
     Bus.emit('tags', m.key);
   },
+  /** The online service can't be reached (no server, or no connection at all). */
+  offline() { return !navigator.onLine || (typeof Presence !== 'undefined' && Presence.health === 'none'); },
   /** The tags with votes, as chips (song select). */
   chips(key, onClick) {
     const c = this.get(key);
@@ -45,15 +47,17 @@ const UserTags = {
       const c = this.get(key) || { tags: [], all: [], can: false };
       const votes = new Map(c.tags.map(t => [t.tag, t])), all = [...new Set([...c.tags.map(t => t.tag), ...c.all])];
       clearEl(el).append(
-        h('div.ut-head', h('b', 'Tags'), h('span.muted', c.can ? 'What is this beatmap? Vote for the tags that fit.' : c.pending ? 'Loading…' : 'Your score has to reach the server before you can tag the beatmap.')),
+        h('div.ut-head', h('b', 'Tags'), h('span.muted', c.can ? 'What is this beatmap? Vote for the tags that fit.' : c.pending ? (this.offline() ? 'Tags need the online service — not connected right now.' : 'Loading…') : 'Your score has to reach the server before you can tag the beatmap.')),
         all.length ? h('div.ut-list', ...all.map(tag => {
           const v = votes.get(tag);
           return h(`button.ut-chip${v && v.mine ? '.mine' : ''}${v ? '.voted' : ''}`, { disabled: !c.can, onclick: () => { UISounds.click(); this.vote(key, tag, !(v && v.mine)); } }, tag, v ? h('small', String(v.n)) : null);
         })) : null);
     };
+    this.ask(key, true); // (asked first: until it's answered the panel says it's waiting, not that your score hasn't arrived)
     paint();
     const off = Bus.on('tags', k => { if (k === key) { if (!document.body.contains(el)) off(); else paint(); } });
-    this.ask(key, true);
+    // (still waiting on the online service: say so when it can't be reached, instead of waiting for ever)
+    const offP = Bus.on('presence:changed', () => { if (!document.body.contains(el)) offP(); else if ((this.get(key) || {}).pending) paint(); });
     // (a score sent a moment ago may not have reached the server yet: ask again shortly)
     setTimeout(() => { const c = this.get(key); if (c && !c.can && document.body.contains(el)) this.ask(key, true); }, 4000);
     return el;
