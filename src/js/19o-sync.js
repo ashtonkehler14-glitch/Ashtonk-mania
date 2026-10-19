@@ -33,6 +33,8 @@ const Sync = {
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) this.later(2000); });
+    // (plays set without a connection go up once it's back, not at the next play)
+    window.addEventListener('online', () => this.later(2000));
     // (a restore cut short: finished now — unless the setup is about to run, which brings it on its own page)
     if (this.pending() && Account.linked() && ProfileManager.profile.onboarded) setTimeout(() => this.restore().catch(e => console.warn('restore', e)), 2000);
     else this.later(3000);

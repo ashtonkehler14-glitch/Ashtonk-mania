@@ -355,7 +355,7 @@ const ResultsScreen = {
         else { dl.disabled = false; label.textContent = 'Download'; }
       } }, icon('download'), label);
       bar.append(dl);
-    } else if (!map) bar.append(h('span.muted', s.online ? 'Beatmap not in your library' : 'Beatmap no longer in library'));
+    } else if (!map) bar.append(h('span.muted', s.online || s.synced ? 'Beatmap not in your library' : 'Beatmap no longer in library')); // (synced: played on your other device)
 
     return bar;
   },

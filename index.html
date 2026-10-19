@@ -18862,7 +18862,7 @@ const ResultsScreen = {
         else { dl.disabled = false; label.textContent = 'Download'; }
       } }, icon('download'), label);
       bar.append(dl);
-    } else if (!map) bar.append(h('span.muted', s.online ? 'Beatmap not in your library' : 'Beatmap no longer in library'));
+    } else if (!map) bar.append(h('span.muted', s.online || s.synced ? 'Beatmap not in your library' : 'Beatmap no longer in library')); // (synced: played on your other device)
 
     return bar;
   },
@@ -27235,6 +27235,8 @@ const Sync = {
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) this.later(2000); });
+    // (plays set without a connection go up once it's back, not at the next play)
+    window.addEventListener('online', () => this.later(2000));
     // (a restore cut short: finished now — unless the setup is about to run, which brings it on its own page)
     if (this.pending() && Account.linked() && ProfileManager.profile.onboarded) setTimeout(() => this.restore().catch(e => console.warn('restore', e)), 2000);
     else this.later(3000);
@@ -27453,7 +27455,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd96766b0054e';
+const APP_BUILD = '11a1eaf2727b';
 
 const App = {
   lastReport: null,
