@@ -175,6 +175,10 @@ try {
   await b.keyboard.press('Enter');
   await b.waitForFunction(() => AshtonkMania.Account.linked() && !AshtonkMania.Account.signedOut() && !document.querySelector('.setup'), null, { timeout: 10000 });
   check('a signed-out device comes back with the new code', await b.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
+  // (what it brought counts as sent: sent back, it went over newer settings another device sent meanwhile)
+  await b.waitForFunction(() => !AshtonkMania.Sync.pending(), null, { timeout: 15000 }).catch(() => {});
+  const bSent = await b.evaluate(() => localStorage.getItem('am.setSent') || '');
+  check('…and doesn\'t send the settings it brought straight back', bSent.startsWith(pidA + '|'), bSent);
   check('…still one Kai on the rankings', (await rankings(a)).total === 1);
 
   // ── your scores come along too: device A keeps a play of its own (and one from a backup, which stays there)

@@ -176,6 +176,7 @@ const Sync = {
       throw e;
     }
     const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    const own = s && this.ownExtra(s);
     if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
     if (s && Array.isArray(s.collections)) got.collections = await Collections.merge(s.collections);
     if (s && Array.isArray(s.favorites)) got.favorites = await Favorites.merge(s.favorites);
@@ -201,6 +202,9 @@ const Sync = {
         }
       }
     }
+    // (what came is what's kept: nothing to send back — unless this device added something of its own to it. Sent
+    // back anyway, it went over any newer settings another of your devices had sent in the meantime.)
+    if (s && !own) this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`);
     onStatus('Bringing your scores…');
     // (all that's kept, not only what's new since this device last asked: one that had them and lost them — Reset
     // everything, or cleared by the browser — gets them back; the ones it has are skipped)
@@ -208,6 +212,14 @@ const Sync = {
     try { got.scores = await this.pullScores(); } catch (e) { console.warn('scores not brought', e); } // (again with the next settings sent)
     this.later();
     return got;
+  },
+  /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): a
+   *  collection's beatmap, a favourite, a medal. */
+  ownExtra(s) {
+    const cols = new Map((Array.isArray(s.collections) ? s.collections : []).map(c => [c && c.name, new Set(c && Array.isArray(c.hashes) ? c.hashes : [])]));
+    const favs = new Set(Array.isArray(s.favorites) ? s.favorites : []), medals = (s.values && s.values['medals.unlocked']) || {}, mine = Settings.values['medals.unlocked'] || {};
+    return Collections.list.some(c => c.hashes.some(x => !(cols.get(c.name) || new Set()).has(x))) || [...Favorites.set].some(x => !favs.has(x))
+      || (typeof mine === 'object' && Object.keys(mine).some(k => !(k in medals)));
   },
   /** A restore that didn't get an answer: again in a minute, quietly, while this device still waits for one. */
   retry() {

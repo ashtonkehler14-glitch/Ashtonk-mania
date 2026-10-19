@@ -152,12 +152,14 @@ const BeatmapManager = {
         else if (ext === 'osk') { status('skin ', f); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
         else if (ext === 'osr') { status('replay ', f); report.replays.push(await Osr.importFile(f)); } // (osu!lazer / osu!stable replays)
-        else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
+        else if (ext === 'zip' && WomImport.looksLike(await ZipReader.fromFile(f))) {
           // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
           const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });
           report.sets.push(...r.sets); report.errors.push(...r.errors); report.wom = r;
         }
         else if (ext === 'zip') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
+        // (a big one is a backup: read a part at a time — DataManager.importFile)
+        else if (ext === 'json' && !name.includes('/') && f.size > 16 * 1024 * 1024) { await DataManager.importFile(f); report.data = true; }
         else if (ext === 'json' && !name.includes('/')) {
           let obj = null;
           try { obj = JSON.parse(await f.text()); } catch { /* not JSON at all: said below */ }
@@ -207,13 +209,25 @@ const BeatmapManager = {
 
   async importOsz(file, report) {
     let zip;
-    try { zip = new ZipReader(await file.arrayBuffer()); zip.file = file; }
+    try { zip = await ZipReader.fromFile(file); } // (a part at a time: a beatmap pack can be gigabytes)
     catch (e) { throw new Error(`Corrupt archive (${e.message})`); }
     const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e), blob: type => zip.blob(e, type) }))
       .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name))
       // (downloaded "without video": a provider that sent the video anyway doesn't get it kept)
       .filter(e => !file.noVideo || !/\.(mp4|webm|m4v|mov|avi|flv|wmv|mkv)$/i.test(e.name));
     const base = file.name.replace(/\.(osz|zip)$/i, '');
+    // a beatmap pack (osu!'s are a .zip of .osz files): each one inside imported in turn — read straight from the pack
+    const inner = entries.filter(e => /\.osz$/i.test(e.name));
+    if (inner.length && !entries.some(e => /\.osu$/i.test(e.name))) {
+      const out = [];
+      for (let i = 0; i < inner.length; i++) {
+        const nm = inner[i].name.split('/').pop();
+        Bus.emit('import:status', `Importing ${nm.replace(/\.osz$/i, '')} (${i + 1}/${inner.length})…`);
+        try { out.push(...await this.importOsz(new File([await inner[i].blob('application/zip')], nm, { type: 'application/zip' }), report)); }
+        catch (e) { if (!report) throw e; report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`); }
+      }
+      return out;
+    }
     // an archive with everything inside a folder (a zipped song folder, or a .zip of several): each folder that has
     // difficulties is a beatmap folder of its own, its files' paths taken from there (the audio and background
     // names in the .osu files are relative to it — read from the archive's top they were all "missing")

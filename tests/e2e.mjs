@@ -175,6 +175,21 @@ await shot('02-songselect');
   check('import: an archive with the song folder inside it finds each difficulty\'s audio (only the broken one is reported)',
     r.sets === 1 && !r.errors.length && r.warnings.length === 1 && /missing\.mp3/.test(r.warnings[0]), JSON.stringify(r));
 }
+// a beatmap pack — osu!'s are a .zip of .osz files — imports each one inside (a damaged one is said, the rest go in)
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, BM = A.BeatmapManager, n0 = BM.sets.length, said = [];
+    const off = A.Bus.on('import:status', m => m && said.push(m));
+    const bytes = async n => new Uint8Array(await (await fetch('/tests/fixtures/' + n)).arrayBuffer());
+    await A.App.importFiles([new File([writeZip([{ name: 'online-set.osz', data: await bytes('online-set.osz') }, { name: 'broken.osz', data: await bytes('corrupt.osz') }])], 'Beatmap Pack #1.zip')]);
+    off();
+    const added = BM.sets.slice(n0), errors = A.App.lastReport.errors;
+    for (const s of added) await BM.removeSet(s.id);
+    return { added: added.length, errors, said: said.filter(m => /\(\d\/2\)/.test(m)), after: BM.sets.length === n0 };
+  });
+  check('import: a beatmap pack (a .zip of .osz files) imports each one inside, and says which couldn\'t be',
+    r.added === 1 && r.errors.length === 1 && /broken\.osz/.test(r.errors[0]) && r.said.length === 2 && r.after, JSON.stringify(r));
+}
 {
   // installing goes through the background threads (the same answers as the page's own parser), and an install asked
   // for while a song is being played waits for it to end
@@ -517,13 +532,14 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && Ashto
 {
   await page.evaluate(() => AshtonkMania.Screens.go('replays', { force: true }));
   await page.waitForSelector('.rp-row', { timeout: 8000 });
-  const rows = await page.evaluate(() => ({ shown: document.querySelectorAll('.rp-row').length, saved: AshtonkMania.ReplayManager.list.length, first: AshtonkMania.ReplayManager.list[0].id }));
+  // (the list holds each replay without its key presses — read when one's watched)
+  const rows = await page.evaluate(() => ({ shown: document.querySelectorAll('.rp-row').length, saved: AshtonkMania.ReplayManager.list.length, first: AshtonkMania.ReplayManager.list[0].id, light: AshtonkMania.ReplayManager.list.every(r => !('events' in r)) }));
   await page.click('.rp-row:not(.missing)');
   await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mode === 'replay', null, { timeout: 15000 });
-  const watching = await page.evaluate(() => AshtonkMania.GameplayScreen.s.replay.id);
+  const watching = await page.evaluate(() => AshtonkMania.GameplayScreen.s.replay.events.length > 0 && AshtonkMania.GameplayScreen.s.replay.id);
   await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
   const back = await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'replays', null, { timeout: 10000 }).then(() => true, () => false);
-  check('the Replays page lists every saved replay; Watch plays it and Back returns to the page', rows.shown === rows.saved && rows.saved > 0 && watching === rows.first && back, JSON.stringify({ ...rows, watching, back }));
+  check('the Replays page lists every saved replay; Watch plays it and Back returns to the page', rows.shown === rows.saved && rows.saved > 0 && rows.light && watching === rows.first && back, JSON.stringify({ ...rows, watching, back }));
   await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(1500);
 }
 
@@ -1422,7 +1438,8 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   await sp.route('**/api/account/code', r => r.fulfill({ contentType: 'application/json', body: '{"ok":true,"code":"K7QM3XRA9DPZW2HF"}' }));
   await sp.waitForSelector('.setup-step-welcome', { timeout: 30000 });
   const said = await sp.evaluate(() => window.__said);
-  check('first start: the loading screen shows how far Kori\'s download has got', said.some(t => /^Downloading Kori 3\.0… \d+%$/.test(t)) && said.filter(t => /^Downloading/.test(t)).length > 3 && said.includes('Installing Kori 3.0…') && !!(await sp.evaluate(() => AshtonkMania.SkinManager.skins.some(s => /kori/i.test(s.name)))), JSON.stringify(said.slice(0, 6)));
+  // (one step for each piece that arrives: from this test's own server that can be only a few big ones)
+  check('first start: the loading screen shows how far Kori\'s download has got', said.some(t => /^Downloading Kori 3\.0… \d+%$/.test(t)) && said.filter(t => /^Downloading/.test(t)).length >= 2 && said.includes('Installing Kori 3.0…') && !!(await sp.evaluate(() => AshtonkMania.SkinManager.skins.some(s => /kori/i.test(s.name)))), JSON.stringify(said.slice(0, 6)));
   check('setup: the first page asks whether you\'ve played before (yes, with a code / no, new)', /played Ashtonk!mania before/.test(await sp.textContent('.setup-step-welcome')) && (await sp.$$('.setup-step-welcome .setup-choice')).length === 2);
   await sp.click('.setup-next');
   check('setup: you have to answer it', /Pick one/.test(await sp.textContent('.ob-err')) && !!(await sp.$('.setup-step-welcome')));
@@ -1802,6 +1819,32 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results'); await page.waitForTimeout(800);
   const drawn = await page.evaluate(() => { const r = [...document.querySelectorAll('.res-right')].pop(); return { timed: /Timed hits/.test(r.textContent), none: /No timing data/.test(r.textContent), charts: r.querySelectorAll('.res-more .chart-card').length, hidden: r.querySelector('.res-more').hidden }; });
   check('plays are kept in memory without their hit-by-hit timing; a play\'s results read it from storage', !!lt.id && lt.inMem === 0 && lt.stored > 0 && drawn.timed && !drawn.none && drawn.charts === 2 && !drawn.hidden, JSON.stringify({ lt, drawn }));
+}
+// Export all data writes the backup a part at a time, each play and replay on a line of its own, and such a backup is
+// read back a line at a time (as one string, a long-time player's save is more than a phone can hold)
+{
+  const ex = await page.evaluate(async () => {
+    const A = AshtonkMania, got = [], keep = window.downloadBlob;
+    window.downloadBlob = (b, n) => got.push({ b, n });
+    try { await DataManager.exportAll(); } finally { window.downloadBlob = keep; }
+    const text = await got[0].b.text(), lines = text.split('\n'), obj = JSON.parse(text), nS = A.ScoreManager.scores.length, nR = A.ReplayManager.list.length;
+    // (read back as another backup — new ids, so this device's own plays stay as they are)
+    await DataManager.importFile(new File([text.replace(/"id":"sc-/g, '"id":"bk-sc-').replace(/"id":"rp-/g, '"id":"bk-rp-')], 'backup.json', { type: 'application/json' }));
+    const added = A.ScoreManager.scores.filter(s => s.id.startsWith('bk-')), addedR = A.ReplayManager.list.filter(r => r.id.startsWith('bk-'));
+    const timedId = obj.scores.find(o => o.hitErrors && o.hitErrors.length)?.id, stored = timedId && await A.DB.get('scores', 'bk-' + timedId), rep = addedR[0] && await A.ReplayManager.get(addedR[0].id);
+    const res = { first: lines[0].endsWith(',"scores":['), lines: lines.length, nS, nR, inFile: [obj.scores.length, obj.replays.length], name: got[0].n, added: added.length, addedR: addedR.length,
+      marked: added.every(s => s.imported === 'backup'), keptTiming: !!(stored && stored.hitErrors && stored.hitErrors.length), keptKeys: !!(rep && rep.events && rep.events.length), light: added.every(s => !('hitErrors' in s)) };
+    // (a backup as older versions wrote it — all on one line — with no replays: it failed with "storeNames parameter was empty")
+    let oldErr = null;
+    try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }], replays: [] })], 'old.json')); } catch (e) { oldErr = e.message; }
+    res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1') };
+    added.push({ id: 'bk-old1' });
+    for (const s of added) await A.DB.del('scores', s.id);
+    for (const r of addedR) await A.DB.del('replays', r.id);
+    await A.ScoreManager.init(); await A.ReplayManager.init(); A.Bus.emit('scores:changed'); A.Bus.emit('replays:changed');
+    return res;
+  });
+  check('Export all data writes each play and replay on a line of its own; such a backup is read back a line at a time, timing and key presses included (and one all on a line, without replays, as before)', ex.first && ex.inFile[0] === ex.nS && ex.inFile[1] === ex.nR && ex.lines === ex.nS + ex.nR + 3 && ex.nS > 0 && ex.nR > 0 && ex.added === ex.nS && ex.addedR === ex.nR && ex.marked && ex.keptTiming && ex.keptKeys && ex.light && /^ashtonk-mania-backup-.*\.json$/.test(ex.name) && !ex.old.err && ex.old.found, JSON.stringify(ex));
 }
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {

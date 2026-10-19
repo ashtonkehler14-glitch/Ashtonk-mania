@@ -136,6 +136,7 @@ const DB = {
 
   /** Put many records in one transaction. items: [{store, value, key?}] */
   async putMany(items) {
+    if (!items.length) return; // (a transaction over no stores throws: a backup without replays failed to import)
     const M = await this._mem();
     if (M) { for (const it of items) M.s(it.store).set(M.keyOf(it.store, it.value, it.key), M.copy(it.value)); return; }
     const stores = [...new Set(items.map(i => i.store))];

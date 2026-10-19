@@ -983,9 +983,8 @@ const SkinManager = {
 
   /** Import an .osk (ZIP). Returns the new skin metadata. */
   async importOsk(file, onProgress) {
-    const buf = await file.arrayBuffer();
     let zip;
-    try { zip = new ZipReader(buf); } catch (e) { throw new Error(`${file.name}: ${e.message}`); }
+    try { zip = await ZipReader.fromFile(file); } catch (e) { throw new Error(`${file.name}: ${e.message}`); }
     let entries = zip.entries.filter(e => !/(^|\/)(__macosx|\.ds_store)/i.test(e.name));
     // strip a single common top folder (some .osk files wrap everything in one directory)
     // the top-most skin.ini is the skin's (some skins carry leftover ones in sub-folders)
@@ -998,7 +997,7 @@ const SkinManager = {
       ini = SkinParser.parse(decodeIniText(bytes));
     }
     const name = cleanSkinName(ini.general.Name) || file.name.replace(/\.osk$/i, '');
-    const id = 'skin-' + (await hashHex(name + '|' + buf.byteLength)).slice(0, 16);
+    const id = 'skin-' + (await hashHex(name + '|' + file.size)).slice(0, 16);
     await DB.delPrefix('files', `skin:${id}/`);
     const files = [], items = [];
     let done = 0;

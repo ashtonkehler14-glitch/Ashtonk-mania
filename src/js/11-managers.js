@@ -118,8 +118,13 @@ const ScoreManager = {
 };
 
 const ReplayManager = {
-  list: [],
-  async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
+  list: [],                  // newest first — without their key presses (read when one's watched or exported: get)
+  light(r) { const { events, ...rest } = r; return rest; },
+  async init() {
+    const list = [];
+    await DB.each('replays', r => list.push(this.light(r)));
+    this.list = list.sort((a, b) => b.date - a.date);
+  },
   build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, own, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
@@ -133,7 +138,7 @@ const ReplayManager = {
   },
   async save(rep) {
     await DB.put('replays', rep);
-    this.list = [rep, ...this.list.filter(r => r.id !== rep.id)];
+    this.list = [this.light(rep), ...this.list.filter(r => r.id !== rep.id)];
     if (rep.scoreId) {
       const s = ScoreManager.scores.find(x => x.id === rep.scoreId);
       if (s && s.replayId !== rep.id) { s.replayId = rep.id; await ScoreManager.putBack([s]); }
@@ -368,21 +373,88 @@ const StatisticsManager = {
 };
 
 const DataManager = {
+  /** Export all data: one JSON file, written a part at a time with each play and replay on a line of its own — a
+   *  long-time player's plays (with their timing) and replays come to hundreds of MB: as one string, more than a phone
+   *  can hold, and past 512 MB more than any browser can. importFile reads it back the same way. */
   async exportAll() {
-    const obj = {
+    const head = {
       app: APP_NAME, kind: 'backup', version: APP_VERSION, date: Date.now(),
       pid: typeof Presence !== 'undefined' ? Presence.pid() : '', // (whose save it is: no hint about codes on the same player's device)
-      settings: Settings.export(), profile: ProfileManager.profile, favorites: [...Favorites.set],
-      collections: Collections.list, scores: await DB.getAll('scores'), replays: await DB.getAll('replays'),
+      settings: Settings.export(), profile: ProfileManager.profile, favorites: [...Favorites.set], collections: Collections.list,
       note: 'Beatmap and skin files are not included; re-import your .osz/.osk files after restoring.',
     };
-    downloadJSON(obj, `ashtonk-mania-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    const parts = [JSON.stringify(head).slice(0, -1)];
+    for (const store of ['scores', 'replays']) {
+      parts.push(`,"${store}":[`);
+      let n = 0, buf = [];
+      // (a hundred at a time into the file's parts: the browser keeps those, not this page)
+      const out = () => { parts.push(new Blob([buf.map((x, i) => (n + i ? ',\n' : '\n') + x).join('')])); n += buf.length; buf = []; };
+      await DB.each(store, v => { buf.push(JSON.stringify(v)); if (buf.length >= 100) out(); });
+      if (buf.length) out();
+      parts.push('\n]');
+    }
+    parts.push('}');
+    downloadBlob(new Blob(parts, { type: 'application/json' }), `ashtonk-mania-backup-${new Date().toISOString().slice(0, 10)}.json`);
   },
+  /** A data file: a backup that Export all data wrote a line at a time is read that way (a part at a time — see
+   *  exportAll), anything else whole. */
+  async importFile(f) {
+    const rd = f.stream().pipeThrough(new TextDecoderStream()).getReader();
+    let buf = '', head = null;
+    // (its first line: everything but the plays and replays)
+    for (;;) {
+      const i = buf.indexOf('\n');
+      if (i >= 0) { if (buf.slice(0, i).endsWith(',"scores":[')) { head = buf.slice(0, i); buf = buf.slice(i + 1); } break; }
+      const { done, value } = await rd.read();
+      if (done || buf.length > 16e6) break;
+      buf += value;
+    }
+    if (!head) {
+      rd.cancel().catch(() => {});
+      let obj = null;
+      try { obj = JSON.parse(await f.text()); } catch { /* below */ }
+      return this.importAll(obj);
+    }
+    const obj = JSON.parse(head.slice(0, -',"scores":['.length) + '}');
+    if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
+    await this.importHead(obj);
+    let store = 'scores', batch = [], scores = 0;
+    const flush = async () => { if (batch.length) { await DB.putMany(batch); batch = []; } };
+    const line = async l => {
+      if (l.startsWith('],"replays":[')) { await flush(); store = 'replays'; return; }
+      if (!l.startsWith('{')) return;
+      const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
+      if (!v || !v.id) return;
+      batch.push({ store, value: store === 'scores' ? this.imported(v) : v });
+      if (store === 'scores') scores++;
+      if (batch.length >= 100) await flush();
+    };
+    for (;;) {
+      for (let i; (i = buf.indexOf('\n')) >= 0;) { await line(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += value;
+    }
+    await line(buf);
+    await flush();
+    await this.importDone(obj, scores);
+  },
+  // (a backup's scores are marked as imported: they're yours to look at here, but never go online — the rankings and
+  // leaderboards only take plays the server judged as they were played)
+  imported(s) { return { ...s, imported: s.imported || 'backup' }; },
   exportSettings() {
     downloadJSON({ app: APP_NAME, kind: 'settings', version: APP_VERSION, date: Date.now(), settings: Settings.export() }, 'ashtonk-mania-settings.json');
   },
   async importAll(obj) {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
+    await this.importHead(obj);
+    if (obj.kind === 'settings') return;
+    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: this.imported(s) })));
+    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
+    await this.importDone(obj, Array.isArray(obj.scores) ? obj.scores.length : 0);
+  },
+  /** A data file's settings — and, for a backup, profile, favourites and collections. */
+  async importHead(obj) {
     if (obj.settings) await Settings.import(obj.settings);
     if (obj.kind === 'settings') return;
     if (obj.profile) {
@@ -397,15 +469,14 @@ const DataManager = {
       }
       await Collections.save();
     }
-    // (a backup's scores are marked as imported: they're yours to look at here, but never go online — the rankings and
-    // leaderboards only take plays the server judged as they were played)
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: { ...s, imported: s.imported || 'backup' } })));
-    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
+  },
+  /** A backup's plays and replays are in: the game takes them up. `scores`: how many plays it had. */
+  async importDone(obj, scores) {
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
     // (a save from another device: typing your code here keeps you one player online, not one for each device)
     const same = obj.pid && typeof Presence !== 'undefined' && obj.pid === Presence.pid();
-    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !same && Multiplayer.available())
+    if (scores && typeof Account !== 'undefined' && !same && Multiplayer.available())
       setTimeout(() => Toast.show('Playing on more than one device?', `Get your code on your other device (${Account.where()}) and type it here under Use a code, so you're one player on the rankings — not one for each device.`, { timeout: 12000 }), 1200);
   },
   async resetEverything() {

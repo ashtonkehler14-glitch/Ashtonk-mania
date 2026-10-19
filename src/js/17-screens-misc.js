@@ -497,7 +497,9 @@ const ReplaysScreen = {
     for (const r of ReplayManager.list) {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
-      const watch = () => { if (map) { UISounds.click(); Game.launch({ mapId: map.id, mode: 'replay', replay: r, back: { name: 'replays' } }); } };
+      // (the list has each replay without its key presses: the whole one is read to watch or export it)
+      const full = async () => { const x = await ReplayManager.get(r.id); if (!x) Toast.err('No replay available'); return x; };
+      const watch = async () => { if (!map) return; UISounds.click(); const x = await full(); if (x) Game.launch({ mapId: map.id, mode: 'replay', replay: x, back: { name: 'replays' } }); };
       const act = (ic, title, f, cls = '') => h(`button.rp-act${cls}`, { title, 'aria-label': title, disabled: !map && cls !== '.del' && ic !== 'download', onclick: e => { e.stopPropagation(); f(e); } }, icon(ic));
       rows.append(h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
         rankPill(sm.grade || 'D'),
@@ -509,8 +511,8 @@ const ReplaysScreen = {
         h('div.pf-ppblock.rp-acts',
           h('span.rp-btns',
             act('play', 'Watch', watch),
-            act('download', 'Export .osr (opens in osu!lazer)', () => Osr.exportReplay(r)),
-            act('save', 'Export .amr (this game\'s own format)', () => ReplayManager.export(r)),
+            act('download', 'Export .osr (opens in osu!lazer)', async () => { const x = await full(); if (x) Osr.exportReplay(x); }),
+            act('save', 'Export .amr (this game\'s own format)', async () => { const x = await full(); if (x) ReplayManager.export(x); }),
             act('trash', 'Delete', async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); }, '.del')))));
     }
     this.list.append(rows);
@@ -683,6 +685,7 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
       'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
+      'A device that has just brought your settings doesn\'t send them straight back: done 10 seconds later, it could undo a change you\'d made on another device in the meantime',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
@@ -732,7 +735,11 @@ const CHANGELOG = [
       'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
-      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph stay in storage until its results are opened (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
+      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
+      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
+      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
+      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
+      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
       'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',
       'Storage that\'s full as a song ends no longer leaves the finished song on screen with nowhere to go: the results show, the play still goes up to the leaderboard, and it says your score couldn\'t be kept on this device',

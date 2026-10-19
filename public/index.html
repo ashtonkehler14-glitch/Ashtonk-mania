@@ -5187,6 +5187,7 @@ const DB = {
 
   /** Put many records in one transaction. items: [{store, value, key?}] */
   async putMany(items) {
+    if (!items.length) return; // (a transaction over no stores throws: a backup without replays failed to import)
     const M = await this._mem();
     if (M) { for (const it of items) M.s(it.store).set(M.keyOf(it.store, it.value, it.key), M.copy(it.value)); return; }
     const stores = [...new Set(items.map(i => i.store))];
@@ -5342,26 +5343,57 @@ class ZipReader {
     this.u8 = new Uint8Array(buf);
     this.dv = new DataView(buf);
     this.entries = [];
-    this._parse();
+    const d = ZipReader._dir(this.dv);
+    if (d.zip64 != null) Object.assign(d, ZipReader._dir64(this.dv, d.zip64));
+    this._entries(this.dv, this.u8, d.offset, d.count);
   }
-  _parse() {
-    const { dv, u8 } = this;
-    let eocd = -1;
-    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
-      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  /** An archive read from its File a part at a time: its directory up front, each entry when it's asked for — a
+   *  beatmap pack or a Web-Osu-Mania backup can be gigabytes, more than the page could hold at once. */
+  static async fromFile(file) {
+    const z = Object.create(ZipReader.prototype), at = Math.max(0, file.size - 65557);
+    z.file = file; z.entries = [];
+    const d = ZipReader._dir(new DataView(await file.slice(at).arrayBuffer()));
+    if (d.zip64 != null) Object.assign(d, ZipReader._dir64(new DataView(await file.slice(d.zip64, d.zip64 + 56).arrayBuffer()), 0));
+    const cd = new Uint8Array(await file.slice(d.offset, d.offset + d.size).arrayBuffer());
+    z._entries(new DataView(cd.buffer), cd, 0, d.count);
+    return z;
+  }
+  /** The end of the archive's directory, found in `dv` (the archive's last 64 KB or more): where the directory is, how
+   *  big, how many entries — and, for a ZIP64 archive (over 4 GB), where its own record of those is. */
+  static _dir(dv) {
+    for (let i = dv.byteLength - 22; i >= Math.max(0, dv.byteLength - 65557); i--) {
+      if (dv.getUint32(i, true) !== 0x06054b50) continue;
+      const d = { count: dv.getUint16(i + 10, true), size: dv.getUint32(i + 12, true), offset: dv.getUint32(i + 16, true), zip64: null };
+      if (i >= 20 && dv.getUint32(i - 20, true) === 0x07064b50) d.zip64 = Number(dv.getBigUint64(i - 12, true));
+      return d;
     }
-    if (eocd < 0) throw new Error('Corrupt archive: end of central directory not found');
-    const count = dv.getUint16(eocd + 10, true);
-    let p = dv.getUint32(eocd + 16, true);
+    throw new Error('Corrupt archive: end of central directory not found');
+  }
+  static _dir64(dv, p) {
+    if (dv.getUint32(p, true) !== 0x06064b50) throw new Error('Corrupt archive: bad ZIP64 directory');
+    return { count: Number(dv.getBigUint64(p + 32, true)), size: Number(dv.getBigUint64(p + 40, true)), offset: Number(dv.getBigUint64(p + 48, true)) };
+  }
+  /** The directory's entries, from `p` in `dv`. */
+  _entries(dv, u8, p, count) {
     const utf8 = new TextDecoder('utf-8'), latin = new TextDecoder('latin1');
     for (let i = 0; i < count; i++) {
-      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt archive: bad central directory');
+      if (p + 46 > dv.byteLength || dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt archive: bad central directory');
       const flags = dv.getUint16(p + 8, true);
       const method = dv.getUint16(p + 10, true);
-      const csize = dv.getUint32(p + 20, true);
-      const usize = dv.getUint32(p + 24, true);
+      let csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true);
       const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
-      const lho = dv.getUint32(p + 42, true);
+      let lho = dv.getUint32(p + 42, true);
+      // (ZIP64: the sizes and offsets too big for their places are in an extra field, in this order)
+      if (usize === 0xFFFFFFFF || csize === 0xFFFFFFFF || lho === 0xFFFFFFFF) {
+        for (let x = p + 46 + nlen, xe = x + xlen; x + 4 <= xe; x += 4 + dv.getUint16(x + 2, true)) {
+          if (dv.getUint16(x, true) !== 1) continue;
+          let q = x + 4;
+          if (usize === 0xFFFFFFFF) { usize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (csize === 0xFFFFFFFF) { csize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (lho === 0xFFFFFFFF) lho = Number(dv.getBigUint64(q, true));
+          break;
+        }
+      }
       const nameBytes = u8.subarray(p + 46, p + 46 + nlen);
       const name = normPath((flags & 0x800 ? utf8 : ZipReader._looksUtf8(nameBytes) ? utf8 : latin).decode(nameBytes));
       p += 46 + nlen + xlen + clen;
@@ -5382,11 +5414,12 @@ class ZipReader {
       transform(chunk, c) { n += chunk.length; if (n > max) c.error(Object.assign(new Error('Corrupt archive entry (bigger than it says)'), { tooBig: true })); else c.enqueue(chunk); },
     }));
   }
-  /** Where an entry's (compressed) bytes start. */
-  _start(entry) {
-    const { dv } = this;
-    if (dv.getUint32(entry.lho, true) !== 0x04034b50) throw new Error(`Corrupt archive entry: ${entry.name}`);
-    return entry.lho + 30 + dv.getUint16(entry.lho + 26, true) + dv.getUint16(entry.lho + 28, true);
+  /** Where an entry's (compressed) bytes start (read from its local header). */
+  async _start(entry) {
+    let dv = this.dv, at = entry.lho;
+    if (!dv) { dv = new DataView(await this.file.slice(at, at + 30).arrayBuffer()); at = 0; }
+    if (dv.byteLength < at + 30 || dv.getUint32(at, true) !== 0x04034b50) throw new Error(`Corrupt archive entry: ${entry.name}`);
+    return entry.lho + 30 + dv.getUint16(at + 26, true) + dv.getUint16(at + 28, true);
   }
   /** An entry as a Blob, without copying it through the page's memory where it can: a stored one is a slice of the
    *  archive file itself, a deflated one is inflated by the browser straight into a Blob. (`this.file`: the archive's
@@ -5394,7 +5427,7 @@ class ZipReader {
   async blob(entry, type = '') {
     if (this.file && (entry.method === 0 || (entry.method === 8 && typeof DecompressionStream !== 'undefined'))) {
       try {
-        const start = this._start(entry), part = this.file.slice(start, start + entry.csize);
+        const start = await this._start(entry), part = this.file.slice(start, start + entry.csize);
         if (entry.method === 0) return new Blob([part], { type });
         const b = await new Response(ZipReader.inflated(part.stream(), ZipReader.limit(entry))).blob();
         return new Blob([b], { type });
@@ -5403,8 +5436,8 @@ class ZipReader {
     return new Blob([await this.read(entry)], { type });
   }
   async read(entry) {
-    const start = this._start(entry);
-    const data = this.u8.subarray(start, start + entry.csize);
+    const start = await this._start(entry);
+    const data = this.u8 ? this.u8.subarray(start, start + entry.csize) : new Uint8Array(await this.file.slice(start, start + entry.csize).arrayBuffer());
     if (entry.method === 0) return data.slice();
     if (entry.method !== 8) throw new Error(`Unsupported compression in ${entry.name}`);
     if (typeof DecompressionStream !== 'undefined') {
@@ -7222,9 +7255,8 @@ const SkinManager = {
 
   /** Import an .osk (ZIP). Returns the new skin metadata. */
   async importOsk(file, onProgress) {
-    const buf = await file.arrayBuffer();
     let zip;
-    try { zip = new ZipReader(buf); } catch (e) { throw new Error(`${file.name}: ${e.message}`); }
+    try { zip = await ZipReader.fromFile(file); } catch (e) { throw new Error(`${file.name}: ${e.message}`); }
     let entries = zip.entries.filter(e => !/(^|\/)(__macosx|\.ds_store)/i.test(e.name));
     // strip a single common top folder (some .osk files wrap everything in one directory)
     // the top-most skin.ini is the skin's (some skins carry leftover ones in sub-folders)
@@ -7237,7 +7269,7 @@ const SkinManager = {
       ini = SkinParser.parse(decodeIniText(bytes));
     }
     const name = cleanSkinName(ini.general.Name) || file.name.replace(/\.osk$/i, '');
-    const id = 'skin-' + (await hashHex(name + '|' + buf.byteLength)).slice(0, 16);
+    const id = 'skin-' + (await hashHex(name + '|' + file.size)).slice(0, 16);
     await DB.delPrefix('files', `skin:${id}/`);
     const files = [], items = [];
     let done = 0;
@@ -8344,12 +8376,14 @@ const BeatmapManager = {
         else if (ext === 'osk') { status('skin ', f); report.skins.push(await SkinManager.importOsk(f)); }
         else if (ext === 'amr') { report.replays.push(await ReplayManager.importFile(f)); }
         else if (ext === 'osr') { status('replay ', f); report.replays.push(await Osr.importFile(f)); } // (osu!lazer / osu!stable replays)
-        else if (ext === 'zip' && WomImport.looksLike(new ZipReader(await f.arrayBuffer()))) {
+        else if (ext === 'zip' && WomImport.looksLike(await ZipReader.fromFile(f))) {
           // a Web-Osu-Mania backup (beatmaps, settings, scores and collections)
           const r = await WomImport.run(f, { onStatus: m => Bus.emit('import:status', m) });
           report.sets.push(...r.sets); report.errors.push(...r.errors); report.wom = r;
         }
         else if (ext === 'zip') { status('', f); report.sets.push(...await this.importOsz(f, report)); }
+        // (a big one is a backup: read a part at a time — DataManager.importFile)
+        else if (ext === 'json' && !name.includes('/') && f.size > 16 * 1024 * 1024) { await DataManager.importFile(f); report.data = true; }
         else if (ext === 'json' && !name.includes('/')) {
           let obj = null;
           try { obj = JSON.parse(await f.text()); } catch { /* not JSON at all: said below */ }
@@ -8399,13 +8433,25 @@ const BeatmapManager = {
 
   async importOsz(file, report) {
     let zip;
-    try { zip = new ZipReader(await file.arrayBuffer()); zip.file = file; }
+    try { zip = await ZipReader.fromFile(file); } // (a part at a time: a beatmap pack can be gigabytes)
     catch (e) { throw new Error(`Corrupt archive (${e.message})`); }
     const entries = zip.entries.map(e => ({ name: e.name, size: e.usize, read: () => zip.read(e), blob: type => zip.blob(e, type) }))
       .filter(e => !/(^|\/)(__macosx|\.ds_store|thumbs\.db)/i.test(e.name))
       // (downloaded "without video": a provider that sent the video anyway doesn't get it kept)
       .filter(e => !file.noVideo || !/\.(mp4|webm|m4v|mov|avi|flv|wmv|mkv)$/i.test(e.name));
     const base = file.name.replace(/\.(osz|zip)$/i, '');
+    // a beatmap pack (osu!'s are a .zip of .osz files): each one inside imported in turn — read straight from the pack
+    const inner = entries.filter(e => /\.osz$/i.test(e.name));
+    if (inner.length && !entries.some(e => /\.osu$/i.test(e.name))) {
+      const out = [];
+      for (let i = 0; i < inner.length; i++) {
+        const nm = inner[i].name.split('/').pop();
+        Bus.emit('import:status', `Importing ${nm.replace(/\.osz$/i, '')} (${i + 1}/${inner.length})…`);
+        try { out.push(...await this.importOsz(new File([await inner[i].blob('application/zip')], nm, { type: 'application/zip' }), report)); }
+        catch (e) { if (!report) throw e; report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`); }
+      }
+      return out;
+    }
     // an archive with everything inside a folder (a zipped song folder, or a .zip of several): each folder that has
     // difficulties is a beatmap folder of its own, its files' paths taken from there (the audio and background
     // names in the .osu files are relative to it — read from the archive's top they were all "missing")
@@ -11446,8 +11492,13 @@ const ScoreManager = {
 };
 
 const ReplayManager = {
-  list: [],
-  async init() { this.list = (await DB.getAll('replays')).sort((a, b) => b.date - a.date); },
+  list: [],                  // newest first — without their key presses (read when one's watched or exported: get)
+  light(r) { const { events, ...rest } = r; return rest; },
+  async init() {
+    const list = [];
+    await DB.each('replays', r => list.push(this.light(r)));
+    this.list = list.sort((a, b) => b.date - a.date);
+  },
   build({ map, mods, rate, seed, windows, accuracyMode, hp, keys, events, summary, scoreId, player, own, duration, modConfig = {}, noFail = false, rules = RULES }) {
     return {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: Date.now(),
@@ -11461,7 +11512,7 @@ const ReplayManager = {
   },
   async save(rep) {
     await DB.put('replays', rep);
-    this.list = [rep, ...this.list.filter(r => r.id !== rep.id)];
+    this.list = [this.light(rep), ...this.list.filter(r => r.id !== rep.id)];
     if (rep.scoreId) {
       const s = ScoreManager.scores.find(x => x.id === rep.scoreId);
       if (s && s.replayId !== rep.id) { s.replayId = rep.id; await ScoreManager.putBack([s]); }
@@ -11696,21 +11747,88 @@ const StatisticsManager = {
 };
 
 const DataManager = {
+  /** Export all data: one JSON file, written a part at a time with each play and replay on a line of its own — a
+   *  long-time player's plays (with their timing) and replays come to hundreds of MB: as one string, more than a phone
+   *  can hold, and past 512 MB more than any browser can. importFile reads it back the same way. */
   async exportAll() {
-    const obj = {
+    const head = {
       app: APP_NAME, kind: 'backup', version: APP_VERSION, date: Date.now(),
       pid: typeof Presence !== 'undefined' ? Presence.pid() : '', // (whose save it is: no hint about codes on the same player's device)
-      settings: Settings.export(), profile: ProfileManager.profile, favorites: [...Favorites.set],
-      collections: Collections.list, scores: await DB.getAll('scores'), replays: await DB.getAll('replays'),
+      settings: Settings.export(), profile: ProfileManager.profile, favorites: [...Favorites.set], collections: Collections.list,
       note: 'Beatmap and skin files are not included; re-import your .osz/.osk files after restoring.',
     };
-    downloadJSON(obj, `ashtonk-mania-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    const parts = [JSON.stringify(head).slice(0, -1)];
+    for (const store of ['scores', 'replays']) {
+      parts.push(`,"${store}":[`);
+      let n = 0, buf = [];
+      // (a hundred at a time into the file's parts: the browser keeps those, not this page)
+      const out = () => { parts.push(new Blob([buf.map((x, i) => (n + i ? ',\n' : '\n') + x).join('')])); n += buf.length; buf = []; };
+      await DB.each(store, v => { buf.push(JSON.stringify(v)); if (buf.length >= 100) out(); });
+      if (buf.length) out();
+      parts.push('\n]');
+    }
+    parts.push('}');
+    downloadBlob(new Blob(parts, { type: 'application/json' }), `ashtonk-mania-backup-${new Date().toISOString().slice(0, 10)}.json`);
   },
+  /** A data file: a backup that Export all data wrote a line at a time is read that way (a part at a time — see
+   *  exportAll), anything else whole. */
+  async importFile(f) {
+    const rd = f.stream().pipeThrough(new TextDecoderStream()).getReader();
+    let buf = '', head = null;
+    // (its first line: everything but the plays and replays)
+    for (;;) {
+      const i = buf.indexOf('\n');
+      if (i >= 0) { if (buf.slice(0, i).endsWith(',"scores":[')) { head = buf.slice(0, i); buf = buf.slice(i + 1); } break; }
+      const { done, value } = await rd.read();
+      if (done || buf.length > 16e6) break;
+      buf += value;
+    }
+    if (!head) {
+      rd.cancel().catch(() => {});
+      let obj = null;
+      try { obj = JSON.parse(await f.text()); } catch { /* below */ }
+      return this.importAll(obj);
+    }
+    const obj = JSON.parse(head.slice(0, -',"scores":['.length) + '}');
+    if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
+    await this.importHead(obj);
+    let store = 'scores', batch = [], scores = 0;
+    const flush = async () => { if (batch.length) { await DB.putMany(batch); batch = []; } };
+    const line = async l => {
+      if (l.startsWith('],"replays":[')) { await flush(); store = 'replays'; return; }
+      if (!l.startsWith('{')) return;
+      const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
+      if (!v || !v.id) return;
+      batch.push({ store, value: store === 'scores' ? this.imported(v) : v });
+      if (store === 'scores') scores++;
+      if (batch.length >= 100) await flush();
+    };
+    for (;;) {
+      for (let i; (i = buf.indexOf('\n')) >= 0;) { await line(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += value;
+    }
+    await line(buf);
+    await flush();
+    await this.importDone(obj, scores);
+  },
+  // (a backup's scores are marked as imported: they're yours to look at here, but never go online — the rankings and
+  // leaderboards only take plays the server judged as they were played)
+  imported(s) { return { ...s, imported: s.imported || 'backup' }; },
   exportSettings() {
     downloadJSON({ app: APP_NAME, kind: 'settings', version: APP_VERSION, date: Date.now(), settings: Settings.export() }, 'ashtonk-mania-settings.json');
   },
   async importAll(obj) {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
+    await this.importHead(obj);
+    if (obj.kind === 'settings') return;
+    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: this.imported(s) })));
+    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
+    await this.importDone(obj, Array.isArray(obj.scores) ? obj.scores.length : 0);
+  },
+  /** A data file's settings — and, for a backup, profile, favourites and collections. */
+  async importHead(obj) {
     if (obj.settings) await Settings.import(obj.settings);
     if (obj.kind === 'settings') return;
     if (obj.profile) {
@@ -11725,15 +11843,14 @@ const DataManager = {
       }
       await Collections.save();
     }
-    // (a backup's scores are marked as imported: they're yours to look at here, but never go online — the rankings and
-    // leaderboards only take plays the server judged as they were played)
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: { ...s, imported: s.imported || 'backup' } })));
-    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
+  },
+  /** A backup's plays and replays are in: the game takes them up. `scores`: how many plays it had. */
+  async importDone(obj, scores) {
     await ScoreManager.init(); await ReplayManager.init();
     Bus.emit('scores:changed'); Bus.emit('replays:changed'); Bus.emit('favorites:changed');
     // (a save from another device: typing your code here keeps you one player online, not one for each device)
     const same = obj.pid && typeof Presence !== 'undefined' && obj.pid === Presence.pid();
-    if (Array.isArray(obj.scores) && obj.scores.length && typeof Account !== 'undefined' && !same && Multiplayer.available())
+    if (scores && typeof Account !== 'undefined' && !same && Multiplayer.available())
       setTimeout(() => Toast.show('Playing on more than one device?', `Get your code on your other device (${Account.where()}) and type it here under Use a code, so you're one player on the rankings — not one for each device.`, { timeout: 12000 }), 1200);
   },
   async resetEverything() {
@@ -19738,7 +19855,9 @@ const ReplaysScreen = {
     for (const r of ReplayManager.list) {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
-      const watch = () => { if (map) { UISounds.click(); Game.launch({ mapId: map.id, mode: 'replay', replay: r, back: { name: 'replays' } }); } };
+      // (the list has each replay without its key presses: the whole one is read to watch or export it)
+      const full = async () => { const x = await ReplayManager.get(r.id); if (!x) Toast.err('No replay available'); return x; };
+      const watch = async () => { if (!map) return; UISounds.click(); const x = await full(); if (x) Game.launch({ mapId: map.id, mode: 'replay', replay: x, back: { name: 'replays' } }); };
       const act = (ic, title, f, cls = '') => h(`button.rp-act${cls}`, { title, 'aria-label': title, disabled: !map && cls !== '.del' && ic !== 'download', onclick: e => { e.stopPropagation(); f(e); } }, icon(ic));
       rows.append(h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
         rankPill(sm.grade || 'D'),
@@ -19750,8 +19869,8 @@ const ReplaysScreen = {
         h('div.pf-ppblock.rp-acts',
           h('span.rp-btns',
             act('play', 'Watch', watch),
-            act('download', 'Export .osr (opens in osu!lazer)', () => Osr.exportReplay(r)),
-            act('save', 'Export .amr (this game\'s own format)', () => ReplayManager.export(r)),
+            act('download', 'Export .osr (opens in osu!lazer)', async () => { const x = await full(); if (x) Osr.exportReplay(x); }),
+            act('save', 'Export .amr (this game\'s own format)', async () => { const x = await full(); if (x) ReplayManager.export(x); }),
             act('trash', 'Delete', async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); }, '.del')))));
     }
     this.list.append(rows);
@@ -19924,6 +20043,7 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
       'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
+      'A device that has just brought your settings doesn\'t send them straight back: done 10 seconds later, it could undo a change you\'d made on another device in the meantime',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
@@ -19973,7 +20093,11 @@ const CHANGELOG = [
       'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
-      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph stay in storage until its results are opened (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
+      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
+      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
+      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
+      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
+      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
       'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',
       'Storage that\'s full as a song ends no longer leaves the finished song on screen with nowhere to go: the results show, the play still goes up to the leaderboard, and it says your score couldn\'t be kept on this device',
@@ -22376,7 +22500,7 @@ const WomImport = {
 
   /** Import a backup file. Returns what came across: {sets, scores, settings, collections, skipped, errors}. */
   async run(file, { onStatus = () => {} } = {}) {
-    const zip = new ZipReader(await file.arrayBuffer());
+    const zip = await ZipReader.fromFile(file); // (a part at a time: with its beatmaps, a backup can be gigabytes)
     if (!this.looksLike(zip)) throw new Error('This isn\'t a Web-Osu-Mania backup. In Web-Osu-Mania, open Settings → Backup & Restore and export one.');
     const out = { sets: [], scores: 0, settings: false, collections: 0, skipped: 0, errors: [] };
     const byName = new Map(zip.entries.map(e => [e.name, e]));
@@ -22389,7 +22513,7 @@ const WomImport = {
       const e = osz[i], setId = Number(/^beatmapFiles\/(\d+)/.exec(e.name)[1]);
       onStatus(`Importing beatmaps… ${i + 1}/${osz.length}`);
       try {
-        const f = new File([await zip.read(e)], e.name.split('/').pop(), { type: 'application/zip' });
+        const f = new File([await zip.blob(e, 'application/zip')], e.name.split('/').pop(), { type: 'application/zip' });
         const sets = await BeatmapManager.importOsz(f, report);
         for (const s of sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = setId; await DB.put('sets', { ...s, maps: undefined }); }
         out.sets.push(...sets);
@@ -27430,6 +27554,7 @@ const Sync = {
       throw e;
     }
     const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    const own = s && this.ownExtra(s);
     if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
     if (s && Array.isArray(s.collections)) got.collections = await Collections.merge(s.collections);
     if (s && Array.isArray(s.favorites)) got.favorites = await Favorites.merge(s.favorites);
@@ -27455,6 +27580,9 @@ const Sync = {
         }
       }
     }
+    // (what came is what's kept: nothing to send back — unless this device added something of its own to it. Sent
+    // back anyway, it went over any newer settings another of your devices had sent in the meantime.)
+    if (s && !own) this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`);
     onStatus('Bringing your scores…');
     // (all that's kept, not only what's new since this device last asked: one that had them and lost them — Reset
     // everything, or cleared by the browser — gets them back; the ones it has are skipped)
@@ -27462,6 +27590,14 @@ const Sync = {
     try { got.scores = await this.pullScores(); } catch (e) { console.warn('scores not brought', e); } // (again with the next settings sent)
     this.later();
     return got;
+  },
+  /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): a
+   *  collection's beatmap, a favourite, a medal. */
+  ownExtra(s) {
+    const cols = new Map((Array.isArray(s.collections) ? s.collections : []).map(c => [c && c.name, new Set(c && Array.isArray(c.hashes) ? c.hashes : [])]));
+    const favs = new Set(Array.isArray(s.favorites) ? s.favorites : []), medals = (s.values && s.values['medals.unlocked']) || {}, mine = Settings.values['medals.unlocked'] || {};
+    return Collections.list.some(c => c.hashes.some(x => !(cols.get(c.name) || new Set()).has(x))) || [...Favorites.set].some(x => !favs.has(x))
+      || (typeof mine === 'object' && Object.keys(mine).some(k => !(k in medals)));
   },
   /** A restore that didn't get an answer: again in a minute, quietly, while this device still waits for one. */
   retry() {
@@ -27519,7 +27655,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd65c48188426';
+const APP_BUILD = '757d675e0e7e';
 
 const App = {
   lastReport: null,

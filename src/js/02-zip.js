@@ -108,26 +108,57 @@ class ZipReader {
     this.u8 = new Uint8Array(buf);
     this.dv = new DataView(buf);
     this.entries = [];
-    this._parse();
+    const d = ZipReader._dir(this.dv);
+    if (d.zip64 != null) Object.assign(d, ZipReader._dir64(this.dv, d.zip64));
+    this._entries(this.dv, this.u8, d.offset, d.count);
   }
-  _parse() {
-    const { dv, u8 } = this;
-    let eocd = -1;
-    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
-      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  /** An archive read from its File a part at a time: its directory up front, each entry when it's asked for — a
+   *  beatmap pack or a Web-Osu-Mania backup can be gigabytes, more than the page could hold at once. */
+  static async fromFile(file) {
+    const z = Object.create(ZipReader.prototype), at = Math.max(0, file.size - 65557);
+    z.file = file; z.entries = [];
+    const d = ZipReader._dir(new DataView(await file.slice(at).arrayBuffer()));
+    if (d.zip64 != null) Object.assign(d, ZipReader._dir64(new DataView(await file.slice(d.zip64, d.zip64 + 56).arrayBuffer()), 0));
+    const cd = new Uint8Array(await file.slice(d.offset, d.offset + d.size).arrayBuffer());
+    z._entries(new DataView(cd.buffer), cd, 0, d.count);
+    return z;
+  }
+  /** The end of the archive's directory, found in `dv` (the archive's last 64 KB or more): where the directory is, how
+   *  big, how many entries — and, for a ZIP64 archive (over 4 GB), where its own record of those is. */
+  static _dir(dv) {
+    for (let i = dv.byteLength - 22; i >= Math.max(0, dv.byteLength - 65557); i--) {
+      if (dv.getUint32(i, true) !== 0x06054b50) continue;
+      const d = { count: dv.getUint16(i + 10, true), size: dv.getUint32(i + 12, true), offset: dv.getUint32(i + 16, true), zip64: null };
+      if (i >= 20 && dv.getUint32(i - 20, true) === 0x07064b50) d.zip64 = Number(dv.getBigUint64(i - 12, true));
+      return d;
     }
-    if (eocd < 0) throw new Error('Corrupt archive: end of central directory not found');
-    const count = dv.getUint16(eocd + 10, true);
-    let p = dv.getUint32(eocd + 16, true);
+    throw new Error('Corrupt archive: end of central directory not found');
+  }
+  static _dir64(dv, p) {
+    if (dv.getUint32(p, true) !== 0x06064b50) throw new Error('Corrupt archive: bad ZIP64 directory');
+    return { count: Number(dv.getBigUint64(p + 32, true)), size: Number(dv.getBigUint64(p + 40, true)), offset: Number(dv.getBigUint64(p + 48, true)) };
+  }
+  /** The directory's entries, from `p` in `dv`. */
+  _entries(dv, u8, p, count) {
     const utf8 = new TextDecoder('utf-8'), latin = new TextDecoder('latin1');
     for (let i = 0; i < count; i++) {
-      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt archive: bad central directory');
+      if (p + 46 > dv.byteLength || dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt archive: bad central directory');
       const flags = dv.getUint16(p + 8, true);
       const method = dv.getUint16(p + 10, true);
-      const csize = dv.getUint32(p + 20, true);
-      const usize = dv.getUint32(p + 24, true);
+      let csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true);
       const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
-      const lho = dv.getUint32(p + 42, true);
+      let lho = dv.getUint32(p + 42, true);
+      // (ZIP64: the sizes and offsets too big for their places are in an extra field, in this order)
+      if (usize === 0xFFFFFFFF || csize === 0xFFFFFFFF || lho === 0xFFFFFFFF) {
+        for (let x = p + 46 + nlen, xe = x + xlen; x + 4 <= xe; x += 4 + dv.getUint16(x + 2, true)) {
+          if (dv.getUint16(x, true) !== 1) continue;
+          let q = x + 4;
+          if (usize === 0xFFFFFFFF) { usize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (csize === 0xFFFFFFFF) { csize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (lho === 0xFFFFFFFF) lho = Number(dv.getBigUint64(q, true));
+          break;
+        }
+      }
       const nameBytes = u8.subarray(p + 46, p + 46 + nlen);
       const name = normPath((flags & 0x800 ? utf8 : ZipReader._looksUtf8(nameBytes) ? utf8 : latin).decode(nameBytes));
       p += 46 + nlen + xlen + clen;
@@ -148,11 +179,12 @@ class ZipReader {
       transform(chunk, c) { n += chunk.length; if (n > max) c.error(Object.assign(new Error('Corrupt archive entry (bigger than it says)'), { tooBig: true })); else c.enqueue(chunk); },
     }));
   }
-  /** Where an entry's (compressed) bytes start. */
-  _start(entry) {
-    const { dv } = this;
-    if (dv.getUint32(entry.lho, true) !== 0x04034b50) throw new Error(`Corrupt archive entry: ${entry.name}`);
-    return entry.lho + 30 + dv.getUint16(entry.lho + 26, true) + dv.getUint16(entry.lho + 28, true);
+  /** Where an entry's (compressed) bytes start (read from its local header). */
+  async _start(entry) {
+    let dv = this.dv, at = entry.lho;
+    if (!dv) { dv = new DataView(await this.file.slice(at, at + 30).arrayBuffer()); at = 0; }
+    if (dv.byteLength < at + 30 || dv.getUint32(at, true) !== 0x04034b50) throw new Error(`Corrupt archive entry: ${entry.name}`);
+    return entry.lho + 30 + dv.getUint16(at + 26, true) + dv.getUint16(at + 28, true);
   }
   /** An entry as a Blob, without copying it through the page's memory where it can: a stored one is a slice of the
    *  archive file itself, a deflated one is inflated by the browser straight into a Blob. (`this.file`: the archive's
@@ -160,7 +192,7 @@ class ZipReader {
   async blob(entry, type = '') {
     if (this.file && (entry.method === 0 || (entry.method === 8 && typeof DecompressionStream !== 'undefined'))) {
       try {
-        const start = this._start(entry), part = this.file.slice(start, start + entry.csize);
+        const start = await this._start(entry), part = this.file.slice(start, start + entry.csize);
         if (entry.method === 0) return new Blob([part], { type });
         const b = await new Response(ZipReader.inflated(part.stream(), ZipReader.limit(entry))).blob();
         return new Blob([b], { type });
@@ -169,8 +201,8 @@ class ZipReader {
     return new Blob([await this.read(entry)], { type });
   }
   async read(entry) {
-    const start = this._start(entry);
-    const data = this.u8.subarray(start, start + entry.csize);
+    const start = await this._start(entry);
+    const data = this.u8 ? this.u8.subarray(start, start + entry.csize) : new Uint8Array(await this.file.slice(start, start + entry.csize).arrayBuffer());
     if (entry.method === 0) return data.slice();
     if (entry.method !== 8) throw new Error(`Unsupported compression in ${entry.name}`);
     if (typeof DecompressionStream !== 'undefined') {

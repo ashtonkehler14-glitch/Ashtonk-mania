@@ -13,7 +13,7 @@ const WomImport = {
 
   /** Import a backup file. Returns what came across: {sets, scores, settings, collections, skipped, errors}. */
   async run(file, { onStatus = () => {} } = {}) {
-    const zip = new ZipReader(await file.arrayBuffer());
+    const zip = await ZipReader.fromFile(file); // (a part at a time: with its beatmaps, a backup can be gigabytes)
     if (!this.looksLike(zip)) throw new Error('This isn\'t a Web-Osu-Mania backup. In Web-Osu-Mania, open Settings → Backup & Restore and export one.');
     const out = { sets: [], scores: 0, settings: false, collections: 0, skipped: 0, errors: [] };
     const byName = new Map(zip.entries.map(e => [e.name, e]));
@@ -26,7 +26,7 @@ const WomImport = {
       const e = osz[i], setId = Number(/^beatmapFiles\/(\d+)/.exec(e.name)[1]);
       onStatus(`Importing beatmaps… ${i + 1}/${osz.length}`);
       try {
-        const f = new File([await zip.read(e)], e.name.split('/').pop(), { type: 'application/zip' });
+        const f = new File([await zip.blob(e, 'application/zip')], e.name.split('/').pop(), { type: 'application/zip' });
         const sets = await BeatmapManager.importOsz(f, report);
         for (const s of sets) if (!s.onlineId || s.onlineId < 0) { s.onlineId = setId; await DB.put('sets', { ...s, maps: undefined }); }
         out.sets.push(...sets);
