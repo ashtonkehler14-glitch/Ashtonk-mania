@@ -513,6 +513,20 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && Ashto
   check('after seeking around and changing speed, the replay still ends with the original result', sres.score === rp.summary.score && JSON.stringify(sres.counts) === JSON.stringify(rp.summary.counts), `${sres.score} vs ${rp.summary.score}`);
 }
 
+// the Replays page: every saved replay, and Watch plays it (Back from it returns to the page)
+{
+  await page.evaluate(() => AshtonkMania.Screens.go('replays', { force: true }));
+  await page.waitForSelector('.rp-row', { timeout: 8000 });
+  const rows = await page.evaluate(() => ({ shown: document.querySelectorAll('.rp-row').length, saved: AshtonkMania.ReplayManager.list.length, first: AshtonkMania.ReplayManager.list[0].id }));
+  await page.click('.rp-row:not(.missing)');
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.mode === 'replay', null, { timeout: 15000 });
+  const watching = await page.evaluate(() => AshtonkMania.GameplayScreen.s.replay.id);
+  await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
+  const back = await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'replays', null, { timeout: 10000 }).then(() => true, () => false);
+  check('the Replays page lists every saved replay; Watch plays it and Back returns to the page', rows.shown === rows.saved && rows.saved > 0 && watching === rows.first && back, JSON.stringify({ ...rows, watching, back }));
+  await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(1500);
+}
+
 // two keys bound to one column: the column stays pressed until both are up
 await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.SongSelect.selectedId = m.id; AshtonkMania.SongSelect.play('play'); });
 await page.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 15000 });
