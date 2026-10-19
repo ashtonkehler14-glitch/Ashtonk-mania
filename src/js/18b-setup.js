@@ -250,7 +250,7 @@ const Onboarding = {
     }
     const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
     clearEl(w).append(...[
-      line(true, 'Your scores, rank and friends'),
+      line(true, this.got.scores ? `Your scores (${plural(this.got.scores, 'play')} from your other devices), rank and friends` : 'Your scores, rank and friends'),
       this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
       this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : this.got.skinErr ? line(false, `Your skin didn't come along (${noStop(this.got.skinErr)})`) : null].filter(Boolean));
   },

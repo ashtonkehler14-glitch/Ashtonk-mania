@@ -261,19 +261,20 @@ const ResultsScreen = {
       h('div.st-row', h('span', 'Difficulty'), h('i.st-bar', h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })), h('b', `${Math.round(pct * 100)}%`)));
     const hist = item('Timing Distribution');
     const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
+    // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
+    // (lazer's SimpleStatisticTable: one name/value per row)
+    const me = s.meanError || 0, table = (...rows) => h('div.st-table',
+      h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
+      h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))), ...rows);
     if (errs.length) {
-      hist.append(Charts.histogram(errs.map(e => e[1]), W, s.meanError || 0));
-      // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
-      const me = s.meanError || 0;
-      // (lazer's SimpleStatisticTable: one name/value per row)
-      hist.append(h('div.st-table',
-        h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
-        h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))),
-        h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
+      hist.append(Charts.histogram(errs.map(e => e[1]), W, me));
+      hist.append(table(h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
       scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
     } else {
-      hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
+      // (a play from your other device: its hit-by-hit timing stayed there — what it came to came along)
+      if (s.synced && s.unstableRate != null) hist.append(table());
+      hist.append(h('div.empty', { style: { padding: '24px' } }, s.synced ? 'The hit-by-hit timing stays on the device this was played on.' : 'No timing data for this play.'));
       scatter.style.display = 'none';
     }
     col.append(h('div.st-pair', perf, hist));

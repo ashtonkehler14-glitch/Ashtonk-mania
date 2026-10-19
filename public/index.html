@@ -11374,6 +11374,24 @@ const ScoreManager = {
     Bus.emit('scores:changed');
     return score;
   },
+  /** Your plays from your other devices (Sync.pullScores): each once, without a replay or the hit-by-hit timing (they
+   *  stay on the device it was played on). Resolves to how many were new here. */
+  async addSynced(list) {
+    const have = new Set(this.scores.map(s => s.id)), add = [], num = v => typeof v === 'number' && Number.isFinite(v);
+    for (const x of list) {
+      if (!x || typeof x.id !== 'string' || have.has(x.id) || typeof x.mapHash !== 'string' || !Array.isArray(x.counts) || !num(x.date) || !num(x.accuracy) || !num(x.score)) continue;
+      const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(x.mapHash) : null;
+      add.push({ ...x, own: true, synced: true, replayId: null, mapId: m ? m.id : null, setId: m ? m.setId : null });
+      have.add(x.id);
+    }
+    if (!add.length) return 0;
+    await DB.putMany(add.map(value => ({ store: 'scores', value })));
+    this.scores.push(...add);
+    this.scores.sort((a, b) => a.date - b.date);
+    this._reindex();
+    Bus.emit('scores:changed');
+    return add.length;
+  },
   /** lazer's "Clear local scores": every score on one difficulty, gone. */
   async clearMap(hash) {
     const gone = this.scores.filter(s => s.mapHash === hash);
@@ -18723,19 +18741,20 @@ const ResultsScreen = {
       h('div.st-row', h('span', 'Difficulty'), h('i.st-bar', h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })), h('b', `${Math.round(pct * 100)}%`)));
     const hist = item('Timing Distribution');
     const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
+    // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
+    // (lazer's SimpleStatisticTable: one name/value per row)
+    const me = s.meanError || 0, table = (...rows) => h('div.st-table',
+      h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
+      h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))), ...rows);
     if (errs.length) {
-      hist.append(Charts.histogram(errs.map(e => e[1]), W, s.meanError || 0));
-      // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
-      const me = s.meanError || 0;
-      // (lazer's SimpleStatisticTable: one name/value per row)
-      hist.append(h('div.st-table',
-        h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
-        h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))),
-        h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
+      hist.append(Charts.histogram(errs.map(e => e[1]), W, me));
+      hist.append(table(h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
       scatter.append(Charts.scatter(s.hitErrors, W));
       scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
     } else {
-      hist.append(h('div.empty', { style: { padding: '24px' } }, 'No timing data for this play.'));
+      // (a play from your other device: its hit-by-hit timing stayed there — what it came to came along)
+      if (s.synced && s.unstableRate != null) hist.append(table());
+      hist.append(h('div.empty', { style: { padding: '24px' } }, s.synced ? 'The hit-by-hit timing stays on the device this was played on.' : 'No timing data for this play.'));
       scatter.style.display = 'none';
     }
     col.append(h('div.st-pair', perf, hist));
@@ -19455,7 +19474,8 @@ const ProfileScreen = {
     const lite = (s, pp) => ({ title: s.title, artist: s.artist, version: s.version, creator: s.creator, grade: s.grade, accuracy: s.accuracy, mods: s.mods || [], date: s.date, pp, _s: s,
       // (enough for other players to open it on the results screen)
       score: Math.round(ScoreManager.value(s) || 0), maxCombo: s.maxCombo, counts: s.counts, keys: s.keys, stars: s.stars, mapHash: s.mapHash, passed: s.passed, ranked: ScoreManager.isRanked(s),
-      ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : undefined }; })() });
+      // (a play from your other device, on a beatmap this one doesn't have: the ids it came with)
+      ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : s.onlineId > 0 ? s.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : s.onlineSetId > 0 ? s.onlineSetId : undefined }; })() });
     const g = st.grades || {}, best = ScoreManager.bestPpPerMap();
     return {
       name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
@@ -19826,6 +19846,7 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
       'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
+      'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
       'Signing out brings you back to that question'] },
     { icon: 'trophy', title: 'Rankings', items: [
@@ -22026,7 +22047,7 @@ const Onboarding = {
     }
     const line = (ok, text) => h(`div.setup-linked${ok ? '' : '.none'}`, icon(ok ? 'check' : 'info'), text);
     clearEl(w).append(...[
-      line(true, 'Your scores, rank and friends'),
+      line(true, this.got.scores ? `Your scores (${plural(this.got.scores, 'play')} from your other devices), rank and friends` : 'Your scores, rank and friends'),
       this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
       this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : this.got.skinErr ? line(false, `Your skin didn't come along (${noStop(this.got.skinErr)})`) : null].filter(Boolean));
   },
@@ -27150,10 +27171,11 @@ const CodePanel = {
 };
 
 /* ===== 19o-sync.js ===== */
-/* Your settings and skin, kept with your code: a device playing through a code sends its settings — not the ones that
- * belong to the device (performance and sharpness, audio offset, what song select last showed) — and the skin it uses,
- * if it's one you imported (Kori and the Custom skin are on every device already). Typing your code on another
- * device brings both there (Sync.restore, from the first-run setup and Your code → Use a code). */
+/* Your settings, skin and scores, kept with your code: a device playing through a code sends its settings — not the
+ * ones that belong to the device (performance and sharpness, audio offset, what song select last showed) — the skin it
+ * uses, if it's one you imported (Kori and the Custom skin are on every device already), and the plays you set on it.
+ * Typing your code on another device brings them there (Sync.restore, from the first-run setup and Your code → Use a
+ * code); after that, each device gets the plays the others set as it goes. */
 
 const Sync = {
   /** Settings that belong to the device, not to you: never sent, never taken from another device. */
@@ -27165,8 +27187,10 @@ const Sync = {
   },
   /** Too big to send (a picture made a setting): kept on the device. */
   big(v) { return typeof v === 'string' && v.length > 100000; },
-  /** The biggest skin the server keeps (worker/vault.js). */
+  /** The biggest skin the server keeps, and for scores: the biggest one, how many go in one call, how many it keeps
+   *  (worker/vault.js). */
   SKIN_MAX: 30 * 1024 * 1024,
+  SCORE_MAX: 4096, SCORES_SEND: 200, SCORES_MAX: 5000,
   mark(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private mode */ } },
   marked(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
   /** A code was just typed here: until what it brings has arrived, nothing from this device is sent (it would replace
@@ -27177,6 +27201,9 @@ const Sync = {
     Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) this.later(); });
     Bus.on('skin:changed', () => this.later());
     Bus.on('account:changed', () => this.later());
+    Bus.on('scores:changed', () => this.later());
+    // (back to the game after a while — a phone put down, another tab: what your other devices played since)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) this.later(2000); });
     // (a restore cut short: finished now — unless the setup is about to run, which brings it on its own page)
     if (this.pending() && Account.linked() && ProfileManager.profile.onboarded) setTimeout(() => this.restore().catch(e => console.warn('restore', e)), 2000);
     else this.later(3000);
@@ -27201,13 +27228,19 @@ const Sync = {
     if (this._pushing) { this._again = true; return; }
     this._pushing = true;
     try {
-      const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
-      let kept; // (undefined: not asked this time; null: the server keeps no skin)
-      if (this.marked('am.setSent') !== sum) {
-        kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
-        this.mark('am.setSent', sum);
-      }
-      await this.pushSkin(kept);
+      let failed = null;
+      try {
+        const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
+        let kept; // (undefined: not asked this time; null: the server keeps no skin)
+        if (this.marked('am.setSent') !== sum) {
+          kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
+          this.mark('am.setSent', sum);
+        }
+        await this.pushSkin(kept);
+      } catch (e) { failed = e; }
+      // (your plays on their own: a skin that couldn't go up doesn't keep them back)
+      try { await this.syncScores(); } catch (e) { console.warn('scores not kept', e); }
+      if (failed) throw failed;
     } finally {
       this._pushing = false;
       if (this._again) { this._again = false; this.later(); }
@@ -27230,8 +27263,60 @@ const Sync = {
     this.mark('am.skinSent', sent);
   },
 
+  /** What a play keeps for your other devices: what its results show — not the hit-by-hit timing or the health
+   *  over time (too big: they stay on the device it was played on). */
+  KEEP: ['id', 'mapHash', 'title', 'artist', 'version', 'creator', 'status', 'keys', 'stars', 'pp', 'mods', 'rate', 'score', 'scoreStd', 'accuracy', 'maxCombo',
+    'counts', 'grade', 'passed', 'date', 'duration', 'player', 'meanError', 'unstableRate', 'early', 'late', 'totalJudgements', 'accuracyMode', 'windows', 'od', 'modConfig', 'srVersion'],
+  compact(s) {
+    const o = {};
+    for (const k of this.KEEP) if (s[k] !== undefined) o[k] = s[k];
+    // (and the beatmap's osu! ids: a device without the beatmap still shows it's a ranked one on your profile)
+    const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId);
+    if (m && m.onlineId > 0) o.onlineId = m.onlineId; else if (s.onlineId > 0) o.onlineId = s.onlineId;
+    if (set && set.onlineId > 0) o.onlineSetId = set.onlineId; else if (s.onlineSetId > 0) o.onlineSetId = s.onlineSetId;
+    return o;
+  },
+  /** How often what your other devices played is asked for (also when you come back to the game after this long). */
+  PULL_EVERY: 10 * 60000,
+  /** Your plays both ways: the new ones from here up, then the ones your other devices sent since — straight after
+   *  sending (so a play deleted here can't come back as theirs), else every PULL_EVERY. Not in the middle of a song. */
+  async syncScores() {
+    const sent = await this.pushScores();
+    if (Screens.currentName === 'gameplay') return;
+    if (sent || Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) await this.pullScores();
+  },
+  /** The plays set on this device that the server doesn't have yet (each is marked with who it went to), oldest first —
+   *  the newest SCORES_MAX: older ones wouldn't be kept. Not imported ones (a backup, a Web-Osu-Mania save: they stay
+   *  where they were imported), not the ones that came from your other devices. Resolves to how many went. */
+  async pushScores() {
+    const me = Account.me(), due = ScoreManager.scores.filter(s => s.own !== false && !s.imported && !s.synced && s.sent !== me.pid).slice(-this.SCORES_MAX);
+    for (let i = 0; i < due.length; i += this.SCORES_SEND) {
+      const part = due.slice(i, i + this.SCORES_SEND), send = part.map(s => this.compact(s)).filter(x => JSON.stringify(x).length <= this.SCORE_MAX);
+      if (send.length) await Account.call('scores-up', { ...me, scores: send });
+      for (const s of part) s.sent = me.pid;
+      await DB.putMany(part.map(value => ({ store: 'scores', value })));
+    }
+    return due.length;
+  },
+  /** The plays kept since this device last asked (the server numbers them as they come), a page at a time. Resolves
+   *  to how many were new here. */
+  async pullScores() {
+    const me = Account.me(), [p, n] = this.marked('am.scPulled').split('|');
+    let after = p === me.pid ? Number(n) || 0 : 0, got = 0;
+    for (let i = 0; i < 40; i++) {
+      const d = await Account.call('scores', { ...me, after });
+      if (Array.isArray(d.scores) && d.scores.length) got += await ScoreManager.addSynced(d.scores);
+      if (Number.isFinite(d.last)) after = d.last;
+      this.mark('am.scPulled', `${me.pid}|${after}`);
+      if (d.next == null) break;
+    }
+    this._pulledAt = Date.now();
+    return got;
+  },
+
   /** After typing your code: your settings and skin from the server. `onStatus(text, fraction)` shows how it's going.
-   *  Resolves to what came: { settings, skin } (skin: its name, if it was downloaded). */
+   *  Resolves to what came: { settings, skin, scores } (skin: its name, if it was downloaded; scores: how many of your
+   *  plays). */
   async restore(onStatus = () => {}) {
     this.mark('am.restore', '1');
     onStatus('Bringing your settings…');
@@ -27245,7 +27330,7 @@ const Sync = {
       else this.retry();
       throw e;
     }
-    const got = { settings: false, skin: '', skinErr: '' }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    const got = { settings: false, skin: '', skinErr: '', scores: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
     if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
     // (the settings are here: whatever happens to the skin, this restore is done — it's never applied over again)
     this.mark('am.restore', null);
@@ -27269,6 +27354,8 @@ const Sync = {
         }
       }
     }
+    onStatus('Bringing your scores…');
+    try { got.scores = await this.pullScores(); } catch (e) { console.warn('scores not brought', e); } // (again with the next settings sent)
     this.later();
     return got;
   },
@@ -27281,7 +27368,9 @@ const Sync = {
   async restoreToast() {
     try {
       const got = await this.restore();
-      if (got.settings || got.skin) Toast.ok('Your settings came along', got.skin ? `And your skin, ${got.skin}.` : got.skinErr ? `Your skin didn't (${noStop(got.skinErr)}).` : 'Everything\'s set the way you had it.');
+      const plays = got.scores ? ` ${plural(got.scores, 'play')} from your other devices came too.` : '';
+      if (got.settings || got.skin) Toast.ok('Your settings came along', (got.skin ? `And your skin, ${got.skin}.` : got.skinErr ? `Your skin didn't (${noStop(got.skinErr)}).` : 'Everything\'s set the way you had it.') + plays);
+      else if (got.scores) Toast.ok('Your scores came along', `${plural(got.scores, 'play')} from your other devices.`);
     } catch (e) { if (e.status !== 503 && e.status !== 404) Toast.err('Your settings didn\'t come along', friendlyError(e)); }
   },
   /** The kept skin, downloaded (as a file importOsk takes). */
@@ -27326,7 +27415,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '74ca9e53bf9c';
+const APP_BUILD = '1df890b030fe';
 
 const App = {
   lastReport: null,

@@ -63,6 +63,24 @@ const ScoreManager = {
     Bus.emit('scores:changed');
     return score;
   },
+  /** Your plays from your other devices (Sync.pullScores): each once, without a replay or the hit-by-hit timing (they
+   *  stay on the device it was played on). Resolves to how many were new here. */
+  async addSynced(list) {
+    const have = new Set(this.scores.map(s => s.id)), add = [], num = v => typeof v === 'number' && Number.isFinite(v);
+    for (const x of list) {
+      if (!x || typeof x.id !== 'string' || have.has(x.id) || typeof x.mapHash !== 'string' || !Array.isArray(x.counts) || !num(x.date) || !num(x.accuracy) || !num(x.score)) continue;
+      const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(x.mapHash) : null;
+      add.push({ ...x, own: true, synced: true, replayId: null, mapId: m ? m.id : null, setId: m ? m.setId : null });
+      have.add(x.id);
+    }
+    if (!add.length) return 0;
+    await DB.putMany(add.map(value => ({ store: 'scores', value })));
+    this.scores.push(...add);
+    this.scores.sort((a, b) => a.date - b.date);
+    this._reindex();
+    Bus.emit('scores:changed');
+    return add.length;
+  },
   /** lazer's "Clear local scores": every score on one difficulty, gone. */
   async clearMap(hash) {
     const gone = this.scores.filter(s => s.mapHash === hash);

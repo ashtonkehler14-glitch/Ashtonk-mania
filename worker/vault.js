@@ -1,4 +1,4 @@
-// Each player's settings and skin, kept for the devices that play as them through their code: one Durable Object a
+// Each player's settings, skin and scores, kept for the devices that play as them through their code: one Durable Object a
 // player (PlayerVault, idFromName(pid)). Typing your code on another device brings them there. Only reached through
 // handleAccount (multiplayer.js), once the Matchmaker has checked the device's key — never straight from outside.
 
@@ -6,6 +6,13 @@
 const CHUNK = 1 << 20;
 export const SETTINGS_MAX = 256 * 1024;
 export const SKIN_MAX = 30 * 1024 * 1024;
+/** Your scores, kept for your other devices: each as the game sends it (no hit-by-hit timing), the newest this many. */
+export const SCORE_MAX = 4096;
+export const SCORES_MAX = 5000;
+export const SCORES_SEND = 200; // (at most this many in one go)
+const SCORES_PAGE = 300;
+const seqKey = n => `sq:${String(n).padStart(10, '0')}`;
+const scoreId = id => typeof id === 'string' && /^sc-[\w-]{4,48}$/.test(id);
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
@@ -78,9 +85,51 @@ export class PlayerVault {
       });
       return new Response(body, { headers: { 'content-type': 'application/zip', 'content-length': String(k.size), 'cache-control': 'no-store', 'x-am-skin': encodeURIComponent(JSON.stringify({ id: k.id, name: k.name })) } });
     }
+    // scores to keep: each once (by its id), in the order they came — so a device asks for "the ones after the last I
+    // got" — and only the newest SCORES_MAX
+    if (path === '/scores-up') {
+      let b = null;
+      try { b = JSON.parse(await request.text()); } catch { /* below */ }
+      if (!b || !Array.isArray(b.scores)) return json({ error: 'Bad scores.' }, 400);
+      const list = b.scores.slice(0, SCORES_SEND).filter(x => x && typeof x === 'object' && !Array.isArray(x) && scoreId(x.id));
+      const have = new Set();
+      for (let i = 0; i < list.length; i += 128) for (const k of (await st.get(list.slice(i, i + 128).map(x => `si:${x.id}`))).keys()) have.add(k);
+      let seq = (await st.get('scSeq')) || 0, n = (await st.get('scN')) || 0, added = 0;
+      const put = {};
+      for (const x of list) {
+        const ik = `si:${x.id}`, text = JSON.stringify(x);
+        if (have.has(ik) || ik in put || text.length > SCORE_MAX) continue;
+        seq++; put[seqKey(seq)] = text; put[ik] = seq; added++;
+      }
+      if (added) {
+        put.scSeq = seq; put.scN = n + added;
+        const entries = Object.entries(put);
+        for (let i = 0; i < entries.length; i += 128) await st.put(Object.fromEntries(entries.slice(i, i + 128)));
+        if (n + added > SCORES_MAX) await this.trimScores(n + added - SCORES_MAX);
+      }
+      return json({ ok: true, added });
+    }
+    // the scores kept after sequence number `after`, a page at a time: `next` to go on from, null at the end
+    if (path === '/scores') {
+      let b = {};
+      try { b = JSON.parse(await request.text()) || {}; } catch { /* from the start */ }
+      const after = Math.max(0, Math.floor(Number(b.after) || 0));
+      const page = await st.list({ prefix: 'sq:', start: seqKey(after + 1), limit: SCORES_PAGE });
+      const scores = [];
+      let last = after;
+      for (const [k, v] of page) { last = Number(k.slice(3)); try { scores.push(JSON.parse(v)); } catch { /* unreadable: left out */ } }
+      return json({ ok: true, scores, last, next: page.size === SCORES_PAGE ? last : null });
+    }
     // a player merged into another (their code typed on this player's device): nothing of theirs is kept
     if (path === '/wipe') { await st.deleteAll(); return json({ ok: true }); }
     return json({ error: 'Not found' }, 404);
+  }
+  /** The oldest `k` scores go (past SCORES_MAX). */
+  async trimScores(k) {
+    const st = this.state.storage, old = await st.list({ prefix: 'sq:', limit: k }), del = [];
+    for (const [key, v] of old) { del.push(key); try { del.push(`si:${JSON.parse(v).id}`); } catch { /* unreadable */ } }
+    for (let i = 0; i < del.length; i += 128) await st.delete(del.slice(i, i + 128));
+    await st.put('scN', Math.max(0, ((await st.get('scN')) || 0) - old.size));
   }
   async drop(up, n) {
     const keys = [];

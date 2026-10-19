@@ -28,7 +28,7 @@
 // every player's vote.
 
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
-import { SETTINGS_MAX, SKIN_MAX } from './vault.js';
+import { SETTINGS_MAX, SKIN_MAX, SCORE_MAX, SCORES_SEND } from './vault.js';
 export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RATING, QUEUE } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1958,10 +1958,10 @@ export class Matchmaker {
   async vaultAuth(request) {
     await this.loadFriends();
     const b = await request.json().catch(() => ({})), P = this.presence, pid = String(b.pid || ''), what = String(b.what || '');
-    const limit = { settings: 60, 'skin-up': 6, restore: 30, skin: 10 }[what];
+    const limit = { settings: 60, 'skin-up': 6, restore: 30, skin: 10, 'scores-up': 60, scores: 120 }[what];
     if (!limit) return json({ error: 'Not found' }, 404);
     if (!/^[a-z0-9]{6,24}$/.test(pid) || !P.keyOk(pid, String(b.key || ''))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
-    if ((what === 'settings' || what === 'skin-up') && !P.codeOf.has(pid)) return json({ error: 'Get your code first: your settings are kept for the devices that use it.' }, 403);
+    if ((what === 'settings' || what === 'skin-up' || what === 'scores-up') && !P.codeOf.has(pid)) return json({ error: 'Get your code first: your settings are kept for the devices that use it.' }, 403);
     if (!this.allowTry(`v:${what}:${pid}`, limit)) return json({ error: 'Too many at once. Try again in a few minutes.' }, 429);
     return json({ ok: true });
   }
@@ -2351,10 +2351,11 @@ export async function beatmapStatus(r, md5, env, get = officialGet, again = true
  *  Your settings and skin (settings, restore, skin, skin-up) are kept in a PlayerVault of your own, once the
  *  Matchmaker has checked this device is you: settings {pid, key, settings} keeps them; restore {pid, key} says what
  *  there is (the settings, which skin); skin {pid, key} sends the skin; skin-up sends one to keep (the .osk as the body,
- *  `x-am-auth: pid.key`, `x-am-skin`: its id and name). */
+ *  `x-am-auth: pid.key`, `x-am-skin`: its id and name). Your scores, for your other devices: scores-up {pid, key, scores}
+ *  keeps them (each once), scores {pid, key, after} sends the ones kept after that sequence number, a page at a time. */
 export async function handleAccount(request, env, url) {
   if (!env.MATCHMAKER) return json({ error: 'Accounts aren\'t available on this server.' }, 503);
-  const m = /^\/api\/account\/(code|link|logout|others|settings|restore|skin|skin-up)$/.exec(url.pathname);
+  const m = /^\/api\/account\/(code|link|logout|others|settings|restore|skin|skin-up|scores|scores-up)$/.exec(url.pathname);
   if (request.method !== 'POST' || !m) return json({ error: 'Not found' }, 404);
   const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global')), what = m[1];
   if (/^(code|link|logout|others)$/.test(what)) {
@@ -2362,15 +2363,15 @@ export async function handleAccount(request, env, url) {
     return stub.fetch(new Request(new URL(url.pathname, url), { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-ip': request.headers.get('cf-connecting-ip') || '' } }));
   }
   if (!env.VAULT) return json({ error: 'Keeping settings isn\'t available on this server.' }, 503);
-  let pid = '', key = '', settings = null;
+  let pid = '', key = '', settings = null, b = null;
   if (what === 'skin-up') {
     [pid = '', key = ''] = (request.headers.get('x-am-auth') || '').split('.');
     if (Number(request.headers.get('content-length')) > SKIN_MAX) return json({ error: 'Your skin is too big to keep (30 MB at most).' }, 413);
   } else {
-    if (Number(request.headers.get('content-length')) > SETTINGS_MAX + 4096) return json({ error: 'Your settings are too big to keep.' }, 413);
+    const max = what === 'scores-up' ? SCORES_SEND * SCORE_MAX + 4096 : SETTINGS_MAX + 4096, big = what === 'scores-up' ? 'Too many scores at once.' : 'Your settings are too big to keep.';
+    if (Number(request.headers.get('content-length')) > max) return json({ error: big }, 413);
     const text = await request.text();
-    if (text.length > SETTINGS_MAX + 4096) return json({ error: 'Your settings are too big to keep.' }, 413);
-    let b = null;
+    if (text.length > max) return json({ error: big }, 413);
     try { b = JSON.parse(text); } catch { /* below */ }
     if (!b || typeof b !== 'object') return json({ error: 'Bad request.' }, 400);
     pid = String(b.pid || ''); key = String(b.key || ''); settings = b.settings;
@@ -2383,6 +2384,8 @@ export async function handleAccount(request, env, url) {
     return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify(settings) }));
   }
   if (what === 'skin-up') return vault.fetch(new Request(at, { method: 'POST', body: request.body, headers: { 'x-am-skin': request.headers.get('x-am-skin') || '' } }));
+  if (what === 'scores-up') return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify({ scores: Array.isArray(b.scores) ? b.scores : null }) }));
+  if (what === 'scores') return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify({ after: b.after }) }));
   return vault.fetch(new Request(at, { method: 'POST' }));
 }
 

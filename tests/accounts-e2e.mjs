@@ -69,6 +69,17 @@ const rankings = page => page.evaluate(() => new Promise(res => {
   AshtonkMania.Presence.send({ t: 'rankings' });
 }));
 const toasts = page => page.evaluate(() => document.querySelector('#toasts').textContent);
+/** A finished play kept on the device (as the game keeps one: with its hit-by-hit timing and health over time). */
+const keepScore = (page, extra) => page.evaluate(async extra => {
+  const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0] || {};
+  const s = await A.ScoreManager.add({ id: 'sc-' + Math.random().toString(36).slice(2, 12), mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator,
+    keys: m.keys || 4, stars: 2.5, pp: 12, mods: [], rate: 1, score: 900000, scoreStd: 950000, accuracy: 0.97, maxCombo: 300, counts: [200, 50, 10, 0, 0, 2], grade: 'A', passed: true,
+    date: Date.now(), duration: 60000, player: A.ProfileManager.profile.name, own: true, meanError: -3.2, unstableRate: 120, windows: [16, 40, 73, 103, 127, 164], replayId: null, srVersion: SR_VERSION,
+    hitErrors: Array.from({ length: 400 }, (_, i) => [i * 100, 5, 0]), healthTimeline: [[0, 1], [1000, 0.9]], ...extra });
+  return s.id;
+}, extra || {});
+/** Your settings, skin and plays sent now (and what your other devices sent asked for straight away). */
+const syncNow = page => page.evaluate(async () => { const S = AshtonkMania.Sync; while (S._pushing) await new Promise(r => setTimeout(r, 50)); S._pulledAt = 0; await S.push(); });
 const closePanel = async page => { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.login-panel'), null, { timeout: 3000 }); };
 const typeCode = async (page, code) => {
   await page.evaluate(() => AshtonkMania.CodePanel.open({ use: true }));
@@ -166,6 +177,10 @@ try {
   check('a signed-out device comes back with the new code', await b.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
   check('…still one Kai on the rankings', (await rankings(a)).total === 1);
 
+  // ── your scores come along too: device A keeps a play of its own (and one from a backup, which stays there)
+  // (as a beatmap from osu! has: its ids there — the fixture's are made up)
+  await a.evaluate(() => { const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0]; m.onlineId = 4242; A.BeatmapManager.setById.get(m.setId).onlineId = 77; });
+  const scA = await keepScore(a), scImp = await keepScore(a, { imported: 'backup' });
   // ── your settings and skin come along: device A uses a skin it imported, and settings of its own
   const osk = readFileSync(join(root, 'tests/fixtures/chemuss.osk')).toString('base64');
   const mineA = await a.evaluate(async b64 => {
@@ -177,6 +192,8 @@ try {
     return { skin: meta.name, sent: localStorage.getItem('am.skinSent') || '' };
   }, osk);
   check('device A keeps its settings and the skin it imported on the server', !!mineA.skin && mineA.sent.endsWith(await a.evaluate(() => AshtonkMania.SkinManager.current.id)), JSON.stringify(mineA));
+  const sentA = await a.evaluate(([x, y]) => { const l = AshtonkMania.ScoreManager.scores; return { n: l.length, own: (l.find(s => s.id === x) || {}).sent, imp: (l.find(s => s.id === y) || {}).sent || null }; }, [scA, scImp]);
+  check('…and its play (not the one from a backup), which doesn\'t come back to it twice', sentA.n === 2 && sentA.own === pidA && sentA.imp === null, JSON.stringify(sentA));
   // a new device: "Yes, I have a code" → its own page for the code → your settings and skin arrive → only the device's own page is left
   const ectx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   const e = await ectx.newPage();
@@ -197,6 +214,9 @@ try {
   check('…your settings come along (not the ones that belong to a device: audio offset, performance)', got.speed === 33 && got.hue === 200 && got.offset !== 25 && got.perf !== true && got.got && got.got.settings, JSON.stringify(got));
   check('…and the skin you imported, downloaded and in use', got.skin === mineA.skin && got.files > 5 && got.got.skin === mineA.skin, JSON.stringify(got));
   check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
+  const scE = await e.evaluate(id => { const A = AshtonkMania, l = A.ScoreManager.scores, s = l.find(x => x.id === id); return { n: l.length, s: s && { synced: s.synced, timing: !!s.hitErrors, ur: s.unstableRate, mean: s.meanError, counts: s.counts.join(), oid: `${s.onlineId}/${s.onlineSetId}` }, plays: StatisticsManager.compute().plays }; }, scA);
+  check('…and your play from device A, without its hit-by-hit timing (the backup\'s stays there), with the beatmap\'s osu! ids', scE.s && scE.s.oid === '4242/77' && scE.n === 1 && scE.s && scE.s.synced && !scE.s.timing && scE.s.ur === 120 && scE.s.mean === -3.2 && scE.s.counts === '200,50,10,0,0,2' && scE.plays === 1 && got.got.scores === 1, JSON.stringify(scE));
+  check('…the page says your scores came', said.some(t => /Your scores \(1 play from your other devices\)/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));
   // closed before Finish: back on this player's page (never "I'm new", which would rename them), then the device's page
   await e.reload();
   await e.waitForSelector('.setup-step-account .setup-restore', { timeout: 30000 });
@@ -209,6 +229,14 @@ try {
   await e.click('.setup-next', { timeout: 1000 }).catch(() => {});
   await e.waitForFunction(() => !document.querySelector('.setup'), null, { timeout: 8000 });
   await e.waitForTimeout(600);
+  // a play on device E reaches device A (and each keeps one of each)
+  const scE2 = await keepScore(e, { mapHash: await a.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()][0].hash), accuracy: 0.99 });
+  await syncNow(e); await syncNow(a);
+  const both = await Promise.all([a, e].map(pg => pg.evaluate(ids => { const l = AshtonkMania.ScoreManager.scores; return { n: l.length, ids: ids.map(id => l.filter(s => s.id === id).length).join(), e2: (l.find(s => s.id === ids[1]) || {}).synced || false }; }, [scA, scE2])));
+  check('a play on another device reaches this one (once, as one of yours): device E\'s play is on device A', both[0].n === 3 && both[0].ids === '1,1' && both[0].e2 === true && both[1].n === 2 && both[1].ids === '1,1' && both[1].e2 === false, JSON.stringify(both));
+  // its results: what it came to, and where its timing is
+  const res = await a.evaluate(async id => { const A = AshtonkMania; await A.Screens.go('results', { score: A.ScoreManager.scores.find(s => s.id === id), fromList: true, browse: true }); await new Promise(r => setTimeout(r, 800)); const t = document.querySelector('.res-right')?.textContent || ''; await A.Screens.go('home'); return t; }, scE2);
+  check('…its results show the unstable rate, and that the hit-by-hit timing stays on the device it was played on', /Unstable Rate/.test(res) && /stays on the device this was played on/.test(res), res.slice(0, 200));
   check('…and it\'s done (Finish on that page — once, even tapped twice)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending() && AshtonkMania.ProfileManager.profile.name === 'Kai') && (await toasts(e)).split('Welcome, Kai!').length <= 2);
 
   // ── guessing: a few tries per address, then turned away (codes have 80 random bits anyway)
