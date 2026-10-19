@@ -252,7 +252,7 @@ const Onboarding = {
     clearEl(w).append(...[
       line(true, this.got.scores ? `Your scores (${plural(this.got.scores, 'play')}), rank and friends` : 'Your scores, rank and friends'),
       this.got.settings ? line(true, 'Your settings') : line(false, (this.restoreErr ? `Your settings didn't come along (${noStop(this.restoreErr)})` : 'No settings were kept for you yet') + (this.accountOnly ? '' : ' — set them up on the next pages')),
-      this.got.collections ? line(true, 'Your collections') : null,
+      this.got.collections || this.got.favorites ? line(true, this.got.collections && this.got.favorites ? 'Your collections and favourites' : this.got.collections ? 'Your collections' : 'Your favourites') : null,
       this.got.skin ? line(true, `Your skin: ${this.got.skin}`) : this.got.skinErr ? line(false, `Your skin didn't come along (${noStop(this.got.skinErr)})`) : null].filter(Boolean));
   },
   /** Your code, new: shown big with Copy, and why to keep it safe. */

@@ -245,7 +245,6 @@ const ResultsScreen = {
   },
   rightCol(s) {
     const col = h('div.res-right', h('div.rs-head', 'Statistics'));
-    const errs = (s.hitErrors || []).filter(e => !e[3]);
     const W = (s.windows || timingWindows({ od: s.od ?? 8 })).slice();
     // lazer's StatisticItemContainer: a 20px-cornered grey card with its name (16 bold, a #66FFCC bar under it)
     const item = (name, ...kids) => h('div.st-item', h('div.st-h', name), ...kids);
@@ -260,41 +259,45 @@ const ResultsScreen = {
       h('div.st-pp', h('div.st-pp-l', h('span', 'Achieved PP'), h('b', fmtInt(Math.round(got)))), h('div.st-pp-r', h('span', 'Maximum'), h('b', fmtInt(Math.round(maxPp))))),
       h('div.st-row', h('span', 'Difficulty'), h('i.st-bar', h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })), h('b', `${Math.round(pct * 100)}%`)));
     const hist = item('Timing Distribution');
-    const scatter = h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')));
+    // Secondary graphs stay folded away to keep the screen simple.
+    const more = h('details.res-more', h('summary', 'More statistics'));
     // lazer's statistic items under the graph: unstable rate and the average hit error (early / late)
     // (lazer's SimpleStatisticTable: one name/value per row)
     const me = s.meanError || 0, table = (...rows) => h('div.st-table',
       h('div.st-row', h('span', 'Average Hit Error'), h('b', `${Math.abs(me).toFixed(2)} ms ${Math.abs(me) < 0.005 ? '' : me < 0 ? 'early' : 'late'}`.trim())),
       h('div.st-row', h('span', 'Unstable Rate'), h('b', (s.unstableRate || 0).toFixed(2))), ...rows);
-    if (errs.length) {
-      hist.append(Charts.histogram(errs.map(e => e[1]), W, me));
-      hist.append(table(h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
-      scatter.append(Charts.scatter(s.hitErrors, W));
-      scatter.append(h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short))));
-    } else {
-      // (a play from your other device: its hit-by-hit timing stayed there — what it came to came along)
-      if (s.synced && s.unstableRate != null) hist.append(table());
-      hist.append(h('div.empty', { style: { padding: '24px' } }, s.synced ? 'The hit-by-hit timing stays on the device this was played on.' : 'No timing data for this play.'));
-      scatter.style.display = 'none';
-    }
+    /** The graphs from the play's hit-by-hit timing and health (`t`: the play, or what storage has of it). */
+    const timing = t => {
+      hist.replaceChildren(hist.firstChild); more.replaceChildren(more.firstChild);
+      const errs = (t.hitErrors || []).filter(e => !e[3]);
+      if (errs.length) {
+        hist.append(Charts.histogram(errs.map(e => e[1]), W, me));
+        hist.append(table(h('div.st-row', h('span', 'Timed hits'), h('b', fmtInt(errs.length)))));
+        more.append(h('div.panel.glass.chart-card', h('h3', 'Timing over time', h('span.grow'), h('span', 'early ↑ · late ↓')),
+          Charts.scatter(t.hitErrors, W), h('div.chart-legend', ...JUDGEMENTS.slice(0, 5).map(j => h('span', { style: { '--c': j.color } }, j.short)))));
+      } else {
+        // (a play from your other device: its hit-by-hit timing stayed there — what it came to came along)
+        if (s.synced && s.unstableRate != null) hist.append(table());
+        hist.append(h('div.empty', { style: { padding: '24px' } }, s.synced ? 'The hit-by-hit timing stays on the device this was played on.' : 'No timing data for this play.'));
+      }
+      const hl = t.healthTimeline || [];
+      if (hl.length > 2) {
+        const step = Math.max(1, Math.floor(hl.length / 240));
+        const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([at, v]) => ({ y: v * 100, tip: `${fmtTime(at)} · health ${Math.round(v * 100)}%` }));
+        more.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(hl.reduce((a, x) => Math.min(a, x[1]), 1) * 100)}%`)),
+          Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
+      }
+      more.hidden = more.children.length <= 1;
+    };
+    timing(s);
+    // (a play kept here holds its timing in storage, not memory: drawn as soon as it's read — straight away)
+    if (!s.online) ScoreManager.heavy(s).then(t => { if (t && this.p && this.p.score === s) timing(t); });
     col.append(h('div.st-pair', perf, hist));
     // lazer's user tags: after your own pass, vote for what the beatmap is
     const own = !s.player || s.player === ProfileManager.profile.name;
     // (tags live on the server: no panel when there isn't one to reach)
     if (s.passed && own && s.mapHash && !(s.mods || []).includes('AT') && typeof UserTags !== 'undefined' && Multiplayer.available() && Presence.health !== 'none') col.append(item('Beatmap tags', UserTags.panel(s.mapHash)));
-    // Secondary graphs stay folded away to keep the screen simple.
-    const more = h('details.res-more', h('summary', 'More statistics'));
-    if (errs.length) more.append(scatter);
-    const hl = s.healthTimeline || [];
-    if (hl.length > 2) {
-      const step = Math.max(1, Math.floor(hl.length / 240));
-      const pts = hl.filter((_, i) => i % step === 0 || i === hl.length - 1).map(([t, v]) => ({ y: v * 100, tip: `${fmtTime(t)} · health ${Math.round(v * 100)}%` }));
-      more.append(h('div.panel.glass.chart-card', h('h3', 'Health over time', h('span.grow'), h('span', `lowest ${Math.round(hl.reduce((a, x) => Math.min(a, x[1]), 1) * 100)}%`)),
-        Charts.line(pts, { height: 130, yMin: 0, yMax: 100, fmtY: v => Math.round(v) + '%', dots: false })));
-    }
-    if (more.children.length > 1) {
-      col.append(more);
-    }
+    col.append(more);
     return col;
   },
   actions(s, p, map) {

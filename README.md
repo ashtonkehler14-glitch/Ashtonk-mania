@@ -6,7 +6,7 @@ A mania rhythm game that runs in your browser, made to look and feel like osu!la
 
 Open `index.html` in Chrome, Edge, Firefox or Safari. Drag `.osz` beatmaps or `.osk` skins onto the window to add them, or find songs with **Browse**. Everything is saved in your browser.
 
-To play as yourself on another device, right-click your name in the top bar → **Your code**, and type the code on the other device. It's you there too, with one spot on the rankings, and your settings, collections, skin (if you imported one) and scores come along — plays you set on one device show up on the others. Keep the code secret; **New code** and **Sign out other devices** are there if it gets out. An imported backup never counts on the rankings: its scores stay on the device that imported them.
+To play as yourself on another device, right-click your name in the top bar → **Your code**, and type the code on the other device. It's you there too, with one spot on the rankings, and your settings, collections, favourites, skin (if you imported one) and scores come along — plays you set on one device show up on the others. Keep the code secret; **New code** and **Sign out other devices** are there if it gets out. An imported backup never counts on the rankings: its scores stay on the device that imported them.
 
 To play without the website, press **Ctrl+S** in the game (or Settings → Maintenance → **Save as an HTML file**). You get one file with the whole game inside, skins and pictures included. Open it in a browser on any device. It plays offline, and multiplayer, beatmap search and rankings connect to the website it was saved from. The file keeps its own beatmaps, scores and settings: move them with **Export all data** and **Import data**.
 

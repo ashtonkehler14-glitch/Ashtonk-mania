@@ -1793,6 +1793,16 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     check('results: picking another score swaps it into the middle, and going back leaves nothing of the results behind', before !== after && left.screen !== 'results' && left.stray === 0, JSON.stringify(left));
   }
 }
+// a play's hit-by-hit timing and health stay in storage, not memory (hundreds of KB each once read): its results read
+// them from there
+{
+  const lt = await page.evaluate(async () => { const A = AshtonkMania, SM = A.ScoreManager, all = await A.DB.getAll('scores'), full = all.find(x => x.hitErrors && x.hitErrors.length > 5 && SM.scores.some(y => y.id === x.id));
+    return { id: full && full.id, inMem: SM.scores.filter(s => 'hitErrors' in s || 'healthTimeline' in s).length, stored: all.filter(s => s.hitErrors).length, n: SM.scores.length }; });
+  await page.evaluate(id => AshtonkMania.Screens.go('results', { score: AshtonkMania.ScoreManager.scores.find(s => s.id === id), fromList: true }), lt.id);
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results'); await page.waitForTimeout(800);
+  const drawn = await page.evaluate(() => { const r = [...document.querySelectorAll('.res-right')].pop(); return { timed: /Timed hits/.test(r.textContent), none: /No timing data/.test(r.textContent), charts: r.querySelectorAll('.res-more .chart-card').length, hidden: r.querySelector('.res-more').hidden }; });
+  check('plays are kept in memory without their hit-by-hit timing; a play\'s results read it from storage', !!lt.id && lt.inMem === 0 && lt.stored > 0 && drawn.timed && !drawn.none && drawn.charts === 2 && !drawn.hidden, JSON.stringify({ lt, drawn }));
+}
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {
   await page.setViewportSize({ width: 1024, height: 600 });
@@ -1823,11 +1833,11 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('a player who hasn\'t sent a profile still has one (name, rank, pp from the server)', qp.name === 'Quiet' && /#7/.test(qp.pp) && /321pp/.test(qp.pp) && !qp.empty, JSON.stringify(qp));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
   // renaming yourself renames your own scores and replays
-  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name; await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length;
+  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name, timed = async () => (await AshtonkMania.DB.getAll('scores')).filter(s => s.hitErrors).length, t0 = await timed(); await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length;
     const saved = (await AshtonkMania.DB.getAll('scores')).filter(s => s.player === 'Renamed').length; // (and stored so: a reload keeps it)
-    const inMem = AshtonkMania.ScoreManager.scores.filter(s => s.player === 'Renamed').length;
-    await PM.setName(old); return { sc, bad, rp, saved, inMem }; });
-  check('changing your name changes it on your scores and replays', ren.sc > 0 && ren.bad === 0 && ren.rp === 0 && ren.saved === ren.inMem && ren.saved > 0, JSON.stringify(ren));
+    const inMem = AshtonkMania.ScoreManager.scores.filter(s => s.player === 'Renamed').length, t1 = await timed();
+    await PM.setName(old); return { sc, bad, rp, saved, inMem, t0, t1, t2: await timed() }; });
+  check('changing your name changes it on your scores and replays (keeping their hit-by-hit timing)', ren.sc > 0 && ren.bad === 0 && ren.rp === 0 && ren.saved === ren.inMem && ren.saved > 0 && ren.t0 > 0 && ren.t1 === ren.t0 && ren.t2 === ren.t0, JSON.stringify(ren));
   // the library found by a difficulty's hash follows it: a difficulty replaced (imported again) or removed
   const idx = await page.evaluate(() => {
     const BM = AshtonkMania.BeatmapManager, m = [...BM.maps.values()][0], copy = { ...m };

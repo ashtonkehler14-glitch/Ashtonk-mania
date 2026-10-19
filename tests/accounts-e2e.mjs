@@ -182,7 +182,7 @@ try {
   await a.evaluate(() => { const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0]; m.onlineId = 4242; A.BeatmapManager.setById.get(m.setId).onlineId = 77; });
   const scA = await keepScore(a), scImp = await keepScore(a, { imported: 'backup' });
   // (and a collection of its own)
-  await a.evaluate(async () => { const c = await Collections.create('Jumps'); await Collections.toggle(c.id, [...AshtonkMania.BeatmapManager.maps.values()][0].hash); });
+  const favSet = await a.evaluate(async () => { const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0], c = await Collections.create('Jumps'); await Collections.toggle(c.id, m.hash); await A.Favorites.toggle(m.setId); return m.setId; });
   // ── your settings and skin come along: device A uses a skin it imported, and settings of its own
   const osk = readFileSync(join(root, 'tests/fixtures/chemuss.osk')).toString('base64');
   const mineA = await a.evaluate(async b64 => {
@@ -194,8 +194,9 @@ try {
     return { skin: meta.name, sent: localStorage.getItem('am.skinSent') || '' };
   }, osk);
   check('device A keeps its settings and the skin it imported on the server', !!mineA.skin && mineA.sent.endsWith(await a.evaluate(() => AshtonkMania.SkinManager.current.id)), JSON.stringify(mineA));
-  const sentA = await a.evaluate(([x, y]) => { const l = AshtonkMania.ScoreManager.scores; return { n: l.length, own: (l.find(s => s.id === x) || {}).sent, imp: (l.find(s => s.id === y) || {}).sent || null }; }, [scA, scImp]);
-  check('…and its play (not the one from a backup), which doesn\'t come back to it twice', sentA.n === 2 && sentA.own === pidA && sentA.imp === null, JSON.stringify(sentA));
+  // (what went is kept as a list of ids: the plays themselves aren't written again)
+  const sentA = await a.evaluate(async ([x, y]) => { const l = AshtonkMania.ScoreManager.scores, kept = await DB.kvGet('sync.sent', {}); return { n: l.length, pid: kept.pid, own: (kept.ids || []).includes(x), imp: (kept.ids || []).includes(y), marked: l.some(s => 'sent' in s) }; }, [scA, scImp]);
+  check('…and its play (not the one from a backup), which doesn\'t come back to it twice', sentA.n === 2 && sentA.pid === pidA && sentA.own && !sentA.imp && !sentA.marked, JSON.stringify(sentA));
   // a new device: "Yes, I have a code" → its own page for the code → your settings and skin arrive → only the device's own page is left
   const ectx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   const e = await ectx.newPage();
@@ -216,10 +217,10 @@ try {
   check('…your settings come along (not the ones that belong to a device: audio offset, performance)', got.speed === 33 && got.hue === 200 && got.offset !== 25 && got.perf !== true && got.got && got.got.settings, JSON.stringify(got));
   check('…and the skin you imported, downloaded and in use', got.skin === mineA.skin && got.files > 5 && got.got.skin === mineA.skin, JSON.stringify(got));
   check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
-  const scE = await e.evaluate(id => { const A = AshtonkMania, l = A.ScoreManager.scores, s = l.find(x => x.id === id); return { n: l.length, s: s && { synced: s.synced, timing: !!s.hitErrors, ur: s.unstableRate, mean: s.meanError, counts: s.counts.join(), oid: `${s.onlineId}/${s.onlineSetId}` }, plays: StatisticsManager.compute().plays }; }, scA);
+  const scE = await e.evaluate(async id => { const A = AshtonkMania, l = A.ScoreManager.scores, s = l.find(x => x.id === id), kept = await DB.get('scores', id); return { n: l.length, s: s && { synced: s.synced, timing: !!(kept && kept.hitErrors), ur: s.unstableRate, mean: s.meanError, counts: s.counts.join(), oid: `${s.onlineId}/${s.onlineSetId}` }, plays: StatisticsManager.compute().plays }; }, scA);
   check('…and your play from device A, without its hit-by-hit timing (the backup\'s stays there), with the beatmap\'s osu! ids', scE.s && scE.s.oid === '4242/77' && scE.n === 1 && scE.s && scE.s.synced && !scE.s.timing && scE.s.ur === 120 && scE.s.mean === -3.2 && scE.s.counts === '200,50,10,0,0,2' && scE.plays === 1 && got.got.scores === 1, JSON.stringify(scE));
-  const colE = await e.evaluate(() => Collections.list.map(c => `${c.name}:${c.hashes.length}`).join());
-  check('…and your collections (merged with the ones a new device has)', /Jumps:1/.test(colE) && /Practice:0/.test(colE) && got.got.collections === 1 && said.some(t => /Your collections/.test(t)), colE);
+  const colE = await e.evaluate(id => Collections.list.map(c => `${c.name}:${c.hashes.length}`).join() + (AshtonkMania.Favorites.has(id) ? ' fav' : ''), favSet);
+  check('…and your collections (merged with the ones a new device has) and favourites (the set isn\'t here yet)', /Jumps:1/.test(colE) && /Practice:0/.test(colE) && / fav$/.test(colE) && got.got.collections === 1 && got.got.favorites === 1 && said.some(t => /Your collections and favourites/.test(t)), colE);
   check('…the page says your scores came', said.some(t => /Your scores \(1 play\)/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));
   // closed before Finish: back on this player's page (never "I'm new", which would rename them), then the device's page
   await e.reload();

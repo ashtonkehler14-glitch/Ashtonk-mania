@@ -1,11 +1,31 @@
 /* ScoreManager, ReplayManager, StatisticsManager, ProfileManager, CollectionManager, Favorites, DataManager. */
 
 const ScoreManager = {
-  scores: [],                // all, newest last
+  scores: [],                // all, newest last — without HEAVY
   byHash: new Map(),         // mapHash -> scores[]
+  /** What a play keeps in storage only, read when its results show: the hit-by-hit timing and the health over time.
+   *  Read with every play, they took hundreds of KB of memory each — a long-time player's thousands of plays, enough
+   *  to close the tab on a phone. */
+  HEAVY: ['hitErrors', 'healthTimeline'],
+  light(s) { const { hitErrors, healthTimeline, ...rest } = s; return rest; },
   async init() {
-    this.scores = (await DB.getAll('scores')).sort((a, b) => a.date - b.date);
+    const list = [];
+    await DB.each('scores', s => list.push(this.light(s)));
+    this.scores = list.sort((a, b) => a.date - b.date);
     this._reindex();
+  },
+  /** A play's HEAVY parts, as stored (null when it has none: played before they were kept, or on another device). */
+  async heavy(s) {
+    if (!s || !s.id || this.HEAVY.some(k => k in s)) return null;
+    const full = await DB.get('scores', s.id).catch(() => null);
+    return full && full.hitErrors ? { hitErrors: full.hitErrors, healthTimeline: full.healthTimeline } : null;
+  },
+  /** Plays from here written back (renamed, a replay linked to one): with the HEAVY parts storage has for them. */
+  async putBack(list) {
+    for (let i = 0; i < list.length; i += 100) {
+      const part = list.slice(i, i + 100), stored = await DB.getMany('scores', part.map(s => s.id));
+      await DB.putMany(part.map((s, j) => ({ store: 'scores', value: stored[j] ? { ...stored[j], ...s } : s })));
+    }
   },
   _reindex() {
     this.byHash.clear();
@@ -56,9 +76,11 @@ const ScoreManager = {
     score.prevBest = prev ? { score: prev.score, scoreStd: prev.scoreStd, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
     score.totalPpBefore = this.totalPp().total;
     await DB.put('scores', score);
-    this.scores.push(score);
+    // (kept here without its HEAVY parts — the results showing it have them)
+    const lite = this.light(score);
+    this.scores.push(lite);
     this._reindex();
-    score.totalPpAfter = this.totalPp().total;
+    score.totalPpAfter = lite.totalPpAfter = this.totalPp().total;
     await DB.put('scores', score);
     Bus.emit('scores:changed');
     return score;
@@ -114,7 +136,7 @@ const ReplayManager = {
     this.list = [rep, ...this.list.filter(r => r.id !== rep.id)];
     if (rep.scoreId) {
       const s = ScoreManager.scores.find(x => x.id === rep.scoreId);
-      if (s && s.replayId !== rep.id) { s.replayId = rep.id; await DB.put('scores', s); }
+      if (s && s.replayId !== rep.id) { s.replayId = rep.id; await ScoreManager.putBack([s]); }
     }
     Bus.emit('replays:changed');
     return rep;
@@ -145,6 +167,15 @@ const Favorites = {
     await DB.kvSet('favorites', [...this.set]);
     Bus.emit('favorites:changed', setId);
     return this.set.has(setId);
+  },
+  /** Favourites from your other device (Sync.restore) added to these — a set's id is the same on every device (made
+   *  from its osu! id, or its artist, title and mapper), so one not here yet is a favourite once it's imported.
+   *  Resolves to how many were new. */
+  async merge(list) {
+    let n = 0;
+    for (const id of list) if (typeof id === 'string' && /^set-[0-9a-f]{16}$/.test(id) && !this.set.has(id)) { this.set.add(id); n++; }
+    if (n) { await DB.kvSet('favorites', [...this.set]); Bus.emit('favorites:changed'); }
+    return n;
   },
 };
 
@@ -242,8 +273,8 @@ const ProfileManager = {
     let n = 0;
     // (written together: one at a time, a rename with thousands of scores took seconds)
     const changed = [];
-    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; changed.push({ store: 'scores', value: sc }); n++; }
-    for (let i = 0; i < changed.length; i += 200) await DB.putMany(changed.slice(i, i + 200));
+    for (const sc of ScoreManager.scores) if (mine(sc) && sc.player !== name) { sc.player = name; sc.own = true; changed.push(sc); n++; }
+    await ScoreManager.putBack(changed);
     for (const r of ReplayManager.list) if (mine(r) && r.player !== name) { const full = await DB.get('replays', r.id); if (full) { full.player = name; full.own = true; await DB.put('replays', full); } r.player = name; r.own = true; n++; }
     if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
   },

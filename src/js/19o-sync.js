@@ -1,6 +1,6 @@
 /* Your settings, skin and scores, kept with your code: a device playing through a code sends its settings — not the
  * ones that belong to the device (performance and sharpness, audio offset, what song select last showed) — and your
- * collections, the skin it uses, if it's one you imported (Kori and the Custom skin are on every device already), and
+ * collections and favourites, the skin it uses, if it's one you imported (Kori and the Custom skin are on every device already), and
  * the plays you set on it.
  * Typing your code on another device brings them there (Sync.restore, from the first-run setup and Your code → Use a
  * code); after that, each device gets the plays the others set as it goes. */
@@ -29,6 +29,7 @@ const Sync = {
     Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) this.later(); });
     Bus.on('skin:changed', () => this.later());
     Bus.on('collections:changed', () => this.later());
+    Bus.on('favorites:changed', () => this.later());
     Bus.on('account:changed', () => this.later());
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -46,13 +47,14 @@ const Sync = {
   ready() { return Account.linked() && !Account.signedOut() && !this.pending() && Multiplayer.available() && !!Account.me().pid; },
 
   /** What's sent: your settings, which skin you use (by id and name: the same skin has another id on a device it was
-   *  brought to), and your collections (by name, with their beatmaps' hashes — unless there are too many to keep). */
+   *  brought to), your collections (by name, with their beatmaps' hashes) and favourites (beatmap sets' ids) — unless
+   *  there are too many to keep. */
   payload() {
     const values = {};
     for (const [k, v] of Object.entries(Settings.values)) if (!this.local(k) && !this.big(v)) values[k] = v;
-    const cur = SkinManager.current, cols = Collections.list.map(c => ({ name: c.name, hashes: c.hashes }));
+    const cur = SkinManager.current, cols = Collections.list.map(c => ({ name: c.name, hashes: c.hashes })), favs = [...Favorites.set];
     return { v: 1, values, skin: cur ? { id: cur.id, name: cur.builtin ? 'Custom' : (cur.meta && cur.meta.name) || '' } : null,
-      ...(JSON.stringify(cols).length <= 100000 ? { collections: cols } : {}) };
+      ...(JSON.stringify(cols).length <= 100000 ? { collections: cols } : {}), ...(favs.length <= 2500 ? { favorites: favs } : {}) };
   },
   async push() {
     if (!this.ready()) return;
@@ -117,18 +119,27 @@ const Sync = {
     if (Screens.currentName === 'gameplay') return;
     if (sent || Date.now() - (this._pulledAt || 0) > this.PULL_EVERY) await this.pullScores();
   },
-  /** The plays set on this device that the server doesn't have yet (each is marked with who it went to), oldest first —
-   *  the newest SCORES_MAX: older ones wouldn't be kept. Not imported ones (a backup, a Web-Osu-Mania save: they stay
-   *  where they were imported), not the ones that came from your other devices. Resolves to how many went. */
+  /** Which plays from here went up, for which player (typing another code sends them again): their ids, kept on their
+   *  own — marking the plays themselves wrote each one back whole, hit-by-hit timing and all, megabytes at a time. */
+  async sentIds(pid) {
+    if (!this._sent || this._sent.pid !== pid) {
+      const kept = await DB.kvGet('sync.sent', null).catch(() => null);
+      this._sent = { pid, ids: new Set(kept && kept.pid === pid && Array.isArray(kept.ids) ? kept.ids : []) };
+    }
+    return this._sent.ids;
+  },
+  /** The plays set on this device that the server doesn't have yet, oldest first — the newest SCORES_MAX: older ones
+   *  wouldn't be kept. Not imported ones (a backup, a Web-Osu-Mania save: they stay where they were imported), not the
+   *  ones that came from your other devices. Resolves to how many went. */
   async pushScores() {
-    const me = Account.me(), due = ScoreManager.scores.filter(s => s.own !== false && !s.imported && !s.synced && s.sent !== me.pid).slice(-this.SCORES_MAX);
+    const me = Account.me(), sent = await this.sentIds(me.pid);
+    const due = ScoreManager.scores.filter(s => s.own !== false && !s.imported && !s.synced && !sent.has(s.id) && s.sent !== me.pid).slice(-this.SCORES_MAX);
     for (let i = 0; i < due.length; i += this.SCORES_SEND) {
       const part = due.slice(i, i + this.SCORES_SEND), send = part.map(s => this.compact(s)).filter(x => JSON.stringify(x).length <= this.SCORE_MAX);
       if (send.length) await Account.call('scores-up', { ...me, scores: send });
-      // (not one deleted while it went: written back, it would be there again at the next start)
-      const still = new Set(ScoreManager.scores), keep = part.filter(s => still.has(s));
-      for (const s of keep) s.sent = me.pid;
-      await DB.putMany(keep.map(value => ({ store: 'scores', value })));
+      for (const s of part) sent.add(s.id);
+      const here = new Set(ScoreManager.scores.map(s => s.id)); // (a deleted play's id isn't kept)
+      await DB.kvSet('sync.sent', { pid: me.pid, ids: [...sent].filter(id => here.has(id)) });
     }
     return due.length;
   },
@@ -149,8 +160,8 @@ const Sync = {
   },
 
   /** After typing your code: your settings and skin from the server. `onStatus(text, fraction)` shows how it's going.
-   *  Resolves to what came: { settings, skin, scores, collections } (skin: its name, if it was downloaded; scores: how
-   *  many of your plays; collections: how many were added or got more beatmaps). */
+   *  Resolves to what came: { settings, skin, scores, collections, favorites } (skin: its name, if it was downloaded;
+   *  scores: how many of your plays; collections: how many were added or got more beatmaps; favorites: how many new). */
   async restore(onStatus = () => {}) {
     this.mark('am.restore', '1');
     onStatus('Bringing your settings…');
@@ -164,9 +175,10 @@ const Sync = {
       else this.retry();
       throw e;
     }
-    const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
     if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
     if (s && Array.isArray(s.collections)) got.collections = await Collections.merge(s.collections);
+    if (s && Array.isArray(s.favorites)) got.favorites = await Favorites.merge(s.favorites);
     // (the settings are here: whatever happens to the skin, this restore is done — it's never applied over again)
     this.mark('am.restore', null);
     this.mark('am.setSent', null);

@@ -95,6 +95,23 @@ const DB = {
     const M = await this._mem(); if (M) { const m = M.s(store); return M.sortedKeys(m).map(k => M.copy(m.get(k))); }
     return this._req((await this._store(store)).getAll());
   },
+  /** Every record of a store, `fn` for each, read a batch at a time: a big store is never all in memory at once. */
+  async each(store, fn, batch = 100) {
+    const M = await this._mem(); if (M) { for (const v of await this.getAll(store)) fn(v); return; }
+    for (let after; ;) {
+      const s = await this._store(store), range = after === undefined ? null : IDBKeyRange.lowerBound(after, true);
+      const [vals, keys] = await Promise.all([this._req(s.getAll(range, batch)), this._req(s.getAllKeys(range, batch))]);
+      vals.forEach(fn);
+      if (vals.length < batch) return;
+      after = keys[keys.length - 1];
+    }
+  },
+  /** Several records by key, in one go (undefined for a missing one). */
+  async getMany(store, keys) {
+    const M = await this._mem(); if (M) return keys.map(k => M.copy(M.s(store).get(k)));
+    const s = await this._store(store);
+    return Promise.all(keys.map(k => this._req(s.get(k))));
+  },
   async getAllKeys(store) {
     const M = await this._mem(); if (M) return M.sortedKeys(M.s(store));
     return this._req((await this._store(store)).getAllKeys());
