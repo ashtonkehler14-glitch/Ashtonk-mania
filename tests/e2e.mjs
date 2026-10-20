@@ -1891,8 +1891,8 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     // (a backup as older versions wrote it — all on one line — with no replays: it failed with "storeNames parameter was empty")
     let oldErr = null;
     // (and a damaged play in it — counts that aren't a list — is left out, not let in to break your stats)
-    try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }, { ...obj.scores[0], id: 'bk-bad1', counts: 'oops' }], replays: [] })], 'old.json')); } catch (e) { oldErr = e.message; }
-    res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1'), bad: A.ScoreManager.scores.some(s => s.id === 'bk-bad1') };
+    try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }, { ...obj.scores[0], id: 'bk-bad1', counts: 'oops' }], replays: [{ ...obj.replays[0], id: 'bk-badrp', events: 'oops' }] })], 'old.json')); } catch (e) { oldErr = e.message; }
+    res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1'), bad: A.ScoreManager.scores.some(s => s.id === 'bk-bad1') || A.ReplayManager.list.some(r => r.id === 'bk-badrp') };
     added.push({ id: 'bk-old1' });
     // (and in a browser that can't read a file a part at a time: whole, as before)
     const TDS = window.TextDecoderStream; delete window.TextDecoderStream;

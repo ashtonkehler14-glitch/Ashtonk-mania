@@ -179,6 +179,8 @@ const ReplayManager = {
   async remove(id) { await DB.del('replays', id); this.list = this.list.filter(r => r.id !== id); Bus.emit('replays:changed'); },
   async clear() { await DB.clear('replays'); this.list = []; Bus.emit('replays:changed'); },
   export(rep) { downloadJSON(rep, `${rep.artist} - ${rep.title} [${rep.version}] (${new Date(rep.date).toISOString().slice(0, 10)}).amr`.replace(/[\\/:*?"<>|]/g, '_')); },
+  /** A replay that can be watched (from a file or a backup). */
+  ok(obj) { try { this.validate(obj); return !!obj.id; } catch { return false; } },
   validate(obj) {
     if (!obj || obj.app !== APP_NAME || obj.kind !== 'replay' || !Array.isArray(obj.events) || obj.events.length % 3 !== 0) throw new Error('Not a valid Ashtonk!mania replay');
     if (!Array.isArray(obj.windows) || obj.windows.length !== 6) throw new Error('Replay is missing timing windows');
@@ -460,7 +462,7 @@ const DataManager = {
       if (l.startsWith('],"replays":[')) { await flush(); store = 'replays'; return; }
       if (!l.startsWith('{')) return;
       const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
-      if (!v || !v.id || (store === 'scores' && !ScoreManager.valid(v))) return;
+      if (!(store === 'scores' ? ScoreManager.valid(v) : ReplayManager.ok(v))) return;
       batch.push(...(store === 'scores' ? ScoreManager.stored(this.imported(v)) : [{ store, value: v }]));
       if (store === 'scores') scores++;
       if (batch.length >= 100) await flush();
@@ -487,7 +489,7 @@ const DataManager = {
     if (obj.kind === 'settings') return;
     const scores = Array.isArray(obj.scores) ? obj.scores.filter(s => ScoreManager.valid(s)) : [];
     await DB.putMany(scores.flatMap(s => ScoreManager.stored(this.imported(s))));
-    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
+    if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => ReplayManager.ok(r)).map(r => ({ store: 'replays', value: r })));
     await this.importDone(obj, scores.length);
   },
   /** A data file's settings — and, for a backup, profile, favourites and collections. */
