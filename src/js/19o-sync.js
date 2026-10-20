@@ -266,26 +266,37 @@ const Sync = {
   },
   offerMissing() {
     const n = this.missingSets().length;
-    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. Click to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
+    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. ${kbHint('Click', 'Tap')} to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
   },
-  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), saying how it's going. */
+  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), as lazer's progress notification
+   *  does a download: how far it's got, and its X stops them. */
   async getMissing() {
     if (this._getting) return;
-    const sets = this.missingSets();
-    if (!sets.length) return;
+    const sets = this.missingSets(), n = sets.length;
+    if (!n) return;
+    if (navigator.onLine === false) { Toast.err('The beatmaps couldn\'t be downloaded', 'You\'re offline. Connect to the internet and try again.'); return; }
     this._getting = true;
-    const queue = [...sets], say = () => Bus.emit('import:status', `Downloading beatmaps you've played… ${done}/${sets.length}`);
-    let done = 0, failed = 0, first = '';
-    say();
+    const queue = [...sets], ac = new AbortController();
+    const note = Toast.progress('Downloading beatmaps you\'ve played', `0 of ${n}`, { onCancel: () => ac.abort() });
+    let done = 0, failed = 0, first = '', full = false;
     const worker = async () => {
-      for (let set; (set = queue.shift());) {
-        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); } catch (e) { failed++; first = first || friendlyError(e); }
-        done++; say();
+      for (let set; !ac.signal.aborted && (set = queue.shift());) {
+        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true, signal: ac.signal }); }
+        catch (e) {
+          if (e && e.cancelled) break;
+          failed++; first = first || friendlyError(e);
+          // (no room left: the rest wouldn't fit either — not downloaded only to be thrown away)
+          if (storageFull(e)) { full = true; first = friendlyError(e); failed += queue.length; done += queue.length; queue.length = 0; }
+        }
+        done++; note.set(done / n, `${done} of ${n}`);
       }
     };
-    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; Bus.emit('import:status', null); }
-    if (failed < sets.length) Toast.ok('Beatmaps downloaded', `${plural(sets.length - failed, 'beatmap')} you've played on your other devices ${sets.length - failed === 1 ? 'is' : 'are'} here now.${failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : ''}`, { hold: true });
-    else Toast.err('The beatmaps couldn\'t be downloaded', first);
+    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; }
+    const got = done - failed, here = `${plural(got, 'beatmap')} you've played on your other devices ${got === 1 ? 'is' : 'are'} here now.`;
+    if (ac.signal.aborted) { note.cancelled(); if (got) Toast.ok('Beatmaps downloaded', here, { hold: true }); return; }
+    const why = full ? ` ${plural(failed, 'beatmap')} didn't fit. ${first}` : failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : '';
+    if (got) note.done('Beatmaps downloaded', here + why);
+    else note.fail('The beatmaps couldn\'t be downloaded', first);
   },
   /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
    *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */

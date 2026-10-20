@@ -350,7 +350,8 @@ const Toast = {
   /** lazer's ProgressNotification: a toast with a bar. Like lazer's tray, the toast steps aside after a moment (not
    *  while the pointer is on it; it can be swiped away too) and the bar carries on in the notifications until the work
    *  is done, so it never sits over a page for a whole download. `onCancel`: the entry's X cancels the work, as in lazer.
-   *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() }. */
+   *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() } — what done and fail say waits
+   *  for the end of a song being played (it's not about the play). */
   progress(title, body = '', { onCancel = null } = {}) {
     const box = $('#toasts');
     Toast.place();
@@ -379,8 +380,8 @@ const Toast = {
     const end = () => { over = true; clearTimeout(pend); };
     return {
       set(f, text) { last = [f, text]; if (!pend) pend = setTimeout(paint, 125); },
-      done: (t, b, { onClick = null } = {}) => { end(); close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick }); },
-      fail: (t, b) => { end(); close(); Notifications.remove(n); Toast.err(t, b); },
+      done: (t, b, { onClick = null } = {}) => { end(); close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick, hold: true }); },
+      fail: (t, b) => { end(); close(); Notifications.remove(n); Toast.err(t, b, { hold: true }); },
       cancelled: () => { end(); close(); Notifications.remove(n); },
     };
   },

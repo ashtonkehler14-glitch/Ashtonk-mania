@@ -8384,7 +8384,7 @@ const BeatmapManager = {
     await (globalThis.scheduler && scheduler.yield ? scheduler.yield() : new Promise(r => setTimeout(r, 0)));
     this._br = performance.now();
   },
-  /** Import anything the user dropped / picked. Returns a report. */
+  /** Import anything the user dropped / picked. Returns a report (`full`: it stopped because storage is full). */
   async importFiles(files) {
     const report = { sets: [], skins: [], replays: [], errors: [], warnings: [], data: false };
     const loose = [];
@@ -8422,7 +8422,7 @@ const BeatmapManager = {
       } catch (e) {
         console.warn(e); report.errors.push(`${f.name}: ${friendlyError(e)}`);
         // (storage full: the rest would only fail the same way, one at a time)
-        if (storageFull(e)) { full = true; if (left) report.errors.push(`${plural(left, 'more file')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
+        if (storageFull(e)) { full = report.full = true; if (left) report.errors.push(`${plural(left, 'more file')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
       }
     }
     // Loose files / folders: group by directory that contains .osu files
@@ -8480,7 +8480,7 @@ const BeatmapManager = {
         catch (e) {
           if (!report) throw e;
           report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`);
-          if (storageFull(e)) { const left = inner.length - i - 1; if (left) report.errors.push(`${base}: ${plural(left, 'more beatmap')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
+          if (storageFull(e)) { report.full = true; const left = inner.length - i - 1; if (left) report.errors.push(`${base}: ${plural(left, 'more beatmap')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
         }
       }
       return out;
@@ -12637,7 +12637,8 @@ const Toast = {
   /** lazer's ProgressNotification: a toast with a bar. Like lazer's tray, the toast steps aside after a moment (not
    *  while the pointer is on it; it can be swiped away too) and the bar carries on in the notifications until the work
    *  is done, so it never sits over a page for a whole download. `onCancel`: the entry's X cancels the work, as in lazer.
-   *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() }. */
+   *  Returns { set(fraction, text), done(title, body), fail(title, body), cancelled() } — what done and fail say waits
+   *  for the end of a song being played (it's not about the play). */
   progress(title, body = '', { onCancel = null } = {}) {
     const box = $('#toasts');
     Toast.place();
@@ -12666,8 +12667,8 @@ const Toast = {
     const end = () => { over = true; clearTimeout(pend); };
     return {
       set(f, text) { last = [f, text]; if (!pend) pend = setTimeout(paint, 125); },
-      done: (t, b, { onClick = null } = {}) => { end(); close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick }); },
-      fail: (t, b) => { end(); close(); Notifications.remove(n); Toast.err(t, b); },
+      done: (t, b, { onClick = null } = {}) => { end(); close(); Notifications.remove(n); Toast.show(t, b, { type: 'ok', onClick, hold: true }); },
+      fail: (t, b) => { end(); close(); Notifications.remove(n); Toast.err(t, b, { hold: true }); },
       cancelled: () => { end(); close(); Notifications.remove(n); },
     };
   },
@@ -20121,7 +20122,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'lock', title: 'Your code', items: [
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
-      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time',
+      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time. How far it\'s got shows in the notifications, and the X there stops it',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
       'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
@@ -20133,7 +20134,7 @@ const CHANGELOG = [
     { icon: 'download', title: 'Imports and backups', items: [
       'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
-      'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
+      'Storage full in the middle of importing several files (or a pack), or of downloading several beatmaps (the ones your plays are on, the songs in a Web-Osu-Mania backup\'s collections): it stops there and says how many weren\'t imported, instead of downloading and failing each of the rest in turn',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
       'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
@@ -20661,7 +20662,11 @@ const OnlineBeatmaps = {
     const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
     this._importQ = run.catch(() => {});
     const report = await run;
-    if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
+    if (!report.sets.length) {
+      const e = new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
+      if (report.full) e.name = 'QuotaExceededError'; // (no room left: so a queue of downloads can stop — the rest won't fit either)
+      throw e;
+    }
     // (the online id and status, for the status pill lazer shows on a set: RANKED, LOVED, …)
     for (const s of report.sets) {
       if (!s.onlineId || s.onlineId < 0) s.onlineId = set.id;
@@ -22773,13 +22778,20 @@ const WomImport = {
     if (missing.size && navigator.onLine === false) out.errors.push(`${plural(missing.size, 'song')} from your collections couldn't be downloaded: you're offline`);
     else {
       // three at a time (a big collection used to take one song after another, and one stuck song held the rest)
-      let done = 0, failed = 0;
+      let done = 0, failed = 0, full = false;
       const queue = [...missing.values()];
       onStatus(`Downloading songs from your collections… 0/${missing.size}`);
       const worker = async () => {
         for (let set; (set = queue.shift());) {
           try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
-          catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+          catch (err) {
+            // (no room left: the rest wouldn't fit either — not downloaded only to be thrown away)
+            if (storageFull(err)) {
+              if (!full) out.errors.push(friendlyError(err)); // (once: the downloads still going hit it too)
+              if (queue.length) out.errors.push(`${plural(queue.length, 'more song')} from your collections ${queue.length === 1 ? 'wasn\'t' : 'weren\'t'} downloaded: there's no room left.`);
+              full = true; done += queue.length; queue.length = 0;
+            } else { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+          }
           onStatus(`Downloading songs from your collections… ${++done}/${missing.size}`);
         }
       };
@@ -27038,7 +27050,7 @@ const Screenshot = {
       downloadBlob(blob, name);
       const url = URL.createObjectURL(blob);
       this.last = { name, size: blob.size, width: canvas.width, height: canvas.height };
-      Toast.show('Screenshot saved', `${name} — click to view`, { onClick: () => window.open(url, '_blank') });
+      Toast.show('Screenshot saved', `${name} — ${kbHint('click', 'tap')} to view`, { onClick: () => window.open(url, '_blank') });
       setTimeout(() => URL.revokeObjectURL(url), 10 * 60000);
     } catch (e) {
       if (e && e.name === 'NotAllowedError') Toast.show('No screenshot', 'The browser needs permission to capture this tab.');
@@ -27749,26 +27761,37 @@ const Sync = {
   },
   offerMissing() {
     const n = this.missingSets().length;
-    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. Click to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
+    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. ${kbHint('Click', 'Tap')} to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
   },
-  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), saying how it's going. */
+  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), as lazer's progress notification
+   *  does a download: how far it's got, and its X stops them. */
   async getMissing() {
     if (this._getting) return;
-    const sets = this.missingSets();
-    if (!sets.length) return;
+    const sets = this.missingSets(), n = sets.length;
+    if (!n) return;
+    if (navigator.onLine === false) { Toast.err('The beatmaps couldn\'t be downloaded', 'You\'re offline. Connect to the internet and try again.'); return; }
     this._getting = true;
-    const queue = [...sets], say = () => Bus.emit('import:status', `Downloading beatmaps you've played… ${done}/${sets.length}`);
-    let done = 0, failed = 0, first = '';
-    say();
+    const queue = [...sets], ac = new AbortController();
+    const note = Toast.progress('Downloading beatmaps you\'ve played', `0 of ${n}`, { onCancel: () => ac.abort() });
+    let done = 0, failed = 0, first = '', full = false;
     const worker = async () => {
-      for (let set; (set = queue.shift());) {
-        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); } catch (e) { failed++; first = first || friendlyError(e); }
-        done++; say();
+      for (let set; !ac.signal.aborted && (set = queue.shift());) {
+        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true, signal: ac.signal }); }
+        catch (e) {
+          if (e && e.cancelled) break;
+          failed++; first = first || friendlyError(e);
+          // (no room left: the rest wouldn't fit either — not downloaded only to be thrown away)
+          if (storageFull(e)) { full = true; first = friendlyError(e); failed += queue.length; done += queue.length; queue.length = 0; }
+        }
+        done++; note.set(done / n, `${done} of ${n}`);
       }
     };
-    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; Bus.emit('import:status', null); }
-    if (failed < sets.length) Toast.ok('Beatmaps downloaded', `${plural(sets.length - failed, 'beatmap')} you've played on your other devices ${sets.length - failed === 1 ? 'is' : 'are'} here now.${failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : ''}`, { hold: true });
-    else Toast.err('The beatmaps couldn\'t be downloaded', first);
+    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; }
+    const got = done - failed, here = `${plural(got, 'beatmap')} you've played on your other devices ${got === 1 ? 'is' : 'are'} here now.`;
+    if (ac.signal.aborted) { note.cancelled(); if (got) Toast.ok('Beatmaps downloaded', here, { hold: true }); return; }
+    const why = full ? ` ${plural(failed, 'beatmap')} didn't fit. ${first}` : failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : '';
+    if (got) note.done('Beatmaps downloaded', here + why);
+    else note.fail('The beatmaps couldn\'t be downloaded', first);
   },
   /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
    *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */
@@ -27837,7 +27860,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '4966630e8ac7';
+const APP_BUILD = '3db4c3331007';
 
 const App = {
   lastReport: null,

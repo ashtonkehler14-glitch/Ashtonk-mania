@@ -17,7 +17,7 @@ const Screenshot = {
       downloadBlob(blob, name);
       const url = URL.createObjectURL(blob);
       this.last = { name, size: blob.size, width: canvas.width, height: canvas.height };
-      Toast.show('Screenshot saved', `${name} — click to view`, { onClick: () => window.open(url, '_blank') });
+      Toast.show('Screenshot saved', `${name} — ${kbHint('click', 'tap')} to view`, { onClick: () => window.open(url, '_blank') });
       setTimeout(() => URL.revokeObjectURL(url), 10 * 60000);
     } catch (e) {
       if (e && e.name === 'NotAllowedError') Toast.show('No screenshot', 'The browser needs permission to capture this tab.');

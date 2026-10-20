@@ -249,7 +249,11 @@ const OnlineBeatmaps = {
     const run = (this._importQ || Promise.resolve()).then(() => BeatmapManager.importFiles([file]));
     this._importQ = run.catch(() => {});
     const report = await run;
-    if (!report.sets.length) throw new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
+    if (!report.sets.length) {
+      const e = new Error(report.errors.join('\n') || 'The archive had no playable difficulties.');
+      if (report.full) e.name = 'QuotaExceededError'; // (no room left: so a queue of downloads can stop — the rest won't fit either)
+      throw e;
+    }
     // (the online id and status, for the status pill lazer shows on a set: RANKED, LOVED, …)
     for (const s of report.sets) {
       if (!s.onlineId || s.onlineId < 0) s.onlineId = set.id;

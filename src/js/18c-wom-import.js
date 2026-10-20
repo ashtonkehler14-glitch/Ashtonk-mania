@@ -189,13 +189,20 @@ const WomImport = {
     if (missing.size && navigator.onLine === false) out.errors.push(`${plural(missing.size, 'song')} from your collections couldn't be downloaded: you're offline`);
     else {
       // three at a time (a big collection used to take one song after another, and one stuck song held the rest)
-      let done = 0, failed = 0;
+      let done = 0, failed = 0, full = false;
       const queue = [...missing.values()];
       onStatus(`Downloading songs from your collections… 0/${missing.size}`);
       const worker = async () => {
         for (let set; (set = queue.shift());) {
           try { const r = await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); out.sets.push(...r.sets); out.downloaded = (out.downloaded || 0) + 1; }
-          catch (err) { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+          catch (err) {
+            // (no room left: the rest wouldn't fit either — not downloaded only to be thrown away)
+            if (storageFull(err)) {
+              if (!full) out.errors.push(friendlyError(err)); // (once: the downloads still going hit it too)
+              if (queue.length) out.errors.push(`${plural(queue.length, 'more song')} from your collections ${queue.length === 1 ? 'wasn\'t' : 'weren\'t'} downloaded: there's no room left.`);
+              full = true; done += queue.length; queue.length = 0;
+            } else { failed++; if (failed <= 3) out.errors.push(`${set.artist} - ${set.title}: ${friendlyError(err)}`); }
+          }
           onStatus(`Downloading songs from your collections… ${++done}/${missing.size}`);
         }
       };

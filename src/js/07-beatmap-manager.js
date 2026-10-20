@@ -135,7 +135,7 @@ const BeatmapManager = {
     await (globalThis.scheduler && scheduler.yield ? scheduler.yield() : new Promise(r => setTimeout(r, 0)));
     this._br = performance.now();
   },
-  /** Import anything the user dropped / picked. Returns a report. */
+  /** Import anything the user dropped / picked. Returns a report (`full`: it stopped because storage is full). */
   async importFiles(files) {
     const report = { sets: [], skins: [], replays: [], errors: [], warnings: [], data: false };
     const loose = [];
@@ -173,7 +173,7 @@ const BeatmapManager = {
       } catch (e) {
         console.warn(e); report.errors.push(`${f.name}: ${friendlyError(e)}`);
         // (storage full: the rest would only fail the same way, one at a time)
-        if (storageFull(e)) { full = true; if (left) report.errors.push(`${plural(left, 'more file')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
+        if (storageFull(e)) { full = report.full = true; if (left) report.errors.push(`${plural(left, 'more file')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
       }
     }
     // Loose files / folders: group by directory that contains .osu files
@@ -231,7 +231,7 @@ const BeatmapManager = {
         catch (e) {
           if (!report) throw e;
           report.errors.push(`${base} / ${nm}: ${friendlyError(e)}`);
-          if (storageFull(e)) { const left = inner.length - i - 1; if (left) report.errors.push(`${base}: ${plural(left, 'more beatmap')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
+          if (storageFull(e)) { report.full = true; const left = inner.length - i - 1; if (left) report.errors.push(`${base}: ${plural(left, 'more beatmap')} ${left === 1 ? 'wasn\'t' : 'weren\'t'} imported: there's no room left.`); break; }
         }
       }
       return out;

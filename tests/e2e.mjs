@@ -204,6 +204,49 @@ await shot('02-songselect');
     return { errors: A.App.lastReport.errors, added: A.BeatmapManager.sets.length - n0 };
   });
   check('storage full while importing several files: it stops at the first and says the rest weren\'t tried', r.errors.length === 2 && /storage is full/i.test(r.errors[0]) && /^2 more files weren't imported/.test(r.errors[1]) && r.added === 0, JSON.stringify(r));
+  // …and downloading the beatmaps your plays are on stops there too: the rest aren't downloaded only to be thrown away
+  const d = await page.evaluate(async () => {
+    const A = AshtonkMania, D = A.DB, OB = A.OnlineBeatmaps, put = D.put, putMany = D.putMany, dl = OB.download, ms = A.Sync.missingSets;
+    const full = () => Promise.reject(new DOMException('full', 'QuotaExceededError'));
+    const osz = await (await fetch('/tests/fixtures/online-set.osz')).blob();
+    let calls = 0;
+    D.put = function (store, ...a) { return store === 'files' ? full() : put.call(this, store, ...a); };
+    D.putMany = function (items) { return items.some(i => i.store === 'files') ? full() : putMany.call(this, items); };
+    OB.download = async id => { calls++; await new Promise(r => setTimeout(r, 30)); return new File([osz], `${id}.osz`); };
+    A.Sync.missingSets = () => [1, 2, 3, 4, 5, 6].map(id => ({ id, title: 'T' + id, artist: 'A' }));
+    let thrown = null;
+    try { await OB.downloadAndImport({ id: 9, title: 'T', artist: 'A' }, null, { quiet: true }); } catch (e) { thrown = e.name; }
+    calls = 0;
+    try { await A.Sync.getMissing(); }
+    finally { D.put = put; D.putMany = putMany; OB.download = dl; A.Sync.missingSets = ms; }
+    const t = [...document.querySelectorAll('#toasts .toast')].find(x => /beatmaps couldn't be downloaded/i.test(x.textContent));
+    const said = t ? t.textContent : '';
+    for (const x of document.querySelectorAll('#toasts .toast')) if (/storage is full|no room left|couldn't be/i.test(x.textContent)) x.remove();
+    return { thrown, calls, said };
+  });
+  check('storage full while downloading the beatmaps your plays are on: it stops after the downloads already going, and says so',
+    d.thrown === 'QuotaExceededError' && d.calls === 3 && /storage is full/i.test(d.said), JSON.stringify(d));
+  // …and while they download, the notifications show how far it's got, and the entry's X stops them
+  const c = await page.evaluate(async () => {
+    const A = AshtonkMania, OB = A.OnlineBeatmaps, dl = OB.download, ms = A.Sync.missingSets;
+    let calls = 0;
+    OB.download = (id, p, nv, signal) => new Promise((res, rej) => { calls++; signal.addEventListener('abort', () => rej(Object.assign(new Error('Download cancelled'), { cancelled: true }))); });
+    A.Sync.missingSets = () => [1, 2, 3, 4, 5, 6].map(id => ({ id, title: 'T' + id, artist: 'A' }));
+    let shown = '', after = null;
+    try {
+      const run = A.Sync.getMissing();
+      await new Promise(r => setTimeout(r, 200));
+      Notifications.open(); await new Promise(r => setTimeout(r, 300));
+      const entry = [...document.querySelectorAll('.nf-item')].find(x => /Downloading beatmaps you've played/.test(x.textContent) && x.querySelector('.nf-x'));
+      shown = entry ? entry.textContent : '';
+      if (entry) entry.querySelector('.nf-x').click();
+      await Promise.race([run, new Promise(r => setTimeout(r, 3000))]);
+      after = { getting: !!A.Sync._getting, live: Notifications.list.some(n => n.prog != null), said: [...document.querySelectorAll('#toasts .toast')].map(t => t.textContent).filter(t => /beatmaps/i.test(t) && !/Downloading beatmaps/.test(t)) };
+    } finally { OB.download = dl; A.Sync.missingSets = ms; Notifications.close(); }
+    return { calls, shown, after };
+  });
+  check('downloading the beatmaps your plays are on shows in the notifications ("0 of 6"), and its X stops them: no more are started, nothing left running',
+    c.calls === 3 && /0 of 6/.test(c.shown) && c.after && !c.after.getting && !c.after.live && !c.after.said.length, JSON.stringify(c));
 }
 {
   // installing goes through the background threads (the same answers as the page's own parser), and an install asked

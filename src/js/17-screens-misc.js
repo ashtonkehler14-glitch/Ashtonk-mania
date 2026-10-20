@@ -690,7 +690,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'lock', title: 'Your code', items: [
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
-      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time',
+      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time. How far it\'s got shows in the notifications, and the X there stops it',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
       'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
@@ -702,7 +702,7 @@ const CHANGELOG = [
     { icon: 'download', title: 'Imports and backups', items: [
       'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
-      'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
+      'Storage full in the middle of importing several files (or a pack), or of downloading several beatmaps (the ones your plays are on, the songs in a Web-Osu-Mania backup\'s collections): it stops there and says how many weren\'t imported, instead of downloading and failing each of the rest in turn',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
       'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
