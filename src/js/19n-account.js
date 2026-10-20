@@ -157,6 +157,10 @@ const CodePanel = {
     const at = Account.linked() && Sync.sentAt();
     p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')),
       Account.linked() ? h('p.lp-note.lp-kept', `Your settings, skin, collections, favourites and plays go with it${at ? ` — last sent ${fmtDate(at)}` : ''}.`) : null, err);
+    // (plays from your other devices on beatmaps this one hasn't got: get them from here)
+    const missing = Account.linked() ? Sync.missingSets().length : 0;
+    if (missing) p.append(h('p.lp-note.lp-missing', `Your plays from your other devices are on ${plural(missing, 'beatmap')} this device hasn't got. `,
+      h('button.lp-act', { onclick: () => { UISounds.click(); this.close(); Sync.getMissing(); } }, 'Download them')));
     // (the rarely needed: small, under it)
     const act = (label, fn, cls = '') => h(`button.lp-act${cls}`, { onclick: fn }, label);
     p.append(h('div.lp-acts',

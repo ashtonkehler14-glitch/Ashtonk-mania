@@ -4519,6 +4519,7 @@ html.lp-open #toasts { right: 380px; }
 .lp-code-in { height: 48px; text-align: center; font-family: ui-monospace, 'RobotoMono', 'Consolas', monospace; font-size: 18px; letter-spacing: .1em; text-transform: uppercase; }
 .lp-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px; margin-top: 4px; padding-top: 10px; border-top: 1px solid hsl(255 10% 25%); }
 .lp-act { padding: 3px 0; border: 0; background: none; color: hsl(255 15% 68%); font: inherit; font-size: 12.5px; cursor: pointer; transition: color 200ms; }
+.lp-missing .lp-act { padding: 0; color: hsl(255 80% 80%); text-decoration: underline; }
 .lp-act:hover { color: #fff; }
 .lp-act.danger { color: #ff8a8a; }
 .lp-act.danger:hover { color: #ffb0b0; }

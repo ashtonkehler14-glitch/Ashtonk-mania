@@ -271,6 +271,17 @@ try {
   // its results: what it came to, and where its timing is
   const res = await a.evaluate(async id => { const A = AshtonkMania; await A.Screens.go('results', { score: A.ScoreManager.scores.find(s => s.id === id), fromList: true, browse: true }); await new Promise(r => setTimeout(r, 800)); const t = document.querySelector('.res-right')?.textContent || ''; await A.Screens.go('home'); return t; }, scE2);
   check('…its results show the unstable rate, and that the hit-by-hit timing stays on the device it was played on', /Unstable Rate/.test(res) && /stays on the device this was played on/.test(res), res.slice(0, 200));
+  // the beatmaps your plays from device A are on, which this device hasn't got: offered once the setup's done, and
+  // in Your code (downloaded from osu!'s mirrors — here, a stand-in)
+  await e.waitForFunction(() => /Get the beatmaps you've played/.test(document.querySelector('#toasts').textContent), null, { timeout: 8000 }).catch(() => {});
+  const offered = /Get the beatmaps you've played/.test(await toasts(e));
+  await e.evaluate(() => AshtonkMania.CodePanel.open()); await e.waitForTimeout(300);
+  const link = await e.evaluate(() => (document.querySelector('.login-panel .lp-missing') || {}).textContent || '');
+  const dl = await e.evaluate(async () => { const calls = [], keep = OnlineBeatmaps.downloadAndImport; OnlineBeatmaps.downloadAndImport = async set => { calls.push(set.id); return { sets: [] }; };
+    try { document.querySelector('.login-panel .lp-missing .lp-act').click(); await new Promise(r => setTimeout(r, 300)); while (AshtonkMania.Sync._getting) await new Promise(r => setTimeout(r, 50)); } finally { OnlineBeatmaps.downloadAndImport = keep; }
+    return { calls, said: document.querySelector('#toasts').textContent };
+  });
+  check('…the beatmaps your plays from device A are on are offered (and in Your code), and downloaded when asked', offered && /1 beatmap this device hasn't got/.test(link) && dl.calls.join() === '77' && /Beatmaps downloaded/.test(dl.said), JSON.stringify({ offered, link, calls: dl.calls }));
   check('…and it\'s done (Finish on that page — once, even tapped twice)', await e.evaluate(() => AshtonkMania.Settings.get('wom.hue') === 200 && !AshtonkMania.Sync.pending() && AshtonkMania.ProfileManager.profile.name === 'Kai') && (await toasts(e)).split('Welcome, Kai!').length <= 2);
 
   // ── Reset everything on a device playing through a code: still you — your name (not "Player", which the server would

@@ -251,7 +251,41 @@ const Sync = {
     this.mark('am.scPulled', null);
     try { got.scores = await this.pullScores(); } catch (e) { console.warn('scores not brought', e); } // (again with the next settings sent)
     this.later();
+    // (the beatmaps your plays are on that this device hasn't got: offered once the setup, if it's open, is done)
+    const offer = () => setTimeout(() => this.offerMissing(), 1500);
+    if (typeof Onboarding !== 'undefined' && Onboarding.o) Onboarding.done.then(offer); else offer();
     return got;
+  },
+  /** The beatmaps your plays from your other devices are on that this device hasn't got (by their osu! set ids). */
+  missingSets() {
+    const have = new Set(BeatmapManager.sets.map(s => s.onlineId).filter(x => x > 0)), out = new Map();
+    for (const s of ScoreManager.scores) {
+      if (s.synced && s.onlineSetId > 0 && !have.has(s.onlineSetId) && !out.has(s.onlineSetId) && !BeatmapManager.mapByHash(s.mapHash)) out.set(s.onlineSetId, { id: s.onlineSetId, title: s.title || '', artist: s.artist || '' });
+    }
+    return [...out.values()];
+  },
+  offerMissing() {
+    const n = this.missingSets().length;
+    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. Click to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
+  },
+  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), saying how it's going. */
+  async getMissing() {
+    if (this._getting) return;
+    const sets = this.missingSets();
+    if (!sets.length) return;
+    this._getting = true;
+    const queue = [...sets], say = () => Bus.emit('import:status', `Downloading beatmaps you've played… ${done}/${sets.length}`);
+    let done = 0, failed = 0, first = '';
+    say();
+    const worker = async () => {
+      for (let set; (set = queue.shift());) {
+        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); } catch (e) { failed++; first = first || friendlyError(e); }
+        done++; say();
+      }
+    };
+    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; Bus.emit('import:status', null); }
+    if (failed < sets.length) Toast.ok('Beatmaps downloaded', `${plural(sets.length - failed, 'beatmap')} you've played on your other devices ${sets.length - failed === 1 ? 'is' : 'are'} here now.${failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : ''}`, { hold: true });
+    else Toast.err('The beatmaps couldn\'t be downloaded', first);
   },
   /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
    *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */

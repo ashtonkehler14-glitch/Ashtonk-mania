@@ -4538,6 +4538,7 @@ html.lp-open #toasts { right: 380px; }
 .lp-code-in { height: 48px; text-align: center; font-family: ui-monospace, 'RobotoMono', 'Consolas', monospace; font-size: 18px; letter-spacing: .1em; text-transform: uppercase; }
 .lp-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px; margin-top: 4px; padding-top: 10px; border-top: 1px solid hsl(255 10% 25%); }
 .lp-act { padding: 3px 0; border: 0; background: none; color: hsl(255 15% 68%); font: inherit; font-size: 12.5px; cursor: pointer; transition: color 200ms; }
+.lp-missing .lp-act { padding: 0; color: hsl(255 80% 80%); text-decoration: underline; }
 .lp-act:hover { color: #fff; }
 .lp-act.danger { color: #ff8a8a; }
 .lp-act.danger:hover { color: #ffb0b0; }
@@ -20120,6 +20121,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'lock', title: 'Your code', items: [
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
+      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
       'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
@@ -27435,6 +27437,10 @@ const CodePanel = {
     const at = Account.linked() && Sync.sentAt();
     p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')),
       Account.linked() ? h('p.lp-note.lp-kept', `Your settings, skin, collections, favourites and plays go with it${at ? ` — last sent ${fmtDate(at)}` : ''}.`) : null, err);
+    // (plays from your other devices on beatmaps this one hasn't got: get them from here)
+    const missing = Account.linked() ? Sync.missingSets().length : 0;
+    if (missing) p.append(h('p.lp-note.lp-missing', `Your plays from your other devices are on ${plural(missing, 'beatmap')} this device hasn't got. `,
+      h('button.lp-act', { onclick: () => { UISounds.click(); this.close(); Sync.getMissing(); } }, 'Download them')));
     // (the rarely needed: small, under it)
     const act = (label, fn, cls = '') => h(`button.lp-act${cls}`, { onclick: fn }, label);
     p.append(h('div.lp-acts',
@@ -27728,7 +27734,41 @@ const Sync = {
     this.mark('am.scPulled', null);
     try { got.scores = await this.pullScores(); } catch (e) { console.warn('scores not brought', e); } // (again with the next settings sent)
     this.later();
+    // (the beatmaps your plays are on that this device hasn't got: offered once the setup, if it's open, is done)
+    const offer = () => setTimeout(() => this.offerMissing(), 1500);
+    if (typeof Onboarding !== 'undefined' && Onboarding.o) Onboarding.done.then(offer); else offer();
     return got;
+  },
+  /** The beatmaps your plays from your other devices are on that this device hasn't got (by their osu! set ids). */
+  missingSets() {
+    const have = new Set(BeatmapManager.sets.map(s => s.onlineId).filter(x => x > 0)), out = new Map();
+    for (const s of ScoreManager.scores) {
+      if (s.synced && s.onlineSetId > 0 && !have.has(s.onlineSetId) && !out.has(s.onlineSetId) && !BeatmapManager.mapByHash(s.mapHash)) out.set(s.onlineSetId, { id: s.onlineSetId, title: s.title || '', artist: s.artist || '' });
+    }
+    return [...out.values()];
+  },
+  offerMissing() {
+    const n = this.missingSets().length;
+    if (n) Toast.show('Get the beatmaps you\'ve played?', `Your plays from your other devices are on ${plural(n, 'beatmap')} this device hasn't got. Click to download ${n === 1 ? 'it' : 'them'}.`, { timeout: 15000, hold: true, onClick: () => this.getMissing() });
+  },
+  /** Downloads them, three at a time (one stuck download doesn't hold up the rest), saying how it's going. */
+  async getMissing() {
+    if (this._getting) return;
+    const sets = this.missingSets();
+    if (!sets.length) return;
+    this._getting = true;
+    const queue = [...sets], say = () => Bus.emit('import:status', `Downloading beatmaps you've played… ${done}/${sets.length}`);
+    let done = 0, failed = 0, first = '';
+    say();
+    const worker = async () => {
+      for (let set; (set = queue.shift());) {
+        try { await OnlineBeatmaps.downloadAndImport(set, null, { quiet: true }); } catch (e) { failed++; first = first || friendlyError(e); }
+        done++; say();
+      }
+    };
+    try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; Bus.emit('import:status', null); }
+    if (failed < sets.length) Toast.ok('Beatmaps downloaded', `${plural(sets.length - failed, 'beatmap')} you've played on your other devices ${sets.length - failed === 1 ? 'is' : 'are'} here now.${failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : ''}`, { hold: true });
+    else Toast.err('The beatmaps couldn\'t be downloaded', first);
   },
   /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
    *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */
@@ -27797,7 +27837,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd31a7ea46106';
+const APP_BUILD = '4966630e8ac7';
 
 const App = {
   lastReport: null,

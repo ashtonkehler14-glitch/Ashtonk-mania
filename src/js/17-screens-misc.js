@@ -690,6 +690,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'lock', title: 'Your code', items: [
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
+      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
       'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
