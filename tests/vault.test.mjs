@@ -72,6 +72,9 @@ test('settings: what a device changed is merged into what\'s kept — each setti
   await call(v, 'settings', { v: 2, values: {}, skin: { id: 's2', name: 'Two' }, favorites: [] });
   const t = await restore();
   assert.deepEqual([t.skin.name, t.favorites.length, t.collections.length, t.values.a], ['Two', 0, 1, 3]);
+  // (values that aren't a list of settings change nothing)
+  await call(v, 'settings', { v: 2, values: [7, 8] });
+  assert.equal((await restore()).values[0], undefined);
   // an older game sends everything, which replaces it all
   await call(v, 'settings', { v: 1, values: { z: 9 }, skin: null });
   assert.deepEqual((await restore()).values, { z: 9 });

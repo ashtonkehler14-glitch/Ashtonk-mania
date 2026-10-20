@@ -17,7 +17,7 @@ const scoreId = id => typeof id === 'string' && /^sc-[\w-]{4,48}$/.test(id);
 /** What's kept (`base`) with a device's changes (`o`: the settings it changed; skin, collections or favourites if
  *  they changed) — medals unlocked anywhere stay unlocked. */
 export function mergeSettings(base, o) {
-  const values = { ...base.values, ...(o.values && typeof o.values === 'object' ? o.values : {}) };
+  const values = { ...base.values, ...(o.values && typeof o.values === 'object' && !Array.isArray(o.values) ? o.values : {}) };
   const m0 = base.values['medals.unlocked'], m1 = o.values && o.values['medals.unlocked'];
   if (m0 && typeof m0 === 'object' && m1 && typeof m1 === 'object') values['medals.unlocked'] = { ...m0, ...m1 };
   const out = { ...base, v: 2, values };
