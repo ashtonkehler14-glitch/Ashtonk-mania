@@ -690,7 +690,8 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'heart', title: 'Neru', items: [
       'Neru shows up around the game now, not only on the main menu: she reacts to your results — grudgingly impressed by a great play, unimpressed by a weak one or a fail, tsundere as ever — has something to say on the pause and fail screens, tells you not to mess it up while a song loads, shrugs at an empty song select and keeps texting on the loading screen. Click her for more; Settings → Show Neru turns her off everywhere',
-      'Neru has a dozen poses now, taken from her song\'s music video and cut out cleanly: on her phone, fists up, bored at her desk, wagging a finger, snickering, laughing, winking, dancing, hand on hip and in sunglasses — each where it fits (sunglasses for a perfect play, fists up while a song loads, bored while you pause…)',
+      'Neru has over twenty poses now, all from her song\'s music video and cut out cleanly: on her phone, fists up, fishing, dancing, in sunglasses, winking, wagging a finger, pointing at you, snickering, smirking, laughing, hugging her knees, sulking or bored stiff at her desk, slumped over it and more — a different one each time, from the ones that fit (sunglasses or a dance for a perfect play, a smirk at a bad one, slumped over her desk while you pause…)',
+      'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'She\'s her tsundere self: never quite nice about it, never quite admitting she was watching',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'On the main menu she says hello once a visit (in her way), and clicking her shows another of her poses',

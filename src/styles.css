@@ -1604,10 +1604,11 @@ div.res-calib .i { color: var(--good); }
 /* ── Neru (main menu character) */
 .neru { position: absolute; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; z-index: 2; height: min(calc(46 * var(--vh)), 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
 .neru[hidden] { display: none; }
-.neru-img { display: block; height: 100%; width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
+.neru-img { display: block; flex: none; height: calc(100% * var(--pose-s, 1)); width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
 .neru.hop .neru-img { animation: neruHop 620ms linear; }
-/* the body leans and bobs (set per frame); breathing and the hop are on the picture; a soft shadow under her feet */
-.neru-body { display: block; height: 100%; transform-origin: 50% 100%; will-change: transform; transition: filter 300ms var(--ease-out); }
+/* the body leans and bobs (set per frame); breathing and the hop are on the picture; a soft shadow under her feet.
+ * (--pose-s: the pose she's showing for a moment, a close-up of her shown smaller — at the bottom, where she stands) */
+.neru-body { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; height: 100%; transform-origin: 50% 100%; will-change: transform; transition: filter 300ms var(--ease-out); }
 .neru.perk .neru-body { filter: brightness(1.06); }
 .neru.perk .neru-img { translate: 0 -6px; scale: 1.015; }
 .neru-img { transition: translate 350ms cubic-bezier(.34, 1.56, .64, 1), scale 350ms cubic-bezier(.34, 1.56, .64, 1); }

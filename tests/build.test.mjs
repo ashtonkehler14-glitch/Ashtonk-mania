@@ -22,6 +22,17 @@ test('the page lists Neru\'s poses that are in public/ (neru-<pose>.png)', () =>
   assert.ok(files.includes('happy'));
 });
 
+test('each of Neru\'s moods names only poses there are, every pose shows in one, and each has its head size', () => {
+  const src = read('src/js/13b-neru.js');
+  const obj = name => new Function(`return ${(new RegExp(`\\n  ${name}: (\\{[^}]*\\}),`).exec(src) || [])[1]}`)();
+  const faces = obj('FACES'), head = obj('HEAD');
+  const files = readdirSync(new URL('../public/', import.meta.url)).map(f => /^neru-([a-z]+)\.png$/.exec(f)).filter(Boolean).map(m => m[1]).sort();
+  for (const [mood, names] of Object.entries(faces)) for (const n of names) assert.ok(files.includes(n), `${mood}: no public/neru-${n}.png`);
+  const used = new Set(Object.values(faces).flat().concat('happy'));
+  assert.deepEqual(files.filter(n => !used.has(n)), [], 'poses no mood shows');
+  assert.deepEqual(Object.keys(head).sort(), files, 'HEAD: one for each pose');
+});
+
 test('the page and its service worker carry the same build id', () => {
   const page = /const APP_BUILD = '([0-9a-f]{12})';/.exec(read('index.html')), sw = /const VERSION = '([0-9a-f]{12})';/.exec(read('public/sw.js'));
   assert.ok(page && sw, 'a build id is missing: run node build.mjs');
