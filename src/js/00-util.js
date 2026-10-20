@@ -313,9 +313,10 @@ async function makeThumbnail(blob, maxW = 640, quality = 0.82) {
       // (decoded and shrunk in one step, from the file: shrinking a picture already decoded is done on the main
       // thread — a full-HD background held the game up for a good 30 ms of every install)
       const bm = await createImageBitmap(blob, { resizeWidth: maxW, resizeQuality: 'high' });
-      const w = bm.width, hh = bm.height;
+      // (a browser that ignores the resize options gives the full picture: shrunk here instead of kept that big)
+      const s = Math.min(1, maxW / bm.width), w = Math.max(1, Math.round(bm.width * s)), hh = Math.max(1, Math.round(bm.height * s));
       const c = document.createElement('canvas'); c.width = w; c.height = hh;
-      c.getContext('2d').drawImage(bm, 0, 0);
+      c.getContext('2d').drawImage(bm, 0, 0, w, hh);
       bm.close();
       return await new Promise(r => c.toBlob(b => r(b), 'image/jpeg', quality));
     } catch (e) { /* not decodable this way: the image element below */ }
