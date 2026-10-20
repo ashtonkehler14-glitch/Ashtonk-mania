@@ -20086,6 +20086,24 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.20', title: 'Your scores on every device', sections: [
+    { icon: 'lock', title: 'Your code', items: [
+      'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
+      'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
+      'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
+      'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
+      'Reset everything on a device playing through your code keeps you who you are: your name stays (it became "Player" — on the rankings too) and your settings, skin and plays come back'] },
+    { icon: 'sparkle', title: 'Faster with a long history', items: [
+      'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
+      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
+      'The Replays page opens at once with hundreds of replays: its first rows straight away, the rest as it goes (they used to be built all at once, freezing the page for a moment)'] },
+    { icon: 'download', title: 'Imports and backups', items: [
+      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
+      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
+      'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
+      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
+      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"'] },
+  ] },
   { id: '2026.10.17', title: 'Your code', sections: [
     { icon: 'lock', title: 'Your code', items: [
       'Play as yourself on another device with your code: right-click your name in the top bar → Your code, then type it on the other device. It\'s you there too — one entry on the rankings and leaderboards, one profile and friends list — with no username or password',
@@ -20095,10 +20113,6 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
       'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
-      'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
-      'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
-      'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
-      'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
       'Signing out brings you back to that question'] },
     { icon: 'trophy', title: 'Rankings', items: [
@@ -20146,14 +20160,6 @@ const CHANGELOG = [
       'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
-      'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
-      'The Replays page opens at once with hundreds of replays: its first rows straight away, the rest as it goes (they used to be built all at once, freezing the page for a moment)',
-      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
-      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
-      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
-      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
-      'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
-      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
       'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
       'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',
       'Storage that\'s full as a song ends no longer leaves the finished song on screen with nowhere to go: the results show, the play still goes up to the leaderboard, and it says your score couldn\'t be kept on this device',
@@ -27758,7 +27764,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '11e28be38aa9';
+const APP_BUILD = 'e4260cd349e8';
 
 const App = {
   lastReport: null,
