@@ -108,9 +108,21 @@ await shot('01-home-empty');
 {
   await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
   await page.waitForSelector('.ss .nc-empty:not([hidden]) .nc-img', { timeout: 8000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ face: ((document.querySelector('.ss .nc-empty .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.empty.map(p => `neru-${p}.png`), box: !!document.querySelector('.ss-empty .box'), said: !!document.querySelector('.neru-say, .nc-say') }));
-  check('an empty song select has Neru beside "Your library is empty", in one of her poses for it (and no speech bubble)', n.poses.includes(n.face) && n.box && !n.said, JSON.stringify(n));
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.ss .nc-empty .nc-img') || {}).src || '').split('/').pop(), pose: `neru-${AshtonkMania.NeruCameo.POSE.empty}.png`, box: !!document.querySelector('.ss-empty .box'), said: !!document.querySelector('.neru-say, .nc-say') }));
+  check('an empty song select has Neru beside "Your library is empty", hand on hip (and no speech bubble)', n.face === n.pose && n.pose === 'neru-sassy.png' && n.box && !n.said, JSON.stringify(n));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
+}
+// an empty list ("No replays saved", "Empty collection"…): Neru, a blank "huh?" at it, in place of the icon
+{
+  const n = await page.evaluate(async () => {
+    const card = stateCard('film', 'Nothing here', 'Test', { neru: true });
+    document.body.append(card);
+    for (let i = 0; i < 50 && !card.querySelector('.nc-card:not([hidden]) .nc-img'); i++) await new Promise(r => setTimeout(r, 100));
+    const img = card.querySelector('.nc-img'), out = { face: img ? img.src.split('/').pop() : null, icon: !!card.querySelector('.off-ico'), pose: `neru-${AshtonkMania.NeruCameo.POSE.list}.png` };
+    card.remove();
+    return out;
+  });
+  check('an empty list has Neru, a blank "huh?" at it, in place of the icon', n.face === n.pose && n.pose === 'neru-huh.png' && !n.icon, JSON.stringify(n));
 }
 
 // import via synthetic drop event (exercises the drag & drop pipeline)
@@ -674,14 +686,14 @@ await page.waitForTimeout(300);
 const paused = await page.evaluate(() => !!document.querySelector('.pause-menu') && !AshtonkMania.Music.playing);
 check('Escape pauses gameplay and audio', paused);
 await shot('06-pause');
-// Neru on the pause screen, bored or on her phone (the arrow keys still go between its buttons, never to her)
+// Neru on the pause screen, bored at her desk (the arrow keys still go between its buttons, never to her)
 {
   await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.paused.map(p => `neru-${p}.png`) }));
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), pose: `neru-${AshtonkMania.NeruCameo.POSE.paused}.png` }));
   await page.keyboard.press('ArrowUp');
   const focus = await page.evaluate(() => document.activeElement && document.activeElement.className);
-  check('the pause screen has Neru in one of her poses for it; the arrow keys skip her', n.poses.includes(n.face) && /pm-btn/.test(focus) && !/neru/.test(focus), JSON.stringify({ ...n, focus }));
+  check('the pause screen has Neru, bored at her desk; the arrow keys skip her', n.face === n.pose && n.pose === 'neru-bored.png' && /pm-btn/.test(focus) && !/neru/.test(focus), JSON.stringify({ ...n, focus }));
 }
 {
   // Esc, or leaving the window, during the 3-2-1 after Continue pauses again (the song mustn't carry on unseen)
@@ -703,8 +715,8 @@ await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'),
 check('Sudden Death fails on first miss', true);
 {
   await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.failed.map(p => `neru-${p}.png`) }));
-  check('the fail screen has Neru, unimpressed (one of her poses for a fail)', n.poses.includes(n.face), JSON.stringify(n));
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), pose: `neru-${AshtonkMania.NeruCameo.POSE.failed}.png` }));
+  check('the fail screen has Neru, laughing at it', n.face === n.pose && n.pose === 'neru-mock.png', JSON.stringify(n));
 }
 {
   const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
@@ -750,13 +762,12 @@ await page.waitForTimeout(500);
     out.aside = getComputedStyle(el).opacity;
     out.moods = ['XH', 'X', 'SH', 'S', 'A', 'B', 'C', 'D'].map(g => A.NeruCameo.moodOf({ passed: true, grade: g })).join() + '|' + A.NeruCameo.moodOf({ passed: true, grade: 'A', isPB: true }) + '|' + A.NeruCameo.moodOf({ passed: false, grade: 'S' });
     await A.Screens.go('home');
-    // (one of that mood's poses — of the ones there are; her default picture with none of them)
-    const F = A.NeruCameo.FACES, have = mood => F[mood].filter(n => A.NeruMascot.POSES.includes(n));
-    const pose = (mood, s) => !!s && (have(mood).length ? have(mood).map(n => `neru-${n}.png`).includes(s.face) : s.face === 'neru.png');
+    // (the mood's own pose)
+    const pose = (mood, s) => !!s && s.face === `neru-${A.NeruCameo.POSE[mood]}.png`;
     out.ok = { perfect: pose('perfect', out.ss), failed: pose('failed', out.fail), okay: pose('okay', { face: out.clicked.before }) };
     return out;
   });
-  check('results: Neru reacts to the play just finished — a perfect-play pose for an SS, a fail pose for a fail (no speech bubble)',
+  check('results: Neru reacts to the play just finished — sunglasses for an SS, laughing at a fail (no speech bubble)',
     r.ss && r.ok.perfect && !r.ss.said && r.fail && r.ok.failed, JSON.stringify(r));
   check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop with her excited face; she steps aside for the statistics',
     !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && r.clicked.face === 'neru-happy.png' && +r.aside < 0.5, JSON.stringify(r));

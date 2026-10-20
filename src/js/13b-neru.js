@@ -132,32 +132,25 @@ const NeruMascot = {
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
   HAPPY: new Set(['perfect', 'best', 'great']),
-  /** The poses that fit each mood — one of them, at random, each time (her shrug, neru.png, when there's none of
-   *  them) — all from the song's video: sunglasses on or dancing about a perfect play; dancing, or flashing a peace
-   *  sign with her catch, for a new best (not that she'd admit it); a wink for a good one; a wagging finger, a "meh" or
-   *  a sideways look at a so-so one; snickering or smirking at a bad one; laughing, a knowing look, hugging her knees
-   *  or sulking at her desk over a fail; bored stiff, slumped over her desk or on her phone while you pause; fists up —
-   *  "I'm not cheering for you" — or pointing at you while it loads; hand on hip or a blank "huh?" at an empty library;
-   *  on her phone while the game starts. */
-  FACES: {
-    perfect: ['cool', 'dance'], best: ['dance', 'fishing', 'happy'], great: ['wink', 'fishing', 'happy'],
-    okay: ['point', 'meh', 'side'], bad: ['snicker', 'smirk', 'meh'], failed: ['mock', 'worried', 'knees', 'sulk'],
-    paused: ['bored', 'tired', 'phone', 'sulk'], loading: ['cheer', 'pointat'], empty: ['sassy', 'huh'], boot: ['phone'],
+  /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
+   *  perfect play, dancing about a new best (not that she'd admit it), a wink for a good one, a wagging finger at a
+   *  so-so one, snickering at a bad one, laughing at a fail; bored at her desk while you pause, fists up — "I'm not
+   *  cheering for you" — while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, on her
+   *  phone while the game starts. */
+  POSE: {
+    perfect: 'cool', best: 'dance', great: 'wink', okay: 'point', bad: 'snicker', failed: 'mock',
+    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'phone',
   },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, fishing: 0.38, happy: 0.45, huh: 0.45, knees: 0.45, meh: 0.52,
-    mock: 0.38, phone: 0.31, point: 0.45, pointat: 0.32, sassy: 0.49, side: 0.37, smirk: 0.53,
-    snicker: 0.21, sulk: 0.45, tired: 0.68, wink: 0.28, worried: 0.47,
+    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, happy: 0.45, huh: 0.45, mock: 0.38, phone: 0.31, point: 0.45,
+    sassy: 0.49, snicker: 0.21, wink: 0.28,
   },
   HEAD_SIZE: 0.36,
-  /** One of the poses that fit `mood`, at random (her default picture with none of them). */
-  face(pics, mood) {
-    const have = (this.FACES[mood] || []).filter(n => pics.poses && pics.poses[n]);
-    return this.pose(pics, have.length ? have[Math.floor(Math.random() * have.length)] : null);
-  },
+  /** Her pose for `mood`'s screen (her default picture without it). */
+  face(pics, mood) { return this.pose(pics, this.POSE[mood] || null); },
   /** A pose of hers by name (null: her default picture): its picture, and how big she's shown in it (see HEAD). */
   pose(pics, name) {
     if (!name || !pics.poses || !pics.poses[name]) return { src: pics.base, scale: 1 };

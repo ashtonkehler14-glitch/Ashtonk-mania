@@ -2,10 +2,10 @@
 
 /** A page's "nothing here" card: an icon in a circle, a title, a line of help and maybe a button — so empty lists,
  *  offline pages and failed searches all look alike. `slash` strikes the icon through (can't reach / failed);
- *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, shrugging at
- *  it, instead of the icon (an empty page — when she's shown at all). */
+ *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, a blank "huh?"
+ *  at it, instead of the icon (an empty page — when she's shown at all). */
 function stateCard(ic, title, sub, { slash = false, action = null, cls = '', neru = false } = {}) {
-  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('empty', 'nc-card');
+  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('list', 'nc-card');
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
 }
 

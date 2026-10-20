@@ -12339,10 +12339,10 @@ const ICON_SRC = {"home":["L","home"],"gear":["L","settings"],"mania":["L","Rule
 
 /** A page's "nothing here" card: an icon in a circle, a title, a line of help and maybe a button — so empty lists,
  *  offline pages and failed searches all look alike. `slash` strikes the icon through (can't reach / failed);
- *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, shrugging at
- *  it, instead of the icon (an empty page — when she's shown at all). */
+ *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, a blank "huh?"
+ *  at it, instead of the icon (an empty page — when she's shown at all). */
 function stateCard(ic, title, sub, { slash = false, action = null, cls = '', neru = false } = {}) {
-  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('empty', 'nc-card');
+  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('list', 'nc-card');
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
 }
 
@@ -14709,7 +14709,7 @@ const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
   /** Her other faces and poses, public/neru-<name>.png (tools/neru-art.py makes them, from frames of her song's music
    *  video): the build lists the ones there are, so none is looked for that isn't there. */
-  POSES: ["bored","cheer","cool","dance","fishing","happy","huh","knees","meh","mock","phone","point","pointat","sassy","side","smirk","snicker","sulk","tired","wink","worried"],
+  POSES: ["bored","cheer","cool","dance","happy","huh","mock","phone","point","sassy","snicker","wink"],
   _pics: null, _blobURL: null,
   /** Her pictures — { base, happy, poses: { name: url } } (happy: the face she makes when clicked or pleased; null if
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
@@ -14833,32 +14833,25 @@ const NeruMascot = {
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
   HAPPY: new Set(['perfect', 'best', 'great']),
-  /** The poses that fit each mood — one of them, at random, each time (her shrug, neru.png, when there's none of
-   *  them) — all from the song's video: sunglasses on or dancing about a perfect play; dancing, or flashing a peace
-   *  sign with her catch, for a new best (not that she'd admit it); a wink for a good one; a wagging finger, a "meh" or
-   *  a sideways look at a so-so one; snickering or smirking at a bad one; laughing, a knowing look, hugging her knees
-   *  or sulking at her desk over a fail; bored stiff, slumped over her desk or on her phone while you pause; fists up —
-   *  "I'm not cheering for you" — or pointing at you while it loads; hand on hip or a blank "huh?" at an empty library;
-   *  on her phone while the game starts. */
-  FACES: {
-    perfect: ['cool', 'dance'], best: ['dance', 'fishing', 'happy'], great: ['wink', 'fishing', 'happy'],
-    okay: ['point', 'meh', 'side'], bad: ['snicker', 'smirk', 'meh'], failed: ['mock', 'worried', 'knees', 'sulk'],
-    paused: ['bored', 'tired', 'phone', 'sulk'], loading: ['cheer', 'pointat'], empty: ['sassy', 'huh'], boot: ['phone'],
+  /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
+   *  perfect play, dancing about a new best (not that she'd admit it), a wink for a good one, a wagging finger at a
+   *  so-so one, snickering at a bad one, laughing at a fail; bored at her desk while you pause, fists up — "I'm not
+   *  cheering for you" — while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, on her
+   *  phone while the game starts. */
+  POSE: {
+    perfect: 'cool', best: 'dance', great: 'wink', okay: 'point', bad: 'snicker', failed: 'mock',
+    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'phone',
   },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, fishing: 0.38, happy: 0.45, huh: 0.45, knees: 0.45, meh: 0.52,
-    mock: 0.38, phone: 0.31, point: 0.45, pointat: 0.32, sassy: 0.49, side: 0.37, smirk: 0.53,
-    snicker: 0.21, sulk: 0.45, tired: 0.68, wink: 0.28, worried: 0.47,
+    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, happy: 0.45, huh: 0.45, mock: 0.38, phone: 0.31, point: 0.45,
+    sassy: 0.49, snicker: 0.21, wink: 0.28,
   },
   HEAD_SIZE: 0.36,
-  /** One of the poses that fit `mood`, at random (her default picture with none of them). */
-  face(pics, mood) {
-    const have = (this.FACES[mood] || []).filter(n => pics.poses && pics.poses[n]);
-    return this.pose(pics, have.length ? have[Math.floor(Math.random() * have.length)] : null);
-  },
+  /** Her pose for `mood`'s screen (her default picture without it). */
+  face(pics, mood) { return this.pose(pics, this.POSE[mood] || null); },
   /** A pose of hers by name (null: her default picture): its picture, and how big she's shown in it (see HEAD). */
   pose(pics, name) {
     if (!name || !pics.poses || !pics.poses[name]) return { src: pics.base, scale: 1 };
@@ -20290,8 +20283,8 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'heart', title: 'Neru', items: [
-      'Neru shows up around the game now, not only on the main menu: on the results screen she reacts to your play — sunglasses on for a perfect one, a smirk at a bad one, laughing at a fail — and she\'s there on the pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
-      'Neru has over twenty poses now, all from her song\'s music video and cut out cleanly: on her phone, fists up, fishing, dancing, in sunglasses, winking, wagging a finger, pointing at you, snickering, smirking, laughing, hugging her knees, sulking or bored stiff at her desk, slumped over it and more — a different one each time, from the ones that fit (sunglasses or a dance for a perfect play, a smirk at a bad one, slumped over her desk while you pause…)',
+      'Neru shows up around the game now, not only on the main menu: on the results, pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
+      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for a perfect play, dancing about a new best, a wink for a good one, a wagging finger at a so-so one, snickering at a bad one, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and on her phone while the game starts',
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
@@ -28039,7 +28032,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '76a2e4600619';
+const APP_BUILD = 'a8f45bf9c615';
 
 const App = {
   lastReport: null,
