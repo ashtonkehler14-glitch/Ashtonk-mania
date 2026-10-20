@@ -18,6 +18,7 @@ const App = {
     say('Opening library…');
     await step('storage', () => DB.open());
     await step('settings', () => Settings.load());
+    NeruCameo.boot();
     say('Loading skin…');
     await step('skins', () => SkinManager.init());
     if (!SkinManager.current) { SkinManager.defaultSkin = SkinManager.defaultSkin || new DefaultSkin(); SkinManager.current = SkinManager.defaultSkin; }
@@ -55,7 +56,8 @@ const App = {
     VolumeOverlay.bind();
     LazerCursor.init();
     MediaKeys.init();
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync };
+    KeyNames.load(); // (the keyboard's own key names, for the key bindings and the keys under the stage)
+    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync, NeruCameo };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

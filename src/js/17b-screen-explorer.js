@@ -548,7 +548,7 @@ const ExplorerScreen = {
         // (Web-Osu-Mania's note for a 429)
         this.errorStatus === 429 ? h('p', 'This can happen when too many people are browsing at once. You can still play the songs in your library. Otherwise, please be patient and try again in a little while.') : null],
       { slash: true, cls: `.ex-error${more ? '.compact' : ''}`, action: h('button.btn.sm.ex-retry', { onclick: () => more ? this.loadMore() : this.newSearch() }, icon('retry'), more ? 'Retry' : 'Try again') }));
-    } else if (!this.results.length) this.status.append(stateCard('search', 'No beatmaps found', 'Try a different search or loosen the filters.', { cls: '.plain' }));
+    } else if (!this.results.length) this.status.append(stateCard('search', 'No beatmaps found', 'Try a different search or loosen the filters.', { cls: '.plain', neru: true }));
     else this.status.append(h('div.muted.ex-source', `${this.results.length} set${this.results.length === 1 ? '' : 's'}${this.hasMore ? '' : ' · No more beatmaps.'}`));
   },
   renderResults() {

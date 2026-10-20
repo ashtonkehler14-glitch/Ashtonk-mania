@@ -7,12 +7,19 @@ import { readFileSync, readdirSync } from 'node:fs';
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 
 test('index.html is built from the current sources, and public/ has the same page', () => {
-  const page = read('index.html'), id = (/const APP_BUILD = '([0-9a-f]+)';/.exec(page) || [])[1];
+  const page = read('index.html'), id = (/const APP_BUILD = '([0-9a-f]+)';/.exec(page) || [])[1], poses = (/ POSES: (\[[^\]\n]*\]),/.exec(page) || [])[1];
   assert.equal(read('public/index.html'), page, 'public/index.html differs from index.html: run node build.mjs');
   for (const f of readdirSync(new URL('../src/js/', import.meta.url)).filter(f => f.endsWith('.js'))) {
-    const src = read('src/js/' + f).replace("const APP_BUILD = '__BUILD__';", () => `const APP_BUILD = '${id}';`);
+    const src = read('src/js/' + f).replace("const APP_BUILD = '__BUILD__';", () => `const APP_BUILD = '${id}';`).replace('POSES: [/*__NERU_POSES__*/]', () => `POSES: ${poses}`);
     assert.ok(page.includes(src), `${f} changed since the last build: run node build.mjs`);
   }
+});
+
+test('the page lists Neru\'s poses that are in public/ (neru-<pose>.png)', () => {
+  const poses = JSON.parse((/ POSES: (\[[^\]\n]*\]),/.exec(read('index.html')) || [])[1] || 'null');
+  const files = readdirSync(new URL('../public/', import.meta.url)).map(f => /^neru-([a-z]+)\.png$/.exec(f)).filter(Boolean).map(m => m[1]).sort();
+  assert.deepEqual(poses, files);
+  assert.ok(files.includes('happy'));
 });
 
 test('the page and its service worker carry the same build id', () => {

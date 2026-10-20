@@ -525,7 +525,10 @@ const GameplayScreen = {
     const settings = h('div.pl-settings', { onpointermove: () => { if (!this.loaderHold) { this.loaderHold = true; this.applyBackground(); } }, onpointerleave: () => { this.loaderHold = false; this.applyBackground(); } },
       ...this.playerSettings(rec, !p.replay));
     const el = h('div.gp-loader', card, settings,
-      p.mp ? h('div.pl-hint', 'Get ready!') : null);
+      p.mp ? h('div.pl-hint', 'Get ready!') : null,
+      // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
+      // nor for the skin editor's preview)
+      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { delay: 350, hold: 2600 }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -1638,12 +1641,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
+    // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { delay: failed ? 700 : 250, hold: failed ? 4200 : 2600 }); if (n) el.append(n); }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
     const first = el.querySelector('button'); first && first.focus();
     el.addEventListener('keydown', ev => {
-      const b = $$('button', el), i = b.indexOf(document.activeElement);
+      const b = $$('button:not(.neru-cameo)', el), i = b.indexOf(document.activeElement);
       if (ev.key === 'ArrowDown') { b[(i + 1) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
       if (ev.key === 'ArrowUp') { b[(i - 1 + b.length) % b.length].focus(); ev.preventDefault(); ev.stopPropagation(); }
     });

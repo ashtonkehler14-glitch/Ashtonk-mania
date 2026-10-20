@@ -894,7 +894,7 @@ const MultiplayerScreen = {
       row._name = `${r.name} ${r.host || ''} ${r.map ? `${r.map.artist} ${r.map.title} ${r.map.version}` : ''}`.toLowerCase();
       nextRows.set(r.code, { sig, row });
       return row;
-    }) : [rooms ? stateCard('multi', this.mode === 'ranked' ? 'No duels open right now' : 'No open rooms right now', 'Create one and it shows up here for everyone.', { cls: '.plain' }) : (rooms === null && Presence.connecting() ? h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…') : offlineState('Open rooms'))]));
+    }) : [rooms ? stateCard('multi', this.mode === 'ranked' ? 'No duels open right now' : 'No open rooms right now', 'Create one and it shows up here for everyone.', { cls: '.plain', neru: true }) : (rooms === null && Presence.connecting() ? h('div.mp-rooms-empty', h('span.spinner'), 'Looking for open rooms…') : offlineState('Open rooms'))]));
     this._roomRows = nextRows;
     this.filterRooms();
     this._roomsT = setTimeout(() => this.pollRooms(), 3000);

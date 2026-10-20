@@ -177,6 +177,8 @@ const KeyConfig = {
     const root = h('div.keycfg');
     this.root = root;
     this.render();
+    // (the keyboard's own key names, asked again here — it may have been switched since)
+    KeyNames.load().then(known => { if (known && this.root === root) this.render(); });
     return root;
   },
   stop() {

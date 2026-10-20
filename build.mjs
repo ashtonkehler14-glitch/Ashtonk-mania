@@ -16,9 +16,12 @@ const workerSrc = '"use strict";\n' + WORKER_FILES.map(f => readFileSync(join(js
 if (/<\/script|<!--/i.test(workerSrc)) throw new Error('the install worker\'s code has text that would end the page\'s script early');
 const js = `const IMPORT_WORKER_SRC = ${JSON.stringify(workerSrc)};\n` + readdirSync(jsDir).filter(f => f.endsWith('.js')).sort()
   .map(f => `/* ===== ${f} ===== */\n` + readFileSync(join(jsDir, f), 'utf8')).join('\n');
+// Neru's other poses (public/neru-<name>.png): listed in the page, so the game knows which there are
+const neruPoses = readdirSync(join(root, 'public')).map(f => /^neru-([a-z]+)\.png$/.exec(f)).filter(Boolean).map(m => m[1]).sort();
+if (!js.includes('POSES: [/*__NERU_POSES__*/]')) throw new Error('NeruMascot.POSES is missing from src/js/13b-neru.js');
 let out = tpl
   .replace('/*__CSS__*/', () => css)
-  .replace('/*__JS__*/', () => '"use strict";\n' + js);
+  .replace('/*__JS__*/', () => '"use strict";\n' + js.replace('POSES: [/*__NERU_POSES__*/]', () => `POSES: ${JSON.stringify(neruPoses)}`));
 // the build's hash: in the service worker (so browsers update it after each deploy) and in the page (APP_BUILD in
 // src/js/20-app.js), so the game can tell a new version from the one it's showing
 const version = createHash('sha256').update(out).digest('hex').slice(0, 12);

@@ -104,6 +104,14 @@ check('touch controls, hitsounds and the old Neru easter-egg settings removed', 
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
 check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn.exp').length === 4 && document.querySelector('#app:not(.hide-toolbar)') && !document.querySelector('.continue, .lz-footer')));
 await shot('01-home-empty');
+// an empty library: Neru shrugs at it in song select ("Nothing here~"); she goes once there's a beatmap
+{
+  await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
+  await page.waitForFunction(() => { const s = document.querySelector('.ss .nc-empty .nc-say'); return s && s.textContent; }, null, { timeout: 8000 }).catch(() => {});
+  const n = await page.evaluate(() => ({ line: (document.querySelector('.ss .nc-empty .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.empty, box: !!document.querySelector('.ss-empty .box') }));
+  check('an empty song select has Neru shrugging at it beside "Your library is empty"', n.lines.includes(n.line) && n.box, JSON.stringify(n));
+  await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
+}
 
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -114,6 +122,12 @@ const dropFiles = async (names) => page.evaluate(async (names) => {
 }, names);
 await dropFiles(['test-set.osz']);
 await page.waitForFunction(() => AshtonkMania.BeatmapManager.sets.length === 1, null, { timeout: 15000 });
+{
+  // (the import goes to song select by itself)
+  await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect', null, { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  check('…and once there\'s a beatmap she\'s gone', await page.evaluate(() => !!document.querySelector('.ss') && !document.querySelector('.nc-empty')));
+}
 const lib = await page.evaluate(() => { const s = AshtonkMania.BeatmapManager.sets[0]; return { n: s.maps.length, keys: s.maps.map(m => m.keys).sort(), broken: s.maps.filter(m => m.problems.length).map(m => m.version + ': ' + m.problems.join(';')), stars: s.maps.map(m => m.stars) }; });
 check('.osz import: the 4 playable difficulties grouped into one set', lib.n === 4 && !lib.broken.length, JSON.stringify(lib.keys));
 check('unplayable difficulty is left out (reported, not listed)', await page.evaluate(() => AshtonkMania.App.lastReport.warnings.some(w => /Missing audio/.test(w))));
@@ -247,6 +261,25 @@ await shot('02-songselect');
   });
   check('downloading the beatmaps your plays are on shows in the notifications ("0 of 6"), and its X stops them: no more are started, nothing left running',
     c.calls === 3 && /0 of 6/.test(c.shown) && c.after && !c.after.getting && !c.after.live && !c.after.said.length, JSON.stringify(c));
+}
+// key names: the keyboard's own (a Dvorak one here), where the browser says them — the bindings stay where the keys are
+{
+  const k = await page.evaluate(async () => {
+    const before = ['KeyD', 'Semicolon'].map(keyLabel).join(' ');
+    Object.defineProperty(navigator, 'keyboard', { configurable: true, value: { getLayoutMap: async () => new Map([['KeyD', 'e'], ['KeyF', 'u'], ['KeyJ', 'h'], ['KeyK', 't'], ['Semicolon', 's'], ['Minus', 'ß'], ['Space', ' ']]) } });
+    try {
+      const known = await KeyNames.load();
+      const labels = ['KeyD', 'KeyK', 'Semicolon', 'Minus', 'Space', 'KeyA', 'Numpad1'].map(keyLabel).join(' ');
+      KeyConfig.keys = 4;
+      const root = KeyConfig.build(); document.body.append(root);
+      await new Promise(r => setTimeout(r, 50));
+      const lanes = [...root.querySelectorAll('.lane-key')].map(l => l.childNodes[1] ? l.childNodes[1].textContent : '').join(' ');
+      root.remove(); KeyConfig.stop();
+      return { before, known, labels, lanes, binds: JSON.stringify(AshtonkMania.Settings.keybinds(4)) };
+    } finally { delete navigator.keyboard; KeyNames.map = null; }
+  });
+  check('key names are the keyboard\'s own where the browser says them (Dvorak: D is "E"); the bindings stay where the keys are; US names elsewhere',
+    k.before === 'D ;' && k.known && k.labels === 'E T S ß Space A Num1' && k.lanes === 'E U H T' && k.binds === '[["KeyD"],["KeyF"],["KeyJ"],["KeyK"]]', JSON.stringify(k));
 }
 {
   // installing goes through the background threads (the same answers as the page's own parser), and an install asked
@@ -641,6 +674,15 @@ await page.waitForTimeout(300);
 const paused = await page.evaluate(() => !!document.querySelector('.pause-menu') && !AshtonkMania.Music.playing);
 check('Escape pauses gameplay and audio', paused);
 await shot('06-pause');
+// Neru teases you on the pause screen (the arrow keys still go between its buttons, never to her)
+{
+  await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const n = await page.evaluate(() => ({ line: (document.querySelector('.pause-menu .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.paused }));
+  await page.keyboard.press('ArrowUp');
+  const focus = await page.evaluate(() => document.activeElement && document.activeElement.className);
+  check('the pause screen has Neru with something to say; the arrow keys skip her', n.lines.includes(n.line) && /pm-btn/.test(focus) && !/neru/.test(focus), JSON.stringify({ ...n, focus }));
+}
 {
   // Esc, or leaving the window, during the 3-2-1 after Continue pauses again (the song mustn't carry on unseen)
   const st = () => page.evaluate(() => ({ menu: !!document.querySelector('.pause-menu'), cd: !!document.querySelector('.countdown'), playing: AshtonkMania.Music.playing, running: AshtonkMania.GameplayScreen.s.running }));
@@ -660,6 +702,11 @@ check('resume continues audio after countdown', await page.evaluate(() => Ashton
 await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'), null, { timeout: 15000 });
 check('Sudden Death fails on first miss', true);
 {
+  await page.waitForFunction(() => { const s = document.querySelector('.pause-menu .nc-say'); return s && s.textContent; }, null, { timeout: 5000 }).catch(() => {});
+  const n = await page.evaluate(() => ({ line: (document.querySelector('.pause-menu .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.failed, src: (document.querySelector('.pause-menu .nc-img') || {}).src || '' }));
+  check('the fail screen has Neru, unimpressed', n.lines.includes(n.line) && /\/neru(-[a-z]+)?\.png$/.test(n.src), JSON.stringify(n));
+}
+{
   const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
   await page.waitForTimeout(1600);
   const t1 = await page.evaluate(() => AshtonkMania.GameplayScreen.gameTime());
@@ -671,6 +718,70 @@ await shot('07-failed');
 await page.evaluate(() => AshtonkMania.Settings.set('songselect.mods', []));
 await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
 await page.waitForTimeout(500);
+
+// Neru's reaction on the results of a play just finished: pleased with a good one, smug about a fail — not on an
+// older score opened from a list, not on a replay, and never with Neru turned off
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0], wait = ms => new Promise(res => setTimeout(res, ms));
+    const play = (grade, passed, extra = {}) => ({ id: 'sc-neru-' + grade + Math.random(), mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, mods: [], rate: 1, score: 900000, scoreStd: 900000, accuracy: passed ? 0.99 : 0.6, maxCombo: 100, counts: [100, 10, 1, 0, 0, passed ? 0 : 40], grade, passed, date: Date.now(), duration: 60000, player: 'Tester', own: true, hitErrors: [], healthTimeline: [], ...extra });
+    const look = async (score, p = { fresh: true }) => {
+      await A.Screens.go('home'); await A.Screens.go('results', { score, ...p });
+      // (the results screen on show now: the one before can still be fading out)
+      const mine = () => A.Screens.current && A.Screens.current._el ? A.Screens.current._el.querySelector('.nc-results') : null;
+      for (let i = 0; i < 40 && !((mine() || {}).querySelector && (mine().querySelector('.nc-say') || {}).textContent); i++) await wait(100);
+      const el = mine();
+      return el ? { line: el.querySelector('.nc-say').textContent, face: (el.querySelector('.nc-img').src.match(/[^/]+$/) || [''])[0] } : null;
+    };
+    const L = A.NeruCameo.LINES, out = {};
+    out.ss = await look(play('X', true));
+    out.fail = await look(play('D', false));
+    out.old = await look(play('S', true), { fromList: true });
+    out.replay = await look(play('S', true), { fresh: false, watched: 'replay' });
+    A.Settings.set('ui.mascot', false); out.off = await look(play('S', true)); A.Settings.set('ui.mascot', true);
+    // clicking her: a hop and something else to say
+    await look(play('A', true));
+    const el = A.Screens.current._el.querySelector('.nc-results'), before = el.querySelector('.nc-say').textContent;
+    el.click(); await wait(50);
+    out.clicked = { hop: el.classList.contains('hop'), line: el.querySelector('.nc-say').textContent, before };
+    // she steps aside while the statistics are open
+    A.Screens.current._el.querySelector('.res-grid > .rs').click(); await wait(500);
+    out.aside = getComputedStyle(el).opacity;
+    out.moods = ['XH', 'X', 'SH', 'S', 'A', 'B', 'C', 'D'].map(g => A.NeruCameo.moodOf({ passed: true, grade: g })).join() + '|' + A.NeruCameo.moodOf({ passed: true, grade: 'A', isPB: true }) + '|' + A.NeruCameo.moodOf({ passed: false, grade: 'S' });
+    await A.Screens.go('home');
+    // (one of that mood's poses — of the ones there are; her default picture with none of them)
+    const F = A.NeruCameo.FACES, have = mood => F[mood].filter(n => A.NeruMascot.POSES.includes(n));
+    const pose = (mood, s) => !!s && (have(mood).length ? have(mood).map(n => `neru-${n}.png`).includes(s.face) : s.face === 'neru.png');
+    out.ok = { perfect: L.perfect.includes(out.ss && out.ss.line) && pose('perfect', out.ss), failed: L.failed.includes(out.fail && out.fail.line) && pose('failed', out.fail), okay: L.okay.includes(out.clicked.line) };
+    return out;
+  });
+  check('results: Neru reacts to the play just finished — a perfect-play pose for an SS, a fail pose for a fail',
+    r.ss && r.ok.perfect && r.fail && r.ok.failed, JSON.stringify(r));
+  check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop and say more; she steps aside for the statistics',
+    !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && +r.aside < 0.5, JSON.stringify(r));
+  check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad), a new best and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|best|failed', r.moods);
+}
+
+// the main menu: clicking Neru shows one of her other poses for a moment — standing ones (no desk there), never the
+// same one twice running
+{
+  const r = await page.evaluate(async () => {
+    const A = AshtonkMania, M = A.NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms));
+    if (A.Screens.currentName !== 'home') await A.Screens.go('home');
+    for (let i = 0; i < 40 && !M.img; i++) await wait(100);
+    if (!M.img) return { none: true };
+    const shown = [];
+    for (let i = 0; i < 10; i++) {
+      if (!M._next) M.nextPose();
+      const n = M._next;
+      if (n && !n.complete) await new Promise(res => { n.onload = n.onerror = res; });
+      M.hop(); shown.push(M.img.src.split('/').pop());
+    }
+    return { shown, standing: M.POSES.filter(n => !M.SEATED.includes(n)).map(n => `neru-${n}.png`) };
+  });
+  check('main menu: clicking Neru shows another of her poses — standing ones only, not the same twice running',
+    !r.none && r.shown.every(f => r.standing.includes(f)) && r.shown.every((f, i) => !i || f !== r.shown[i - 1] || r.standing.length < 2), JSON.stringify(r));
+}
 
 // skin import (Kori-structured stand-in)
 await dropFiles(['Kori-test.osk']);

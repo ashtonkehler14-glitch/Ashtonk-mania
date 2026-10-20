@@ -1625,7 +1625,35 @@ div.res-calib .i { color: var(--good); }
   86% { transform: translateY(-3px) scale(.99, 1.01); } 100% { transform: none; } }
 @keyframes neruShadow { 45% { transform: scaleX(.7); opacity: .5; } 72% { transform: scaleX(1.08); } }
 @keyframes neruSay { 0% { opacity: 0; transform: scale(.4) translateY(10px); } 12% { opacity: 1; transform: scale(1.06) translateY(0); } 20% { transform: scale(1); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.9) translateY(-6px); } }
-@media (max-height: 520px) and (hover: none) and (orientation: portrait), (max-width: 700px) and (hover: none) and (orientation: portrait) { .neru { display: none; } }
+@media (max-height: 520px) and (hover: none) and (orientation: portrait), (max-width: 700px) and (hover: none) and (orientation: portrait) { .neru, .neru-cameo { display: none; } }
+/* ── Neru around the game (NeruCameo): she pops up at the edge of a screen with something to say */
+.neru-cameo { position: absolute; z-index: 4; display: block; padding: 0; border: 0; background: none; cursor: pointer; }
+.neru-cameo[hidden] { display: none; }
+.nc-body { display: block; height: 100%; transform-origin: 50% 100%; }
+.neru-cameo.in .nc-body { animation: ncIn 760ms var(--ease-out) both; }
+.nc-img { display: block; height: 100%; width: auto; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5));
+  user-select: none; -webkit-user-drag: none; pointer-events: none; transition: translate 350ms cubic-bezier(.34, 1.56, .64, 1); }
+.neru-cameo:hover .nc-img { translate: 0 -6px; }
+.neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
+.nc-say.show { animation-duration: var(--say, 1900ms); }
+.neru-say.still.show { animation: none !important; opacity: 1; transform: none; }
+@keyframes ncIn { 0% { opacity: 0; transform: translateY(45%) rotate(-5deg); } 55% { opacity: 1; transform: translateY(-4%) rotate(1.5deg); } 78% { transform: translateY(1%) rotate(-.5deg); } 100% { transform: none; } }
+/* where each screen has her: beside the results (stepping aside while the statistics are open), the pause and fail
+   screens, the song's loader, an empty song select and the loading screen */
+.nc-results { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 70px; height: calc(min(calc(48 * var(--vh)), 440px) * var(--nc-s, 1)); transition: opacity 260ms ease, translate 420ms var(--ease-out); }
+.results.stats-open .nc-results { opacity: 0; translate: -60px 0; pointer-events: none; }
+.nc-pause { left: clamp(8px, calc(4 * var(--vw)), 64px); bottom: 8px; height: calc(min(calc(34 * var(--vh)), 320px) * var(--nc-s, 1)); }
+.pause-menu:has(.pm-foot) .nc-pause { bottom: 58px; }
+.nc-loader { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(36 * var(--vh)), 320px) * var(--nc-s, 1)); }
+.nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(min(calc(52 * var(--vh)), 460px) * var(--nc-s, 1)); }
+.nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(38 * var(--vh)), 340px) * var(--nc-s, 1)); }
+/* (in a page's "nothing here" card, in place of its icon) */
+.neru-cameo.nc-card { position: relative; z-index: auto; height: 150px; margin: 0 auto 6px; }
+.neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
+.nc-card .nc-img { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
+.nc-card .nc-say { left: 70%; top: 0; }
+.slow .nc-img { animation: none; filter: none; }
+.slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }

@@ -3,3 +3,4 @@ tests/shots/
 *.log
 skins/*.osk
 .wrangler/
+__pycache__/

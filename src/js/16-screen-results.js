@@ -29,6 +29,11 @@ const ResultsScreen = {
     else if (!p.watched && s.mapHash) MpResults.mountLocal(grid, card, s);
     const actions = this.actions(s, p, map);
     el.append(body, actions);
+    // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
+    if (!this._swapping) {
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500, hold: 4200 }) : null;
+      if (this._neru) el.append(this._neru);
+    }
     this.fitToScreen(body, grid);
     if (!this._swapping) this._origP = p; // (the results as they opened: switching back to that score restores them)
     if (p.fresh && s.passed && !this._swapping) setTimeout(() => Screens.currentName === 'results' && SkinManager.sample(s.accuracy >= 0.95 ? 'applause' : 'sectionpass').then(b => b && AudioManager.play(b, { volume: 0.6 })), 1300);
@@ -41,6 +46,8 @@ const ResultsScreen = {
       if (e.target.closest('button, a, input')) return;
       UISounds.click();
       grid.classList.toggle('stats-open');
+      // (the panel slides over to where Neru stands: she steps aside meanwhile)
+      const r = grid.closest('.results'); if (r) r.classList.toggle('stats-open', grid.classList.contains('stats-open'));
       card.title = grid.classList.contains('stats-open') ? 'Click to hide statistics' : 'Click for statistics';
     });
   },
@@ -81,6 +88,7 @@ const ResultsScreen = {
     let built;
     try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null }); } finally { this._swapping = false; }
     old.replaceChildren(...built.childNodes);
+    if (this._neru) old.append(this._neru);
     this._el = old;
     const fresh = old;
     requestAnimationFrame(() => {

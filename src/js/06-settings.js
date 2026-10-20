@@ -27,8 +27,29 @@ const DEFAULT_KEYBINDS = {
 };
 const MAX_KEYS = 18;
 
+/** The keyboard's own names for its keys, where the browser says them (Chrome, Edge): on a German keyboard the key
+ *  in KeyZ's place is "Y", on a French one KeyQ's is "A". Bindings stay where the keys are — only their names change.
+ *  Elsewhere, and until they're known, the names on a US keyboard. */
+const KeyNames = {
+  map: null,
+  /** Asks the browser (again: the keyboard may have changed). Resolves to whether the names are known. */
+  async load() {
+    try { if (navigator.keyboard && navigator.keyboard.getLayoutMap) { const m = await navigator.keyboard.getLayoutMap(); this.map = m && m.size ? m : null; } }
+    catch { /* not allowed here (a page inside another) */ }
+    return !!this.map;
+  },
+  of(code) {
+    const c = this.map && this.map.get(code);
+    if (typeof c !== 'string' || c.trim().length !== 1) return null;
+    const up = c.toUpperCase();
+    return up.length === 1 ? up : c; // ("ß" stays itself, not "SS")
+  },
+};
+
 function keyLabel(code) {
   if (!code) return '—';
+  const own = !/^(Numpad|Pad)/.test(code) && KeyNames.of(code);
+  if (own) return own;
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num' + code.slice(6);
@@ -121,7 +142,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'User Interface', g: 'Style', k: 'ui.animSpeed', l: 'Animation speed', t: 'range', d: 1, min: 0, max: 2, step: 0.1, fmt: v => v === 0 ? 'Off' : `${v.toFixed(1)}×` },
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.menuBackground', l: 'Background source', t: 'select', d: 'skin', o: [['skin', 'Skin'], ['beatmap', 'Beatmap']], hint: 'lazer\'s: the menu\'s triangle picture (in the playing song\'s colour), or the playing song\'s own background.' },
-  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru on the main menu', t: 'bool', d: true },
+  { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru', t: 'bool', d: true, hint: 'On the main menu, and around the game: she reacts to your results, teases you when you fail and keeps you company while things load.' },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).' },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },

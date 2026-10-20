@@ -69,8 +69,8 @@ const BeatmapsScreen = {
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
     if (!sets.length) {
-      this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain' })
-        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain' }));
+      this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain', neru: true })
+        : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true }));
       return;
     }
     // rows go in a page at a time as the list scrolls (all of a big library at once froze the screen opening), each
@@ -167,13 +167,13 @@ const CollectionsScreen = {
     if (favCount) this.side.append(h('div.muted', { style: { fontSize: '.8rem', padding: '10px 4px' } }, `♥ ${favCount} favourite set${favCount === 1 ? '' : 's'} — filter them in song select.`));
     clearEl(this.main);
     const c = Collections.get(this.sel);
-    if (!c) { this.main.append(stateCard('folder', 'No collections', 'Create one to start organizing.', { cls: '.plain' })); return; }
+    if (!c) { this.main.append(stateCard('folder', 'No collections', 'Create one to start organizing.', { cls: '.plain', neru: true })); return; }
     this.main.append(h('div.row', { style: { marginBottom: '14px' } }, h('h2', { style: { margin: 0, fontWeight: 900 } }, c.name), h('span.grow'),
       h('button.btn', { disabled: !c.hashes.length, onclick: () => { Settings.set('songselect.collection', c.id); Screens.go('songselect'); } }, icon('play'), 'Play from collection'),
       h('button.btn.ghost', { onclick: async () => { const n = await Dialog.prompt('Rename collection', c.name); if (n) Collections.rename(c.id, n); } }, icon('edit'), 'Rename'),
       h('button.btn.danger', { title: 'Delete collection', 'aria-label': 'Delete collection', onclick: async () => { if (await Dialog.confirm('Delete collection?', `"${c.name}" will be deleted. Beatmaps are not affected.`, { ok: 'Delete', danger: true })) Collections.remove(c.id); } }, icon('trash'))));
     const list = h(`div${c.hashes.length ? '.ex-grid.lib-grid.coll-grid' : ''}`);
-    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, right-click a difficulty → "Add to collection…", or use the folder button.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain' }));
+    if (!c.hashes.length) list.append(stateCard('folder', 'Empty collection', kbHint('In song select, right-click a difficulty → "Add to collection…", or use the folder button.', 'In song select, use the folder button to add difficulties.'), { cls: '.plain', neru: true }));
     // each difficulty as lazer's beatmap card (the library's): the set's picture faded behind, title and artist, the
     // difficulty with its star rating, your grade, and Play / Remove sliding in on hover
     for (const hash of c.hashes) {
@@ -490,7 +490,7 @@ const ReplaysScreen = {
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
     clearEl(this.list);
-    if (!ReplayManager.list.length) { this.list.append(stateCard('film', 'No replays saved', 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.', { cls: '.plain' })); return; }
+    if (!ReplayManager.list.length) { this.list.append(stateCard('film', 'No replays saved', 'Replays of personal bests are saved automatically (configurable in Settings → Maintenance). You can also save any play from the results screen.', { cls: '.plain', neru: true })); return; }
     // (lazer's DrawableProfileScore, as on the profile: rank pill, title by artist, difficulty · player · date, mods,
     // accuracy — and the replay's buttons in the slanted block where the pp would be)
     const rows = h('div.pf-scores.rp-list');
@@ -688,6 +688,15 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
+    { icon: 'heart', title: 'Neru', items: [
+      'Neru shows up around the game now, not only on the main menu: she reacts to your results — grudgingly impressed by a great play, unimpressed by a weak one or a fail, tsundere as ever — has something to say on the pause and fail screens, tells you not to mess it up while a song loads, shrugs at an empty song select and keeps texting on the loading screen. Click her for more; Settings → Show Neru turns her off everywhere',
+      'Neru has a dozen poses now, taken from her song\'s music video and cut out cleanly: on her phone, fists up, bored at her desk, wagging a finger, snickering, laughing, winking, dancing, hand on hip and in sunglasses — each where it fits (sunglasses for a perfect play, fists up while a song loads, bored while you pause…)',
+      'She\'s her tsundere self: never quite nice about it, never quite admitting she was watching',
+      'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
+      'On the main menu she says hello once a visit (in her way), and clicking her shows another of her poses',
+      'Her speech bubbles show with animations turned off too (Performance mode): they never appeared'] },
+    { icon: 'keyboard', title: 'Keys', items: [
+      'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time. How far it\'s got shows in the notifications, and the X there stops it',
