@@ -26,9 +26,9 @@ const Sync = {
   pending() { return this.marked('am.restore') === '1'; },
 
   init() {
-    // (a medal is your progress, not a change to your settings: it goes up with the next one — merged, see apply)
-    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) { if (k !== 'medals.unlocked') this.touch(); this.later(); } });
-    for (const ev of ['skin:changed', 'collections:changed', 'favorites:changed']) Bus.on(ev, () => { this.touch(); this.later(); });
+    // (each change noted, to be sent: a medal too — though alone it waits for the next change)
+    Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
+    for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs']]) Bus.on(ev, () => { this.touch(part); this.later(); });
     Bus.on('account:changed', () => this.later());
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -43,26 +43,47 @@ const Sync = {
     clearTimeout(this.t);
     this.t = setTimeout(() => this.push().catch(e => console.warn('settings not kept', e)), ms);
   },
-  /** Your settings, skin, collections or favourites were changed on this device since they last went up (as this
-   *  player). Only then are they sent: a device that merely has another version of them — brought long ago, or with
-   *  a setting the game has added since — never puts it over the one you changed on another device. */
-  dirty() { const pid = Account.me().pid; return !!pid && this.marked('am.setDirty') === pid; },
-  /** Changed here (not by a restore bringing them). */
-  touch() { if (this._restoring) return; const pid = Account.me().pid; if (pid) { this.mark('am.setDirty', pid); this._touched = Date.now(); } },
+  /** What was changed on this device since it last went up (as this player): { full, keys, skin, cols, favs }, or
+   *  null. Only that is sent, and the server merges it into what's kept: a device that merely has another version of
+   *  the rest — brought long ago, or with a setting the game has added since — never puts it over what you changed
+   *  on another device. */
+  changes() {
+    const pid = Account.me().pid;
+    let c = null;
+    try { c = JSON.parse(this.marked('am.setChanges') || 'null'); } catch { /* none */ }
+    if (c && c.pid === pid && Array.isArray(c.keys)) return c;
+    return pid && this.marked('am.setDirty') === pid ? { pid, full: true, keys: [] } : null; // (as the version before marked it)
+  },
+  /** Changed here — a setting (its key), 'skin', 'cols', 'favs', or 'full' (everything) — and not by a restore. */
+  touch(part) { if (!this._restoring) this.note(part); },
+  note(part) {
+    const pid = Account.me().pid;
+    if (!pid) return;
+    const c = this.changes() || { pid, keys: [] };
+    if (['full', 'skin', 'cols', 'favs'].includes(part)) c[part] = true; else if (!c.keys.includes(part)) c.keys.push(part);
+    this.mark('am.setChanges', JSON.stringify(c));
+    this._touched = Date.now();
+  },
+  /** Anything to send (a medal alone goes with the next change). */
+  dirty(c = this.changes()) { return !!c && !!(c.full || c.skin || c.cols || c.favs || c.keys.some(k => k !== 'medals.unlocked')); },
+  forgetChanges() { this.mark('am.setChanges', null); this.mark('am.setDirty', null); },
   /** When everything from here last went up (0: not yet, or not as this player). */
   sentAt() { const [p, t] = this.marked('am.syncAt').split('|'); return p && p === Account.me().pid ? Number(t) || 0 : 0; },
   // (nothing goes up while a restore is under way: what it brings isn't all here yet)
   ready() { return Account.linked() && !Account.signedOut() && !this.pending() && !this._restoring && Multiplayer.available() && !!Account.me().pid; },
 
-  /** What's sent: your settings, which skin you use (by id and name: the same skin has another id on a device it was
-   *  brought to), your collections (by name, with their beatmaps' hashes) and favourites (beatmap sets' ids) — unless
-   *  there are too many to keep. */
-  payload() {
-    const values = {};
-    for (const [k, v] of Object.entries(Settings.values)) if (!this.local(k) && !this.big(v)) values[k] = v;
-    const cur = SkinManager.current, cols = Collections.list.map(c => ({ name: c.name, hashes: c.hashes })), favs = [...Favorites.set];
-    return { v: 1, values, skin: cur ? { id: cur.id, name: cur.builtin ? 'Custom' : (cur.meta && cur.meta.name) || '' } : null,
-      ...(JSON.stringify(cols).length <= 100000 ? { collections: cols } : {}), ...(favs.length <= 2500 ? { favorites: favs } : {}) };
+  /** What's sent of what changed (`c`, as changes() has it; everything when `full`): your settings, which skin you use
+   *  (by id and name: the same skin has another id on a device it was brought to), your collections (by name, with
+   *  their beatmaps' hashes) and favourites (beatmap sets' ids) — unless there are too many to keep. */
+  payload(c = { full: true, keys: [] }) {
+    const values = {}, keys = new Set(c.keys), out = { v: 2, values };
+    for (const [k, v] of Object.entries(Settings.values)) if (!this.local(k) && !this.big(v) && (c.full || keys.has(k))) values[k] = v;
+    if (c.full) out.full = true;
+    const cur = SkinManager.current;
+    if (c.full || c.skin) out.skin = cur ? { id: cur.id, name: cur.builtin ? 'Custom' : (cur.meta && cur.meta.name) || '' } : null;
+    if (c.full || c.cols) { const cols = Collections.list.map(x => ({ name: x.name, hashes: x.hashes })); if (JSON.stringify(cols).length <= 100000) out.collections = cols; }
+    if (c.full || c.favs) { const favs = [...Favorites.set]; if (favs.length <= 2500) out.favorites = favs; }
+    return out;
   },
   async push() {
     if (!this.ready()) return;
@@ -72,15 +93,16 @@ const Sync = {
     try {
       let failed = null;
       try {
-        if (this.dirty()) {
-          const t0 = Date.now(), me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
-          let kept; // (undefined: not asked this time; null: the server keeps no skin)
-          if (this.marked('am.setSent') !== sum) {
-            kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
-            this.mark('am.setSent', sum);
-          }
-          await this.pushSkin(kept);
-          if (!(this._touched > t0)) this.mark('am.setDirty', null); // (changed again meanwhile: that goes next)
+        const c = this.changes();
+        if (this.dirty(c)) {
+          const t0 = Date.now(), me = Account.me();
+          let d;
+          try { d = await Account.call('settings', { ...me, settings: this.payload(c) }); }
+          // (nothing kept yet: what changed here alone would be all there is — so everything)
+          catch (e) { if (e.status !== 409 || c.full) throw e; c.full = true; d = await Account.call('settings', { ...me, settings: this.payload(c) }); }
+          // (the skin itself, when it's what this device sent: d.skin is the one the server keeps)
+          if (c.full || c.skin) await this.pushSkin(d.skin || null);
+          if (!(this._touched > t0)) this.forgetChanges(); // (changed again meanwhile: all of it goes next time)
         }
       } catch (e) { failed = e; }
       // (your plays on their own: a skin that couldn't go up doesn't keep them back)
@@ -93,14 +115,14 @@ const Sync = {
       if (this._again) { this._again = false; this.later(); }
     }
   },
-  /** The skin you use, if you imported it, once (again when you change skins — or when the server says it keeps
-   *  another one: your other device sent its own since). `kept`: the server's, as it answered the settings. */
+  /** The skin you use, if you imported it, as the settings just sent name it (unless the server keeps that one
+   *  already). `kept`: the server's, as it answered the settings. */
   async pushSkin(kept) {
     const cur = SkinManager.current, meta = cur && !cur.builtin && SkinManager.skins.find(s => s.id === cur.id);
     if (!meta || SkinManager.bundled(meta)) return;
     const me = Account.me(), sent = `${me.pid}|${meta.id}`;
     if (kept && kept.name === meta.name) { this.mark('am.skinSent', sent); return; }
-    if ((kept === undefined && this.marked('am.skinSent') === sent) || this.marked('am.skinBig') === sent) return;
+    if (this.marked('am.skinBig') === sent) return;
     const blob = await SkinManager.oskBlob(meta.id);
     if (!blob) return;
     if (blob.size > this.SKIN_MAX) { this.mark('am.skinBig', sent); console.warn('skin too big to keep', blob.size); return; }
@@ -193,13 +215,12 @@ const Sync = {
       throw e;
     }
     const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
-    const own = s && this.ownExtra(s);
+    const own = s ? this.ownExtra(s) : [];
     if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
     if (s && Array.isArray(s.collections)) got.collections = await Collections.merge(s.collections);
     if (s && Array.isArray(s.favorites)) got.favorites = await Favorites.merge(s.favorites);
     // (the settings are here: whatever happens to the skin, this restore is done — it's never applied over again)
     this.mark('am.restore', null);
-    this.mark('am.setSent', null);
     const want = s && s.skin, pid = Account.me().pid;
     if (want && want.id) {
       if (want.id === 'default') await SkinManager.select('default');
@@ -219,11 +240,11 @@ const Sync = {
         }
       }
     }
-    // (what came is what's kept: nothing to send back — unless this device added something of its own to it, or
-    // nothing was kept yet: then this device's go up. Sent back anyway, it went over any newer settings another of
-    // your devices had sent in the meantime.)
-    if (s && !own) { this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`); this.mark('am.setDirty', null); }
-    else this.mark('am.setDirty', pid);
+    // (what came is what's kept: nothing from here to send back — sent anyway, it went over newer settings another of
+    // your devices had sent in the meantime — but what this device adds to it, and everything if nothing was kept)
+    this.forgetChanges();
+    if (!s) this.note('full');
+    for (const part of own) this.note(part);
     onStatus('Bringing your scores…');
     // (all that's kept, not only what's new since this device last asked: one that had them and lost them — Reset
     // everything, or cleared by the browser — gets them back; the ones it has are skipped)
@@ -232,13 +253,16 @@ const Sync = {
     this.later();
     return got;
   },
-  /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): a
-   *  collection's beatmap, a favourite, a medal. */
+  /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
+   *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */
   ownExtra(s) {
     const cols = new Map((Array.isArray(s.collections) ? s.collections : []).map(c => [c && c.name, new Set(c && Array.isArray(c.hashes) ? c.hashes : [])]));
     const favs = new Set(Array.isArray(s.favorites) ? s.favorites : []), medals = (s.values && s.values['medals.unlocked']) || {}, mine = Settings.values['medals.unlocked'] || {};
-    return Collections.list.some(c => c.hashes.some(x => !(cols.get(c.name) || new Set()).has(x))) || [...Favorites.set].some(x => !favs.has(x))
-      || (typeof mine === 'object' && Object.keys(mine).some(k => !(k in medals)));
+    return [
+      Collections.list.some(c => c.hashes.some(x => !(cols.get(c.name) || new Set()).has(x))) && 'cols',
+      [...Favorites.set].some(x => !favs.has(x)) && 'favs',
+      typeof mine === 'object' && Object.keys(mine).some(k => !(k in medals)) && 'medals.unlocked',
+    ].filter(Boolean);
   },
   /** A restore that didn't get an answer: again in a minute, quietly, while this device still waits for one. */
   retry() {

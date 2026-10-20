@@ -14,17 +14,39 @@ const SCORES_PAGE = 300;
 const seqKey = n => `sq:${String(n).padStart(10, '0')}`;
 const scoreId = id => typeof id === 'string' && /^sc-[\w-]{4,48}$/.test(id);
 
+/** What's kept (`base`) with a device's changes (`o`: the settings it changed; skin, collections or favourites if
+ *  they changed) — medals unlocked anywhere stay unlocked. */
+export function mergeSettings(base, o) {
+  const values = { ...base.values, ...(o.values && typeof o.values === 'object' ? o.values : {}) };
+  const m0 = base.values['medals.unlocked'], m1 = o.values && o.values['medals.unlocked'];
+  if (m0 && typeof m0 === 'object' && m1 && typeof m1 === 'object') values['medals.unlocked'] = { ...m0, ...m1 };
+  const out = { ...base, v: 2, values };
+  for (const k of ['skin', 'collections', 'favorites']) if (k in o) out[k] = o[k];
+  delete out.full;
+  return out;
+}
+
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
 export class PlayerVault {
   constructor(state) { this.state = state; }
   async fetch(request) {
     const st = this.state.storage, path = new URL(request.url).pathname;
-    // the settings, as the game sends them ({ v, values, skin: { id, name } }): replaced each time
+    // the settings, as the game sends them ({ v, values, skin: { id, name }, collections, favorites }). From v2, what a
+    // device changed is merged into what's kept — each setting as the device that last changed it has it, medals from
+    // all — and only `full` replaces it all (the first time; older games always do)
     if (path === '/settings') {
-      const text = await request.text();
+      let text = await request.text(), o;
       if (text.length > SETTINGS_MAX) return json({ error: 'Your settings are too big to keep.' }, 413);
-      try { const o = JSON.parse(text); if (!o || typeof o !== 'object') throw 0; } catch { return json({ error: 'Bad settings.' }, 400); }
+      try { o = JSON.parse(text); if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0; } catch { return json({ error: 'Bad settings.' }, 400); }
+      if (o.v >= 2 && !o.full) {
+        const old = await st.get('settings');
+        let base = null;
+        try { base = old ? JSON.parse(old.text) : null; } catch { /* unreadable: as if none */ }
+        if (!base || typeof base !== 'object' || !base.values || typeof base.values !== 'object') return json({ error: 'Nothing is kept yet: send everything.', full: true }, 409);
+        text = JSON.stringify(mergeSettings(base, o));
+        if (text.length > SETTINGS_MAX) return json({ error: 'Your settings are too big to keep.' }, 413);
+      }
       await st.put('settings', { at: Date.now(), text });
       // (which skin is kept: a device whose skin isn't it sends its own)
       const k = await st.get('skin');

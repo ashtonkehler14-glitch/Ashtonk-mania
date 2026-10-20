@@ -54,3 +54,25 @@ test('a merged player keeps nothing', async () => {
   await call(v, 'wipe', {});
   assert.equal((await call(v, 'scores', { after: 0 })).scores.length, 0);
 });
+
+test('settings: what a device changed is merged into what\'s kept — each setting as it was last changed, medals from all', async () => {
+  const v = vault(), restore = async () => (await call(v, 'restore', {})).settings;
+  // (nothing kept yet: a device's changes alone would be all there is — it's asked for everything)
+  const first = await v.fetch(new Request('https://vault/settings', { method: 'POST', body: JSON.stringify({ v: 2, values: { a: 1 } }) }));
+  assert.equal(first.status, 409);
+  assert.equal((await first.json()).full, true);
+  await call(v, 'settings', { v: 2, full: true, values: { a: 1, b: 1, 'medals.unlocked': { m1: 1 } }, skin: { id: 's1', name: 'One' }, collections: [{ name: 'C', hashes: ['h1'] }], favorites: ['set-1'] });
+  // device B changes b and unlocks a medal; device A then changes a (its b is older: not sent)
+  await call(v, 'settings', { v: 2, values: { b: 2, 'medals.unlocked': { m2: 1 } } });
+  await call(v, 'settings', { v: 2, values: { a: 3, 'medals.unlocked': { m1: 1 } } });
+  const s = await restore();
+  assert.deepEqual(s.values, { a: 3, b: 2, 'medals.unlocked': { m1: 1, m2: 1 } });
+  assert.deepEqual([s.skin.name, s.collections[0].name, s.favorites[0], 'full' in s], ['One', 'C', 'set-1', false]); // (not sent: kept as they were)
+  // a skin, collections or favourites sent replace what's kept
+  await call(v, 'settings', { v: 2, values: {}, skin: { id: 's2', name: 'Two' }, favorites: [] });
+  const t = await restore();
+  assert.deepEqual([t.skin.name, t.favorites.length, t.collections.length, t.values.a], ['Two', 0, 1, 3]);
+  // an older game sends everything, which replaces it all
+  await call(v, 'settings', { v: 1, values: { z: 9 }, skin: null });
+  assert.deepEqual((await restore()).values, { z: 9 });
+});
