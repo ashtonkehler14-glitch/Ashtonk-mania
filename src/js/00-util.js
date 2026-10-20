@@ -1,6 +1,9 @@
 /* Ashtonk!mania — core utilities.
  * Everything here is dependency-free and shared by every other system. */
 
+/** A copy of plain data (a setting's value): structuredClone, or — Safari before 15.4 hasn't got it — a JSON copy. */
+const copyData = v => typeof structuredClone === 'function' ? structuredClone(v) : v === undefined ? v : JSON.parse(JSON.stringify(v));
+
 const APP_NAME = 'Ashtonk!mania';
 const APP_VERSION = '0.1.0';
 

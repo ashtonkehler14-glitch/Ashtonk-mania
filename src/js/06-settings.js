@@ -246,7 +246,7 @@ const Settings = {
     if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
-    return s ? (typeof s.d === 'object' && s.d !== null ? structuredClone(s.d) : s.d) : undefined;
+    return s ? (typeof s.d === 'object' && s.d !== null ? copyData(s.d) : s.d) : undefined;
   },
   async set(k, v) {
     this.values[k] = v;
@@ -258,7 +258,7 @@ const Settings = {
   },
   async flush() { clearTimeout(this._saveT); await DB.kvSet('settings', this.values); },
   reset(k) { delete this.values[k]; Bus.emit('settings:changed', k, this.get(k)); this.set(k, this.get(k)); },
-  export() { return structuredClone(this.values); },
+  export() { return copyData(this.values); },
   async import(obj) { if (obj && typeof obj === 'object') { this.values = { ...obj }; await this.flush(); this.applyUI(); AudioManager.applyVolumes(); Bus.emit('settings:changed', '*'); } },
 
   keybinds(keys) {

@@ -631,7 +631,7 @@ const SkinsScreen = {
     const box = h('div.sk-custom'), keys = wom ? this.WOM_KEYS : this.CUSTOM_KEYS;
     // (a WOM skin being looked at isn't necessarily the one in use, so its rows show whatever is selected)
     const rowOf = d => !wom ? d : { ...d, when: undefined };
-    const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of keys) { const d = Settings.schema.get(k); if (d) Settings.set(k, structuredClone(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
+    const paint = () => clearEl(box).append(h('div.sk-custom-h', icon('brush'), 'Customise', h('button.btn.sm.ghost', { onclick: () => { for (const k of keys) { const d = Settings.schema.get(k); if (d) Settings.set(k, copyData(d.d)); } UISounds.click(); paint(); } }, 'Reset')),
       h('div.settings-panel.sk-custom-rows', ...keys.map(k => Settings.schema.get(k)).filter(Boolean).map(d => SettingsPanel.row(rowOf(d)))));
     paint();
     // rows that depend on another one (the Custom hue on its palette, WOM's hue on its colour mode)

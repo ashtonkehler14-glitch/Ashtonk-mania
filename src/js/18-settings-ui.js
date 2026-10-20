@@ -103,7 +103,7 @@ const SettingsPanel = {
   row(it) {
     const val = () => Settings.get(it.k);
     const isDefault = () => JSON.stringify(Settings.get(it.k)) === JSON.stringify(it.d);
-    const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, structuredClone(it.d)); UISounds.click(); rebuild(); } });
+    const reset = h('button.reset', { title: 'Revert to default', 'aria-label': `Revert ${it.l} to default`, onclick: e => { e.stopPropagation(); Settings.set(it.k, copyData(it.d)); UISounds.click(); rebuild(); } });
     const updReset = () => reset.classList.toggle('show', !isDefault());
     const cap = h('div.lbl', it.l, it.hint ? h('div.hint', it.hint) : null);
     let row;
@@ -215,8 +215,8 @@ const KeyConfig = {
     const warn = conflicts.size ? `Conflict: ${[...conflicts].map(keyLabel).join(', ')} bound to multiple lanes.` : '';
     root.append(h(`div.keycfg-help${warn ? '.warn' : ''}`, warn || help));
     root.append(h('div.row', { style: { justifyContent: 'center' } },
-      h('button.btn.sm', { onclick: () => { Settings.setKeybinds(this.keys, structuredClone(DEFAULT_KEYBINDS[this.keys])); this.render(); } }, `Reset ${this.keys}K`),
-      h('button.btn.sm.ghost', { onclick: async () => { if (await Dialog.confirm('Reset all keybinds?', 'Every key mode goes back to its default layout.')) { Settings.set('input.keybinds', structuredClone(DEFAULT_KEYBINDS)); this.render(); } } }, 'Reset all')));
+      h('button.btn.sm', { onclick: () => { Settings.setKeybinds(this.keys, copyData(DEFAULT_KEYBINDS[this.keys])); this.render(); } }, `Reset ${this.keys}K`),
+      h('button.btn.sm.ghost', { onclick: async () => { if (await Dialog.confirm('Reset all keybinds?', 'Every key mode goes back to its default layout.')) { Settings.set('input.keybinds', copyData(DEFAULT_KEYBINDS)); this.render(); } } }, 'Reset all')));
     this.attach();
   },
   listen(i, add) { this.listening = i; this.addMode = add; UISounds.click(); this.render(); this.pollPad(); },
