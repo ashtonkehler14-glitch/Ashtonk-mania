@@ -20301,6 +20301,8 @@ const CHANGELOG = [
       'Collections opens on one that has beatmaps in it, not an empty one',
       'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
       'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
+    { icon: 'globe', title: 'Ad blockers', items: [
+      'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
     { icon: 'keyboard', title: 'Keys', items: [
       'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [
@@ -26280,14 +26282,20 @@ const Mobile = {
   },
   /** The phone's own Back (button or swipe) works as Esc does, like lazer on Android: closes what's open, pauses a
    *  play, goes back a screen — instead of leaving the game. At the main menu's big logo with nothing open, it
-   *  leaves as usual. */
+   *  leaves as usual.
+   *  The history step that Back takes is added when you touch the game (or press a key), never as the page opens nor
+   *  straight after a Back: ad blockers that watch for scam pages flag a page that fills its history by itself — one
+   *  that "traps" the Back button — and put their warning over the game. (Chrome skips such steps on Back anyway.) */
   backKey() {
-    const mark = () => { try { history.pushState({ amBack: 1 }, ''); } catch {} };
+    let armed = false;
+    // (on a real touch or key only — not the Esc this sends for Back — and when the finger lifts: that's when the
+    // browser counts the touch as you using the page)
+    const mark = e => { if (armed || !e.isTrusted) return; armed = true; try { history.pushState({ amBack: 1 }, ''); } catch {} };
     const atRoot = () => Screens.currentName === 'home' && HomeScreen.menuState === 'initial' && !Overlays.top() && !(typeof SettingsPanel !== 'undefined' && SettingsPanel.o);
-    mark();
+    for (const ev of ['pointerup', 'keydown']) addEventListener(ev, mark, { capture: true, passive: true });
     addEventListener('popstate', () => {
+      armed = false;
       if (atRoot()) { history.back(); return; }
-      mark();
       const t = document.activeElement && document.activeElement !== document.body ? document.activeElement : document.body;
       if (t.blur && /^(INPUT|TEXTAREA)$/.test(t.tagName)) t.blur(); // (Back puts the keyboard away first, as on Android)
       else t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
@@ -28048,7 +28056,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '675d1f8f48bc';
+const APP_BUILD = '092d1fb6b8ae';
 
 const App = {
   lastReport: null,
@@ -28417,9 +28425,12 @@ const App = {
   /** Chrome on Android, reopening the tab after you've been in another app, shows a picture of the page from when you
    *  left ("Preview" in the address bar, "Previewing this page") until the reloaded page starts a navigation — which a
    *  phone's slow load can leave on screen for a while. An in-place history update (same address, same state) counts:
-   *  once the loading screen is up, the live page takes over from the picture. */
+   *  once the loading screen is up, the live page takes over from the picture.
+   *  Only then — a tab the browser put away and is bringing back — never when the game is simply opened: ad blockers
+   *  that watch for scam pages count a page touching its history as it opens as one sending you somewhere, and put
+   *  their warning over the game. */
   dropPreview() {
-    if (!/^https?:$/.test(location.protocol)) return; // (only web pages get the picture)
+    if (!/^https?:$/.test(location.protocol) || !document.wasDiscarded) return; // (only web pages get the picture)
     requestAnimationFrame(() => setTimeout(() => { try { history.replaceState(history.state, '', location.href); } catch { /* fine */ } }, 0));
   },
   initPWA() {

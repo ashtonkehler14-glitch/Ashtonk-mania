@@ -702,6 +702,8 @@ const CHANGELOG = [
       'Collections opens on one that has beatmaps in it, not an empty one',
       'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
       'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
+    { icon: 'globe', title: 'Ad blockers', items: [
+      'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
     { icon: 'keyboard', title: 'Keys', items: [
       'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [

@@ -1847,20 +1847,33 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const mp = await mctx.newPage();
   mp.on('pageerror', e => errors.push('mobile: ' + e.message));
+  // (every history change the page makes, and whether you'd touched it yet)
   await mp.addInitScript(() => {
-    const was = history.replaceState.bind(history);
-    history.replaceState = (st, t, u) => { (window.__rs = window.__rs || []).push({ same: String(u) === location.href, state: st === history.state, loading: !!document.querySelector('#loading-screen:not(.done)') }); return was(st, t, u); };
+    window.__hist = []; window.__touched = false;
+    addEventListener('pointerup', () => { window.__touched = true; }, true);
+    for (const k of ['pushState', 'replaceState']) { const was = history[k].bind(history); history[k] = (...a) => { window.__hist.push({ k, touched: window.__touched }); return was(...a); }; }
   });
   await mp.goto(url);
   await mp.waitForFunction(() => document.querySelector('#loading-screen.done'), null, { timeout: 30000 });
-  const rs = await mp.evaluate(() => window.__rs || []);
-  check('phone: an in-place history update while the loading screen is up (what takes Chrome\'s "Previewing this page" picture away on a reopened tab)', rs.length >= 1 && rs[0].same && rs[0].state && rs[0].loading, JSON.stringify(rs));
+  await mp.waitForTimeout(800);
+  const opened = await mp.evaluate(() => ({ hist: window.__hist.slice(), len: history.length }));
+  check('phone: opening the game changes nothing in the browser\'s history (ad blockers that watch for scam pages put their warning over a page that does)', opened.hist.length === 0, JSON.stringify(opened));
   await mp.waitForSelector('.mob-inst', { timeout: 30000 });
   check('phone: opening in the browser recommends the app straight away, saying the browser isn\'t recommended', /not recommended/.test(await mp.textContent('.mob-inst')));
   await mp.click('.mob-inst-skip'); await mp.waitForTimeout(400);
   await mp.waitForSelector('.setup-step-welcome', { timeout: 30000 }); await setupName(mp, 'Phone'); await mp.waitForTimeout(300);
   await mp.evaluate(() => AshtonkMania.Onboarding.finish()); await mp.waitForFunction(() => !document.querySelector('.setup'));
   await mp.evaluate(async () => { const b = await (await fetch('/tests/fixtures/test-set.osz')).blob(); await AshtonkMania.App.importFiles([new File([b], 'test-set.osz')]); });
+  {
+    // the phone's Back works as Esc once you've touched the game: it closes the settings instead of leaving
+    await mp.evaluate(() => AshtonkMania.Screens.go('home')); await mp.waitForTimeout(800);
+    await mp.tap('body', { position: { x: 400, y: 200 } }).catch(() => {}); await mp.waitForTimeout(300);
+    await mp.evaluate(() => AshtonkMania.SettingsPanel.open()); await mp.waitForTimeout(500);
+    const before = await mp.evaluate(() => ({ len: history.length, open: !!AshtonkMania.SettingsPanel.o, hist: window.__hist.map(x => x.k + (x.touched ? '' : ' untouched')) }));
+    await mp.goBack({ timeout: 3000 }).catch(() => {}); await mp.waitForTimeout(600);
+    const after = await mp.evaluate(() => ({ here: !!window.AshtonkMania, open: !!AshtonkMania.SettingsPanel.o, hist: window.__hist.map(x => x.k + (x.touched ? '' : ' untouched')) }));
+    check('phone: after a tap, Back closes what\'s open (settings) and stays in the game; the history step for it is only added on a touch', before.open && after.here && !after.open && before.hist.every(x => !/untouched/.test(x)) && after.hist.every(x => !/untouched/.test(x)), JSON.stringify({ before, after }));
+  }
   {
     // a long press is a right-click (iOS sends no contextmenu for one, and the press ended as a tap that started the song)
     await mp.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await mp.waitForTimeout(1500);

@@ -100,14 +100,20 @@ const Mobile = {
   },
   /** The phone's own Back (button or swipe) works as Esc does, like lazer on Android: closes what's open, pauses a
    *  play, goes back a screen — instead of leaving the game. At the main menu's big logo with nothing open, it
-   *  leaves as usual. */
+   *  leaves as usual.
+   *  The history step that Back takes is added when you touch the game (or press a key), never as the page opens nor
+   *  straight after a Back: ad blockers that watch for scam pages flag a page that fills its history by itself — one
+   *  that "traps" the Back button — and put their warning over the game. (Chrome skips such steps on Back anyway.) */
   backKey() {
-    const mark = () => { try { history.pushState({ amBack: 1 }, ''); } catch {} };
+    let armed = false;
+    // (on a real touch or key only — not the Esc this sends for Back — and when the finger lifts: that's when the
+    // browser counts the touch as you using the page)
+    const mark = e => { if (armed || !e.isTrusted) return; armed = true; try { history.pushState({ amBack: 1 }, ''); } catch {} };
     const atRoot = () => Screens.currentName === 'home' && HomeScreen.menuState === 'initial' && !Overlays.top() && !(typeof SettingsPanel !== 'undefined' && SettingsPanel.o);
-    mark();
+    for (const ev of ['pointerup', 'keydown']) addEventListener(ev, mark, { capture: true, passive: true });
     addEventListener('popstate', () => {
+      armed = false;
       if (atRoot()) { history.back(); return; }
-      mark();
       const t = document.activeElement && document.activeElement !== document.body ? document.activeElement : document.body;
       if (t.blur && /^(INPUT|TEXTAREA)$/.test(t.tagName)) t.blur(); // (Back puts the keyboard away first, as on Android)
       else t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));

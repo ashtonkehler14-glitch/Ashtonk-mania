@@ -373,9 +373,12 @@ const App = {
   /** Chrome on Android, reopening the tab after you've been in another app, shows a picture of the page from when you
    *  left ("Preview" in the address bar, "Previewing this page") until the reloaded page starts a navigation — which a
    *  phone's slow load can leave on screen for a while. An in-place history update (same address, same state) counts:
-   *  once the loading screen is up, the live page takes over from the picture. */
+   *  once the loading screen is up, the live page takes over from the picture.
+   *  Only then — a tab the browser put away and is bringing back — never when the game is simply opened: ad blockers
+   *  that watch for scam pages count a page touching its history as it opens as one sending you somewhere, and put
+   *  their warning over the game. */
   dropPreview() {
-    if (!/^https?:$/.test(location.protocol)) return; // (only web pages get the picture)
+    if (!/^https?:$/.test(location.protocol) || !document.wasDiscarded) return; // (only web pages get the picture)
     requestAnimationFrame(() => setTimeout(() => { try { history.replaceState(history.state, '', location.href); } catch { /* fine */ } }, 0));
   },
   initPWA() {
