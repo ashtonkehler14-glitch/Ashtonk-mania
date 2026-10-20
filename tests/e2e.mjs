@@ -1884,12 +1884,18 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }], replays: [] })], 'old.json')); } catch (e) { oldErr = e.message; }
     res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1') };
     added.push({ id: 'bk-old1' });
+    // (and in a browser that can't read a file a part at a time: whole, as before)
+    const TDS = window.TextDecoderStream; delete window.TextDecoderStream;
+    try { await DataManager.importFile(new File([text.replace(/"id":"sc-/g, '"id":"bk2-sc-').replace(/"id":"rp-/g, '"id":"bk2-rp-')], 'backup.json')); } finally { window.TextDecoderStream = TDS; }
+    const added2 = A.ScoreManager.scores.filter(s => s.id.startsWith('bk2-')), addedR2 = A.ReplayManager.list.filter(r => r.id.startsWith('bk2-'));
+    res.whole = added2.length === nS && addedR2.length === nR;
+    added.push(...added2); addedR.push(...addedR2);
     for (const s of added) await A.DB.del('scores', s.id);
     for (const r of addedR) await A.DB.del('replays', r.id);
     await A.ScoreManager.init(); await A.ReplayManager.init(); A.Bus.emit('scores:changed'); A.Bus.emit('replays:changed');
     return res;
   });
-  check('Export all data writes each play and replay on a line of its own; such a backup is read back a line at a time, timing and key presses included (and one all on a line, without replays, as before)', ex.first && ex.inFile[0] === ex.nS && ex.inFile[1] === ex.nR && ex.lines === ex.nS + ex.nR + 3 && ex.nS > 0 && ex.nR > 0 && ex.added === ex.nS && ex.addedR === ex.nR && ex.marked && ex.keptTiming && ex.keptKeys && ex.light && /^ashtonk-mania-backup-.*\.json$/.test(ex.name) && !ex.old.err && ex.old.found, JSON.stringify(ex));
+  check('Export all data writes each play and replay on a line of its own; such a backup is read back a line at a time, timing and key presses included (and one all on a line, without replays, as before)', ex.first && ex.inFile[0] === ex.nS && ex.inFile[1] === ex.nR && ex.lines === ex.nS + ex.nR + 3 && ex.nS > 0 && ex.nR > 0 && ex.added === ex.nS && ex.addedR === ex.nR && ex.marked && ex.keptTiming && ex.keptKeys && ex.light && /^ashtonk-mania-backup-.*\.json$/.test(ex.name) && !ex.old.err && ex.old.found && ex.whole, JSON.stringify(ex));
 }
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {

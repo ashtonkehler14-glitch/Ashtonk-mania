@@ -426,6 +426,8 @@ const DataManager = {
   /** A data file: a backup that Export all data wrote a line at a time is read that way (a part at a time — see
    *  exportAll), anything else whole. */
   async importFile(f) {
+    // (a browser that can't read a file a part at a time reads it whole, as before)
+    if (typeof TextDecoderStream === 'undefined' || !f.stream) { let obj = null; try { obj = JSON.parse(await f.text()); } catch { /* below */ } return this.importAll(obj); }
     const rd = f.stream().pipeThrough(new TextDecoderStream()).getReader();
     let buf = '', head = null;
     // (its first line: everything but the plays and replays)

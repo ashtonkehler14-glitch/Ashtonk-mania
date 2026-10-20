@@ -11814,6 +11814,8 @@ const DataManager = {
   /** A data file: a backup that Export all data wrote a line at a time is read that way (a part at a time — see
    *  exportAll), anything else whole. */
   async importFile(f) {
+    // (a browser that can't read a file a part at a time reads it whole, as before)
+    if (typeof TextDecoderStream === 'undefined' || !f.stream) { let obj = null; try { obj = JSON.parse(await f.text()); } catch { /* below */ } return this.importAll(obj); }
     const rd = f.stream().pipeThrough(new TextDecoderStream()).getReader();
     let buf = '', head = null;
     // (its first line: everything but the plays and replays)
@@ -27764,7 +27766,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'e4260cd349e8';
+const APP_BUILD = '126f5d90fda4';
 
 const App = {
   lastReport: null,
