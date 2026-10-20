@@ -145,7 +145,8 @@ const MpResults = {
         h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
         r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
         h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),
-        (r.mods || []).length ? h('div.cp-mods', ...r.mods.map(m => ModSystem.badge(m, true))) : null,
+        // (its row there with no mods too: every panel the same height, side by side)
+        h('div.cp-mods', ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         r.forfeit ? h('div.cp-note', r.left ? 'left the match' : 'forfeited') : null),
       h('div.cp-bottom', h('div.cp-score', fmtScore(r.score || 0)), g ? rankPill(g) : h('span.cp-wait', '…')));
   },

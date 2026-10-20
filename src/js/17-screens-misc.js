@@ -157,7 +157,8 @@ const CollectionsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
-    if (!this.sel || !Collections.get(this.sel)) this.sel = Collections.list[0]?.id || null;
+    // (opened on the first collection with beatmaps in it, not an empty one, when none was picked yet)
+    if (!this.sel || !Collections.get(this.sel)) this.sel = (Collections.list.find(c => c.hashes.length) || Collections.list[0])?.id || null;
     clearEl(this.side);
     for (const c of Collections.list) {
       this.side.append(h(`button.side-item${c.id === this.sel ? '.active' : ''}`, { onclick: () => { this.sel = c.id; UISounds.click(); this.render(); } },
@@ -694,6 +695,13 @@ const CHANGELOG = [
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
+    { icon: 'sparkle', title: 'Looks', items: [
+      'Results: your other scores on the beatmap, either side of yours, are all the same height (one with mods was taller), and the mod badges by the star rating are as big as the chips beside them',
+      'The song\'s title, artist and difficulty on the loading screen stay readable over a bright background',
+      'Empty pages look alike: no friends yet, nobody online, nobody ranked yet and no daily challenge scores yet show the same card as an empty library (with Neru on the full pages)',
+      'Collections opens on one that has beatmaps in it, not an empty one',
+      'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
+      'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
     { icon: 'keyboard', title: 'Keys', items: [
       'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [

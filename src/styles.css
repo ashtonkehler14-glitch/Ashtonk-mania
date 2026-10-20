@@ -1641,6 +1641,7 @@ div.res-calib .i { color: var(--good); }
 .nc-loader { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(36 * var(--vh)), 320px) * var(--nc-s, 1)); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(min(calc(52 * var(--vh)), 460px) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(38 * var(--vh)), 340px) * var(--nc-s, 1)); }
+#loading-screen.done .nc-boot { opacity: 0; transition: opacity 120ms ease; } /* (gone before the main menu's Neru comes in: never two of her) */
 /* (in a page's "nothing here" card, in place of its icon) */
 .neru-cameo.nc-card { position: relative; z-index: auto; height: 150px; margin: 0 auto 6px; }
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
@@ -1957,6 +1958,10 @@ div.res-calib .i { color: var(--good); }
 .pl-card .pl-mods { margin-top: 20px; justify-content: center; }
 .pl-card .pl-tags { margin-top: 14px; justify-content: center; }
 .pl-settings { gap: 6px; }
+/* (readable over any background, a pale one too: a soft dark glow under the loader's words, as lazer's text has) */
+.pl-card .pl-t, .pl-card .pl-a, .pl-card .pl-v { text-shadow: 0 0 2px rgba(0, 0, 0, .55), 0 2px 14px rgba(0, 0, 0, .7); }
+.pl-meta { text-shadow: 0 0 2px rgba(0, 0, 0, .6), 0 1px 8px rgba(0, 0, 0, .7); }
+.pl-note { color: rgba(255, 255, 255, .55); }
 .pl-group { gap: 15px; padding: 0 10px 10px; border-radius: 5px; background: rgba(46, 41, 58, .35); box-shadow: none; backdrop-filter: none; }
 .pl-gt { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 -10px -5px; padding: 0 10px; font-size: 1.0625rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: #fff; }
 .pl-gt .i { width: 15px; height: 15px; opacity: .8; }
@@ -3590,7 +3595,7 @@ body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of th
 .cp-stat { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; }
 .cp-stat span { color: hsl(200 40% 90%); }
 .cp-stat b { font-weight: 600; }
-.cp-mods { display: flex; flex-wrap: wrap; gap: 3px; }
+.cp-mods { display: flex; flex-wrap: wrap; gap: 3px; min-height: 18px; }
 .cp-mods .mb-t { display: none; }
 .cp-note { font-size: 11px; color: #ff9aa6; text-align: center; }
 .cp-bottom { flex: none; height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }

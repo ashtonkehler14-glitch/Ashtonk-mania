@@ -95,7 +95,7 @@ const RankingsScreen = {
     if (!this.page) return;
     const d = this.data;
     if (!d) { clearEl(this.page).append(!Presence.ws ? offlineState('The rankings') : h('div.rk-empty', h('span.spinner'), 'Loading rankings…')); return; }
-    if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
+    if (!d.list.length) { clearEl(this.page).append(stateCard('trophy', 'Nobody is ranked yet', 'Pass a ranked beatmap to get on the board!', { cls: '.plain', neru: true })); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
     const row = r => {

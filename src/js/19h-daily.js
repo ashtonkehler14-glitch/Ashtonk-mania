@@ -79,7 +79,7 @@ const DailyScreen = {
     const board = d.scores.length
       ? h('div.rk-table.dc-table', h('div.rk-row.rk-head.dc-row', h('span'), h('span'), h('span.hl', 'Score'), h('span', 'Accuracy'), h('span', 'Max Combo'), h('span', 'Rank'), h('span', 'Mods')),
         ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
-      : h('div.rk-empty', 'No scores yet today. Be the first!');
+      : stateCard('trophy', 'No scores yet today', 'Be the first!', { cls: '.compact' });
     const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
     const cols = h('div.dc-cols', h('div.dc-main', head, board), this.side(d));
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }

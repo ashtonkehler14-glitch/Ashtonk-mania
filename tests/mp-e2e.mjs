@@ -160,7 +160,7 @@ check('daily challenge: the day\'s beatmap with the time remaining and Play', aw
 await bob.evaluate(m => { const D = AshtonkMania.Daily; D.ask(); }, dmap);
 await bob.waitForFunction(() => AshtonkMania.Daily.data && AshtonkMania.Daily.data.map, null, { timeout: 5000 });
 check('…the same beatmap for everyone', await bob.evaluate(id => AshtonkMania.Daily.data.map.onlineId === id, dmap.onlineId));
-check('…and its leaderboard has only plays the server judged (none yet)', await alice.evaluate(() => /No scores yet/.test(document.querySelector('.rk-empty, .dc-table') ? document.querySelector('#app').textContent : '')));
+check('…and its leaderboard has only plays the server judged (none yet)', await alice.evaluate(() => /No scores yet/.test(document.querySelector('.rk-empty, .dc-table, .dc-main .off-state') ? document.querySelector('#app').textContent : '')));
 await shot(alice, 'mp-daily');
 // lazer's global leaderboards at song select: Bob's best on a beatmap shows in Alice's Global scope
 const lbHash = await bob.evaluate(() => [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal').hash);

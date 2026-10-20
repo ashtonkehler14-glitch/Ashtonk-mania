@@ -881,7 +881,9 @@ const DashboardScreen = {
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
     if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
-      : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
+      : [this.tab !== 'friends' ? stateCard('social', 'Nobody is online right now', 'Players show up here while they\'re playing.', { cls: '.plain', neru: true })
+        : Friends.list().length ? stateCard('search', 'Nobody here', q ? 'None of your friends match that search.' : 'None of your friends are in this list.', { cls: '.plain' })
+        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the ⋯ menu.', { cls: '.plain', neru: true })]));
   },
 };
 

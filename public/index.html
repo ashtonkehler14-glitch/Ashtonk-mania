@@ -1660,6 +1660,7 @@ div.res-calib .i { color: var(--good); }
 .nc-loader { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(36 * var(--vh)), 320px) * var(--nc-s, 1)); }
 .nc-empty { left: clamp(16px, calc(12 * var(--vw)), 220px); bottom: 70px; height: calc(min(calc(52 * var(--vh)), 460px) * var(--nc-s, 1)); }
 .nc-boot { left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; height: calc(min(calc(38 * var(--vh)), 340px) * var(--nc-s, 1)); }
+#loading-screen.done .nc-boot { opacity: 0; transition: opacity 120ms ease; } /* (gone before the main menu's Neru comes in: never two of her) */
 /* (in a page's "nothing here" card, in place of its icon) */
 .neru-cameo.nc-card { position: relative; z-index: auto; height: 150px; margin: 0 auto 6px; }
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
@@ -1976,6 +1977,10 @@ div.res-calib .i { color: var(--good); }
 .pl-card .pl-mods { margin-top: 20px; justify-content: center; }
 .pl-card .pl-tags { margin-top: 14px; justify-content: center; }
 .pl-settings { gap: 6px; }
+/* (readable over any background, a pale one too: a soft dark glow under the loader's words, as lazer's text has) */
+.pl-card .pl-t, .pl-card .pl-a, .pl-card .pl-v { text-shadow: 0 0 2px rgba(0, 0, 0, .55), 0 2px 14px rgba(0, 0, 0, .7); }
+.pl-meta { text-shadow: 0 0 2px rgba(0, 0, 0, .6), 0 1px 8px rgba(0, 0, 0, .7); }
+.pl-note { color: rgba(255, 255, 255, .55); }
 .pl-group { gap: 15px; padding: 0 10px 10px; border-radius: 5px; background: rgba(46, 41, 58, .35); box-shadow: none; backdrop-filter: none; }
 .pl-gt { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 -10px -5px; padding: 0 10px; font-size: 1.0625rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: #fff; }
 .pl-gt .i { width: 15px; height: 15px; opacity: .8; }
@@ -3609,7 +3614,7 @@ body.spec-rk-on > #app { visibility: hidden; } /* (only your own: the copy of th
 .cp-stat { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; }
 .cp-stat span { color: hsl(200 40% 90%); }
 .cp-stat b { font-weight: 600; }
-.cp-mods { display: flex; flex-wrap: wrap; gap: 3px; }
+.cp-mods { display: flex; flex-wrap: wrap; gap: 3px; min-height: 18px; }
 .cp-mods .mb-t { display: none; }
 .cp-note { font-size: 11px; color: #ff9aa6; text-align: center; }
 .cp-bottom { flex: none; height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
@@ -19751,7 +19756,8 @@ const CollectionsScreen = {
   },
   leave() { (this._unsub || []).forEach(f => f()); },
   render() {
-    if (!this.sel || !Collections.get(this.sel)) this.sel = Collections.list[0]?.id || null;
+    // (opened on the first collection with beatmaps in it, not an empty one, when none was picked yet)
+    if (!this.sel || !Collections.get(this.sel)) this.sel = (Collections.list.find(c => c.hashes.length) || Collections.list[0])?.id || null;
     clearEl(this.side);
     for (const c of Collections.list) {
       this.side.append(h(`button.side-item${c.id === this.sel ? '.active' : ''}`, { onclick: () => { this.sel = c.id; UISounds.click(); this.render(); } },
@@ -20288,6 +20294,13 @@ const CHANGELOG = [
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
+    { icon: 'sparkle', title: 'Looks', items: [
+      'Results: your other scores on the beatmap, either side of yours, are all the same height (one with mods was taller), and the mod badges by the star rating are as big as the chips beside them',
+      'The song\'s title, artist and difficulty on the loading screen stay readable over a bright background',
+      'Empty pages look alike: no friends yet, nobody online, nobody ranked yet and no daily challenge scores yet show the same card as an empty library (with Neru on the full pages)',
+      'Collections opens on one that has beatmaps in it, not an empty one',
+      'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
+      'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
     { icon: 'keyboard', title: 'Keys', items: [
       'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [
@@ -26134,7 +26147,9 @@ const DashboardScreen = {
     this.listEl.className = `dash-list s-${style}${this._fade ? ' fade' : ''}`; this._fade = false;
     if (!Presence.ws) { clearEl(this.listEl).append(offlineState('Your friends and who\'s online')); return; }
     clearEl(this.listEl).append(...(list.length ? list.map(u => UserPanels.panel(u, style))
-      : [h('div.dash-empty', this.tab === 'friends' ? (Friends.list().length ? 'Nobody here.' : 'No friends yet — find people under "currently online" and add them from the ⋯ menu.') : 'Nobody is online right now.')]));
+      : [this.tab !== 'friends' ? stateCard('social', 'Nobody is online right now', 'Players show up here while they\'re playing.', { cls: '.plain', neru: true })
+        : Friends.list().length ? stateCard('search', 'Nobody here', q ? 'None of your friends match that search.' : 'None of your friends are in this list.', { cls: '.plain' })
+        : stateCard('social', 'No friends yet', 'Find people under "currently online" and add them from the ⋯ menu.', { cls: '.plain', neru: true })]));
   },
 };
 
@@ -26640,7 +26655,8 @@ const MpResults = {
         h('div.cp-name', r.name, me ? h('small', ' (you)') : null),
         r.counts ? h('div.cp-stats', ...r.counts.map((c, k) => stat(NAMES[k], fmtInt(c)))) : h('div.cp-stats.cp-live', r.pending ? 'still playing…' : ''),
         h('div.cp-stats.cp-sum', stat('Combo', `x${fmtInt(r.maxCombo || 0)}`), stat('Accuracy', fmtAcc(r.accuracy || 0))),
-        (r.mods || []).length ? h('div.cp-mods', ...r.mods.map(m => ModSystem.badge(m, true))) : null,
+        // (its row there with no mods too: every panel the same height, side by side)
+        h('div.cp-mods', ...(r.mods || []).map(m => ModSystem.badge(m, true))),
         r.forfeit ? h('div.cp-note', r.left ? 'left the match' : 'forfeited') : null),
       h('div.cp-bottom', h('div.cp-score', fmtScore(r.score || 0)), g ? rankPill(g) : h('span.cp-wait', '…')));
   },
@@ -26948,7 +26964,7 @@ const RankingsScreen = {
     if (!this.page) return;
     const d = this.data;
     if (!d) { clearEl(this.page).append(!Presence.ws ? offlineState('The rankings') : h('div.rk-empty', h('span.spinner'), 'Loading rankings…')); return; }
-    if (!d.list.length) { clearEl(this.page).append(h('div.rk-empty', 'Nobody is ranked yet. Pass a beatmap to get on the board!')); return; }
+    if (!d.list.length) { clearEl(this.page).append(stateCard('trophy', 'Nobody is ranked yet', 'Pass a ranked beatmap to get on the board!', { cls: '.plain', neru: true })); return; }
     const me = Presence.pid();
     const head = h('div.rk-row.rk-head', h('span'), h('span'), h('span', 'Play Count'), h('span.hl', 'Performance'), h('span.g', 'SS'), h('span.g', 'S'), h('span.g', 'A'));
     const row = r => {
@@ -27052,7 +27068,7 @@ const DailyScreen = {
     const board = d.scores.length
       ? h('div.rk-table.dc-table', h('div.rk-row.rk-head.dc-row', h('span'), h('span'), h('span.hl', 'Score'), h('span', 'Accuracy'), h('span', 'Max Combo'), h('span', 'Rank'), h('span', 'Mods')),
         ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
-      : h('div.rk-empty', 'No scores yet today. Be the first!');
+      : stateCard('trophy', 'No scores yet today', 'Be the first!', { cls: '.compact' });
     const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
     const cols = h('div.dc-cols', h('div.dc-main', head, board), this.side(d));
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
@@ -28032,7 +28048,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'a8f45bf9c615';
+const APP_BUILD = '675d1f8f48bc';
 
 const App = {
   lastReport: null,
