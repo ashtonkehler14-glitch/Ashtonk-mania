@@ -24,10 +24,54 @@ async function importViaPicker(accept, directory = false) {
 }
 
 // ─────────────────────────────── Beatmaps ───────────────────────────────
+/** The beatmaps you have on your other devices — the ones installed there, and the ones your plays are on — that this
+ *  one hasn't got: pick the ones to install (all, or a few), and they download three at a time. */
+const AccountBeatmaps = {
+  /** What can be installed: your account's list, then the beatmaps your plays are on, each once. */
+  list() {
+    if (typeof Sync === 'undefined' || !Account.linked() || Account.signedOut()) return [];
+    const out = new Map();
+    for (const s of [...Sync.accountMissing(), ...Sync.missingSets()]) if (s.id > 0 && !out.has(s.id)) out.set(s.id, s);
+    return [...out.values()];
+  },
+  open() {
+    const all = this.list();
+    if (!all.length) { Toast.show('You have them all', 'Every beatmap from your other devices is on this one too.'); return; }
+    const picked = new Set(), cards = new Map();
+    const count = h('span.ab-count'), q = h('input.input.ab-q', { placeholder: 'Search your beatmaps…', 'aria-label': 'Search your beatmaps' });
+    const go = h('button.btn.primary.ab-go', { onclick: () => { if (!picked.size) return; const sets = all.filter(s => picked.has(s.id)); o.close(); Sync.getSets(sets); } });
+    const allBtn = h('button.btn.sm.ab-all', { onclick: () => { UISounds.click(); const shown = all.filter(s => !cards.get(s.id).hidden); const every = shown.every(s => picked.has(s.id)); for (const s of shown) (every ? picked.delete(s.id) : picked.add(s.id)); paint(); } });
+    const grid = h('div.ab-grid');
+    const paint = () => {
+      for (const [id, el] of cards) el.classList.toggle('on', picked.has(id));
+      const shown = all.filter(s => !cards.get(s.id).hidden);
+      allBtn.textContent = shown.length && shown.every(s => picked.has(s.id)) ? 'Select none' : 'Select all';
+      count.textContent = picked.size ? `${fmtInt(picked.size)} of ${fmtInt(all.length)} picked` : `${fmtInt(all.length)} beatmap${all.length === 1 ? '' : 's'}`;
+      go.disabled = !picked.size; go.textContent = picked.size ? `Install ${fmtInt(picked.size)}` : 'Install';
+    };
+    // (each a little card: its cover, title, artist and mapper; click to pick it — covers load as they come on screen)
+    const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); const id = Number(e.target.dataset.id), th = e.target.querySelector('.ab-thumb'); OnlineBeatmaps.loadCover(th, id, ['list@2x', 'list'], () => th.classList.add('loaded')); } }, { root: grid, rootMargin: '200px' });
+    for (const s of all) {
+      const el = h('button.ab-card', { dataset: { id: String(s.id) }, 'aria-pressed': 'false', onclick: () => { UISounds.click(); if (picked.has(s.id)) picked.delete(s.id); else picked.add(s.id); el.setAttribute('aria-pressed', String(picked.has(s.id))); paint(); } },
+        h('span.ab-thumb'), h('span.ab-txt', h('b', s.title || `Beatmap ${s.id}`), h('span', s.artist || ''), s.creator ? h('small', `mapped by ${s.creator}`) : null), h('span.ab-check', icon('check')));
+      cards.set(s.id, el); grid.append(el); io.observe(el);
+    }
+    q.addEventListener('input', () => { const t = q.value.trim().toLowerCase(); for (const s of all) cards.get(s.id).hidden = !!t && !`${s.title} ${s.artist} ${s.creator}`.toLowerCase().includes(t); paint(); });
+    q.addEventListener('keydown', e => e.stopPropagation());
+    const body = h('div.ab', h('p.ab-sub', 'On your other devices and not on this one. Pick the ones you want here.'), h('div.ab-bar', q, allBtn), grid, h('div.ab-foot', count, h('span.grow'), go));
+    const o = Dialog.custom('Your beatmaps', body, [{ label: 'Close' }]);
+    const close = o.close; o.close = () => { io.disconnect(); close(); };
+    paint();
+    setTimeout(() => q.focus({ preventScroll: true }), 60);
+  },
+};
+
 const BeatmapsScreen = {
   q: '',
   enter() {
+    this.mineBtn = h('button.btn.lib-mine', { onclick: () => AccountBeatmaps.open() });
     const { el, page } = pageShell('Beatmap library', null, [
+      this.mineBtn,
       h('button.btn', { onclick: () => Screens.go('collections') }, icon('folder'), 'Collections'),
       h('button.btn', { onclick: () => importViaPicker('', true) }, icon('folder'), 'Import folder'),
       h('button.btn.primary', { onclick: () => importViaPicker('.osz,.osu,.osk,.osr,.amr,.json,.mp3,.ogg,.wav,.jpg,.jpeg,.png') }, icon('upload'), 'Import files'),
@@ -40,12 +84,19 @@ const BeatmapsScreen = {
     this.list = h('div.ex-grid.lib-grid', { style: { '--o-h': OVERLAY_HUES.blue } });
     this.report = h('div');
     page.append(this.report, h('div.row', { style: { margin: '0 0 12px' } }, search, h('span.grow'), this.summary), this.list);
-    this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport())];
+    this._unsub = [Bus.on('library:changed', () => this.refresh()), Bus.on('import:report', () => this.renderReport()), Bus.on('accountsets:changed', () => this.refresh()), Bus.on('scores:changed', () => this.paintMine())];
     this.refresh();
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); if (this._io) this._io.disconnect(); },
-  async refresh() { this.renderSummary(); this.renderList(); this.renderReport(); },
+  async refresh() { this.paintMine(); this.renderSummary(); this.renderList(); this.renderReport(); },
+  /** "Your beatmaps (n)": the ones on your other devices that aren't here — shown only when there are any. */
+  paintMine() {
+    if (!this.mineBtn) return;
+    const n = AccountBeatmaps.list().length;
+    this.mineBtn.hidden = !n;
+    clearEl(this.mineBtn).append(icon('download'), 'Your beatmaps', h('span.lib-mine-n', fmtInt(n)));
+  },
   async renderSummary() {
     const maps = [...BeatmapManager.maps.values()];
     const broken = maps.filter(m => m.problems.length).length;
@@ -69,7 +120,9 @@ const BeatmapsScreen = {
     const sets = BeatmapManager.sets.filter(s => !this.q || `${s.artist} ${s.title} ${s.creator} ${s.tags}`.toLowerCase().includes(this.q))
       .sort((a, b) => b.added - a.added);
     if (!sets.length) {
+      const mine = AccountBeatmaps.list().length;
       this.list.append(BeatmapManager.sets.length ? stateCard('search', 'No matches', 'Nothing in your library matches that search.', { cls: '.plain', neru: true })
+        : mine ? stateCard('beatmap', 'No beatmaps on this device yet', `You have ${plural(mine, 'beatmap')} on your other devices.`, { cls: '.plain', neru: true, action: h('button.btn.primary.off-act', { onclick: () => { UISounds.click(); AccountBeatmaps.open(); } }, icon('download'), 'Show your beatmaps') })
         : stateCard('beatmap', 'No beatmaps yet', kbHint('Drop .osz archives or beatmap folders anywhere on the window, or get some from the beatmap listing.', 'Import .osz files from your device, or get some from the beatmap listing.'), { cls: '.plain', neru: true }));
       return;
     }
@@ -273,7 +326,13 @@ const ProfileScreen = {
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
-        if (!this.remote && m.pid === Presence.pid()) { this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */ this.render(); return; }
+        if (!this.remote && m.pid === Presence.pid()) {
+          this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
+          // (and your pp and best plays as the server has them — what everyone else sees on your profile)
+          const v = m.verified;
+          this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
+          this.render(); return;
+        }
         if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 };
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
@@ -353,6 +412,17 @@ const ProfileScreen = {
     const xp = { level: d.level || 1, into: d.xpInto || 0, need: d.xpNeed || 1, progress: clamp(d.xpProgress || 0, 0, 1) };
     const st = { plays: d.plays || 0, playtime: d.playtime || 0, passed: d.passed || 0, avgAcc: d.avgAcc || 0, notes: d.notes || 0, highestCombo: d.highestCombo || 0, grades: d.grades || {} };
     const pp = { total: d.pp || 0 };
+    // your own profile online: the server's pp and best plays (exactly what others see); plays of yours it hasn't
+    // counted yet are listed apart, below
+    const srv = own && this.ownServer && this.ownServer.pid === Presence.pid() && Presence.ws ? this.ownServer : null;
+    let topPlays = d.top || [], pending = [];
+    if (srv) {
+      const mine = new Map((d.top || []).map(x => [x._s.mapHash, x]));
+      topPlays = srv.top.map(x => { const k = x.key || x.mapHash, l = k && mine.get(k); return l ? { ...l, pp: x.pp } : x; });
+      pp.total = srv.pp;
+      const got = new Map(srv.top.map(x => [x.key || x.mapHash, x.pp || 0]));
+      pending = (d.top || []).filter(x => !(got.get(x._s.mapHash) >= x.pp - 0.5));
+    }
     const avatar = own ? ProfileManager.avatarEl(120) : Presence.avatarEl({ name: p.name, avatar: this.remote.avatar || d.avatar }, 120);
     avatar.classList.add('pf-avatar');
     if (own) { avatar.title = 'Change avatar'; avatar.addEventListener('click', () => AvatarPicker.open()); }
@@ -412,13 +482,15 @@ const ProfileScreen = {
       box.append(btn); grow(first);
       return box;
     };
-    const topPlays = d.top || [];
     const ranks = () => section('ranks', 'Ranks',
       sub('Best performance', topPlays.length, topPlays.length
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', !own ? 'No performance records yet.'
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
           : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
+      pending.length ? sub('Not counted yet', pending.length,
+        h('div.pf-note', pending.some(x => x._s.replayId) ? 'These go to the server with their replays to be checked — they count once it has.' : 'There\'s no replay of these for the server to check. Play them again to count them.'),
+        more(pending, x => row(x, 0, false))) : null,
       own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
         h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
         more(d.importedTop, x => row(x, 0, false))) : null);
@@ -693,236 +765,50 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.10.20b', title: 'Account update', sections: [
+    { icon: 'lock', title: 'Account update', items: ['Changes show on all your devices', 'Install the beatmaps you had on a new device', 'Your profile pp matches the rankings'] },
+  ] },
   { id: '2026.10.20', title: 'Neru update', sections: [
     { icon: 'heart', title: 'Neru update', items: ['Adds Neru to the results screen and other miscellaneous screens'] },
   ] },
   { id: '2026.10.17', title: 'Your code', sections: [
-    { icon: 'lock', title: 'Your code', items: [
-      'Play as yourself on another device with your code: right-click your name in the top bar → Your code, then type it on the other device. It\'s you there too — one entry on the rankings and leaderboards, one profile and friends list — with no username or password',
-      'What the other device had online before is added to you, so playing on two devices never puts you on the leaderboards twice',
-      'Codes are 16 random characters that only the server can make and only you can see (hidden until you ask): guessing one is hopeless, and only a few tries are allowed',
-      'If your code gets out: New code (the old one stops working) and Sign out other devices; your devices are told whenever a new one starts playing as you',
-      'Sign out on this device from the same place, for a shared or school computer',
-      'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
-      'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
-      'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
-      'Signing out brings you back to that question'] },
-    { icon: 'trophy', title: 'Rankings', items: [
-      'An imported backup never counts on the rankings: its scores stay on your device to look at, marked as imported, and aren\'t shown to other players',
-      'A play copied onto someone else\'s profile from a backup counts only for the player who set it, so standings built from imported backups are gone',
-      'pp on profiles and the rankings is worked out as before again (for a while only some of your plays counted)',
-      'A beatmap that was qualified or pending when it was checked is looked at again each week: once it\'s ranked, its plays give pp',
-      'Importing a beatmap set you already have no longer forgets that it\'s ranked',
-      'Checking which songs are ranked waits while you play, instead of skipping songs'] },
-    { icon: 'sparkle', title: 'Phones', items: [
-      'Coming back to the browser from another app shows the game straight away, not Chrome\'s "Previewing this page" picture of it',
-      'The game asks the browser again at every start to keep your beatmaps and scores when the phone runs low on space — Chrome says yes once the game is installed or played often. It asked only once, so a first no was final, and the library could be cleared',
-      'Browsing song select keeps fewer songs ready in memory on phones and small Chromebooks (a song takes about 90 MB once it\'s ready to play), so a long session is far less likely to end with the tab closing for lack of memory',
-      'With a weak signal, the installed game opens from its saved copy after a few seconds instead of waiting on the network for as long as it takes',
-      'A song played upright ends on its results upright too: Retry without turning your phone',
-      'The setup fits a phone held sideways, and says "press and hold your name" where a computer says right-click',
-      'Opening song select while the menu\'s song is still loading no longer ends with the wrong song playing'] },
-    { icon: 'mania', title: 'Gameplay', items: [
-      'Replays start at 1× (a DT replay\'s speed buttons were off by its rate), and the playfield stays smooth at 2× and 0.25×; Wind Up and Wind Down keep the speed you picked',
-      'Seeking a Wind Up / Wind Down replay judges it as it was played',
-      'Two gamepads (or one listed twice) no longer fight over a button',
-      'Muted with its metronome on a map without timing points no longer freezes the HUD',
-      'Phones: turning the phone during the 3-2-1 countdown stops for a tap too, and Back on "Tap to resume" opens the pause menu',
-      'Dragging background dim and blur before a song is smooth; a background video can no longer start twice',
-      'Practice: changing the speed twice quickly no longer puts the music out of step',
-      'The very longest beatmaps (about 150,000 notes and up) can be played: they failed to start',
-      'A long beatmap\'s health drain is worked out about four times faster as the song loads (the same drain as before), on slow devices most of all',
-      'A storyboard with a huge loop no longer stops the beatmap\'s storyboard from showing',
-      'Automatic resolution notices a playfield that stutters (every other frame late, as on a phone or Chromebook that can\'t quite keep up) and lowers the resolution until it\'s smooth, within a few seconds — it only reacted when most frames were slow, and slowly. After a smooth play it tries a little higher again, as it was meant to (it never did). A storyboard is drawn at the lower resolution too'] },
-    { icon: 'multi', title: 'Multiplayer', items: [
-      'The host has Settings on the room: match type, win condition, room size (up to 16), queue, private or public, auto start and auto skip',
-      'Reloading the page in a room no longer deletes the beatmap the room downloaded for you',
-      'A room that everyone dropped out of comes back as it was (private stays private, Team Versus stays Team Versus)',
-      'Given the host with a beatmap you don\'t have: it downloads, and Retry works for the host too',
-      'A full room you were away too long from says so, instead of reconnecting forever',
-      'A chat message typed while reconnecting stays in the box instead of vanishing',
-      'Friends in a Ranked Play match can\'t be invited out of it',
-      'Results of a match you weren\'t in say who won, not "You lose"',
-      'A failed join goes back to the lounge instead of showing the room you left',
-      'The chat (F8) keeps a message that couldn\'t be sent in the box, too',
-      'Spectating: nothing on the screen you\'re watching can press your own buttons or take your keyboard'] },
-    { icon: 'download', title: 'Beatmap listing', items: [
-      'More filters, or a resized window, no longer leaves the list loading in the wrong place',
-      'A preview that can\'t play goes back to its play button; stopping one quickly no longer says "Preview unavailable"',
-      'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
-      'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
-    { icon: 'sparkle', title: 'Everywhere', items: [
-      'As in lazer, notices that aren\'t about your song — a friend coming online, a message, a download finishing, the daily challenge going live — wait for the song to be over instead of popping up over your score (they\'re in the notifications straight away)',
-      'When the device is almost out of space, the game says so (once) and how to free some, before your scores and downloads start failing to save',
-      'Storage that\'s full as a song ends no longer leaves the finished song on screen with nowhere to go: the results show, the play still goes up to the leaderboard, and it says your score couldn\'t be kept on this device',
-      'Opening the game after an update no longer asks you to update — what opens is the new version already (or, on a weak signal, the next start is). "Update ready to install" only comes when an update goes up while you have the game open, and waits for you to be back if the game was in the background',
-      'Signing in, the rankings, multiplayer, the beatmap listing and your kept settings give up on a server that doesn\'t answer and say so, instead of waiting for ever; a skin download that stalls part-way says so too',
-      'The first start on a connection that stops answering no longer sits on "Loading skin…" for ever: the game opens, and Kori is put in next time. Online players, the room list, spectating and song previews give up the same way instead of "Connecting…" for ever',
-      'The first start shows how far the Kori skin\'s download has got, instead of "Loading skin…" for as long as it takes',
-      'A server hiccup while the game is saved for offline play no longer leaves an error page as the copy that opens offline',
-      'What\'s new waits for the song to be over when the game reopens straight into a multiplayer match',
-      'A damaged replay (.amr) or data file says it isn\'t one, instead of a JSON error; a server that doesn\'t answer in time says so in words',
-      'Save as an HTML file says so when the connection stops part-way, instead of staying stuck at its percent; with Google\'s fonts blocked (a school network) it\'s saved without them after a few seconds',
-      'Changing settings while your skin is still uploading no longer sends it again each time',
-      'A skin\'s animations load faster (their frames are read together), and a skin picture or sound that failed to load once is tried again instead of staying missing until a reload',
-      'A page that fails to open says so and takes you back to the main menu, instead of leaving a blank screen nothing could leave',
-      'Importing a beatmap set or skin you already have, while it\'s on screen, keeps its pictures (they could go blank or missing)',
-      'A damaged replay (.osr) or beatmap archive stops with an error instead of freezing the game or filling up its memory',
-      'A beatmap archive that unpacks into far more than it says (a "zip bomb") is stopped, and a difficulty that hangs while it\'s read is given up on after a minute: the rest of the import carries on',
-      'The skin editor lets the browser\'s own keys through: F5 and Ctrl+R reload, F11 goes fullscreen',
-      'The notifications\' unread count never counts more than the list keeps',
-      'A big library is quicker wherever a play is matched to its beatmap: your profile\'s pp, results, replays, collections',
-      'Changing your name with thousands of scores is quick (each score was saved on its own), and starting the game no longer checks every score against every other'] },
-    { icon: 'music', title: 'Song select', items: [
-      'Back from a song, its preview plays again (it stayed silent)',
-      'The selected beatmap\'s song starts over when it ends, as in lazer — coming in from the main menu with its song already playing, the end of it used to jump to another beatmap',
-      'Right-click (or press and hold) a song: its menu\'s Play plays that song, not the one selected before',
-      'A beatmap you open from the library or a download is the one selected, even when your filters hid it (they\'re cleared)',
-      'Your pinned best score on the online leaderboard shows straight away (it could take seconds to appear)',
-      'Arrow keys in the Sort, Group and Keys dropdowns change them, instead of moving through the songs',
-      'Typing with an input method (Japanese, Chinese…) no longer starts a song when you press Enter to pick a word',
-      'Ctrl+Up / Down replaces Wind Up, Wind Down and Adaptive Speed too, instead of mixing them',
-      'The beatmap options\' number keys only work while the menu is all you\'re doing',
-      'Sorting by your scores, accuracy, play count or last played is quick with a big library'] },
-    { icon: 'trophy', title: 'Results', items: [
-      'Tags say when the online service can\'t be reached, instead of saying for ever that your score hasn\'t reached the server',
-      'Export works on saved replays opened from song select, your profile or Replays (the menu didn\'t open)',
-      'Clicking another of your scores and back keeps your new play as it was: its replay to watch or save, your personal best line',
-      'A column key still held as the song ends no longer skips the results with a retry; Enter on a button presses that button',
-      'Retry plays with the score\'s own mod settings (Difficulty Adjust, Accuracy Challenge…)',
-      'Saving the replay of a failed play keeps its score too, and says so if it can\'t',
-      'The global rank shown is your new play\'s, never one from a play just before it',
-      'Back from watching the replay doesn\'t applaud and offer the offset fix again',
-      'The statistics charts point at the right bar and hit when the panels are shrunk to fit',
-      'In multiplayer results, a player\'s panel made big still opens the statistics',
-      'With animations off the timing bars don\'t grow in'] },
-    { icon: 'globe', title: 'Server', items: [
-      'Rooms can no longer be faked into the lounge, nor players kept out of Ranked Play, from outside the game',
-      'A profile can\'t claim pp for songs osu! doesn\'t know: only plays on beatmaps found ranked on osu! count',
-      'A server hiccup reading a player\'s best plays can no longer wipe them, and players can\'t be taken over while the server is still starting',
-      'A room playing with Rate Adjust only takes plays at its speed; a new speed is a new vote',
-      'Someone who isn\'t in the match leaving the room no longer ends it for the one who is',
-      'A new beatmap, new rules or someone leaving stops an auto start that was counting down',
-      'A class of returning players behind one school address can all type their codes (wrong codes are what\'s limited)',
-      'Checking whether a beatmap is ranked is tried twice before a pass counts for 0pp',
-      'A big beatmap set no longer gets cut off after 20 seconds of downloading',
-      'Busy moments on osu!\'s side ask it less often, and the same question asked twice at once is asked once',
-      'The download helper only ever hands over beatmap files, never web pages'] },
+    { icon: 'lock', title: 'Your code', items: ['Play as yourself on any device with your code', 'Your settings, skin and scores come with you', 'Lots of fixes for phones, gameplay and multiplayer'] },
   ] },
   { id: '2026.10.16', title: 'Smoother spectating', sections: [
-    { icon: 'film', title: 'Spectating', items: [
-      'Watching someone in the menus is much smoother: their screen is no longer rebuilt every frame (their main menu\'s animations used to make it go out constantly), and your own menu stops drawing underneath it',
-      'Nothing on the screen you\'re watching lights up under your pointer any more — it\'s theirs, to watch'] },
-    { icon: 'download', title: 'Downloads', items: [
-      'Beatmaps start downloading much sooner: if the beatmap provider hasn\'t answered within 2 seconds the next one is tried alongside it (one that never answered used to hold a download up for 25 seconds), and whichever answered first is tried first next time'] },
+    { icon: 'film', title: 'Smoother spectating', items: ['Watching someone is smoother', 'Downloads start sooner'] },
   ] },
   { id: '2026.10.15', title: 'Play from a file', sections: [
-    { icon: 'download', title: 'Play from a file', items: ['Ctrl+S (or Settings → Maintenance → Save as an HTML file) saves the whole game as one HTML file, skins and pictures inside: open it on any device to play without the website, offline too', 'Multiplayer, beatmap search, rankings and the daily challenge still work from the file: it connects to the website it came from', 'From the file, Ctrl+S gets its newest version'] },
+    { icon: 'download', title: 'Play from a file', items: ['Save the game as one HTML file and play it anywhere'] },
   ] },
   { id: '2026.10.14', title: 'Quicker installs', sections: [
-    { icon: 'download', title: 'Installing beatmaps', items: [
-      'Beatmaps install faster: every difficulty in a set is read and star-rated at the same time, on your device\'s other processor cores, and the song and pictures are stored without being copied twice',
-      'Installing doesn\'t lag a song you\'re playing: a download that finishes mid-song is installed when the song ends (or while you\'re paused), and the download\'s progress bar costs the game nothing',
-      'Menus stay smooth while beatmaps install (the backgrounds\' previews are made off to the side, too)'] },
-    { icon: 'globe', title: 'Online', items: ['Safe mode is gone, and so is its question in the first-run setup'] },
+    { icon: 'download', title: 'Quicker installs', items: ['Beatmaps install faster without lag'] },
   ] },
   { id: '2026.10.9', title: 'Touch-ups', sections: [
-    { icon: 'sparkle', title: 'Updates', items: ['What\'s new shows every update since the one you last saw, not only the newest'] },
-    { icon: 'globe', title: 'Beatmap listing', items: ['Typing a search sorts by relevance, as in lazer (the best matches first; the sort still said "Ranked"), and clearing it goes back to ranked'] },
-    { icon: 'download', title: 'Downloads', items: ['Android: with the game installed, a beatmap, skin or replay can be shared to it from another app (Files, your browser\'s downloads) and it\'s imported', '"Downloaded …" and "Imported …" take you to the beatmap when clicked, as lazer\'s "Click to view" — from the toast or the notifications'] },
-    { icon: 'home', title: 'Toolbar', items: ['The button of what\'s open (settings, the beatmap listing…) lights up as in lazer — it only had a small red dot in its corner', 'Your avatar shows a dot when you\'re on "Do not disturb" or "Appear offline" (it never showed)'] },
-    { icon: 'music', title: 'Song select', items: ['The score multiplier over the Mods button isn\'t cut off ("1.00x" lost its x)', 'On a tablet the leaderboard\'s Sort and Scope fit beside "Selected Mods" (Scope was cut off)'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['The results card\'s mod icons are big enough to make out (on a phone they were specks)', 'A slow press on a button is still a press — only a long press on something with a menu (a beatmap, a score, a player) opens it', 'Settings: the bar that puts a setting back to its default is easier to tap', 'Chat: channels are bigger to tap, and the open conversation has its close button showing (it only appeared under a mouse)', 'Hints say "tap" on a phone: the offset calibration, the daily challenge and volume notices, and the empty library (which asked you to drop files on the window)', 'Watching a replay or Auto: a tap brings up the playback controls (pause, ±5 seconds, speed), as moving the mouse does — a phone had no way to them', 'The beatmap listing\'s preview button shows on every card, and your profile\'s rename button shows by your name (both only appeared under a mouse)'] },
+    { icon: 'sparkle', title: 'Touch-ups', items: ['Small fixes across the game'] },
   ] },
   { id: '2026.10.8', title: 'Phones and downloads', sections: [
-    { icon: 'download', title: 'Downloads', items: ['Download without video, as in lazer: a beatmap with a video has a second "without video" button on its page — a smaller, quicker download — and Settings → Prefer downloads without video makes every download skip it', 'A download no longer covers the beatmap page\'s close button, so you can leave the page on a phone while it downloads — and, as in lazer, the download\'s notice steps aside after a moment, its progress carrying on in the notifications', 'A download can be cancelled from its entry in the notifications (the X), as in lazer', 'Downloading the beatmap of someone else\'s score shows how far it\'s got on the button'] },
-    { icon: 'sparkle', title: 'Updates and notifications', items: ['Notices no longer cover a multiplayer room\'s Invite and Copy code buttons: in a room they show below its card', 'What\'s new shows again when an update adds to it after you\'ve seen it (fixes that came the same day went unmentioned)', 'When a new version of the game goes live while it\'s open (an installed app can sit in the background for days), you get lazer\'s "Update ready to install" — click it to restart into it; it waits until your song is over', 'Clicking an entry in the notifications does what clicking its toast did, as in lazer: a message opens the chat, the daily challenge notice opens the challenge'] },
-    { icon: 'sec-input', title: 'Phones and tablets', items: ['On a phone, a long press is a right-click everywhere — a beatmap\'s options, a score\'s, a player\'s — as the menu tip says (on an iPhone the press ended as a tap and started the song)', 'Practice on a phone: the practice tools sat over the first column, so a thumb on it pressed Clear or a speed instead of the note — while the song plays every touch there is the column\'s now; pause, and the tools are above the pause screen to use', 'On a phone, the settings beside the song as it loads work by touch: tapping a setting\'s name switches it, as in lazer (it counted as a key press), and the sliders are easier to grab', 'On a phone or tablet the listing\'s filters (key count, category, sort) and the notifications\' Clear all are bigger to tap — "4K" was a speck', 'On a phone, mod select says "tap to search" and multiplayer chat "tap to chat" (there\'s no Tab or Enter key to press)', 'On an iPhone or iPad, Import files lets you pick .osz, .osk and .osr files (iOS greyed them out as types it doesn\'t know), and the game has sound with the silent switch on, as music apps do'] },
-    { icon: 'music', title: 'Song select', items: ['Search filters read lengths as lazer does — length<2m, length>1m30s, length<1:30 (it took "2m" as two seconds) — and diff=, source= and tag= find a difficulty name, source or tag', 'Coming back to song select asks for the online leaderboard again, so scores set since (anyone\'s) show — it kept a board for half a minute'] },
-    { icon: 'clock', title: 'Results', items: ['A score opened from a leaderboard or a profile has no Retry button, as in lazer (it\'s there after your own play)'] },
+    { icon: 'download', title: 'Phones and downloads', items: ['Download beatmaps without video', 'Better on phones and tablets'] },
   ] },
   { id: '2026.10.7', title: 'Cleaner pages', sections: [
-    { icon: 'multi', title: 'Multiplayer', items: ['Mods a match can\'t judge (Muted, Wind Up / Down, Adaptive Speed, Cinema) can\'t be picked in a room, and one still on from solo play is left out — a play with them used to count as an F with no score', 'Reloading the page (or a phone reloading the tab) in a room takes you straight back in as yourself — still the host, still in the match — with the room\'s recent chat', 'A dropped connection is noticed in seconds on both sides: the others see you as reconnecting, and you\'re back the moment your network is', 'A play that ends while your connection is down still counts: it\'s sent and checked once you\'re back, instead of being marked unchecked', 'A host who loses connection for more than a few seconds hands the host on, so the room isn\'t stuck waiting', 'Participants show their difficulty and stars under their name (it was cut off once they were ready)', 'After a match the room\'s results take less space, so the room and its chat stay on screen', '"Checking the scores…" while the server checks everyone\'s play, instead of "Waiting for the others" when nobody is still playing', 'Song select\'s "Choose the match beatmap" note is no longer hidden behind the logo', 'The lounge has one bar: Create room, search and join by code side by side',
-      'The room is laid out like lazer\'s: the room\'s card across the top and a wide Ready / Start button in the middle',
-      'The host can hand the room to someone (crown button) or kick them between matches, as in lazer',
-      'Other players\' pp shows as soon as they finish (it read 0 until the whole match was over)',
-      'Team Versus scores each team\'s average, so uneven teams are fair — a team\'s score is out of 1,000,000 however many are on it',
-      'A dropped connection comes back properly: a reconnect that hangs is retried instead of waiting forever, losing your connection in the room keeps your seat (host, ready, team) for 30 seconds, and others see you as "reconnecting" meanwhile',
-      'The online service notices a connection that died quietly (a Wi-Fi or mobile network change) and reconnects, and tries again straight away when your network or the tab comes back',
-      'Reconnecting in Team Versus puts you back on your own team, and the last match\'s results (everyone\'s) are still yours',
-      'The participants list never scrolls sideways: long names shorten instead',
-      '"You win!" on the match results is no longer hidden under the top bar',
-      'Ranked Play: the warm-up\'s beatmap details and the round\'s score cards no longer run into the chat on smaller screens',
-      'Ranked Play: after leaving a song you watch your opponent\'s score climb (it sat at 0), a second duel in the same visit has its stage name and timer again, and someone who left is still named on the result',
-      'Ranked Play: your own corner shows "Reconnecting…" while your connection is down, and the stage timer no longer jumps back when the screen updates',
-      'Chat: a command\'s answer (/help) reads along the messages instead of wrapping word by word under the names', 'Chat said while your connection was down shows up as soon as you\'re back, and a finished duel nobody can join is no longer listed',
-      'On a phone on its side the room scrolls, instead of the chat covering the beatmap; leaving or quitting asks with a warning sign, not a bin',
-      'On a tablet the room\'s Change beatmap / Search beatmaps buttons stack instead of the second running off the card', 'Ranked Play on a tablet or a 16:10 laptop: the match shrinks a little to fit, instead of your hand of cards covering the chat and your corner', 'Ranked Play fits a phone held sideways (or a big interface size): the whole match shows, smaller, instead of the hands, the stage text and the chat running into each other — and the round\'s results say "Round N" once',
-      'With the network down, multiplayer says so plainly ("You\'re offline…") instead of "Failed to fetch"; on a phone, the "get the app" reminder shows once a visit and never over a match a reload is taking you back into'] },
-    { icon: 'film', title: 'Spectating', items: ['Watching someone between songs shows their pictures too (beatmap backgrounds, Ranked Play card art, avatars) and their chat scrolled to where they are', 'Watching someone who reloads the page (or loses signal for a moment) carries on when they\'re back, instead of stopping', 'Watching someone from your multiplayer room ends when their song does: you\'re taken back to the room instead of following them to their results and next song', 'When the player you watch fails you see their fail screen, with their pointer, as they see it — no Retry / Quit of your own', 'Holding R or ` while watching no longer restarts their song from the top, and Ctrl+` stops watching (as Esc does) instead of going to song select'] },
-    { icon: 'edit', title: 'Beatmap editor', items: ['The beatmap editor has been removed (the skin layout editor stays)'] },
-    { icon: 'trophy', title: 'Gameplay', items: ['Switching away from the game (or pressing Esc) during the 3-2-1 after Continue pauses again, instead of the song carrying on where you can\'t see it', 'Replays of Wind Up, Wind Down and Adaptive Speed plays come out exactly as you played them (they were judged at the speed the song ended on)', 'Song select: after typing a search, Enter plays the pick and ↑ / ↓, F1–F4 and Esc work again (they did nothing until you clicked away)', 'Song select: a search that matches nothing no longer leaves every group folded up once it\'s cleared — the selected beatmap\'s group opens again', 'Song select: with groups, the arrow keys carry on into the next group (opening it) instead of stopping at the end of the open one', 'A play you spectated no longer says "Replay" on its results', 'A dialog still open when a song starts (one nobody answered before a match began) closes, instead of taking every key press of the song', 'Ctrl+O doesn\'t open the settings in the middle of your song (they took the keys while the notes kept coming); paused, it does, as in lazer', 'Esc on the fail screen quits, as lazer\'s Back does (it did nothing)', 'Daily challenge: when today\'s beatmap can\'t be picked (the beatmap listing is down), it says so with Try again, instead of "Picking today\'s beatmap…" forever', 'Daily challenge: mods its scores can\'t have (Auto, Cinema, Muted, Wind Up / Down, Adaptive Speed) picked earlier in song select no longer come along — the play used to go uncounted', 'lazer\'s key mods (1K–10K): play a converted osu! beatmap with as many keys as you like — song select\'s key counts, groups and star ratings follow them', 'Song select has lazer\'s "Show converts" toggle, and songs already in your library get their osu! difficulties as converts, no re-import needed', 'osu! (standard) beatmaps play as osu!mania, converted exactly as lazer converts them — same columns, notes and holds (checked against lazer\'s own conversion tests); "Show converted beatmaps" in song select settings hides them', 'Old osu!mania maps with spinners or sliders play them as lazer does (a hold note), and maps saved before format v5 are timed as osu! times them', 'Tablets and phones: a stage that spans the screen (many keys) shows lazer\'s health bar at the top, instead of the skin\'s bar half off the edge', 'Phones: the pause button is back in every kind of play — Auto, replays, practice, multiplayer (it asks before quitting) and spectating (it stops watching) — even with the HUD hidden, bigger and clear of rounded corners', 'The leaderboard and judgement counter look like lazer\'s, in Kori\'s colours: slanted score panels (lime for first, purple for you) and the counter\'s numbers without a box', 'No more stutter as a song starts: the skin\'s pictures and the blurred background are ready before the first note (the skin\'s resized pictures too — part of that warm-up was being skipped)'] },
-    { icon: 'brush', title: 'Skins and top bar', items: ['Esc in a search box (settings, the beatmap listing, manage collections, the multiplayer lounge, friends) clears what\'s typed first, as in lazer — a second Esc closes the panel or goes back', 'Skin editor: score, accuracy, pp and mods are separate parts now — move and resize each on its own — and so are the combo counter and the Auto / replay badge (an older layout carries over to all four)', 'Imported skins play as they do in lazer: the pressed key stays down a moment after you let go, hit and hold lighting fade in and out at lazer\'s pace, the column light shrinks away as it fades, and a hold\'s body only animates while it\'s held',
-      'Long notes in skins without a tail image end with the head turned over, older skins (before version 2.5) stretch hold bodies, and column lines, the hit line image and the stage bottom are drawn at lazer\'s sizes',
-      'Beatmap skins, as in lazer: a beatmap that comes with its own skin pictures (notes, keys, lighting, score numbers…) plays with them over your skin — Settings → Skin → Beatmap skins turns it off',
-      'Animated skin parts play at lazer\'s speed (60 frames a second, each note from when it comes on screen), missed long notes turn dark grey, skin.ini names ending in "@2x" are found, and skins with only some score digits still use their own font',
-      'Chemuss no longer comes with the game (you can still import it like any skin)', 'No Help button on the top bar'] },
-    { icon: 'globe', title: 'Offline and empty pages', items: ['A play whose score couldn\'t be sent (the network dropped as the song ended) is sent again for two minutes — at once when you\'re back online — instead of never reaching the leaderboards and rankings', 'When the server can\'t be reached, online pages (rankings, daily challenge, friends, profiles, chat, the lounge, leaderboards) say so with a Try again button, instead of a spinner that never stops', 'Empty pages (no replays, an empty collection, no beatmaps yet, no search results) show what to do next'] },
-    { icon: 'user', title: 'Profiles', items: ['Simpler: best performance, recent plays and medals — no first place ranks, and the SS, S and A counts include their silver versions'] },
-    { icon: 'music', title: 'Song select', items: ['The online leaderboard shows your new score as soon as the server has counted it (going back to song select straight after a song showed the old board for half a minute)', 'The online leaderboard no longer spins forever when it\'s opened while the game is still connecting', 'Clicking a song always works: one you had open before no longer ignores the click, and nor does one still sliding into place', 'Right-click a difficulty → Add to collection… to tick the collections it goes in'] },
-    { icon: 'beatmap', title: 'Beatmap library and collections', items: ['Deleting the beatmap set whose song is playing moves the music on to another song, or with none left stops it (the deleted song could still be played from the now playing panel)', 'An .osz or .zip with the song folder inside it imports properly (its difficulties were all "missing audio"), and a .zip of several song folders imports each one', '.osu files saved as UTF-16 or in old Latin-1 text are read correctly', 'Your beatmaps and collections show as lazer\'s beatmap cards: the song\'s picture, its difficulties as coloured bars, and Play, Extract and Delete sliding in on the right', 'Click a card in the library to see its difficulties underneath'] },
-    { icon: 'clock', title: 'Results', items: ['"You hit … late/early · fix offset" only shows when your timing is clearly off, not for a couple of milliseconds of noise', 'The mods next to the star rating no longer cover the key count'] },
+    { icon: 'multi', title: 'Cleaner pages', items: ['Multiplayer rooms look like lazer\'s', 'Beatmap skins', 'Cleaner profiles'] },
   ] },
   { id: '2026.10.6', title: 'Smooth on every device', sections: [
-    { icon: 'sparkle', title: 'Performance', items: ['The main menu, the beatmap listing and every screen run much lighter on slow devices (Chromebooks): no more freezes opening the beatmap library, a big library shows a page at a time, and pictures are made away from the main thread', 'On a slow device the menus switch to lighter effects by themselves, and remember it next time — Performance mode only lightens gameplay now, so the menus keep their looks', 'Gameplay lowers its resolution by itself when it stutters, not only when it\'s slow overall', 'With a panel open over the main menu, the logo pauses its beat bounce so the panel stays smooth'] },
-    { icon: 'edit', title: 'Main menu', items: ['Edit → Beatmap: import beatmaps, extract them as .osz and edit your collections', 'Edit → Skin: preview and import skins, and Edit skin to change the layout of the one you use'] },
-    { icon: 'user', title: 'Pictures and rankings', items: ['Sharper song cards and profile pictures', 'Ranked score is gone: rankings and profiles are by pp only', 'Total pp is worked out exactly as lazer does: your best play on each ranked beatmap, the top 1000 weighted 95% each step down, plus lazer\'s bonus pp for how many you\'ve set', 'Only ranked beatmaps count, checked by the server: the plays on every profile are looked up on osu!, and a game\'s own pp total is no longer taken on trust', 'Profiles show how the total adds up: the best plays, each weighted 95% of the one above it (as in lazer: 100%, 95%, 90%…), plus the bonus for how many ranked plays — and other players\' profiles list only the plays checked to be ranked', 'Nobody drops off the rankings when the rules change: everyone is re-checked in the background, online or not'] },
-    { icon: 'chat', title: 'Phones', items: ['Sending a chat message puts the keyboard away, and the typing bar shows where your message goes', 'The installed app goes properly fullscreen on your first tap, and back to fullscreen after the phone\'s own panels (like Samsung\'s pull-down) — no more status bar or black strip by the camera', 'Playing sideways on a phone shows the skin\'s own health bar beside the stage, as on a computer (upright keeps the bar along the top)', 'The phone\'s Back button or swipe works like Esc, as in lazer on Android: it closes what\'s open, pauses a song and goes back a screen, instead of leaving the game', 'The pause menu is no longer covered by the replay controls when watching Auto or a replay', 'The install-the-app box fits a phone held sideways, Don\'t remind me again included', 'Hints and messages no longer tell you to press keys (Ctrl+O, F3, Esc…) on a phone, where there are none'] },
-    { icon: 'film', title: 'Spectating', items: ['Watching someone play stays much closer to them: about half a second behind instead of a second and a half', 'Watching a player on a phone or tablet shows their taps instead of a mouse pointer', 'The pointer of the player you watch keeps its real shape (it was squashed)'] },
-    { icon: 'brush', title: 'Skins', items: ['The skin preview fits the screen on a phone held sideways, so you can see notes reach the keys', 'On a narrow screen the Customise panel puts each control under its name instead of squeezing the text'] },
-    { icon: 'sparkle', title: 'Animations', items: ['Menus unroll as they open and fade as they close, like lazer\'s', 'Tooltips trail the pointer and fade in and out as in lazer', 'Buttons squeeze while held, spring back when let go and flash when clicked (lazer\'s OsuButton)', 'Settings switches are lazer\'s: a pill that springs out and fills when turned on', 'Mod select\'s columns fly in one after another from above and below, and a mod\'s switch widens as it turns on', 'Song select: the selected difficulty\'s glow pulses with the music (the open set\'s every other beat), and it flashes as the song starts', 'The loading screen comes in and goes out as lazer\'s: the song details grow in from 70% and shrink away, the side panels slide in and out', 'Notifications slide in with a flash and can be dragged: throw one left to get rid of it, let go and it springs back', 'Tabs (profile, dashboard, rankings) have lazer\'s springy underline', 'Pop-up questions bounce open and shrink away like lazer\'s', 'The pause menu\'s buttons narrow while held and flash when picked', 'A soft hover sound on every button, tab and list entry, each a touch different in pitch, as in lazer', 'Song select: the star rating runs to its new value (with its colour) when the difficulty or mods change, and the difficulty bars slide to theirs', 'Results: the timing distribution\'s bars grow up into place when the statistics open', 'Loading spinners are lazer\'s: a broken circle that pops in and turns a quarter at a time', 'Beatmap listing: a new search dims the old results until the new ones fade in, instead of blanking the page', 'The multiplayer lounge slides in like the other overlays', 'Settings: a row glows up from the bottom as you flip a switch or let go of a slider (lazer\'s commit flash), and the slider\'s nub brightens under the pointer', 'Dashboard: the list of players fades in when you change tab, filter, sort or view', 'Text boxes: letters you delete drop out of the box and fade, as in lazer']},
-    { icon: 'online', title: 'Spectating and chat', items: ['Spectating a song you don\'t have: their play shows straight away while it downloads, and the music, background and video come in where the play is once it\'s installed', '#lobby chat no longer empties when you lose connection or the server restarts, and your chats are kept when you reload', 'Getting back online after a dropped connection no longer tells you each of your friends just came online', 'Being spectated no longer makes your song stutter as it starts', 'Friends\' "Last seen" is when they actually went offline (the server keeps it), and times read right: an hour and a half is "1h ago", long ago reads in months and years', 'Daily challenge scores on older beatmaps count now, and if one ever isn\'t counted the game tells you why', 'Performance mode now means the whole game at its lightest: no menu animations, blur, glass, glow, parallax or moving visualiser, and no blurred backgrounds to prepare — the setup\'s Performance choice turns it on, Graphics turns it off', 'Beatmap listing on the slowest devices: one small picture per song instead of two big ones, fewer loaded ahead, and flat cards', 'Team Versus from the lounge: Create room asks Head to Head or Team Versus (red against blue), and the lounge shows each room\'s match type and what wins it', 'Multiplayer: a dropped connection mid-match comes straight back as you (even before the server notices the old one is gone), so the scores keep syncing; finishing and then dropping keeps your result in the match; and reconnecting right after a match still shows everyone on the results', 'Smoother: the skins screen and the settings panel open with less of a hitch (the skin preview no longer works out a health drain it doesn\'t use; settings no longer lays its whole page out twice)', 'Online pages waiting on the server (rankings, profile, daily challenge, friends, the lounge) show lazer\'s spinner while they connect', 'Beatmap listing: scrolling does far less work — the cards move along a row at a time instead of a screen at a time, pictures go on in step with the screen, and where you\'ve scrolled to is read when it costs nothing', 'Skin editor: Hit position and Note offset at the top of the Components list — drag the yellow line on the stage up or down (or use the slider) to move where notes are judged, and set where notes are drawn against the receptors; undo and Reset all cover both', 'Hit position and Note offset are also regular settings now (Settings → Gameplay → Playfield)', 'Profiles are simpler: sections with nothing in them are left out (tab and all), sections come in osu!lazer\'s order (recent, ranks, historical, beatmaps, medals), the level sits beside the name instead of on a strip of its own, play count and time aren\'t shown twice, the pp breakdown is one compact line (the details on hover), and the rename pencil only shows when you point at your name', 'Team Versus: the teams are stacked, red above blue, in the room; and the match results group each team\'s players under its name and total, the winning team on top'] },
-    { icon: 'list', title: 'Fixes', items: ['Profiles no longer list first places with no song name (empty "by" rows)', 'No menu button in the corner when a song starts on a computer (Esc pauses)', 'Beatmap listing: songs stay on screen however fast you scroll — the list keeps two screens of songs ready either way and loads covers five screens ahead', 'Settings switches that are on no longer show a box around them'] },
-    { icon: 'sparkle', title: 'Icons', items: ['Every icon is lazer\'s own now: the top bar, main menu, settings sections and song select use lazer\'s icon set, and everything else uses the same Font Awesome icons lazer does (retry, collections, favourites, close…)'] },
-    { icon: 'music', title: 'Song select', items: ['The leaderboard starts on Global, as in lazer (Local is still a tap away under Scope)'] },
-    { icon: 'list', title: 'Smoother menus', items: ['Back from a score opened on a profile goes back to that profile (where you were on it), not to song select', 'A score on a beatmap you don\'t have shows that beatmap\'s cover instead of the song you\'re listening to — and a Download button to get it', 'Someone else\'s score shows the pp their profile lists', 'Profiles no longer show accuracy beside each play, where it looked like the play\'s weighting', 'Back after a daily challenge play, or a replay watched from Replays, goes back there; retrying a daily challenge play still counts for it', 'Fixed a crash: retrying from the results screen and then pressing Back could reopen an empty results screen', 'Back to a player\'s profile reopens theirs, not yours', 'The beatmap listing has a back button like every other page, and lines up with them'] },
-    { icon: 'calendar', title: 'Daily challenge', items: ['A new daily challenge starts at midnight US Central time'] },
-    { icon: 'sparkle', title: 'Changelog', items: ['After an update, this shows just what\'s new in it (every update is still in Settings → What\'s new)'] },
+    { icon: 'sparkle', title: 'Smooth on every device', items: ['Every screen runs smoother', 'Icons are lazer\'s own'] },
   ] },
   { id: '2026.10.5', title: 'Skin editor', sections: [
-    { icon: 'brush', title: 'Skin editor', items: ['New, like lazer\'s (Ctrl+Shift+S, or Settings → Skin → Skin layout editor): the game shrinks with Auto playing, and you drag the score, health, progress, hit error meter, judgement counter and leaderboard where you want them', 'Drag a corner to scale one, hide the ones you don\'t want, undo with Ctrl+Z — every play uses your layout', 'Skins (main menu → Edit → Skin) has Edit skin, which opens it on the skin you use'] },
-    { icon: 'list', title: 'User tags', items: ['New, like lazer: after passing a beatmap, vote on what it is (jumpstream, long notes, technical…) on the results screen', 'Song select shows the tags players voted for in the beatmap\'s details'] },
-    { icon: 'sparkle', title: 'Screenshots', items: ['F12 saves a screenshot, like lazer — click the notification to see it (in the menus the browser asks to capture the tab the first time)'] },
-    { icon: 'music', title: 'Song select', items: ['Beatmap options: Hide a difficulty, Restore all hidden and Clear local scores, like lazer', 'Details show the user rating and points of failure for beatmaps from osu!'] },
-    { icon: 'user', title: 'Your status', items: ['Right-click your name in the top bar: Online, Do not disturb (no invites or pop-ups) or Appear offline (nobody sees you online or can spectate you), like lazer'] },
-    { icon: 'film', title: 'Spectating', items: ['Spectate anyone who\'s online, not just friends', 'Watching someone in the menus is live: their screen at their size, their scrolling and their cursor', 'Esc stops spectating, and your keys don\'t touch your own menus while you watch'] },
-    { icon: 'film', title: 'Storyboards', items: ['Beatmaps\' storyboards now play behind the stage, like lazer (Settings → Gameplay → Storyboard / video)', 'Beatmaps imported before this need importing again to bring their storyboard pictures in'] },
-    { icon: 'chat', title: 'Multiplayer', items: ['The room\'s chat shows in the corner during a match, like lazer', 'Room settings: Auto start (the match starts with whoever is ready when the countdown ends) and Auto skip', 'Chat commands: /me, /np (shares what you\'re listening to or playing) and /help', 'Storyboards wait for their outro at the end of a song, with Skip outro'] },
-    { icon: 'mods', title: 'Mods', items: ['Cinema: Auto with only the background showing', 'Wind Up and Wind Down (Fun): the song speeds up to 1.5× or slows to 0.75× as it plays', 'Adaptive Speed (Fun): hit early and the song speeds up, late or miss and it slows down'] },
-    { icon: 'trophy', title: 'Online', items: ['The beatmap page in the listing shows each difficulty\'s global ranking, even before you download it', 'After a play, the results show where it ranks globally on that beatmap', 'Only ranked beatmaps count toward pp, in your profile and the rankings', 'Rankings no longer show accuracy', 'Rooms survive the server restarting', 'Your background dim and blur are kept', 'A hitch while playing can no longer make the server turn your play down', 'Players who leave the game open and walk away now show as offline after 10 minutes (back the moment they press a key), instead of looking online', 'No more pinch or double-tap zooming on phones and tablets (in the app and the browser)', 'Text boxes no longer get a yellow outline when you type in them', 'The main menu\'s Edit has Beatmap (import beatmaps, extract them as .osz and edit collections) and Skin (preview and import skins, and Edit skin to change the layout of the one you use)', 'Playlists are gone', 'pp counts only ranked beatmaps — and now finds out reliably which of yours are ranked: beatmaps whose files don\'t say which set they\'re from are looked up by their file, and a lookup that failed is tried again (before, it could leave a ranked beatmap giving 0pp for good)', 'Profiles\' best performance lists only plays on ranked beatmaps', 'Settings → Gameplay → HUD overlay visibility mode, like lazer: Always, Hide during gameplay (shown before the first note, in breaks and when paused) or Never; hold Ctrl to peek', 'Song select\'s "N matches" counts songs, not each difficulty', 'Overlays (rankings, profile, beatmap listing, …) open with lazer\'s coloured waves sweeping up', 'Phones: chat messages send — the keyboard\'s Send key and the bar\'s button (it was only closing the keyboard)', 'Phones: two fingers up or down change the volume (not mid-song)', 'Song select groups by key count by default', 'Profiles have lazer\'s Beatmaps section: favourite beatmaps, as cards', 'Multiplayer: players who\'ve finished the song show as finished, with their score, straight away — not "still playing" until everyone\'s play has been checked', 'Settings → User Interface → Main Menu → Background source, like lazer: the triangles (Skin) or the playing song\'s background (Beatmap)', 'Profiles: score lists start with five and grow with "show more", and Recent has lazer\'s activity feed (medals unlocked, #1 ranks achieved)'] },
+    { icon: 'brush', title: 'Skin editor', items: ['New skin editor', 'User tags, screenshots (F12) and storyboards'] },
   ] },
   { id: '2026.10.4', title: 'Fair play', sections: [
-    { icon: 'trophy', title: 'Online', items: ['Scores, pp, rankings and the daily challenge are now worked out by the server from your key presses, so nobody can post a fake score', 'Multiplayer results are checked by the server too', 'Everyone\'s profile is public: open anyone\'s from the rankings, leaderboards or the online list', 'Click another player\'s score to see it on the results screen', 'Changing your name updates it on all your scores and replays'] },
-    { icon: 'mods', title: 'New mods', items: ['Flashlight: only the part of the stage near the receptors can be seen, and it shrinks as your combo grows', 'Cover: cover part of the stage from the top or the bottom', 'Muted (in the new Fun column): the music fades as your combo builds, with a metronome'] },
-    { icon: 'mania', title: 'Gameplay', items: ['Bar lines across the stage at every bar, like lazer (Settings → Gameplay)', 'Change the offset or background dim from the pause screen'] },
-    { icon: 'sparkle', title: 'Nicer', items: ['lazer\'s Manage collections window in song select (rename right in the list, type to make a new one)', 'Replays look like lazer\'s score rows', 'First-run setup asks Performance or Graphics', 'The game no longer goes fullscreen by itself on a computer'] },
-    { icon: 'keyboard', title: 'Phones', items: ['A big typing bar above the keyboard, so you always see what you type', 'Tap to resume after turning the phone or switching apps', 'One Esc pauses, and the game keeps your keys while you play'] },
+    { icon: 'trophy', title: 'Fair play', items: ['Scores and pp are checked by the server', 'New mods'] },
   ] },
   { id: '2026.10.3', title: 'Little things', sections: [
-    { icon: 'sparkle', title: 'Nicer', items: ['A lazer-style skip button', 'The hit distribution on results reads like lazer\'s', 'Clicking the music button keeps now playing open', 'Song select keeps your beatmap when a search finds nothing', 'Long song titles fit everywhere', 'Open Settings and just type to search it', 'The song list no longer slides sideways when you click a beatmap', 'Watching a replay from the Replays page starts right away', 'Star ratings follow speed mods like DT', 'Song select plays the song straight away, even right after an import', 'The song list curves as you scroll, like lazer', 'Song select and results have lazer\'s sounds', 'The main menu\'s edges flash with the beat', 'A "hold for menu" button while playing, like lazer'] },
+    { icon: 'sparkle', title: 'Little things', items: ['Small polish'] },
   ] },
   { id: '2026.10.2', title: 'Polish', sections: [
-    { icon: 'upload', title: 'New', items: ['Bring over your Web-Osu-Mania backup — keybinds, beatmaps, scores, and every song in your collections'] },
-    { icon: 'trophy', title: 'Ranked Play', items: ['No more rating: pick Beginner, Intermediate or Advanced and the cards suit you both', 'A cleaner waiting screen', 'Hands of five, and a reroll every round', 'Leaving a song gives that round to your opponent', 'Running out of health in multiplayer works like lazer: you fail but play on'] },
-    { icon: 'sparkle', title: 'Nicer', items: ['A cleaner beatmap info page', 'The beatmap listing no longer flickers while you scroll', 'Volume controls moved to the left, like lazer', 'Top bar buttons close what they opened', 'Online players and rooms stay up to date', 'Skin health bars sit beside the stage', 'Skins look right at every key count', 'Results open like lazer: click the score for statistics'] },
+    { icon: 'upload', title: 'Polish', items: ['Import your Web-Osu-Mania backup', 'Simpler Ranked Play'] },
   ] },
   { id: '2026.10.1', title: 'The lazer update', sections: [
-    { icon: 'home', title: 'Main menu', items: ['A new lazer-style main menu', 'Background triangles take the colour of the song'] },
-    { icon: 'bell', title: 'Top bar', items: ['Notifications, a clock and a now playing panel', 'Scroll on the menu to change the volume'] },
-    { icon: 'download', title: 'Beatmap listing', items: ['New beatmap cards; click one for its info page'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['Ranked Play: 1v1 with beatmap cards', 'Create a Regular or Ranked room, public or private', 'Open rooms are listed in the lobby'] },
-    { icon: 'brush', title: 'Skins', items: ['A better-looking Custom skin you can customise'] },
-    { icon: 'mods', title: 'Everything else', items: ['Mod icons', 'Looks the same at every resolution'] },
+    { icon: 'home', title: 'The lazer update', items: ['The game looks like osu!lazer', 'Ranked Play and multiplayer rooms'] },
   ] },
 ];
 const WhatsNew = {
@@ -956,7 +842,7 @@ const WhatsNew = {
       h('div.cl-head', h('div.cl-hicon', icon('sparkle')), h('div', h('div.cl-title', 'changelog'), h('div.cl-sub', 'what\'s new in Ashtonk!mania')),
         h('button.icon-btn.cl-x', { title: 'Close', 'aria-label': 'Close', onclick: () => o.close() }, icon('x'))),
       h('div.cl-body', ...entries.map(e => h('div.cl-entry',
-        h('div.cl-ver', h('span.cl-pill', e.id), h('b', e.title)),
+        h('div.cl-ver', h('span.cl-pill', e.id.replace(/[a-z]$/, '')), h('b', e.title)),
         ...e.sections.map((sec, si) => h('div.cl-sec', { style: { animationDelay: `${si * 60}ms` } }, h('div.cl-sech', icon(sec.icon), sec.title),
           h('ul', ...sec.items.map(t => h('li', t)))))))),
       h('div.cl-foot', h('button.btn.primary', { onclick: () => o.close() }, 'Let\'s go!')));

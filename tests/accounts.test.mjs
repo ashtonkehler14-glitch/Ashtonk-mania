@@ -142,7 +142,7 @@ test('your settings and skin: kept per player, the skin in 1 MB pieces; a new on
   const { PlayerVault, SKIN_MAX } = await import('../worker/vault.js');
   const m = new Map();
   const storage = {
-    get: async k => m.get(k), put: async (k, v) => { m.set(k, v); },
+    get: async k => m.get(k), put: async (k, v) => { if (typeof k === 'object') for (const [a, b] of Object.entries(k)) m.set(a, b); else m.set(k, v); },
     delete: async k => { for (const x of [].concat(k)) m.delete(x); }, deleteAll: async () => m.clear(),
   };
   const v = new PlayerVault({ storage });
@@ -150,8 +150,9 @@ test('your settings and skin: kept per player, the skin in 1 MB pieces; a new on
   const stream = (n, piece = 300000) => new ReadableStream({ start(c) { for (let i = 0; i < n; i += piece) c.enqueue(new Uint8Array(Math.min(piece, n - i)).fill(i / piece % 251)); c.close(); } });
   const skinHdr = (id, name) => ({ 'x-am-skin': encodeURIComponent(JSON.stringify({ id, name })) });
 
-  assert.deepEqual(await (await call('/restore')).json(), { ok: true, settings: null, skin: null }, 'nothing kept yet');
-  assert.equal((await call('/settings', JSON.stringify({ v: 1, values: { 'gameplay.scrollSpeed': 30 }, skin: { id: 'skin-a', name: 'A' } }))).status, 200);
+  assert.deepEqual(await (await call('/restore')).json(), { ok: true, settings: null, skin: null, rev: 0 }, 'nothing kept yet');
+  const first = await call('/settings', JSON.stringify({ v: 1, values: { 'gameplay.scrollSpeed': 30 }, skin: { id: 'skin-a', name: 'A' } }));
+  assert.deepEqual([first.status, (await first.json()).rev], [200, 1], 'each change is numbered');
   assert.equal((await call('/settings', 'not json')).status, 400);
 
   const size = 2.5 * 1024 * 1024;
@@ -176,4 +177,32 @@ test('your settings and skin: kept per player, the skin in 1 MB pieces; a new on
   // merged into another player: nothing of theirs is kept
   await call('/wipe');
   assert.equal(m.size, 0);
+});
+
+test('your name and picture, beatmap offsets and installed beatmaps are kept with your settings; each change gets the next number', async () => {
+  const { PlayerVault, mergeSettings } = await import('../worker/vault.js');
+  const m = new Map(), storage = { get: async k => m.get(k), put: async (k, v) => { if (typeof k === 'object') for (const [a, b] of Object.entries(k)) m.set(a, b); else m.set(k, v); }, delete: async () => {} };
+  const v = new PlayerVault({ storage });
+  const call = (path, body) => v.fetch(new Request('https://vault' + path, { method: 'POST', body }));
+  await call('/settings', JSON.stringify({ v: 2, full: true, values: { a: 1 }, profile: { name: 'Kai', avatar: 'preset:neru' }, offsets: { h1: 12 }, sets: [[100, 'Song', 'Artist', 'Mapper']] }));
+  const r = await call('/settings', JSON.stringify({ v: 2, values: {}, profile: { name: 'Kai2', avatar: 'preset:miku' } }));
+  assert.equal((await r.json()).rev, 2);
+  const kept = await (await call('/restore')).json();
+  assert.deepEqual([kept.rev, kept.settings.profile, kept.settings.offsets, kept.settings.sets], [2, { name: 'Kai2', avatar: 'preset:miku' }, { h1: 12 }, [[100, 'Song', 'Artist', 'Mapper']]], 'only what changed is replaced');
+  assert.deepEqual(mergeSettings({ values: {} }, { values: {}, sets: [] }).sets, []);
+});
+
+test('switching a device from one account to another merges nothing: both stay as they were, each with its code', () => {
+  const p = new PresenceLogic();
+  p.join('a', { name: 'Ann', pid: 'annplay', key: KEY_A });
+  p.setCode('annplay', codeHash('AAAAAAAAAAAAAAAA'));
+  p.recordVerified('annplay', key('5'), play(800000, 120));
+  p.join('b', { name: 'Ben', pid: 'benplay', key: KEY_B });
+  p.setCode('benplay', codeHash('BBBBBBBBBBBBBBBB'));
+  // Ann's device types Ben's code
+  const r = p.linkDevice('benplay', 'annplay', KEY_A, KEY_NEW);
+  assert.equal(r.merged, false, 'an account is never merged into another');
+  assert.ok(p.ranks.get('annplay') && p.ranks.get('annplay').pp > 0, 'Ann keeps her plays');
+  assert.equal(p.codes.get(codeHash('AAAAAAAAAAAAAAAA')), 'annplay', 'and her code still works');
+  assert.ok(!(p.ranks.get('benplay') && p.ranks.get('benplay').pp > 0), 'Ben gets none of them');
 });

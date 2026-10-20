@@ -557,6 +557,8 @@ const Presence = {
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
       else if (m.t === 'myBests') Bus.emit('myBests', m);
+      // (another of your devices changed something of yours: fetched now)
+      else if (m.t === 'synced') { if (typeof Sync !== 'undefined') Sync.onSynced(m.part); }
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);

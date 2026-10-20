@@ -4592,3 +4592,33 @@ html.lp-open #toasts { right: 380px; }
 .setup-restore-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
 .setup-restore-bar i { display: block; height: 100%; background: var(--accent, #ff66ab); transition: width .2s; }
 .setup-next.busy { opacity: .6; pointer-events: none; }
+
+/* ── "Your beatmaps": the beatmaps on your other devices, as small cover cards to pick from */
+.dialog:has(.ab) { width: min(860px, calc(100vw - 32px)); max-width: none; }
+.ab { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.ab-sub { margin: 0; color: var(--muted); font-size: .85rem; }
+.ab-bar { display: flex; gap: 8px; align-items: center; }
+.ab-q { flex: 1; min-width: 0; }
+.ab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; max-height: min(52vh, 460px); overflow-y: auto; padding: 2px; overscroll-behavior: contain; }
+.ab-card { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 12px 0 0; height: 64px; border-radius: 10px; border: 0; text-align: left; color: var(--text);
+  background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1.5px transparent; cursor: pointer; overflow: hidden; transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) var(--ease-out); }
+.ab-card:hover { background: rgba(255, 255, 255, .08); }
+.ab-card:active { transform: scale(.985); }
+.ab-card.on { background: rgba(var(--accent-rgb), .16); box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), .8); }
+.ab-card[hidden] { display: none; }
+.ab-thumb { flex: none; width: 88px; height: 100%; background: center / cover no-repeat rgba(255, 255, 255, .06); opacity: .35; transition: opacity 300ms; }
+.ab-thumb.loaded { opacity: 1; }
+.ab-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.ab-txt b, .ab-txt span, .ab-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-txt b { font-size: .88rem; font-weight: 600; }
+.ab-txt span { font-size: .78rem; color: var(--text-dim, rgba(255, 255, 255, .7)); }
+.ab-txt small { font-size: .7rem; color: var(--muted); }
+.ab-check { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .3); color: transparent; transition: background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
+.ab-check svg { width: 12px; height: 12px; }
+.ab-card.on .ab-check { background: var(--accent); color: #fff; box-shadow: none; }
+.ab-foot { display: flex; align-items: center; gap: 10px; }
+.ab-count { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.ab-go { min-width: 120px; }
+.lib-mine-n { margin-left: 6px; padding: 0 7px; border-radius: 99px; background: rgba(255, 255, 255, .16); font-size: .75rem; font-weight: 700; }
+.off-act { margin-top: 6px; }
+@media (max-width: 560px) { .ab-grid { grid-template-columns: minmax(0, 1fr); } }

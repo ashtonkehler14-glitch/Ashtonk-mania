@@ -1155,7 +1155,9 @@ export class PresenceLogic {
   /** A device typed the player's code: it gets a key for their id, and the player it was until now (`from`, proved by
    *  its key) goes into them — so they aren't on the rankings twice. Their other devices are told. */
   linkDevice(pid, from, fromKey, newKey) {
-    const merge = /^[a-z0-9]{6,24}$/.test(String(from || '')) && from !== pid && this.keyOk(from, fromKey);
+    // (only a player of this device's own — no code — becomes part of the code's player: one with a code is an account
+    // of its own, switched away from here, never merged into another one)
+    const merge = /^[a-z0-9]{6,24}$/.test(String(from || '')) && from !== pid && this.keyOk(from, fromKey) && !this.codeOf.has(from);
     const out = merge ? this.mergePlayer(from, pid) : [];
     this.addKey(pid, newKey);
     // (the player's other devices — not the one that typed the code, whose tabs are still on their old key)
@@ -1408,8 +1410,9 @@ export class PresenceLogic {
   profileMsg(pid) {
     const data = this.profiles.get(pid) || null, r = this.ranks.get(pid);
     // their best plays the server judged (the ones with a known song, on ranked beatmaps), best first — for a profile their game hasn't sent
-    const top = r && r.bests ? Object.values(r.bests).filter(b => b && b.title && b.pp > 0).sort((a, b) => b.pp - a.pp).slice(0, 20)
-      .map(b => ({ title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
+    // (with each one's beatmap — its file's hash — so their own game can tell which of its plays these are)
+    const top = r && r.bests ? Object.entries(r.bests).filter(([, b]) => b && b.title && b.pp > 0).sort((a, b) => b[1].pp - a[1].pp).slice(0, 100)
+      .map(([key, b]) => ({ key, title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     // (a first place stored without its song — the backfill couldn't find which beatmap it was — takes the name from their
@@ -2300,7 +2303,7 @@ export class Matchmaker {
   async vaultAuth(request) {
     await this.loadFriends();
     const b = await request.json().catch(() => ({})), P = this.presence, pid = String(b.pid || ''), what = String(b.what || '');
-    const limit = { settings: 60, 'skin-up': 6, restore: 30, skin: 10, 'scores-up': 60, scores: 120 }[what];
+    const limit = { settings: 60, 'skin-up': 6, restore: 120, skin: 10, 'scores-up': 60, scores: 120 }[what];
     if (!limit) return json({ error: 'Not found' }, 404);
     if (!/^[a-z0-9]{6,24}$/.test(pid) || !P.keyOk(pid, String(b.key || ''))) return json({ error: 'This device isn\'t signed in as that player.' }, 403);
     if ((what === 'settings' || what === 'skin-up' || what === 'scores-up') && !P.codeOf.has(pid)) return json({ error: 'Get your code first: your settings are kept for the devices that use it.' }, 403);
@@ -2613,6 +2616,13 @@ export class Matchmaker {
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
     if (url.pathname.startsWith('/internal/admin/') && request.method === 'POST') return this.admin(url.pathname.slice(16), request);
+    // (a player's kept settings or plays changed: their other devices online fetch them — not the one that sent them)
+    if (url.pathname === '/internal/synced' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({})), pid = String(b.pid || ''), kh = b.key ? sha256hex(String(b.key)) : '';
+      const part = b.part === 'scores' ? 'scores' : 'settings';
+      this.send([...this.presence.users.entries()].filter(([, u]) => u.pid && u.pid === pid && u.kh !== kh).map(([id]) => ({ to: id, msg: { t: 'synced', part } })));
+      return json({ ok: true });
+    }
     if (url.pathname.startsWith('/api/account/') && request.method === 'POST') return this.account(url.pathname.slice(13), request);
     if (url.pathname === '/vault-auth' && request.method === 'POST') return this.vaultAuth(request);
     // (8: a body that isn't an object — `null` parses fine — is an empty one)
@@ -2731,12 +2741,18 @@ export async function handleAccount(request, env, url) {
   const auth = await stub.fetch(new Request(new URL('/vault-auth', url), { method: 'POST', body: JSON.stringify({ pid, key, what }), headers: { 'content-type': 'application/json' } }));
   if (!auth.ok) return auth;
   const vault = env.VAULT.get(env.VAULT.idFromName(pid)), at = new URL('/' + what, url);
+  // (something of yours changed on one device: your others online are told, and fetch it straight away — waited for:
+  // a request left running once the answer has gone can be cut off)
+  const told = async (res, part) => {
+    if (res.ok) await stub.fetch(new Request(new URL('/internal/synced', url), { method: 'POST', body: JSON.stringify({ pid, part, key }), headers: { 'content-type': 'application/json' } })).catch(() => {});
+    return res;
+  };
   if (what === 'settings') {
     if (!settings || typeof settings !== 'object') return json({ error: 'Bad settings.' }, 400);
-    return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify(settings) }));
+    return told(await vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify(settings) })), 'settings');
   }
-  if (what === 'skin-up') return vault.fetch(new Request(at, { method: 'POST', body: request.body, headers: { 'x-am-skin': request.headers.get('x-am-skin') || '' } }));
-  if (what === 'scores-up') return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify({ scores: Array.isArray(b.scores) ? b.scores : null }) }));
+  if (what === 'skin-up') return told(await vault.fetch(new Request(at, { method: 'POST', body: request.body, headers: { 'x-am-skin': request.headers.get('x-am-skin') || '' } })), 'settings');
+  if (what === 'scores-up') return told(await vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify({ scores: Array.isArray(b.scores) ? b.scores : null }) })), 'scores');
   if (what === 'scores') return vault.fetch(new Request(at, { method: 'POST', body: JSON.stringify({ after: b.after }) }));
   return vault.fetch(new Request(at, { method: 'POST' }));
 }

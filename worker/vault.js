@@ -4,7 +4,7 @@
 
 /** A stored value holds at most 2 MB: a skin is kept in 1 MB pieces. */
 const CHUNK = 1 << 20;
-export const SETTINGS_MAX = 256 * 1024;
+export const SETTINGS_MAX = 1024 * 1024;
 export const SKIN_MAX = 30 * 1024 * 1024;
 /** Your scores, kept for your other devices: each as the game sends it (no hit-by-hit timing), the newest this many. */
 export const SCORE_MAX = 4096;
@@ -21,7 +21,7 @@ export function mergeSettings(base, o) {
   const m0 = base.values['medals.unlocked'], m1 = o.values && o.values['medals.unlocked'];
   if (m0 && typeof m0 === 'object' && m1 && typeof m1 === 'object') values['medals.unlocked'] = { ...m0, ...m1 };
   const out = { ...base, v: 2, values };
-  for (const k of ['skin', 'collections', 'favorites']) if (k in o) out[k] = o[k];
+  for (const k of ['skin', 'collections', 'favorites', 'profile', 'offsets', 'sets']) if (k in o) out[k] = o[k];
   delete out.full;
   return out;
 }
@@ -47,17 +47,19 @@ export class PlayerVault {
         text = JSON.stringify(mergeSettings(base, o));
         if (text.length > SETTINGS_MAX) return json({ error: 'Your settings are too big to keep.' }, 413);
       }
-      await st.put('settings', { at: Date.now(), text });
+      // (each change numbered: a device asking again later knows whether there's anything new since)
+      const rev = ((await st.get('rev')) || 0) + 1;
+      await st.put({ settings: { at: Date.now(), text }, rev });
       // (which skin is kept: a device whose skin isn't it sends its own)
       const k = await st.get('skin');
-      return json({ ok: true, skin: k ? { id: k.id, name: k.name } : null });
+      return json({ ok: true, rev, skin: k ? { id: k.id, name: k.name } : null });
     }
     // what there is to bring to a device: the settings, and which skin is kept (not the skin itself)
     if (path === '/restore') {
-      const [s, k] = await Promise.all([st.get('settings'), st.get('skin')]);
+      const [s, k, rev] = await Promise.all([st.get('settings'), st.get('skin'), st.get('rev')]);
       let settings = null;
       try { settings = s ? JSON.parse(s.text) : null; } catch { /* unreadable: as if none */ }
-      return json({ ok: true, settings, skin: k ? { id: k.id, name: k.name, size: k.size, at: k.at } : null });
+      return json({ ok: true, settings, rev: rev || 0, skin: k ? { id: k.id, name: k.name, size: k.size, at: k.at } : null });
     }
     // the skin (an .osk), in pieces as it arrives; the one kept before goes once the new one is all in
     if (path === '/skin-up') {

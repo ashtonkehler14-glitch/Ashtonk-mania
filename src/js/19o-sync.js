@@ -1,9 +1,10 @@
 /* Your settings, skin and scores, kept with your code: a device playing through a code sends the settings you change
  * on it — not the ones that belong to the device (performance and sharpness, audio offset, what song select last
- * showed) — your collections and favourites, the skin it uses if it's one you imported (Kori and the Custom skin are on
- * every device already), and the plays you set on it. Typing your code on another device brings them there
- * (Sync.restore, from the first-run setup and Your code → Use a code); after that, each device gets the plays the
- * others set as it goes. */
+ * showed) — your name and picture, collections, favourites, beatmap offsets, the beatmaps you have installed, the
+ * skin it uses if it's one you imported (Kori and the Custom skin are on every device already), and the plays you set
+ * on it. Typing your code on another device brings them there (Sync.restore, from the first-run setup and Your code →
+ * Use a code); after that each device keeps up with the others as it goes (Sync.pull): a change on one is on the
+ * others in seconds when they're online (the server tells them), else when they're next opened. */
 
 const Sync = {
   /** Settings that belong to the device, not to you: never sent, never taken from another device. */
@@ -26,9 +27,15 @@ const Sync = {
   pending() { return this.marked('am.restore') === '1'; },
 
   init() {
+    DB.kvGet('sync.sets', []).then(l => { if (Array.isArray(l) && !this.accountSets.length) { this.accountSets = l; Bus.emit('accountsets:changed'); } }).catch(() => {});
     // (each change noted, to be sent: a medal too — though alone it waits for the next change)
     Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
-    for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs']]) Bus.on(ev, () => { this.touch(part); this.later(); });
+    for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs'], ['mapoffset:changed', 'offsets'], ['library:changed', 'sets']])
+      Bus.on(ev, () => { this.touch(part); this.later(); });
+    // (your name and picture: only when one of them changed — the profile is saved for other things too)
+    const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}`; };
+    this._prof = prof();
+    Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
     Bus.on('account:changed', () => this.later());
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -60,12 +67,14 @@ const Sync = {
     const pid = Account.me().pid;
     if (!pid) return;
     const c = this.changes() || { pid, keys: [] };
-    if (['full', 'skin', 'cols', 'favs'].includes(part)) c[part] = true; else if (!c.keys.includes(part)) c.keys.push(part);
+    if (this.PARTS.includes(part)) c[part] = true; else if (!c.keys.includes(part)) c.keys.push(part);
     this.mark('am.setChanges', JSON.stringify(c));
     this._touched = Date.now();
   },
+  /** What's kept apart from the settings themselves (anything else note() is given is a setting's key). */
+  PARTS: ['full', 'skin', 'cols', 'favs', 'profile', 'offsets', 'sets'],
   /** Anything to send (a medal alone goes with the next change). */
-  dirty(c = this.changes()) { return !!c && !!(c.full || c.skin || c.cols || c.favs || c.keys.some(k => k !== 'medals.unlocked')); },
+  dirty(c = this.changes()) { return !!c && !!(this.PARTS.some(p => c[p]) || c.keys.some(k => k !== 'medals.unlocked')); },
   forgetChanges() { this.mark('am.setChanges', null); this.mark('am.setDirty', null); },
   /** When everything from here last went up (0: not yet, or not as this player). */
   sentAt() { const [p, t] = this.marked('am.syncAt').split('|'); return p && p === Account.me().pid ? Number(t) || 0 : 0; },
@@ -83,7 +92,18 @@ const Sync = {
     if (c.full || c.skin) out.skin = cur ? { id: cur.id, name: cur.builtin ? 'Custom' : (cur.meta && cur.meta.name) || '' } : null;
     if (c.full || c.cols) { const cols = Collections.list.map(x => ({ name: x.name, hashes: x.hashes })); if (JSON.stringify(cols).length <= 100000) out.collections = cols; }
     if (c.full || c.favs) { const favs = [...Favorites.set]; if (favs.length <= 2500) out.favorites = favs; }
+    if (c.full || c.profile) out.profile = this.profileOut();
+    if (c.full || c.offsets) out.offsets = Object.fromEntries(Object.entries(MapOffsets.map).slice(-5000));
+    if (c.full || c.sets) out.sets = this.setsOut();
     return out;
+  },
+  /** Your name and picture: a preset's id, or a copy of the one you uploaded (made just before it's sent). */
+  profileOut() { const p = ProfileManager.profile; return { name: p.name, avatar: p.avatar === 'custom' ? this._avatarData || ProfileManager.sharedAvatar || '' : p.avatar || 'default' }; },
+  /** The beatmap sets installed here that can be downloaded again (by their osu! id): your other devices list them. */
+  setsOut() {
+    const out = [];
+    for (const s of BeatmapManager.sets) if (s.onlineId > 0) out.push([s.onlineId, String(s.title || '').slice(0, 80), String(s.artist || '').slice(0, 60), String(s.creator || '').slice(0, 30)]);
+    return out.slice(-4000);
   },
   async push() {
     if (!this.ready()) return;
@@ -96,10 +116,13 @@ const Sync = {
         const c = this.changes();
         if (this.dirty(c)) {
           const t0 = Date.now(), me = Account.me();
+          if ((c.full || c.profile) && ProfileManager.profile.avatar === 'custom') this._avatarData = await ProfileManager.avatarData().catch(() => '');
           let d;
           try { d = await Account.call('settings', { ...me, settings: this.payload(c) }); }
           // (nothing kept yet: what changed here alone would be all there is — so everything)
           catch (e) { if (e.status !== 409 || c.full) throw e; c.full = true; d = await Account.call('settings', { ...me, settings: this.payload(c) }); }
+          // (what's kept now has this in it: nothing to fetch back for it — unless another device changed something too)
+          if (d && d.rev && this.keptRev() === d.rev - 1) this.mark('am.setRev', `${me.pid}|${d.rev}`);
           // (the skin itself, when it's what this device sent: d.skin is the one the server keeps)
           if (c.full || c.skin) await this.pushSkin(d.skin || null);
           if (!(this._touched > t0)) this.forgetChanges(); // (changed again meanwhile: all of it goes next time)
@@ -108,6 +131,8 @@ const Sync = {
       // (your plays on their own: a skin that couldn't go up doesn't keep them back)
       let plays = true;
       try { await this.syncScores(); } catch (e) { plays = false; console.warn('scores not kept', e); }
+      // (and what your other devices changed since)
+      try { await this.pull(); } catch (e) { console.warn('settings not brought', e); }
       if (failed) throw failed;
       if (plays) this.mark('am.syncAt', `${Account.me().pid}|${Date.now()}`);
     } finally {
@@ -214,32 +239,10 @@ const Sync = {
       else this.retry();
       throw e;
     }
-    const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    const s = d.settings && typeof d.settings === 'object' ? d.settings : null;
     const own = s ? this.ownExtra(s) : [];
-    if (s && s.values && typeof s.values === 'object') { await this.apply(s.values); got.settings = true; }
-    if (s && Array.isArray(s.collections)) got.collections = await Collections.merge(s.collections);
-    if (s && Array.isArray(s.favorites)) got.favorites = await Favorites.merge(s.favorites);
-    // (the settings are here: whatever happens to the skin, this restore is done — it's never applied over again)
-    this.mark('am.restore', null);
-    const want = s && s.skin, pid = Account.me().pid;
-    if (want && want.id) {
-      if (want.id === 'default') await SkinManager.select('default');
-      else {
-        const here = SkinManager.skins.find(k => k.id === want.id) || SkinManager.skins.find(k => want.name && k.name === want.name);
-        if (here) {
-          await SkinManager.select(here.id);
-          if (d.skin && d.skin.name === here.name) this.mark('am.skinSent', `${pid}|${here.id}`); // (the server has it already)
-        } else if (d.skin && (d.skin.id === want.id || d.skin.name === want.name)) {
-          try {
-            onStatus(`Downloading your skin (${d.skin.name})…`, 0);
-            const meta = await SkinManager.importOsk(await this.skinFile(d.skin, f => onStatus(`Downloading your skin (${d.skin.name})…`, f)));
-            await SkinManager.select(meta.id);
-            this.mark('am.skinSent', `${pid}|${meta.id}`); // (it's the one the server has)
-            got.skin = meta.name;
-          } catch (e) { got.skinErr = friendlyError(e); console.warn('skin not brought', e); }
-        }
-      }
-    }
+    const got = await this.applyKept(d, { onStatus, done: () => this.mark('am.restore', null) });
+    if (d.rev) this.mark('am.setRev', `${Account.me().pid}|${d.rev}`);
     // (what came is what's kept: nothing from here to send back — sent anyway, it went over newer settings another of
     // your devices had sent in the meantime — but what this device adds to it, and everything if nothing was kept)
     this.forgetChanges();
@@ -256,6 +259,78 @@ const Sync = {
     if (typeof Onboarding !== 'undefined' && Onboarding.o) Onboarding.done.then(offer); else offer();
     return got;
   },
+  /** What's kept for you (`d`, as the server's restore has it) put in place here: your settings, collections,
+   *  favourites, beatmap offsets, name and picture, the list of beatmaps you have installed, and your skin (downloaded
+   *  if it isn't here). `replace`: as your other devices left them (Sync.pull); else added to what this device has (a
+   *  restore after typing your code: what this device had is part of you now). `done()` once the settings are in. */
+  async applyKept(d, { replace = false, onStatus = () => {}, done = () => {} } = {}) {
+    const got = { settings: false, skin: '', skinErr: '', scores: 0, collections: 0, favorites: 0 }, s = d.settings && typeof d.settings === 'object' ? d.settings : null;
+    if (s && s.values && typeof s.values === 'object' && (!replace || this.differs(s.values))) { await this.apply(s.values); got.settings = true; }
+    if (s && Array.isArray(s.collections)) got.collections = await (replace ? Collections.replaceAll(s.collections) : Collections.merge(s.collections));
+    if (s && Array.isArray(s.favorites)) got.favorites = await (replace ? Favorites.replaceAll(s.favorites) : Favorites.merge(s.favorites));
+    if (s && s.offsets && typeof s.offsets === 'object') await MapOffsets.applyKept(s.offsets, replace);
+    if (s && s.profile && typeof s.profile === 'object') await ProfileManager.applyKept(s.profile);
+    if (s && Array.isArray(s.sets)) await this.keepSets(s.sets);
+    // (the settings are here: whatever happens to the skin, this is done — it's never applied over again)
+    done();
+    const want = s && s.skin, pid = Account.me().pid;
+    if (want && want.id && !(SkinManager.current && SkinManager.current.id === want.id)) {
+      if (want.id === 'default') await SkinManager.select('default');
+      else {
+        const here = SkinManager.skins.find(k => k.id === want.id) || SkinManager.skins.find(k => want.name && k.name === want.name);
+        if (here) {
+          if (!(SkinManager.current && SkinManager.current.id === here.id)) await SkinManager.select(here.id);
+          if (d.skin && d.skin.name === here.name) this.mark('am.skinSent', `${pid}|${here.id}`); // (the server has it already)
+        } else if (d.skin && (d.skin.id === want.id || d.skin.name === want.name)) {
+          try {
+            onStatus(`Downloading your skin (${d.skin.name})…`, 0);
+            const meta = await SkinManager.importOsk(await this.skinFile(d.skin, f => onStatus(`Downloading your skin (${d.skin.name})…`, f)));
+            await SkinManager.select(meta.id);
+            this.mark('am.skinSent', `${pid}|${meta.id}`); // (it's the one the server has)
+            got.skin = meta.name;
+          } catch (e) { got.skinErr = friendlyError(e); console.warn('skin not brought', e); }
+        }
+      }
+    }
+    return got;
+  },
+  /** Do the kept settings differ from this device's (the ones that aren't the device's own)? */
+  differs(remote) {
+    for (const [k, v] of Object.entries(remote)) if (!this.local(k) && k !== 'skin.current' && JSON.stringify(v) !== JSON.stringify(Settings.values[k])) return true;
+    return false;
+  },
+  /** Which revision of what's kept this device has (0: none yet, or not as this player). */
+  keptRev() { const [p, r] = this.marked('am.setRev').split('|'); return p && p === Account.me().pid ? Number(r) || 0 : 0; },
+  /** What your other devices changed since this one last looked — when what's kept has a newer revision — put in place
+   *  of this device's (what changed here went up first: push). Every PULL_EVERY, sooner when the server says
+   *  something's changed (onSynced), never during a song. */
+  async pull() {
+    if (!this.ready() || this.dirty() || Screens.currentName === 'gameplay') return;
+    if (Date.now() - (this._settingsAt || 0) < this.PULL_EVERY) return;
+    this._settingsAt = Date.now();
+    const d = await Account.call('restore', Account.me());
+    if (!d || !d.rev || d.rev === this.keptRev() || this.dirty() || !this.ready()) return; // (changed here meanwhile: that goes up first)
+    this._restoring = true;
+    try { await this.applyKept(d, { replace: true }); } finally { this._restoring = false; }
+    this.mark('am.setRev', `${Account.me().pid}|${d.rev}`);
+  },
+  /** The server says another of your devices just changed something (settings, or played): fetched now. */
+  onSynced(part) {
+    if (part === 'scores') this._pulledAt = 0; else this._settingsAt = 0;
+    this.later(1200);
+  },
+  /** The beatmap sets installed on your devices (for the library's "From your account"). */
+  accountSets: [],
+  async keepSets(list) {
+    this.accountSets = list.filter(x => Array.isArray(x) && x[0] > 0).map(([id, title, artist, creator]) => ({ id: Number(id), title: String(title || ''), artist: String(artist || ''), creator: String(creator || '') }));
+    await DB.kvSet('sync.sets', this.accountSets).catch(() => {});
+    Bus.emit('accountsets:changed');
+  },
+  /** Of those, the ones this device hasn't got. */
+  accountMissing() {
+    const have = new Set(BeatmapManager.sets.map(s => s.onlineId).filter(x => x > 0)), seen = new Set();
+    return this.accountSets.filter(s => !have.has(s.id) && !seen.has(s.id) && seen.add(s.id));
+  },
   /** The beatmaps your plays from your other devices are on that this device hasn't got (by their osu! set ids). */
   missingSets() {
     const have = new Set(BeatmapManager.sets.map(s => s.onlineId).filter(x => x > 0)), out = new Map();
@@ -270,14 +345,16 @@ const Sync = {
   },
   /** Downloads them, three at a time (one stuck download doesn't hold up the rest), as lazer's progress notification
    *  does a download: how far it's got, and its X stops them. */
-  async getMissing() {
-    if (this._getting) return;
-    const sets = this.missingSets(), n = sets.length;
+  async getMissing() { return this.getSets(this.missingSets(), 'Downloading beatmaps you\'ve played'); },
+  /** These beatmap sets ({ id, title, artist }), downloaded and installed. */
+  async getSets(sets, title = 'Downloading your beatmaps') {
+    if (this._getting) { Toast.show('Already downloading', 'Your beatmaps are on their way: see the notifications.'); return; }
+    const n = sets.length;
     if (!n) return;
     if (navigator.onLine === false) { Toast.err('The beatmaps couldn\'t be downloaded', 'You\'re offline. Connect to the internet and try again.'); return; }
     this._getting = true;
     const queue = [...sets], ac = new AbortController();
-    const note = Toast.progress('Downloading beatmaps you\'ve played', `0 of ${n}`, { onCancel: () => ac.abort() });
+    const note = Toast.progress(title, `0 of ${n}`, { onCancel: () => ac.abort() });
     let done = 0, failed = 0, first = '', full = false;
     const worker = async () => {
       for (let set; !ac.signal.aborted && (set = queue.shift());) {
@@ -292,7 +369,7 @@ const Sync = {
       }
     };
     try { await Promise.all([worker(), worker(), worker()]); } finally { this._getting = false; }
-    const got = done - failed, here = `${plural(got, 'beatmap')} you've played on your other devices ${got === 1 ? 'is' : 'are'} here now.`;
+    const got = done - failed, here = `${plural(got, 'beatmap')} from your other devices ${got === 1 ? 'is' : 'are'} here now.`;
     if (ac.signal.aborted) { note.cancelled(); if (got) Toast.ok('Beatmaps downloaded', here, { hold: true }); return; }
     const why = full ? ` ${plural(failed, 'beatmap')} didn't fit. ${first}` : failed ? ` ${plural(failed, 'beatmap')} couldn't be (${noStop(first)}).` : '';
     if (got) note.done('Beatmaps downloaded', here + why);

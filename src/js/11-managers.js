@@ -217,6 +217,13 @@ const Favorites = {
     if (n) { await DB.kvSet('favorites', [...this.set]); Bus.emit('favorites:changed'); }
     return n;
   },
+  /** Your favourites as your other devices left them (Sync.pull): these in place of the ones here. */
+  async replaceAll(list) {
+    const next = new Set(list.filter(id => typeof id === 'string' && /^set-[0-9a-f]{16}$/.test(id)));
+    if (next.size === this.set.size && [...next].every(id => this.set.has(id))) return 0;
+    this.set = next; await DB.kvSet('favorites', [...this.set]); Bus.emit('favorites:changed');
+    return 1;
+  },
 };
 
 /** Per-beatmap offset (osu!lazer's "beatmap offset"), added to the global audio offset for one difficulty.
@@ -232,6 +239,16 @@ const MapOffsets = {
     if (ms) this.map[hash] = ms; else delete this.map[hash];
     Bus.emit('mapoffset:changed', hash, ms);
     await DB.kvSet('map.offsets', this.map);
+  },
+  /** Your offsets as your other devices have them (Sync): in place of these (`replace`), or added to them. */
+  async applyKept(obj, replace = false) {
+    const clean = {};
+    for (const [h, v] of Object.entries(obj || {})) if (typeof h === 'string' && h.length <= 64 && Number.isFinite(+v) && +v) clean[h] = clamp(Math.round(+v), -300, 300);
+    const next = replace ? clean : { ...clean, ...this.map };
+    if (JSON.stringify(next) === JSON.stringify(this.map)) return;
+    this.map = next;
+    await DB.kvSet('map.offsets', this.map);
+    Bus.emit('mapoffset:changed', null, 0);
   },
   /** The offset change the last play on `hash` suggests (its mean hit error), or null if there isn't enough data. */
   suggestion(hash, { sure = false } = {}) {
@@ -262,6 +279,20 @@ const Collections = {
     if (c.hashes.includes(hash)) c.hashes = c.hashes.filter(x => x !== hash); else c.hashes.push(hash);
     await this.save();
     return c.hashes.includes(hash);
+  },
+  /** Your collections as your other devices left them (Sync.pull): in place of these (each keeps its id here when its
+   *  name is the same). Resolves to 1 if anything changed. */
+  async replaceAll(list) {
+    const next = [];
+    for (const r of list) {
+      if (!r || typeof r.name !== 'string' || !r.name.trim() || !Array.isArray(r.hashes) || next.some(x => x.name === r.name)) continue;
+      const was = this.list.find(x => x.name === r.name);
+      next.push({ id: was ? was.id : uid(), name: r.name.slice(0, 60), hashes: [...new Set(r.hashes.filter(x => typeof x === 'string' && x.length <= 64))], created: was ? was.created : Date.now() });
+    }
+    const sig = l => JSON.stringify(l.map(x => [x.name, x.hashes]));
+    if (sig(next) === sig(this.list)) return 0;
+    this.list = next; await this.save();
+    return 1;
   },
   /** Collections from your other device (Sync.restore): one with the same name here gets their beatmaps too, the
    *  others are added. Resolves to how many changed. */
@@ -319,9 +350,37 @@ const ProfileManager = {
     if (n) { Bus.emit('scores:changed'); Bus.emit('replays:changed'); }
   },
   async setAvatar(kind, blob) {
-    this.profile.avatar = kind;
+    this.profile.avatar = kind; this.profile.avatarSig = kind === 'custom' ? `here:${Date.now()}` : null;
     if (kind === 'custom' && blob) { const t = await makeThumbnail(blob, 512, 0.9); await DB.put('files', t || blob, 'profile/avatar'); }
     await this.loadAvatar(); await this.save();
+  },
+  /** Your uploaded picture as it goes to your other devices (Sync): the 512 px one, or a smaller copy if it's big. */
+  async avatarData() {
+    const b = await DB.get('files', 'profile/avatar');
+    if (!b) return '';
+    const small = b.size > 300000 ? await makeThumbnail(b, 256, 0.85) : b;
+    return blobToDataURL(small || b);
+  },
+  /** Your name and picture as your other devices have them (Sync). */
+  async applyKept(p) {
+    let changed = false;
+    const name = typeof p.name === 'string' ? p.name.trim().slice(0, 24) : '';
+    if (name && name !== this.profile.name) { this.profile.name = name; changed = true; }
+    const a = typeof p.avatar === 'string' ? p.avatar : '';
+    if (a.startsWith('data:image/') && a.length < 1500000) {
+      // (the same picture as last time isn't put in again)
+      const sig = a.length + ':' + a.slice(-48);
+      if (this.profile.avatar !== 'custom' || this.profile.avatarSig !== sig) {
+        const blob = await (await fetch(a)).blob().catch(() => null);
+        if (blob) { await DB.put('files', blob, 'profile/avatar'); this.profile.avatar = 'custom'; this.profile.avatarSig = sig; await this.loadAvatar(); changed = true; }
+      }
+    } else if ((a === 'default' || /^(preset|file):[\w .()-]{1,64}$/.test(a)) && a !== this.profile.avatar) {
+      this.profile.avatar = a; await this.loadAvatar(); changed = true;
+    }
+    if (!changed) return;
+    await this.save();
+    await this.syncPlays();
+    if (typeof Toolbar !== 'undefined') Toolbar.updateProfile();
   },
   avatarURL: null,
   async loadAvatar() {

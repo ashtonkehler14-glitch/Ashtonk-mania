@@ -45,6 +45,7 @@ MINIFLARE_DIR=<dir> node tests/mp-e2e.mjs      # multiplayer tests
 MINIFLARE_DIR=<dir> node tests/html-file-e2e.mjs # the game saved as one HTML file, opened from the device
 MINIFLARE_DIR=<dir> node tests/accounts-e2e.mjs  # your code, on two devices
 MINIFLARE_DIR=<dir> node tests/admin-e2e.mjs     # the admin panel
+MINIFLARE_DIR=<dir> node tests/sync-e2e.mjs      # everything of yours on every device
 node tests/monkey.mjs 600 7                    # random clicks and keys; MONKEY_PHONE=1 for a phone
 python3 tools/neru-art.py IN.png --out public/ # Neru's pictures: upscaled and cut out (what it needs is at its top; spare poses: art/neru/)
 ```

@@ -48,11 +48,14 @@ const Account = {
     Bus.emit('account:changed');
     return this.format(d.code);
   },
-  /** Type a code: this device becomes that player. */
+  /** Type a code: this device becomes that player. Switching from another player with a code of their own: what was
+   *  theirs here goes first (wipeLocal) — a player without a code is part of the new one instead. */
   async link(typed) {
     const c = this.clean(typed);
     if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
+    const was = this.linked() && !this.signedOut() ? this.me().pid : null;
     const d = await this.call('link', { code: c, ...this.me() });
+    if (was && d.pid !== was) await this.wipeLocal();
     try {
       localStorage.setItem('am.pid', d.pid); localStorage.setItem('am.key', d.key);
       localStorage.setItem('am.code', this.format(c)); localStorage.setItem('am.linked', '1');
@@ -74,10 +77,10 @@ const Account = {
     Toast.ok(d.n ? `Signed out ${plural(d.n, 'other device')}` : 'No other devices were signed in', 'Only this device plays as you now. Make a new code too if someone else may have yours.');
   },
   /** Stop playing as yourself on this device (a shared or school computer). */
-  logout() {
+  async logout() {
     const me = this.me();
     if (me.pid) this.call('logout', me).catch(() => {}); // (its key is forgotten here either way)
-    this.forget();
+    await this.forget();
     Toast.show('Signed out on this device', 'Type your code to play as yourself here again.');
     this.askAgain();
   },
@@ -89,16 +92,35 @@ const Account = {
     const off = Bus.on('screen:changed', () => { if (Screens.currentName === 'gameplay') return; off(); setTimeout(() => Onboarding.run({ account: true }), 400); });
   },
   /** This device's key doesn't work any more (signed out from another device): signed out here. */
-  expired() {
-    this.forget();
+  async expired() {
     Toast.err('Signed out on this device', 'Another of your devices signed this one out. Type your code to play as yourself here again.', { hold: true });
+    await this.forget();
     this.askAgain();
   },
-  forget() {
+  async forget() {
     try { ['am.pid', 'am.key', 'am.code', 'am.linked', 'am.restore'].forEach(k => localStorage.removeItem(k)); localStorage.setItem('am.signedOut', '1'); } catch { /* private mode */ }
     Presence._pid = null; Presence._key = null;
+    await this.wipeLocal().catch(e => console.warn('wipe', e));
     Presence.reconnect();
     Bus.emit('account:changed');
+  },
+  /** What's the player's on this device goes — their plays and replays, collections, favourites, beatmap offsets,
+   *  medals, name and picture — when they sign out, or another player's code is typed here: none of it shows for the
+   *  next one (theirs come with their code). The beatmaps, skins and the device's own settings stay. */
+  async wipeLocal() {
+    Sync._restoring = true;
+    try {
+      await ScoreManager.clear(); await ReplayManager.clear();
+      await Collections.replaceAll([{ name: 'Practice', hashes: [] }]); await Favorites.replaceAll([]); await MapOffsets.applyKept({}, true);
+      if (Settings.values['medals.unlocked'] && Object.keys(Settings.values['medals.unlocked']).length) Settings.set('medals.unlocked', {});
+      await DB.del('files', 'profile/avatar').catch(() => {});
+      Object.assign(ProfileManager.profile, { name: 'Player', avatar: 'default', avatarSig: null });
+      await ProfileManager.loadAvatar(); await ProfileManager.save();
+      for (const k of ['am.setChanges', 'am.setDirty', 'am.scPulled', 'am.setRev', 'am.syncAt', 'am.skinSent', 'am.skinBig', 'am.ppSent']) Sync.mark(k, null);
+      await DB.kvSet('sync.sent', null).catch(() => {}); Sync._sent = null;
+      await Sync.keepSets([]);
+      Toolbar.updateProfile();
+    } finally { Sync._restoring = false; }
   },
   /** Signed out: start over as a new player here instead. */
   fresh() {
@@ -173,7 +195,7 @@ const CodePanel = {
         try { await Account.signOutOthers(); } catch (e) { fail(e); }
       }),
       Account.linked() ? act('Sign out here', async () => {
-        if (!(await Dialog.confirm('Sign out on this device?', 'It stops playing as you (good for a shared or school computer). Your beatmaps, scores and settings stay. Keep your code to come back.', { ok: 'Sign out' }))) return;
+        if (!(await Dialog.confirm('Sign out on this device?', 'It stops playing as you (good for a shared or school computer). Your plays, name and collections leave this device; your beatmaps stay. Your code brings everything back.', { ok: 'Sign out' }))) return;
         this.close(); Account.logout();
       }, '.danger') : null));
   },
@@ -194,7 +216,9 @@ const CodePanel = {
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
+    const now = !signedOut && Account.linked() ? ProfileManager.profile.name : null;
     p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings, skin, collections and scores come along.'), inp, err, go,
+      now ? h('p.lp-note', `Another player's code switches this device to them: ${now}'s plays leave it (they stay with ${now}'s code).`) : null,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
   },

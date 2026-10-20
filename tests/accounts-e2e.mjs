@@ -133,15 +133,18 @@ try {
   await b.waitForFunction(() => AshtonkMania.Account.linked() && !document.querySelector('.login-panel'), null, { timeout: 10000 });
   const linked = await b.evaluate(() => ({ pid: AshtonkMania.Presence.pid(), name: AshtonkMania.ProfileManager.profile.name }));
   check('device B takes the code: the same player as device A', linked.pid === pidA && linked.name === 'Kai', JSON.stringify(linked));
-  check('…it says what it had is part of you now', /part of you now/i.test(await toasts(b)));
+  // (device B was a player with a code of its own: switching players takes that player's plays off this device —
+  // they stay with that code, and nothing of theirs becomes Kai's)
+  const bNow = await b.evaluate(() => ({ plays: AshtonkMania.ScoreManager.scores.filter(s => s.version === '7K Hard').length, merged: /part of you now/i.test(document.querySelector('#toasts').textContent) }));
+  check('…the other player\'s plays leave device B, and nothing of theirs is merged into Kai', bNow.plays === 0 && !bNow.merged, JSON.stringify(bNow));
   await b.waitForFunction(() => AshtonkMania.Presence.ws && AshtonkMania.Presence.ws.readyState === 1 && AshtonkMania.Presence.me, null, { timeout: 10000 });
   await b.waitForTimeout(300);
   const after = await rankings(b);
-  check('after the code: one Kai on the rankings', after.total === 1 && after.pids[0] === pidA, JSON.stringify(after));
+  check('after the code: the other player is still on the rankings with their own plays, apart from Kai', after.total === 2 && after.pids.includes(pidA) && after.pids.includes(pidB), JSON.stringify(after));
   await a.waitForFunction(() => /A new device is playing as you/.test(document.querySelector('#toasts').textContent), null, { timeout: 5000 }).catch(() => {});
   check('device A is told a new device is playing as it (with what to do if it wasn\'t you)', /A new device is playing as you/.test(await toasts(a)) && !/A new device is playing as you/.test(await toasts(b)));
   const prof = await a.evaluate(pid => new Promise(res => { const off = AshtonkMania.Bus.on('profile:remote', m => { if (m.pid === pid) { off(); res(m); } }); AshtonkMania.Presence.send({ t: 'profile', pid }); }), pidA);
-  check('the profile has both devices\' plays', prof.top && prof.top.length === 2, JSON.stringify((prof.top || []).map(x => x.version)));
+  check('Kai\'s profile has only Kai\'s plays', prof.top && prof.top.length === 1, JSON.stringify((prof.top || []).map(x => x.version)));
   const sb2 = await play(b, '4K Normal');
   check('a new play on device B counts for Kai', sb2 && sb2.ok, JSON.stringify(sb2 && sb2.error));
 
@@ -181,7 +184,7 @@ try {
   await b.waitForFunction(() => !AshtonkMania.Sync.pending() && !AshtonkMania.Sync._restoring, null, { timeout: 15000 }).catch(() => {});
   const bQuiet = await b.evaluate(() => ({ waiting: AshtonkMania.Sync.dirty(), changes: localStorage.getItem('am.setChanges') }));
   check('…and doesn\'t send the settings it brought straight back', !bQuiet.waiting, JSON.stringify(bQuiet));
-  check('…still one Kai on the rankings', (await rankings(a)).total === 1);
+  check('…still the same two players on the rankings', (await rankings(a)).total === 2);
 
   // ── your scores come along too: device A keeps a play of its own (and one from a backup, which stays there)
   // (as a beatmap from osu! has: its ids there — the fixture's are made up)
@@ -291,7 +294,7 @@ try {
   await e.waitForFunction(() => /Your settings/.test(document.querySelector('.setup-restore')?.textContent || ''), null, { timeout: 20000 });
   const reset = await e.evaluate(() => { const A = AshtonkMania; return { name: A.ProfileManager.profile.name, page: document.querySelector('.setup-restore').textContent, n: A.ScoreManager.scores.length, hue: A.Settings.get('wom.hue') }; });
   check('Reset everything on a device with your code: still Kai, with your settings and both plays back', reset.name === 'Kai' && /Your scores \(2 plays\)/.test(reset.page) && reset.n === 2 && reset.hue === 200, JSON.stringify(reset));
-  check('…and the server still has Kai, not "Player"', (await rankings(a)).names.join() === 'Kai');
+  check('…and the server still has Kai, not "Player"', (await rankings(a)).names.join() === 'Kai,Kai');
 
   // ── guessing: a few tries per address, then turned away (codes have 80 random bits anyway)
   const tries = await c.evaluate(async () => {
@@ -340,6 +343,15 @@ try {
     return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash) };
   });
   check('a play the server never got (offline, multiplayer) goes up with its replay and is judged there: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local, JSON.stringify(caught));
+  // your own profile shows the server's pp and best plays: the same numbers everyone else sees
+  const own = await a.evaluate(async () => {
+    const A = AshtonkMania, srv = await new Promise(r => { const off = A.Bus.on('profile:remote', m => { if (m.pid !== A.Presence.pid()) return; off(); r(m); }); A.Screens.go('profile'); });
+    await new Promise(r => setTimeout(r, 300));
+    const big = [...document.querySelectorAll('.pf-big')].find(x => /Performance/.test(x.textContent));
+    const subs = [...document.querySelectorAll('.pf-subsec h3')].map(x => x.textContent);
+    return { shown: big ? big.querySelector('b').textContent : null, server: A.fmtInt ? A.fmtInt(srv.verified ? srv.verified.pp : 0) + 'pp' : null, pp: srv.verified && srv.verified.pp, rows: document.querySelectorAll('.pf-subsec:first-child .pf-scores > :not(.pf-more)').length, top: srv.top.length, subs };
+  });
+  check('your own profile shows the server\'s pp and best plays (what others see)', own.pp > 0 && own.shown === (Math.round(own.pp).toLocaleString('en-US') + 'pp') && own.top > 0 && !own.subs.some(t => /Not counted/.test(t)), JSON.stringify(own));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

@@ -105,7 +105,7 @@ const Verified = {
         try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
         await sleep(4000); // (the server takes one score every few seconds from each player)
       }
-      if (todo.length) Presence.send({ t: 'rankings' }); // (your place, with them counted)
+      if (todo.length) { Presence.send({ t: 'rankings' }); Presence.send({ t: 'profile', pid: Presence.pid() }); } // (your place and profile, with them counted)
     } catch (e) { console.warn('catch-up', e); }
     finally { this._catching = false; }
   },
