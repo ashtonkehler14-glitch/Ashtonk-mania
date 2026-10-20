@@ -555,6 +555,18 @@ await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && Ashto
   await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
   const back = await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'replays', null, { timeout: 10000 }).then(() => true, () => false);
   check('the Replays page lists every saved replay; Watch plays it and Back returns to the page', rows.shown === rows.saved && rows.saved > 0 && rows.light && watching === rows.first && back, JSON.stringify({ ...rows, watching, back }));
+  // (a long list: the first screenful at once, the rest a part at a time)
+  const many = await page.evaluate(async () => {
+    const RM = AshtonkMania.ReplayManager, keep = RM.list, r0 = keep[0];
+    RM.list = [...keep, ...Array.from({ length: 98 }, (_, i) => ({ ...r0, id: 'rp-many' + i }))];
+    ReplaysScreen.render();
+    const shown = () => ReplaysScreen.list.querySelectorAll('.rp-row').length, first = shown();
+    for (let i = 0; i < 50 && shown() < RM.list.length; i++) await new Promise(r => setTimeout(r, 100));
+    const all = shown();
+    RM.list = keep; ReplaysScreen.render();
+    return { first, all, n: keep.length + 98 };
+  });
+  check('…a long list shows its first rows at once and the rest a part at a time', many.first === 30 && many.all === many.n, JSON.stringify(many));
   await page.evaluate(() => AshtonkMania.Screens.go('songselect', { force: true })); await page.waitForTimeout(1500);
 }
 

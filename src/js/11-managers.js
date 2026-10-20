@@ -21,12 +21,15 @@ const ScoreManager = {
     await DB.each('scores', s => { if (s.hitErrors || s.healthTimeline) old.push(s.id); list.push(this.light(s)); });
     this.scores = list.sort((a, b) => a.date - b.date);
     this._reindex();
-    // (plays stored with their timing, as before: it's moved apart once, in the background)
-    if (old.length) whenIdle(() => this.moveTiming(old).catch(e => console.warn('timing not moved', e)));
+    // (plays stored with their timing, as before: it's moved apart once, in the background — once the game has
+    // started, not competing with it)
+    if (old.length) setTimeout(() => whenIdle(() => this.moveTiming(old).catch(e => console.warn('timing not moved', e))), 20000);
   },
   async moveTiming(ids) {
-    for (let i = 0; i < ids.length; i += 50) {
-      const got = await DB.getMany('scores', ids.slice(i, i + 50)), here = new Set(this.scores.map(s => s.id));
+    for (let i = 0; i < ids.length; i += 10) {
+      // (a few at a time between frames — each is a lot to read and write — and never during a song)
+      while (typeof Screens !== 'undefined' && Screens.currentName === 'gameplay') await sleep(2000);
+      const got = await DB.getMany('scores', ids.slice(i, i + 10)), here = new Set(this.scores.map(s => s.id));
       // (not one deleted meanwhile: written back, it would be there again)
       const part = got.filter(s => s && (s.hitErrors || s.healthTimeline) && here.has(s.id));
       if (part.length) await DB.putMany(part.flatMap(s => this.stored(s)));

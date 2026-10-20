@@ -494,14 +494,14 @@ const ReplaysScreen = {
     // (lazer's DrawableProfileScore, as on the profile: rank pill, title by artist, difficulty · player · date, mods,
     // accuracy — and the replay's buttons in the slanted block where the pp would be)
     const rows = h('div.pf-scores.rp-list');
-    for (const r of ReplayManager.list) {
+    const row = r => {
       const map = BeatmapManager.mapByHash(r.mapHash);
       const sm = r.summary || {};
       // (the list has each replay without its key presses: the whole one is read to watch or export it)
       const full = async () => { const x = await ReplayManager.get(r.id); if (!x) Toast.err('No replay available'); return x; };
       const watch = async () => { if (!map) return; UISounds.click(); const x = await full(); if (x) Game.launch({ mapId: map.id, mode: 'replay', replay: x, back: { name: 'replays' } }); };
       const act = (ic, title, f, cls = '') => h(`button.rp-act${cls}`, { title, 'aria-label': title, disabled: !map && cls !== '.del' && ic !== 'download', onclick: e => { e.stopPropagation(); f(e); } }, icon(ic));
-      rows.append(h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
+      return h(`div.pf-score.rp-row${map ? '' : '.missing'}`, { role: 'button', tabindex: 0, title: map ? 'Watch replay' : 'This beatmap isn\'t in your library', onclick: watch, onkeydown: e => { if (e.key === 'Enter') watch(); } },
         rankPill(sm.grade || 'D'),
         h('div.main', h('div.t', r.title, h('span.a', ` by ${r.artist || ''}`)),
           h('div.s', h('span.v', r.version), h('span.p', r.player || 'Player'), h('span.d', fmtDateTime(r.date)), map ? null : h('span.x', 'beatmap missing'))),
@@ -513,9 +513,20 @@ const ReplaysScreen = {
             act('play', 'Watch', watch),
             act('download', 'Export .osr (opens in osu!lazer)', async () => { const x = await full(); if (x) Osr.exportReplay(x); }),
             act('save', 'Export .amr (this game\'s own format)', async () => { const x = await full(); if (x) ReplayManager.export(x); }),
-            act('trash', 'Delete', async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); }, '.del')))));
-    }
+            act('trash', 'Delete', async () => { if (await Dialog.confirm('Delete replay?', `${r.title} [${r.version}] by ${r.player}`, { ok: 'Delete', danger: true })) ReplayManager.remove(r.id); }, '.del'))));
+    };
+    // (the first screenful straight away, the rest a part at a time: hundreds of rows at once froze the page)
+    const list = ReplayManager.list;
+    rows.append(...list.slice(0, 30).map(row));
     this.list.append(rows);
+    let at = 30;
+    const more = () => {
+      if (!rows.isConnected || at >= list.length) return;
+      const part = document.createDocumentFragment();
+      for (const r of list.slice(at, at + 30)) part.append(row(r));
+      at += 30; rows.append(part); whenIdle(more);
+    };
+    whenIdle(more);
   },
 };
 
@@ -737,6 +748,7 @@ const CHANGELOG = [
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
       'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
+      'The Replays page opens at once with hundreds of replays: its first rows straight away, the rest as it goes (they used to be built all at once, freezing the page for a moment)',
       'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
