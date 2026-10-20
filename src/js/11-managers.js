@@ -418,7 +418,8 @@ const DataManager = {
     for (const store of ['scores', 'replays']) {
       parts.push(`,"${store}":[`);
       let n = 0;
-      // (a hundred at a time into the file's parts — the browser keeps those, not this page — each play with its timing)
+      // (a hundred at a time into the file's parts — the browser keeps those, not this page — each play with its
+      // timing)
       await DB.eachBatch(store, async list => {
         if (store === 'scores') {
           const t = await DB.getMany('kv', list.map(s => ScoreManager.timingKey(s.id)));

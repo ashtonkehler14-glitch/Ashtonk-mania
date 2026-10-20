@@ -1,9 +1,9 @@
-/* Your settings, skin and scores, kept with your code: a device playing through a code sends its settings — not the
- * ones that belong to the device (performance and sharpness, audio offset, what song select last showed) — and your
- * collections and favourites, the skin it uses, if it's one you imported (Kori and the Custom skin are on every device already), and
- * the plays you set on it.
- * Typing your code on another device brings them there (Sync.restore, from the first-run setup and Your code → Use a
- * code); after that, each device gets the plays the others set as it goes. */
+/* Your settings, skin and scores, kept with your code: a device playing through a code sends the settings you change
+ * on it — not the ones that belong to the device (performance and sharpness, audio offset, what song select last
+ * showed) — your collections and favourites, the skin it uses if it's one you imported (Kori and the Custom skin are on
+ * every device already), and the plays you set on it. Typing your code on another device brings them there
+ * (Sync.restore, from the first-run setup and Your code → Use a code); after that, each device gets the plays the
+ * others set as it goes. */
 
 const Sync = {
   /** Settings that belong to the device, not to you: never sent, never taken from another device. */

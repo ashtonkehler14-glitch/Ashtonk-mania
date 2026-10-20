@@ -1,6 +1,6 @@
-// Each player's settings, skin and scores, kept for the devices that play as them through their code: one Durable Object a
-// player (PlayerVault, idFromName(pid)). Typing your code on another device brings them there. Only reached through
-// handleAccount (multiplayer.js), once the Matchmaker has checked the device's key — never straight from outside.
+// Each player's settings, skin and scores, kept for the devices that play as them through their code: one Durable
+// Object a player (PlayerVault, idFromName(pid)). Typing your code on another device brings them there. Only reached
+// through handleAccount (multiplayer.js), once the Matchmaker has checked the device's key — never straight from outside.
 
 /** A stored value holds at most 2 MB: a skin is kept in 1 MB pieces. */
 const CHUNK = 1 << 20;
