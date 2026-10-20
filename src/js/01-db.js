@@ -96,12 +96,15 @@ const DB = {
     return this._req((await this._store(store)).getAll());
   },
   /** Every record of a store, `fn` for each, read a batch at a time: a big store is never all in memory at once. */
-  async each(store, fn, batch = 100) {
-    const M = await this._mem(); if (M) { for (const v of await this.getAll(store)) fn(v); return; }
+  each(store, fn, batch = 100) { return this.eachBatch(store, vals => vals.forEach(fn), batch); },
+  /** The same, `fn` (which may be async) for each batch. */
+  async eachBatch(store, fn, batch = 100) {
+    const M = await this._mem();
+    if (M) { const all = await this.getAll(store); for (let i = 0; i < all.length; i += batch) await fn(all.slice(i, i + batch)); return; }
     for (let after; ;) {
       const s = await this._store(store), range = after === undefined ? null : IDBKeyRange.lowerBound(after, true);
       const [vals, keys] = await Promise.all([this._req(s.getAll(range, batch)), this._req(s.getAllKeys(range, batch))]);
-      vals.forEach(fn);
+      if (vals.length) await fn(vals);
       if (vals.length < batch) return;
       after = keys[keys.length - 1];
     }

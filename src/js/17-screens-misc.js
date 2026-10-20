@@ -736,6 +736,7 @@ const CHANGELOG = [
       'Clicking a tag on a beatmap\'s page searches for it by relevance, as typing it does',
       'Picking a beatmap for a room shows its download smoothly; recommending one while disconnected says so instead of seeming to work'] },
     { icon: 'sparkle', title: 'Everywhere', items: [
+      'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
       'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',

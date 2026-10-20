@@ -1007,14 +1007,16 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   // (a real play — Auto isn't kept — ended where it is)
   {
     const was = await page.evaluate(() => AshtonkMania.Screens.currentName); // (back there afterwards: the checks below go on from it)
-    await page.evaluate(() => { const D = AshtonkMania.DB; D.__put = D.put; D.put = function (store, ...a) { return store === 'scores' ? Promise.reject(new DOMException('full', 'QuotaExceededError')) : D.__put.call(this, store, ...a); }; });
+    await page.evaluate(() => { const D = AshtonkMania.DB, full = () => Promise.reject(new DOMException('full', 'QuotaExceededError')); D.__put = D.put; D.__putMany = D.putMany;
+      D.put = function (store, ...a) { return store === 'scores' ? full() : D.__put.call(this, store, ...a); };
+      D.putMany = function (items) { return items.some(i => i.store === 'scores') ? full() : D.__putMany.call(this, items); }; });
     await page.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
     await page.waitForFunction(() => AshtonkMania.GameplayScreen.loaderGone && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
     const n0 = await page.evaluate(() => AshtonkMania.ScoreManager.scores.length);
     await page.evaluate(() => { AshtonkMania.GameplayScreen.complete().catch(e => { window.__completeErr = String(e); }); });
     const reached = await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 8000 }).then(() => true, () => false);
     const r = await page.evaluate(n0 => ({ said: [...document.querySelectorAll('#toasts .toast')].some(t => /score couldn't be saved/.test(t.textContent) && /storage is full/i.test(t.textContent)), kept: AshtonkMania.ScoreManager.scores.length - n0, err: window.__completeErr || null }), n0);
-    await page.evaluate(() => { const D = AshtonkMania.DB; D.put = D.__put; delete D.__put; for (const t of document.querySelectorAll('#toasts .toast')) if (/couldn't be saved/.test(t.textContent)) t.remove(); });
+    await page.evaluate(() => { const D = AshtonkMania.DB; D.put = D.__put; D.putMany = D.__putMany; delete D.__put; delete D.__putMany; for (const t of document.querySelectorAll('#toasts .toast')) if (/couldn't be saved/.test(t.textContent)) t.remove(); });
     await page.evaluate(was => AshtonkMania.Screens.go(was, { force: true }), was);
     await page.waitForFunction(was => AshtonkMania.Screens.currentName === was, was, { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(800);
@@ -1828,12 +1830,28 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
 // a play's hit-by-hit timing and health stay in storage, not memory (hundreds of KB each once read): its results read
 // them from there
 {
-  const lt = await page.evaluate(async () => { const A = AshtonkMania, SM = A.ScoreManager, all = await A.DB.getAll('scores'), full = all.find(x => x.hitErrors && x.hitErrors.length > 5 && SM.scores.some(y => y.id === x.id));
-    return { id: full && full.id, inMem: SM.scores.filter(s => 'hitErrors' in s || 'healthTimeline' in s).length, stored: all.filter(s => s.hitErrors).length, n: SM.scores.length }; });
+  const lt = await page.evaluate(async () => { const A = AshtonkMania, SM = A.ScoreManager, all = await A.DB.getAll('scores'), timed = [];
+    for (const s of all) { const t = await A.DB.kvGet('timing/' + s.id, null); if (t && t.hitErrors && t.hitErrors.length > 5) timed.push(s.id); }
+    // (kept apart from the play: reading every play at the start doesn't read its timing)
+    return { id: timed[0], inMem: SM.scores.filter(s => 'hitErrors' in s || 'healthTimeline' in s).length, stored: timed.length, withPlay: all.filter(s => s.hitErrors).length, n: SM.scores.length }; });
   await page.evaluate(id => AshtonkMania.Screens.go('results', { score: AshtonkMania.ScoreManager.scores.find(s => s.id === id), fromList: true }), lt.id);
   await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'results'); await page.waitForTimeout(800);
   const drawn = await page.evaluate(() => { const r = [...document.querySelectorAll('.res-right')].pop(); return { timed: /Timed hits/.test(r.textContent), none: /No timing data/.test(r.textContent), charts: r.querySelectorAll('.res-more .chart-card').length, hidden: r.querySelector('.res-more').hidden }; });
-  check('plays are kept in memory without their hit-by-hit timing; a play\'s results read it from storage', !!lt.id && lt.inMem === 0 && lt.stored > 0 && drawn.timed && !drawn.none && drawn.charts === 2 && !drawn.hidden, JSON.stringify({ lt, drawn }));
+  check('plays are kept in memory without their hit-by-hit timing; a play\'s results read it from storage', !!lt.id && lt.inMem === 0 && lt.stored > 0 && lt.withPlay === 0 && drawn.timed && !drawn.none && drawn.charts === 2 && !drawn.hidden, JSON.stringify({ lt, drawn }));
+}
+// a play stored the way earlier versions did (its timing with it) is moved apart once, keeps showing its timing, and
+// takes it along when it's deleted
+{
+  const mv = await page.evaluate(async () => {
+    const A = AshtonkMania, SM = A.ScoreManager, base = SM.scores.find(s => s.passed);
+    await A.DB.put('scores', { ...base, id: 'sc-oldstyle1', hitErrors: Array.from({ length: 50 }, (_, i) => [i * 100, 3, 0, 0]), healthTimeline: [[0, 1], [5000, 0.8]] });
+    await SM.init();
+    await SM.moveTiming(['sc-oldstyle1']);
+    const rec = await A.DB.get('scores', 'sc-oldstyle1'), t = await A.DB.kvGet('timing/sc-oldstyle1', null), h = await SM.heavy(SM.scores.find(s => s.id === 'sc-oldstyle1'));
+    await SM.remove('sc-oldstyle1');
+    return { moved: !rec.hitErrors && !!(t && t.hitErrors.length === 50), shown: !!(h && h.hitErrors.length === 50), gone: !(await A.DB.kvGet('timing/sc-oldstyle1', null)) };
+  });
+  check('a play stored with its timing (as before) has it moved apart, still shows it, and takes it along when deleted', mv.moved && mv.shown && mv.gone, JSON.stringify(mv));
 }
 // Export all data writes the backup a part at a time, each play and replay on a line of its own, and such a backup is
 // read back a line at a time (as one string, a long-time player's save is more than a phone can hold)
@@ -1846,7 +1864,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     // (read back as another backup — new ids, so this device's own plays stay as they are)
     await DataManager.importFile(new File([text.replace(/"id":"sc-/g, '"id":"bk-sc-').replace(/"id":"rp-/g, '"id":"bk-rp-')], 'backup.json', { type: 'application/json' }));
     const added = A.ScoreManager.scores.filter(s => s.id.startsWith('bk-')), addedR = A.ReplayManager.list.filter(r => r.id.startsWith('bk-'));
-    const timedId = obj.scores.find(o => o.hitErrors && o.hitErrors.length)?.id, stored = timedId && await A.DB.get('scores', 'bk-' + timedId), rep = addedR[0] && await A.ReplayManager.get(addedR[0].id);
+    const timedId = obj.scores.find(o => o.hitErrors && o.hitErrors.length)?.id, stored = timedId && await A.DB.kvGet('timing/bk-' + timedId, null), rep = addedR[0] && await A.ReplayManager.get(addedR[0].id);
     const res = { first: lines[0].endsWith(',"scores":['), lines: lines.length, nS, nR, inFile: [obj.scores.length, obj.replays.length], name: got[0].n, added: added.length, addedR: addedR.length,
       marked: added.every(s => s.imported === 'backup'), keptTiming: !!(stored && stored.hitErrors && stored.hitErrors.length), keptKeys: !!(rep && rep.events && rep.events.length), light: added.every(s => !('hitErrors' in s)) };
     // (a backup as older versions wrote it — all on one line — with no replays: it failed with "storeNames parameter was empty")
@@ -1891,7 +1909,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   check('a player who hasn\'t sent a profile still has one (name, rank, pp from the server)', qp.name === 'Quiet' && /#7/.test(qp.pp) && /321pp/.test(qp.pp) && !qp.empty, JSON.stringify(qp));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
   // renaming yourself renames your own scores and replays
-  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name, timed = async () => (await AshtonkMania.DB.getAll('scores')).filter(s => s.hitErrors).length, t0 = await timed(); await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length;
+  const ren = await page.evaluate(async () => { const PM = AshtonkMania.ProfileManager, old = PM.profile.name, timed = async () => { let n = 0; for (const s of await AshtonkMania.DB.getAll('scores')) if ((await AshtonkMania.DB.kvGet('timing/' + s.id, null) || {}).hitErrors) n++; return n; }, t0 = await timed(); await PM.setName('Renamed'); const sc = AshtonkMania.ScoreManager.scores.filter(s => s.own || s.player === 'Renamed').length, bad = AshtonkMania.ScoreManager.scores.filter(s => s.player === old).length, rp = AshtonkMania.ReplayManager.list.filter(r => r.player === old).length;
     const saved = (await AshtonkMania.DB.getAll('scores')).filter(s => s.player === 'Renamed').length; // (and stored so: a reload keeps it)
     const inMem = AshtonkMania.ScoreManager.scores.filter(s => s.player === 'Renamed').length, t1 = await timed();
     await PM.setName(old); return { sc, bad, rp, saved, inMem, t0, t1, t2: await timed() }; });

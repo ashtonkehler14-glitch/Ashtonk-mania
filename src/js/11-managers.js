@@ -3,28 +3,47 @@
 const ScoreManager = {
   scores: [],                // all, newest last — without HEAVY
   byHash: new Map(),         // mapHash -> scores[]
-  /** What a play keeps in storage only, read when its results show: the hit-by-hit timing and the health over time.
-   *  Read with every play, they took hundreds of KB of memory each — a long-time player's thousands of plays, enough
-   *  to close the tab on a phone. */
+  /** What a play keeps apart, read only when its results show: the hit-by-hit timing and the health over time — in
+   *  storage of its own (kv `timing/<id>`), not with the play. Read with every play, they took hundreds of KB of
+   *  memory each (a long-time player's thousands of plays: enough to close the tab on a phone), and reading them at
+   *  every start took seconds on a Chromebook. */
   HEAVY: ['hitErrors', 'healthTimeline'],
   light(s) { const { hitErrors, healthTimeline, ...rest } = s; return rest; },
+  timingKey: id => `timing/${id}`,
+  /** A play as stored: the play itself, and its HEAVY parts (if it has them) kept apart. */
+  stored(s) {
+    const items = [{ store: 'scores', value: this.light(s) }];
+    if (s.hitErrors || s.healthTimeline) items.push({ store: 'kv', key: this.timingKey(s.id), value: { hitErrors: s.hitErrors || null, healthTimeline: s.healthTimeline || null } });
+    return items;
+  },
   async init() {
-    const list = [];
-    await DB.each('scores', s => list.push(this.light(s)));
+    const list = [], old = [];
+    await DB.each('scores', s => { if (s.hitErrors || s.healthTimeline) old.push(s.id); list.push(this.light(s)); });
     this.scores = list.sort((a, b) => a.date - b.date);
     this._reindex();
+    // (plays stored with their timing, as before: it's moved apart once, in the background)
+    if (old.length) whenIdle(() => this.moveTiming(old).catch(e => console.warn('timing not moved', e)));
+  },
+  async moveTiming(ids) {
+    for (let i = 0; i < ids.length; i += 50) {
+      const got = await DB.getMany('scores', ids.slice(i, i + 50)), here = new Set(this.scores.map(s => s.id));
+      // (not one deleted meanwhile: written back, it would be there again)
+      const part = got.filter(s => s && (s.hitErrors || s.healthTimeline) && here.has(s.id));
+      if (part.length) await DB.putMany(part.flatMap(s => this.stored(s)));
+      await new Promise(r => whenIdle(r));
+    }
   },
   /** A play's HEAVY parts, as stored (null when it has none: played before they were kept, or on another device). */
   async heavy(s) {
     if (!s || !s.id || this.HEAVY.some(k => k in s)) return null;
-    const full = await DB.get('scores', s.id).catch(() => null);
-    return full && full.hitErrors ? { hitErrors: full.hitErrors, healthTimeline: full.healthTimeline } : null;
+    const t = await DB.kvGet(this.timingKey(s.id), null).catch(() => null) || await DB.get('scores', s.id).catch(() => null); // (not moved apart yet)
+    return t && t.hitErrors ? { hitErrors: t.hitErrors, healthTimeline: t.healthTimeline } : null;
   },
-  /** Plays from here written back (renamed, a replay linked to one): with the HEAVY parts storage has for them. */
+  /** Plays from here written back (renamed, a replay linked to one): what's stored of them, with these changes. */
   async putBack(list) {
     for (let i = 0; i < list.length; i += 100) {
       const part = list.slice(i, i + 100), stored = await DB.getMany('scores', part.map(s => s.id));
-      await DB.putMany(part.map((s, j) => ({ store: 'scores', value: stored[j] ? { ...stored[j], ...s } : s })));
+      await DB.putMany(part.flatMap((s, j) => this.stored(stored[j] ? { ...stored[j], ...s } : s)));
     }
   },
   _reindex() {
@@ -75,13 +94,13 @@ const ScoreManager = {
     score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));
     score.prevBest = prev ? { score: prev.score, scoreStd: prev.scoreStd, accuracy: prev.accuracy, grade: prev.grade, pp: this.ppOf(prev) } : null;
     score.totalPpBefore = this.totalPp().total;
-    await DB.put('scores', score);
+    await DB.putMany(this.stored(score));
     // (kept here without its HEAVY parts — the results showing it have them)
     const lite = this.light(score);
     this.scores.push(lite);
     this._reindex();
     score.totalPpAfter = lite.totalPpAfter = this.totalPp().total;
-    await DB.put('scores', score);
+    await DB.put('scores', this.light(score));
     Bus.emit('scores:changed');
     return score;
   },
@@ -106,15 +125,15 @@ const ScoreManager = {
   /** lazer's "Clear local scores": every score on one difficulty, gone. */
   async clearMap(hash) {
     const gone = this.scores.filter(s => s.mapHash === hash);
-    for (const s of gone) await DB.del('scores', s.id);
+    for (const s of gone) { await DB.del('scores', s.id); await DB.del('kv', this.timingKey(s.id)); }
     this.scores = this.scores.filter(s => s.mapHash !== hash); this._reindex(); Bus.emit('scores:changed');
     return gone.length;
   },
   async remove(id) {
-    await DB.del('scores', id);
+    await DB.del('scores', id); await DB.del('kv', this.timingKey(id));
     this.scores = this.scores.filter(s => s.id !== id); this._reindex(); Bus.emit('scores:changed');
   },
-  async clear() { await DB.clear('scores'); this.scores = []; this._reindex(); Bus.emit('scores:changed'); },
+  async clear() { await DB.clear('scores'); await DB.delPrefix('kv', this.timingKey('')); this.scores = []; this._reindex(); Bus.emit('scores:changed'); },
 };
 
 const ReplayManager = {
@@ -386,11 +405,16 @@ const DataManager = {
     const parts = [JSON.stringify(head).slice(0, -1)];
     for (const store of ['scores', 'replays']) {
       parts.push(`,"${store}":[`);
-      let n = 0, buf = [];
-      // (a hundred at a time into the file's parts: the browser keeps those, not this page)
-      const out = () => { parts.push(new Blob([buf.map((x, i) => (n + i ? ',\n' : '\n') + x).join('')])); n += buf.length; buf = []; };
-      await DB.each(store, v => { buf.push(JSON.stringify(v)); if (buf.length >= 100) out(); });
-      if (buf.length) out();
+      let n = 0;
+      // (a hundred at a time into the file's parts — the browser keeps those, not this page — each play with its timing)
+      await DB.eachBatch(store, async list => {
+        if (store === 'scores') {
+          const t = await DB.getMany('kv', list.map(s => ScoreManager.timingKey(s.id)));
+          list = list.map((s, i) => t[i] && t[i].hitErrors ? { ...s, hitErrors: t[i].hitErrors, healthTimeline: t[i].healthTimeline } : s);
+        }
+        parts.push(new Blob([list.map((x, i) => (n + i ? ',\n' : '\n') + JSON.stringify(x)).join('')]));
+        n += list.length;
+      });
       parts.push('\n]');
     }
     parts.push('}');
@@ -425,7 +449,7 @@ const DataManager = {
       if (!l.startsWith('{')) return;
       const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
       if (!v || !v.id) return;
-      batch.push({ store, value: store === 'scores' ? this.imported(v) : v });
+      batch.push(...(store === 'scores' ? ScoreManager.stored(this.imported(v)) : [{ store, value: v }]));
       if (store === 'scores') scores++;
       if (batch.length >= 100) await flush();
     };
@@ -449,7 +473,7 @@ const DataManager = {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
     await this.importHead(obj);
     if (obj.kind === 'settings') return;
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).map(s => ({ store: 'scores', value: this.imported(s) })));
+    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).flatMap(s => ScoreManager.stored(this.imported(s))));
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
     await this.importDone(obj, Array.isArray(obj.scores) ? obj.scores.length : 0);
   },
