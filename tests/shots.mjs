@@ -13,9 +13,10 @@ mkdirSync(shotDir, { recursive: true });
 const server = createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
   const file = p === '/' ? join(root, 'index.html') : join(root, p);
+  // (and the files the website serves from public/: Neru, the avatars, the skins…)
   let data;
-  try { data = readFileSync(file); } catch { res.writeHead(404); res.end(); return; }
-  res.writeHead(200, { 'Content-Type': { '.html': 'text/html' }[extname(file)] || 'application/octet-stream' }); res.end(data);
+  try { data = readFileSync(file); } catch { try { data = readFileSync(join(root, 'public', p)); } catch { res.writeHead(404); res.end(); return; } }
+  res.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.png': 'image/png', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream' }); res.end(data);
 }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/`;
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);

@@ -689,13 +689,11 @@ const SkinsScreen = {
 const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'heart', title: 'Neru', items: [
-      'Neru shows up around the game now, not only on the main menu: she reacts to your results — grudgingly impressed by a great play, unimpressed by a weak one or a fail, tsundere as ever — has something to say on the pause and fail screens, tells you not to mess it up while a song loads, shrugs at an empty song select and keeps texting on the loading screen. Click her for more; Settings → Show Neru turns her off everywhere',
+      'Neru shows up around the game now, not only on the main menu: on the results screen she reacts to your play — sunglasses on for a perfect one, a smirk at a bad one, laughing at a fail — and she\'s there on the pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
       'Neru has over twenty poses now, all from her song\'s music video and cut out cleanly: on her phone, fists up, fishing, dancing, in sunglasses, winking, wagging a finger, pointing at you, snickering, smirking, laughing, hugging her knees, sulking or bored stiff at her desk, slumped over it and more — a different one each time, from the ones that fit (sunglasses or a dance for a perfect play, a smirk at a bad one, slumped over her desk while you pause…)',
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
-      'She\'s her tsundere self: never quite nice about it, never quite admitting she was watching',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
-      'On the main menu she says hello once a visit (in her way), and clicking her shows another of her poses',
-      'Her speech bubbles show with animations turned off too (Performance mode): they never appeared'] },
+      'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
     { icon: 'keyboard', title: 'Keys', items: [
       'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
     { icon: 'lock', title: 'Your code', items: [

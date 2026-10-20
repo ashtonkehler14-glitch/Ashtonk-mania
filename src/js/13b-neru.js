@@ -2,15 +2,13 @@
  * Settings → Interface, otherwise neru.png / neru.webp / neru.gif / neru.jpg placed next to index.html (the
  * public/ folder). With no picture nothing is shown.
  * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
- * hovered, and clicking her makes her hop — happy face, a few sparkles and a line in a speech bubble. */
+ * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
   /** Her other faces and poses, public/neru-<name>.png (tools/neru-art.py makes them, from frames of her song's music
    *  video): the build lists the ones there are, so none is looked for that isn't there. */
   POSES: [/*__NERU_POSES__*/],
-  /** The ones where she's sitting — at her desk, or hugging her knees: not for the main menu, where she stands. */
-  SEATED: ['bored', 'huh', 'knees', 'sulk', 'tired'],
   _pics: null, _blobURL: null,
   /** Her pictures — { base, happy, poses: { name: url } } (happy: the face she makes when clicked or pleased; null if
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
@@ -33,14 +31,6 @@ const NeruMascot = {
     })();
     return this._pics;
   },
-  // (Akita Neru: a tsundere, never off her phone — she'd never admit she's glad you're here)
-  LINES: ['What?', 'Stop poking me.', 'I\'m busy. Texting.', 'Go pick a song already.', 'Don\'t get the wrong idea.', 'Hmph.',
-    'It\'s not like I was waiting for you.', 'You again?', '...Fine. One more.', 'Quit it. My phone\'s right here.'],
-  /** Said once a visit, when the main menu first shows her: hello, for the time of day (not that she'd call it that). */
-  greeting() {
-    const hr = new Date().getHours();
-    return hr >= 5 && hr < 11 ? 'You\'re up early. ...Morning.' : hr >= 11 && hr < 17 ? 'Oh. It\'s you.' : hr >= 17 && hr < 22 ? 'Back again? Hmph.' : 'Shouldn\'t you be asleep?';
-  },
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', onclick: e => { e.stopPropagation(); this.hop(); } });
     if (!Settings.get('ui.mascot')) return el;
@@ -50,15 +40,14 @@ const NeruMascot = {
       // body: leans and bobs (driven per frame); img: breathing and the hop (CSS); a soft shadow on the floor
       this.body = h('span.neru-body', this.img);
       this.shadow = h('span.neru-shadow');
-      this.bubble = h('span.neru-say');
-      el.append(this.shadow, this.body, this.bubble);
+      el.append(this.shadow, this.body);
       el.hidden = false;
-      el.addEventListener('pointerenter', () => { el.classList.add('perk'); if (!this._next) this.nextPose(); });
+      el.addEventListener('pointerenter', () => el.classList.add('perk'));
       el.addEventListener('pointerleave', () => el.classList.remove('perk'));
       this.start();
-      // (the bundled Neru has a second, happy picture she switches to when clicked)
-      this.base = pics.base; this.happy = pics.happy; this._poses = pics.poses;
-      if (!NeruMascot._greeted) { NeruMascot._greeted = true; setTimeout(() => { if (this.el === el) this.say(this.greeting()); }, 1400); }
+      // (the bundled Neru has a second, excited picture she switches to when clicked — loaded now, so it's there at once)
+      this.base = pics.base; this.happy = pics.happy;
+      if (pics.happy) new Image().src = pics.happy;
     });
     return el;
   },
@@ -99,39 +88,12 @@ const NeruMascot = {
     if (!this.el) return;
     this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
     UISounds.click();
-    // (one of her other poses for a moment — picked and loaded when the pointer came to her, so it's there at once;
-    // the happy one when that's all there is)
-    const ready = this._next && this._next.complete && this._next.naturalWidth;
-    const pose = ready ? this._next.src : this.happy, name = ready ? this._nextName : 'happy';
-    this.nextPose();
-    if (pose && this.img) {
-      this.img.src = pose;
-      // (her head the size it is in her own picture: see NeruCameo.HEAD)
-      this.el.style.setProperty('--pose-s', NeruCameo.pose({ base: this.base, poses: this._poses }, name).scale);
+    if (this.happy && this.img) {
+      this.img.src = this.happy;
       clearTimeout(this._back);
-      this._back = setTimeout(() => { if (this.img) { this.img.src = this.base; this.el.style.removeProperty('--pose-s'); } }, 1600);
+      this._back = setTimeout(() => { if (this.img) this.img.src = this.base; }, 1600);
     }
-    this.say();
     this.sparkle();
-  },
-  /** The pose a click will show next: a random one of hers (standing — there's no desk on the main menu — and not the
-   *  one she just showed), loaded now. */
-  nextPose() {
-    const all = Object.entries(this._poses || {}).filter(([n]) => !this.SEATED.includes(n) && n !== this._nextName);
-    if (!all.length) { this._next = null; return; }
-    const [n, u] = all[Math.floor(Math.random() * all.length)];
-    const img = new Image();
-    img.src = u;
-    this._next = img; this._nextName = n;
-  },
-  /** A short line in a bubble beside her head, gone after a moment (never the same line twice running). */
-  say(text) {
-    if (!this.bubble) return;
-    let t = text;
-    if (!t) { do t = this.LINES[Math.floor(Math.random() * this.LINES.length)]; while (t === this._lastLine && this.LINES.length > 1); }
-    this._lastLine = t;
-    this.bubble.textContent = t;
-    NeruCameo.pop(this.bubble, 1900);
   },
   /** A handful of sparkles that burst out around her and fade. */
   sparkle() {
@@ -157,31 +119,18 @@ const NeruMascot = {
     if (old) old.replaceWith(this.build());
   },
   stop() {
-    clearTimeout(this._back); if (this.bubble) clearTimeout(this.bubble._t); cancelAnimationFrame(this._raf);
+    clearTimeout(this._back); cancelAnimationFrame(this._raf);
     if (this._onMove) window.removeEventListener('pointermove', this._onMove);
-    this.el = null; this.img = null; this.body = null; this.shadow = null; this.bubble = null;
+    this.el = null; this.img = null; this.body = null; this.shadow = null;
   },
 };
 
-/** Neru around the game, not only on the main menu (with the same setting): she pops up at the edge of a screen with
- *  something to say — grudgingly impressed by a good play, unimpressed by a poor one or a fail (a tsundere: never quite
- *  nice about it, never cruel either), texting while
- *  a song or the game loads — and clicking her makes her hop and say something else. Screens place her with a class
- *  of their own (`.nc-results`, `.nc-pause`…). */
+/** Neru around the game, not only on the main menu (with the same setting): she pops up at the edge of a screen in a
+ *  pose that fits — grudgingly impressed by a good play, unimpressed by a poor one or a fail (a tsundere: never quite
+ *  nice about it, never cruel either), on her phone while a song or the game loads — and clicking her makes her hop.
+ *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
-  /** What she says, by mood; `happy` moods show her happy face (the others, her smug one). */
-  LINES: {
-    perfect: ['W-whatever. Anyone could do that.', '...Okay, that was perfect. Don\'t tell anyone I said that.', 'H-hey! I wasn\'t watching that closely or anything!'],
-    best: ['A new best? ...Took you long enough.', 'Hmph. I guess that\'s an improvement.', 'Don\'t let it go to your head.'],
-    great: ['Not bad. For you.', 'Hmph. Fine, that was good.', 'I\'ve seen worse. ...That\'s a compliment.'],
-    okay: ['That\'s it?', 'Meh.', 'You call that trying?', 'I\'ve seen better.'],
-    bad: ['...Seriously?', 'Are you even looking at the notes?', 'Wow. Just wow.', 'Did you fall asleep?'],
-    failed: ['Ugh. Just retry already.', 'That was painful to watch.', 'Don\'t look at me like that.', 'I\'m not helping you. ...Again?'],
-    paused: ['Hurry up. I\'m busy.', 'Fine, take your time. Not like I\'m waiting.', 'Taking a break? Already?'],
-    loading: ['Don\'t mess this up.', 'I\'m not cheering for you or anything.', 'Go on, then.', 'Whatever. Just play.'],
-    empty: ['There\'s nothing here.', 'No songs? Seriously?', 'Go get some songs already.'],
-    boot: ['Hold on. I\'m texting.', 'Wait a second.', '...Loading. Be patient.'],
-  },
+  /** The moods she's pleased about (not that she'd say so): sparkles. */
   HAPPY: new Set(['perfect', 'best', 'great']),
   /** The poses that fit each mood — one of them, at random, each time (her shrug, neru.png, when there's none of
    *  them) — all from the song's video: sunglasses on or dancing about a perfect play; dancing, or flashing a peace
@@ -222,24 +171,9 @@ const NeruCameo = {
     if (['SH', 'S'].includes(s.grade)) return 'great';
     return ['A', 'B'].includes(s.grade) ? 'okay' : 'bad';
   },
-  /** A speech bubble shown for `ms`: popping in and fading (with animations off, simply there for that long — its
-   *  animation is what shows it, and cut to nothing it never would). */
-  pop(el, ms) {
-    const still = !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('no-anim');
-    el.classList.toggle('still', still);
-    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove('show'), ms);
-  },
-  line(mood) {
-    const l = this.LINES[mood] || this.LINES.okay;
-    let t;
-    do t = l[Math.floor(Math.random() * l.length)]; while (t === this._last && l.length > 1);
-    return (this._last = t);
-  },
-  /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready and says her
-   *  line `delay` ms later. Null when she's turned off. */
-  make(mood, cls, { delay = 450, hold = 3600 } = {}) {
+  /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready (and in a mood
+   *  she's pleased about, sparkles `delay` ms later). Null when she's turned off. */
+  make(mood, cls, { delay = 450 } = {}) {
     if (!Settings.get('ui.mascot')) return null;
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     NeruMascot.pictures().then(async pics => {
@@ -252,24 +186,17 @@ const NeruCameo = {
       // (shown once it can be drawn, never as an empty box that pops)
       try { await img.decode(); } catch { /* shown anyway */ }
       if (!el.isConnected && !el.parentNode) return;
-      const say = h('span.neru-say.nc-say');
-      el.append(h('span.nc-body', img), say);
+      el.append(h('span.nc-body', img));
       el.hidden = false;
       const anim = !!Settings.get('ui.animSpeed');
       if (anim) el.classList.add('in');
-      const talk = (text, ms) => {
-        say.textContent = text;
-        say.style.setProperty('--say', `${ms}ms`);
-        this.pop(say, ms);
-      };
-      setTimeout(() => { if (el.isConnected) { talk(this.line(mood), hold); this.burst(el, mood); } }, anim ? delay : 0);
+      setTimeout(() => { if (el.isConnected) this.burst(el, mood); }, anim ? delay : 0);
       el.addEventListener('click', e => {
         e.stopPropagation();
         UISounds.click();
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
         // (her happy face for a moment, whatever her mood)
         if (happy && face.src !== happy.src) { show(happy); clearTimeout(el._back); el._back = setTimeout(() => show(face), 1600); }
-        talk(this.line(mood), 2200);
         this.burst(el, mood);
       });
     });
@@ -296,7 +223,7 @@ const NeruCameo = {
     const ls = $('#loading-screen');
     setTimeout(() => {
       if (!ls || ls.classList.contains('done')) return;
-      const el = this.make('boot', 'nc-boot', { delay: 500, hold: 4000 });
+      const el = this.make('boot', 'nc-boot');
       if (el) ls.append(el);
     }, 700);
   },

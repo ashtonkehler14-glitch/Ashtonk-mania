@@ -5,7 +5,7 @@
  *  `cls` adds classes (".plain" drops the card behind it, ".compact" for small panels); `neru`: Neru, shrugging at
  *  it, instead of the icon (an empty page — when she's shown at all). */
 function stateCard(ic, title, sub, { slash = false, action = null, cls = '', neru = false } = {}) {
-  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('empty', 'nc-card', { delay: 500, hold: 3000 });
+  const top = neru && typeof NeruCameo !== 'undefined' && NeruCameo.make('empty', 'nc-card');
   return h(`div.off-state${cls}`, top || h('div.off-ico', icon(ic), slash ? h('i') : null), h('div.off-t', title), sub ? h('div.off-sub', sub) : null, action);
 }
 

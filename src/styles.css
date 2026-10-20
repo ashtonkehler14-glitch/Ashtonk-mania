@@ -1604,19 +1604,15 @@ div.res-calib .i { color: var(--good); }
 /* ── Neru (main menu character) */
 .neru { position: absolute; left: clamp(8px, calc(3 * var(--vw)), 48px); bottom: 0; z-index: 2; height: min(calc(46 * var(--vh)), 420px); padding: 0; border: 0; background: transparent; cursor: pointer; animation: neruIn 700ms var(--ease-out) 300ms both; }
 .neru[hidden] { display: none; }
-.neru-img { display: block; flex: none; height: calc(100% * var(--pose-s, 1)); width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
+.neru-img { display: block; height: 100%; width: auto; max-width: calc(32 * var(--vw)); object-fit: contain; object-position: bottom left; transform-origin: 50% 100%; animation: neruSway 5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5)); user-select: none; -webkit-user-drag: none; }
 .neru.hop .neru-img { animation: neruHop 620ms linear; }
-/* the body leans and bobs (set per frame); breathing and the hop are on the picture; a soft shadow under her feet.
- * (--pose-s: the pose she's showing for a moment, a close-up of her shown smaller — at the bottom, where she stands) */
-.neru-body { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; height: 100%; transform-origin: 50% 100%; will-change: transform; transition: filter 300ms var(--ease-out); }
+/* the body leans and bobs (set per frame); breathing and the hop are on the picture; a soft shadow under her feet */
+.neru-body { display: block; height: 100%; transform-origin: 50% 100%; will-change: transform; transition: filter 300ms var(--ease-out); }
 .neru.perk .neru-body { filter: brightness(1.06); }
 .neru.perk .neru-img { translate: 0 -6px; scale: 1.015; }
 .neru-img { transition: translate 350ms cubic-bezier(.34, 1.56, .64, 1), scale 350ms cubic-bezier(.34, 1.56, .64, 1); }
 .neru-shadow { position: absolute; left: 12%; right: 18%; bottom: -6px; height: 18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); pointer-events: none; transform-origin: 50% 50%; }
 .neru.hop .neru-shadow { animation: neruShadow 620ms linear; }
-.neru-say { position: absolute; left: 62%; top: 4%; padding: 7px 13px; border-radius: 14px 14px 14px 4px; background: #fff; color: #3a2a4a; font-weight: 700; font-size: 14px; white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); pointer-events: none; opacity: 0; transform-origin: 0 100%; transform: scale(.4) translateY(10px); }
-.neru-say.show { animation: neruSay 1900ms var(--ease-out) both; }
 .neru-spark { position: absolute; width: 9px; height: 9px; pointer-events: none; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
 @keyframes neruIn { 0% { opacity: 0; transform: translateY(60px); } 60% { opacity: 1; transform: translateY(-8px); } 100% { transform: none; } }
 @keyframes neruSway { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(1.005, 1.012); } }
@@ -1625,7 +1621,6 @@ div.res-calib .i { color: var(--good); }
   45% { transform: translateY(-26px) scale(.97, 1.04); animation-timing-function: cubic-bezier(.6, 0, .8, .4); } 72% { transform: translateY(2px) scale(1.05, .93); }
   86% { transform: translateY(-3px) scale(.99, 1.01); } 100% { transform: none; } }
 @keyframes neruShadow { 45% { transform: scaleX(.7); opacity: .5; } 72% { transform: scaleX(1.08); } }
-@keyframes neruSay { 0% { opacity: 0; transform: scale(.4) translateY(10px); } 12% { opacity: 1; transform: scale(1.06) translateY(0); } 20% { transform: scale(1); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.9) translateY(-6px); } }
 @media (max-height: 520px) and (hover: none) and (orientation: portrait), (max-width: 700px) and (hover: none) and (orientation: portrait) { .neru, .neru-cameo { display: none; } }
 /* ── Neru around the game (NeruCameo): she pops up at the edge of a screen with something to say */
 .neru-cameo { position: absolute; z-index: 4; display: block; padding: 0; border: 0; background: none; cursor: pointer; }
@@ -1636,8 +1631,6 @@ div.res-calib .i { color: var(--good); }
   user-select: none; -webkit-user-drag: none; pointer-events: none; transition: translate 350ms cubic-bezier(.34, 1.56, .64, 1); }
 .neru-cameo:hover .nc-img { translate: 0 -6px; }
 .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
-.nc-say.show { animation-duration: var(--say, 1900ms); }
-.neru-say.still.show { animation: none !important; opacity: 1; transform: none; }
 @keyframes ncIn { 0% { opacity: 0; transform: translateY(45%) rotate(-5deg); } 55% { opacity: 1; transform: translateY(-4%) rotate(1.5deg); } 78% { transform: translateY(1%) rotate(-.5deg); } 100% { transform: none; } }
 /* where each screen has her: beside the results (stepping aside while the statistics are open), the pause and fail
    screens, the song's loader, an empty song select and the loading screen */
@@ -1652,7 +1645,6 @@ div.res-calib .i { color: var(--good); }
 .neru-cameo.nc-card { position: relative; z-index: auto; height: 150px; margin: 0 auto 6px; }
 .neru-cameo.nc-card[hidden] { display: block; visibility: hidden; } /* (her room kept while her picture loads: no jump) */
 .nc-card .nc-img { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
-.nc-card .nc-say { left: 70%; top: 0; }
 .slow .nc-img { animation: none; filter: none; }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
 /* ── Invite dialog */
@@ -2557,6 +2549,9 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .setup-step-wom .setup-choice-t { font-size: 1.05rem; align-self: end; }
 .setup-step-wom .setup-choice-s { align-self: start; }
 .setup-step-wom .setup-wom { margin-top: 14px; }
+/* (centred like the other pages — its import steps stay a left-aligned list) */
+.setup-step-wom { align-items: center; justify-content: safe center; text-align: center; }
+.setup-step-wom .setup-wom-steps, .setup-step-wom .setup-wom-done { text-align: left; }
 
 /* results (osu!lazer): the panel alone in the middle until it's clicked; then it moves aside and the statistics come in */
 .res-grid { position: relative; grid-template-columns: 400px; transition: none; }
@@ -3050,6 +3045,11 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .lz-tip-t .i { width: 16px; height: 16px; }
 .lz-tip-b { margin-top: 2px; }
 .lz-tipbox:empty { display: none; }
+/* (a short screen — a phone on its side: the big logo fills it, so the tip waits for the menu to open, and is smaller) */
+@media (max-height: 520px) {
+  .lz-menu[data-state="initial"] .lz-tipbox { visibility: hidden; }
+  .lz-tipbox { width: 520px; padding: 6px 10px; font-size: 14px; }
+}
 .rq.rq-hi { animation: rqHi 1.2s var(--ease-out); }
 @keyframes rqHi { 0%, 40% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); } 100% { box-shadow: 0 0 0 2px transparent; } }
 /* settings: lazer's SettingsPanel — below the toolbar, the 170px sidebar (Background5) with each section's icon and
@@ -3105,7 +3105,7 @@ body:has(.cl) #toasts { opacity: 0; pointer-events: none; }
 .rs-ring { width: 230px; height: 230px; margin: 40px 0 0; }
 .rs .res-score { margin: 0 0 5px; font-size: 60px; font-weight: 300; line-height: 66px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .rs-diff { margin: 0; gap: 5px; font-size: 13px; }
-.rs-diff .rs-mods { zoom: .5; margin: 0; flex-wrap: nowrap; } /* (zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
+.rs-diff .rs-mods { zoom: .7; margin: 0; flex-wrap: nowrap; } /* (as tall as the star rating beside them; zoom, not scale: the badges take only their shrunk room, so they never sit on top of the key count) */
 .rs-dv { margin-top: 4px; }
 .rs-version { font-size: 16px; font-weight: 600; line-height: 20px; max-width: 340px; }
 .rs-mapper { margin-top: 0; font-size: 12px; line-height: 15px; }

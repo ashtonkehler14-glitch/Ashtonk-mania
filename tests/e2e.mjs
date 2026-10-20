@@ -104,12 +104,12 @@ check('touch controls, hitsounds and the old Neru easter-egg settings removed', 
 await page.mouse.click(700, 450); await page.waitForTimeout(500);
 check('main menu opens the lazer button bar (no footer panels)', await page.evaluate(() => document.querySelector('.lz-menu').dataset.state === 'top' && document.querySelectorAll('.lz-btn.exp').length === 4 && document.querySelector('#app:not(.hide-toolbar)') && !document.querySelector('.continue, .lz-footer')));
 await shot('01-home-empty');
-// an empty library: Neru shrugs at it in song select ("Nothing here~"); she goes once there's a beatmap
+// an empty library: Neru in song select, hand on hip at it; she goes once there's a beatmap
 {
   await page.evaluate(() => AshtonkMania.Screens.go('songselect'));
-  await page.waitForFunction(() => { const s = document.querySelector('.ss .nc-empty .nc-say'); return s && s.textContent; }, null, { timeout: 8000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ line: (document.querySelector('.ss .nc-empty .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.empty, box: !!document.querySelector('.ss-empty .box') }));
-  check('an empty song select has Neru shrugging at it beside "Your library is empty"', n.lines.includes(n.line) && n.box, JSON.stringify(n));
+  await page.waitForSelector('.ss .nc-empty:not([hidden]) .nc-img', { timeout: 8000 }).catch(() => {});
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.ss .nc-empty .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.empty.map(p => `neru-${p}.png`), box: !!document.querySelector('.ss-empty .box'), said: !!document.querySelector('.neru-say, .nc-say') }));
+  check('an empty song select has Neru beside "Your library is empty", in one of her poses for it (and no speech bubble)', n.poses.includes(n.face) && n.box && !n.said, JSON.stringify(n));
   await page.evaluate(() => AshtonkMania.Screens.go('home')); await page.waitForTimeout(400);
 }
 
@@ -674,14 +674,14 @@ await page.waitForTimeout(300);
 const paused = await page.evaluate(() => !!document.querySelector('.pause-menu') && !AshtonkMania.Music.playing);
 check('Escape pauses gameplay and audio', paused);
 await shot('06-pause');
-// Neru teases you on the pause screen (the arrow keys still go between its buttons, never to her)
+// Neru on the pause screen, bored or on her phone (the arrow keys still go between its buttons, never to her)
 {
   await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  const n = await page.evaluate(() => ({ line: (document.querySelector('.pause-menu .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.paused }));
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.paused.map(p => `neru-${p}.png`) }));
   await page.keyboard.press('ArrowUp');
   const focus = await page.evaluate(() => document.activeElement && document.activeElement.className);
-  check('the pause screen has Neru with something to say; the arrow keys skip her', n.lines.includes(n.line) && /pm-btn/.test(focus) && !/neru/.test(focus), JSON.stringify({ ...n, focus }));
+  check('the pause screen has Neru in one of her poses for it; the arrow keys skip her', n.poses.includes(n.face) && /pm-btn/.test(focus) && !/neru/.test(focus), JSON.stringify({ ...n, focus }));
 }
 {
   // Esc, or leaving the window, during the 3-2-1 after Continue pauses again (the song mustn't carry on unseen)
@@ -702,9 +702,9 @@ check('resume continues audio after countdown', await page.evaluate(() => Ashton
 await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'), null, { timeout: 15000 });
 check('Sudden Death fails on first miss', true);
 {
-  await page.waitForFunction(() => { const s = document.querySelector('.pause-menu .nc-say'); return s && s.textContent; }, null, { timeout: 5000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ line: (document.querySelector('.pause-menu .nc-say') || {}).textContent || '', lines: AshtonkMania.NeruCameo.LINES.failed, src: (document.querySelector('.pause-menu .nc-img') || {}).src || '' }));
-  check('the fail screen has Neru, unimpressed', n.lines.includes(n.line) && /\/neru(-[a-z]+)?\.png$/.test(n.src), JSON.stringify(n));
+  await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
+  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), poses: AshtonkMania.NeruCameo.FACES.failed.map(p => `neru-${p}.png`) }));
+  check('the fail screen has Neru, unimpressed (one of her poses for a fail)', n.poses.includes(n.face), JSON.stringify(n));
 }
 {
   const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
@@ -725,25 +725,26 @@ await page.waitForTimeout(500);
   const r = await page.evaluate(async () => {
     const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()][0], wait = ms => new Promise(res => setTimeout(res, ms));
     const play = (grade, passed, extra = {}) => ({ id: 'sc-neru-' + grade + Math.random(), mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, mods: [], rate: 1, score: 900000, scoreStd: 900000, accuracy: passed ? 0.99 : 0.6, maxCombo: 100, counts: [100, 10, 1, 0, 0, passed ? 0 : 40], grade, passed, date: Date.now(), duration: 60000, player: 'Tester', own: true, hitErrors: [], healthTimeline: [], ...extra });
+    const face = el => (el.querySelector('.nc-img').src.match(/[^/]+$/) || [''])[0];
     const look = async (score, p = { fresh: true }) => {
       await A.Screens.go('home'); await A.Screens.go('results', { score, ...p });
       // (the results screen on show now: the one before can still be fading out)
       const mine = () => A.Screens.current && A.Screens.current._el ? A.Screens.current._el.querySelector('.nc-results') : null;
-      for (let i = 0; i < 40 && !((mine() || {}).querySelector && (mine().querySelector('.nc-say') || {}).textContent); i++) await wait(100);
+      for (let i = 0; i < 40 && !(mine() && mine().querySelector('.nc-img')); i++) await wait(100);
       const el = mine();
-      return el ? { line: el.querySelector('.nc-say').textContent, face: (el.querySelector('.nc-img').src.match(/[^/]+$/) || [''])[0] } : null;
+      return el && el.querySelector('.nc-img') ? { face: face(el), said: !!el.querySelector('.neru-say, .nc-say') } : null;
     };
-    const L = A.NeruCameo.LINES, out = {};
+    const out = {};
     out.ss = await look(play('X', true));
     out.fail = await look(play('D', false));
     out.old = await look(play('S', true), { fromList: true });
     out.replay = await look(play('S', true), { fresh: false, watched: 'replay' });
     A.Settings.set('ui.mascot', false); out.off = await look(play('S', true)); A.Settings.set('ui.mascot', true);
-    // clicking her: a hop and something else to say
+    // clicking her: a hop, and her excited face for a moment
     await look(play('A', true));
-    const el = A.Screens.current._el.querySelector('.nc-results'), before = el.querySelector('.nc-say').textContent;
+    const el = A.Screens.current._el.querySelector('.nc-results'), before = face(el);
     el.click(); await wait(50);
-    out.clicked = { hop: el.classList.contains('hop'), line: el.querySelector('.nc-say').textContent, before };
+    out.clicked = { hop: el.classList.contains('hop'), before, face: face(el) };
     // she steps aside while the statistics are open
     A.Screens.current._el.querySelector('.res-grid > .rs').click(); await wait(500);
     out.aside = getComputedStyle(el).opacity;
@@ -752,35 +753,32 @@ await page.waitForTimeout(500);
     // (one of that mood's poses — of the ones there are; her default picture with none of them)
     const F = A.NeruCameo.FACES, have = mood => F[mood].filter(n => A.NeruMascot.POSES.includes(n));
     const pose = (mood, s) => !!s && (have(mood).length ? have(mood).map(n => `neru-${n}.png`).includes(s.face) : s.face === 'neru.png');
-    out.ok = { perfect: L.perfect.includes(out.ss && out.ss.line) && pose('perfect', out.ss), failed: L.failed.includes(out.fail && out.fail.line) && pose('failed', out.fail), okay: L.okay.includes(out.clicked.line) };
+    out.ok = { perfect: pose('perfect', out.ss), failed: pose('failed', out.fail), okay: pose('okay', { face: out.clicked.before }) };
     return out;
   });
-  check('results: Neru reacts to the play just finished — a perfect-play pose for an SS, a fail pose for a fail',
-    r.ss && r.ok.perfect && r.fail && r.ok.failed, JSON.stringify(r));
-  check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop and say more; she steps aside for the statistics',
-    !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && +r.aside < 0.5, JSON.stringify(r));
+  check('results: Neru reacts to the play just finished — a perfect-play pose for an SS, a fail pose for a fail (no speech bubble)',
+    r.ss && r.ok.perfect && !r.ss.said && r.fail && r.ok.failed, JSON.stringify(r));
+  check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop with her excited face; she steps aside for the statistics',
+    !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && r.clicked.face === 'neru-happy.png' && +r.aside < 0.5, JSON.stringify(r));
   check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad), a new best and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|best|failed', r.moods);
 }
 
-// the main menu: clicking Neru shows one of her other poses for a moment — standing ones (no desk there), never the
-// same one twice running
+// the main menu: clicking Neru makes her hop with her excited face for a moment, then back — no speech bubble
 {
   const r = await page.evaluate(async () => {
     const A = AshtonkMania, M = A.NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms));
     if (A.Screens.currentName !== 'home') await A.Screens.go('home');
     for (let i = 0; i < 40 && !M.img; i++) await wait(100);
     if (!M.img) return { none: true };
-    const shown = [];
-    for (let i = 0; i < 10; i++) {
-      if (!M._next) M.nextPose();
-      const n = M._next;
-      if (n && !n.complete) await new Promise(res => { n.onload = n.onerror = res; });
-      M.hop(); shown.push(M.img.src.split('/').pop());
-    }
-    return { shown, standing: M.POSES.filter(n => !M.SEATED.includes(n)).map(n => `neru-${n}.png`) };
+    const name = () => M.img.src.split('/').pop();
+    const before = name();
+    M.el.click(); await wait(100);
+    const clicked = name(), hop = M.el.classList.contains('hop'), said = !!document.querySelector('.home .neru-say, .home .nc-say');
+    await wait(1800);
+    return { before, clicked, hop, said, after: name() };
   });
-  check('main menu: clicking Neru shows another of her poses — standing ones only, not the same twice running',
-    !r.none && r.shown.every(f => r.standing.includes(f)) && r.shown.every((f, i) => !i || f !== r.shown[i - 1] || r.standing.length < 2), JSON.stringify(r));
+  check('main menu: clicking Neru makes her hop with her excited face, then she goes back (no speech bubble)',
+    !r.none && r.before === 'neru.png' && r.clicked === 'neru-happy.png' && r.hop && !r.said && r.after === 'neru.png', JSON.stringify(r));
 }
 
 // skin import (Kori-structured stand-in)
@@ -1684,7 +1682,7 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   });
   await sp.waitForSelector('.home .neru:not([hidden]) img', { timeout: 5000 });
   await sp.click('.neru');
-  check('Neru shows the chosen picture on the main menu (no speech bubbles)', await sp.evaluate(() => document.querySelector('.neru').classList.contains('hop') && !document.querySelector('.neru-bubble')));
+  check('Neru shows the chosen picture on the main menu (no speech bubbles)', await sp.evaluate(() => document.querySelector('.neru').classList.contains('hop') && !document.querySelector('.neru-say')));
   check('the Ashtonk!mania logo stays pink whatever the theme', await sp.evaluate(() => getComputedStyle(document.querySelector('.lz-cookie-disc')).backgroundColor === 'rgb(255, 102, 171)'));
   await sp.evaluate(() => AshtonkMania.Screens.go('profile')); await sp.waitForTimeout(400);
   await sp.click('.pf-avatar'); await sp.waitForSelector('.av-tile');
