@@ -488,6 +488,10 @@ const Spectate = {
       for (const el of app.querySelectorAll('*')) if ((el.scrollTop || el.scrollLeft) && !el.closest('.spec-rk')) (this._scrolled ||= new Set()).add(el);
       this._dirty = true;
     }
+    // (the regular tick doesn't send a copy that's waiting its turn — an animation's inline style goes at most every
+    // 400ms — or it went out up to 250ms early, a few ms after the one before: two copies for one, each a whole screen
+    // of work for the watchers)
+    if (this._mirT && performance.now() < this._mirDue) return;
     this.mirrorFlush();
   },
   MIR_GAP: 50,

@@ -25,6 +25,13 @@ const Chat = {
       this.paint();
       return;
     }
+    // (the server's owner took a line out of #lobby, or cleared it)
+    if (m.t === 'sayDel' || m.t === 'chatClear') {
+      const lobby = this.channels.get('#lobby');
+      lobby.lines = m.t === 'chatClear' ? [] : lobby.lines.filter(l => !(l.at === m.at && ((l.from && l.from.pid) || '') === (m.pid || '')));
+      this.save(); this.paint();
+      return;
+    }
     if (m.t === 'say') {
       this.add('#lobby', m);
       // lazer's MentionNotification: your name in #lobby while you're not looking at it (not in Do not disturb)

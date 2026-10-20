@@ -826,6 +826,8 @@ const Toolbar = {
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
         : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
+      // (the server's owner: their admin panel, on the server)
+      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => window.open(Host.standalone ? new URL('admin', Host.server()).href : '/admin', '_blank', 'noopener') }] : []),
     ]);
     return m;
   },

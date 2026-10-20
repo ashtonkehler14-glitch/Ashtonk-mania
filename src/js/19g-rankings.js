@@ -45,8 +45,9 @@ const Verified = {
       await new Promise(res => { const t = setTimeout(done, Math.min(4000, 1000 * (i + 1))); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
   },
-  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
+  async submit({ rec, mods, modConfig, seed, events, daily = null, background = false }) {
     if (!Multiplayer.available() || !Presence.pid()) return null; // (signed out: no scores go up)
+    if (!background) this._lastOwn = Date.now(); // (a play just finished: the catch-up below waits its turn)
     const sent = Date.now(); // (which play an answer is for: the results screen only shows its own play's rank)
     const osu = await this.file(rec);
     if (!osu) return null;
@@ -57,7 +58,8 @@ const Verified = {
     const until = Date.now() + 120000;
     let r = null;
     for (let i = 0; !r; i++) {
-      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if (r.status >= 500 && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      // (429: another score of yours went up seconds ago — the server takes one every few seconds — so this one waits)
+      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
       if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
     try {
@@ -69,10 +71,43 @@ const Verified = {
       }
       if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
       else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (background) return d;
       this.last = { d, at: Date.now(), sent };
       Bus.emit('verified', d, sent);
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
+  },
+  /** Your best plays the server hasn't judged — set offline, in multiplayer, before it judged plays, or ones that
+   *  didn't get through — go up again with their replays, a few seconds apart, in the background (never during a
+   *  song): the server judges each itself, so the pp and best performance the rankings and other players see are the
+   *  ones on your profile. Once a session, after coming online; a play already sent isn't sent again. Plays without a
+   *  replay (imported backups, or with the replay deleted) can't be checked, so they can't count. */
+  SENT_KEY: 'am.ppSent',
+  async catchUp() {
+    if (this._catching || !Multiplayer.available() || !Presence.pid() || !Presence.ws) return;
+    this._catching = true;
+    try {
+      const server = await new Promise(res => { const off = Bus.on('myBests', m => { off(); clearTimeout(t); res(m); }), t = setTimeout(() => { off(); res(null); }, 15000); Presence.send({ t: 'myBests' }); });
+      if (!server) return;
+      const have = new Map(server.list || []), keep = server.keep || 200;
+      const floor = have.size >= keep ? Math.min(...have.values()) : 0; // (the server keeps each player's best `keep`)
+      let sent = {}; try { sent = JSON.parse(localStorage.getItem(this.SENT_KEY) || '{}') || {}; } catch { /* none */ }
+      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => s.replayId && !s.synced && pp > floor
+        && !((have.get(s.mapHash) || 0) >= pp - 0.5) && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01));
+      for (const { score: s, pp } of todo) {
+        // (never during a song, nor right after one, whose own score goes up first)
+        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(5000);
+        if (!Presence.pid()) break;
+        const rep = await ReplayManager.get(s.replayId).catch(() => null), rec = BeatmapManager.mapByHash(s.mapHash);
+        if (!rep || !Array.isArray(rep.events) || !rep.events.length || !rec) continue;
+        await this.submit({ rec, mods: rep.mods || s.mods || [], modConfig: rep.modConfig || {}, seed: rep.seed, events: rep.events, background: true });
+        sent[s.mapHash] = pp;
+        try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
+        await sleep(4000); // (the server takes one score every few seconds from each player)
+      }
+      if (todo.length) Presence.send({ t: 'rankings' }); // (your place, with them counted)
+    } catch (e) { console.warn('catch-up', e); }
+    finally { this._catching = false; }
   },
 };
 

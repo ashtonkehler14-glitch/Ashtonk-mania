@@ -1173,6 +1173,7 @@ html.touch .practice-bar .kbd { display: none; }
 .pf-ppblock.failed { color: #ff6b77; font-size: .8rem; }
 .pf-ppblock.failed::after { content: ""; }
 .pf-empty { color: var(--muted); padding: 16px 4px; }
+.pf-note { color: var(--muted); font-size: .8rem; margin: -2px 0 8px; }
 /* replays: the profile's score rows, with the replay's buttons in the slanted block */
 .rp-list { display: flex; flex-direction: column; gap: 4px; }
 .rp-row .s .p { color: var(--oc2); }
@@ -11549,17 +11550,21 @@ const ScoreManager = {
     st = String(st || '').toLowerCase();
     return st === 'ranked' || st === 'approved';
   },
-  /** Best pp per beatmap (osu! counts one score per map toward the total; ranked beatmaps only). */
-  bestPpPerMap(scores = this.scores) {
+  /** Best pp per beatmap (osu! counts one score per map toward the total; ranked beatmaps only). Scores from an imported
+   *  backup are left out unless asked for (`imported`): they can't count on the rankings — there's no replay of them for
+   *  the server to judge — so your total here is the one the rankings have for you. */
+  bestPpPerMap(scores = this.scores, { imported = false } = {}) {
     const best = new Map();
     for (const s of scores) {
-      if (!this.isRanked(s)) continue;
+      if (!this.isRanked(s) || (!imported && s.imported)) continue;
       const pp = this.ppOf(s);
       if (pp > 0 && (!best.has(s.mapHash) || best.get(s.mapHash).pp < pp)) best.set(s.mapHash, { pp, score: s });
     }
     return [...best.values()].sort((a, b) => b.pp - a.pp);
   },
   totalPp(scores = this.scores) { return OsuMath.totalPp(this.bestPpPerMap(scores).map(x => x.pp)); },
+  /** Your best plays from imported backups (Web-Osu-Mania's, or an Ashtonk!mania backup) that would give pp. */
+  importedBest() { return this.bestPpPerMap(this.scores.filter(s => s.imported), { imported: true }); },
   async add(score) {
     const prev = this.best(score.mapHash);
     score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));
@@ -13174,6 +13179,8 @@ const Toolbar = {
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
         : { label: 'Your code (play on another device)', icon: 'lock', onClick: () => CodePanel.open() }]),
+      // (the server's owner: their admin panel, on the server)
+      ...(typeof Presence !== 'undefined' && Presence.isAdmin ? [{ label: 'Admin panel', icon: 'gear', onClick: () => window.open(Host.standalone ? new URL('admin', Host.server()).href : '/admin', '_blank', 'noopener') }] : []),
     ]);
     return m;
   },
@@ -19948,6 +19955,8 @@ const ProfileScreen = {
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
       // (50: the server checks each of them is on a ranked beatmap, by its osu! ids, before it counts toward the rankings)
       top: best.slice(0, 50).map(tp => lite(tp.score, tp.pp)),
+      // (your imported backups' best plays: shown on your profile apart from the rest — they can't count on the rankings)
+      importedTop: ScoreManager.importedBest().slice(0, 50).map(tp => lite(tp.score, tp.pp)),
       rankedPlays: best.length,
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
       medals: Medals.unlocked(),
@@ -19959,7 +19968,7 @@ const ProfileScreen = {
   summary() {
     // (imported scores — a backup, a Web-Osu-Mania save — stay on this device: others never see them)
     const d = this.localData(), strip = a => a.filter(x => !(x._s && x._s.imported)).map(({ _s, ...x }) => x);
-    return { ...d, top: strip(d.top), recent: strip(d.recent) };
+    return { ...d, top: strip(d.top), recent: strip(d.recent), importedTop: undefined };
   },
   render() {
     const page = this.page;
@@ -20042,7 +20051,10 @@ const ProfileScreen = {
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', !own ? 'No performance records yet.'
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
-          : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')));
+          : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
+      own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
+        h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
+        more(d.importedTop, x => row(x, 0, false))) : null);
     const got = d.medals || {};
     const medals = () => section('medals', 'Medals', sub('Unlocked', `${fmtInt(Medals.all.filter(m => got[m.id]).length)} / ${fmtInt(Medals.all.length)}`, ...Medals.section(got)));
     const recent = d.recent || [];
@@ -20314,50 +20326,8 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.20', title: 'Your scores on every device', sections: [
-    { icon: 'heart', title: 'Neru', items: [
-      'Neru shows up around the game now, not only on the main menu: on the results, pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
-      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for an SS, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and fishing while the game starts',
-      'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
-      'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
-      'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
-    { icon: 'sparkle', title: 'Looks', items: [
-      'Results: your other scores on the beatmap, either side of yours, are all the same height (one with mods was taller), and the mod badges by the star rating are as big as the chips beside them',
-      'The song\'s title, artist and difficulty on the loading screen stay readable over a bright background',
-      'Empty pages look alike: no friends yet, nobody online, nobody ranked yet and no daily challenge scores yet show the same card as an empty library (with Neru on the full pages)',
-      'Collections opens on one that has beatmaps in it, not an empty one',
-      'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
-      'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
-    { icon: 'user', title: 'Friends and the leaderboard', items: [
-      'Your friends list shows everyone\'s profile picture — offline friends too (the last one the game saw) — and so do friend requests and the list of friends to invite to a room',
-      'The leaderboard in a song is as lazer\'s: while you play, just each place and picture, so it stays out of the way; before the first note, in a break, paused, at the end, watching a replay or holding Ctrl it opens out to the names, scores, accuracy and combo'] },
-    { icon: 'sparkle', title: 'Smoother', items: [
-      'Chrome\'s Energy Saver (and battery savers) halve the frame rate, which looks choppy: the game now tells you after the song when that happened and how to turn it off. It also no longer takes those 30 fps for a slow device and lowers the playfield\'s resolution — which only made the notes blurry without making anything faster'] },
-    { icon: 'download', title: 'The HTML file', items: [
-      'A saved HTML file notices when the website has a newer version (as it opens, and every few hours) and asks whether to update — after the song, never in the middle of one. "Update" writes the new version over the file itself (in Chrome and Edge: the first time, the save box opens on the file\'s name — pick it to replace it; after that it\'s remembered) and starts it; your beatmaps, scores and settings stay. "Not now" waits a day'] },
-    { icon: 'globe', title: 'Ad blockers', items: [
-      'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
-    { icon: 'keyboard', title: 'Keys', items: [
-      'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
-    { icon: 'lock', title: 'Your code', items: [
-      'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
-      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time. How far it\'s got shows in the notifications, and the X there stops it',
-      'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
-      'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
-      'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
-      'Reset everything on a device playing through your code keeps you who you are: your name stays (it became "Player" — on the rankings too) and your settings, skin and plays come back'] },
-    { icon: 'sparkle', title: 'Faster with a long history', items: [
-      'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
-      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
-      'The Replays page opens at once with hundreds of replays: its first rows straight away, the rest as it goes (they used to be built all at once, freezing the page for a moment)'] },
-    { icon: 'download', title: 'Imports and backups', items: [
-      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
-      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
-      'Storage full in the middle of importing several files (or a pack), or of downloading several beatmaps (the ones your plays are on, the songs in a Web-Osu-Mania backup\'s collections): it stops there and says how many weren\'t imported, instead of downloading and failing each of the rest in turn',
-      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
-      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
-      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
-      'A damaged play in a backup (its counts or date not what they should be) is left out instead of putting "NaN" into your stats'] },
+  { id: '2026.10.20', title: 'Neru update', sections: [
+    { icon: 'heart', title: 'Neru update', items: ['Adds Neru to the results screen and other miscellaneous screens'] },
   ] },
   { id: '2026.10.17', title: 'Your code', sections: [
     { icon: 'lock', title: 'Your code', items: [
@@ -23592,7 +23562,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (!this._caughtUp) { this._caughtUp = true; setTimeout(() => Verified.catchUp(), 20000); } if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -23625,6 +23595,7 @@ const Presence = {
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
+      else if (m.t === 'myBests') Bus.emit('myBests', m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
@@ -23636,16 +23607,34 @@ const Presence = {
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') Toast.err(m.msg);
+      // (from the server's owner: the admin panel)
+      else if (m.t === 'banned') this.onBanned(m);
+      else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
+      else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
+      else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
+      else if (m.t === 'admin') { this.isAdmin = true; Bus.emit('presence:admin'); }
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      this.isAdmin = false;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
+      // (banned: not again until it's over — or, for good, not this time the game is open)
+      if (this.banned) { clearTimeout(this._t); if (this.banned.until) this._t = setTimeout(() => { this.banned = null; this.retry = 0; this.connect(); }, Math.min(2 ** 31 - 1, Math.max(60000, this.banned.until - Date.now()))); return; }
       this.later();
     };
+  },
+  /** Banned by the server's owner: told why and for how long, once; the game stays offline (playing still works). */
+  onBanned(m) {
+    this.banned = { reason: String(m.reason || ''), until: Number(m.until) || 0 };
+    if (this._bannedTold) return;
+    this._bannedTold = true;
+    const until = this.banned.until ? `until ${new Date(this.banned.until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'for good';
+    Dialog.popup('You\'re banned from online play', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`,
+      [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
   },
   /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
   tryNow(quiet = false) {
@@ -25791,6 +25780,10 @@ const Spectate = {
       for (const el of app.querySelectorAll('*')) if ((el.scrollTop || el.scrollLeft) && !el.closest('.spec-rk')) (this._scrolled ||= new Set()).add(el);
       this._dirty = true;
     }
+    // (the regular tick doesn't send a copy that's waiting its turn — an animation's inline style goes at most every
+    // 400ms — or it went out up to 250ms early, a few ms after the one before: two copies for one, each a whole screen
+    // of work for the watchers)
+    if (this._mirT && performance.now() < this._mirDue) return;
     this.mirrorFlush();
   },
   MIR_GAP: 50,
@@ -26742,6 +26735,13 @@ const Chat = {
       this.paint();
       return;
     }
+    // (the server's owner took a line out of #lobby, or cleared it)
+    if (m.t === 'sayDel' || m.t === 'chatClear') {
+      const lobby = this.channels.get('#lobby');
+      lobby.lines = m.t === 'chatClear' ? [] : lobby.lines.filter(l => !(l.at === m.at && ((l.from && l.from.pid) || '') === (m.pid || '')));
+      this.save(); this.paint();
+      return;
+    }
     if (m.t === 'say') {
       this.add('#lobby', m);
       // lazer's MentionNotification: your name in #lobby while you're not looking at it (not in Do not disturb)
@@ -26966,8 +26966,9 @@ const Verified = {
       await new Promise(res => { const t = setTimeout(done, Math.min(4000, 1000 * (i + 1))); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
   },
-  async submit({ rec, mods, modConfig, seed, events, daily = null }) {
+  async submit({ rec, mods, modConfig, seed, events, daily = null, background = false }) {
     if (!Multiplayer.available() || !Presence.pid()) return null; // (signed out: no scores go up)
+    if (!background) this._lastOwn = Date.now(); // (a play just finished: the catch-up below waits its turn)
     const sent = Date.now(); // (which play an answer is for: the results screen only shows its own play's rank)
     const osu = await this.file(rec);
     if (!osu) return null;
@@ -26978,7 +26979,8 @@ const Verified = {
     const until = Date.now() + 120000;
     let r = null;
     for (let i = 0; !r; i++) {
-      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if (r.status >= 500 && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      // (429: another score of yours went up seconds ago — the server takes one every few seconds — so this one waits)
+      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
       if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
     try {
@@ -26990,10 +26992,43 @@ const Verified = {
       }
       if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
       else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (background) return d;
       this.last = { d, at: Date.now(), sent };
       Bus.emit('verified', d, sent);
       return d;
     } catch (e) { console.warn('score not counted online', e); return null; }
+  },
+  /** Your best plays the server hasn't judged — set offline, in multiplayer, before it judged plays, or ones that
+   *  didn't get through — go up again with their replays, a few seconds apart, in the background (never during a
+   *  song): the server judges each itself, so the pp and best performance the rankings and other players see are the
+   *  ones on your profile. Once a session, after coming online; a play already sent isn't sent again. Plays without a
+   *  replay (imported backups, or with the replay deleted) can't be checked, so they can't count. */
+  SENT_KEY: 'am.ppSent',
+  async catchUp() {
+    if (this._catching || !Multiplayer.available() || !Presence.pid() || !Presence.ws) return;
+    this._catching = true;
+    try {
+      const server = await new Promise(res => { const off = Bus.on('myBests', m => { off(); clearTimeout(t); res(m); }), t = setTimeout(() => { off(); res(null); }, 15000); Presence.send({ t: 'myBests' }); });
+      if (!server) return;
+      const have = new Map(server.list || []), keep = server.keep || 200;
+      const floor = have.size >= keep ? Math.min(...have.values()) : 0; // (the server keeps each player's best `keep`)
+      let sent = {}; try { sent = JSON.parse(localStorage.getItem(this.SENT_KEY) || '{}') || {}; } catch { /* none */ }
+      const todo = ScoreManager.bestPpPerMap().slice(0, 100).filter(({ score: s, pp }) => s.replayId && !s.synced && pp > floor
+        && !((have.get(s.mapHash) || 0) >= pp - 0.5) && !(Math.abs((sent[s.mapHash] || -1) - pp) < 0.01));
+      for (const { score: s, pp } of todo) {
+        // (never during a song, nor right after one, whose own score goes up first)
+        while (Screens.currentName === 'gameplay' || Date.now() - (this._lastOwn || 0) < 8000) await sleep(5000);
+        if (!Presence.pid()) break;
+        const rep = await ReplayManager.get(s.replayId).catch(() => null), rec = BeatmapManager.mapByHash(s.mapHash);
+        if (!rep || !Array.isArray(rep.events) || !rep.events.length || !rec) continue;
+        await this.submit({ rec, mods: rep.mods || s.mods || [], modConfig: rep.modConfig || {}, seed: rep.seed, events: rep.events, background: true });
+        sent[s.mapHash] = pp;
+        try { localStorage.setItem(this.SENT_KEY, JSON.stringify(sent)); } catch { /* full */ }
+        await sleep(4000); // (the server takes one score every few seconds from each player)
+      }
+      if (todo.length) Presence.send({ t: 'rankings' }); // (your place, with them counted)
+    } catch (e) { console.warn('catch-up', e); }
+    finally { this._catching = false; }
   },
 };
 
@@ -27040,8 +27075,8 @@ const RankingsScreen = {
 
 /* ===== 19h-daily.js ===== */
 /* osu!lazer's daily challenge: one beatmap for everyone each day (turning over at midnight US Central time, decided by the server), with a leaderboard of each player's best score
- * on it, reached from the Play menu. The server keeps the day's beatmap and scores; the first player of the day to
- * open it picks the beatmap (a ranked 4K beatmap of 3.5–5.5 stars from the online listing, at random) for everyone. */
+ * on it, reached from the Play menu. The server keeps the day's beatmap and scores, and picks the beatmap itself (a
+ * ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing, at random) — no player's game has a say in it. */
 
 const Daily = {
   data: null,
@@ -27051,25 +27086,10 @@ const Daily = {
       if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
         if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
     this.data = m;
-    if (!m.map && !this._proposing) this.propose();
     Bus.emit('daily', m);
   },
-  ask() { Presence.start(); Presence.send({ t: 'daily' }); },
-  async propose() {
-    this._proposing = true;
-    try {
-      const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [4], minStars: 3.5, maxStars: 5.5, nsfw: false }, 2, 9000);
-      const cand = [];
-      for (const set of d.sets || []) for (const x of set.diffs || []) {
-        if (x.keys === 4 && x.id > 0 && x.stars >= 3.5 && x.stars <= 5.5) cand.push({ onlineSetId: set.id, onlineId: x.id, keys: 4, title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.stars, length: (x.length || 0) * 1000 });
-      }
-      if (cand.length) { this.proposeError = null; Presence.send({ t: 'dailyPropose', map: cand[Math.floor(Math.random() * cand.length)] }); }
-      else this.proposeError = 'The beatmap listing had no beatmap to choose from.';
-    } catch (e) { console.warn('daily challenge: no beatmap to propose', e); this.proposeError = friendlyError(e); }
-    // (said on the screen, instead of "Picking today's beatmap…" turning forever)
-    if (this.proposeError) Bus.emit('daily', this.data);
-    setTimeout(() => { this._proposing = false; }, 15000);
-  },
+  /** The day's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
+  ask(retry = false) { Presence.start(); Presence.send(retry ? { t: 'daily', retry: true } : { t: 'daily' }); },
   // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
@@ -27099,10 +27119,10 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      const failed = d && Daily.proposeError;
+      const failed = d && d.error;
       clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge')
-        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${Daily.proposeError} It tries again by itself in a moment.`,
-          { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.proposeError = null; Daily.propose(); this.render(); } }, icon('sync'), 'Try again') })
+        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${d.error} The server tries again in a moment.`,
+          { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.data = { ...d, error: null }; Daily.ask(true); this.render(); } }, icon('sync'), 'Try again') })
         : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }
@@ -28161,7 +28181,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '92dd892a939a';
+const APP_BUILD = 'd9f7f8e3c4e9';
 
 const App = {
   lastReport: null,

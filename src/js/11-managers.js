@@ -81,17 +81,21 @@ const ScoreManager = {
     st = String(st || '').toLowerCase();
     return st === 'ranked' || st === 'approved';
   },
-  /** Best pp per beatmap (osu! counts one score per map toward the total; ranked beatmaps only). */
-  bestPpPerMap(scores = this.scores) {
+  /** Best pp per beatmap (osu! counts one score per map toward the total; ranked beatmaps only). Scores from an imported
+   *  backup are left out unless asked for (`imported`): they can't count on the rankings — there's no replay of them for
+   *  the server to judge — so your total here is the one the rankings have for you. */
+  bestPpPerMap(scores = this.scores, { imported = false } = {}) {
     const best = new Map();
     for (const s of scores) {
-      if (!this.isRanked(s)) continue;
+      if (!this.isRanked(s) || (!imported && s.imported)) continue;
       const pp = this.ppOf(s);
       if (pp > 0 && (!best.has(s.mapHash) || best.get(s.mapHash).pp < pp)) best.set(s.mapHash, { pp, score: s });
     }
     return [...best.values()].sort((a, b) => b.pp - a.pp);
   },
   totalPp(scores = this.scores) { return OsuMath.totalPp(this.bestPpPerMap(scores).map(x => x.pp)); },
+  /** Your best plays from imported backups (Web-Osu-Mania's, or an Ashtonk!mania backup) that would give pp. */
+  importedBest() { return this.bestPpPerMap(this.scores.filter(s => s.imported), { imported: true }); },
   async add(score) {
     const prev = this.best(score.mapHash);
     score.isPB = score.passed && (!prev || this.value(score) > this.value(prev));

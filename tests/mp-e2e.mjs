@@ -20,7 +20,7 @@ const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, port: 0, host: '127.0.0.1',
   durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker', VAULT: 'PlayerVault' },
-  bindings: { TEST_ALL_RANKED: '1' }, // (the test beatmaps aren't online: count them as ranked)
+  bindings: { TEST_ALL_RANKED: '1', ADMIN_CODE: 'K7QM3XRA9DPZW2HF' }, // (the test beatmaps aren't online: count them as ranked; the admin panel's code)
   serviceBindings: {
     ASSETS: async req => {
       const p = decodeURIComponent(new URL(req.url).pathname);
@@ -149,7 +149,13 @@ check('profiles are kept simple: best performance, recent plays and medals — n
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'rankings', null, { timeout: 5000 });
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
 // lazer's daily challenge: one beatmap a day for everyone, and a leaderboard of each player's best score
-await alice.evaluate(() => { AshtonkMania.Daily._proposing = true; AshtonkMania.Presence.send({ t: 'dailyPropose', map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } }); AshtonkMania.Screens.go('daily'); });
+// (the server picks it from osu!'s listing, which the tests can't reach: the owner sets it from the admin panel)
+const adminLogin = await fetch(url + 'admin/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1' }, body: JSON.stringify({ code: 'K7QM-3XRA-9DPZ-W2HF' }) });
+const adminCookie = (adminLogin.headers.get('set-cookie') || '').split(';')[0];
+const dailySet = await (await fetch(url + 'admin/api/dailySet', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1', cookie: adminCookie },
+  body: JSON.stringify({ map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } }) })).json();
+check('daily challenge: the server\'s owner sets the day\'s beatmap from the admin panel', !!dailySet.ok, JSON.stringify(dailySet).slice(0, 200));
+await alice.evaluate(() => AshtonkMania.Screens.go('daily'));
 await alice.waitForFunction(() => document.querySelector('.dc-title'), null, { timeout: 8000 });
 const dmap = await alice.evaluate(() => AshtonkMania.Daily.data.map);
 check('daily challenge: the day\'s beatmap with the time remaining and Play', await alice.evaluate(() => document.querySelector('.dc-title').textContent.length > 0 && /^\d+:\d\d:\d\d$/.test(document.querySelector('.dc-time b').textContent) && !!document.querySelector('.dc-play')), JSON.stringify(dmap));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE } from '../worker/multiplayer.js';
+import { beatmapStatus, RoomLogic, PresenceLogic, makeCode, validCode, CODE_ALPHABET, QP, QP_POINTS, RP, cleanAvatar, rateMatch, deckTargets, beatmapRating, starsForRating, initialRating, RankedQueue, QUEUE, codeHash, adminCodeHash } from '../worker/multiplayer.js';
 
 // (in these tests a finished play is judged straight away as what the player said — as if the server's judge agreed;
 // the judging itself is tested in engine.test.mjs, and what happens without it at the end of this file)
@@ -1071,7 +1071,7 @@ test('rankings: judged plays (best pp per beatmap) weighted as lazer weighs them
   assert.equal(r.you.rank, 1);
   // Bob's game says 400pp: not taken — its best plays go to be checked on osu! instead (verifyTop)
   p.message('b', { t: 'stats', profile: { pp: 400, avgAcc: 0.95, plays: 12, grades: { SS: 1, S: 2, A: 3 }, top: [{ title: 'T', pp: 400, onlineId: 5 }] } });
-  assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp]), [['Alice', r2(295 + bonus(2))], ['Bob', r2(150 + bonus(1))]]);
+  assert.deepEqual(p.message('a', { t: 'rankings' })[0].msg.list.map(x => [x.name, x.pp, x.plays]), [['Alice', r2(295 + bonus(2)), 3], ['Bob', r2(150 + bonus(1)), 1]], 'nor its play count');
   assert.deepEqual(checked, [['bobpid22', 1]]);
   // kept across a restart; records from before judged plays (policy 1) start over, and a game's word on its pp no longer counts
   const q = new PresenceLogic(); q.loadRanks({ alicepid1: p.ranks.get('alicepid1'), oldpid44: { pid: 'oldpid44', name: 'Old', pp: 5000, acc: 0.9, rep: { pp: 5000 } } });
@@ -1107,16 +1107,32 @@ test('beatmap leaderboards hold only judged plays: each player\'s best per beatm
   assert.equal(saved.length, 3);
 });
 
-test('daily challenge: the first proposal sets the day\'s beatmap; only judged plays of that beatmap count, best per player; a new day starts fresh', () => {
+test('daily challenge: the server picks the day\'s beatmap (a player\'s game can\'t); only judged plays of that beatmap count, best per player; a new day starts fresh', () => {
   const clock = { t: Date.parse('2026-10-04T10:00:00Z') }; // (5am in Chicago: days turn over at midnight Central time)
   const p = new PresenceLogic(() => clock.t);
   p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid22', key: 'key-bobpid22-0123456789' });
   const first = p.message('a', { t: 'daily' })[0].msg;
   assert.deepEqual([first.day, first.map, first.endsAt], ['2026-10-04', null, Date.parse('2026-10-05T05:00:00Z')]);
-  assert.deepEqual(p.message('a', { t: 'dailyPropose', map: { onlineSetId: 0, onlineId: 5, keys: 4 } }), [], 'invalid');
-  p.message('a', { t: 'dailyPropose', map: { onlineSetId: 10, onlineId: 111, keys: 4, title: 'Song', stars: 4.567 } });
-  p.message('b', { t: 'dailyPropose', map: { onlineSetId: 20, onlineId: 21, keys: 4 } });
-  assert.equal(p.daily.map.onlineId, 111, 'first proposal wins');
+  // a game proposing one (an older version, or a modified one): ignored — it's just told the day's challenge as it is
+  const prop = p.message('a', { t: 'dailyPropose', map: { onlineSetId: 20, onlineId: 21, keys: 4, title: 'Anything I like', stars: 1 } });
+  assert.equal(p.daily.map, null, 'a player\'s proposal sets nothing');
+  assert.deepEqual([prop.length, prop[0].msg.t, prop[0].msg.map], [1, 'daily', null]);
+  // the server's pick, from a page of osu!'s listing: a ranked 4K difficulty of 3.5–5.5 stars, as osu! has it
+  const listing = { beatmapsets: [
+    { id: 9, status: 'loved', title: 'Loved', artist: 'X', creator: 'Y', beatmaps: [{ id: 90, mode: 'mania', cs: 4, difficulty_rating: 4, version: 'L', total_length: 100 }] },
+    { id: 10, status: 'ranked', title: 'Song', artist: 'Artist', creator: 'Mapper', beatmaps: [
+      { id: 110, mode: 'mania', cs: 7, difficulty_rating: 4.2, version: '7K', total_length: 120 },
+      { id: 111, mode: 'mania', cs: 4, difficulty_rating: 4.567, version: 'Hard', total_length: 125 },
+      { id: 112, mode: 'mania', cs: 4, difficulty_rating: 6.1, version: 'Insane', total_length: 125 },
+      { id: 113, mode: 'osu', cs: 4, difficulty_rating: 4, version: 'std', total_length: 125 }] },
+    { id: 11, status: 'ranked', title: 'Old', artist: 'A', creator: 'B', beatmaps: [{ id: 120, mode: 'mania', cs: 4, difficulty_rating: 4, version: 'N', total_length: 90 }] }] };
+  const cand = PresenceLogic.dailyCandidates(listing, [120]);
+  assert.deepEqual(cand.map(c => c.onlineId), [111], 'ranked, 4K, 3.5–5.5 stars, not a recent one');
+  assert.deepEqual(cand[0], { onlineSetId: 10, onlineId: 111, keys: 4, title: 'Song', artist: 'Artist', version: 'Hard', creator: 'Mapper', stars: 4.57, length: 125000 });
+  const told = p.setDailyMap(cand[0]);
+  assert.deepEqual([told.length, told.every(o => o.msg.t === 'daily' && o.msg.map.onlineId === 111)], [2, true], 'everyone online is told');
+  assert.equal(p.daily.map.onlineId, 111);
+  assert.deepEqual(p.daily.hist, [111]);
   // a player's own claim of a score: ignored
   p.message('a', { t: 'dailyScore', day: '2026-10-04', onlineId: 111, score: 1e7 });
   assert.equal(p.daily.scores.length, 0);
@@ -1136,6 +1152,10 @@ test('daily challenge: the first proposal sets the day\'s beatmap; only judged p
   clock.t = Date.parse('2026-10-05T05:00:01Z');
   const next = p.message('b', { t: 'daily' })[0].msg;
   assert.deepEqual([next.day, next.map, next.total], ['2026-10-05', null, 0]);
+  assert.deepEqual(p.daily.hist, [111], 'the last days\' beatmaps are remembered, so they aren\'t picked again soon');
+  // couldn't pick one: everyone is told why
+  p.dailyError = 'The beatmap listing had no beatmap to choose from.';
+  assert.equal(p.message('b', { t: 'daily' })[0].msg.error, p.dailyError);
   clock.t = Date.parse('2026-10-07T05:00:01Z');
   assert.equal(p.message('a', { t: 'daily' })[0].msg.stats.current, 0);
   // winter: standard time, midnight at 06:00 UTC
@@ -1563,4 +1583,79 @@ test('outside requests can\'t reach the rooms\' internal Matchmaker routes', asy
   const ok = new URL('https://game/api/mp/quick/keep');
   await handleMultiplayer(new Request(ok, { method: 'POST', body: '{}' }), env, ok);
   assert.deepEqual(seen, ['/api/mp/quick/keep']);
+});
+
+test('the server owner\'s moderation: a ban keeps them offline and off the boards, a mute stops their chat, a given name sticks', () => {
+  let now = 1_000_000;
+  const p = new PresenceLogic(() => now), kept = {};
+  p.persistMod = (kind, pid, v) => { kept[kind + ':' + pid] = v; };
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' });
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  // the owner: the player whose code is the ADMIN_CODE secret — told so (the game shows them the panel's link)
+  p.setCode('alicepid', codeHash('K7QM3XRA9DPZW2HF'));
+  p.adminHash = adminCodeHash({ ADMIN_CODE: 'k7qm-3xra-9dpz-w2hf' });
+  assert.ok(p.isAdmin('alicepid') && !p.isAdmin('bobpid1'));
+  assert.ok(p.join('a2', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' }).some(o => o.to === 'a2' && o.msg.t === 'admin'));
+  assert.equal(adminCodeHash({}), '', 'no secret: nobody is the owner');
+  // a board with Bob on it
+  const key = 'a'.repeat(64);
+  p.boards.set(key, [{ pid: 'bobpid1', name: 'Bob', score: 900000 }, { pid: 'alicepid', name: 'Alice', score: 800000 }]);
+  // banned for a day: told, taken offline, not let back in, hidden from the board
+  const ban = p.adminBan('bobpid1', { days: 1, reason: 'cheating' });
+  assert.ok(ban.out.some(o => o.to === 'b' && o.msg.t === 'banned' && o.msg.reason === 'cheating' && o.msg.until === now + 86400000));
+  assert.deepEqual(ban.gone, ['b']);
+  assert.ok(!p.users.has('b'));
+  assert.deepEqual(kept['bn:bobpid1'], { until: now + 86400000, reason: 'cheating', at: now, name: 'Bob' });
+  const back = p.join('b2', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  assert.ok(!p.users.has('b2') && back.some(o => o.to === 'b2' && o.msg.t === 'banned'));
+  assert.deepEqual(p.message('a', { t: 'lb', key }).find(o => o.to === 'a').msg.scores.map(s => s.name), ['Alice']);
+  // …until the day is up
+  now += 86400000 + 1;
+  assert.equal(p.isBanned('bobpid1'), false); assert.equal(kept['bn:bobpid1'], null);
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  assert.ok(p.users.has('b'));
+  // muted: their lines go nowhere, and they're told for how long
+  p.adminMute('bobpid1', { minutes: 30 });
+  const said = p.message('b', { t: 'say', text: 'hello' });
+  assert.ok(said.length === 1 && said[0].to === 'b' && /can't chat for another 30 minutes/.test(said[0].msg.msg), JSON.stringify(said));
+  p.adminUnmute('bobpid1');
+  assert.ok(p.message('b', { t: 'say', text: 'hello again' }).some(o => o.to === 'all' && o.msg.t === 'say'));
+  // a given name: everyone sees it, and the game can't change it back
+  const rn = p.adminRename('bobpid1', 'Robert');
+  assert.ok(rn.some(o => o.to === 'b' && o.msg.t === 'renamed' && o.msg.name === 'Robert'));
+  p.message('b', { t: 'status', status: 'menu', name: 'Bob' });
+  assert.equal(p.users.get('b').name, 'Robert');
+  assert.ok(p.join('b3', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' }).some(o => o.to === 'b3' && o.msg.t === 'renamed'));
+  assert.equal(p.users.get('b3').name, 'Robert');
+  const giveBack = p.adminRename('bobpid1', '');
+  assert.ok(giveBack.some(o => o.to === 'b' && o.msg.t === 'renamed' && o.msg.name === 'Bob'), 'their own name, handed back to their game');
+  assert.equal(p.users.get('b').name, 'Bob');
+  assert.equal(p.names.has('bobpid1'), false);
+  // given back while they're away: handed back when they're next on
+  p.adminRename('bobpid1', 'Robert'); p.leave('b'); p.leave('b3'); p.adminRename('bobpid1', '');
+  assert.ok(p.join('b4', { name: 'Robert', pid: 'bobpid1', key: 'key-bobpid1-0123456789' }).some(o => o.to === 'b4' && o.msg.t === 'renamed' && o.msg.name === 'Bob'));
+  assert.equal(p.users.get('b4').name, 'Bob'); assert.equal(p.names.has('bobpid1'), false);
+  // a banned player who's offline is still found by the name they had
+  p.adminBan('bobpid1', { days: 1 });
+  assert.deepEqual(p.adminSearch('bob').map(r => [r.pid, r.name, !!r.banned]), [['bobpid1', 'Bob', true]]);
+  p.adminUnban('bobpid1'); p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  // #lobby: a line taken out for everyone; an announcement as a notification and a line
+  const line = p.chat.find(l => l.text === 'hello again');
+  assert.deepEqual(p.adminChatDelete(line.at, 'bobpid1'), [{ to: 'all', msg: { t: 'sayDel', at: line.at, pid: 'bobpid1' } }]);
+  assert.ok(!p.chat.some(l => l.text === 'hello again'));
+  const an = p.adminAnnounce('Server restart in 5 minutes');
+  assert.ok(an.some(o => o.msg.t === 'announce') && p.chat.at(-1).from.system && p.chat.at(-1).text === 'Server restart in 5 minutes');
+  assert.deepEqual(p.adminChatClear(), [{ to: 'all', msg: { t: 'chatClear' } }]); assert.equal(p.chat.length, 0);
+  // search finds players by name
+  assert.deepEqual(p.adminSearch('bo').map(r => r.pid), ['bobpid1']);
+});
+
+test('a player\'s own judged best plays (for their game to send the ones the server is missing)', () => {
+  const p = new PresenceLogic(() => 1000);
+  p.join('a', { name: 'Alice', pid: 'alicepid1', key: 'key-alicepid1-0123456789' });
+  assert.deepEqual(p.message('a', { t: 'myBests' })[0].msg.list, []);
+  p.recordVerified('alicepid1', 'a'.repeat(64), { score: 900000, accuracy: 0.98, maxCombo: 100, grade: 'S', mods: [], counts: [1, 0, 0, 0, 0, 0], pp: 123.456, stars: 3, title: 'T', artist: 'A', version: 'V' });
+  const m = p.message('a', { t: 'myBests' })[0].msg;
+  assert.deepEqual(m.list, [['a'.repeat(64), 123.46]]);
+  assert.equal(m.keep, PresenceLogic.KEEP_BESTS);
 });

@@ -523,7 +523,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { this.me = m.you; setTimeout(() => Rankings.report(), 1500); if (!this._caughtUp) { this._caughtUp = true; setTimeout(() => Verified.catchUp(), 20000); } if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -556,6 +556,7 @@ const Presence = {
       else if (m.t === 'invite') this.onInvite(m);
       else if (m.t === 'chatHist' || m.t === 'say' || m.t === 'pm') Chat.on(m);
       else if (m.t === 'rankings') Bus.emit('rankings', m);
+      else if (m.t === 'myBests') Bus.emit('myBests', m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
@@ -567,16 +568,34 @@ const Presence = {
       // (your code was just used on another device)
       else if (m.t === 'codeUsed') Toast.show('A new device is playing as you', 'Someone typed your code on another device. Not you? Your code → New code, then Sign out other devices.', { type: 'err', timeout: 20000, hold: true });
       else if (m.t === 'error') Toast.err(m.msg);
+      // (from the server's owner: the admin panel)
+      else if (m.t === 'banned') this.onBanned(m);
+      else if (m.t === 'renamed') { if (m.name && m.name !== ProfileManager.profile.name) ProfileManager.setName(m.name); }
+      else if (m.t === 'sayDel' || m.t === 'chatClear') Chat.on(m);
+      else if (m.t === 'announce') Toast.show('Announcement', String(m.text || ''), { hold: true, timeout: 20000 });
+      else if (m.t === 'admin') { this.isAdmin = true; Bus.emit('presence:admin'); }
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      this.isAdmin = false;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
       // (spectating carries on after the reconnect: ask again)
       if (typeof Spectate !== 'undefined' && Spectate.target) this._rewatch = Spectate.target;
       Bus.emit('presence:changed');
+      // (banned: not again until it's over — or, for good, not this time the game is open)
+      if (this.banned) { clearTimeout(this._t); if (this.banned.until) this._t = setTimeout(() => { this.banned = null; this.retry = 0; this.connect(); }, Math.min(2 ** 31 - 1, Math.max(60000, this.banned.until - Date.now()))); return; }
       this.later();
     };
+  },
+  /** Banned by the server's owner: told why and for how long, once; the game stays offline (playing still works). */
+  onBanned(m) {
+    this.banned = { reason: String(m.reason || ''), until: Number(m.until) || 0 };
+    if (this._bannedTold) return;
+    this._bannedTold = true;
+    const until = this.banned.until ? `until ${new Date(this.banned.until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'for good';
+    Dialog.popup('You\'re banned from online play', `${this.banned.reason ? `Reason: ${this.banned.reason}. ` : ''}It lasts ${until}. You can still play everything offline — your beatmaps, scores and settings are all here.`,
+      [{ label: 'OK', colour: '#66ccff', cls: 'cancel', cancel: true }], { icon: 'warn' });
   },
   /** Try the server again now (the "Try again" button; and every minute while there's no server at all). */
   tryNow(quiet = false) {

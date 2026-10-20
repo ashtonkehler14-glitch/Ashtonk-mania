@@ -249,6 +249,20 @@ async function listing(route, path, qs, ttl, env, fetchImpl) {
   }
 }
 
+/** One page of osu!'s beatmap listing for the server's own use (the daily challenge's pick): osu! first, then
+ *  Web-Osu-Mania's server, as the game's own listing does. `params` as the game sends them (sorted here, so equal
+ *  searches share a cached answer). */
+export async function beatmapListing(params, env, fetchImpl = fetch) {
+  const p = new URLSearchParams(params);
+  p.sort();
+  return (await listing('getBeatmaps', `beatmapsets/search?${p}`, String(p), SEARCH_TTL, env, fetchImpl)).data;
+}
+
+/** One beatmap as osu! has it (with its set), for the server's own use (the admin panel setting the daily challenge). */
+export async function beatmapInfo(id, env, fetchImpl = fetch) {
+  return osuRequest(`beatmaps/${Math.floor(Number(id))}`, SEARCH_TTL, env, fetchImpl);
+}
+
 /** Web-Osu-Mania's /api/getBeatmaps: the explorer's parameters (only WOM's, sorted so equal searches share a cached
  *  answer) go to osu!'s beatmapsets/search, and its answer comes back as it is. */
 export async function handleGetBeatmaps(url, env, fetchImpl = fetch) {
@@ -364,6 +378,7 @@ export function allowSearch(ip, now = Date.now(), limit = 40, windowMs = 60000, 
 export { MatchRoom, Matchmaker } from './multiplayer.js';
 export { PlayerVault } from './vault.js';
 import { handleMultiplayer, handleAccount } from './multiplayer.js';
+import { handleAdmin } from './admin.js';
 
 /** The game saved as one HTML file (Settings → Maintenance) runs from the device — origin "null" — and calls this
  *  server from there: every /api answer allows any origin (nothing here uses cookies; players prove who they are with
@@ -382,6 +397,11 @@ export default {
     const url = new URL(request.url);
     // (Android's share sheet posts shared beatmaps here; the game's service worker takes them — without it, just open the game)
     if (url.pathname === '/share-target') return Response.redirect(new URL('/', url).href, 303);
+    // the server owner's admin panel (worker/admin.js): only ever served from here
+    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+      try { return await handleAdmin(request, env, url); }
+      catch (e) { console.error('admin', e); return json({ error: 'The admin panel had a problem.' }, 500); }
+    }
     if (url.pathname.startsWith('/api/')) {
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: PREFLIGHT });
       let res;

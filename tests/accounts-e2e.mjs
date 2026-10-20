@@ -319,6 +319,27 @@ try {
   });
   const rk = await rankings(c);
   check('a backup\'s scores are marked imported, aren\'t sent with the profile, and the device that imported it isn\'t on the rankings', imp.marked === 'backup' && !imp.sent && !rk.names.includes('Someone'), JSON.stringify({ imp, rk }));
+  // a play the server never got (set offline, or in multiplayer): the game sends it up with its replay and the server
+  // judges it — the best plays and pp the rankings have are the ones on your profile (last: its play would otherwise go
+  // to the other devices and change what they count)
+  const caught = await a.evaluate(async () => {
+    const A = AshtonkMania, m = [...A.BeatmapManager.maps.values()].find(x => x.version === '8K Insane');
+    A.BeatmapManager.setById.get(m.setId).status = 'ranked'; // (the test beatmaps aren't online)
+    const bests = () => new Promise(r => { const off = A.Bus.on('myBests', x => { off(); r(x.list.map(e => e[0])); }); A.Presence.send({ t: 'myBests' }); });
+    const had = (await bests()).includes(m.hash);
+    const { notes } = await A.BeatmapManager.load(m.id);
+    const events = generateAutoInputs(prepareNotes(notes, m.keys, [], 1), m.keys).flat(), id = 'sc-off-' + Math.random().toString(36).slice(2, 10);
+    const rep = ReplayManager.build({ map: m, mods: [], rate: 1, seed: 1, windows: null, accuracyMode: null, hp: 5, keys: m.keys, events, scoreId: id, player: A.ProfileManager.profile.name, own: true, duration: 30000,
+      summary: { score: 1e6, scoreStd: 1e6, accuracy: 1, maxCombo: 100, counts: [100, 0, 0, 0, 0, 0], grade: 'X' } });
+    await A.ScoreManager.add({ id, mapHash: m.hash, mapId: m.id, setId: m.setId, title: m.title, artist: m.artist, version: m.version, creator: m.creator, keys: m.keys, stars: m.stars, mods: [], rate: 1,
+      score: 1e6, scoreStd: 1e6, accuracy: 1, maxCombo: 100, counts: [100, 0, 0, 0, 0, 0], grade: 'X', passed: true, date: Date.now(), duration: 30000, player: A.ProfileManager.profile.name, own: true, srVersion: SR_VERSION });
+    await ReplayManager.save(rep);
+    while (Verified._catching) await new Promise(r => setTimeout(r, 200));
+    Verified._lastOwn = 0;
+    await Verified.catchUp();
+    return { had, has: (await bests()).includes(m.hash), local: A.ScoreManager.bestPpPerMap().some(x => x.score.mapHash === m.hash) };
+  });
+  check('a play the server never got (offline, multiplayer) goes up with its replay and is judged there: the rankings have the best plays your profile has', !caught.had && caught.has && caught.local, JSON.stringify(caught));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

@@ -1,6 +1,6 @@
 /* osu!lazer's daily challenge: one beatmap for everyone each day (turning over at midnight US Central time, decided by the server), with a leaderboard of each player's best score
- * on it, reached from the Play menu. The server keeps the day's beatmap and scores; the first player of the day to
- * open it picks the beatmap (a ranked 4K beatmap of 3.5–5.5 stars from the online listing, at random) for everyone. */
+ * on it, reached from the Play menu. The server keeps the day's beatmap and scores, and picks the beatmap itself (a
+ * ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing, at random) — no player's game has a say in it. */
 
 const Daily = {
   data: null,
@@ -10,25 +10,10 @@ const Daily = {
       if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
         if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
     this.data = m;
-    if (!m.map && !this._proposing) this.propose();
     Bus.emit('daily', m);
   },
-  ask() { Presence.start(); Presence.send({ t: 'daily' }); },
-  async propose() {
-    this._proposing = true;
-    try {
-      const d = await OnlineBeatmaps.searchPages({ q: '', status: 'ranked', keys: [4], minStars: 3.5, maxStars: 5.5, nsfw: false }, 2, 9000);
-      const cand = [];
-      for (const set of d.sets || []) for (const x of set.diffs || []) {
-        if (x.keys === 4 && x.id > 0 && x.stars >= 3.5 && x.stars <= 5.5) cand.push({ onlineSetId: set.id, onlineId: x.id, keys: 4, title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.stars, length: (x.length || 0) * 1000 });
-      }
-      if (cand.length) { this.proposeError = null; Presence.send({ t: 'dailyPropose', map: cand[Math.floor(Math.random() * cand.length)] }); }
-      else this.proposeError = 'The beatmap listing had no beatmap to choose from.';
-    } catch (e) { console.warn('daily challenge: no beatmap to propose', e); this.proposeError = friendlyError(e); }
-    // (said on the screen, instead of "Picking today's beatmap…" turning forever)
-    if (this.proposeError) Bus.emit('daily', this.data);
-    setTimeout(() => { this._proposing = false; }, 15000);
-  },
+  /** The day's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
+  ask(retry = false) { Presence.start(); Presence.send(retry ? { t: 'daily', retry: true } : { t: 'daily' }); },
   // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
@@ -58,10 +43,10 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
-      const failed = d && Daily.proposeError;
+      const failed = d && d.error;
       clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge')
-        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${Daily.proposeError} It tries again by itself in a moment.`,
-          { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.proposeError = null; Daily.propose(); this.render(); } }, icon('sync'), 'Try again') })
+        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${d.error} The server tries again in a moment.`,
+          { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.data = { ...d, error: null }; Daily.ask(true); this.render(); } }, icon('sync'), 'Try again') })
         : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
       return;
     }

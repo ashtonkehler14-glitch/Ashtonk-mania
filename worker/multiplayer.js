@@ -728,6 +728,8 @@ export function cleanPlayerCode(s) {
   return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(c) ? c : '';
 }
 export const codeHash = c => sha256hex('ashtonk-code:' + c);
+/** The hash of the server owner's code (the ADMIN_CODE secret), or '' when there's none. */
+export const adminCodeHash = env => { const c = cleanPlayerCode(env && env.ADMIN_CODE); return c ? codeHash(c) : ''; };
 
 /** One room per code. Plain (non-hibernating) WebSockets: a room only lives while its players are connected. */
 export class MatchRoom {
@@ -877,9 +879,10 @@ export class PresenceLogic {
     this.chat = []; this.said = new Map();
     // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
     this.ranks = new Map(); this.persistRank = null;
-    // lazer's daily challenge: one beatmap a day (US Central time), proposed by the first player to ask, and each player's best
-    // score on it; `persistDaily` keeps it
-    this.daily = { day: '', map: null, scores: [] }; this.persistDaily = null;
+    // lazer's daily challenge: one beatmap a day (US Central time), picked by the server itself (Matchmaker.pickDaily —
+    // never by a player's game), and each player's best score on it; `persistDaily` keeps it. `hist`: the last weeks'
+    // beatmaps, not picked again soon. `dailyError`: why today's couldn't be picked yet (shown on the screen)
+    this.daily = { day: '', map: null, scores: [], hist: [] }; this.persistDaily = null; this.dailyError = null;
     // each player's daily challenge record (lazer's profile box): days played, the current and best daily streak
     this.dailyStats = new Map(); this.persistDailyStats = null;
     // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
@@ -906,6 +909,145 @@ export class PresenceLogic {
     this.playlists = new Map(); this.persistPlaylist = null;
     // lazer's user tags: each beatmap's (by its file's id) tags, with who voted for them — `persistTags` keeps them
     this.tags = new Map(); this.persistTags = null;
+    // the server owner's moderation (the admin panel, admin.js): banned players (pid → { until, reason, at, name }; until
+    // 0: for good), muted ones (no chat), and names given to players (pid → { name, was }: their game's own name doesn't
+    // count while there's one; `name` '' with `was`: given back, their own name to be handed back when they're next on)
+    // — `persistMod(kind, pid, value or null)` keeps them (bn:, mu:, nm:)
+    this.bans = new Map(); this.mutes = new Map(); this.names = new Map(); this.persistMod = null;
+    // which player is the server's owner: the one whose code is the ADMIN_CODE secret (its hash, set by Matchmaker)
+    this.adminHash = '';
+  }
+  isAdmin(pid) { return !!pid && !!this.adminHash && this.codes.get(this.adminHash) === pid; }
+  loadMod({ bans = {}, mutes = {}, names = {} } = {}) {
+    for (const [pid, v] of Object.entries(bans)) if (v && typeof v === 'object') this.bans.set(pid, v);
+    for (const [pid, v] of Object.entries(mutes)) if (v && typeof v === 'object') this.mutes.set(pid, v);
+    for (const [pid, v] of Object.entries(names)) if (v && typeof v === 'object' && (v.name || v.was)) this.names.set(pid, { name: str(v.name, 24), was: str(v.was, 24) });
+  }
+  /** A ban or mute still in force (one whose time is up goes). */
+  modOf(kind, pid) {
+    const map = kind === 'bn' ? this.bans : this.mutes, v = pid && map.get(pid);
+    if (!v) return null;
+    if (v.until && v.until <= this.now()) { map.delete(pid); if (this.persistMod) this.persistMod(kind, pid, null); return null; }
+    return v;
+  }
+  isBanned(pid) { return !!this.modOf('bn', pid); }
+  bannedMsg(pid) { const b = this.modOf('bn', pid); return { t: 'banned', reason: (b && b.reason) || '', until: (b && b.until) || 0 }; }
+  // ── the server owner's tools (the admin panel, admin.js → Matchmaker.admin). They're all here, on the server: the game
+  //    itself has none of them, nor anything that could reach them.
+  /** Players by name (part of it, any case) or public id: those online, ranked, with a profile or a given name. */
+  adminSearch(q) {
+    const t = str(q, 40).trim().toLowerCase(), found = new Map();
+    const add = (pid, name) => { if (pid && !found.has(pid)) found.set(pid, name || ''); };
+    const has = n => !t || String(n || '').toLowerCase().includes(t);
+    if (/^[a-z0-9]{6,24}$/.test(t)) for (const m of [this.ranks, this.profiles, this.auth, this.names]) if (m.has(t)) add(t, '');
+    for (const u of this.users.values()) if (u.pid && has(u.name)) add(u.pid, u.name);
+    for (const [pid, n] of this.names) if (n.name && has(n.name)) add(pid, n.name);
+    for (const m of [this.bans, this.mutes]) for (const [pid, v] of m) if (v.name && has(v.name)) add(pid, v.name);
+    for (const [pid, r] of this.ranks) if (has(r.name)) add(pid, r.name);
+    if (t) for (const [pid, p] of this.profiles) if (has(p && p.name)) add(pid, p.name);
+    return [...found].slice(0, 80).map(([pid, name]) => this.adminRow(pid, name));
+  }
+  adminRow(pid, name = '') {
+    const r = this.ranks.get(pid), p = this.profiles.get(pid), u = [...this.users.values()].find(x => x.pid === pid), given = this.givenName(pid);
+    const banned = this.modOf('bn', pid), muted = this.modOf('mu', pid);
+    return { pid, name: given || (u && u.name) || name || (r && r.name) || (p && p.name) || (banned && banned.name) || (muted && muted.name) || '', pp: r ? Math.round(r.pp || 0) : 0, plays: r ? r.plays || 0 : 0,
+      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given };
+  }
+  /** The name the server's owner gave this player ('' when there's none). */
+  givenName(pid) { const g = pid && this.names.get(pid); return (g && g.name) || ''; }
+  /** Their own name: as they were before a name was given them. */
+  ownName(pid) {
+    const g = this.names.get(pid), u = [...this.users.values()].find(x => x.pid === pid), r = this.ranks.get(pid), p = this.profiles.get(pid);
+    return (g && g.was) || (u && u.name) || (r && r.name) || (p && p.name) || '';
+  }
+  /** One player as the admin panel shows them: standing, devices, friends, best plays, what's in force on them. */
+  adminPlayer(pid) {
+    const r = this.ranks.get(pid), mine = r && r.pp > 0 && !this.isBanned(pid);
+    const bests = r && r.bests ? Object.entries(r.bests).filter(([, b]) => b).map(([key, b]) => ({ key, title: str(b.title, 120), artist: str(b.artist, 120), version: str(b.version, 120),
+      pp: Math.round(b.pp || 0), score: b.score || 0, acc: b.acc || 0, grade: b.grade || '', mods: Array.isArray(b.mods) ? b.mods : [], date: b.date || 0 })).sort((a, b) => b.pp - a.pp || b.score - a.score).slice(0, 100) : [];
+    const sessions = [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id, u]) => ({ id, name: u.name, status: u.status, vis: u.vis }));
+    return { ...this.adminRow(pid), admin: this.isAdmin(pid), rank: mine ? [...this.ranks.values()].filter(x => x.pp > r.pp && !this.isBanned(x.pid)).length + 1 : 0, acc: r ? r.acc || 0 : 0,
+      devices: this.keyHashes(pid).length, friends: (this.friends.get(pid) || new Map()).size, sessions, bests, daily: this.dailyStats.get(pid) || null,
+      firsts: Object.keys(this.firsts.get(pid) || {}).length };
+  }
+  /** Banned (for `days`, or for good): they're taken offline now and can't come back online, and their scores stop
+   *  showing on the boards, the rankings and the daily challenge (kept, in case of an unban). Returns { out, gone }. */
+  adminBan(pid, { days = 0, reason = '' } = {}) {
+    const v = { until: days > 0 ? this.now() + Math.min(3650, days) * 86400000 : 0, reason: str(reason, 200), at: this.now(), name: this.adminRow(pid).name };
+    this.bans.set(pid, v); if (this.persistMod) this.persistMod('bn', pid, v);
+    const ids = this.byPid(pid), out = [];
+    for (const id of ids) { out.push({ to: id, msg: this.bannedMsg(pid) }); out.push(...this.forget(id)); }
+    return { out: ids.length ? [...out, this.broadcast()] : out, gone: ids };
+  }
+  adminUnban(pid) { this.bans.delete(pid); if (this.persistMod) this.persistMod('bn', pid, null); }
+  /** No chat (#lobby or private messages) for `minutes`, or for good. */
+  adminMute(pid, { minutes = 0, reason = '' } = {}) {
+    const v = { until: minutes > 0 ? this.now() + Math.min(525600, minutes) * 60000 : 0, reason: str(reason, 200), at: this.now(), name: this.adminRow(pid).name };
+    this.mutes.set(pid, v); if (this.persistMod) this.persistMod('mu', pid, v);
+    return this.byPid(pid).map(id => ({ to: id, msg: { t: 'error', msg: `You've been muted${v.reason ? `: ${v.reason}` : ''}.` } }));
+  }
+  adminUnmute(pid) { this.mutes.delete(pid); if (this.persistMod) this.persistMod('mu', pid, null); }
+  /** A name for this player that their game can't change (an offensive one replaced); '' gives them their own back
+   *  (now if they're online, else when they're next on). */
+  adminRename(pid, name) {
+    const n = str(name, 24).replace(/[\u0000-\u001f\u007f]/g, '').trim(), was = this.ownName(pid);
+    const to = n || was;
+    const rec = n ? { name: n, was } : was ? { name: '', was } : null;
+    if (rec) this.names.set(pid, rec); else this.names.delete(pid);
+    const out = [];
+    const ids = this.byPid(pid);
+    if (to) {
+      for (const id of ids) { this.users.get(id).name = to; out.push({ to: id, msg: { t: 'renamed', name: to } }); }
+      const r = this.ranks.get(pid);
+      if (r && r.name !== to) { r.name = to; if (this.persistRank) this.persistRank(pid, r); }
+    }
+    // (given back while they're online: done — nothing left to hand back later)
+    if (!n && ids.length) this.names.delete(pid);
+    if (this.persistMod) this.persistMod('nm', pid, this.names.get(pid) || null);
+    return out.length ? [...out, this.broadcast()] : out;
+  }
+  /** A line taken out of #lobby (for everyone, and for whoever comes online later). */
+  adminChatDelete(at, pid) {
+    const n = this.chat.length;
+    this.chat = this.chat.filter(l => !(l.at === at && ((l.from && l.from.pid) || '') === (pid || '')));
+    if (this.chat.length === n) return [];
+    if (this.persistChat) this.persistChat(this.chat);
+    return [{ to: 'all', msg: { t: 'sayDel', at, pid: pid || '' } }];
+  }
+  adminChatClear() { this.chat = []; if (this.persistChat) this.persistChat(this.chat); return [{ to: 'all', msg: { t: 'chatClear' } }]; }
+  /** A message from the server's owner: a notification for everyone online, and a line in #lobby. */
+  adminAnnounce(text) {
+    const tx = str(text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    if (!tx) return [];
+    const line = { ch: '#lobby', from: { pid: '', name: 'Ashtonk!mania', avatar: '', system: true }, text: tx, at: this.now() };
+    this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
+    if (this.persistChat) this.persistChat(this.chat);
+    return [{ to: 'all', msg: { t: 'say', ...line } }, { to: 'all', msg: { t: 'announce', text: tx } }];
+  }
+  /** One score off a beatmap's board, and out of the player's best plays (their total worked out again). */
+  adminRemoveScore(pid, key) {
+    const list = this.boards.get(key);
+    if (list && list.some(x => x.pid === pid)) {
+      const next = list.filter(x => x.pid !== pid); this.boards.set(key, next); if (this.persistBoard) this.persistBoard(key, next);
+      if (list[0] && list[0].pid === pid) this.setFirst(pid, key, null);
+    }
+    const r = this.ranks.get(pid);
+    if (r && r.bests && r.bests[key]) {
+      delete r.bests[key];
+      if (Array.isArray(r.rk)) r.rk = r.rk.filter(k => k !== key.slice(0, 10));
+      PresenceLogic.revalue(r); if (this.persistRank) this.persistRank(pid, r);
+    }
+  }
+  /** Every score of theirs gone: off every board (the ones read in — Matchmaker reads in all of theirs first), their
+   *  ranking, their daily challenge scores and record, and their first places. */
+  adminWipe(pid) {
+    for (const [key, list] of this.boards) if (list.some(x => x.pid === pid)) {
+      const next = list.filter(x => x.pid !== pid); this.boards.set(key, next); if (this.persistBoard) this.persistBoard(key, next);
+    }
+    if (this.ranks.delete(pid) && this.dropPlayer) this.dropPlayer(pid, 'rank');
+    const d = this.dailyNow(); if (d.scores.some(x => x.pid === pid)) { d.scores = d.scores.filter(x => x.pid !== pid); this.saveDaily(); }
+    if (this.dailyStats.delete(pid) && this.dropPlayer) this.dropPlayer(pid, 'daily');
+    if (this.firsts.has(pid)) { this.firsts.delete(pid); if (this.persistFirsts) this.persistFirsts(pid, {}); }
   }
   static PL_ITEMS = 20;
   static PL_OPEN = 3; // playlists one player can have open at once
@@ -1298,7 +1440,7 @@ export class PresenceLogic {
   static LB_KEEP = 100;
   static lbKey(k) { k = String(k || ''); return /^[a-f0-9]{16,64}$/.test(k) ? k : ''; }
   boardMsg(key, pid, scope) {
-    const all = this.boards.get(key) || [];
+    const all = (this.boards.get(key) || []).filter(s => !this.isBanned(s.pid));
     const fr = this.friends.get(pid);
     const list = scope === 'friends' ? all.filter(s => s.pid === pid || (fr && fr.has(s.pid))) : all;
     const at = list.findIndex(s => s.pid === pid);
@@ -1344,9 +1486,38 @@ export class PresenceLogic {
   dailyNow() {
     const day = PresenceLogic.dayOf(this.now());
     // (a new challenge at 12am Central — one saved under any other day, including a UTC one from before, makes way)
-    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [] }; this.saveDaily(); }
+    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [], hist: (this.daily.hist || []).slice(-60) }; this.dailyError = null; this.saveDaily(); }
     return this.daily;
   }
+  /** The daily challenge's beatmaps to pick from in one page of osu!'s listing: ranked (or approved) 4K difficulties of
+   *  3.5–5.5 stars — none of the last weeks' — with what the challenge shows of them, as osu! has them. */
+  static dailyCandidates(data, recent = []) {
+    const out = [], seen = new Set(recent.map(Number));
+    for (const set of (data && Array.isArray(data.beatmapsets) ? data.beatmapsets : [])) {
+      if (!set || !(set.id > 0) || !['ranked', 'approved'].includes(String(set.status))) continue;
+      for (const b of Array.isArray(set.beatmaps) ? set.beatmaps : []) {
+        const mania = b && (b.mode === 'mania' || b.mode_int === 3 || b.mode === 3), stars = Number(b && b.difficulty_rating);
+        if (!mania || !(b.id > 0) || Math.round(Number(b.cs)) !== 4 || !(stars >= 3.5 && stars <= 5.5) || seen.has(b.id)) continue;
+        out.push({ onlineSetId: set.id, onlineId: b.id, keys: 4, title: str(set.title, 120), artist: str(set.artist, 120), version: str(b.version, 120),
+          creator: str(set.creator, 40), stars: Math.round(stars * 100) / 100, length: Math.min(36e5, Math.max(0, Number(b.total_length) || 0) * 1000) });
+      }
+    }
+    return out;
+  }
+  /** Today's beatmap is `m` (from osu!'s listing, or set by the server's owner): everyone online is told. */
+  setDailyMap(m) {
+    const d = this.dailyNow(), onlineSetId = Math.floor(Number(m && m.onlineSetId)), onlineId = Math.floor(Number(m && m.onlineId)), keys = Number(m && m.keys);
+    if (!(onlineSetId > 0 && onlineId > 0 && keys >= 1 && keys <= 10)) return [];
+    if (d.map && d.map.onlineId !== onlineId) d.scores = []; // (today's beatmap changed by the server's owner: its board starts over)
+    d.map = { onlineSetId, onlineId, keys, title: str(m.title, 120), artist: str(m.artist, 120), version: str(m.version, 120), creator: str(m.creator, 40),
+      stars: Math.round(Math.min(20, Math.max(0, Number(m.stars) || 0)) * 100) / 100, length: Math.min(36e5, Math.max(0, Number(m.length) || 0)) };
+    d.hist = [...(d.hist || []).filter(x => x !== onlineId), onlineId].slice(-60);
+    this.dailyError = null;
+    this.saveDaily();
+    return this.dailyBroadcast();
+  }
+  /** The day's challenge, to everyone online (each with their own place on it). */
+  dailyBroadcast() { return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) })); }
   saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
   /** A score as shown: with its player's current name and picture (a rename shows on scores set before it). */
   current(s) {
@@ -1355,14 +1526,14 @@ export class PresenceLogic {
     return name === s.name && avatar === s.avatar ? s : { ...s, name, avatar };
   }
   dailyMsg(pid) {
-    const d = this.dailyNow(), sorted = [...d.scores].sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
+    const d = this.dailyNow(), sorted = d.scores.filter(s => !this.isBanned(s.pid)).sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
     const at = sorted.findIndex(s => s.pid === pid), end = PresenceLogic.dayEnd(d.day);
     // lazer's score breakdown (how many scores fall in each 100,000) and event feed (the newest scores, with their place)
     const bins = new Array(11).fill(0);
     for (const x of sorted) bins[Math.min(10, Math.floor((x.score || 0) / 100000))]++;
     const recent = [...sorted.map((x, i) => ({ x, rank: i + 1 }))].sort((a, b) => b.x.at - a.x.at).slice(0, 8)
       .map(({ x, rank }) => ({ ...this.current({ pid: x.pid, name: x.name, avatar: x.avatar }), pid: x.pid, score: x.score, rank, at: x.at }));
-    return { t: 'daily', day: d.day, endsAt: end, map: d.map, total: sorted.length, bins, recent, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
+    return { t: 'daily', day: d.day, endsAt: end, map: d.map, error: d.map ? null : this.dailyError, total: sorted.length, bins, recent, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
       scores: sorted.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;
@@ -1447,7 +1618,7 @@ export class PresenceLogic {
   rankings(pid, mode = 'performance') {
     // lazer's Performance and Score tables: by total pp, or by ranked score
     const byScore = mode === 'score';
-    const all = [...this.ranks.values()].filter(r => byScore ? r.rscore > 0 : r.pp > 0).sort(byScore ? (a, b) => b.rscore - a.rscore || b.pp - a.pp : (a, b) => b.pp - a.pp || b.acc - a.acc);
+    const all = [...this.ranks.values()].filter(r => (byScore ? r.rscore > 0 : r.pp > 0) && !this.isBanned(r.pid)).sort(byScore ? (a, b) => b.rscore - a.rscore || b.pp - a.pp : (a, b) => b.pp - a.pp || b.acc - a.acc);
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
     const at = all.findIndex(r => r.pid === pid);
     const pub = ({ bests, v, rep, _lazy, sb, okh, rk, ...r }) => r; // (not each player's whole list of plays)
@@ -1487,12 +1658,20 @@ export class PresenceLogic {
     // a public id belongs to whoever first used it with their secret key: anyone else using it stays anonymous
     let pid = /^[a-z0-9]{6,24}$/.test(String(msg && msg.pid || '')) ? String(msg.pid) : '';
     if (pid && !this.claim(pid, msg && msg.key)) { pid = ''; out.push({ to: id, msg: { t: 'repid' } }); } // (the client quietly takes a new id of its own)
-    this.users.set(id, { name: str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: cleanAvatar(msg && msg.avatar), cid,
+    // (banned by the server's owner: not let in at all — told why, and the connection closes)
+    this.dropped = gone;
+    if (pid && this.isBanned(pid)) return [...out, { to: id, msg: this.bannedMsg(pid) }];
+    // (a name the server's owner gave them; or their own, given back while they were away)
+    const nrec = pid ? this.names.get(pid) : null, given = (nrec && (nrec.name || nrec.was)) || '';
+    if (given && str(msg && msg.name, 24) !== given) out.push({ to: id, msg: { t: 'renamed', name: given } });
+    if (nrec && !nrec.name) { this.names.delete(pid); if (this.persistMod) this.persistMod('nm', pid, null); }
+    this.users.set(id, { name: given || str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null });
     this.dropped = gone;
     const me = this.users.get(id);
-    return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []), this.broadcast()];
+    return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
+      ...(this.isAdmin(me.pid) ? [{ to: id, msg: { t: 'admin' } }] : []), this.broadcast()];
   }
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
@@ -1541,21 +1720,24 @@ export class PresenceLogic {
         }
       }
       // their standing as their game reports it (see settleRank), and their name and picture as they are now
-      const p = msg.profile && typeof msg.profile === 'object' ? msg.profile : null, num = (x, max) => (Number.isFinite(+x) ? Math.min(max, Math.max(0, +x)) : 0);
+      const p = msg.profile && typeof msg.profile === 'object' ? msg.profile : null;
       // (the pp their game works out isn't taken as it is: their best plays are checked to be on ranked beatmaps — on
       //  osu!, by the server, see verifyTop — and only those count, weighted as lazer weighs them)
       let rec = this.ranks.get(u.pid);
       if (rec) {
-        const before = JSON.stringify([rec.name, rec.avatar, rec.plays]);
+        // (their play count is the server's own — one for each play it judged — not what their game says)
+        const before = JSON.stringify([rec.name, rec.avatar]);
         rec.name = u.name; rec.avatar = u.avatar;
-        if (p && Number.isFinite(+p.plays)) rec.plays = Math.max(rec.plays || 0, num(p.plays, 1e9));
-        if (JSON.stringify([rec.name, rec.avatar, rec.plays]) !== before && this.persistRank) this.persistRank(u.pid, rec);
+        if (JSON.stringify([rec.name, rec.avatar]) !== before && this.persistRank) this.persistRank(u.pid, rec);
       }
       const top = this.codeOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (a player on several devices: all their best plays)
       if (Array.isArray(top) && top.length && this.verifyTop) this.verifyTop(u.pid, this.ownPlays(u.pid, top.slice(0, 50)), { name: u.name, avatar: u.avatar });
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
+    // (your own best plays as the server has judged them — each beatmap's file hash and pp — so your game can send the
+    //  ones it's missing: see Verified.catchUp)
+    if (msg.t === 'myBests') { const r = u.pid ? this.ranks.get(u.pid) : null; return [{ to: id, msg: { t: 'myBests', list: r && r.bests ? Object.entries(r.bests).map(([k, b]) => [k, b.pp]) : [], keep: PresenceLogic.KEEP_BESTS } }]; }
     if (msg.t === 'profile') { const pid = String(msg.pid || ''); return /^[a-z0-9]{6,24}$/.test(pid) ? [{ to: id, msg: this.profileMsg(pid) }] : []; }
     if (msg.t === 'daily') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     // ── user tags
@@ -1613,28 +1795,26 @@ export class PresenceLogic {
       return key ? [{ to: id, msg: { ...this.boardMsg(key, u.pid, msg.scope), ...(bid > 0 ? { id: bid } : {}) } }] : [];
     }
     // (scores go up only as plays the server judges itself: POST /api/mp/score — see Matchmaker.score)
-    if (msg.t === 'dailyPropose') {
-      // the first proposal of the day wins (everyone then gets it)
-      const d = this.dailyNow(), m = msg.map || {};
-      if (d.map) return [{ to: id, msg: this.dailyMsg(u.pid) }];
-      const onlineSetId = Math.floor(Number(m.onlineSetId)), onlineId = Math.floor(Number(m.onlineId)), keys = Number(m.keys);
-      if (!(onlineSetId > 0 && onlineId > 0 && (keys === 4 || keys === 7))) return [];
-      d.map = { onlineSetId, onlineId, keys, title: str(m.title, 120), artist: str(m.artist, 120), version: str(m.version, 120), creator: str(m.creator, 40),
-        stars: Math.round(Math.min(20, Math.max(0, Number(m.stars) || 0)) * 100) / 100, length: Math.min(36e5, Math.max(0, Number(m.length) || 0)) };
-      this.saveDaily();
-      return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) }));
-    }
+    // (the day's beatmap is the server's to pick: what an older game proposes is ignored — it gets the day's as it is)
+    if (msg.t === 'dailyPropose') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     if (msg.t === 'status') {
-      const st = cleanStatus(msg.status), name = msg.name != null ? str(msg.name, 24) || u.name : u.name, av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      const given = this.givenName(u.pid);
+      const st = cleanStatus(msg.status), name = given || (msg.name != null ? str(msg.name, 24) || u.name : u.name), av = msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      const told = given && msg.name != null && str(msg.name, 24) !== given ? [{ to: id, msg: { t: 'renamed', name: given } }] : [];
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
-      if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return [];
+      if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
       u.status = st; u.name = name; u.avatar = av; u.song = song;
-      return [this.broadcast()];
+      return [...told, this.broadcast()];
     }
     // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)
     if (msg.t === 'say' || msg.t === 'pm') {
       const text = str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       if (!text) return [];
+      const muted = this.modOf('mu', u.pid);
+      if (muted) {
+        const mins = muted.until ? Math.max(1, Math.ceil((muted.until - this.now()) / 60000)) : 0;
+        return [{ to: id, msg: { t: 'error', msg: `You can't chat ${mins ? `for another ${mins >= 120 ? `${Math.round(mins / 60)} hours` : `${mins} minute${mins === 1 ? '' : 's'}`}` : 'any more'}${muted.reason ? ` (${muted.reason})` : ''}.` } }];
+      }
       const t = this.now(), recent = (this.said.get(id) || []).filter(x => t - x < PresenceLogic.CHAT_WINDOW);
       if (recent.length >= PresenceLogic.CHAT_BURST) return [{ to: id, msg: { t: 'error', msg: 'You\'re sending messages too fast.' } }];
       recent.push(t); this.said.set(id, recent);
@@ -1792,7 +1972,7 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
-import { officialGet, osuApi, osuLoginState, osuStatus } from './index.js';
+import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo } from './index.js';
 import { sha256hex } from './sha256.js';
 import { verifyPlay } from './verify-bundle.js';
 
@@ -1814,6 +1994,8 @@ export class Matchmaker {
         const out = this.presence.join(id, msg);
         this.closeGone(this.presence.dropped);
         this.send(out);
+        // (banned: told why, then the connection closes — the game doesn't try again)
+        if (!this.presence.users.has(id)) { joined = false; this.socks.delete(id); setTimeout(() => { try { server.close(4003, 'banned'); } catch { /* closed */ } }, 100); return; }
         if (!this.sweep) this.sweep = setInterval(() => { const r = this.presence.prune(); this.closeGone(r.gone); this.send(r.out); if (!this.socks.size) { clearInterval(this.sweep); this.sweep = null; } }, 10000);
         return;
       }
@@ -1890,12 +2072,170 @@ export class Matchmaker {
         });
         return;
       }
+      // (your own best plays: read from storage first when they're kept apart)
+      if (msg.t === 'myBests') {
+        const mu = this.presence.users.get(id);
+        if (mu && mu.pid) { this.ensureBests(mu.pid).catch(() => {}).then(() => { if (this.presence.users.has(id)) this.send(this.presence.message(id, msg)); }); return; }
+      }
+      // (no beatmap for today yet: the server picks one, and everyone online gets it)
+      if (msg.t === 'daily' && !this.presence.dailyNow().map) this.pickDaily({ retry: !!msg.retry });
       this.send(this.presence.message(id, msg));
     };
     const gone = () => { if (!joined) return; joined = false; this.socks.delete(id); this.send(this.presence.leave(id)); };
     server.addEventListener('close', gone);
     server.addEventListener('error', gone);
     return new Response(null, { status: 101, webSocket: client });
+  }
+  /** Today's daily challenge beatmap, picked here — never by a player's game, which could pick any beatmap and say
+   *  anything about it: a ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing (in a random order, so it isn't always
+   *  the same few), none of the last weeks'. Once at a time; after a failure, not again for a minute (or half that when
+   *  a player asks again). `force`: a new one even if today has one (the server's owner, from the admin panel). */
+  pickDaily({ force = false, retry = false } = {}) {
+    const P = this.presence;
+    if (P.dailyNow().map && !force) return Promise.resolve();
+    if (this._picking) return this._picking;
+    if (!force && this._pickFailedAt && Date.now() - this._pickFailedAt < (retry ? 30000 : 60000)) return Promise.resolve();
+    return (this._picking = (async () => {
+      const sorts = ['ranked_desc', 'plays_desc', 'favourites_desc', 'rating_desc', 'ranked_asc', 'title_asc', 'artist_desc'];
+      const base = { m: '3', s: 'ranked', nsfw: 'false', q: 'stars>=3.5 stars<=5.5 key=4', sort: sorts[Math.floor(Math.random() * sorts.length)] };
+      const cand = [];
+      let cursor = null;
+      for (let i = 0; i < 3 && cand.length < 80; i++) {
+        const data = await beatmapListing({ ...base, ...(cursor ? { cursor_string: cursor } : {}) }, this.env);
+        cand.push(...PresenceLogic.dailyCandidates(data, P.dailyNow().hist || []));
+        if (!(cursor = data && data.cursor_string)) break;
+      }
+      if (!cand.length) throw new Error('The beatmap listing had no beatmap to choose from.');
+      this._pickFailedAt = 0;
+      this.send(P.setDailyMap(cand[Math.floor(Math.random() * cand.length)]));
+    })().catch(e => {
+      this._pickFailedAt = Date.now();
+      P.dailyError = String((e && e.message) || 'The beatmap listing couldn\'t be reached.').slice(0, 200);
+      this.send(P.dailyBroadcast());
+    }).finally(() => { this._picking = null; }));
+  }
+  /** The server owner's admin panel (worker/admin.js), as /internal/admin/<action> — reached only through the Worker,
+   *  after it has checked the panel's session: nothing from outside gets here (handleMultiplayer and handleAccount never
+   *  pass /internal/ paths on). Every change goes in the admin log. */
+  async admin(action, request) {
+    await this.loadFriends();
+    const P = this.presence, b = (await request.json().catch(() => null)) || {}, ip = request.headers.get('x-ip') || '';
+    P.adminHash = adminCodeHash(this.env);
+    const pid = /^[a-z0-9]{6,24}$/.test(String(b.pid || '')) ? String(b.pid) : '';
+    const log = (what, extra = {}) => {
+      this.adminLog = [...(this.adminLog || []), { at: Date.now(), what, ip, ...extra }].slice(-300);
+      this.state.storage.put('adminLog', this.adminLog).catch(() => {});
+    };
+    const who = p => ({ pid: p, name: P.adminRow(p).name || p });
+    const noPlayer = () => json({ error: 'No such player.' }, 400);
+    const daily = () => { const d = P.dailyNow(); return { day: d.day, map: d.map, scores: d.scores.length, error: d.map ? null : P.dailyError, endsAt: PresenceLogic.dayEnd(d.day) }; };
+    switch (action) {
+      // signing in with the code: tries per address, and everyone's (the Worker compares the code itself)
+      case 'try': return json({ ok: this.allowTry('adm:' + ip, 8) && this.allowTry('adm:all', 60) });
+      // signing in from a device that plays as the owner (the game's own pid and key, read by the panel's page)
+      case 'device': return json({ ok: !!pid && P.keyOk(pid, String(b.key || '')) && P.isAdmin(pid) });
+      case 'signedIn': log('Signed in', { how: str(b.how, 20) }); return json({ ok: true });
+      case 'overview': {
+        for (const [c, r] of this.rooms) if (Date.now() - r.at > 40000) this.rooms.delete(c);
+        const online = [...P.users.entries()].map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, vis: u.vis, avatar: u.avatar,
+          song: u.song ? { title: str(u.song.title, 120), artist: str(u.song.artist, 120), version: str(u.song.version, 120) } : null }));
+        const live = m => [...m.keys()].filter(x => P.modOf(m === P.bans ? 'bn' : 'mu', x)).length;
+        return json({ online, ranked: [...P.ranks.values()].filter(r => r.pp > 0).length, codes: P.codes.size, bans: live(P.bans), mutes: live(P.mutes),
+          rooms: [...this.rooms.values()].slice(0, 50), daily: daily(), chat: P.chat.slice(-100), log: (this.adminLog || []).slice(-15).reverse(), owner: P.adminHash ? P.codes.get(P.adminHash) || null : null });
+      }
+      case 'search': return json({ players: P.adminSearch(b.q) });
+      case 'player': {
+        if (!pid) return noPlayer();
+        await this.ensureBests(pid);
+        if (!P.profiles.has(pid)) { const v = await this.state.storage.get(`pf:${pid}`).catch(() => null); if (v && typeof v === 'object' && !P.profiles.has(pid)) P.profiles.set(pid, v); }
+        return json({ player: { ...P.adminPlayer(pid), admin: P.isAdmin(pid) } });
+      }
+      case 'moderated': {
+        const of = (m, kind) => [...m.keys()].filter(x => kind ? P.modOf(kind, x) : true).map(x => P.adminRow(x));
+        return json({ bans: of(P.bans, 'bn'), mutes: of(P.mutes, 'mu'), names: [...P.names.keys()].filter(x => P.givenName(x)).map(x => P.adminRow(x)) });
+      }
+      case 'ban': {
+        if (!pid) return noPlayer();
+        if (P.isAdmin(pid)) return json({ error: 'That\'s you.' }, 400);
+        const days = Math.max(0, Number(b.days) || 0), r = P.adminBan(pid, { days, reason: b.reason });
+        this.send(r.out); setTimeout(() => this.closeGone(r.gone, 4003, 'banned'), 300);
+        log('Banned', { ...who(pid), days, reason: str(b.reason, 200) });
+        return json({ ok: true });
+      }
+      case 'unban': if (!pid) return noPlayer(); P.adminUnban(pid); log('Unbanned', who(pid)); return json({ ok: true });
+      case 'mute': {
+        if (!pid) return noPlayer();
+        const minutes = Math.max(0, Number(b.minutes) || 0);
+        this.send(P.adminMute(pid, { minutes, reason: b.reason }));
+        log('Muted', { ...who(pid), minutes, reason: str(b.reason, 200) });
+        return json({ ok: true });
+      }
+      case 'unmute': if (!pid) return noPlayer(); P.adminUnmute(pid); log('Unmuted', who(pid)); return json({ ok: true });
+      case 'rename': {
+        if (!pid) return noPlayer();
+        const before = who(pid).name;
+        this.send(P.adminRename(pid, b.name));
+        log(str(b.name, 24).trim() ? 'Renamed' : 'Gave their own name back', { pid, name: before, to: str(b.name, 24).trim() });
+        return json({ ok: true });
+      }
+      case 'chatDelete': {
+        const at = Number(b.at) || 0, line = P.chat.find(l => l.at === at && ((l.from && l.from.pid) || '') === (pid || ''));
+        this.send(P.adminChatDelete(at, pid));
+        if (line) log('Deleted a chat line', { pid, name: line.from && line.from.name, text: str(line.text, 300) });
+        return json({ ok: true });
+      }
+      case 'chatClear': this.send(P.adminChatClear()); log('Cleared #lobby'); return json({ ok: true });
+      case 'announce': {
+        const out = P.adminAnnounce(b.text);
+        if (!out.length) return json({ error: 'Write something to announce.' }, 400);
+        this.send(out); log('Announced', { text: str(b.text, 300) });
+        return json({ ok: true });
+      }
+      case 'removeScore': {
+        const key = PresenceLogic.lbKey(b.key);
+        if (!pid || !key) return noPlayer();
+        if (!P.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!P.boards.has(key)) P.boards.set(key, Array.isArray(v) ? v : []); }
+        await this.ensureBests(pid);
+        const best = P.ranks.get(pid) && P.ranks.get(pid).bests && P.ranks.get(pid).bests[key];
+        P.adminRemoveScore(pid, key);
+        log('Removed a score', { ...who(pid), map: best ? `${best.artist} - ${best.title} [${best.version}]` : key.slice(0, 12) });
+        return json({ ok: true });
+      }
+      case 'wipe': {
+        if (!pid) return noPlayer();
+        const w = who(pid);
+        await this.preloadPlayer(pid);
+        P.adminWipe(pid);
+        log('Wiped every score', w);
+        return json({ ok: true });
+      }
+      case 'dailyPick': {
+        await this.pickDaily({ force: true });
+        const d = daily();
+        log('Picked a new daily challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '', error: d.error || undefined });
+        return json({ ok: !!d.map && !d.error, daily: d, error: d.error || undefined });
+      }
+      case 'dailySet': {
+        // a beatmap by its id (looked up on osu!), or — the tests — given whole
+        let m = b.map && typeof b.map === 'object' && b.map.title ? b.map : null;
+        const id = Math.floor(Number((b.map && b.map.onlineId) || b.id) || 0);
+        if (!m) {
+          if (!(id > 0)) return json({ error: 'Give a beatmap id (the number after # in its osu! address).' }, 400);
+          let x; try { x = await beatmapInfo(id, this.env); } catch (e) { return json({ error: `osu! didn't find it: ${(e && e.message) || 'no answer'}` }, 400); }
+          if (!x || !(x.mode === 'mania' || x.mode_int === 3)) return json({ error: 'That isn\'t an osu!mania beatmap.' }, 400);
+          const set = x.beatmapset || {};
+          m = { onlineSetId: x.beatmapset_id || set.id, onlineId: x.id, keys: Math.round(Number(x.cs)), title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.difficulty_rating, length: (Number(x.total_length) || 0) * 1000 };
+        }
+        const out = P.setDailyMap(m);
+        if (!out.length && !P.dailyNow().map) return json({ error: 'That beatmap can\'t be the daily challenge.' }, 400);
+        this.send(out);
+        const d = daily();
+        log('Set the daily challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '' });
+        return json({ ok: true, daily: d });
+      }
+      case 'log': return json({ log: (this.adminLog || []).slice().reverse() });
+    }
+    return json({ error: 'Not found' }, 404);
   }
   /** Player codes: code {pid, key} → a new code for this player (the old one stops working); link {code, pid, key} →
    *  this device becomes the code's player (a key of its own; the player it was goes into them); logout {pid, key} →
@@ -2009,6 +2349,7 @@ export class Matchmaker {
     await this.loadFriends();
     const pid = String(body.pid || '');
     if (!/^[a-z0-9]{6,24}$/.test(pid) || !this.presence.keyOk(pid, body.key)) return json({ error: 'Not signed in as that player.' }, 403);
+    if (this.presence.isBanned(pid)) return json({ error: 'You\'re banned from online play.' }, 403);
     const t = Date.now(), last = (this._lastScore || (this._lastScore = new Map())).get(pid) || 0;
     if (t - last < 3000) return json({ error: 'Too many scores at once.' }, 429);
     this._lastScore.set(pid, t);
@@ -2051,6 +2392,12 @@ export class Matchmaker {
         // (#lobby's last lines outlive the server restarting: it used to come back empty, and wiped everyone's chat)
         for (const [k, v] of await st.list({ prefix: 'ls:' })) if (typeof v === 'number') this.presence.seen.set(k.slice(3), v);
         const ch = await st.get('chat'); if (Array.isArray(ch)) this.presence.chat = ch.slice(-PresenceLogic.CHAT_KEEP);
+        const mod = { bans: {}, mutes: {}, names: {} };
+        for (const [k, v] of await st.list({ prefix: 'bn:' })) mod.bans[k.slice(3)] = v;
+        for (const [k, v] of await st.list({ prefix: 'mu:' })) mod.mutes[k.slice(3)] = v;
+        for (const [k, v] of await st.list({ prefix: 'nm:' })) mod.names[k.slice(3)] = v;
+        this.presence.loadMod(mod);
+        const al = await st.get('adminLog'); this.adminLog = Array.isArray(al) ? al : [];
       } catch (e) {
         this._friendsLoaded = null; // (tried again with the next request)
         throw new Error('The game\'s server couldn\'t read its players just now. Try again in a moment.');
@@ -2115,6 +2462,8 @@ export class Matchmaker {
       this.presence.persistBoard = (key, list) => { st.put(`lb:${key}`, list).catch(() => {}); };
       this.presence.persistProfile = (pid, data) => { st.put(`pf:${pid}`, data).catch(() => {}); };
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
+      this.presence.persistMod = (kind, pid, v) => { (v == null ? st.delete(`${kind}:${pid}`) : st.put(`${kind}:${pid}`, v)).catch(() => {}); };
+      this.presence.adminHash = adminCodeHash(this.env);
     })());
   }
   /** osu! API answers kept in this object's storage (like WOM's KV cache), so they outlive a restart: the newest 300. */
@@ -2237,7 +2586,7 @@ export class Matchmaker {
     if (page.size < 20) { st.put('rr4', true).catch(() => {}); return; }
     setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 1500);
   }
-  closeGone(ids) { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(4001, 'replaced'); } catch { /* closed */ } } } }
+  closeGone(ids, code = 4001, why = 'replaced') { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(code, why); } catch { /* closed */ } } } }
   send(out) {
     for (const { to, msg } of out || []) {
       const data = JSON.stringify(msg);
@@ -2263,6 +2612,7 @@ export class Matchmaker {
       return this.presenceSocket();
     }
     if (url.pathname === '/judged-score' && request.method === 'POST') return this.score(request);
+    if (url.pathname.startsWith('/internal/admin/') && request.method === 'POST') return this.admin(url.pathname.slice(16), request);
     if (url.pathname.startsWith('/api/account/') && request.method === 'POST') return this.account(url.pathname.slice(13), request);
     if (url.pathname === '/vault-auth' && request.method === 'POST') return this.vaultAuth(request);
     // (8: a body that isn't an object — `null` parses fine — is an empty one)

@@ -5,6 +5,7 @@
 //  - Multiplayer uses two Durable Objects (worker/multiplayer.js): MatchRoom (one per room code)
 //    and Matchmaker (quick match), and PlayerVault (worker/vault.js) keeps each player's settings, skin and scores for the
 //    devices that use their code. SQLite-backed classes work on the Workers free plan.
+//  - `npx wrangler secret put ADMIN_CODE` (your player code): the admin panel at /admin (worker/admin.js) opens with it.
 //  - `npx wrangler secret put OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` (an osu! OAuth app): the beatmap listing comes
 //    from the osu! API, as on Web-Osu-Mania (the mirrors are only used to download).
 // Deploy: npx wrangler deploy
@@ -16,7 +17,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/admin", "/admin/*"]
   },
   "durable_objects": {
     "bindings": [

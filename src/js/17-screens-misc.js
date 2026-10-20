@@ -322,6 +322,8 @@ const ProfileScreen = {
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
       // (50: the server checks each of them is on a ranked beatmap, by its osu! ids, before it counts toward the rankings)
       top: best.slice(0, 50).map(tp => lite(tp.score, tp.pp)),
+      // (your imported backups' best plays: shown on your profile apart from the rest — they can't count on the rankings)
+      importedTop: ScoreManager.importedBest().slice(0, 50).map(tp => lite(tp.score, tp.pp)),
       rankedPlays: best.length,
       recent: ScoreManager.recent(10).map(s => lite(s, s.passed ? ScoreManager.ppOf(s) : null)),
       medals: Medals.unlocked(),
@@ -333,7 +335,7 @@ const ProfileScreen = {
   summary() {
     // (imported scores — a backup, a Web-Osu-Mania save — stay on this device: others never see them)
     const d = this.localData(), strip = a => a.filter(x => !(x._s && x._s.imported)).map(({ _s, ...x }) => x);
-    return { ...d, top: strip(d.top), recent: strip(d.recent) };
+    return { ...d, top: strip(d.top), recent: strip(d.recent), importedTop: undefined };
   },
   render() {
     const page = this.page;
@@ -416,7 +418,10 @@ const ProfileScreen = {
         ? more(topPlays, (x, i) => row(x, i, true))
         : h('div.pf-empty', !own ? 'No performance records yet.'
           // (plays on beatmaps that aren't ranked on osu! — your own, or from a file — give pp in the results but never count here)
-          : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')));
+          : ScoreManager.scores.some(x => x.passed) ? 'No performance records yet: only plays on beatmaps ranked on osu! count here — find some in the beatmap listing.' : 'No performance records. Pass a ranked beatmap to earn pp.')),
+      own && d.importedTop && d.importedTop.length ? sub('From imported backups', d.importedTop.length,
+        h('div.pf-note', 'Not counted in your pp or on the rankings: there\'s no replay of these for the server to check. Play them again here to count them.'),
+        more(d.importedTop, x => row(x, 0, false))) : null);
     const got = d.medals || {};
     const medals = () => section('medals', 'Medals', sub('Unlocked', `${fmtInt(Medals.all.filter(m => got[m.id]).length)} / ${fmtInt(Medals.all.length)}`, ...Medals.section(got)));
     const recent = d.recent || [];
@@ -688,50 +693,8 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.10.20', title: 'Your scores on every device', sections: [
-    { icon: 'heart', title: 'Neru', items: [
-      'Neru shows up around the game now, not only on the main menu: on the results, pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
-      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for an SS, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and fishing while the game starts',
-      'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
-      'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
-      'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
-    { icon: 'sparkle', title: 'Looks', items: [
-      'Results: your other scores on the beatmap, either side of yours, are all the same height (one with mods was taller), and the mod badges by the star rating are as big as the chips beside them',
-      'The song\'s title, artist and difficulty on the loading screen stay readable over a bright background',
-      'Empty pages look alike: no friends yet, nobody online, nobody ranked yet and no daily challenge scores yet show the same card as an empty library (with Neru on the full pages)',
-      'Collections opens on one that has beatmaps in it, not an empty one',
-      'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
-      'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
-    { icon: 'user', title: 'Friends and the leaderboard', items: [
-      'Your friends list shows everyone\'s profile picture — offline friends too (the last one the game saw) — and so do friend requests and the list of friends to invite to a room',
-      'The leaderboard in a song is as lazer\'s: while you play, just each place and picture, so it stays out of the way; before the first note, in a break, paused, at the end, watching a replay or holding Ctrl it opens out to the names, scores, accuracy and combo'] },
-    { icon: 'sparkle', title: 'Smoother', items: [
-      'Chrome\'s Energy Saver (and battery savers) halve the frame rate, which looks choppy: the game now tells you after the song when that happened and how to turn it off. It also no longer takes those 30 fps for a slow device and lowers the playfield\'s resolution — which only made the notes blurry without making anything faster'] },
-    { icon: 'download', title: 'The HTML file', items: [
-      'A saved HTML file notices when the website has a newer version (as it opens, and every few hours) and asks whether to update — after the song, never in the middle of one. "Update" writes the new version over the file itself (in Chrome and Edge: the first time, the save box opens on the file\'s name — pick it to replace it; after that it\'s remembered) and starts it; your beatmaps, scores and settings stay. "Not now" waits a day'] },
-    { icon: 'globe', title: 'Ad blockers', items: [
-      'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
-    { icon: 'keyboard', title: 'Keys', items: [
-      'Key bindings and the keys under the stage show your keyboard\'s own letters (Chrome and Edge): on a German keyboard the key where a US one has Z says "Y", on a French one the A key says "Q". The keys stay where they are; only their names follow your keyboard'] },
-    { icon: 'lock', title: 'Your code', items: [
-      'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
-      'The beatmaps your plays from your other devices are on can come too: once they\'ve arrived the game offers to download the ones this device hasn\'t got, and Your code has the same, any time. How far it\'s got shows in the notifications, and the X there stops it',
-      'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
-      'A device sends only the settings you change on it, and they\'re kept alongside the ones you changed on your other devices: it used to send all of them — and one that merely had another version (brought long ago, or with a setting an update added) sent it at its next start, over what you\'d changed elsewhere. Medals unlocked on any device all stay unlocked',
-      'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
-      'Reset everything on a device playing through your code keeps you who you are: your name stays (it became "Player" — on the rankings too) and your settings, skin and plays come back'] },
-    { icon: 'sparkle', title: 'Faster with a long history', items: [
-      'The game starts several times faster for a long-time player: each play\'s hit-by-hit timing is stored apart from it, so it isn\'t read at every start (3,000 plays took about 5 seconds on a slow Chromebook, now well under 1). Plays saved before are moved over once, in the background',
-      'Far less memory for a long-time player: each play\'s hit-by-hit timing and health graph, and each saved replay\'s key presses, stay in storage until they\'re needed (read with every play at the start, a few thousand plays took hundreds of MB — enough to close the tab on a phone or Chromebook)',
-      'The Replays page opens at once with hundreds of replays: its first rows straight away, the rest as it goes (they used to be built all at once, freezing the page for a moment)'] },
-    { icon: 'download', title: 'Imports and backups', items: [
-      'osu!\'s beatmap packs import: a .zip of .osz files brings in every beatmap inside, one after another, and names any that couldn\'t be (it said "No .osu difficulties found")',
-      'Beatmap packs, skins and Web-Osu-Mania backups are read a part at a time as they\'re imported, instead of the whole file loaded into memory first — and a backup over 4 GB (ZIP64) can be read at all',
-      'Storage full in the middle of importing several files (or a pack), or of downloading several beatmaps (the ones your plays are on, the songs in a Web-Osu-Mania backup\'s collections): it stops there and says how many weren\'t imported, instead of downloading and failing each of the rest in turn',
-      'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
-      'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
-      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
-      'A damaged play in a backup (its counts or date not what they should be) is left out instead of putting "NaN" into your stats'] },
+  { id: '2026.10.20', title: 'Neru update', sections: [
+    { icon: 'heart', title: 'Neru update', items: ['Adds Neru to the results screen and other miscellaneous screens'] },
   ] },
   { id: '2026.10.17', title: 'Your code', sections: [
     { icon: 'lock', title: 'Your code', items: [
