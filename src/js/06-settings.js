@@ -259,7 +259,21 @@ const Settings = {
   async flush() { clearTimeout(this._saveT); await DB.kvSet('settings', this.values); },
   reset(k) { delete this.values[k]; Bus.emit('settings:changed', k, this.get(k)); this.set(k, this.get(k)); },
   export() { return copyData(this.values); },
-  async import(obj) { if (obj && typeof obj === 'object') { this.values = { ...obj }; await this.flush(); this.applyUI(); AudioManager.applyVolumes(); Bus.emit('settings:changed', '*'); } },
+  /** Values brought in (your kept settings, a settings file, a backup), minus any of the wrong kind for its setting — a
+   *  word where a number goes, a number that isn't one — which then has its default: a damaged file can't break the
+   *  game. Settings this version doesn't know are kept (a newer version's). */
+  clean(obj) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      const s = this.schema.get(k);
+      // (nothing at all where a number or an on/off goes is wrong too; a word's setting may be empty)
+      if (s && s.d != null && (v == null ? typeof s.d === 'number' || typeof s.d === 'boolean' : typeof v !== typeof s.d || (typeof v === 'number' && !Number.isFinite(v)))) continue;
+      out[k] = v;
+    }
+    return out;
+  },
+  async import(obj) { if (obj && typeof obj === 'object') { this.values = this.clean(obj); await this.flush(); this.applyUI(); AudioManager.applyVolumes(); Bus.emit('settings:changed', '*'); } },
 
   keybinds(keys) {
     const all = this.get('input.keybinds') || {};

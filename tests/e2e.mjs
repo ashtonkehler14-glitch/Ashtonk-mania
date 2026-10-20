@@ -1047,6 +1047,15 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   });
   check('automatic resolution: a play that stutters (one frame in four late) is drawn smaller; a smooth one counts as smooth', asr.stutter.scale < 1 && asr.smooth.scale === 1 && asr.smooth.smooth >= asr.smooth.windows - 1 && asr.smooth.windows >= 5, JSON.stringify(asr));
   check('a damaged replay or data file says what it isn\'t, not a JSON error', bad.length === 2 && /broken\.amr: Not a valid Ashtonk!mania replay/.test(bad[0]) && /broken\.json: not an Ashtonk!mania data file/.test(bad[1]) && !bad.some(e => /Unexpected|SyntaxError|is not valid JSON/.test(e)), JSON.stringify(bad));
+  // a settings file with values of the wrong kind: those settings keep their defaults, the rest come in
+  const bs = await page.evaluate(async () => {
+    const S = AshtonkMania.Settings, keep = S.export();
+    await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'settings', settings: JSON.parse('{"gameplay.scrollSpeed":"fast","gameplay.bgDim":null,"wom.hue":150,"gameplay.laneWidth":"NaN","__proto__":{"evil":1},"future.thing":3}') });
+    const out = { speed: S.get('gameplay.scrollSpeed'), dim: S.get('gameplay.bgDim') === S.schema.get('gameplay.bgDim').d, hue: S.get('wom.hue'), lane: S.get('gameplay.laneWidth'), future: S.values['future.thing'], evil: ({}).evil || S.values.evil || null, proto: Object.getPrototypeOf(S.values) === Object.prototype };
+    await S.import(keep);
+    return out;
+  });
+  check('a settings file with values of the wrong kind: those keep their defaults, the rest come in', bs.speed === 22 && bs.dim && bs.hue === 150 && bs.lane === 1 && bs.future === 3 && bs.evil === null && bs.proto, JSON.stringify(bs));
   const wn = await page.evaluate(async () => {
     const W = WhatsNew; await DB.kvSet('changelog.seen', W.latest()); await DB.kvSet('changelog.seenLines', W.lines());
     await W.maybeShow(); const same = !!document.querySelector('.cl');
