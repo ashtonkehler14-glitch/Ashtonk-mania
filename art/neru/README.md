@@ -6,12 +6,13 @@ head size in `NeruCameo.HEAD`:
 
 | pose | head size |
 |---|---|
-| fishing | 0.38 |
+| dance | 0.18 |
 | knees | 0.45 |
 | meh | 0.52 |
+| phone | 0.31 |
 | pointat | 0.32 |
 | side | 0.37 |
 | smirk | 0.53 |
+| snicker | 0.21 |
 | sulk | 0.45 |
-| tired | 0.68 |
 | worried | 0.47 |

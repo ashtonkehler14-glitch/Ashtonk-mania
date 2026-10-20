@@ -1653,7 +1653,7 @@ div.res-calib .i { color: var(--good); }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
 .inv-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow: auto; }
 .inv-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
-.inv-av { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; }
+.inv-av { flex: none; display: grid; }
 .inv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .inv-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .inv-who small { color: var(--muted); font-size: .75rem; }
@@ -4485,6 +4485,12 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mpl-right .nm { font-size: 12px; font-weight: 600; color: #fff; }
 .mpl-right .acc, .mpl-right .cmb { font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, .8); }
 .mpl-right .sc { font-size: 15px; font-weight: 400; color: #fff; letter-spacing: 0; }
+/* lazer's compact panels while you play: the place and the picture only — the panel narrows (500ms OutQuint) as the
+   rest fades out (200ms), and opens again in breaks */
+.hud-mp-row { width: 100%; transition: opacity 300ms, filter 300ms, width 500ms cubic-bezier(.23, 1, .32, 1); }
+.mpl-right { transition: opacity 200ms ease-out; }
+.hud-mp.compact .hud-mp-row { width: 84px; }
+.hud-mp.compact .mpl-right { opacity: 0; }
 
 /* ── the judgement counter as lazer's JudgementCounterDisplay: no panel — each judgement's count (16px, fixed-width
    digits) over its name (8px), in its HitResult colour, 10px apart; a soft shadow keeps them readable over anything */

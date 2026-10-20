@@ -691,7 +691,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'heart', title: 'Neru', items: [
       'Neru shows up around the game now, not only on the main menu: on the results, pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
-      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for a perfect play, dancing about a new best, a wink for a good one, a wagging finger at a so-so one, snickering at a bad one, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and on her phone while the game starts',
+      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for an SS, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and fishing while the game starts',
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
@@ -702,6 +702,13 @@ const CHANGELOG = [
       'Collections opens on one that has beatmaps in it, not an empty one',
       'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
       'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
+    { icon: 'user', title: 'Friends and the leaderboard', items: [
+      'Your friends list shows everyone\'s profile picture — offline friends too (the last one the game saw) — and so do friend requests and the list of friends to invite to a room',
+      'The leaderboard in a song is as lazer\'s: while you play, just each place and picture, so it stays out of the way; before the first note, in a break, paused, at the end, watching a replay or holding Ctrl it opens out to the names, scores, accuracy and combo'] },
+    { icon: 'sparkle', title: 'Smoother', items: [
+      'Chrome\'s Energy Saver (and battery savers) halve the frame rate, which looks choppy: the game now tells you after the song when that happened and how to turn it off. It also no longer takes those 30 fps for a slow device and lowers the playfield\'s resolution — which only made the notes blurry without making anything faster'] },
+    { icon: 'download', title: 'The HTML file', items: [
+      'A saved HTML file notices when the website has a newer version (as it opens, and every few hours) and asks whether to update — after the song, never in the middle of one. "Update" writes the new version over the file itself (in Chrome and Edge: the first time, the save box opens on the file\'s name — pick it to replace it; after that it\'s remembered) and starts it; your beatmaps, scores and settings stay. "Not now" waits a day'] },
     { icon: 'globe', title: 'Ad blockers', items: [
       'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
     { icon: 'keyboard', title: 'Keys', items: [

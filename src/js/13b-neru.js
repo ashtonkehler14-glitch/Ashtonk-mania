@@ -131,22 +131,21 @@ const NeruMascot = {
  *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
-  HAPPY: new Set(['perfect', 'best', 'great']),
+  HAPPY: new Set(['perfect', 'great']),
   /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
-   *  perfect play, dancing about a new best (not that she'd admit it), a wink for a good one, a wagging finger at a
-   *  so-so one, snickering at a bad one, laughing at a fail; bored at her desk while you pause, fists up — "I'm not
-   *  cheering for you" — while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, on her
-   *  phone while the game starts. */
+   *  perfect play, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail; bored at her
+   *  desk while you pause, fists up — "I'm not cheering for you" — while a song loads, hand on hip at an empty library,
+   *  a blank "huh?" at an empty list, fishing while the game starts. */
   POSE: {
-    perfect: 'cool', best: 'dance', great: 'wink', okay: 'point', bad: 'snicker', failed: 'mock',
-    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'phone',
+    perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
+    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
   },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, happy: 0.45, huh: 0.45, mock: 0.38, phone: 0.31, point: 0.45,
-    sassy: 0.49, snicker: 0.21, wink: 0.28,
+    bored: 0.43, cheer: 0.37, cool: 0.22, fishing: 0.38, happy: 0.45, huh: 0.45, mock: 0.38, point: 0.45, sassy: 0.49,
+    tired: 0.68, wink: 0.28,
   },
   HEAD_SIZE: 0.36,
   /** Her pose for `mood`'s screen (her default picture without it). */
@@ -156,11 +155,10 @@ const NeruCameo = {
     if (!name || !pics.poses || !pics.poses[name]) return { src: pics.base, scale: 1 };
     return { src: pics.poses[name], scale: Math.min(1, this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE)) };
   },
-  /** A play's mood: from its grade, a new best, or a fail. */
+  /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';
     if (['XH', 'X', 'SS'].includes(s.grade)) return 'perfect';
-    if (s.isPB) return 'best';
     if (['SH', 'S'].includes(s.grade)) return 'great';
     return ['A', 'B'].includes(s.grade) ? 'okay' : 'bad';
   },

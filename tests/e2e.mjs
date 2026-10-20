@@ -771,7 +771,7 @@ await page.waitForTimeout(500);
     r.ss && r.ok.perfect && !r.ss.said && r.fail && r.ok.failed, JSON.stringify(r));
   check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop with her excited face; she steps aside for the statistics',
     !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && r.clicked.face === 'neru-happy.png' && +r.aside < 0.5, JSON.stringify(r));
-  check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad), a new best and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|best|failed', r.moods);
+  check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad) — a new best too — and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|okay|failed', r.moods);
 }
 
 // the main menu: clicking Neru makes her hop with her excited face for a moment, then back — no speech bubble
@@ -1199,16 +1199,20 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   }
   // automatic resolution: one frame in four late (17, 17, 17, 33…) — the median looks fine, but it stutters
   const asr = await page.evaluate(() => {
-    const G = GameplayScreen, keep = { as: G._as, r: G.renderer, set: Settings.get('perf.autoScale'), toast: G._asToast, pend: G._asPending };
+    const G = GameplayScreen, keep = { as: G._as, r: G.renderer, set: Settings.get('perf.autoScale'), toast: G._asToast, pend: G._asPending, work: G._work, told: G._capTold, cap: G._capPending };
     const run = (dts) => { G._as = { on: true, scale: 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 }; let now = 1000; for (const dt of dts) { now += dt; G.adaptResolution(dt, now, 0); } return { scale: G._as.scale, smooth: G._as.smooth, windows: G._as.windows }; };
     try {
       G.renderer = { autoScale: 1, resize() {} };
       const stutter = run(Array.from({ length: 1000 }, (_, i) => i % 4 === 3 ? 33.4 : 16.7));
       const smooth = run(Array.from({ length: 1000 }, () => 16.7));
-      return { stutter, smooth };
-    } finally { G._as = keep.as; G.renderer = keep.r; G._asToast = keep.toast; G._asPending = keep.pend; Settings.set('perf.autoScale', keep.set); }
+      // the browser holding it to 30 fps (Energy Saver): steady 33 ms frames with little to do in each — not slow
+      G._work = 1.5; G._capTold = false; G._capPending = false;
+      const capped = { ...run(Array.from({ length: 400 }, () => 33.3)), told: G._capPending };
+      return { stutter, smooth, capped };
+    } finally { G._as = keep.as; G.renderer = keep.r; G._asToast = keep.toast; G._asPending = keep.pend; G._work = keep.work; G._capTold = keep.told; G._capPending = keep.cap; Settings.set('perf.autoScale', keep.set); }
   });
   check('automatic resolution: a play that stutters (one frame in four late) is drawn smaller; a smooth one counts as smooth', asr.stutter.scale < 1 && asr.smooth.scale === 1 && asr.smooth.smooth >= asr.smooth.windows - 1 && asr.smooth.windows >= 5, JSON.stringify(asr));
+  check('a browser holding the game to 30 fps (Energy Saver) isn\'t taken for a slow device: the resolution stays, and the player is told after the song', asr.capped.scale === 1 && asr.capped.told === true, JSON.stringify(asr.capped));
   check('a damaged replay or data file says what it isn\'t, not a JSON error', bad.length === 2 && /broken\.amr: Not a valid Ashtonk!mania replay/.test(bad[0]) && /broken\.json: not an Ashtonk!mania data file/.test(bad[1]) && !bad.some(e => /Unexpected|SyntaxError|is not valid JSON/.test(e)), JSON.stringify(bad));
   // a settings file with values of the wrong kind: those settings keep their defaults, the rest come in
   const bs = await page.evaluate(async () => {
@@ -1483,6 +1487,14 @@ await page.evaluate(async id => { await AshtonkMania.SkinManager.select(id); Ash
   const lbOff = await page.evaluate(() => document.querySelector('.hud-lb').classList.contains('lb-off') && AshtonkMania.Settings.get('gameplay.leaderboard') === false);
   await page.keyboard.press('Tab'); await page.waitForTimeout(100);
   check('Tab hides and shows the leaderboard (remembered)', lbOff && await page.evaluate(() => !document.querySelector('.hud-lb').classList.contains('lb-off') && AshtonkMania.Settings.get('gameplay.leaderboard') === true));
+  // lazer: while you play, only each place and picture; the full panels when you aren't (here: holding Ctrl, paused)
+  const lbFull = () => page.evaluate(() => { const b = document.querySelector('.hud-lb'); return !b.classList.contains('compact') && [...b.querySelectorAll('.mpl-right')].every(x => getComputedStyle(x).opacity !== '0'); });
+  await page.waitForFunction(() => { const G = AshtonkMania.GameplayScreen; return G.s && G.s.running && G.gameTime() > G.s.firstNote; }, null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const lbCompact = await page.evaluate(() => { const b = document.querySelector('.hud-lb'); return b.classList.contains('compact') && [...b.querySelectorAll('.hud-mp-row')].every(r => r.getBoundingClientRect().width < 110 && r.querySelector('.pos').textContent.startsWith('#')); });
+  await page.keyboard.down('Control'); await page.waitForTimeout(300); const lbCtrl = await lbFull(); await page.keyboard.up('Control');
+  await page.evaluate(() => AshtonkMania.GameplayScreen.pause()); await page.waitForTimeout(300);
+  check('in-game leaderboard: just the places and pictures while playing; the full panels (names, scores) when holding Ctrl or paused', lbCompact && lbCtrl && await lbFull(), JSON.stringify({ lbCompact, lbCtrl }));
   await page.evaluate(async id => { await AshtonkMania.MapOffsets.set(AshtonkMania.BeatmapManager.maps.get(id).hash, 0); }, id);
   await page.evaluate(() => AshtonkMania.Screens.go('home'));
   await page.waitForTimeout(500);

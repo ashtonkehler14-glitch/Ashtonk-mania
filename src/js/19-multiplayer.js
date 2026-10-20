@@ -527,6 +527,7 @@ const Presence = {
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
+        Friends.remember(this.players);
         // a friend coming online (as lazer tells you) — but not everyone who was already on: after a dropped connection
         // (or the server restarting) the list fills back up a player at a time as each reconnects, and none of them is
         // news. So: someone seen in the last few minutes isn't announced, and nobody is for a little while after we connect.
@@ -702,7 +703,7 @@ const Presence = {
       clearEl(list).append(...(others.length ? others.map(p => {
         const busy = p.status === 'playing' || p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
         const done = invited.has(p.id);
-        return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
+        return h('div.inv-row', h('span.inv-av', this.avatarEl(p, 34)),
           h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
           h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
       }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));

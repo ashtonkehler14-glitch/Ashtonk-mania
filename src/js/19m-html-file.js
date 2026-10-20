@@ -3,7 +3,8 @@
  * Opened from the device (file://) it plays like the website, offline too, and its online features (multiplayer,
  * beatmap search and downloads, rankings, the daily challenge) talk to the website it was saved from (Host).
  * The file is put together here, in the browser, from what the website serves: the page, then each file that
- * public/files.json lists (written by build.mjs). From a saved file, the same button fetches the newest version. */
+ * public/files.json lists (written by build.mjs). A saved file notices when the website has a newer version and,
+ * if you say so, writes it over itself (File System Access; elsewhere the new file downloads). */
 
 const HtmlFile = {
   NAME: 'Ashtonk!mania.html',
@@ -79,6 +80,66 @@ const HtmlFile = {
     } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
     finally { this.busy = false; }
   },
+  /** The build the website serves now (its service worker names it), or null when it can't be asked. */
+  async latest() {
+    const base = this.base();
+    if (!base) return null;
+    const r = await fetch(new URL('sw.js', base), { cache: 'no-cache', signal: timeoutSignal(15000) });
+    const m = r.ok && /const VERSION = '([0-9a-f]{6,40})'/.exec(await r.text());
+    return m ? m[1] : null;
+  },
+  /** This file's name on the device (the update is written over it). */
+  fileName() { try { return decodeURIComponent(location.pathname.split('/').pop()) || this.NAME; } catch { return this.NAME; } },
+  /** A saved file looks for a newer version as it opens and every few hours while it stays open, and asks — not in
+   *  the middle of a song (as lazer holds notifications back), and "Not now" holds for a day. */
+  watch() {
+    if (!Host.standalone || !Host.server()) return;
+    const check = this.check = async () => {
+      const v = await this.latest().catch(() => null);
+      if (!v || v === APP_BUILD || this._asked === v) return;
+      let later = null; try { later = JSON.parse(localStorage.getItem('am.fileUpdateLater') || 'null'); } catch { /* none */ }
+      if (later && later.v === v && Date.now() - later.at < 86400e3) return;
+      this._asked = v;
+      const ask = () => {
+        if (Screens.currentName === 'gameplay' || document.querySelector('.dialog')) { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(ask, 1500); } }); return; }
+        this.offer(v);
+      };
+      ask();
+    };
+    setTimeout(check, 6000);
+    setInterval(check, 3 * 3600e3);
+  },
+  async offer(v) {
+    const ok = await Dialog.confirm('A new version of Ashtonk!mania is out', `This file is out of date. Update it now? The new version is written over ${this.fileName()} — your beatmaps, scores and settings stay as they are.`, { ok: 'Update', cancel: 'Not now', icon: 'download' });
+    if (!ok) { try { localStorage.setItem('am.fileUpdateLater', JSON.stringify({ v, at: Date.now() })); } catch { /* private mode */ } return; }
+    this.update();
+  },
+  /** Write the newest version over this file: the place it was saved to before (remembered), or — the first time —
+   *  where you point the save box (already on this file's name). A browser that can't write files gets a download. */
+  async update() {
+    if (this.busy) return;
+    const name = this.fileName();
+    // (asked straight away, while the click that asked for it still counts: the browser only allows the save box then)
+    let handle = await DB.kvGet('htmlFile.handle', null).catch(() => null);
+    if (handle && handle.name !== name) handle = null;
+    if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
+    if (!handle && window.showSaveFilePicker) {
+      try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
+      catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
+    }
+    if (!handle) { await this.save(); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
+    this.busy = true;
+    const p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
+    try {
+      const blob = await this.build(f => p.set(f * 0.97));
+      const w = await handle.createWritable();
+      await w.write(blob); await w.close();
+      DB.kvSet('htmlFile.handle', handle).catch(() => {});
+      if (handle.name === name) { p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
+      else p.done('New version saved', `As ${handle.name}: open it to play the new version.`);
+    } catch (e) { p.fail('Couldn\'t update the file', friendlyError(e)); }
+    finally { this.busy = false; }
+  },
   /** Its part of Settings → Maintenance → Data management. */
   panel(btn) {
     const note = t => h('div.muted', { style: { fontSize: '.8rem' } }, t);
@@ -96,7 +157,7 @@ const HtmlFile = {
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
       note(`Playing from a saved HTML file${saved ? ` (saved ${saved})` : ''}. Online features connect to this website:`),
       h('div.row', { style: { gap: '6px' } }, inp, h('button.btn.sm', { onclick: apply }, 'Set')),
-      h('div.row.wrap', btn(kbHint('Get the newest version (Ctrl+S)', 'Get the newest version'), 'download', () => this.save())));
+      h('div.row.wrap', btn('Update this file', 'download', () => this.update()), btn(kbHint('Save a copy (Ctrl+S)', 'Save a copy'), 'download', () => this.save())));
   },
 };
 

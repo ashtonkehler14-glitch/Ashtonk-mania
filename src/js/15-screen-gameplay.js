@@ -344,6 +344,7 @@ const GameplayScreen = {
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
+    if (this._capPending) { this._capPending = false; setTimeout(() => Toast.show('Your browser held the game to 30 fps', 'It does that to save battery. Plug in, or turn off Energy Saver (Chrome settings → Performance) or your device\'s battery saver, for the full frame rate.', { timeout: 12000 }), 900); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
     clearTimeout(this._retryHold);
@@ -787,7 +788,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined; this._ctrl = false;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -907,7 +908,7 @@ const GameplayScreen = {
       this._raf = requestAnimationFrame(frame);
       const s = this.s;
       if (!s) return;
-      const realNow = ts > 0 ? ts : performance.now();
+      const w0 = performance.now(), realNow = ts > 0 ? ts : w0;
       // the display's refresh interval, for the frame limiter
       if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
       this._lastTs = realNow;
@@ -975,6 +976,7 @@ const GameplayScreen = {
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
+      this._work = performance.now() - w0;
     };
     frame(performance.now());
   },
@@ -991,19 +993,29 @@ const GameplayScreen = {
   autoMin() { return Math.min(this.AUTO_SCALE_MIN, 1 / Math.max(1e-3, Zoom.dpr() * Settings.get('graphics.renderScale'))); },
   initAutoScale() {
     const on = Settings.get('graphics.autoScale');
-    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 };
+    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], work: [], t0: 0, bad: 0, smooth: 0, windows: 0, capped: 0 };
     this.renderer.autoScale = this._as.scale;
   },
   adaptResolution(dt, realNow, lim) {
     const a = this._as;
-    if (!a || !a.on || document.hidden || !(dt > 0) || dt > 250) return; // (skip pauses, tab switches, hitches)
-    a.times.push(dt);
+    if (!a || document.hidden || !(dt > 0) || dt > 250) return; // (skip pauses, tab switches, hitches)
+    a.times.push(dt); (a.work || (a.work = [])).push(this._work || 0);
     if (!a.t0) a.t0 = realNow;
     if (realNow - a.t0 < 2000) return;
     // (a new list for the next window: emptying this one in place emptied `t` too, so late frames were never counted —
     // stutter went unseen, and a smooth play was never seen as smooth either)
-    const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
-    a.times = []; a.t0 = realNow; a.windows++;
+    const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1], work = a.work.sort((x, y) => x - y)[a.work.length >> 1];
+    a.times = []; a.work = []; a.t0 = realNow; a.windows++;
+    // a steady 30 fps with little to do each frame isn't this device being slow: the browser is holding the frame rate
+    // down (Chrome's Energy Saver halves it, as do battery savers). A lower resolution can't help that — it only made
+    // the notes blurry — so it's left alone, and the player is told how to get the full frame rate back after the play
+    let steady = 0; for (const x of t) if (Math.abs(x - med) < 3) steady++;
+    if (med > 30 && med < 36 && steady > t.length * 0.85 && work < med * 0.25 && !(lim > 0 && lim <= 30)) {
+      a.bad = 0;
+      if ((a.capped = (a.capped || 0) + 1) === 2 && !GameplayScreen._capTold) { GameplayScreen._capTold = true; this._capPending = true; }
+      return;
+    }
+    if (!a.on) return;
     const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
@@ -1190,6 +1202,7 @@ const GameplayScreen = {
         r.el.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       });
     }
+    if (this.lbEl._full === false) return; // (compact: only the places show — the numbers are written when it opens)
     const sub = fmtAcc(e.score.judged ? e.score.accuracy : 1), cmb = `${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
     if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
@@ -1260,6 +1273,7 @@ const GameplayScreen = {
       if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
       const pos = i + 1, sub = away ? 'reconnecting…' : fmtAcc(r.v.acc ?? 1), st = fmt(r.shown), cmb = `${fmtInt(r.v.combo ?? r.v.maxCombo ?? 0)}x`;
       if (r._pos !== pos) { r._pos = pos; setText(r.pos, `#${pos}`); r.el.style.order = pos; r.el.classList.toggle('first', pos === 1); }
+      if (this.mpBoard._full === false) return; // (compact: only the places show)
       if (r._sub !== sub) { r._sub = sub; setText(r.sub, String(sub)); }
       if (r._st !== st) { r._st = st; setText(r.sc, String(st)); }
       if (r._cmb !== cmb) { r._cmb = cmb; setText(r.combo, cmb); }
@@ -1411,7 +1425,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.nudgeMapOffset(e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
       return;
     }
-    // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it
+    // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it (and opens the leaderboard)
+    if (e.key === 'Control') this._ctrl = true;
     if ((e.key === 'Control') && (this.hud.classList.contains('hidden-hud') || this.hud.classList.contains('auto-hide'))) this.hud.classList.add('peek');
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
@@ -1464,7 +1479,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (Screens.current !== this) return;
     const s = this.s;
     if (this.isRetryKey(e)) { clearTimeout(this._retryHold); clearTimeout(this._exitHold); this.holdEl && this.holdEl.classList.remove('on'); }
-    if (e.key === 'Control' && this.hud) this.hud.classList.remove('peek');
+    if (e.key === 'Control') { this._ctrl = false; if (this.hud) this.hud.classList.remove('peek'); }
     if (!s) return;
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
@@ -1828,6 +1843,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const s = this.s, mode = Settings.get('gameplay.hudMode') || 'always';
     const off = mode === 'never' || (mode === 'gameplay' && s.running && !s.finished && !this._inBreak && now > s.firstNote - 500 * s.rate);
     if (off !== this._hudOff) { this._hudOff = off; this.hud.classList.toggle('auto-hide', off); }
+    // lazer's leaderboard (DrawableGameplayLeaderboard): only each place and picture while you play; the full panels —
+    // names, scores, accuracy, combo — whenever you aren't: before the first note, in a break, paused, finished,
+    // watching a replay or someone else, or holding Ctrl
+    const board = this.board();
+    if (board) {
+      const full = !s.running || s.finished || !!s.feed || !!s.spectate || this._inBreak || now < s.firstNote - 500 * s.rate || !!this._ctrl;
+      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); }
+    }
   },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */

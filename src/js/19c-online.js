@@ -20,12 +20,21 @@ const Friends = {
   incoming(pid) { return this.requests.some(r => r.pid === pid); },
   /** The server's list (on connecting, and whenever it changes). */
   sync(m) {
-    this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name }));
+    // (each friend's picture: the server's, else the last one seen here — shown while they're offline too)
+    const had = new Map(this.list().map(f => [f.pid, f.avatar]));
+    this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name, avatar: (typeof f.avatar === 'string' && f.avatar) || had.get(f.pid) || '' }));
     LastSeen.merge((m.list || []).filter(f => f.seen > 0 && !f.online).map(f => [f.pid, f.seen])); // (the server saw them go)
     this.requests = m.requests || [];
     for (const f of this.server) this.sent.delete(f.pid);
     try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
     Bus.emit('friends:changed');
+  },
+  /** Friends online now: a new picture of theirs is kept for when they go offline. */
+  remember(players) {
+    if (!this.server) return;
+    let changed = false;
+    for (const p of players) { const f = p.pid && p.avatar && this.server.find(x => x.pid === p.pid); if (f && f.avatar !== p.avatar) { f.avatar = p.avatar; changed = true; } }
+    if (changed) try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
   },
   /** The heart: send a request (or accept theirs), or — already friends — remove them. */
   async toggle(p) {
@@ -857,7 +866,7 @@ const DashboardScreen = {
       clearEl(this.page).append(
         h('div.dash-streamwrap', stream),
         h('div.dash-body',
-          reqs.length ? h('div.dash-reqs', h('div.dash-h', `Friend requests (${reqs.length})`), ...reqs.map(r => h('div.up.up-list.fr-req', h('div.up-l', Presence.avatarEl({ name: r.name }, 40), h('div.up-name', r.name), h('span.up-sub', 'wants to be friends')),
+          reqs.length ? h('div.dash-reqs', h('div.dash-h', `Friend requests (${reqs.length})`), ...reqs.map(r => h('div.up.up-list.fr-req', h('div.up-l', Presence.avatarEl(r, 40), h('div.up-name', r.name), h('span.up-sub', 'wants to be friends')),
             h('div.up-r', h('button.btn.sm.primary', { onclick: () => { UISounds.click(); Friends.answer(r.pid, true); } }, 'Accept'), h('button.btn.sm', { onclick: () => { UISounds.click(); Friends.answer(r.pid, false); } }, 'Decline'))))) : null,
           h('div.dash-bar', search, h('div.grow'), sorts, styleBtns),
           this.listEl));

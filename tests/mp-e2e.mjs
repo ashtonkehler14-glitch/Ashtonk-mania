@@ -15,7 +15,7 @@ try {
   ({ Miniflare } = await import(pathToFileURL(req.resolve('miniflare')).href));
 } catch (e) { console.log('SKIP: miniflare is not installed (set MINIFLARE_DIR)'); process.exit(0); }
 
-const types = { '.html': 'text/html', '.js': 'text/javascript' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/png' };
 const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, port: 0, host: '127.0.0.1',
@@ -25,8 +25,9 @@ const mf = new Miniflare({
     ASSETS: async req => {
       const p = decodeURIComponent(new URL(req.url).pathname);
       const file = p === '/' ? join(root, 'index.html') : join(root, p);
-      try { return new Response(readFileSync(file), { headers: { 'content-type': types[extname(file)] || 'application/octet-stream' } }); }
-      catch { return new Response('not found', { status: 404 }); }
+      // (the deployed site serves public/: avatars, Neru's pictures)
+      for (const f of [file, join(root, 'public', p)]) try { return new Response(readFileSync(f), { headers: { 'content-type': types[extname(f)] || 'application/octet-stream' } }); } catch { /* next */ }
+      return new Response('not found', { status: 404 });
     },
   },
 });
@@ -191,6 +192,8 @@ check('multiplayer lobby renders', await alice.evaluate(() => !!document.querySe
 // "currently online" and sends a request from his panel's ⋯ menu; he accepts it from the prompt that pops up
 const panelMenu = async (page, name) => { await page.evaluate(n => document.querySelector(`.up[data-name="${n}"] .up-more`).click(), name); await page.waitForSelector('.menu button'); return page.$$eval('.menu button', b => b.map(x => x.textContent.trim())); };
 const menuPick = (page, label) => page.evaluate(l => [...document.querySelectorAll('.menu button')].find(b => b.textContent.trim() === l).click(), label);
+// (Bob has a profile picture, which his friends see)
+await bob.evaluate(() => { AshtonkMania.ProfileManager.sharedAvatar = 'preset:neru'; AshtonkMania.Presence.pushStatus(); });
 await alice.click('#toolbar [data-tab="dashboard"]');
 await alice.waitForSelector('.dash-tabs');
 await alice.evaluate(() => [...document.querySelectorAll('.dash-tabs .ov-tab')].find(b => /currently online/.test(b.textContent)).click());
@@ -217,7 +220,7 @@ check('room created with a code', /^[A-Z0-9]{6}$/.test(code), code);
 await alice.waitForFunction(() => AshtonkMania.Presence.others().some(p => p.name === 'Bob'), null, { timeout: 10000 });
 await alice.click('.mp-invite');
 await alice.waitForSelector('.inv-row');
-check('invite dialog lists friends who are online and offers a link', await alice.evaluate(() => [...document.querySelectorAll('.inv-row b')].some(b => b.textContent === 'Bob') && !!document.querySelector('.inv-link')));
+check('invite dialog lists friends who are online, with their pictures, and offers a link', await alice.evaluate(() => [...document.querySelectorAll('.inv-row')].some(r => r.querySelector('b').textContent === 'Bob' && /neru/.test((r.querySelector('img.avatar') || {}).src || '')) && !!document.querySelector('.inv-link')));
 await alice.click('.inv-row .btn.primary');
 await bob.waitForFunction(() => [...document.querySelectorAll('.dialog h2')].some(x => /Alice invited you/.test(x.textContent)), null, { timeout: 5000 });
 check('the invited player gets a Join prompt', await bob.evaluate(code => document.querySelector('.dialog .body').textContent.includes(code), code));
@@ -687,12 +690,15 @@ await alice.evaluate(() => AshtonkMania.Screens.go('home')); await bob.evaluate(
   await bob.evaluate(() => AshtonkMania.Screens.go('home'));
   await bob.waitForFunction(() => AshtonkMania.Spectate.host.watchers === 0, null, { timeout: 5000 }).catch(() => {});
 }
+// (Bob's page was opened again from an invite link since: his picture again)
+await bob.evaluate(() => { AshtonkMania.ProfileManager.sharedAvatar = 'preset:neru'; AshtonkMania.Presence.pushStatus(); });
 await alice.waitForTimeout(500);
 await alice.click('#toolbar [data-tab="dashboard"]');
 await alice.evaluate(() => [...document.querySelectorAll('.dash-tabs .ov-tab')].find(b => /^friends$/.test(b.textContent)).click());
 await alice.waitForSelector('.dash-list .up[data-name="Bob"]', { timeout: 8000 });
-const fr = await alice.evaluate(() => ({ n: JSON.parse(localStorage.getItem('am.friends') || '[]').length, stream: [...document.querySelectorAll('.dash-si')].map(b => b.textContent).join('|') }));
-check('dashboard → friends: lazer\'s All / Online / Offline counts and the friend panels (kept for when they\'re offline)', fr.n === 1 && /All1/.test(fr.stream) && /Online1/.test(fr.stream) && /Offline0/.test(fr.stream), JSON.stringify(fr));
+const fr = await alice.evaluate(() => ({ kept: JSON.parse(localStorage.getItem('am.friends') || '[]').map(f => f.name + ':' + f.avatar), stream: [...document.querySelectorAll('.dash-si')].map(b => b.textContent).join('|'),
+  pic: (document.querySelector('.dash-list .up[data-name="Bob"] img.avatar') || {}).src || '' }));
+check('dashboard → friends: lazer\'s All / Online / Offline counts and the friend panels with their pictures (kept for when they\'re offline)', fr.kept.join() === 'Bob:preset:neru' && /neru/.test(fr.pic) && /All1/.test(fr.stream) && /Online1/.test(fr.stream) && /Offline0/.test(fr.stream), JSON.stringify(fr));
 // Bob plays (real key presses); Alice spectates from the ⋯ menu
 await bob.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: ['NF'], force: true }); });
 await bob.waitForFunction(() => AshtonkMania.Screens.currentName === 'gameplay' && AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 30000 });

@@ -123,6 +123,25 @@ try {
   // the saved copy fetches the newest version from the website (the files across origins)
   const fresh = await fp.evaluate(async () => (await AshtonkMania.HtmlFile.build()).size);
   check('"Get the newest version" works from the file', fresh > 6e6, `${(fresh / 1e6).toFixed(1)} MB`);
+
+  // out of date: the file asks (once the song is over) and writes the new version over itself
+  await fp.evaluate(() => AshtonkMania.Screens.go('songselect')); await fp.waitForTimeout(800);
+  const canWrite = await fp.evaluate(() => typeof window.showSaveFilePicker === 'function');
+  check('a saved file can write itself (the browser offers File System Access to file:// pages)', canWrite);
+  const same = await fp.evaluate(async () => { await AshtonkMania.HtmlFile.check(); return !document.querySelector('.dialog'); });
+  check('a file of the website\'s current version doesn\'t ask to update', same);
+  await fp.evaluate(() => {
+    AshtonkMania.HtmlFile.latest = async () => 'feedfacecafe';
+    // (the browser's save box can't be clicked in a test: it hands back a file that records what's written)
+    window.showSaveFilePicker = async o => { window.__picked = o.suggestedName; return { name: 'Ashtonk!mania (2).html', requestPermission: async () => 'granted', createWritable: async () => ({ write: async b => { window.__written = b.size; }, close: async () => {} }) }; };
+    return AshtonkMania.HtmlFile.check();
+  });
+  const asked = await fp.evaluate(() => (document.querySelector('.dialog h2') || {}).textContent || '');
+  check('an out-of-date file asks whether to update', /new version of Ashtonk!mania/.test(asked), asked);
+  await fp.evaluate(() => [...document.querySelectorAll('.dialog button')].find(b => b.textContent.trim() === 'Update').click());
+  await fp.waitForFunction(() => window.__written > 0, null, { timeout: 60000 }).catch(() => {});
+  const wrote = await fp.evaluate(() => ({ picked: window.__picked, size: window.__written || 0 }));
+  check('"Update" writes the newest version to the file (the save box opens on this file\'s name)', wrote.picked === 'Ashtonk!mania.html' && wrote.size > 6e6, JSON.stringify(wrote));
 } catch (e) { check('ran to the end', false, e.stack); }
 
 check('no page errors', !errors.length, errors.join(' | '));

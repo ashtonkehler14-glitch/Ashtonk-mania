@@ -1672,7 +1672,7 @@ div.res-calib .i { color: var(--good); }
 .inv-label { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
 .inv-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow: auto; }
 .inv-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
-.inv-av { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; }
+.inv-av { flex: none; display: grid; }
 .inv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .inv-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .inv-who small { color: var(--muted); font-size: .75rem; }
@@ -4504,6 +4504,12 @@ html:not(.slow) .ov.screen.leave:not(.zoom) { animation: ovOut calc(220ms * var(
 .mpl-right .nm { font-size: 12px; font-weight: 600; color: #fff; }
 .mpl-right .acc, .mpl-right .cmb { font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, .8); }
 .mpl-right .sc { font-size: 15px; font-weight: 400; color: #fff; letter-spacing: 0; }
+/* lazer's compact panels while you play: the place and the picture only — the panel narrows (500ms OutQuint) as the
+   rest fades out (200ms), and opens again in breaks */
+.hud-mp-row { width: 100%; transition: opacity 300ms, filter 300ms, width 500ms cubic-bezier(.23, 1, .32, 1); }
+.mpl-right { transition: opacity 200ms ease-out; }
+.hud-mp.compact .hud-mp-row { width: 84px; }
+.hud-mp.compact .mpl-right { opacity: 0; }
 
 /* ── the judgement counter as lazer's JudgementCounterDisplay: no panel — each judgement's count (16px, fixed-width
    digits) over its name (8px), in its HitResult colour, 10px apart; a soft shadow keeps them readable over anything */
@@ -14714,7 +14720,7 @@ const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
   /** Her other faces and poses, public/neru-<name>.png (tools/neru-art.py makes them, from frames of her song's music
    *  video): the build lists the ones there are, so none is looked for that isn't there. */
-  POSES: ["bored","cheer","cool","dance","happy","huh","mock","phone","point","sassy","snicker","wink"],
+  POSES: ["bored","cheer","cool","fishing","happy","huh","mock","point","sassy","tired","wink"],
   _pics: null, _blobURL: null,
   /** Her pictures — { base, happy, poses: { name: url } } (happy: the face she makes when clicked or pleased; null if
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
@@ -14837,22 +14843,21 @@ const NeruMascot = {
  *  Screens place her with a class of their own (`.nc-results`, `.nc-pause`…). */
 const NeruCameo = {
   /** The moods she's pleased about (not that she'd say so): sparkles. */
-  HAPPY: new Set(['perfect', 'best', 'great']),
+  HAPPY: new Set(['perfect', 'great']),
   /** Her pose on each screen (her shrug, neru.png, if it isn't there) — all from the song's video: sunglasses on for a
-   *  perfect play, dancing about a new best (not that she'd admit it), a wink for a good one, a wagging finger at a
-   *  so-so one, snickering at a bad one, laughing at a fail; bored at her desk while you pause, fists up — "I'm not
-   *  cheering for you" — while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, on her
-   *  phone while the game starts. */
+   *  perfect play, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail; bored at her
+   *  desk while you pause, fists up — "I'm not cheering for you" — while a song loads, hand on hip at an empty library,
+   *  a blank "huh?" at an empty list, fishing while the game starts. */
   POSE: {
-    perfect: 'cool', best: 'dance', great: 'wink', okay: 'point', bad: 'snicker', failed: 'mock',
-    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'phone',
+    perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
+    paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
   },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.22, dance: 0.18, happy: 0.45, huh: 0.45, mock: 0.38, phone: 0.31, point: 0.45,
-    sassy: 0.49, snicker: 0.21, wink: 0.28,
+    bored: 0.43, cheer: 0.37, cool: 0.22, fishing: 0.38, happy: 0.45, huh: 0.45, mock: 0.38, point: 0.45, sassy: 0.49,
+    tired: 0.68, wink: 0.28,
   },
   HEAD_SIZE: 0.36,
   /** Her pose for `mood`'s screen (her default picture without it). */
@@ -14862,11 +14867,10 @@ const NeruCameo = {
     if (!name || !pics.poses || !pics.poses[name]) return { src: pics.base, scale: 1 };
     return { src: pics.poses[name], scale: Math.min(1, this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE)) };
   },
-  /** A play's mood: from its grade, a new best, or a fail. */
+  /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
     if (!s || !s.passed) return 'failed';
     if (['XH', 'X', 'SS'].includes(s.grade)) return 'perfect';
-    if (s.isPB) return 'best';
     if (['SH', 'S'].includes(s.grade)) return 'great';
     return ['A', 'B'].includes(s.grade) ? 'okay' : 'bad';
   },
@@ -16562,6 +16566,7 @@ const GameplayScreen = {
     AudioManager.modVolume(1, 0); // (Muted: the music is back for the menus)
     if (this.s && Spectate.host.s === this.s) Spectate.hostEnd(this.s, !this.s.finished); // (watchers: the play ended)
     if (this._asPending) { const msg = this._asPending; this._asPending = null; setTimeout(() => Toast.show('Lowered the resolution to keep up', msg), 600); }
+    if (this._capPending) { this._capPending = false; setTimeout(() => Toast.show('Your browser held the game to 30 fps', 'It does that to save battery. Plug in, or turn off Energy Saver (Chrome settings → Performance) or your device\'s battery saver, for the full frame rate.', { timeout: 12000 }), 900); }
     this._tok = null;
     this.renderer && this.renderer.dispose();
     clearTimeout(this._retryHold);
@@ -17005,7 +17010,7 @@ const GameplayScreen = {
   buildHud() {
     const s = this.s;
     clearEl(this.hud);
-    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined;
+    this._pq = this._pieQ = this._lead = this._canSkip = this._inBreak = this._progT = this._ppJudged = this._scT = undefined; this._lastSc = this._lastAcc = this._lastTT = this._hudOff = undefined; this._ctrl = false;
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
@@ -17125,7 +17130,7 @@ const GameplayScreen = {
       this._raf = requestAnimationFrame(frame);
       const s = this.s;
       if (!s) return;
-      const realNow = ts > 0 ? ts : performance.now();
+      const w0 = performance.now(), realNow = ts > 0 ? ts : w0;
       // the display's refresh interval, for the frame limiter
       if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
       this._lastTs = realNow;
@@ -17193,6 +17198,7 @@ const GameplayScreen = {
       if (s.running && !s.feed && GamepadWatch.connected) this.pollGamepad();
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
+      this._work = performance.now() - w0;
     };
     frame(performance.now());
   },
@@ -17209,19 +17215,29 @@ const GameplayScreen = {
   autoMin() { return Math.min(this.AUTO_SCALE_MIN, 1 / Math.max(1e-3, Zoom.dpr() * Settings.get('graphics.renderScale'))); },
   initAutoScale() {
     const on = Settings.get('graphics.autoScale');
-    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], t0: 0, bad: 0, smooth: 0, windows: 0 };
+    this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], work: [], t0: 0, bad: 0, smooth: 0, windows: 0, capped: 0 };
     this.renderer.autoScale = this._as.scale;
   },
   adaptResolution(dt, realNow, lim) {
     const a = this._as;
-    if (!a || !a.on || document.hidden || !(dt > 0) || dt > 250) return; // (skip pauses, tab switches, hitches)
-    a.times.push(dt);
+    if (!a || document.hidden || !(dt > 0) || dt > 250) return; // (skip pauses, tab switches, hitches)
+    a.times.push(dt); (a.work || (a.work = [])).push(this._work || 0);
     if (!a.t0) a.t0 = realNow;
     if (realNow - a.t0 < 2000) return;
     // (a new list for the next window: emptying this one in place emptied `t` too, so late frames were never counted —
     // stutter went unseen, and a smooth play was never seen as smooth either)
-    const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1];
-    a.times = []; a.t0 = realNow; a.windows++;
+    const t = a.times.sort((x, y) => x - y), med = t[t.length >> 1], work = a.work.sort((x, y) => x - y)[a.work.length >> 1];
+    a.times = []; a.work = []; a.t0 = realNow; a.windows++;
+    // a steady 30 fps with little to do each frame isn't this device being slow: the browser is holding the frame rate
+    // down (Chrome's Energy Saver halves it, as do battery savers). A lower resolution can't help that — it only made
+    // the notes blurry — so it's left alone, and the player is told how to get the full frame rate back after the play
+    let steady = 0; for (const x of t) if (Math.abs(x - med) < 3) steady++;
+    if (med > 30 && med < 36 && steady > t.length * 0.85 && work < med * 0.25 && !(lim > 0 && lim <= 30)) {
+      a.bad = 0;
+      if ((a.capped = (a.capped || 0) + 1) === 2 && !GameplayScreen._capTold) { GameplayScreen._capTold = true; this._capPending = true; }
+      return;
+    }
+    if (!a.on) return;
     const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
@@ -17408,6 +17424,7 @@ const GameplayScreen = {
         r.el.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.22, 1, .36, 1)' });
       });
     }
+    if (this.lbEl._full === false) return; // (compact: only the places show — the numbers are written when it opens)
     const sub = fmtAcc(e.score.judged ? e.score.accuracy : 1), cmb = `${fmtInt(e.score.combo)}x`, st = fmtScore(sc);
     if (me._sub !== sub) { me._sub = sub; setText(me.sub, String(sub)); }
     if (me._cmb !== cmb) { me._cmb = cmb; setText(me.combo, cmb); }
@@ -17478,6 +17495,7 @@ const GameplayScreen = {
       if (away !== r._away) { r._away = away; r.el.classList.toggle('away', away); }
       const pos = i + 1, sub = away ? 'reconnecting…' : fmtAcc(r.v.acc ?? 1), st = fmt(r.shown), cmb = `${fmtInt(r.v.combo ?? r.v.maxCombo ?? 0)}x`;
       if (r._pos !== pos) { r._pos = pos; setText(r.pos, `#${pos}`); r.el.style.order = pos; r.el.classList.toggle('first', pos === 1); }
+      if (this.mpBoard._full === false) return; // (compact: only the places show)
       if (r._sub !== sub) { r._sub = sub; setText(r.sub, String(sub)); }
       if (r._st !== st) { r._st = st; setText(r.sc, String(st)); }
       if (r._cmb !== cmb) { r._cmb = cmb; setText(r.combo, cmb); }
@@ -17629,7 +17647,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       this.nudgeMapOffset(e.code === 'Equal' || e.code === 'NumpadAdd' ? 1 : -1);
       return;
     }
-    // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it
+    // lazer's HoldForHUD: with the HUD hidden (Shift+Tab), holding Ctrl shows it (and opens the leaderboard)
+    if (e.key === 'Control') this._ctrl = true;
     if ((e.key === 'Control') && (this.hud.classList.contains('hidden-hud') || this.hud.classList.contains('auto-hide'))) this.hud.classList.add('peek');
     if (s.practice && this.practiceKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (this.replayBar && this.replayKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
@@ -17682,7 +17701,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     if (Screens.current !== this) return;
     const s = this.s;
     if (this.isRetryKey(e)) { clearTimeout(this._retryHold); clearTimeout(this._exitHold); this.holdEl && this.holdEl.classList.remove('on'); }
-    if (e.key === 'Control' && this.hud) this.hud.classList.remove('peek');
+    if (e.key === 'Control') { this._ctrl = false; if (this.hud) this.hud.classList.remove('peek'); }
     if (!s) return;
     const col = s.keyMap.get(e.code);
     if (col === undefined) return;
@@ -18046,6 +18065,14 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     const s = this.s, mode = Settings.get('gameplay.hudMode') || 'always';
     const off = mode === 'never' || (mode === 'gameplay' && s.running && !s.finished && !this._inBreak && now > s.firstNote - 500 * s.rate);
     if (off !== this._hudOff) { this._hudOff = off; this.hud.classList.toggle('auto-hide', off); }
+    // lazer's leaderboard (DrawableGameplayLeaderboard): only each place and picture while you play; the full panels —
+    // names, scores, accuracy, combo — whenever you aren't: before the first note, in a break, paused, finished,
+    // watching a replay or someone else, or holding Ctrl
+    const board = this.board();
+    if (board) {
+      const full = !s.running || s.finished || !!s.feed || !!s.spectate || this._inBreak || now < s.firstNote - 500 * s.rate || !!this._ctrl;
+      if (full !== board._full) { board._full = full; board.classList.toggle('compact', !full); if (full && board === this.lbEl) this.updateLeaderboard(true); }
+    }
   },
   // ─────────────────────────────── breaks ───────────────────────────────
   /** Break overlay between distant notes (gaps of at least the minimum break length). */
@@ -20290,7 +20317,7 @@ const CHANGELOG = [
   { id: '2026.10.20', title: 'Your scores on every device', sections: [
     { icon: 'heart', title: 'Neru', items: [
       'Neru shows up around the game now, not only on the main menu: on the results, pause and fail screens, while a song loads, on empty lists and on the loading screen. Click her and she hops; Settings → Show Neru turns her off everywhere',
-      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for a perfect play, dancing about a new best, a wink for a good one, a wagging finger at a so-so one, snickering at a bad one, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and on her phone while the game starts',
+      'Each screen has a pose of her own, from her song\'s music video and cut out cleanly: sunglasses on for an SS, a wagging finger at an S, a wink for an A or B, worn out at a C or D, laughing at a fail, bored at her desk while you pause, fists up while a song loads, hand on hip at an empty library, a blank "huh?" at an empty list, and fishing while the game starts',
       'She\'s the same size in every pose (a close-up of her is shown smaller), and where the video\'s frame cut her off she fades out instead of ending in a hard edge',
       'Her pictures are sharper and cleaner: upscaled with an anime-art model and cut out again, without the pale rim around her outline that showed on dark screens',
       'No more speech bubbles: she lets her face do the talking (clicking her on the main menu shows her excited face, as it always has)'] },
@@ -20301,6 +20328,13 @@ const CHANGELOG = [
       'Collections opens on one that has beatmaps in it, not an empty one',
       'The first-run setup\'s Web-Osu-Mania page is centred like the others; on a phone held sideways the main menu\'s tip waits until the menu opens instead of covering the logo',
       'Neru on the loading screen is gone before the main menu\'s Neru comes in: never two of her at once'] },
+    { icon: 'user', title: 'Friends and the leaderboard', items: [
+      'Your friends list shows everyone\'s profile picture — offline friends too (the last one the game saw) — and so do friend requests and the list of friends to invite to a room',
+      'The leaderboard in a song is as lazer\'s: while you play, just each place and picture, so it stays out of the way; before the first note, in a break, paused, at the end, watching a replay or holding Ctrl it opens out to the names, scores, accuracy and combo'] },
+    { icon: 'sparkle', title: 'Smoother', items: [
+      'Chrome\'s Energy Saver (and battery savers) halve the frame rate, which looks choppy: the game now tells you after the song when that happened and how to turn it off. It also no longer takes those 30 fps for a slow device and lowers the playfield\'s resolution — which only made the notes blurry without making anything faster'] },
+    { icon: 'download', title: 'The HTML file', items: [
+      'A saved HTML file notices when the website has a newer version (as it opens, and every few hours) and asks whether to update — after the song, never in the middle of one. "Update" writes the new version over the file itself (in Chrome and Edge: the first time, the save box opens on the file\'s name — pick it to replace it; after that it\'s remembered) and starts it; your beatmaps, scores and settings stay. "Not now" waits a day'] },
     { icon: 'globe', title: 'Ad blockers', items: [
       'Opening the game no longer sets off ad blockers\' scam warnings: it used to touch the browser\'s history the moment it opened (and on a phone or touchscreen, kept an extra step there for the Back button), which they take for a page sending you somewhere. Now nothing happens until you tap or press a key; the phone\'s Back still works as Esc'] },
     { icon: 'keyboard', title: 'Keys', items: [
@@ -23562,6 +23596,7 @@ const Presence = {
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
+        Friends.remember(this.players);
         // a friend coming online (as lazer tells you) — but not everyone who was already on: after a dropped connection
         // (or the server restarting) the list fills back up a player at a time as each reconnects, and none of them is
         // news. So: someone seen in the last few minutes isn't announced, and nobody is for a little while after we connect.
@@ -23737,7 +23772,7 @@ const Presence = {
       clearEl(list).append(...(others.length ? others.map(p => {
         const busy = p.status === 'playing' || p.status === 'room' || p.status === 'ranked'; // (already in a room or a match: can't be invited)
         const done = invited.has(p.id);
-        return h('div.inv-row', h('span.inv-av', (p.name || '?').slice(0, 1).toUpperCase()),
+        return h('div.inv-row', h('span.inv-av', this.avatarEl(p, 34)),
           h('div.inv-who', h('b', p.name), h('small', p.status === 'playing' ? 'Playing' : p.status === 'room' ? 'In a room' : p.status === 'ranked' ? 'In Ranked Play' : 'Online')),
           h(`button.btn.sm${done || busy ? '' : '.primary'}`, { disabled: done || busy, title: busy ? 'Already in a room' : '', onclick: () => { this.invite(p.id); invited.add(p.id); UISounds.click(); paint(); } }, done ? 'Invited' : busy ? 'In a room' : 'Invite'));
       }) : [h('div.inv-empty', this.ws ? 'None of your friends are online. Add friends from the online users list (top bar).' : 'Connecting…')]));
@@ -25288,12 +25323,21 @@ const Friends = {
   incoming(pid) { return this.requests.some(r => r.pid === pid); },
   /** The server's list (on connecting, and whenever it changes). */
   sync(m) {
-    this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name }));
+    // (each friend's picture: the server's, else the last one seen here — shown while they're offline too)
+    const had = new Map(this.list().map(f => [f.pid, f.avatar]));
+    this.server = (m.list || []).map(f => ({ pid: f.pid, name: f.name, avatar: (typeof f.avatar === 'string' && f.avatar) || had.get(f.pid) || '' }));
     LastSeen.merge((m.list || []).filter(f => f.seen > 0 && !f.online).map(f => [f.pid, f.seen])); // (the server saw them go)
     this.requests = m.requests || [];
     for (const f of this.server) this.sent.delete(f.pid);
     try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
     Bus.emit('friends:changed');
+  },
+  /** Friends online now: a new picture of theirs is kept for when they go offline. */
+  remember(players) {
+    if (!this.server) return;
+    let changed = false;
+    for (const p of players) { const f = p.pid && p.avatar && this.server.find(x => x.pid === p.pid); if (f && f.avatar !== p.avatar) { f.avatar = p.avatar; changed = true; } }
+    if (changed) try { localStorage.setItem(this.KEY, JSON.stringify(this.server)); } catch { /* private mode */ }
   },
   /** The heart: send a request (or accept theirs), or — already friends — remove them. */
   async toggle(p) {
@@ -26125,7 +26169,7 @@ const DashboardScreen = {
       clearEl(this.page).append(
         h('div.dash-streamwrap', stream),
         h('div.dash-body',
-          reqs.length ? h('div.dash-reqs', h('div.dash-h', `Friend requests (${reqs.length})`), ...reqs.map(r => h('div.up.up-list.fr-req', h('div.up-l', Presence.avatarEl({ name: r.name }, 40), h('div.up-name', r.name), h('span.up-sub', 'wants to be friends')),
+          reqs.length ? h('div.dash-reqs', h('div.dash-h', `Friend requests (${reqs.length})`), ...reqs.map(r => h('div.up.up-list.fr-req', h('div.up-l', Presence.avatarEl(r, 40), h('div.up-name', r.name), h('span.up-sub', 'wants to be friends')),
             h('div.up-r', h('button.btn.sm.primary', { onclick: () => { UISounds.click(); Friends.answer(r.pid, true); } }, 'Accept'), h('button.btn.sm', { onclick: () => { UISounds.click(); Friends.answer(r.pid, false); } }, 'Decline'))))) : null,
           h('div.dash-bar', search, h('div.grow'), sorts, styleBtns),
           this.listEl));
@@ -27382,7 +27426,8 @@ const UserTags = {
  * Opened from the device (file://) it plays like the website, offline too, and its online features (multiplayer,
  * beatmap search and downloads, rankings, the daily challenge) talk to the website it was saved from (Host).
  * The file is put together here, in the browser, from what the website serves: the page, then each file that
- * public/files.json lists (written by build.mjs). From a saved file, the same button fetches the newest version. */
+ * public/files.json lists (written by build.mjs). A saved file notices when the website has a newer version and,
+ * if you say so, writes it over itself (File System Access; elsewhere the new file downloads). */
 
 const HtmlFile = {
   NAME: 'Ashtonk!mania.html',
@@ -27458,6 +27503,66 @@ const HtmlFile = {
     } catch (e) { p.fail('Couldn\'t save the HTML file', friendlyError(e)); }
     finally { this.busy = false; }
   },
+  /** The build the website serves now (its service worker names it), or null when it can't be asked. */
+  async latest() {
+    const base = this.base();
+    if (!base) return null;
+    const r = await fetch(new URL('sw.js', base), { cache: 'no-cache', signal: timeoutSignal(15000) });
+    const m = r.ok && /const VERSION = '([0-9a-f]{6,40})'/.exec(await r.text());
+    return m ? m[1] : null;
+  },
+  /** This file's name on the device (the update is written over it). */
+  fileName() { try { return decodeURIComponent(location.pathname.split('/').pop()) || this.NAME; } catch { return this.NAME; } },
+  /** A saved file looks for a newer version as it opens and every few hours while it stays open, and asks — not in
+   *  the middle of a song (as lazer holds notifications back), and "Not now" holds for a day. */
+  watch() {
+    if (!Host.standalone || !Host.server()) return;
+    const check = this.check = async () => {
+      const v = await this.latest().catch(() => null);
+      if (!v || v === APP_BUILD || this._asked === v) return;
+      let later = null; try { later = JSON.parse(localStorage.getItem('am.fileUpdateLater') || 'null'); } catch { /* none */ }
+      if (later && later.v === v && Date.now() - later.at < 86400e3) return;
+      this._asked = v;
+      const ask = () => {
+        if (Screens.currentName === 'gameplay' || document.querySelector('.dialog')) { const off = Bus.on('screen:changed', () => { if (Screens.currentName !== 'gameplay') { off(); setTimeout(ask, 1500); } }); return; }
+        this.offer(v);
+      };
+      ask();
+    };
+    setTimeout(check, 6000);
+    setInterval(check, 3 * 3600e3);
+  },
+  async offer(v) {
+    const ok = await Dialog.confirm('A new version of Ashtonk!mania is out', `This file is out of date. Update it now? The new version is written over ${this.fileName()} — your beatmaps, scores and settings stay as they are.`, { ok: 'Update', cancel: 'Not now', icon: 'download' });
+    if (!ok) { try { localStorage.setItem('am.fileUpdateLater', JSON.stringify({ v, at: Date.now() })); } catch { /* private mode */ } return; }
+    this.update();
+  },
+  /** Write the newest version over this file: the place it was saved to before (remembered), or — the first time —
+   *  where you point the save box (already on this file's name). A browser that can't write files gets a download. */
+  async update() {
+    if (this.busy) return;
+    const name = this.fileName();
+    // (asked straight away, while the click that asked for it still counts: the browser only allows the save box then)
+    let handle = await DB.kvGet('htmlFile.handle', null).catch(() => null);
+    if (handle && handle.name !== name) handle = null;
+    if (handle) { try { if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') handle = null; } catch { handle = null; } }
+    if (!handle && window.showSaveFilePicker) {
+      try { handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'downloads', types: [{ description: 'Ashtonk!mania', accept: { 'text/html': ['.html'] } }] }); }
+      catch (e) { if (e && e.name === 'AbortError') return; handle = null; }
+    }
+    if (!handle) { await this.save(); Toast.show('Put the new file in place of this one', `Then open ${this.NAME} again to play the new version.`, { timeout: 10000 }); return; }
+    this.busy = true;
+    const p = Toast.progress('Updating Ashtonk!mania', 'Getting the newest version…');
+    try {
+      const blob = await this.build(f => p.set(f * 0.97));
+      const w = await handle.createWritable();
+      await w.write(blob); await w.close();
+      DB.kvSet('htmlFile.handle', handle).catch(() => {});
+      if (handle.name === name) { p.done('Updated', 'Starting the new version…'); setTimeout(() => location.reload(), 1200); }
+      else p.done('New version saved', `As ${handle.name}: open it to play the new version.`);
+    } catch (e) { p.fail('Couldn\'t update the file', friendlyError(e)); }
+    finally { this.busy = false; }
+  },
   /** Its part of Settings → Maintenance → Data management. */
   panel(btn) {
     const note = t => h('div.muted', { style: { fontSize: '.8rem' } }, t);
@@ -27475,7 +27580,7 @@ const HtmlFile = {
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
       note(`Playing from a saved HTML file${saved ? ` (saved ${saved})` : ''}. Online features connect to this website:`),
       h('div.row', { style: { gap: '6px' } }, inp, h('button.btn.sm', { onclick: apply }, 'Set')),
-      h('div.row.wrap', btn(kbHint('Get the newest version (Ctrl+S)', 'Get the newest version'), 'download', () => this.save())));
+      h('div.row.wrap', btn('Update this file', 'download', () => this.update()), btn(kbHint('Save a copy (Ctrl+S)', 'Save a copy'), 'download', () => this.save())));
   },
 };
 
@@ -28056,7 +28161,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '092d1fb6b8ae';
+const APP_BUILD = '92dd892a939a';
 
 const App = {
   lastReport: null,
@@ -28119,6 +28224,7 @@ const App = {
     else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
+    HtmlFile.watch();
     Mobile.early(); // (on a phone: recommend the app before anything else)
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)

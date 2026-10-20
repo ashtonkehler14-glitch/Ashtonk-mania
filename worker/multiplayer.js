@@ -1463,7 +1463,9 @@ export class PresenceLogic {
   byPid(pid) { return [...this.users.entries()].filter(([, u]) => u.pid && u.pid === pid).map(([id]) => id); }
   friendsMsg(pid) {
     const online = new Set([...this.users.values()].filter(u => u.vis !== 'offline').map(u => u.pid));
-    return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ pid: p, name, online: online.has(p), seen: this.seen.get(p) || 0 })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => ({ pid: p, name })) };
+    // (with each one's current name and picture: from them while online, else from their last ranked record)
+    const who = (p, name) => { const c = this.current({ pid: p, name, avatar: '' }); return { pid: p, name: c.name, avatar: c.avatar || '' }; };
+    return { t: 'friends', list: [...(this.friends.get(pid) || [])].map(([p, name]) => ({ ...who(p, name), online: online.has(p), seen: this.seen.get(p) || 0 })), requests: [...(this.requests.get(pid) || [])].map(([p, name]) => who(p, name)) };
   }
   /** Tell both sides (every tab of each) their friends changed. */
   friendsOut(...pids) { return pids.flatMap(p => this.byPid(p).map(id => ({ to: id, msg: this.friendsMsg(p) }))); }

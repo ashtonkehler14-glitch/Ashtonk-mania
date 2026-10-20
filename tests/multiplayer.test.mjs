@@ -963,7 +963,7 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   const p = new PresenceLogic(() => 0);
   const kept = {};
   p.persist = (kind, pid, list) => { kept[kind + ':' + pid] = list; };
-  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789' });
+  p.join('a', { name: 'Alice', pid: 'alicepid', key: 'key-alicepid-0123456789' }); p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789', avatar: 'preset:fox' });
   const sent = p.message('a', { t: 'friendReq', to: 'b' });
   assert.ok(sent.some(o => o.to === 'a' && o.msg.t === 'friendSent'));
   assert.ok(sent.some(o => o.to === 'b' && o.msg.t === 'friendReq' && o.msg.from.name === 'Alice'));
@@ -973,7 +973,7 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   const yes = p.message('b', { t: 'friendAnswer', pid: 'alicepid', yes: true });
   assert.ok(p.areFriends('alicepid', 'bobpid1') && p.areFriends('bobpid1', 'alicepid'));
   assert.ok(yes.some(o => o.to === 'a' && o.msg.t === 'friendAdded' && o.msg.name === 'Bob'));
-  assert.deepEqual(yes.find(o => o.to === 'a' && o.msg.t === 'friends').msg.list.map(f => f.pid), ['bobpid1']);
+  assert.deepEqual(yes.find(o => o.to === 'a' && o.msg.t === 'friends').msg.list.map(f => [f.pid, f.avatar]), [['bobpid1', 'preset:fox']], 'with their picture');
   assert.deepEqual(kept['fr:alicepid'], [['bobpid1', 'Bob']]); assert.deepEqual(kept['fq:bobpid1'], []);
   // friends come back after a restart (loaded from storage), and a new tab gets the list on joining
   const q = new PresenceLogic(() => 0);
@@ -982,7 +982,9 @@ test('presence: friend requests — sent, answered, mutual, kept, and removable;
   assert.deepEqual(hello.find(o => o.msg.t === 'friends').msg.list.map(f => f.name), ['Bob']);
   // a declined request goes away
   p.join('c', { name: 'Cat', pid: 'catpid9', key: 'key-catpid9-0123456789' });
+  p.message('c', { t: 'status', status: 'online', avatar: 'preset:cat' });
   p.message('c', { t: 'friendReq', to: 'a' });
+  assert.deepEqual(p.friendsMsg('alicepid').requests, [{ pid: 'catpid9', name: 'Cat', avatar: 'preset:cat' }], 'a request shows who it\'s from, picture and all');
   p.message('a', { t: 'friendAnswer', pid: 'catpid9', yes: false });
   assert.equal(p.areFriends('alicepid', 'catpid9'), false); assert.equal(p.friendsMsg('alicepid').requests.length, 0);
   // two requests crossing: friends straight away

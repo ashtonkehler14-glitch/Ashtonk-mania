@@ -67,6 +67,7 @@ const App = {
     else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
     this.initPWA();
+    HtmlFile.watch();
     Mobile.early(); // (on a phone: recommend the app before anything else)
     Sync.init();
     this.installExtraSkins(); // (in the background: the menu doesn't wait for it)
