@@ -26,10 +26,9 @@ const Sync = {
   pending() { return this.marked('am.restore') === '1'; },
 
   init() {
-    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) this.later(); });
-    Bus.on('skin:changed', () => this.later());
-    Bus.on('collections:changed', () => this.later());
-    Bus.on('favorites:changed', () => this.later());
+    // (a medal is your progress, not a change to your settings: it goes up with the next one — merged, see apply)
+    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) { if (k !== 'medals.unlocked') this.touch(); this.later(); } });
+    for (const ev of ['skin:changed', 'collections:changed', 'favorites:changed']) Bus.on(ev, () => { this.touch(); this.later(); });
     Bus.on('account:changed', () => this.later());
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -44,7 +43,16 @@ const Sync = {
     clearTimeout(this.t);
     this.t = setTimeout(() => this.push().catch(e => console.warn('settings not kept', e)), ms);
   },
-  ready() { return Account.linked() && !Account.signedOut() && !this.pending() && Multiplayer.available() && !!Account.me().pid; },
+  /** Your settings, skin, collections or favourites were changed on this device since they last went up (as this
+   *  player). Only then are they sent: a device that merely has another version of them — brought long ago, or with
+   *  a setting the game has added since — never puts it over the one you changed on another device. */
+  dirty() { const pid = Account.me().pid; return !!pid && this.marked('am.setDirty') === pid; },
+  /** Changed here (not by a restore bringing them). */
+  touch() { if (this._restoring) return; const pid = Account.me().pid; if (pid) { this.mark('am.setDirty', pid); this._touched = Date.now(); } },
+  /** When everything from here last went up (0: not yet, or not as this player). */
+  sentAt() { const [p, t] = this.marked('am.syncAt').split('|'); return p && p === Account.me().pid ? Number(t) || 0 : 0; },
+  // (nothing goes up while a restore is under way: what it brings isn't all here yet)
+  ready() { return Account.linked() && !Account.signedOut() && !this.pending() && !this._restoring && Multiplayer.available() && !!Account.me().pid; },
 
   /** What's sent: your settings, which skin you use (by id and name: the same skin has another id on a device it was
    *  brought to), your collections (by name, with their beatmaps' hashes) and favourites (beatmap sets' ids) — unless
@@ -64,17 +72,22 @@ const Sync = {
     try {
       let failed = null;
       try {
-        const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
-        let kept; // (undefined: not asked this time; null: the server keeps no skin)
-        if (this.marked('am.setSent') !== sum) {
-          kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
-          this.mark('am.setSent', sum);
+        if (this.dirty()) {
+          const t0 = Date.now(), me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
+          let kept; // (undefined: not asked this time; null: the server keeps no skin)
+          if (this.marked('am.setSent') !== sum) {
+            kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
+            this.mark('am.setSent', sum);
+          }
+          await this.pushSkin(kept);
+          if (!(this._touched > t0)) this.mark('am.setDirty', null); // (changed again meanwhile: that goes next)
         }
-        await this.pushSkin(kept);
       } catch (e) { failed = e; }
       // (your plays on their own: a skin that couldn't go up doesn't keep them back)
-      try { await this.syncScores(); } catch (e) { console.warn('scores not kept', e); }
+      let plays = true;
+      try { await this.syncScores(); } catch (e) { plays = false; console.warn('scores not kept', e); }
       if (failed) throw failed;
+      if (plays) this.mark('am.syncAt', `${Account.me().pid}|${Date.now()}`);
     } finally {
       this._pushing = false;
       if (this._again) { this._again = false; this.later(); }
@@ -163,6 +176,10 @@ const Sync = {
    *  Resolves to what came: { settings, skin, scores, collections, favorites } (skin: its name, if it was downloaded;
    *  scores: how many of your plays; collections: how many were added or got more beatmaps; favorites: how many new). */
   async restore(onStatus = () => {}) {
+    this._restoring = true;
+    try { return await this._restore(onStatus); } finally { this._restoring = false; }
+  },
+  async _restore(onStatus) {
     this.mark('am.restore', '1');
     onStatus('Bringing your settings…');
     let d;
@@ -202,9 +219,11 @@ const Sync = {
         }
       }
     }
-    // (what came is what's kept: nothing to send back — unless this device added something of its own to it. Sent
-    // back anyway, it went over any newer settings another of your devices had sent in the meantime.)
-    if (s && !own) this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`);
+    // (what came is what's kept: nothing to send back — unless this device added something of its own to it, or
+    // nothing was kept yet: then this device's go up. Sent back anyway, it went over any newer settings another of
+    // your devices had sent in the meantime.)
+    if (s && !own) { this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`); this.mark('am.setDirty', null); }
+    else this.mark('am.setDirty', pid);
     onStatus('Bringing your scores…');
     // (all that's kept, not only what's new since this device last asked: one that had them and lost them — Reset
     // everything, or cleared by the browser — gets them back; the ones it has are skipped)

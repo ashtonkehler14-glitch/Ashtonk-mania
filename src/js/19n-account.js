@@ -44,6 +44,7 @@ const Account = {
     if (this.signedOut()) throw new Error('This device is signed out. Type your code to play as yourself here.');
     const d = await this.call('code', this.me());
     try { localStorage.setItem('am.code', this.format(d.code)); localStorage.setItem('am.linked', '1'); } catch { /* private mode */ }
+    if (typeof Sync !== 'undefined') Sync.touch(); // (this device's settings and skin go up with it)
     Bus.emit('account:changed');
     return this.format(d.code);
   },
@@ -142,7 +143,7 @@ const CodePanel = {
     if (!code) {
       const get = h('button.btn.primary.lp-btn', icon('lock'), Account.linked() ? 'Make a new code' : 'Get my code');
       get.addEventListener('click', async () => { this.busy(get, true); try { await Account.newCode(); this.shown = true; this.render(); } catch (e) { fail(e); } finally { this.busy(get, false); } });
-      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank, friends, settings and skin.'), get, err);
+      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank, friends, settings, collections and skin.'), get, err);
       return;
     }
     const val = h('div.lp-code', this.shown ? code : code.replace(/[^-]/g, '•'));
@@ -152,7 +153,10 @@ const CodePanel = {
       try { await navigator.clipboard.writeText(code); UISounds.click(); Toast.ok('Code copied', 'Type or paste it on your other device.'); }
       catch { this.shown = true; this.render(); } // (no clipboard here: shown, to copy by hand)
     } }, icon('copy'));
-    p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')), err);
+    // (what goes with it, and when this device last sent its part)
+    const at = Account.linked() && Sync.sentAt();
+    p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')),
+      Account.linked() ? h('p.lp-note.lp-kept', `Your settings, skin, collections, favourites and plays go with it${at ? ` — last sent ${fmtDate(at)}` : ''}.`) : null, err);
     // (the rarely needed: small, under it)
     const act = (label, fn, cls = '') => h(`button.lp-act${cls}`, { onclick: fn }, label);
     p.append(h('div.lp-acts',
@@ -186,7 +190,7 @@ const CodePanel = {
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
-    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings and skin come along.'), inp, err, go,
+    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings, skin, collections and scores come along.'), inp, err, go,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
   },

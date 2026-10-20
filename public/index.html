@@ -11867,7 +11867,7 @@ const DataManager = {
   async resetEverything() {
     // (what was sent from here is forgotten too: a device playing through a code gets everything kept for you back
     // from the setup that follows)
-    try { ['am.setSent', 'am.skinSent', 'am.skinBig', 'am.scPulled'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
+    try { ['am.setSent', 'am.setDirty', 'am.skinSent', 'am.skinBig', 'am.scPulled'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
     DB.db && DB.db.close(); DB.db = null;
     await new Promise(r => { const q = indexedDB.deleteDatabase(DB.name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
     location.reload();
@@ -20054,7 +20054,8 @@ const CHANGELOG = [
       'Sign out on this device from the same place, for a shared or school computer',
       'The first-run setup asks whether you\'ve played before, then takes you to a page of its own: if you have, type your code there (with "Where do I find my code?" if you don\'t know where it is); if you\'re new, pick your name and get your code — save it somewhere safe',
       'Your settings and your skin, if you imported one, come along: type your code on another device and they\'re set up as you had them (Kori and the Custom skin are on every device already). Settings that belong to a device — performance, sharpness, audio offset — stay as they are there',
-      'A device that has just brought your settings doesn\'t send them straight back: done 10 seconds later, it could undo a change you\'d made on another device in the meantime',
+      'Your code (the menu under your name) says what goes with it — settings, skin, collections, favourites and plays — and when this device last sent them',
+      'A device sends your settings only when you change them there: one that merely had another version of them — brought long ago, or with a setting an update added — sent it at its next start, over what you\'d changed on another device (the last device opened won). One that has just brought them doesn\'t send them straight back either',
       'Your collections and favourites come along as well (a collection with the same name on the other device gets their beatmaps too; a favourite you don\'t have there yet is one once it\'s imported)',
       'Your scores come along too: the plays you set on one device show up on your others — in song select, your profile and your stats — a few seconds after the song on that device (or when you come back to the game). They come without the replay and the hit-by-hit timing, which stay on the device you played on; imported backups stay where they were imported',
       'A returning player\'s setup is short: after your code, only the device\'s own page (performance or graphics) is left',
@@ -27239,6 +27240,7 @@ const Account = {
     if (this.signedOut()) throw new Error('This device is signed out. Type your code to play as yourself here.');
     const d = await this.call('code', this.me());
     try { localStorage.setItem('am.code', this.format(d.code)); localStorage.setItem('am.linked', '1'); } catch { /* private mode */ }
+    if (typeof Sync !== 'undefined') Sync.touch(); // (this device's settings and skin go up with it)
     Bus.emit('account:changed');
     return this.format(d.code);
   },
@@ -27337,7 +27339,7 @@ const CodePanel = {
     if (!code) {
       const get = h('button.btn.primary.lp-btn', icon('lock'), Account.linked() ? 'Make a new code' : 'Get my code');
       get.addEventListener('click', async () => { this.busy(get, true); try { await Account.newCode(); this.shown = true; this.render(); } catch (e) { fail(e); } finally { this.busy(get, false); } });
-      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank, friends, settings and skin.'), get, err);
+      p.append(h('p.lp-lead', Account.linked() ? 'This device doesn\'t have your code to show. A new one replaces it.' : 'Get a code to play as yourself on another device — your scores, rank, friends, settings, collections and skin.'), get, err);
       return;
     }
     const val = h('div.lp-code', this.shown ? code : code.replace(/[^-]/g, '•'));
@@ -27347,7 +27349,10 @@ const CodePanel = {
       try { await navigator.clipboard.writeText(code); UISounds.click(); Toast.ok('Code copied', 'Type or paste it on your other device.'); }
       catch { this.shown = true; this.render(); } // (no clipboard here: shown, to copy by hand)
     } }, icon('copy'));
-    p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')), err);
+    // (what goes with it, and when this device last sent its part)
+    const at = Account.linked() && Sync.sentAt();
+    p.append(h('div.lp-code-row', box, copy), h('p.lp-lead', 'Type it on your other device to play there as you. ', h('b', 'Keep it secret.')),
+      Account.linked() ? h('p.lp-note.lp-kept', `Your settings, skin, collections, favourites and plays go with it${at ? ` — last sent ${fmtDate(at)}` : ''}.`) : null, err);
     // (the rarely needed: small, under it)
     const act = (label, fn, cls = '') => h(`button.lp-act${cls}`, { onclick: fn }, label);
     p.append(h('div.lp-acts',
@@ -27381,7 +27386,7 @@ const CodePanel = {
     };
     go.addEventListener('click', submit);
     const signedOut = Account.signedOut();
-    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings and skin come along.'), inp, err, go,
+    p.append(h('p.lp-lead', signedOut ? 'Type your code from your other device.' : 'Type the code from your other device to play as you here.', ' Your settings, skin, collections and scores come along.'), inp, err, go,
       signedOut ? h('div.lp-acts', h('button.lp-act', { onclick: () => { Account.fresh(); this.close(); Toast.show('Playing as a new player', 'Scores from this device go online as a new player.'); } }, 'Start over as a new player instead')) : null);
     setTimeout(() => inp.isConnected && inp.focus(), 60);
   },
@@ -27416,10 +27421,9 @@ const Sync = {
   pending() { return this.marked('am.restore') === '1'; },
 
   init() {
-    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) this.later(); });
-    Bus.on('skin:changed', () => this.later());
-    Bus.on('collections:changed', () => this.later());
-    Bus.on('favorites:changed', () => this.later());
+    // (a medal is your progress, not a change to your settings: it goes up with the next one — merged, see apply)
+    Bus.on('settings:changed', k => { if (k === '*' || !this.local(k)) { if (k !== 'medals.unlocked') this.touch(); this.later(); } });
+    for (const ev of ['skin:changed', 'collections:changed', 'favorites:changed']) Bus.on(ev, () => { this.touch(); this.later(); });
     Bus.on('account:changed', () => this.later());
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -27434,7 +27438,16 @@ const Sync = {
     clearTimeout(this.t);
     this.t = setTimeout(() => this.push().catch(e => console.warn('settings not kept', e)), ms);
   },
-  ready() { return Account.linked() && !Account.signedOut() && !this.pending() && Multiplayer.available() && !!Account.me().pid; },
+  /** Your settings, skin, collections or favourites were changed on this device since they last went up (as this
+   *  player). Only then are they sent: a device that merely has another version of them — brought long ago, or with
+   *  a setting the game has added since — never puts it over the one you changed on another device. */
+  dirty() { const pid = Account.me().pid; return !!pid && this.marked('am.setDirty') === pid; },
+  /** Changed here (not by a restore bringing them). */
+  touch() { if (this._restoring) return; const pid = Account.me().pid; if (pid) { this.mark('am.setDirty', pid); this._touched = Date.now(); } },
+  /** When everything from here last went up (0: not yet, or not as this player). */
+  sentAt() { const [p, t] = this.marked('am.syncAt').split('|'); return p && p === Account.me().pid ? Number(t) || 0 : 0; },
+  // (nothing goes up while a restore is under way: what it brings isn't all here yet)
+  ready() { return Account.linked() && !Account.signedOut() && !this.pending() && !this._restoring && Multiplayer.available() && !!Account.me().pid; },
 
   /** What's sent: your settings, which skin you use (by id and name: the same skin has another id on a device it was
    *  brought to), your collections (by name, with their beatmaps' hashes) and favourites (beatmap sets' ids) — unless
@@ -27454,17 +27467,22 @@ const Sync = {
     try {
       let failed = null;
       try {
-        const me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
-        let kept; // (undefined: not asked this time; null: the server keeps no skin)
-        if (this.marked('am.setSent') !== sum) {
-          kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
-          this.mark('am.setSent', sum);
+        if (this.dirty()) {
+          const t0 = Date.now(), me = Account.me(), p = this.payload(), sum = `${me.pid}|${await hashHex(JSON.stringify(p))}`;
+          let kept; // (undefined: not asked this time; null: the server keeps no skin)
+          if (this.marked('am.setSent') !== sum) {
+            kept = (await Account.call('settings', { ...me, settings: p })).skin || null;
+            this.mark('am.setSent', sum);
+          }
+          await this.pushSkin(kept);
+          if (!(this._touched > t0)) this.mark('am.setDirty', null); // (changed again meanwhile: that goes next)
         }
-        await this.pushSkin(kept);
       } catch (e) { failed = e; }
       // (your plays on their own: a skin that couldn't go up doesn't keep them back)
-      try { await this.syncScores(); } catch (e) { console.warn('scores not kept', e); }
+      let plays = true;
+      try { await this.syncScores(); } catch (e) { plays = false; console.warn('scores not kept', e); }
       if (failed) throw failed;
+      if (plays) this.mark('am.syncAt', `${Account.me().pid}|${Date.now()}`);
     } finally {
       this._pushing = false;
       if (this._again) { this._again = false; this.later(); }
@@ -27553,6 +27571,10 @@ const Sync = {
    *  Resolves to what came: { settings, skin, scores, collections, favorites } (skin: its name, if it was downloaded;
    *  scores: how many of your plays; collections: how many were added or got more beatmaps; favorites: how many new). */
   async restore(onStatus = () => {}) {
+    this._restoring = true;
+    try { return await this._restore(onStatus); } finally { this._restoring = false; }
+  },
+  async _restore(onStatus) {
     this.mark('am.restore', '1');
     onStatus('Bringing your settings…');
     let d;
@@ -27592,9 +27614,11 @@ const Sync = {
         }
       }
     }
-    // (what came is what's kept: nothing to send back — unless this device added something of its own to it. Sent
-    // back anyway, it went over any newer settings another of your devices had sent in the meantime.)
-    if (s && !own) this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`);
+    // (what came is what's kept: nothing to send back — unless this device added something of its own to it, or
+    // nothing was kept yet: then this device's go up. Sent back anyway, it went over any newer settings another of
+    // your devices had sent in the meantime.)
+    if (s && !own) { this.mark('am.setSent', `${pid}|${await hashHex(JSON.stringify(this.payload()))}`); this.mark('am.setDirty', null); }
+    else this.mark('am.setDirty', pid);
     onStatus('Bringing your scores…');
     // (all that's kept, not only what's new since this device last asked: one that had them and lost them — Reset
     // everything, or cleared by the browser — gets them back; the ones it has are skipped)
@@ -27667,7 +27691,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '13843460aeef';
+const APP_BUILD = '7450cad27b0b';
 
 const App = {
   lastReport: null,

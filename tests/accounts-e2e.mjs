@@ -106,6 +106,8 @@ try {
   const code = await a.textContent('.login-panel .lp-code');
   check('…clicked: 16 characters in fours, the one setup showed', /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){3}$/.test(code) && code === await a.evaluate(() => AshtonkMania.Account.code()), code);
   check('…the player is the same as before (the code is for who you already are)', await a.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
+  // (its settings go up with the code — the game does it a few seconds later; here, now)
+  await syncNow(a);
   await closePanel(a);
   await a.evaluate(() => AshtonkMania.CodePanel.open()); await a.waitForSelector('.login-panel .lp-code');
   check('opened again later, the code is hidden until you ask to see it', /^[•-]+$/.test(await a.textContent('.login-panel .lp-code')));
@@ -176,9 +178,11 @@ try {
   await b.waitForFunction(() => AshtonkMania.Account.linked() && !AshtonkMania.Account.signedOut() && !document.querySelector('.setup'), null, { timeout: 10000 });
   check('a signed-out device comes back with the new code', await b.evaluate(() => AshtonkMania.Presence.pid()) === pidA);
   // (what it brought counts as sent: sent back, it went over newer settings another device sent meanwhile)
-  await b.waitForFunction(() => !AshtonkMania.Sync.pending(), null, { timeout: 15000 }).catch(() => {});
+  await b.waitForFunction(() => !AshtonkMania.Sync.pending() && !AshtonkMania.Sync._restoring, null, { timeout: 15000 }).catch(() => {});
   const bSent = await b.evaluate(() => localStorage.getItem('am.setSent') || '');
-  check('…and doesn\'t send the settings it brought straight back', bSent.startsWith(pidA + '|'), bSent);
+  const bWhy = bSent ? '' : await b.evaluate(async () => { const S = AshtonkMania.Sync, d = await AshtonkMania.Account.call('restore', AshtonkMania.Account.me()), s = d.settings;
+    return JSON.stringify({ has: !!s, own: s && S.ownExtra(s), cols: Collections.list.map(c => c.name + ':' + c.hashes.length), favs: AshtonkMania.Favorites.set.size, medals: Object.keys(AshtonkMania.Settings.values['medals.unlocked'] || {}).length, rmedals: s && s.values ? Object.keys(s.values['medals.unlocked'] || {}).length : -1, rcols: s && (s.collections || []).map(c => c.name + ':' + c.hashes.length) }); });
+  check('…and doesn\'t send the settings it brought straight back', bSent.startsWith(pidA + '|'), bSent + bWhy);
   check('…still one Kai on the rankings', (await rankings(a)).total === 1);
 
   // ── your scores come along too: device A keeps a play of its own (and one from a backup, which stays there)
@@ -194,12 +198,17 @@ try {
     const meta = await A.SkinManager.importOsk(new File([bytes], 'chemuss.osk'));
     await A.SkinManager.select(meta.id);
     A.Settings.set('gameplay.scrollSpeed', 33); A.Settings.set('wom.hue', 200); A.Settings.set('audio.offset', 25); A.Settings.set('graphics.performanceMode', true);
+    while (A.Sync._pushing) await new Promise(r => setTimeout(r, 50));
     await A.Sync.push();
     return { skin: meta.name, sent: localStorage.getItem('am.skinSent') || '' };
   }, osk);
   check('device A keeps its settings and the skin it imported on the server', !!mineA.skin && mineA.sent.endsWith(await a.evaluate(() => AshtonkMania.SkinManager.current.id)), JSON.stringify(mineA));
   // (what went is kept as a list of ids: the plays themselves aren't written again)
   const sentA = await a.evaluate(async ([x, y]) => { const l = AshtonkMania.ScoreManager.scores, kept = await DB.kvGet('sync.sent', {}); return { n: l.length, pid: kept.pid, own: (kept.ids || []).includes(x), imp: (kept.ids || []).includes(y), marked: l.some(s => 'sent' in s) }; }, [scA, scImp]);
+  await syncNow(a);
+  await a.evaluate(() => AshtonkMania.CodePanel.open()); await a.waitForSelector('.login-panel .lp-kept');
+  const kept = await a.textContent('.login-panel .lp-kept') + ' ' + await a.evaluate(() => JSON.stringify({ at: localStorage.getItem('am.syncAt'), pid: AshtonkMania.Presence.pid(), pushing: AshtonkMania.Sync._pushing })); await closePanel(a);
+  check('Your code says what goes with it, and when this device last sent it', /settings, skin, collections, favourites and plays/.test(kept) && /last sent just now/.test(kept), kept);
   check('…and its play (not the one from a backup), which doesn\'t come back to it twice', sentA.n === 2 && sentA.pid === pidA && sentA.own && !sentA.imp && !sentA.marked, JSON.stringify(sentA));
   // a new device: "Yes, I have a code" → its own page for the code → your settings and skin arrive → only the device's own page is left
   const ectx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
@@ -223,6 +232,17 @@ try {
   check('…then only the device\'s own page is left (performance or graphics): it\'s you, set up as you were', got.steps === 'welcome,account,device' && got.pid === pidA, got.steps);
   const scE = await e.evaluate(async id => { const A = AshtonkMania, l = A.ScoreManager.scores, s = l.find(x => x.id === id), kept = await DB.get('scores', id); return { n: l.length, s: s && { synced: s.synced, timing: !!(kept && kept.hitErrors), ur: s.unstableRate, mean: s.meanError, counts: s.counts.join(), oid: `${s.onlineId}/${s.onlineSetId}` }, plays: StatisticsManager.compute().plays }; }, scA);
   check('…and your play from device A, without its hit-by-hit timing (the backup\'s stays there), with the beatmap\'s osu! ids', scE.s && scE.s.oid === '4242/77' && scE.n === 1 && scE.s && scE.s.synced && !scE.s.timing && scE.s.ur === 120 && scE.s.mean === -3.2 && scE.s.counts === '200,50,10,0,0,2' && scE.plays === 1 && got.got.scores === 1, JSON.stringify(scE));
+  // settings that differ from the kept ones only because the game changed them here (an update adding a setting) —
+  // not you — aren't sent: the ones you set on another device stay kept. Ones you change are.
+  const kept2 = await e.evaluate(async () => {
+    const A = AshtonkMania, S = A.Sync, push = async () => { while (S._pushing) await new Promise(r => setTimeout(r, 50)); await S.push(); };
+    const kept = async () => (await A.Account.call('restore', A.Account.me())).settings.values['gameplay.scrollSpeed'];
+    A.Settings.values['gameplay.scrollSpeed'] = 12; await push(); const quiet = await kept();
+    A.Settings.set('gameplay.scrollSpeed', 34); await push(); const changed = await kept();
+    A.Settings.set('gameplay.scrollSpeed', 33); await push();
+    return { quiet, changed, back: await kept() };
+  });
+  check('…a device sends your settings only when you change them there, not when the game did', kept2.quiet === 33 && kept2.changed === 34 && kept2.back === 33, JSON.stringify(kept2));
   const colE = await e.evaluate(id => Collections.list.map(c => `${c.name}:${c.hashes.length}`).join() + (AshtonkMania.Favorites.has(id) ? ' fav' : ''), favSet);
   check('…and your collections (merged with the ones a new device has) and favourites (the set isn\'t here yet)', /Jumps:1/.test(colE) && /Practice:0/.test(colE) && / fav$/.test(colE) && got.got.collections === 1 && got.got.favorites === 1 && said.some(t => /Your collections and favourites/.test(t)), colE);
   check('…the page says your scores came', said.some(t => /Your scores \(1 play\)/.test(t)), JSON.stringify([...new Set(said)]).slice(0, 400));

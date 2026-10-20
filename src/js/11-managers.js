@@ -482,7 +482,7 @@ const DataManager = {
   async resetEverything() {
     // (what was sent from here is forgotten too: a device playing through a code gets everything kept for you back
     // from the setup that follows)
-    try { ['am.setSent', 'am.skinSent', 'am.skinBig', 'am.scPulled'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
+    try { ['am.setSent', 'am.setDirty', 'am.skinSent', 'am.skinBig', 'am.scPulled'].forEach(k => localStorage.removeItem(k)); } catch { /* private mode */ }
     DB.db && DB.db.close(); DB.db = null;
     await new Promise(r => { const q = indexedDB.deleteDatabase(DB.name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
     location.reload();
