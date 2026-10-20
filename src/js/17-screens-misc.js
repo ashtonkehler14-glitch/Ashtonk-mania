@@ -704,7 +704,8 @@ const CHANGELOG = [
       'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
-      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default'] },
+      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
+      'A damaged play in a backup (its counts or date not what they should be) is left out instead of putting "NaN" into your stats'] },
   ] },
   { id: '2026.10.17', title: 'Your code', sections: [
     { icon: 'lock', title: 'Your code', items: [

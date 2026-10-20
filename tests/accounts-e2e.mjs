@@ -294,10 +294,10 @@ try {
   check('codes only travel in the body of a POST (nothing to end up in logs or history)', badLink === 404, String(badLink));
 
   // ── a save from another player imported: the hint (none for a save of this same player's)
-  await c.evaluate(async () => { await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', pid: AshtonkMania.Presence.pid(), scores: [{ id: 'own1', mapHash: 'h', date: 1 }] }); }).catch(() => {});
+  await c.evaluate(async () => { await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', pid: AshtonkMania.Presence.pid(), scores: [{ id: 'own1', mapHash: 'h', date: 1, counts: [1, 0, 0, 0, 0, 0], accuracy: 1, score: 1000 }] }); }).catch(() => {});
   await c.waitForTimeout(1600);
   check('importing a save of your own: no hint about codes', !/one player on the rankings/i.test(await toasts(c)));
-  await c.evaluate(async () => { const s = AshtonkMania.ScoreManager.scores[0] || { id: 'x', mapHash: 'h', date: 1 }; await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', scores: [{ ...s, id: 'imported1' }] }); }).catch(() => {});
+  await c.evaluate(async () => { const s = AshtonkMania.ScoreManager.scores[0] || { id: 'x', mapHash: 'h', date: 1, counts: [1, 0, 0, 0, 0, 0], accuracy: 1, score: 1000 }; await DataManager.importAll({ app: 'Ashtonk!mania', kind: 'backup', scores: [{ ...s, id: 'imported1' }] }); }).catch(() => {});
   await c.waitForTimeout(1600);
   check('importing another device\'s save: told to type the code from that device', /Your code/.test(await toasts(c)) && /one player on the rankings/i.test(await toasts(c)));
   // a backup's scores stay on the device: marked as imported, never sent with its profile, never on the rankings

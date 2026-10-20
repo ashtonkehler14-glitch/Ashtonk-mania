@@ -1890,8 +1890,9 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
       marked: added.every(s => s.imported === 'backup'), keptTiming: !!(stored && stored.hitErrors && stored.hitErrors.length), keptKeys: !!(rep && rep.events && rep.events.length), light: added.every(s => !('hitErrors' in s)) };
     // (a backup as older versions wrote it — all on one line — with no replays: it failed with "storeNames parameter was empty")
     let oldErr = null;
-    try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }], replays: [] })], 'old.json')); } catch (e) { oldErr = e.message; }
-    res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1') };
+    // (and a damaged play in it — counts that aren't a list — is left out, not let in to break your stats)
+    try { await DataManager.importFile(new File([JSON.stringify({ app: 'Ashtonk!mania', kind: 'backup', settings: {}, scores: [{ ...obj.scores[0], id: 'bk-old1' }, { ...obj.scores[0], id: 'bk-bad1', counts: 'oops' }], replays: [] })], 'old.json')); } catch (e) { oldErr = e.message; }
+    res.old = { err: oldErr, found: A.ScoreManager.scores.some(s => s.id === 'bk-old1'), bad: A.ScoreManager.scores.some(s => s.id === 'bk-bad1') };
     added.push({ id: 'bk-old1' });
     // (and in a browser that can't read a file a part at a time: whole, as before)
     const TDS = window.TextDecoderStream; delete window.TextDecoderStream;
@@ -1904,7 +1905,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     await A.ScoreManager.init(); await A.ReplayManager.init(); A.Bus.emit('scores:changed'); A.Bus.emit('replays:changed');
     return res;
   });
-  check('Export all data writes each play and replay on a line of its own; such a backup is read back a line at a time, timing and key presses included (and one all on a line, without replays, as before)', ex.first && ex.inFile[0] === ex.nS && ex.inFile[1] === ex.nR && ex.lines === ex.nS + ex.nR + 3 && ex.nS > 0 && ex.nR > 0 && ex.added === ex.nS && ex.addedR === ex.nR && ex.marked && ex.keptTiming && ex.keptKeys && ex.light && /^ashtonk-mania-backup-.*\.json$/.test(ex.name) && !ex.old.err && ex.old.found && ex.whole, JSON.stringify(ex));
+  check('Export all data writes each play and replay on a line of its own; such a backup is read back a line at a time, timing and key presses included (and one all on a line, without replays, as before)', ex.first && ex.inFile[0] === ex.nS && ex.inFile[1] === ex.nR && ex.lines === ex.nS + ex.nR + 3 && ex.nS > 0 && ex.nR > 0 && ex.added === ex.nS && ex.addedR === ex.nR && ex.marked && ex.keptTiming && ex.keptKeys && ex.light && /^ashtonk-mania-backup-.*\.json$/.test(ex.name) && !ex.old.err && ex.old.found && !ex.old.bad && ex.whole, JSON.stringify(ex));
 }
 // results never scroll: with the statistics and "More statistics" open, in a small window, the panels shrink to fit
 {

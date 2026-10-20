@@ -11515,10 +11515,17 @@ const ScoreManager = {
   },
   /** Your plays from your other devices (Sync.pullScores): each once, without a replay or the hit-by-hit timing (they
    *  stay on the device it was played on). Resolves to how many were new here. */
+  /** A play as it can be taken in (from your other devices, a backup): an id, its beatmap, its judgement counts, when,
+   *  and what it scored — a damaged one would put NaN into your stats or break your profile. */
+  valid(x) {
+    const num = v => typeof v === 'number' && Number.isFinite(v);
+    return !!x && typeof x === 'object' && typeof x.id === 'string' && !!x.id && typeof x.mapHash === 'string' && Array.isArray(x.counts) && x.counts.every(num)
+      && num(x.date) && num(x.accuracy) && num(x.score);
+  },
   async addSynced(list) {
-    const have = new Set(this.scores.map(s => s.id)), add = [], num = v => typeof v === 'number' && Number.isFinite(v);
+    const have = new Set(this.scores.map(s => s.id)), add = [];
     for (const x of list) {
-      if (!x || typeof x.id !== 'string' || have.has(x.id) || typeof x.mapHash !== 'string' || !Array.isArray(x.counts) || !num(x.date) || !num(x.accuracy) || !num(x.score)) continue;
+      if (!this.valid(x) || have.has(x.id)) continue;
       const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(x.mapHash) : null;
       add.push({ ...x, own: true, synced: true, replayId: null, mapId: m ? m.id : null, setId: m ? m.setId : null });
       have.add(x.id);
@@ -11859,7 +11866,7 @@ const DataManager = {
       if (l.startsWith('],"replays":[')) { await flush(); store = 'replays'; return; }
       if (!l.startsWith('{')) return;
       const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
-      if (!v || !v.id) return;
+      if (!v || !v.id || (store === 'scores' && !ScoreManager.valid(v))) return;
       batch.push(...(store === 'scores' ? ScoreManager.stored(this.imported(v)) : [{ store, value: v }]));
       if (store === 'scores') scores++;
       if (batch.length >= 100) await flush();
@@ -11884,9 +11891,10 @@ const DataManager = {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
     await this.importHead(obj);
     if (obj.kind === 'settings') return;
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).flatMap(s => ScoreManager.stored(this.imported(s))));
+    const scores = Array.isArray(obj.scores) ? obj.scores.filter(s => ScoreManager.valid(s)) : [];
+    await DB.putMany(scores.flatMap(s => ScoreManager.stored(this.imported(s))));
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
-    await this.importDone(obj, Array.isArray(obj.scores) ? obj.scores.length : 0);
+    await this.importDone(obj, scores.length);
   },
   /** A data file's settings — and, for a backup, profile, favourites and collections. */
   async importHead(obj) {
@@ -20123,7 +20131,8 @@ const CHANGELOG = [
       'Storage full in the middle of importing several files (or a pack): it stops there and says how many weren\'t imported, instead of failing each of the rest in turn',
       'Export all data writes your backup a part at a time, and a big backup is read back the same way: a long-time player\'s save — hundreds of MB, with every play\'s timing and every replay — no longer runs the browser out of memory (past 512 MB, no browser could even open it)',
       'A backup without any saved replays (or without plays) imports again: it stopped with "The storeNames parameter was empty"',
-      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default'] },
+      'Settings brought in — a settings file, a backup, the ones kept with your code — with a value of the wrong kind for a setting (a word where a number goes) no longer break the game: that setting keeps its default',
+      'A damaged play in a backup (its counts or date not what they should be) is left out instead of putting "NaN" into your stats'] },
   ] },
   { id: '2026.10.17', title: 'Your code', sections: [
     { icon: 'lock', title: 'Your code', items: [
@@ -27785,7 +27794,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'c5e64f93373f';
+const APP_BUILD = '66a77cb918ef';
 
 const App = {
   lastReport: null,

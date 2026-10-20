@@ -109,10 +109,17 @@ const ScoreManager = {
   },
   /** Your plays from your other devices (Sync.pullScores): each once, without a replay or the hit-by-hit timing (they
    *  stay on the device it was played on). Resolves to how many were new here. */
+  /** A play as it can be taken in (from your other devices, a backup): an id, its beatmap, its judgement counts, when,
+   *  and what it scored — a damaged one would put NaN into your stats or break your profile. */
+  valid(x) {
+    const num = v => typeof v === 'number' && Number.isFinite(v);
+    return !!x && typeof x === 'object' && typeof x.id === 'string' && !!x.id && typeof x.mapHash === 'string' && Array.isArray(x.counts) && x.counts.every(num)
+      && num(x.date) && num(x.accuracy) && num(x.score);
+  },
   async addSynced(list) {
-    const have = new Set(this.scores.map(s => s.id)), add = [], num = v => typeof v === 'number' && Number.isFinite(v);
+    const have = new Set(this.scores.map(s => s.id)), add = [];
     for (const x of list) {
-      if (!x || typeof x.id !== 'string' || have.has(x.id) || typeof x.mapHash !== 'string' || !Array.isArray(x.counts) || !num(x.date) || !num(x.accuracy) || !num(x.score)) continue;
+      if (!this.valid(x) || have.has(x.id)) continue;
       const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(x.mapHash) : null;
       add.push({ ...x, own: true, synced: true, replayId: null, mapId: m ? m.id : null, setId: m ? m.setId : null });
       have.add(x.id);
@@ -453,7 +460,7 @@ const DataManager = {
       if (l.startsWith('],"replays":[')) { await flush(); store = 'replays'; return; }
       if (!l.startsWith('{')) return;
       const v = JSON.parse(l.endsWith(',') ? l.slice(0, -1) : l);
-      if (!v || !v.id) return;
+      if (!v || !v.id || (store === 'scores' && !ScoreManager.valid(v))) return;
       batch.push(...(store === 'scores' ? ScoreManager.stored(this.imported(v)) : [{ store, value: v }]));
       if (store === 'scores') scores++;
       if (batch.length >= 100) await flush();
@@ -478,9 +485,10 @@ const DataManager = {
     if (!obj || obj.app !== APP_NAME) throw new Error('Not an Ashtonk!mania data file');
     await this.importHead(obj);
     if (obj.kind === 'settings') return;
-    if (Array.isArray(obj.scores)) await DB.putMany(obj.scores.filter(s => s && s.id).flatMap(s => ScoreManager.stored(this.imported(s))));
+    const scores = Array.isArray(obj.scores) ? obj.scores.filter(s => ScoreManager.valid(s)) : [];
+    await DB.putMany(scores.flatMap(s => ScoreManager.stored(this.imported(s))));
     if (Array.isArray(obj.replays)) await DB.putMany(obj.replays.filter(r => r && r.id).map(r => ({ store: 'replays', value: r })));
-    await this.importDone(obj, Array.isArray(obj.scores) ? obj.scores.length : 0);
+    await this.importDone(obj, scores.length);
   },
   /** A data file's settings — and, for a backup, profile, favourites and collections. */
   async importHead(obj) {
