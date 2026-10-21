@@ -267,6 +267,39 @@ await shot('01-home-empty');
     check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
+  // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
+  // or shaken about, she lands dizzy too (let go gently, as before, she's only put out)
+  {
+    const reset = () => page.evaluate(async () => { const M = NeruMascot; M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; M._clicks = []; NeruEggs._seen = performance.now(); NeruEggs.STARE_MS = 1e9; await M.show(null); });
+    await page.mouse.move(5, 300); await reset(); await page.waitForTimeout(600);
+    const nb = await (await page.$('.home .neru')).boundingBox();
+    const cx = nb.x + nb.width / 2, cy = nb.y + nb.height * 0.25, R = nb.width * 0.7, dz = {};
+    for (let i = 0; i <= 3.3 * 24; i++) { const a = i / 24 * 2 * Math.PI; await page.mouse.move(cx + Math.cos(a) * R, cy + Math.sin(a) * R); await page.waitForTimeout(10); }
+    await page.waitForTimeout(300);
+    dz.circled = await page.evaluate(() => `${NeruMascot.img.dataset.pose}|${NeruMascot.el.classList.contains('wobble')}|${document.querySelectorAll('.neru-dizzy').length > 0 || document.documentElement.classList.contains('slow')}`);
+    await page.mouse.move(5, 300); await page.waitForTimeout(2700);
+    dz.over = await page.evaluate(() => `${NeruMascot.img.dataset.pose || 'usual'}|${document.querySelectorAll('.neru-dizzy').length}`);
+    // (a half turn back and forth isn't going round her)
+    await reset();
+    for (let k = 0; k < 6; k++) for (let i = 0; i <= 12; i++) { const a = (k % 2 ? 12 - i : i) / 24 * 2 * Math.PI; await page.mouse.move(cx + Math.cos(a) * R, cy + Math.sin(a) * R); await page.waitForTimeout(10); }
+    await page.waitForTimeout(300);
+    dz.backAndForth = await page.evaluate(() => NeruMascot.img.dataset.pose || 'usual');
+    await page.mouse.move(5, 300); await reset(); await page.waitForTimeout(500);
+    const gx = nb.x + nb.width / 2, gy = nb.y + nb.height * 0.6;
+    await page.mouse.move(gx, gy); await page.mouse.down(); await page.mouse.move(gx + 60, gy - 60, { steps: 3 }); await page.mouse.move(gx + 320, gy - 120, { steps: 2 });
+    await page.mouse.up(); await page.waitForTimeout(1000);
+    dz.flung = await page.evaluate(() => NeruMascot.img.dataset.pose);
+    await page.mouse.move(5, 300); await page.waitForTimeout(2600); await reset(); await page.waitForTimeout(500);
+    await page.mouse.move(gx, gy); await page.mouse.down(); await page.mouse.move(gx, gy - 80, { steps: 4 });
+    for (let i = 0; i < 7; i++) await page.mouse.move(gx + (i % 2 ? -90 : 90), gy - 80, { steps: 3 });
+    await page.mouse.move(gx, gy - 80, { steps: 3 }); await page.waitForTimeout(250);
+    await page.mouse.up(); await page.waitForTimeout(1000);
+    dz.shaken = await page.evaluate(() => NeruMascot.img.dataset.pose);
+    await page.mouse.move(5, 300); await page.waitForTimeout(2600);
+    await page.evaluate(() => { NeruEggs.STARE_MS = 3500; });
+    check('Neru dizzy: the pointer circled round her head three times (not back and forth), flung, or shaken about — a blank look, stars going round her head',
+      dz.circled === 'huh|true|true' && dz.over === 'usual|0' && dz.backAndForth !== 'huh' && dz.flung === 'huh' && dz.shaken === 'huh', JSON.stringify(dz));
+  }
   // April Fools' Day: she's the other way round, and a click gets a laugh; Valentine's Day: a click brings hearts
   const days = await page.evaluate(async () => {
     const E = NeruEggs, S = AshtonkMania.Settings, wait = ms => new Promise(res => setTimeout(res, ms)), today = E.today, out = {};
@@ -351,6 +384,12 @@ await shot('01-home-empty');
     E.greet(new Date(2026, 9, 21, 3, 30)); await wait(2600); out.lateAfter = p();
     E._greeted = false; E.greet(new Date(2027, 0, 1, 15)); await wait(1900); out.newYear = p(); await wait(2400);
     E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.day = p();
+    // a year on from your first play here: a cheer (and confetti); not on another day, nor in the first year
+    const first = ScoreManager.scores;
+    ScoreManager.scores = [{ passed: true, stars: 2, mods: [], date: +new Date(2024, 9, 21, 18) }].concat(first.slice(0, 2));
+    out.anniv = [E.anniversary(new Date(2026, 9, 21, 9)), E.anniversary(new Date(2026, 9, 22, 9)), E.anniversary(new Date(2024, 9, 21, 20))].join();
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.annivGreet = p(); await wait(2800);
+    ScoreManager.scores = first;
     // back after a week away: a sulk, then glad after all; a milestone play: a cheer (once)
     const saved = ScoreManager.scores, old = +new Date(2026, 9, 12, 12);
     ScoreManager.scores = [1, 2, 3, 4, 5].map(i => ({ passed: true, stars: 2, mods: [], date: old - i * 1000 }));
@@ -383,6 +422,7 @@ await shot('01-home-empty');
     season.north === 'leaves,bats,snow,snow,petals,-,fireflies,-,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
   check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
     Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
+  check('…a year on from your first play, a cheer (not the day after, nor in the first year)', season.anniv === '2,0,0' && season.annivGreet === 'cheer', JSON.stringify(season));
   check('…a yawn the first time she sees you after midnight (once), and a cheer on New Year\'s Day — nothing in the daytime',
     season.late === 'tired' && season.lateAfter === 'usual' && season.newYear === 'cheer' && season.day === 'usual', JSON.stringify(season));
   check('…back after a week away she sulks, then she\'s glad after all (not after a day, nor with hardly any plays); a milestone play gets a cheer, once',

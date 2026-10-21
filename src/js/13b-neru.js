@@ -7,13 +7,13 @@
  * And a few things to find just by playing (NeruEggs): bored when left alone — then on her phone, then hugging her
  * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
  * sunglasses on when you keep the pointer on her, picked up and dropped, a headpat (hearts — then a huff, as if she
- * hadn't liked it), dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
+ * hadn't liked it), dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
  * own name, the volume turned all the way up or down, songs skipped one after another, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
  * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
  * a summer night, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
- * she's the other way round), stars twinkling at night — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
+ * she's the other way round), stars twinkling at night, confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
  * sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
 
@@ -71,7 +71,7 @@ const NeruMascot = {
       NeruEggs.greet();
       NeruEggs.milestone();
       NeruEggs.breather();
-      NeruEggs.drift(el);
+      NeruEggs.drift(el, NeruEggs.anniversary() ? 'confetti' : undefined);
       // (after the drift: put in first of all, so the stars are furthest back — behind the leaves, the snow, the moon)
       if (NeruEggs.night()) NeruEggs.twinkle(el);
     });
@@ -105,7 +105,7 @@ const NeruMascot = {
     cancelAnimationFrame(this._raf);
     this._lean = 0; this._bob = 0; this._px = null;
     // (her box is measured when the pointer moves, not every frame: reading layout each frame can force a reflow)
-    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; if (this.el && this.el.isConnected) this._rect = this.el.getBoundingClientRect(); };
+    if (!this._onMove) this._onMove = e => { this._px = e.clientX; this._py = e.clientY; if (this.el && this.el.isConnected) { this._rect = this.el.getBoundingClientRect(); NeruEggs.circle(e.clientX, e.clientY); } };
     window.addEventListener('pointermove', this._onMove, { passive: true });
     NeruEggs.watchIdle();
     let last = performance.now();
@@ -584,7 +584,8 @@ const NeruEggs = {
     else if (v <= 0 && was > 0) this.act('bored', 1800, { hop: false });
   },
 
-  // ── her hello, the first time she sees you: on New Year's Day, a cheer and sparkles, again and again; back after a
+  // ── her hello, the first time she sees you: on New Year's Day — and a year on from your first play here (confetti
+  // too) — a cheer and sparkles, again and again; back after a
   // week or more away, a sulk — then she can't help being glad; after midnight (till 5), a yawn — and left alone that
   // late she's bored sooner
   /** Today (its date and time, by the clock here). */
@@ -596,8 +597,15 @@ const NeruEggs = {
     const sc = typeof ScoreManager !== 'undefined' ? ScoreManager.scores : [], last = sc[sc.length - 1];
     return sc.length >= 5 && !!last && d - (last.date || d) >= 7 * 864e5;
   },
+  /** The day, a year or more on, of your first play here: how many years (0 on any other day). */
+  anniversary(d = this.today()) {
+    const first = typeof ScoreManager !== 'undefined' && ScoreManager.scores[0];
+    if (!first || !first.date) return 0;
+    const f = new Date(first.date), years = d.getFullYear() - f.getFullYear();
+    return years >= 1 && d.getMonth() === f.getMonth() && d.getDate() === f.getDate() ? years : 0;
+  },
   greet(d = this.today()) {
-    const newYear = d.getMonth() === 0 && d.getDate() === 1, back = this.away(d), late = this.lateNight(d);
+    const newYear = (d.getMonth() === 0 && d.getDate() === 1) || this.anniversary(d) > 0, back = this.away(d), late = this.lateNight(d);
     if (this._greeted || !(newYear || back || late)) return;
     this._greeted = true;
     clearTimeout(this._greetT);
@@ -686,6 +694,7 @@ const NeruEggs = {
     petals: { size: [17, 24], ms: [8000, 11500], every: [1000, 1900], most: 8, sway: [20, 40], swayMs: [1700, 2900], spin: [2200, 3800], colors: ['#ffc4d8', '#ffb3cb', '#ffd8e6', '#f9a8c4'] },
     fireflies: { size: [5, 7], ms: [6000, 9000], every: [800, 1500], most: 8, sway: [18, 36], swayMs: [2600, 4200], spin: [0, 0], colors: ['#e8ff8a', '#fff59a', '#c8ff7a'] },
     bats: { size: [42, 56], ms: [4800, 6800], every: [2600, 5200], most: 3, sway: [8, 14], swayMs: [700, 1000], spin: [0, 0], colors: ['#160d1f', '#1d1228', '#120a19'] },
+    confetti: { size: [11, 16], ms: [6500, 9000], every: [220, 520], most: 22, sway: [10, 24], swayMs: [900, 1600], spin: [600, 1200], colors: ['#ff6fa8', '#ffd54a', '#8fd3ff', '#9be15d', '#c49bff', '#ff9f43'] },
     hearts: { size: [18, 27], ms: [8000, 11000], every: [900, 1700], most: 8, sway: [14, 28], swayMs: [1800, 2800], spin: [0, 0], tilt: [8, 16], colors: ['#ff6fa8', '#ff8fc0', '#ff4d8d', '#ffb3d1'] },
   },
   /** Christmas Eve and Day: twice the snow. */
@@ -699,6 +708,7 @@ const NeruEggs = {
     if (kind === 'leaves' && c === '#f5c842') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 14.5C7.2 14.5 2.6 11 2 4.6 5 2.4 9.2 2.1 11.2 3.6L12 6.2l.8-2.6c2-1.5 6.2-1.2 9.2 1C21.4 11 16.8 14.5 12 14.5z"/><path fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round" d="M12 14v8.5"/><path fill="none" stroke="rgba(150,100,20,.4)" stroke-width=".8" stroke-linecap="round" d="M12 13.6 7 6.5M12 13.6 9.4 5M12 13.6l2.6-8.6M12 13.6 17 6.5"/></svg>`;
     if (kind === 'leaves') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 1.5c-3.6 3-6.8 6.6-6.8 11.2 0 4 2.9 7 6.1 8.1V23h1.4v-2.2c3.2-1.1 6.1-4.1 6.1-8.1 0-4.6-3.2-8.2-6.8-11.2z"/><path fill="none" stroke="rgba(90,40,20,.45)" stroke-width="1" stroke-linecap="round" d="M12 4v17M12 10l-3.2-2.6M12 10l3.2-2.6M12 14.5l-4-3M12 14.5l4-3"/></svg>`;
     if (kind === 'petals') return `<svg viewBox="0 0 20 20"><path fill="${c}" d="M10 19C4.6 15.6 2.6 10.6 4.2 6.2 5.2 3.4 7.4 1.6 8.8 1l1.2 2.4L11.2 1c1.4.6 3.6 2.4 4.6 5.2 1.6 4.4-.4 9.4-5.8 12.8z"/><path fill="none" stroke="rgba(230,110,150,.5)" stroke-width=".8" stroke-linecap="round" d="M10 17V7"/></svg>`;
+    if (kind === 'confetti') return `<svg viewBox="0 0 10 10"><rect y="2" width="10" height="6" rx="1" fill="${c}"/></svg>`;
     if (kind === 'hearts') return `<svg viewBox="0 0 24 22"><path fill="${c}" d="M12 21.4l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6L12 21.4z"/></svg>`;
     if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
     return ''; // (snow, fireflies: a soft dot — its colour from CSS)
@@ -959,6 +969,13 @@ const NeruEggs = {
       d.dx = clamp(dx, -vb.left - p.ox * k * 0.5, innerWidth - vb.left - p.ox * k * 1.5) / k;
       d.dy = clamp(dy, -vb.top - p.oy * k + 20, 24) / k;
       d.vx = d.vx * 0.6 + ((ev.clientX - p.lx) / k / Math.max(1, t - p.lt)) * 0.4;
+      // (shaken about: moved back and forth, fast, again and again)
+      const v = (ev.clientX - p.lx) / k / Math.max(1, t - p.lt);
+      if (Math.abs(v) > 0.7) {
+        const sg = Math.sign(v);
+        if (p.sg && sg !== p.sg) { p.flips = (p.flips || []).filter(x => t - x < 1500); p.flips.push(t); if (p.flips.length >= 5) d.shaken = true; }
+        p.sg = sg;
+      }
       p.lx = ev.clientX; p.lt = t;
     };
     const up = ev => {
@@ -978,7 +995,8 @@ const NeruEggs = {
     if (M.el) M.el.classList.remove('held');
     if (now || !d || !M.body) { M._drop = null; if (M.body) M.body.style.transformOrigin = ''; return; }
     // (the further up she was, the longer the fall)
-    M._drop = { t0: performance.now(), dur: clamp(280 + Math.max(0, -d.dy) * 0.9, 300, 620), fx: d.dx, fy: d.dy, fa: d.ang };
+    // (flung — let go while still moving fast — or shaken about: she lands dizzy)
+    M._drop = { t0: performance.now(), dur: clamp(280 + Math.max(0, -d.dy) * 0.9, 300, 620), fx: d.dx, fy: d.dy, fa: d.ang, dizzy: !!d.shaken || Math.abs(d.vx) > this.FLING };
   },
   /** Each frame while she's held or falling: her transform (and her shadow's), or null when she's on the ground. */
   held(dt, now) {
@@ -1002,13 +1020,61 @@ const NeruEggs = {
         p.animate([{ transform: 'translate(-50%, 0) scale(.4)', opacity: 0.8 }, { transform: `translate(calc(-50% + ${side * 46}px), -10px) scale(1.4)`, opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => p.remove();
       }
       UISounds.play('click-short');
-      M.show(M.has('sassy') ? 'sassy' : null, { pop: false });
-      M._happyUntil = now + 1400;
-      clearTimeout(M._back); M._back = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, 1400);
+      // (dizzy, from a fling or a shake: a blank, dazed look, stars going round her head)
+      const dizzy = f.dizzy && M.has('huh'), ms = dizzy ? 2400 : 1400;
+      M.show(dizzy ? 'huh' : M.has('sassy') ? 'sassy' : null, { pop: false });
+      if (dizzy) this.daze();
+      M._happyUntil = now + ms;
+      clearTimeout(M._back); M._back = setTimeout(() => { if (!M.busy()) M.show(M.rest()); }, ms);
       return null;
     }
     const lift = clamp(-y / 300, 0, 1);
     return { tf: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${a.toFixed(2)}deg)`, sh: `translateX(${x.toFixed(1)}px) scaleX(${(1 - lift * 0.55).toFixed(3)})`, so: (1 - lift * 0.7).toFixed(2) };
+  },
+
+  // ── dizzy: flung (let go while still moving fast) or shaken about, she lands dazed; the pointer circled round her
+  // head three times, she follows it until she's dizzy — a blank look, little stars going round her head, a wobble
+  FLING: 1.5,
+  /** Each move of the pointer on the main menu: how far it's gone round her head (near it, not off across the
+   *  screen) — three times round, either way, without stopping, and she's dizzy. */
+  circle(x, y) {
+    const M = NeruMascot, r = M._rect;
+    if (!r || !M.img || M._drag || M._drop || M.busy() || Screens.currentName !== 'home') { this._turn = null; return; }
+    const cx = r.left + r.width / 2, cy = r.top + r.height * 0.25, dist = Math.hypot(x - cx, y - cy);
+    if (dist < r.width * 0.2 || dist > r.width * 1.6) { this._turn = null; return; }
+    const a = Math.atan2(y - cy, x - cx), now = performance.now(), t = this._turn;
+    if (!t || now - t.at > 500) { this._turn = { a, sum: 0, at: now, t0: now }; return; }
+    let da = a - t.a;
+    if (da > Math.PI) da -= 2 * Math.PI; else if (da < -Math.PI) da += 2 * Math.PI;
+    t.a = a; t.at = now; t.sum += da;
+    if (now - t.t0 > 7000) { t.t0 = now; t.sum = da; } // (too slow to make anyone dizzy: from here)
+    if (Math.abs(t.sum) >= 6 * Math.PI) { this._turn = null; this.dizzy(); }
+  },
+  dizzy() {
+    const M = NeruMascot;
+    if (!M.has('huh') || !this.act('huh', 2400, { hop: false })) return;
+    if (M.el) { M.el.classList.remove('wobble'); void M.el.offsetWidth; M.el.classList.add('wobble'); setTimeout(() => { if (M.el) M.el.classList.remove('wobble'); }, 2400); }
+    this.daze();
+  },
+  /** Little stars going round her head, cartoon-dizzy, for `ms`. */
+  daze(ms = 2300) {
+    const M = NeruMascot;
+    if (!M.el || !M.img || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
+    const cx = (ir.left - er.left + ir.width * 0.5) / k, cy = (ir.top - er.top + ir.height * 0.08) / k, rx = ir.width * 0.26 / k, ry = rx * 0.32;
+    for (let i = 0; i < 3; i++) {
+      const st = h('span.neru-dizzy');
+      st.innerHTML = '<svg viewBox="0 0 20 20"><path d="M10 1.5l2.5 5.3 5.8.8-4.2 4 1 5.8-5.1-2.8-5.1 2.8 1-5.8-4.2-4 5.8-.8z"/></svg>';
+      M.el.append(st);
+      // (round an ellipse over her head — bigger in front, smaller going round the back)
+      const frames = [];
+      for (let j = 0; j <= 16; j++) {
+        const an = (j / 16 + i / 3) * 2 * Math.PI, front = (Math.sin(an) + 1) / 2;
+        frames.push({ transform: `translate(${(cx + Math.cos(an) * rx).toFixed(1)}px, ${(cy + Math.sin(an) * ry).toFixed(1)}px) translate(-50%, -50%) scale(${(0.7 + front * 0.45).toFixed(2)})`, zIndex: front > 0.5 ? 3 : -1 });
+      }
+      st.animate(frames, { duration: 950, iterations: Infinity });
+      st.animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: ms, fill: 'forwards' }).onfinish = () => st.remove();
+    }
   },
 
   // ── a headpat: press and hold on her head and she leans into it — her happy face, little hearts floating up (stroke
