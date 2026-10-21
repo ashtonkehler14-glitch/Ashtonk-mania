@@ -246,6 +246,8 @@ const NeruCameo = {
     again: 'tired', wysi: 'point',
     // (turning her off as one of her own: offended; a Teto or Miku song, for their fan: laughing at it)
     refused: 'sassy', theirSong: 'mock',
+    // (her marker on your Teto or Miku picture: snickering at her handiwork)
+    doodle: 'snicker',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -711,6 +713,65 @@ const NeruEggs = {
     if (!el || !who) return;
     const go = (n = 0) => { const img = el.querySelector('.nc-img'); if (!el.isConnected && n > 3) return; if (!img || el.hidden) { if (n < 60) setTimeout(() => go(n + 1), 100); return; } setTimeout(() => this.prop(who, el, img), delay); };
     go();
+  },
+  // ── the Teto or Miku picture as yours: Neru's been at it with a marker — glasses and a moustache drawn on, wherever
+  // it's big enough to see (your profile, your results); the first time this session, drawn before your eyes
+  /** Where on their picture (256 × 256) her marker goes: their eyes, and the middle of the moustache (over their
+   *  mouth, clear of the glasses). */
+  DOODLE: {
+    teto: { eyes: [[85, 134], [155, 125]], lip: [120, 152] },
+    miku: { eyes: [[94, 101], [151, 112]], lip: [124, 138] },
+  },
+  /** The doodle over `el` (an avatar showing `avatar`), if it's Teto's or Miku's picture. */
+  doodle(el, avatar) {
+    const m = /^preset:(teto|miku)(-\d+)?$/.exec(avatar || ''), at = m && this.DOODLE[m[1]];
+    if (!at) return;
+    const [[x1, y1], [x2, y2]] = at.eyes, [mx, my] = at.lip;
+    const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d, r = Math.min(24, d * 0.36);
+    const deg = Math.atan2(uy, ux) * 180 / Math.PI, f = n => n.toFixed(1);
+    // (lens, bridge, lens, the arms off the sides; then a handlebar moustache, outlined a curl at a time and filled
+    // in) — [path, when, how long, its transform, filled]
+    const lens = (x, y, from) => `M${f(x + r * Math.cos(from))} ${f(y + r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(-2 * r * Math.cos(from))} ${f(-2 * r * Math.sin(from))}a${r} ${r} 0 1 1 ${f(2 * r * Math.cos(from))} ${f(2 * r * Math.sin(from))}`;
+    const curl = 'M0 -4C-5 -9 -14 -10 -20 -6C-25 -2 -28 0 -31 -2C-34 -4 -35 -8 -33 -11C-38 -8 -38 -1 -33 2C-27 6 -16 7 -8 4C-4 3 -1 1 0 1Z';
+    const lip = `translate(${mx} ${my}) rotate(${f(deg)}) scale(.9)`;
+    const strokes = [
+      [lens(x1, y1, -2.4), 0, 300],
+      [`M${f(x1 + r * ux)} ${f(y1 + r * uy)}Q${f((x1 + x2) / 2 + 9 * uy)} ${f((y1 + y2) / 2 - 9 * ux)} ${f(x2 - r * ux)} ${f(y2 - r * uy)}`, 300, 110],
+      [lens(x2, y2, -0.8), 410, 300],
+      [`M${f(x1 - r * ux)} ${f(y1 - r * uy)}l${f(-16 * ux + 4 * uy)} ${f(-16 * uy - 4 * ux)}M${f(x2 + r * ux)} ${f(y2 + r * uy)}l${f(16 * ux + 4 * uy)} ${f(16 * uy - 4 * ux)}`, 720, 140],
+      [curl, 930, 220, lip, true],
+      [curl, 1110, 220, `${lip} scale(-1 1)`, true],
+    ];
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 256 256'); svg.setAttribute('class', 'neru-doodle'); svg.setAttribute('aria-hidden', 'true');
+    const paths = [];
+    for (const cls of ['nd-halo', 'nd-ink']) {
+      const g = document.createElementNS(ns, 'g'); g.setAttribute('class', cls);
+      for (const [dd, at2, ms, tf, filled] of strokes) {
+        const p = document.createElementNS(ns, 'path');
+        p.setAttribute('d', dd); p.setAttribute('pathLength', '1');
+        if (tf) p.setAttribute('transform', tf);
+        if (filled) p.classList.add('nd-fill');
+        g.append(p); paths.push({ p, at: at2, ms, filled });
+      }
+      svg.append(g);
+    }
+    el.classList.add('doodled');
+    el.append(svg);
+    // (the first one this session is drawn as you look — one made again while that's under way picks it up where it
+    // is — with a snicker; after that, it's just there)
+    if (!Settings.get('ui.animSpeed')) return;
+    const now = performance.now();
+    if (this._doodleAt == null) {
+      this._doodleAt = now;
+      setTimeout(() => { if (document.querySelector('.neru-doodle')) this.peek('doodle', { found: false }); }, 250);
+    }
+    const ago = now - this._doodleAt;
+    if (ago > 1600) return;
+    for (const { p, at: at2, ms, filled } of paths) {
+      p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: ms, delay: at2 - ago, easing: 'cubic-bezier(.45, .05, .55, .95)', fill: 'backwards' });
+      if (filled) p.animate([{ fillOpacity: 0 }, { fillOpacity: 1 }], { duration: 160, delay: at2 + ms - 40 - ago, easing: 'ease-out', fill: 'backwards' });
+    }
   },
   /** Whether `rec` (a beatmap) is Teto's or Miku's — their name in its title, artist or source: who, or null. */
   theirSong(rec) {
