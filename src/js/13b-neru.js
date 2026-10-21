@@ -15,7 +15,7 @@
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
  * a summer night, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
  * she's the other way round), stars twinkling at night, confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
- * sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
+ * cheer for five new songs or more, little z's when she's left alone at night, a sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
 
 const NeruMascot = {
@@ -393,6 +393,7 @@ const NeruCameo = {
 };
 
 Bus.on('music:changed', m => NeruEggs.skipped(m));
+Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); });
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
 Bus.on('settings:changed', k => {
   if (k === 'audio.master') NeruEggs.volume(Settings.get('audio.master'));
@@ -425,6 +426,8 @@ const NeruEggs = {
     };
     for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._wake, { passive: true });
     window.addEventListener('pointermove', this._wakeMove = e => { if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2) this._wake(); }, { passive: true });
+    // (left alone at night, whatever she's doing: she's nodding off — little z's float up from her)
+    this._zT = setInterval(() => { if (NeruMascot._idle && !document.hidden && this.night()) this.snooze(); }, 1300);
     this._idleT = setInterval(() => {
       const M = NeruMascot;
       if (!M.img || document.hidden || M.busy()) return;
@@ -437,7 +440,7 @@ const NeruEggs = {
     }, 3000);
   },
   unwatchIdle() {
-    clearInterval(this._idleT);
+    clearInterval(this._idleT); clearInterval(this._zT);
     if (this._wake) for (const ev of ['pointerdown', 'keydown', 'wheel']) window.removeEventListener(ev, this._wake);
     if (this._wakeMove) window.removeEventListener('pointermove', this._wakeMove);
     this._wake = this._wakeMove = null;
@@ -454,6 +457,29 @@ const NeruEggs = {
     UISounds.play('dialog-dangerous-tick');
     this.fume(el);
     M._back = setTimeout(() => { el.classList.remove('huff'); if (!M.busy()) M.show(M.rest()); }, 3400);
+  },
+
+  /** A little "z" floating up from beside her head, drifting and fading — nodding off. */
+  snooze() {
+    const M = NeruMascot;
+    if (!M.el || !M.img || !M.el.isConnected || !Settings.get('ui.animSpeed') || document.documentElement.classList.contains('slow')) return;
+    const er = M.el.getBoundingClientRect(), ir = M.img.getBoundingClientRect(), k = M.el.offsetWidth ? er.width / M.el.offsetWidth : 1;
+    const x = (ir.left - er.left + ir.width * 0.72) / k, y = (ir.top - er.top + ir.height * 0.12) / k;
+    this._zn = ((this._zn || 0) + 1) % 3;
+    const z = h('span.neru-z', 'z'); z.style.left = `${x}px`; z.style.top = `${y}px`; z.style.fontSize = `${15 + this._zn * 5}px`;
+    M.el.append(z);
+    z.animate([{ transform: 'translate(-50%, -50%) rotate(-12deg) scale(.6)', opacity: 0 }, { transform: 'translate(calc(-50% + 10px), calc(-50% - 18px)) rotate(4deg) scale(1)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(calc(-50% + 34px), calc(-50% - 62px)) rotate(14deg) scale(1.1)', opacity: 0 }], { duration: 2400, easing: 'ease-out' }).onfinish = () => z.remove();
+  },
+
+  // ── new songs: five or more beatmap sets more than when she last saw the library (back on the main menu, or added
+  // while she's there) — she cheers
+  newSongs() {
+    const n = typeof BeatmapManager !== 'undefined' ? BeatmapManager.sets.length : 0, was = this._sets;
+    this._sets = n;
+    if (was == null || n - was < 5 || Screens.currentName !== 'home') return;
+    clearTimeout(this._newT);
+    this._newT = setTimeout(() => { if (this.act('cheer', 2200, { sparkle: true })) UISounds.play('check-on'); }, 900);
   },
 
   // ── a hundred clicks on her in one visit to the main menu: whatever her mood, she gives up — her happy face, a
@@ -702,6 +728,7 @@ const NeruEggs = {
   MILESTONES: [100, 250, 500, 1000, 2500, 5000, 10000],
   /** On the main menu (each time it's shown): a milestone passed since she last saw it, a cheer. */
   milestone() {
+    this.newSongs();
     const n = typeof ScoreManager !== 'undefined' ? ScoreManager.scores.length : 0, was = this._plays;
     this._plays = n;
     if (!(was > 0) || n <= was) return;

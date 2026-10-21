@@ -365,6 +365,26 @@ await shot('01-home-empty');
     if (slow) document.documentElement.classList.add('slow');
     return out;
   });
+  // left alone at night: little z's float up (not in the daytime); five new songs or more since she last looked: a cheer
+  const zz = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), today = E.today, out = {};
+    const slow = document.documentElement.classList.contains('slow'); document.documentElement.classList.remove('slow');
+    const z = () => M.el.querySelectorAll('.neru-z').length;
+    try {
+      E.today = () => new Date(2026, 9, 21, 23, 40); M._idle = true; M._idlePose = 'bored'; await wait(2900); out.night = z() || (document.documentElement.classList.contains('slow') ? 'slow' : 0);
+      document.querySelectorAll('.neru-z').forEach(x => x.remove());
+      E.today = () => new Date(2026, 9, 21, 14); await wait(2900); out.day = z();
+    } finally { E.today = today; M._idle = false; M._idlePose = null; E._seen = performance.now(); await M.show(null); }
+    M._actUntil = M._happyUntil = 0;
+    const n = AshtonkMania.BeatmapManager.sets.length;
+    E._sets = n - 2; E.newSongs(); await wait(1300); out.two = M.img.dataset.pose || 'usual';
+    E._sets = n - 6; E.newSongs(); await wait(1300); out.six = M.img.dataset.pose || 'usual'; await wait(1300);
+    E._sets = n;
+    if (slow) document.documentElement.classList.add('slow');
+    return out;
+  });
+  check('Neru nodding off when left alone at night (little z\'s; not in the daytime), and a cheer for five new songs or more (not two)',
+    (zz.night > 0 || zz.night === 'slow') && zz.day === 0 && zz.two === 'usual' && zz.six === 'cheer', JSON.stringify(zz));
   check('Neru at night: stars twinkle around her (10pm till 5; not with the animations off)', night.when === 'true,true,false' && night.stars > 0 && night.offNone, JSON.stringify(night));
   check('…and a small Neru on another screen takes a headpat too: happy, hearts, then a huff (no hop), and back to her picture',
     night.pat === 'neru-happy.png|true' && night.after === 'neru-sassy.png|false' && night.back === night.before, JSON.stringify(night));
