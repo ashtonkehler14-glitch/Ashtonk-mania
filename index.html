@@ -1699,6 +1699,26 @@ div.res-calib .i { color: var(--good); }
 .neru-flop { position: absolute; z-index: 2; pointer-events: none; }
 .neru-flop i { position: absolute; display: block; background-repeat: no-repeat; }
 .neru-drop { position: absolute; z-index: 3; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; background: #bfe6f7; box-shadow: 0 0 0 1.5px rgba(59, 42, 53, .55); }
+/* (the time of year drifting around her: behind her, and — nearer, bigger, a little out of focus — in front) */
+.neru-drift { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 0; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 22%, #000 88%, transparent); }
+.neru-drift.nd-front { z-index: 1; }
+.nd { position: absolute; left: 0; top: 0; will-change: transform; }
+.nd > i, .nd > i > i { display: block; width: 100%; height: 100%; }
+.nd svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .3)); }
+.neru-drift:not(.nd-front) .nd { opacity: .8; }
+.nd-front .nd { filter: blur(.7px); }
+.nd-dot { border-radius: 50%; }
+.nd-snow .nd-dot { box-shadow: 0 0 5px rgba(255, 255, 255, .85); }
+.nd-snow.nd-front .nd { filter: blur(1.2px); }
+.nd-fireflies .nd-dot { box-shadow: 0 0 6px 2px rgba(214, 255, 120, .75), 0 0 16px 5px rgba(214, 255, 120, .3); }
+.nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
+.nd-bats .nd svg { filter: drop-shadow(0 0 1px rgba(255, 196, 140, .9)) drop-shadow(0 0 7px rgba(255, 140, 70, .35)); }
+.neru-drift.nd-bats .nd { opacity: 1; }
+/* (Halloween: a harvest moon low behind her for the bats to cross) */
+.neru-drift.nd-bats { -webkit-mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 3%, #000 88%, transparent); }
+.neru-drift.nd-bats:not(.nd-front)::before { content: ''; position: absolute; right: 0; top: 0; width: 32%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #ffd892, #ffbd68 42%, #f39446 57%, rgba(243, 140, 60, .32) 60%, rgba(243, 140, 60, .1) 78%, transparent); opacity: .55; animation: ndMoon 1.6s ease-out both; }
+@keyframes ndMoon { from { opacity: 0; transform: translateY(14px); } }
+.nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
@@ -14929,7 +14949,8 @@ Bus.on('library:changed', () => MenuMusic.removed());
  * own name, the volume turned all the way up or down, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
  * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
- * anything you've passed. */
+ * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
+ * a summer night, bats at Halloween — a yawn after midnight, and a cheer on New Year's Day. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -14980,6 +15001,8 @@ const NeruMascot = {
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
       NeruEggs.namesake();
       NeruEggs.watchCode();
+      NeruEggs.greet();
+      NeruEggs.drift(el);
     });
     return el;
   },
@@ -15258,8 +15281,9 @@ Bus.on('settings:changed', k => {
  *  says anything. */
 const NeruEggs = {
   IDLE_MS: 45000,
-  /** Left alone longer still: on her phone, then hugging her knees (each only if that picture is there). */
-  get IDLE_STAGES() { return [[45000, 'bored'], [180000, NeruCameo.EGG.aloneLonger], [360000, NeruCameo.EGG.aloneLongest]]; },
+  /** Left alone longer still: on her phone, then hugging her knees (each only if that picture is there); bored sooner
+   *  late at night. */
+  get IDLE_STAGES() { return [[this.lateNight() ? 20000 : 45000, 'bored'], [180000, NeruCameo.EGG.aloneLonger], [360000, NeruCameo.EGG.aloneLongest]]; },
   // ── left alone on the main menu: after a while she gets bored (at her desk), then gets her phone out, and in the end
   // sits hugging her knees; back to herself, with a start, when you move or press anything (from her knees: in a sulk
   // for a moment first)
@@ -15397,6 +15421,118 @@ const NeruEggs = {
     if (was == null || Screens.currentName !== 'home') return;
     if (v >= 1 && was < 1) this.act('cheer', 1500, { sparkle: true });
     else if (v <= 0 && was > 0) this.act('bored', 1800, { hop: false });
+  },
+
+  // ── the time of day: after midnight (till 5) the first time she sees you, a yawn — and left alone that late she's
+  // bored sooner; on New Year's Day, a cheer and sparkles, again and again
+  /** Late at night (midnight till 5, by the clock here). */
+  lateNight(d = new Date()) { return d.getHours() < 5; },
+  greet(d = new Date()) {
+    const newYear = d.getMonth() === 0 && d.getDate() === 1, late = this.lateNight(d);
+    if (this._greeted || !(newYear || late)) return;
+    this._greeted = true;
+    clearTimeout(this._greetT);
+    this._greetT = setTimeout(() => {
+      if (newYear) {
+        if (!this.act('cheer', 2600, { sparkle: true })) { this._greeted = false; return; }
+        for (const t of [550, 1100, 1650]) setTimeout(() => { if (NeruMascot.img && NeruMascot.img.dataset.pose === 'cheer') { NeruMascot._bob = 1; NeruMascot.sparkle(); } }, t);
+      } else if (!this.act('tired', 2400, { hop: false })) this._greeted = false;
+    }, 1600);
+  },
+
+  // ── the time of year, around her on the main menu: autumn leaves drifting down, snow in winter, cherry blossom in
+  // spring, fireflies on a summer night, and bats across a harvest moon for Halloween — a few at a time, some behind her and some (bigger,
+  // softer, nearer) in front; the other way round south of the equator (by the time zone)
+  /** Which, on day `d`: 'leaves', 'snow', 'petals', 'fireflies' (summer, evenings), 'bats' (the last days of
+   *  October), or null. */
+  seasonOf(d = new Date(), zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })()) {
+    const m = d.getMonth() + 1, day = d.getDate(), hr = d.getHours();
+    if (m === 10 && day >= 29) return 'bats';
+    const south = /^(Australia|Antarctica|Pacific\/(Auckland|Chatham))|^America\/(Argentina|Sao_Paulo|Santiago|Montevideo|Asuncion|Punta_Arenas)|^Africa\/(Johannesburg|Maseru|Mbabane|Windhoek|Maputo|Harare)/.test(zone);
+    const n = south ? (m + 5) % 12 + 1 : m; // (the month it'd be up north)
+    if (n === 12 || n <= 2) return 'snow';
+    if ((n === 3 && day >= 20) || n === 4) return 'petals';
+    if (n === 10 || n === 11) return 'leaves';
+    if (n >= 6 && n <= 8 && (hr >= 19 || hr < 5)) return 'fireflies';
+    return null;
+  },
+  /** How each kind drifts: how big (px), how long one takes to cross (ms), how often a new one comes (ms), how many at
+   *  once, how far it sways (px) and over how long (ms), how fast it turns (ms a turn: none for 0), and its colours. */
+  DRIFT: {
+    leaves: { size: [22, 32], ms: [8000, 11000], every: [1500, 2600], most: 6, sway: [16, 34], swayMs: [1500, 2500], spin: [2600, 4600], colors: ['#f08c3c', '#e8663a', '#f2a23a', '#de5434', '#f5c842'] },
+    snow: { size: [4, 9], ms: [8500, 13000], every: [320, 700], most: 22, sway: [8, 20], swayMs: [2400, 4000], spin: [0, 0], colors: ['#ffffff', '#f2f7ff', '#e6f0ff'] },
+    petals: { size: [17, 24], ms: [8000, 11500], every: [1000, 1900], most: 8, sway: [20, 40], swayMs: [1700, 2900], spin: [2200, 3800], colors: ['#ffc4d8', '#ffb3cb', '#ffd8e6', '#f9a8c4'] },
+    fireflies: { size: [5, 7], ms: [6000, 9000], every: [800, 1500], most: 8, sway: [18, 36], swayMs: [2600, 4200], spin: [0, 0], colors: ['#e8ff8a', '#fff59a', '#c8ff7a'] },
+    bats: { size: [42, 56], ms: [4800, 6800], every: [2600, 5200], most: 3, sway: [8, 14], swayMs: [700, 1000], spin: [0, 0], colors: ['#160d1f', '#1d1228', '#120a19'] },
+  },
+  /** The shape of one: an SVG, coloured `c` (a gold leaf: a ginkgo's fan). */
+  driftShape(kind, c) {
+    if (kind === 'leaves' && c === '#f5c842') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 14.5C7.2 14.5 2.6 11 2 4.6 5 2.4 9.2 2.1 11.2 3.6L12 6.2l.8-2.6c2-1.5 6.2-1.2 9.2 1C21.4 11 16.8 14.5 12 14.5z"/><path fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round" d="M12 14v8.5"/><path fill="none" stroke="rgba(150,100,20,.4)" stroke-width=".8" stroke-linecap="round" d="M12 13.6 7 6.5M12 13.6 9.4 5M12 13.6l2.6-8.6M12 13.6 17 6.5"/></svg>`;
+    if (kind === 'leaves') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 1.5c-3.6 3-6.8 6.6-6.8 11.2 0 4 2.9 7 6.1 8.1V23h1.4v-2.2c3.2-1.1 6.1-4.1 6.1-8.1 0-4.6-3.2-8.2-6.8-11.2z"/><path fill="none" stroke="rgba(90,40,20,.45)" stroke-width="1" stroke-linecap="round" d="M12 4v17M12 10l-3.2-2.6M12 10l3.2-2.6M12 14.5l-4-3M12 14.5l4-3"/></svg>`;
+    if (kind === 'petals') return `<svg viewBox="0 0 20 20"><path fill="${c}" d="M10 19C4.6 15.6 2.6 10.6 4.2 6.2 5.2 3.4 7.4 1.6 8.8 1l1.2 2.4L11.2 1c1.4.6 3.6 2.4 4.6 5.2 1.6 4.4-.4 9.4-5.8 12.8z"/><path fill="none" stroke="rgba(230,110,150,.5)" stroke-width=".8" stroke-linecap="round" d="M10 17V7"/></svg>`;
+    if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
+    return ''; // (snow, fireflies: a soft dot — its colour from CSS)
+  },
+  /** Starts the time of year drifting around the main menu's Neru (`el`), for as long as she's there. */
+  drift(el, kind = this.seasonOf()) {
+    const K = this.DRIFT[kind];
+    if (!K || !el) return;
+    const html = document.documentElement, still = matchMedia('(prefers-reduced-motion: reduce)');
+    const quiet = () => !Settings.get('ui.animSpeed') || still.matches || html.classList.contains('slow') || html.classList.contains('perf');
+    if (quiet()) return;
+    const back = h(`span.neru-drift.nd-${kind}`, { 'aria-hidden': 'true' }), front = h(`span.neru-drift.nd-${kind}.nd-front`, { 'aria-hidden': 'true' });
+    el.prepend(back); el.append(front);
+    const r = ([a, b]) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+    let n = 0;
+    /** One more, on its way across (`pre`: already part of the way, as if it had been falling a while). */
+    const one = (pre = false) => {
+      const near = Math.random() < 0.28, layer = near ? front : back, W = layer.offsetWidth, H = layer.offsetHeight;
+      if (!W || !H) return;
+      const size = r(K.size) * (near ? 1.3 : 1), ms = r(K.ms) * (near ? 0.85 : 1), c = pick(K.colors);
+      // three layers: the fall (or flight) across, the sway from side to side, and the turn (or flap, or glow)
+      const p = h('span.nd'), sway = h('i'), spin = h('i');
+      spin.innerHTML = this.driftShape(kind, c);
+      if (!spin.firstChild) { spin.className = 'nd-dot'; spin.style.background = c; }
+      Object.assign(p.style, { width: `${size}px`, height: `${size * (kind === 'bats' ? 0.5 : 1)}px` });
+      sway.append(spin); p.append(sway); layer.append(p); n++;
+      let path;
+      if (kind === 'bats') {
+        // (across her, from one side to the other, climbing a little; facing the way it flies)
+        const ltr = Math.random() < 0.5, y0 = H * r([0.12, 0.42]), y1 = y0 - H * r([0.04, 0.12]);
+        path = [{ transform: `translate(${ltr ? -size * 2 : W + size}px, ${y0}px)` }, { transform: `translate(${ltr ? W + size : -size * 2}px, ${y1}px)` }];
+        if (!ltr) spin.style.scale = '-1 1';
+        spin.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(.45) translateY(12%)' }], { duration: r([150, 210]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      } else if (kind === 'fireflies') {
+        // (where it is, low around her, glowing up and fading as it wanders)
+        const x = W * r([0.05, 0.95]), y = H * r([0.35, 0.95]);
+        path = [{ transform: `translate(${x}px, ${y}px)`, opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { transform: `translate(${x + r([-30, 30])}px, ${y - r([10, 40])}px)`, opacity: 0 }];
+        spin.animate([{ opacity: 0.35, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1.1)' }], { duration: r([900, 1600]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      } else {
+        // (down from above her head to the floor)
+        const x = W * r([0.02, 0.98]);
+        path = [{ transform: `translate(${x}px, ${-size * 2}px)` }, { transform: `translate(${x + r([-40, 40])}px, ${H + size}px)` }];
+        const turn = r(K.spin);
+        if (turn) {
+          // (a leaf or a petal flutters as it falls — turning a little towards you and away — at an angle of its own)
+          const a = Math.random() * 360, f = r([35, 65]);
+          spin.animate([{ transform: `rotate(${a}deg) rotateY(${-f}deg) rotateX(${f * 0.4}deg)` }, { transform: `rotate(${a + r([-40, 40])}deg) rotateY(${f}deg) rotateX(${-f * 0.4}deg)` }],
+            { duration: turn, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * turn });
+        }
+      }
+      // (side to side as it comes down — a leaf or a petal tilting with each swing, like a pendulum)
+      const amp = r(K.sway), tilt = K.spin[1] ? r([18, 30]) : 0;
+      // (a bat bobs up and down as it flies instead)
+      const ax = kind === 'bats' ? 'translateY' : 'translateX';
+      sway.animate([{ transform: `${ax}(${-amp}px) rotate(${-tilt}deg)` }, { transform: `${ax}(${amp}px) rotate(${tilt}deg)` }], { duration: r(K.swayMs), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out', delay: -Math.random() * 2000 });
+      p.animate(path, { duration: ms, easing: 'linear', delay: pre ? -ms * r([0.15, 0.75]) : 0 }).onfinish = () => { p.remove(); n--; };
+    };
+    const spawn = () => {
+      if (!el.isConnected || !back.isConnected) { back.remove(); front.remove(); return; }
+      setTimeout(spawn, r(K.every));
+      if (!document.hidden && n < K.most && !quiet()) one();
+    };
+    // (the first few already on their way when she comes in: not an empty sky that slowly fills)
+    setTimeout(() => { if (el.isConnected && !quiet()) for (let i = Math.max(1, Math.round(K.most / 3)); i > 0; i--) one(true); spawn(); }, 400);
   },
 
   // ── her sunglasses (an SS, or the pointer kept on her on the main menu): now and then a glint runs across them
@@ -21111,7 +21247,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Her pictures fade out softly where they used to end in a straight line'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Her pictures fade out softly where they used to end in a straight line'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
@@ -28905,7 +29041,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '80ea1a314dfc';
+const APP_BUILD = '7c07e6c8d172';
 
 const App = {
   lastReport: null,

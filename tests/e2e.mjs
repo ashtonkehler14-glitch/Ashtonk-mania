@@ -132,6 +132,8 @@ await shot('01-home-empty');
   const pose = () => page.evaluate(() => NeruMascot.img.dataset.pose || 'usual');
   const r = await page.evaluate(async () => {
     const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), out = {}, p = () => M.img.dataset.pose || 'usual';
+    // (her hello at this hour — a yawn after midnight — over, or not to come: these don't depend on the time of day)
+    NeruEggs._greeted = true; clearTimeout(NeruEggs._greetT); clearTimeout(NeruEggs._actT); M._actUntil = 0; await M.show(null);
     for (let i = 0; i < 8; i++) M.el.click();
     await wait(500);
     out.huff = `${p()}|${M.el.classList.contains('huff')}|${!!M.el.querySelector('.neru-vein')}`;
@@ -202,6 +204,47 @@ await shot('01-home-empty');
   });
   check('Neru dances to the Konami code (staying on the main menu); left alone longer she gets her phone out, then hugs her knees, and sulks a moment when you\'re back',
     more.code === 'dance' && more.screen === 'home' && more.after === 'usual' && more.phone === 'phone' && more.knees === 'knees' && more.woke === 'sulk' && more.over === 'usual', JSON.stringify(more));
+  // the time of year around her on the main menu: leaves in autumn, snow in winter, blossom in spring, fireflies on a
+  // summer night, bats at Halloween (the other way round in the south); a few at a time, never in the way of a click;
+  // after midnight a yawn, and on New Year's Day a cheer
+  const season = await page.evaluate(async () => {
+    const E = NeruEggs, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    const at = (m, d, hr = 12, zone = 'Europe/London') => E.seasonOf(new Date(2026, m - 1, d, hr), zone) || '-';
+    out.north = [at(10, 21), at(10, 30), at(12, 25), at(2, 10), at(3, 25), at(5, 10), at(7, 4, 21), at(7, 4, 12), at(9, 1)].join();
+    out.south = [at(10, 21, 12, 'Australia/Sydney'), at(4, 20, 12, 'Australia/Sydney'), at(7, 4, 12, 'America/Argentina/Buenos_Aires'), at(1, 10, 22, 'Pacific/Auckland'), at(10, 30, 12, 'Australia/Sydney')].join();
+    // (the menu's own drift — today's — out of the way, and one of each in turn; as where the menus run at full speed)
+    for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    const slow = document.documentElement.classList.contains('slow'); document.documentElement.classList.remove('slow');
+    out.kinds = {};
+    for (const kind of Object.keys(E.DRIFT)) {
+      E.drift(M.el, kind); await wait(kind === 'bats' ? 3200 : 1500);
+      const parts = [...M.el.querySelectorAll(`.neru-drift.nd-${kind} .nd`)];
+      out.kinds[kind] = { n: parts.length, layers: M.el.querySelectorAll(`.neru-drift.nd-${kind}`).length, shape: parts.length > 0 && !!(parts[0].querySelector('svg') || parts[0].querySelector('.nd-dot')), moving: parts.length > 0 && parts[0].getAnimations({ subtree: true }).length >= 2 };
+      for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    }
+    // (never in the way: clicks go through to what's under them)
+    E.drift(M.el, 'snow'); await wait(1200);
+    out.through = [...M.el.querySelectorAll('.neru-drift')].every(d => getComputedStyle(d).pointerEvents === 'none');
+    // (off with the animations)
+    for (const d of M.el.querySelectorAll('.neru-drift')) d.remove();
+    const S = AshtonkMania.Settings, anim = S.get('ui.animSpeed'); S.set('ui.animSpeed', 0); E.drift(M.el, 'snow'); S.set('ui.animSpeed', anim);
+    out.offNone = !M.el.querySelector('.neru-drift');
+    if (slow) document.documentElement.classList.add('slow');
+    // after midnight: a yawn (once); New Year's Day: a cheer
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 2, 30)); await wait(1900); out.late = p();
+    E.greet(new Date(2026, 9, 21, 3, 30)); await wait(2600); out.lateAfter = p();
+    E._greeted = false; E.greet(new Date(2027, 0, 1, 15)); await wait(1900); out.newYear = p(); await wait(2400);
+    E._greeted = false; E.greet(new Date(2026, 9, 21, 15)); await wait(1900); out.day = p();
+    E._greeted = true;
+    return out;
+  });
+  check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-night fireflies — the other way round in the south',
+    season.north === 'leaves,bats,snow,snow,petals,-,fireflies,-,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
+  check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
+    Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
+  check('…a yawn the first time she sees you after midnight (once), and a cheer on New Year\'s Day — nothing in the daytime',
+    season.late === 'tired' && season.lateAfter === 'usual' && season.newYear === 'cheer' && season.day === 'usual', JSON.stringify(season));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {

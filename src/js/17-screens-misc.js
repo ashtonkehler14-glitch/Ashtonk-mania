@@ -779,7 +779,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Her pictures fade out softly where they used to end in a straight line'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Her pictures fade out softly where they used to end in a straight line'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
