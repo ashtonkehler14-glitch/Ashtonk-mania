@@ -3,11 +3,14 @@
  * public/ folder). With no picture nothing is shown.
  * She's alive: she breathes, bobs to the music's beat (harder in kiai), leans towards the cursor, perks up when
  * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles.
- * And a few things to find just by playing (NeruEggs): bored when left alone, in a huff when clicked over and over,
- * cheering through a song's chorus, sunglasses on when you keep the pointer on her, picked up and dropped, fishing when
- * a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
+ * And a few things to find just by playing (NeruEggs): bored when left alone — then on her phone, then hugging her
+ * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
+ * sunglasses on when you keep the pointer on her, picked up and dropped, dancing to a certain code, fishing when a
+ * pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
  * own name, the volume turned all the way up or down, and the small Neru on other screens in a huff too when clicked
- * over and over. Each screen's own picture of her stays as it is. */
+ * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
+ * own instead of her happy face: a dance after a full combo, a snicker after a fail, worried at a song far above
+ * anything you've passed. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -57,12 +60,13 @@ const NeruMascot = {
       if (pics.happy) new Image().src = pics.happy;
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
       NeruEggs.namesake();
+      NeruEggs.watchCode();
     });
     return el;
   },
   /** Her pose when nothing's going on: bored once she's been left alone a while, cheering through a song's chorus,
    *  her usual picture otherwise. */
-  rest() { return this._idle && this.has('bored') ? 'bored' : this._kiai && this.has('cheer') ? 'cheer' : null; },
+  rest() { return this._idle && this.has(this._idlePose || 'bored') ? this._idlePose || 'bored' : this._kiai && this.has('cheer') ? 'cheer' : null; },
   /** In the middle of something (a huff, being held, a stare, her happy face after a click): poses wait for it. */
   busy() { const t = performance.now(); return t < (this._huffUntil || 0) || t < (this._happyUntil || 0) || t < (this._actUntil || 0) || !!this._drag || !!this._drop || !!this._staring; },
   /** Whether a pose of hers is there (the bundled pictures — not a picture of the player's own). */
@@ -168,7 +172,7 @@ const NeruMascot = {
     if (this._onMove) window.removeEventListener('pointermove', this._onMove);
     NeruEggs.unwatchIdle(); NeruEggs.stopStare(); NeruEggs.letGo(true);
     // (a huff, a chorus or a stare cut short by leaving ends with it)
-    this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._huffUntil = this._happyUntil = 0;
+    this.el = null; this.img = null; this.body = null; this.shadow = null; this._idle = this._kiai = false; this._idlePose = null; this._huffUntil = this._happyUntil = 0;
   },
 };
 
@@ -187,12 +191,19 @@ const NeruCameo = {
     perfect: 'cool', great: 'point', okay: 'wink', bad: 'tired', failed: 'mock',
     paused: 'bored', loading: 'cheer', empty: 'sassy', list: 'huh', boot: 'fishing',
   },
+  /** The poses only easter eggs bring out (NeruEggs): a dance for the Konami code, her phone and then her knees when
+   *  left alone longer, and a sulk when you come back after that; and on other screens, clicked, a dance after a full
+   *  combo, a snicker after a fail, worried while a song far above anything you've passed loads. */
+  EGG: {
+    code: 'dance', aloneLonger: 'phone', aloneLongest: 'knees', back: 'sulk', fullCombo: 'dance', failed: 'snicker',
+    farAbove: 'worried',
+  },
   /** How much of each pose's picture her head takes up (top of her hair to her chin, against its height): a close-up
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.38, fishing: 0.38, happy: 0.45, huh: 0.45, mock: 0.38, point: 0.45, sassy: 0.49,
-    tired: 0.68, wink: 0.28,
+    bored: 0.43, cheer: 0.37, cool: 0.38, dance: 0.18, fishing: 0.38, happy: 0.45, huh: 0.45, knees: 0.45, mock: 0.38,
+    phone: 0.31, point: 0.45, sassy: 0.49, snicker: 0.21, sulk: 0.45, tired: 0.68, wink: 0.28, worried: 0.47,
   },
   HEAD_SIZE: 0.36,
   /** Her pose for `mood`'s screen (her default picture without it). */
@@ -211,8 +222,9 @@ const NeruCameo = {
     return ['A', 'B'].includes(s.grade) ? 'okay' : 'bad';
   },
   /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready (and in a mood
-   *  she's pleased about, sparkles `delay` ms later). Null when she's turned off. */
-  make(mood, cls, { delay = 450 } = {}) {
+   *  she's pleased about, sparkles `delay` ms later). `poke`: an easter egg's pose a click brings out for a moment, in
+   *  place of her happy face. Null when she's turned off. */
+  make(mood, cls, { delay = 450, poke = null } = {}) {
     if (!Settings.get('ui.mascot')) return null;
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     // (sparkles: in a mood she's pleased about)
@@ -221,7 +233,9 @@ const NeruCameo = {
       if (!pics) { el.remove(); return; }
       let face = this.face(pics, mood);
       const happy = pics.happy && this.pose(pics, 'happy');
-      if (happy) new Image().src = happy.src; // (ready before the first click)
+      // (what a click brings out for a moment: her happy face, or the easter egg's pose — when that picture is there)
+      const react = poke && pics.poses && pics.poses[poke] ? this.pose(pics, poke) : happy;
+      if (react) new Image().src = react.src; // (ready before the first click)
       const img = h('img.nc-img', { src: face.src, alt: '', draggable: 'false' });
       // (her place's height, times how big she's shown in this pose — crossfaded from the one before)
       const show = f => this.swap(img, f.src, () => el.style.setProperty('--nc-s', f.scale));
@@ -261,9 +275,9 @@ const NeruCameo = {
         if (pics.poses && face.src === pics.poses.fishing && img.getAttribute('src') === face.src) { NeruEggs.flopFish(img.parentElement, img); return; }
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
         UISounds.click();
-        // (her happy face for a moment, whatever her mood)
-        if (happy && face.src !== happy.src) { show(happy); clearTimeout(el._back); el._back = setTimeout(() => show(face), 1600); }
-        if (pleased) this.burst(el);
+        // (her happy face for a moment, whatever her mood — or the easter egg's pose, held a little longer)
+        if (react && face.src !== react.src) { show(react); clearTimeout(el._back); el._back = setTimeout(() => show(face), react === happy ? 1600 : 2200); }
+        if (pleased || (react !== happy && poke === this.EGG.fullCombo)) this.burst(el);
       });
     });
     return el;
@@ -325,8 +339,11 @@ Bus.on('settings:changed', k => {
  *  says anything. */
 const NeruEggs = {
   IDLE_MS: 45000,
-  // ── left alone on the main menu: after a while she gets bored (at her desk); back to herself, with a start, when
-  // you move or press anything
+  /** Left alone longer still: on her phone, then hugging her knees (each only if that picture is there). */
+  get IDLE_STAGES() { return [[45000, 'bored'], [180000, NeruCameo.EGG.aloneLonger], [360000, NeruCameo.EGG.aloneLongest]]; },
+  // ── left alone on the main menu: after a while she gets bored (at her desk), then gets her phone out, and in the end
+  // sits hugging her knees; back to herself, with a start, when you move or press anything (from her knees: in a sulk
+  // for a moment first)
   watchIdle() {
     this.unwatchIdle();
     this._seen = performance.now();
@@ -334,17 +351,24 @@ const NeruEggs = {
       this._seen = performance.now();
       const M = NeruMascot;
       if (!M._idle) return;
-      M._idle = false;
+      const was = M._idlePose;
+      M._idle = false; M._idlePose = null;
       if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
+      // (left alone so long she ended up hugging her knees: she sulks a moment before she's herself again)
+      if (was === NeruCameo.EGG.aloneLongest && this.act(NeruCameo.EGG.back, 2600, { hop: false })) return;
       if (!M.busy()) M.show(M.rest());
     };
     for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, this._wake, { passive: true });
     window.addEventListener('pointermove', this._wakeMove = e => { if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2) this._wake(); }, { passive: true });
     this._idleT = setInterval(() => {
       const M = NeruMascot;
-      if (!M.img || M._idle || document.hidden || performance.now() - this._seen < this.IDLE_MS || M.busy()) return;
-      if (!M.has('bored')) return; // (no such picture)
-      M._idle = true; M.show('bored');
+      if (!M.img || document.hidden || M.busy()) return;
+      const away = performance.now() - this._seen;
+      // (the latest stage reached whose picture is there)
+      let pose = null;
+      for (const [ms, name] of this.IDLE_STAGES) if (away >= ms && M.has(name)) pose = name;
+      if (!pose || (M._idle && M._idlePose === pose)) return;
+      M._idle = true; M._idlePose = pose; M.show(pose);
     }, 3000);
   },
   unwatchIdle() {
@@ -415,6 +439,39 @@ const NeruEggs = {
     }, 1400);
   },
 
+  // ── the Konami code on the main menu (↑ ↑ ↓ ↓ ← → ← → B A): she dances, a burst of sparkles on every beat of it
+  CODE: ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'],
+  watchCode() {
+    if (this._codeOn) return;
+    this._codeOn = true;
+    let at = 0;
+    // (ahead of the main menu's own keys: B and A — Browse… — aren't pressed for the menu when they finish the code)
+    window.addEventListener('keydown', e => {
+      if (Screens.currentName !== 'home' || !NeruMascot.img || e.ctrlKey || e.altKey || e.metaKey) { at = 0; return; }
+      if (e.repeat || (e.target && e.target.closest && e.target.closest('input, textarea, select'))) return;
+      if (e.code !== this.CODE[at]) { at = e.code === this.CODE[0] ? 1 : 0; return; }
+      at++;
+      if (at > 8) { e.preventDefault(); e.stopImmediatePropagation(); }
+      if (at === this.CODE.length) { at = 0; this.dance(); }
+    }, true);
+  },
+  dance() {
+    const M = NeruMascot;
+    const pose = NeruCameo.EGG.code;
+    if (!M.img || M._drag || M._drop || !M.has(pose)) return;
+    // (whatever she was in the middle of gives way: this is what the code is for)
+    this.stopStare(); clearTimeout(M._back); M._huffUntil = M._happyUntil = M._actUntil = 0; M._idle = false; M._idlePose = null;
+    if (M.el) M.el.classList.remove('huff', 'shake');
+    if (!this.act(pose, 4600, { sparkle: true })) return;
+    UISounds.play('check-on');
+    let n = 0;
+    clearInterval(this._danceT);
+    this._danceT = setInterval(() => {
+      if (++n > 6 || !M.el || !M.img) { clearInterval(this._danceT); return; }
+      M._bob = 1; M.sparkle();
+    }, 650);
+  },
+
   // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored
   volume(v) {
     const was = this._vol; this._vol = v;
@@ -444,7 +501,8 @@ const NeruEggs = {
   },
   /** Glints every few seconds for as long as she wears them (`still()`). */
   glintLoop(box, img, still) {
-    const go = () => { if (!img.isConnected || !still()) return; this.glint(box, img); setTimeout(go, 3600 + Math.random() * 1800); };
+    // (still going while she's in another pose for a moment — clicked — and glinting again once they're back on)
+    const go = () => { if (!img.isConnected) return; if (still()) this.glint(box, img); setTimeout(go, 3600 + Math.random() * 1800); };
     setTimeout(go, 900);
   },
 
@@ -493,6 +551,22 @@ const NeruEggs = {
       }
     }, at[i] * ms);
   },
+
+  // ── the small Neru on other screens: her picture there stays as it is, but a click now and then gets a pose of her
+  // own for a moment instead of her happy face (NeruCameo.make's `poke`)
+  /** While a song loads: one far above anything you've passed — she's worried for you (not on Auto: you're not even
+   *  playing). */
+  loaderPoke(mods = [], rec = null) { return rec && !mods.includes('AT') && this.outOfReach(rec.stars) ? NeruCameo.EGG.farAbove : null; },
+  /** A star rating well past the hardest you've passed (by a star and a half, and a third again): only once you've
+   *  passed a few, so a new player isn't met with it every time. */
+  outOfReach(stars) {
+    if (!(stars > 0) || typeof ScoreManager === 'undefined') return false;
+    let best = 0, n = 0;
+    for (const sc of ScoreManager.scores) if (sc.passed && !(sc.mods || []).includes('AT') && sc.stars > 0) { n++; if (sc.stars > best) best = sc.stars; }
+    return n >= 3 && stars >= Math.max(best + 1.5, best * 1.35);
+  },
+  /** A play's results: a full combo — not one miss — gets a little dance (with sparkles). */
+  resultsPoke(s) { const c = (s && s.passed && s.counts) || []; return c.length > 5 && c[5] === 0 ? NeruCameo.EGG.fullCombo : null; },
 
   // ── the menu music's chorus (kiai): she cheers through it, bouncing harder on each beat, and stops when it ends
   chorus(on) {

@@ -529,7 +529,7 @@ const GameplayScreen = {
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader'));
+      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -1662,7 +1662,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
-    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause'); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : null }); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');

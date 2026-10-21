@@ -31,7 +31,7 @@ const ResultsScreen = {
     el.append(body, actions);
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
     if (!this._swapping) {
-      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500 }) : null;
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(NeruCameo.moodOf(s), 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
     }
     this.fitToScreen(body, grid);

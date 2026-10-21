@@ -169,9 +169,39 @@ await shot('01-home-empty');
     S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
     S.set('audio.master', 0); await wait(400); out.down = p(); await wait(2000);
     S.set('audio.master', v0);
+    const E = NeruEggs, x = v => v || '-';
+    // (clicked on other screens: a dance after a full combo — not one miss, not a fail —, worried while a song far above
+    // anything passed loads, once a few have been passed, and not on Auto)
+    const play = (extra = {}) => ({ passed: true, accuracy: 0.97, counts: [50, 5, 1, 0, 0, 0], ...extra });
+    out.results = [E.resultsPoke(play()), E.resultsPoke(play({ grade: 'SS' })), E.resultsPoke(play({ counts: [50, 5, 1, 0, 0, 1] })), E.resultsPoke(play({ passed: false }))].map(x).join();
+    const saved = ScoreManager.scores;
+    ScoreManager.scores = [1.8, 2, 2.4].map(stars => ({ passed: true, stars, mods: [] }));
+    out.worried = [E.loaderPoke([], { stars: 4 }), E.loaderPoke([], { stars: 3 }), E.loaderPoke(['HR'], { stars: 4 }), E.loaderPoke(['AT'], { stars: 4 })].map(x).join();
+    ScoreManager.scores = [{ passed: true, stars: 2, mods: [] }];
+    out.newcomer = x(E.loaderPoke([], { stars: 6 }));
+    ScoreManager.scores = saved;
     return out;
   });
   check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored)', small.up === 'cheer' && small.down === 'bored', JSON.stringify(small));
+  check('…and clicked on other screens: a dance after a full combo, worried at a song far above anything passed (not for a newcomer, nor on Auto)',
+    small.results === 'dance,dance,-,-' && small.worried === 'worried,-,worried,-' && small.newcomer === '-', JSON.stringify(small));
+  // the Konami code on the main menu: she dances (and its B doesn't open Browse); left alone longer: her phone, then her
+  // knees — and back to her, a sulk for a moment first
+  const more = await page.evaluate(async () => {
+    const M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', out = {};
+    M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
+    // (from the page, as a key press comes: through the window on its way, where the code is watched for first)
+    for (const code of NeruEggs.CODE) (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { code, key: code.replace(/^Key/, '').toLowerCase(), bubbles: true }));
+    await wait(450); out.code = p(); out.screen = AshtonkMania.Screens.currentName;
+    await wait(4900); out.after = p();
+    NeruEggs._seen = performance.now() - 200000; await wait(3400); out.phone = p();
+    NeruEggs._seen = performance.now() - 400000; await wait(3400); out.knees = p();
+    window.dispatchEvent(new PointerEvent('pointerdown')); await wait(500); out.woke = p();
+    await wait(2600); out.over = p();
+    return out;
+  });
+  check('Neru dances to the Konami code (staying on the main menu); left alone longer she gets her phone out, then hugs her knees, and sulks a moment when you\'re back',
+    more.code === 'dance' && more.screen === 'home' && more.after === 'usual' && more.phone === 'phone' && more.knees === 'knees' && more.woke === 'sulk' && more.over === 'usual', JSON.stringify(more));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -778,8 +808,14 @@ await page.waitForFunction(() => document.querySelector('.pause-box h2.failed'),
 check('Sudden Death fails on first miss', true);
 {
   await page.waitForSelector('.pause-menu .nc-pause:not([hidden]) .nc-img', { timeout: 5000 }).catch(() => {});
-  const n = await page.evaluate(() => ({ face: ((document.querySelector('.pause-menu .nc-img') || {}).src || '').split('/').pop(), pose: `neru-${AshtonkMania.NeruCameo.POSE.failed}.png` }));
-  check('the fail screen has Neru, laughing at it', n.face === n.pose && n.pose === 'neru-mock.png', JSON.stringify(n));
+  const n = await page.evaluate(async () => {
+    const el = document.querySelector('.pause-menu .nc-pause'), img = () => ((el && el.querySelector('.nc-img')) || {}).src || '';
+    const face = img().split('/').pop();
+    // (clicked: a snicker behind her hands, for a moment, instead of her happy face)
+    el.click(); await new Promise(r => setTimeout(r, 450));
+    return { face, pose: `neru-${AshtonkMania.NeruCameo.POSE.failed}.png`, clicked: img().split('/').pop() };
+  });
+  check('the fail screen has Neru, laughing at it — and clicked, snickering', n.face === n.pose && n.pose === 'neru-mock.png' && n.clicked === 'neru-snicker.png', JSON.stringify(n));
 }
 {
   const t0 = await page.evaluate(() => AshtonkMania.GameplayScreen.s.failClock.t);
@@ -815,14 +851,21 @@ await page.waitForTimeout(500);
     out.old = await look(play('S', true), { fromList: true });
     out.replay = await look(play('S', true), { fresh: false, watched: 'replay' });
     A.Settings.set('ui.mascot', false); out.off = await look(play('S', true)); A.Settings.set('ui.mascot', true);
-    // clicking her: a hop, and her excited face for a moment
-    await look(play('A', true));
+    // clicking her: a hop, and her excited face for a moment (an A with a miss or two: a full combo has a dance of its own)
+    await look(play('A', true, { counts: [100, 10, 1, 0, 0, 2] }));
     const el = A.Screens.current._el.querySelector('.nc-results'), before = face(el);
     el.click(); await wait(50);
     out.clicked = { hop: el.classList.contains('hop'), before, face: face(el) };
     // she steps aside while the statistics are open
     A.Screens.current._el.querySelector('.res-grid > .rs').click(); await wait(500);
     out.aside = getComputedStyle(el).opacity;
+    // a full combo: clicked, a little dance (with sparkles) for a moment instead — and back to the grade's own picture
+    await look(play('A', true));
+    const fc = A.Screens.current._el.querySelector('.nc-results'), fcBefore = face(fc);
+    fc.click(); await wait(450);
+    // (sparkles: not where the menus run lighter — a slow device — as everywhere)
+    out.fc = { before: fcBefore, face: face(fc), sparks: fc.querySelectorAll('.neru-spark').length > 0 || document.documentElement.classList.contains('slow') };
+    await wait(2300); out.fc.after = face(fc);
     out.moods = ['XH', 'X', 'SH', 'S', 'A', 'B', 'C', 'D'].map(g => A.NeruCameo.moodOf({ passed: true, grade: g })).join() + '|' + A.NeruCameo.moodOf({ passed: true, grade: 'A', isPB: true }) + '|' + A.NeruCameo.moodOf({ passed: false, grade: 'S' });
     await A.Screens.go('home');
     // (the mood's own pose)
@@ -834,6 +877,8 @@ await page.waitForTimeout(500);
     r.ss && r.ok.perfect && !r.ss.said && r.fail && r.ok.failed, JSON.stringify(r));
   check('results: no Neru on an older score, a replay, or with her turned off; clicking her makes her hop with her excited face; she steps aside for the statistics',
     !r.old && !r.replay && !r.off && r.clicked.hop && r.ok.okay && r.clicked.face === 'neru-happy.png' && +r.aside < 0.5, JSON.stringify(r));
+  check('results: clicked after a full combo, Neru dances (with sparkles) for a moment, then her grade\'s picture is back',
+    r.fc && r.fc.before === 'neru-wink.png' && r.fc.face === 'neru-dance.png' && r.fc.sparks && r.fc.after === 'neru-wink.png', JSON.stringify(r.fc));
   check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad) — a new best too — and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|okay|failed', r.moods);
 }
 
