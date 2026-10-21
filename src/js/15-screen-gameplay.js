@@ -529,7 +529,7 @@ const GameplayScreen = {
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader', { pose: NeruEggs.loaderPose(mods) }));
+      p.replay || p.skinEditor ? null : NeruCameo.make('loading', 'nc-loader'));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -1639,7 +1639,6 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   showPause(title, failed = false) {
     this.closePause();
     const s = this.s;
-    if (!failed && s) s.pauses = (s.pauses || 0) + 1; // (Neru: the fifth one wears her out)
     const btns = [];
     // osu!lazer's GameplayMenuOverlay: wide slanted colour buttons (DialogButton) — continue green, retry yellow,
     // quit red — with the skin's pause-menu sounds (hover and clicks) when it has them
@@ -1663,7 +1662,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
         h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) el.append(this.failFooter());
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
-    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { pose: NeruEggs.pausePose(failed, prog, s.pauses || 0) }); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
+    if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause'); if (n) { el.append(n); if (!failed) NeruEggs.fishLater(n); } }
     this.pauseEl = el;
     this.el.appendChild(el);
     this.el.classList.add('show-cursor');
@@ -1792,7 +1791,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       // lazer's global leaderboard: a passed play goes up (the server keeps your best)
       if (score.passed && !s.mods.includes('AT') && s.mode === 'play' && !s.practice) Verified.submit({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events, daily: this.params.daily ? { day: this.params.daily.day } : null });
       if (s.mp) { Multiplayer.finish(score); Verified.room({ rec: s.rec, mods: s.mods, modConfig: s.modConfig, seed: s.seed, events: s.events }); setTimeout(() => { if (this.s === s) this.mpAfter(score, replay); }, 900); return; }
-      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null, retries: this.retryCount || 0 }, { replace: true, transition: 'zoom' }); }, 600);
+      setTimeout(() => { if (this.s === s) Screens.go('results', { score, replay, fresh: true, back: this.params.back || null, daily: this.params.daily || null }, { replace: true, transition: 'zoom' }); }, 600);
     } else {
       // (watching someone in your multiplayer room: when their song ends, so does watching — back to the room)
       if (s.spectate && Multiplayer.inRoom()) { setTimeout(() => { if (this.s !== s) return; if (Spectate.target) Spectate.stop({ quiet: true }); else Screens.go('multiplayer'); }, 600); return; }

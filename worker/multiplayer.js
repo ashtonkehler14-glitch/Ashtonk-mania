@@ -1364,7 +1364,11 @@ export class PresenceLogic {
     const b = rec.bests[key];
     // (with the song, so a profile can list it — read from the judged beatmap file itself)
     if (!b || b.pp < entry.pp) rec.bests[key] = { pp: entry.pp, acc: entry.acc, grade: entry.grade, score: entry.score, combo: entry.combo, mods: entry.mods, date: t,
-      title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120) };
+      title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120),
+      // (its beatmap set on osu!: a profile shows that set's cover behind it, on a device without the beatmap)
+      ...(r.beatmapSetId > 0 ? { sid: r.beatmapSetId } : b && b.sid ? { sid: b.sid } : {}),
+      // (pp only comes from a ranked or approved beatmap — the score route asks osu! before it's judged: checked)
+      ...(entry.pp > 0 ? { ok: true } : {}) };
     const list = Object.entries(rec.bests).sort((a, b2) => b2[1].pp - a[1].pp).slice(0, PresenceLogic.KEEP_BESTS);
     rec.bests = Object.fromEntries(list);
     // (how many ranked beatmaps they've set a pp score on, for lazer's bonus — kept past the 200 best plays, up to 1000)
@@ -1412,7 +1416,7 @@ export class PresenceLogic {
     // their best plays the server judged (the ones with a known song, on ranked beatmaps), best first — for a profile their game hasn't sent
     // (with each one's beatmap — its file's hash — so their own game can tell which of its plays these are)
     const top = r && r.bests ? Object.entries(r.bests).filter(([, b]) => b && b.title && b.pp > 0).sort((a, b) => b[1].pp - a[1].pp).slice(0, 100)
-      .map(([key, b]) => ({ key, title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true })) : [];
+      .map(([key, b]) => ({ key, title: b.title, artist: b.artist, version: b.version, grade: b.grade, accuracy: b.acc, mods: b.mods || [], date: b.date, pp: b.pp, score: b.score, maxCombo: b.combo, passed: true, onlineSetId: b.sid || undefined })) : [];
     const online = [...this.users.entries()].find(([, x]) => x.pid === pid && x.vis !== 'offline'); // (appearing offline: offline here too)
     const all = [...this.ranks.values()].filter(x => x.pp > 0).sort((a, b) => b.pp - a.pp || b.acc - a.acc), at = all.findIndex(x => x.pid === pid);
     // (a first place stored without its song — the backfill couldn't find which beatmap it was — takes the name from their
@@ -1735,6 +1739,7 @@ export class PresenceLogic {
       }
       const top = this.codeOf.has(u.pid) && this.profiles.get(u.pid) ? this.profiles.get(u.pid).top : p && p.top; // (a player on several devices: all their best plays)
       if (Array.isArray(top) && top.length && this.verifyTop) this.verifyTop(u.pid, this.ownPlays(u.pid, top.slice(0, 50)), { name: u.name, avatar: u.avatar });
+      if (this.verifyBests) this.verifyBests(u.pid);
       return [];
     }
     if (msg.t === 'rankings') return [{ to: id, msg: this.rankings(u.pid, msg.mode === 'score' ? 'score' : 'performance') }];
@@ -2414,6 +2419,7 @@ export class Matchmaker {
       if (inline.length) setTimeout(split, 3000);
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.presence.verifyTop = (pid, top, who) => { this.verifyTop(pid, top, who).catch(e => console.error('verifyTop', e)); };
+      this.presence.verifyBests = pid => { this.verifyBests(pid).catch(e => console.error('verifyBests', e)); };
       this.restoreRanks().catch(e => console.error('restoreRanks', e));
       // (records whose plays weren't loaded when the way totals are added up changed: worked out again, a few at a time)
       const rew = [...this.presence.ranks].filter(([, r]) => r.rew).map(([pid]) => pid);
@@ -2519,13 +2525,41 @@ export class Matchmaker {
             || sets.find(b => same(b.title, x.title) && (b.beatmaps || []).some(m => same(m.version, x.version)));
           found = hit ? String(hit.status || '') : '';
         }
-      } catch { return null; }
+      } catch (e) { if (!(e && e.status === 404)) return null; } // (osu! has no such beatmap: not ranked; anything else: asked again later)
       statusOf.set(id, found);
     }
     const v = statusOf.get(id);
     // (osu! had nothing to match it: not ranked — what the game itself says isn't taken on trust, or a made-up play
     // would count)
     return v === 'ranked' || v === 'approved';
+  }
+  /** A player's best plays the server judged, each checked once against osu! (see rankedEntry): one on a beatmap that
+   *  isn't ranked or approved — judged before every play was checked first, or kept from an older game — stops counting
+   *  (0pp, and not in the bonus), so the total only ever adds up ranked plays. At most every ten minutes a player. */
+  async verifyBests(pid) {
+    if (!this._vb) this._vb = new Map();
+    if (Date.now() - (this._vb.get(pid) || 0) < 600000) return;
+    this._vb.set(pid, Date.now());
+    await this.ensureBests(pid);
+    const P = this.presence, rec = P.ranks.get(pid);
+    if (!rec || !rec.bests) return;
+    const todo = Object.entries(rec.bests).filter(([, b]) => b && b.pp > 0 && b.ok !== true);
+    if (!todo.length) return;
+    // (the beatmap's id on osu!, where its leaderboard has one)
+    const idOf = new Map();
+    for (const [bid, key] of P.boardIds) idOf.set(key, bid);
+    const budget = { n: 60 };
+    let changed = false;
+    for (const [key, b] of todo) {
+      const f = await this.rankedEntry({ onlineId: idOf.get(key) || 0, onlineSetId: b.sid || 0, artist: b.artist, title: b.title, version: b.version }, budget);
+      if (f === null) continue; // (not looked up this time: checked again later)
+      changed = true;
+      if (f) b.ok = true;
+      else { b.pp = 0; b.ok = false; if (Array.isArray(rec.rk)) rec.rk = rec.rk.filter(x => x !== key.slice(0, 10)); }
+    }
+    if (!changed) return;
+    PresenceLogic.revalue(rec);
+    if (P.persistRank) P.persistRank(pid, rec);
   }
   /** A player's profile plays, checked (see rankedEntry): their standing from the ones on ranked beatmaps. */
   async verifyTop(pid, top, who = {}) {

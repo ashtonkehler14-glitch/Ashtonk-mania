@@ -5,9 +5,9 @@
  * hovered, and clicking her makes her hop — her excited face for a moment, and a few sparkles.
  * And a few things to find just by playing (NeruEggs): bored when left alone, in a huff when clicked over and over,
  * cheering through a song's chorus, sunglasses on when you keep the pointer on her, picked up and dropped, fishing when
- * a pause goes on — and small ones all over: a double take at her own name, the volume turned all the way up or down,
- * a look for the mods a song is played with, a fifth pause, a fail right at the end, one miss from a full combo, a pass
- * after ten retries, and the small Neru in a huff too when clicked over and over. */
+ * a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
+ * own name, the volume turned all the way up or down, and the small Neru on other screens in a huff too when clicked
+ * over and over. Each screen's own picture of her stays as it is. */
 
 const NeruMascot = {
   FILES: ['neru.png', 'neru.webp', 'neru.gif', 'neru.jpg'],
@@ -72,7 +72,8 @@ const NeruMascot = {
   async show(name, { pop = true } = {}) {
     const pics = await this.pictures(), img = this.img;
     if (!pics || !img) return;
-    const f = name ? NeruCameo.pose(pics, name) : { src: pics.base, scale: 1 };
+    // (her happy face — clicked — at her full size, as it's always been on the main menu)
+    const f = !name ? { src: pics.base, scale: 1 } : name === 'happy' && pics.happy ? { src: pics.happy, scale: 1 } : NeruCameo.pose(pics, name);
     if (img.dataset.pose === (name || '')) return;
     img.dataset.pose = name || '';
     await NeruCameo.swap(img, f.src, () => {
@@ -190,7 +191,7 @@ const NeruCameo = {
    *  is shown smaller, so that her head comes out no bigger than in her default picture (HEAD_SIZE) — the same Neru
    *  whichever pose it is, not one twice the size of the other. */
   HEAD: {
-    bored: 0.43, cheer: 0.37, cool: 0.22, fishing: 0.38, happy: 0.45, huh: 0.45, mock: 0.38, point: 0.45, sassy: 0.49,
+    bored: 0.43, cheer: 0.37, cool: 0.38, fishing: 0.38, happy: 0.45, huh: 0.45, mock: 0.38, point: 0.45, sassy: 0.49,
     tired: 0.68, wink: 0.28,
   },
   HEAD_SIZE: 0.36,
@@ -199,7 +200,8 @@ const NeruCameo = {
   /** A pose of hers by name (null: her default picture): its picture, and how big she's shown in it (see HEAD). */
   pose(pics, name) {
     if (!name || !pics.poses || !pics.poses[name]) return { src: pics.base, scale: 1 };
-    return { src: pics.poses[name], scale: Math.min(1, this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE)) };
+    // (a close-up is shown a little smaller — never below 85%: shrunk to match her head exactly, some poses came out tiny)
+    return { src: pics.poses[name], scale: clamp(this.HEAD_SIZE / (this.HEAD[name] || this.HEAD_SIZE), 0.85, 1) };
   },
   /** A play's mood: from its grade (a new best too), or a fail. */
   moodOf(s) {
@@ -210,15 +212,14 @@ const NeruCameo = {
   },
   /** Neru in `mood`, for a screen to put where `cls` places her; she comes in once her picture is ready (and in a mood
    *  she's pleased about, sparkles `delay` ms later). Null when she's turned off. */
-  make(mood, cls, { delay = 450, pose = null, sparkle = false } = {}) {
+  make(mood, cls, { delay = 450 } = {}) {
     if (!Settings.get('ui.mascot')) return null;
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
-    // (sparkles: in a mood she's pleased about, or when an easter egg says so)
-    const pleased = sparkle || this.HAPPY.has(mood);
+    // (sparkles: in a mood she's pleased about)
+    const pleased = this.HAPPY.has(mood);
     NeruMascot.pictures().then(async pics => {
       if (!pics) { el.remove(); return; }
-      // (`pose`: an easter egg's own pose in place of the mood's — when that picture is there)
-      let face = pose && pics.poses && pics.poses[pose] ? this.pose(pics, pose) : this.face(pics, mood);
+      let face = this.face(pics, mood);
       const happy = pics.happy && this.pose(pics, 'happy');
       if (happy) new Image().src = happy.src; // (ready before the first click)
       const img = h('img.nc-img', { src: face.src, alt: '', draggable: 'false' });
@@ -239,6 +240,8 @@ const NeruCameo = {
       const anim = !!Settings.get('ui.animSpeed');
       if (anim) el.classList.add('in');
       setTimeout(() => { if (el.isConnected && pleased) this.burst(el); }, anim ? delay : 0);
+      // (her sunglasses on — an SS — catch the light now and then)
+      if (pics.poses && pics.poses.cool) NeruEggs.glintLoop(img.parentElement, img, () => el.isConnected && img.getAttribute('src') === pics.poses.cool);
       el.addEventListener('click', e => {
         e.stopPropagation();
         const now = performance.now();
@@ -254,8 +257,10 @@ const NeruCameo = {
           el._back = setTimeout(() => { el.classList.remove('shake'); show(face); }, 3000);
           return;
         }
-        UISounds.click();
+        // (fishing: the fish on her line flops about — she keeps still, rod in hand — an easter egg)
+        if (pics.poses && face.src === pics.poses.fishing && img.getAttribute('src') === face.src) { NeruEggs.flopFish(img.parentElement, img); return; }
         el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
+        UISounds.click();
         // (her happy face for a moment, whatever her mood)
         if (happy && face.src !== happy.src) { show(happy); clearTimeout(el._back); el._back = setTimeout(() => show(face), 1600); }
         if (pleased) this.burst(el);
@@ -270,6 +275,7 @@ const NeruCameo = {
     const pre = new Image(); pre.src = src;
     try { await pre.decode(); } catch { /* shown anyway */ }
     if (!still()) return;
+    if (img._flopEnd) img._flopEnd(); // (a fish flopping on her line: over, the picture's changing)
     const box = img.parentElement, anim = Settings.get('ui.animSpeed') && !document.documentElement.classList.contains('slow');
     if (anim && box && img.isConnected && img.complete && img.naturalWidth && img.getAttribute('src') !== src) {
       // (the old picture, where it was — held to the bottom, as she stands — fading away over the new one)
@@ -398,51 +404,95 @@ const NeruEggs = {
     return true;
   },
 
-  // ── your name is hers: the first time she sees it (once a session), a double take — "huh?" — then a wagging finger
+  // ── your name is hers: the first time she sees it (once a session), a double take — she laughs — then a wagging finger
   namesake() {
     if (this._named || !/^\s*neru\s*$/i.test(ProfileManager.profile.name || '')) return;
     this._named = true;
     setTimeout(() => {
-      if (!this.act('huh', 1500, { hop: false })) { this._named = false; return; }
+      if (!this.act('mock', 1500, { hop: false })) { this._named = false; return; }
       const M = NeruMascot; if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
       setTimeout(() => { M._actUntil = 0; this.act('point', 1500); }, 1500);
     }, 1400);
   },
 
-  // ── the main menu's volume turned all the way up: she cheers; all the way down: "huh?"
+  // ── the main menu's volume turned all the way up: she cheers; all the way down: the music's gone, she's bored
   volume(v) {
     const was = this._vol; this._vol = v;
     if (was == null || Screens.currentName !== 'home') return;
     if (v >= 1 && was < 1) this.act('cheer', 1500, { sparkle: true });
-    else if (v <= 0 && was > 0) this.act('huh', 1500, { hop: false });
+    else if (v <= 0 && was > 0) this.act('bored', 1800, { hop: false });
   },
 
-  // ── the small Neru on other screens: a pose of her own now and then
-  /** While a song loads, by its mods: Auto — she's bored (you're not even playing); an easier mod — she laughs; a
-   *  harder one — sunglasses on. */
-  loaderPose(mods = []) {
-    const m = new Set(mods);
-    if (m.has('AT') || m.has('CN')) return 'bored';
-    if (['EZ', 'NF', 'HT', 'DC', 'NR'].some(x => m.has(x))) return 'mock';
-    if (['HR', 'DT', 'NC', 'HD', 'FI', 'FL', 'SD', 'PF', 'PSS'].some(x => m.has(x))) return 'cool';
-    return null;
+  // ── her sunglasses (an SS, or the pointer kept on her on the main menu): now and then a glint runs across them
+  /** One glint across the sunglasses of her "cool" picture `img` (inside `box`): a streak of light over the lenses and
+   *  a twinkle at their corner. */
+  glint(box, img) {
+    if (!box || !img || !img.isConnected || !Settings.get('ui.animSpeed') || !img.offsetWidth) return;
+    const w = img.offsetWidth, hh = img.offsetHeight, x0 = img.offsetLeft, y0 = img.offsetTop;
+    // (where the lenses are in that picture, as fractions of it)
+    const g = h('span.neru-glint', h('i'));
+    Object.assign(g.style, { left: `${x0 + w * 0.48}px`, top: `${y0 + hh * 0.405}px`, width: `${w * 0.33}px`, height: `${hh * 0.045}px` });
+    box.append(g);
+    g.firstChild.animate([{ transform: 'translateX(-120%) skewX(-20deg)', opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 1, offset: 0.7 }, { transform: 'translateX(320%) skewX(-20deg)', opacity: 0 }],
+      { duration: 650, easing: 'cubic-bezier(.4, 0, .2, 1)' });
+    const star = h('span.neru-twinkle');
+    Object.assign(star.style, { left: `${x0 + w * 0.8}px`, top: `${y0 + hh * 0.405}px` });
+    box.append(star);
+    star.animate([{ transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', opacity: 0 }, { transform: 'translate(-50%, -50%) scale(1) rotate(45deg)', opacity: 1, offset: 0.5 },
+      { transform: 'translate(-50%, -50%) scale(0) rotate(90deg)', opacity: 0 }], { duration: 520, delay: 420, easing: 'ease-out', fill: 'backwards' }).onfinish = () => star.remove();
+    setTimeout(() => g.remove(), 700);
   },
-  /** The pause screen: the fifth pause in one song wears her out; a fail in the last tenth of it — "huh?" — instead of
-   *  the laugh. */
-  pausePose(failed, progress, pauses) {
-    if (failed) return progress != null && progress >= 90 ? 'huh' : null;
-    return pauses >= 5 ? 'tired' : null;
+  /** Glints every few seconds for as long as she wears them (`still()`). */
+  glintLoop(box, img, still) {
+    const go = () => { if (!img.isConnected || !still()) return; this.glint(box, img); setTimeout(go, 3600 + Math.random() * 1800); };
+    setTimeout(go, 900);
   },
-  /** A play's results: a pass after ten retries or more — she cheers (with sparkles); one miss away from a full combo
-   *  on a good play — a blank "huh?". */
-  resultsPose(s, retries = 0) {
-    if (!s || !s.passed) return null;
-    if (retries >= 10) return 'cheer';
-    const c = s.counts || [];
-    return c[5] === 1 && (s.accuracy || 0) >= 0.95 ? 'huh' : null;
+
+  // ── fishing (the loading screen, a pause that went on): click her and the fish on her line flops about — swinging
+  // from its mouth, drops flying off its tail
+  /** Where the fish on her line is in neru-fishing.png (fractions of the picture), and its mouth, where it hangs. */
+  FISH: { l: 0.866, t: 0.636, r: 0.996, b: 0.906, mx: 0.935, my: 0.642, tx: 0.93, ty: 0.9 },
+  flopFish(box, img) {
+    UISounds.play('check-on');
+    if (!box || !img || img._flopEnd || !Settings.get('ui.animSpeed') || !img.offsetWidth) return;
+    if (!(CSS.supports('mask-composite', 'exclude') || CSS.supports('-webkit-mask-composite', 'xor'))) return;
+    const F = this.FISH, w = img.offsetWidth, hh = img.offsetHeight, cs = getComputedStyle(img);
+    const L = w * F.l, T = hh * F.t, W = w * (F.r - F.l), H = hh * (F.b - F.t), mx = w * F.mx, my = hh * F.my;
+    // (the picture held still while it flops — its sway paused where it is — so the fish stays on its line)
+    const anims = img.getAnimations(), lift = cs.translate;
+    for (const a of anims) a.pause();
+    // the fish: that part of the picture, laid over it and moved just as it is…
+    const wrap = h('span.neru-flop'), fish = h('i');
+    Object.assign(wrap.style, { left: `${img.offsetLeft}px`, top: `${img.offsetTop}px`, width: `${w}px`, height: `${hh}px`, transform: cs.transform, transformOrigin: cs.transformOrigin, translate: lift, filter: cs.filter });
+    Object.assign(fish.style, { left: `${L}px`, top: `${T}px`, width: `${W}px`, height: `${H}px`, backgroundImage: `url("${img.currentSrc || img.src}")`, backgroundSize: `${w}px ${hh}px`,
+      backgroundPosition: `${-L}px ${-T}px`, transformOrigin: `${mx - L}px ${my - T}px` });
+    wrap.append(fish); box.append(wrap);
+    // …and cut out of the picture itself while it flops
+    const m = `linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) ${L}px ${T}px / ${W}px ${H}px no-repeat`;
+    img.style.webkitMask = m; img.style.mask = m; img.style.webkitMaskComposite = 'xor'; img.style.maskComposite = 'exclude'; img.style.translate = lift;
+    img._flopEnd = () => {
+      img._flopEnd = null; wrap.remove();
+      for (const k of ['webkitMask', 'mask', 'webkitMaskComposite', 'maskComposite', 'translate']) img.style[k] = '';
+      for (const a of anims) if (a.playState === 'paused') a.play();
+    };
+    const swing = [0, 24, -19, 13, -8, 4, 0], at = [0, 0.13, 0.32, 0.5, 0.67, 0.83, 1], ms = 1150;
+    fish.animate(swing.map((d, i) => ({ transform: `rotate(${d}deg)`, offset: at[i], easing: 'ease-in-out' })), { duration: ms }).onfinish = () => { if (img._flopEnd) img._flopEnd(); };
+    // (drops flung off its tail as it swings out, the way it was going)
+    const tx = w * (F.tx - F.mx), ty = hh * (F.ty - F.my);
+    for (const i of [1, 2]) setTimeout(() => {
+      if (!wrap.isConnected) return;
+      const th = swing[i] * Math.PI / 180, x = mx + tx * Math.cos(th) - ty * Math.sin(th), y = my + tx * Math.sin(th) + ty * Math.cos(th), dir = swing[i] > 0 ? -1 : 1;
+      for (let j = 0; j < 3; j++) {
+        const d = h('span.neru-drop'); Object.assign(d.style, { left: `${x}px`, top: `${y}px` });
+        wrap.append(d);
+        const r = 18 + Math.random() * 22, up = 8 + Math.random() * 16;
+        d.animate([{ transform: 'translate(-50%, -50%) scale(.5)', opacity: 0.95 },
+          { transform: `translate(calc(-50% + ${dir * r}px), calc(-50% - ${up}px)) scale(1)`, opacity: 0.9, offset: 0.45 },
+          { transform: `translate(calc(-50% + ${dir * r * 1.4}px), calc(-50% + ${26 - up}px)) scale(.5)`, opacity: 0 }],
+          { duration: 560 + Math.random() * 160, easing: 'cubic-bezier(.22, 1, .36, 1)' }).onfinish = () => d.remove();
+      }
+    }, at[i] * ms);
   },
-  /** An empty list: now and then (every sixth one you come across) she's fishing in it. */
-  cardPose() { this._cards = (this._cards || 0) + 1; return this._cards % 6 === 0 ? 'fishing' : null; },
 
   // ── the menu music's chorus (kiai): she cheers through it, bouncing harder on each beat, and stops when it ends
   chorus(on) {
@@ -465,7 +515,7 @@ const NeruEggs = {
       const M = NeruMascot;
       if (!M.el || !M.el.matches(':hover') || M.busy() || !M.has('cool')) return;
       M._staring = true; this._staredAt = performance.now();
-      M.show('cool', { pop: false });
+      M.show('cool', { pop: false }).then(() => setTimeout(() => { if (M._staring && M.img && M.img.dataset.pose === 'cool') this.glint(M.body, M.img); }, 350));
       this._stareT = setTimeout(() => {
         if (!M._staring) return;
         M.show(M.has('wink') ? 'wink' : null, { pop: false }); M.sparkle();

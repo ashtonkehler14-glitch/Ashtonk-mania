@@ -232,8 +232,16 @@ const Keyboard = {
     // and the bar goes, instead of the bar jumping to the top of the screen
     if (a && this.height > 0) this._seen = a;
     else if (a && this._seen === a && !this.height) { this._seen = null; a.blur(); return; }
-    if (!a) { this._seen = null; if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
+    if (!a) { this._seen = null; clearTimeout(this._waitT); this._waitT = 0; if (this.bar) this.bar.hidden = true; document.documentElement.classList.remove('kb-open'); return; }
     if (!this.bar) this.build();
+    if (this.height > 0) { this._reports = true; this._fallback = false; clearTimeout(this._waitT); this._waitT = 0; }
+    else if (!this._fallback) {
+      // (the keyboard still coming up: the bar waits for it — it used to flash along the top of the screen first. Only
+      // where the browser never says how tall its keyboard is does the bar go along the top, after a moment)
+      this.bar.hidden = true; document.documentElement.classList.remove('kb-open');
+      if (!this._reports && !this._waitT) this._waitT = setTimeout(() => { this._waitT = 0; if (this.typing() && !this.height) { this._fallback = true; this.upd(); } }, 1200);
+      return;
+    }
     this.bar.hidden = false;
     this.bar.classList.toggle('top', !this.height);
     this.bar.style.bottom = this.height ? `${Math.round(this.height)}px` : '';

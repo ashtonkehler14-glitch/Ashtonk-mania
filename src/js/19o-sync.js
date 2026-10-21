@@ -309,6 +309,8 @@ const Sync = {
     if (Date.now() - (this._settingsAt || 0) < this.PULL_EVERY) return;
     this._settingsAt = Date.now();
     const d = await Account.call('restore', Account.me());
+    // (a picture chosen here before pictures went with your code, never sent: it goes up now, for your other devices)
+    if (d && this.avatarMissing(d.settings)) { this.note('profile'); this.later(1500); return; }
     if (!d || !d.rev || d.rev === this.keptRev() || this.dirty() || !this.ready()) return; // (changed here meanwhile: that goes up first)
     this._restoring = true;
     try { await this.applyKept(d, { replace: true }); } finally { this._restoring = false; }
@@ -377,6 +379,11 @@ const Sync = {
   },
   /** What this device has that the kept settings `s` don't, and that a restore adds to them (so it's sent): its
    *  parts, as note() takes them — collections with a beatmap more, favourites, medals. */
+  /** Does this device have a profile picture that what's kept for you has never had (`s`: the kept settings)? */
+  avatarMissing(s) {
+    const mine = ProfileManager.profile && ProfileManager.profile.avatar || 'default', kp = s && typeof s === 'object' ? s.profile : null;
+    return mine !== 'default' && !(kp && typeof kp === 'object' && kp.avatar);
+  },
   ownExtra(s) {
     const cols = new Map((Array.isArray(s.collections) ? s.collections : []).map(c => [c && c.name, new Set(c && Array.isArray(c.hashes) ? c.hashes : [])]));
     const favs = new Set(Array.isArray(s.favorites) ? s.favorites : []), medals = (s.values && s.values['medals.unlocked']) || {}, mine = Settings.values['medals.unlocked'] || {};
@@ -384,6 +391,7 @@ const Sync = {
       Collections.list.some(c => c.hashes.some(x => !(cols.get(c.name) || new Set()).has(x))) && 'cols',
       [...Favorites.set].some(x => !favs.has(x)) && 'favs',
       typeof mine === 'object' && Object.keys(mine).some(k => !(k in medals)) && 'medals.unlocked',
+      this.avatarMissing(s) && 'profile',
     ].filter(Boolean);
   },
   /** A restore that didn't get an answer: again in a minute, quietly, while this device still waits for one. */

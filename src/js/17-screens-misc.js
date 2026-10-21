@@ -432,11 +432,17 @@ const ProfileScreen = {
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const cover = h('div.pf-cover');
-    if (own) {
-      const top1 = (d.top || []).map(t => BeatmapManager.mapByHash(t._s.mapHash)).find(Boolean);
-      const last = ScoreManager.recent(1)[0], lastMap = top1 || (last && BeatmapManager.mapByHash(last.mapHash));
-      if (lastMap) BeatmapManager.bgURL(lastMap).then(u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } }).catch(() => {});
-    }
+    // (behind it all: the background of the best play — the one at the top of Best performance — from its beatmap if
+    // it's on this device, else that beatmap set's cover from osu!, so it's the same on every device and for everyone
+    // looking; with no best play, your latest play's)
+    const setCover = u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } };
+    const hashOf = x => x && (x._s ? x._s.mapHash : x.key || x.mapHash);
+    const setOf = x => { if (!x) return 0; const sc = x._s || (own && ScoreManager.scores.find(y => y.mapHash === hashOf(x))); return (sc && sc.onlineSetId > 0 && sc.onlineSetId) || (x.onlineSetId > 0 && x.onlineSetId) || 0; };
+    const best = topPlays[0], bestMap = best && BeatmapManager.mapByHash(hashOf(best)), bestSet = setOf(best);
+    const online = () => { if (bestSet) setCover(OnlineBeatmaps.coverURL(bestSet, 'cover@2x')); };
+    if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
+    else if (bestSet) online();
+    else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
     const top = h('div.pf-top', cover, h('div.pf-top-in',
       avatar,

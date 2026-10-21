@@ -162,22 +162,16 @@ await shot('01-home-empty');
   check('Neru\'s easter eggs: a huff when clicked over and over, a cheer in the chorus, sunglasses when stared at, bored when left alone, picked up and dropped',
     r.huff === 'sassy|true|true' && r.ignored && r.chorus === 'cheer' && r.after === 'usual' && r.idle === 'bored' && r.woke === 'usual' && r.stare === 'cool' && r.wink === 'wink'
     && r.held === 'point|true|true' && r.landed === 'sassy|false|true|true', JSON.stringify(r));
-  // the small ones: the volume all the way up (a cheer) or down ("huh?"), and the poses other screens pick
+  // the volume all the way up (a cheer) or down (bored): the music's gone
   const small = await page.evaluate(async () => {
     const S = AshtonkMania.Settings, M = NeruMascot, wait = ms => new Promise(res => setTimeout(res, ms)), p = () => M.img.dataset.pose || 'usual', v0 = S.get('audio.master'), out = {};
     M._actUntil = M._happyUntil = M._huffUntil = 0; M._idle = false; await M.show(null);
     S.set('audio.master', 1); await wait(400); out.up = p(); await wait(1700);
-    S.set('audio.master', 0); await wait(400); out.down = p(); await wait(1700);
+    S.set('audio.master', 0); await wait(400); out.down = p(); await wait(2000);
     S.set('audio.master', v0);
-    const E = NeruEggs, x = v => v || '-';
-    out.loader = [['AT'], ['EZ'], ['HR', 'DT'], []].map(m => x(E.loaderPose(m))).join();
-    out.pause = [E.pausePose(false, 30, 1), E.pausePose(false, 30, 5), E.pausePose(true, 40, 0), E.pausePose(true, 95, 0)].map(x).join();
-    const play = (extra = {}) => ({ passed: true, accuracy: 0.97, counts: [50, 5, 1, 0, 0, 0], ...extra });
-    out.results = [E.resultsPose(play(), 0), E.resultsPose(play(), 12), E.resultsPose(play({ counts: [50, 5, 1, 0, 0, 1] }), 0), E.resultsPose(play({ passed: false }), 12)].map(x).join();
     return out;
   });
-  check('Neru\'s small easter eggs: the volume all the way up or down, and her poses for mods, a fifth pause, a fail at the end, ten retries and one miss',
-    small.up === 'cheer' && small.down === 'huh' && small.loader === 'bored,mock,cool,-' && small.pause === '-,tired,-,huh' && small.results === '-,cheer,huh,-', JSON.stringify(small));
+  check('Neru\'s small easter eggs: the volume all the way up (a cheer) or down (bored)', small.up === 'cheer' && small.down === 'bored', JSON.stringify(small));
 }
 // import via synthetic drop event (exercises the drag & drop pipeline)
 const dropFiles = async (names) => page.evaluate(async (names) => {
@@ -752,6 +746,17 @@ await shot('06-pause');
   const fished = await page.evaluate(async () => { const el = document.querySelector('.pause-menu .nc-pause'); NeruEggs.FISH_MS = 200; NeruEggs.fishLater(el); NeruEggs.FISH_MS = 20000;
     await new Promise(r => setTimeout(r, 900)); return ((el.querySelector('.nc-img') || {}).src || '').split('/').pop(); });
   check('…and a pause that goes on: she goes fishing', fished === 'neru-fishing.png', fished);
+  // (click her then: the fish on her line flops about — that part of her picture swinging, cut out of it meanwhile — and
+  // all's as it was after)
+  const flop = await page.evaluate(async () => {
+    const el = document.querySelector('.pause-menu .nc-pause'), img = el.querySelector('.nc-img');
+    const running = () => img.getAnimations().filter(a => a.playState === 'running').length, was = running();
+    el.click(); await new Promise(r => setTimeout(r, 300));
+    const mid = { piece: !!el.querySelector('.neru-flop i'), cut: /exclude|xor/.test(img.style.maskComposite || img.style.webkitMaskComposite || ''), still: img.getAnimations().every(a => a.playState !== 'running') };
+    await new Promise(r => setTimeout(r, 1300));
+    return { mid, after: { piece: !!el.querySelector('.neru-flop'), cut: !!img.style.mask, moving: running() === was, face: img.src.split('/').pop() } };
+  });
+  check('…click her while she fishes: the fish on her line flops about, and everything\'s back after', flop.mid.piece && flop.mid.cut && flop.mid.still && !flop.after.piece && !flop.after.cut && flop.after.moving && flop.after.face === 'neru-fishing.png', JSON.stringify(flop));
 }
 {
   // Esc, or leaving the window, during the 3-2-1 after Continue pauses again (the song mustn't carry on unseen)
@@ -1960,6 +1965,19 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
     const lp = await mp.evaluate(() => ({ menu: /Practice/.test(document.querySelector('.menu')?.textContent || ''), scr: AshtonkMania.Screens.currentName }));
     check('phone: a long press on a beatmap opens its options (like a right-click), and doesn\'t start the song', lp.menu && lp.scr === 'songselect', JSON.stringify(lp));
     await mp.keyboard.press('Escape'); await mp.waitForTimeout(300);
+  }
+  {
+    // typing: the bar showing what you type waits for the keyboard (it used to sit along the top of the screen until
+    // the keyboard came up), sits just above it, and goes with it
+    await mp.evaluate(() => { const i = document.body.appendChild(Object.assign(document.createElement('input'), { id: 'kb-test', placeholder: 'Test' })); i.style.cssText = 'position:fixed;left:10px;top:10px;z-index:99999'; });
+    const bar = () => mp.evaluate(() => { const b = document.querySelector('.kb-bar'); return !b || b.hidden ? 'hidden' : b.classList.contains('top') ? 'top' : b.style.bottom; });
+    const kb = px => mp.evaluate(px => { Keyboard.vkH = px; Keyboard.upd(); }, px);
+    await mp.tap('#kb-test'); await mp.waitForTimeout(150); const first = await bar();
+    await kb(280); await mp.waitForTimeout(50); const up = await bar();
+    await kb(0); await mp.waitForTimeout(80); const away = await bar(), letGo = await mp.evaluate(() => document.activeElement.id !== 'kb-test');
+    await mp.tap('#kb-test'); await mp.waitForTimeout(1500); const again = await bar();
+    await mp.evaluate(() => { document.activeElement.blur(); document.getElementById('kb-test').remove(); }); await mp.waitForTimeout(80);
+    check('phone: the typing bar waits for the keyboard (never along the top first), sits just above it, and goes when it\'s put away', first === 'hidden' && up === '280px' && away === 'hidden' && letGo && again === 'hidden', JSON.stringify({ first, up, away, letGo, again }));
   }
   await mp.evaluate(() => { const m = [...AshtonkMania.BeatmapManager.maps.values()].find(x => x.version === '4K Normal'); AshtonkMania.Screens.go('gameplay', { mapId: m.id, mods: [], force: true }); });
   await mp.waitForTimeout(4000);
