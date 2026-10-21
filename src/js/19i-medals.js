@@ -27,7 +27,7 @@ const MEDALS = [
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
-    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
+    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Show up as a Teto or Miku fan. Neru noticed.'],
     ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.'],
     ['song', 'music', 'Her Song', 'Play one of Neru\'s songs.'],
     ['wysi', 'eye', 'When You See It', '727.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),

@@ -8365,10 +8365,10 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'General', k: 'ui.parallax', l: 'Parallax', t: 'bool', d: true },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.menuBackground', l: 'Background source', t: 'select', d: 'skin', o: [['skin', 'Skin'], ['beatmap', 'Beatmap']], hint: 'lazer\'s: the menu\'s triangle picture (in the playing song\'s colour), or the playing song\'s own background.' },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascot', l: 'Show Neru', t: 'bool', d: true, hint: 'On the main menu, and around the game: she reacts to your results, teases you when you fail and keeps you company while things load.',
-    // (Teto in your name: Neru stays — see NeruEggs.tetoFan)
-    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.tetoFan() ? 'Not with Teto in your name. Neru isn\'t going anywhere.' : '' },
+    // (a Teto or Miku fan: Neru stays — see NeruEggs.fanOf)
+    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.fanOf() ? `Not ${NeruEggs.fanWhy()}. Neru isn't going anywhere.` : '' },
   { s: 'User Interface', g: 'Main Menu', k: 'ui.mascotImage', l: 'Main menu character image', t: 'mascot', hint: 'Any picture (PNG with a transparent background looks best).',
-    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.tetoFan() ? 'Not with Teto in your name. It\'s Neru, and that\'s that.' : '' },
+    locked: () => typeof NeruEggs !== 'undefined' && NeruEggs.fanOf() ? `Not ${NeruEggs.fanWhy()}. It's Neru, and that's that.` : '' },
   { s: 'User Interface', g: 'General', k: 'ui.unicodeMetadata', l: 'Prefer metadata in original language', t: 'bool', d: false },
   { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },
   // ── Skin
@@ -15076,11 +15076,11 @@ const NeruMascot = {
    *  there isn't one) — or null with none. The picture chosen in Settings → Interface is all of them; otherwise the
    *  bundled ones. Looked up once, and shared by every place she shows. */
   pictures() {
-    // (with Teto in your name it's her, never a picture of your own — Teto's, most likely)
-    if (this._pics && this._picsTeto !== NeruEggs.tetoFan()) this._pics = null;
+    // (a Teto or Miku fan gets her, never a picture of your own — theirs, most likely)
+    if (this._pics && this._picsTeto !== !!NeruEggs.fanOf()) this._pics = null;
     if (!this._pics) this._pics = (async () => {
       this._picsNow = null;
-      const blob = (this._picsTeto = NeruEggs.tetoFan()) ? null : await DB.kvGet('mascot.image', null).catch(() => null);
+      const blob = (this._picsTeto = !!NeruEggs.fanOf()) ? null : await DB.kvGet('mascot.image', null).catch(() => null);
       if (blob instanceof Blob) {
         if (this._blobURL) URL.revokeObjectURL(this._blobURL);
         const u = this._blobURL = URL.createObjectURL(blob);
@@ -15096,8 +15096,8 @@ const NeruMascot = {
     })();
     return this._pics;
   },
-  /** Whether she shows: Settings → Show Neru — or, with Teto in your name, whatever that says (NeruEggs.tetoFan). */
-  on() { return !!Settings.get('ui.mascot') || NeruEggs.tetoFan(); },
+  /** Whether she shows: Settings → Show Neru — or, for a Teto or Miku fan, whatever that says (NeruEggs.fanOf). */
+  on() { return !!Settings.get('ui.mascot') || !!NeruEggs.fanOf(); },
   build() {
     const el = this.el = h('button.neru', { hidden: true, 'aria-label': 'Neru', tabindex: '-1', onclick: e => { e.stopPropagation(); if (this._dragged) { this._dragged = false; return; } this.hop(); } });
     if (!this.on()) return el;
@@ -15120,7 +15120,7 @@ const NeruMascot = {
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
       NeruEggs._clicked = 0; // (clicks on her, this visit)
       NeruEggs.namesake();
-      NeruEggs.teto();
+      NeruEggs.fan();
       NeruEggs.watchCode();
       if (NeruEggs.foolsDay()) el.classList.add('nm-fools');
       NeruEggs.greet();
@@ -15221,8 +15221,8 @@ const NeruMascot = {
     NeruEggs.stopStare();
     if (this.happy && this.img) {
       // (April Fools' Day: she laughs instead — got you)
-      // (Teto in your name: now and then a snicker instead — she hasn't forgotten)
-      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : NeruEggs.tetoFan() && Math.random() < 0.35 && this.has('snicker') ? 'snicker' : 'happy', { pop: false });
+      // (a Teto or Miku fan: now and then a snicker instead — she hasn't forgotten)
+      this.show(NeruEggs.foolsDay() && this.has('mock') ? 'mock' : NeruEggs.fanOf() && Math.random() < 0.35 && this.has('snicker') ? 'snicker' : 'happy', { pop: false });
       if (NeruEggs.valentine()) for (let i = 0; i < 4; i++) setTimeout(() => NeruEggs.heart(), i * 120);
       clearTimeout(this._back);
       this._happyUntil = now + 1600;
@@ -15325,8 +15325,8 @@ const NeruCameo = {
    *  place of her happy face. Null when she's turned off. */
   make(mood, cls, { delay = 450, poke = null } = {}) {
     if (!NeruMascot.on()) return null;
-    // (Teto in your name: clicked, she snickers at you — unless there's an easter egg's pose to show)
-    if (!poke && NeruEggs.tetoFan()) poke = 'snicker';
+    // (a Teto or Miku fan: clicked, she snickers at you — unless there's an easter egg's pose to show)
+    if (!poke && NeruEggs.fanOf()) poke = 'snicker';
     const el = h(`button.neru-cameo.${cls}`, { type: 'button', 'aria-label': 'Neru', tabindex: '-1', hidden: true });
     // (sparkles: in a mood she's pleased about)
     const pleased = this.HAPPY.has(mood);
@@ -15469,11 +15469,12 @@ for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () =>
 Bus.on('library:changed', () => { if (NeruMascot.img) NeruEggs.newSongs(); NeruEggs.newSet(); });
 Bus.on('mp:changed', () => NeruEggs.roomAlone());
 document.addEventListener('input', e => { if (e.target && e.target.matches && e.target.matches('input[type="search"]')) NeruEggs.searched(e.target); });
-// (a new name with Teto in it — or without any more: Neru comes back on, or goes, and she's herself again or your picture)
+// (a new name or picture that makes you a Teto or Miku fan — or no longer: Neru comes back on, or goes, and she's herself
+// again or your picture)
 Bus.on('profile:changed', () => {
-  const teto = NeruEggs.tetoFan();
-  if (teto === !!NeruEggs._wasTeto) return;
-  NeruEggs._wasTeto = teto; NeruEggs._tetoSeen = false;
+  const fan = JSON.stringify(NeruEggs.fanOf());
+  if (fan === (NeruEggs._wasFan || 'null')) return;
+  NeruEggs._wasFan = fan; NeruEggs._fanSeen = false;
   const old = Screens.currentName === 'home' && document.querySelector('.home .neru');
   if (old) old.replaceWith(NeruMascot.build());
 });
@@ -15628,32 +15629,51 @@ const NeruEggs = {
     }, 1400);
   },
 
-  // ── Teto in your name: there's no turning her off (or swapping her for a picture of your own), and the first time she
-  // sees it (once a session) she lets you know what she thinks of that — a blank look at your name, Teto's French bread
-  // in a thought bubble over her head, crossed out, a snicker, laughing at you, then a wagging finger
-  /** Whether Teto is in your name, written any way at all: TeTo, t3t0, T.e.t.o, t e t o, ｔｅｔｏ, Тето, テト, 重音… */
-  tetoFan(name = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.name : '') {
+  // ── a Teto or Miku fan — her name in yours, written any way at all, or the bundled Teto or Miku picture as yours:
+  // there's no turning Neru off (or swapping her for a picture of your own), and the first time she sees it (once a
+  // session) she lets you know what she thinks of that — a blank look, their thing in a thought bubble over her head
+  // (Teto's French bread, Miku's leek), crossed out, a snicker, laughing at you, then a wagging finger. Neru's own
+  // picture as yours: she's pleased.
+  /** Whether `name` has `who` ('teto' or 'miku') in it, written any way at all: TeTo, t3t0, T.e.t.o, Тето, テト, 重音…;
+   *  M1KU, m i k u, Мику, ミク, 初音… */
+  named(who, name) {
     let n = String(name || '').normalize('NFKC').toLowerCase();
-    if (/テト|てと|ﾃﾄ|重音|kasane/.test(n)) return true;
+    if (who === 'teto' ? /テト|てと|ﾃﾄ|重音|kasane/.test(n) : /ミク|みく|ﾐｸ|初音|hatsune/.test(n)) return true;
     // (look-alike letters and numbers as the letters they pass for, then everything that isn't a letter dropped)
-    const LIKE = { '3': 'e', '€': 'e', 'е': 'e', 'ε': 'e', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e', '0': 'o', 'о': 'o', 'ο': 'o', 'ø': 'o', 'ö': 'o', 'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', '°': 'o', '7': 't', '+': 't', 'т': 't', 'τ': 't', 'ť': 't', 'ţ': 't' };
+    const LIKE = { '3': 'e', '€': 'e', 'е': 'e', 'ε': 'e', '0': 'o', 'о': 'o', 'ο': 'o', 'ø': 'o', '°': 'o', '7': 't', '+': 't', 'т': 't', 'τ': 't',
+      '1': 'i', '!': 'i', '|': 'i', 'і': 'i', 'ι': 'i', 'и': 'i', 'м': 'm', 'к': 'k', 'κ': 'k', 'у': 'u', 'μ': 'u', 'υ': 'u' };
     n = [...n].map(c => LIKE[c] || c).join('').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
-    // (and doubled letters as one: "tettooo")
+    // (and doubled letters as one: "tettooo", "miiikuu")
     n = n.replace(/(.)\1+/g, '$1');
-    return n.includes('teto') || n.includes('otet');
+    const w = who === 'teto' ? 'teto' : 'miku';
+    return n.includes(w) || n.includes([...w].reverse().join(''));
   },
-  teto() {
-    this._wasTeto = this.tetoFan(); // (what a change of name is told apart from)
-    if (this._tetoSeen || !this._wasTeto) return;
-    this._tetoSeen = true;
-    clearTimeout(this._tetoT);
+  /** Whether Teto is in your name (written any way). */
+  tetoFan(name = this.myName()) { return this.named('teto', name); },
+  myName() { return typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.name : ''; },
+  /** Whose fan you're showing up as: { who: 'teto' | 'miku', by: 'name' | 'picture' } — your name first (Teto before
+   *  Miku), then your picture (the bundled Teto or Miku one) — or null. */
+  fanOf(name = this.myName(), avatar = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.avatar : '') {
+    for (const who of ['teto', 'miku']) if (this.named(who, name)) return { who, by: 'name' };
+    for (const who of ['teto', 'miku']) if (avatar === `preset:${who}`) return { who, by: 'picture' };
+    return null;
+  },
+  /** How the settings put it, while she won't be turned off: "with Teto in your name", "with Miku as your picture". */
+  fanWhy(f = this.fanOf()) { const W = f.who === 'teto' ? 'Teto' : 'Miku'; return f.by === 'name' ? `with ${W} in your name` : `with ${W} as your picture`; },
+  fan() {
+    const f = this.fanOf();
+    this._wasFan = JSON.stringify(f); // (what a change of name or picture is told apart from)
+    if (!f) { this.ownPicture(); return; }
+    if (this._fanSeen) return;
+    this._fanSeen = true;
+    clearTimeout(this._fanT);
     // (each step only if she's still in the one before: a click, a drag or leaving the menu ends it there)
-    const M = NeruMascot, then = (pose, ms, fn) => { this._tetoT = setTimeout(() => { if (M.img && M.img.dataset.pose === pose) { M._actUntil = 0; fn(); } }, ms); };
-    this._tetoT = setTimeout(() => {
-      if (!this.act('huh', 1500, { hop: false })) { this._tetoSeen = false; return; }
+    const M = NeruMascot, then = (pose, ms, fn) => { this._fanT = setTimeout(() => { if (M.img && M.img.dataset.pose === pose) { M._actUntil = 0; fn(); } }, ms); };
+    this._fanT = setTimeout(() => {
+      if (!this.act('huh', 1500, { hop: false })) { this._fanSeen = false; return; }
       if (M.el) { M.el.classList.remove('startle'); void M.el.offsetWidth; M.el.classList.add('startle'); }
       this.found('teto');
-      setTimeout(() => this.bread(), 350);
+      setTimeout(() => this.prop(f.who), 350);
       then('huh', 1500, () => {
         if (!this.act('snicker', 1300, { hop: false })) return;
         if (M.el) { M.el.classList.remove('giggle'); void M.el.offsetWidth; M.el.classList.add('giggle'); }
@@ -15666,21 +15686,39 @@ const NeruEggs = {
       });
     }, 1400);
   },
-  /** Teto's French bread in a thought bubble beside her head — then struck out, the bubble shaking its head with her. */
-  bread(box = NeruMascot.el, img = NeruMascot.img) {
+  /** Neru's own picture as yours: the first time she sees it (once a session), she's pleased — not that she'd say so. */
+  ownPicture() {
+    const av = typeof ProfileManager !== 'undefined' && ProfileManager.profile ? ProfileManager.profile.avatar : '';
+    if (av !== 'preset:neru' || this._ownSeen) return;
+    this._ownSeen = true;
+    setTimeout(() => { if (!this.act('happy', 1700, { sparkle: true })) { this._ownSeen = false; return; } for (const t of [150, 450]) setTimeout(() => this.heart(), t); }, 2800);
+  },
+  /** Their thing in a thought bubble beside her head — Teto's French bread, Miku's leek — then struck out, the bubble
+   *  shaking its head with her. */
+  PROPS: {
+    // the loaf, slashed on top, and a highlight
+    teto: '<g transform="rotate(-14 66 38)"><rect x="34" y="29" width="66" height="19" rx="9.5" fill="#d79a52" stroke="#9c6428" stroke-width="2"/>'
+      + '<path d="M40 33q34-5 56 0" stroke="#f3cf93" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8"/>'
+      + '<g stroke="#9c6428" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M46 44l7-11M58 44l7-11M70 44l7-11M82 44l7-11"/></g></g>',
+    // the leek: roots, the white stalk paling into green, and three leaves fanning out
+    miku: '<g transform="translate(66 39) scale(.8) rotate(-16) translate(-70 -39)"><g stroke="#b9b49c" stroke-width="1.6" stroke-linecap="round"><path d="M33 36l-6-3M33 39h-7M33 42l-6 3"/></g>'
+      + '<rect x="32" y="33" width="42" height="12" rx="6" fill="#f7f8ee" stroke="#aeb79a" stroke-width="1.6"/>'
+      + '<rect x="62" y="33.8" width="12" height="10.4" fill="#cfe9b4"/>'
+      + '<g stroke="#2f7f2c" stroke-width="1.6" stroke-linejoin="round"><path d="M72 34c11-3 21-7 32-14-5 9-15 15-30 19z" fill="#5cc455"/><path d="M72 44c13 2 23 5 34 11-10 1-21-3-32-9z" fill="#4fb548"/>'
+      + '<path d="M72 37c12-1 24 0 36 2-11 3-23 4-36 4z" fill="#45a83f"/></g>'
+      + '<path d="M36 36.5h30" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/></g>',
+  },
+  prop(who = 'teto', box = NeruMascot.el, img = NeruMascot.img) {
     if (!box || !img || !box.isConnected) return;
     const er = box.getBoundingClientRect(), ir = img.getBoundingClientRect(), k = box.offsetWidth ? er.width / box.offsetWidth : 1;
-    const el = h('span.neru-bread');
+    const el = h(`span.neru-bread.nb-${who}`);
     // (beside her face, on the side away from the screen's edge — over her head it would be under the menu's bar)
     Object.assign(el.style, { left: `${(ir.left - er.left + ir.width * 0.86) / k}px`, top: `${(ir.top - er.top + ir.height * 0.04) / k}px` });
     el.innerHTML = '<svg viewBox="0 0 120 84">'
       // the bubble: a cloud, and two small puffs trailing down to her
       + '<g fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1.5"><circle cx="8" cy="78" r="4.5"/><circle cx="19" cy="66" r="7"/>'
       + '<path d="M38 56c-12 2-18-9-11-17-6-10 5-21 15-15 4-11 20-13 26-3 8-8 23-4 23 7 11 0 15 14 7 20 5 9-4 18-13 14-5 9-19 9-24 2-7 6-19 3-23-8z"/></g>'
-      // the loaf, slashed on top, and a highlight
-      + '<g transform="rotate(-14 66 38)"><rect x="34" y="29" width="66" height="19" rx="9.5" fill="#d79a52" stroke="#9c6428" stroke-width="2"/>'
-      + '<path d="M40 33q34-5 56 0" stroke="#f3cf93" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8"/>'
-      + '<g stroke="#9c6428" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M46 44l7-11M58 44l7-11M70 44l7-11M82 44l7-11"/></g></g>'
+      + (this.PROPS[who] || this.PROPS.teto)
       // struck out
       + '<g class="nb-x" stroke="#ff3b5c" stroke-width="7" stroke-linecap="round"><path d="M44 18l46 42" pathLength="1"/><path d="M90 18L44 60" pathLength="1"/></g></svg>';
     box.append(el);
@@ -28942,7 +28980,7 @@ const MEDALS = [
     ['night', 'ghost', 'Night Owl', 'Catch Neru yawning after midnight.'],
     ['showoff', 'target', 'Show-off', 'Click Neru after a full combo.'],
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
-    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
+    ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Show up as a Teto or Miku fan. Neru noticed.'],
     ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.'],
     ['song', 'music', 'Her Song', 'Play one of Neru\'s songs.'],
     ['wysi', 'eye', 'When You See It', '727.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
@@ -30026,7 +30064,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'e91d0525e3d4';
+const APP_BUILD = 'db0c5684f87d';
 
 const App = {
   lastReport: null,

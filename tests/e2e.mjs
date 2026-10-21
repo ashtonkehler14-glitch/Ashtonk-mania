@@ -391,7 +391,7 @@ await shot('01-home-empty');
       for (let i = 0; i < 40 && !shown(); i++) await wait(100);
       out.on = shown() && M.on();
       const poses = [];
-      for (let i = 0; i < 26; i++) { await wait(250); const p = M.img && M.img.dataset.pose; if (p && poses[poses.length - 1] !== p) poses.push(p); if (document.querySelector('.home .neru .neru-bread')) out.bread = true; }
+      for (let i = 0; i < 26; i++) { await wait(250); const p = M.img && M.img.dataset.pose; if (p && poses[poses.length - 1] !== p) poses.push(p); if (document.querySelector('.home .neru .neru-bread.nb-teto')) out.bread = true; }
       out.poses = poses.join();
       out.medal = got.includes('neru-teto');
       const c = AshtonkMania.NeruCameo.make('okay', 'nc-results');
@@ -405,11 +405,25 @@ await shot('01-home-empty');
       AshtonkMania.SettingsPanel.close(); await wait(300);
       P.profile.name = name; AshtonkMania.Bus.emit('profile:changed'); await wait(400);
       out.offAfter = !shown();
+      // Miku the same — in your name (any spelling), or her picture as yours (Teto's too) — with Miku's leek this time
+      out.miku = ['Miku', 'M1KU', 'm i k u', 'Мику', 'ミク', 'Hatsune'].every(n => E.named('miku', n)) && !['Mike', 'Mikey', 'Kumi'].some(n => E.named('miku', n));
+      out.pictures = [E.fanOf('Ash', 'preset:miku'), E.fanOf('Ash', 'preset:teto'), E.fanOf('Ash', 'preset:neru'), E.fanOf('MikuFan', 'preset:teto')].map(f => f ? f.who + '/' + f.by : '-').join();
+      const av = P.profile.avatar; P.profile.avatar = 'preset:miku'; AshtonkMania.Bus.emit('profile:changed');
+      for (let i = 0; i < 40 && !shown(); i++) await wait(100);
+      for (let i = 0; i < 14 && !out.leek; i++) { await wait(250); if (document.querySelector('.home .neru .neru-bread.nb-miku')) out.leek = true; }
+      AshtonkMania.SettingsPanel.open(); await wait(400);
+      const row2 = [...document.querySelectorAll('.settings-panel .set-row')].find(x => /Show Neru/.test(x.textContent));
+      out.lockedMiku = /Miku as your picture/.test(row2.querySelector('.hint').textContent);
+      AshtonkMania.SettingsPanel.close(); await wait(300);
+      P.profile.avatar = av; AshtonkMania.Bus.emit('profile:changed'); await wait(400);
+      out.offAfterMiku = !shown();
     } finally { AshtonkMania.Medals.egg = egg; P.profile.name = name; S.set('ui.mascot', true); for (let i = 0; i < 40 && !(M.img && M.img.complete); i++) await wait(100); await wait(300); }
     return out;
   });
   check('Teto in your name: Neru comes back on (locked on in Settings), and she makes fun of you — a blank look, the bread crossed out, a snicker, a laugh, a wagging finger',
     teto.spellings && teto.offBefore && teto.on && teto.bread && /^huh,snicker,mock,point/.test(teto.poses) && teto.medal && teto.cameo === 'neru-snicker.png' && teto.locked && teto.offAfter, JSON.stringify(teto));
+  check('…and Miku the same — in your name, or Teto\'s or Miku\'s picture as yours (her leek crossed out, locked on saying why); Neru\'s own picture doesn\'t count',
+    teto.miku && teto.pictures === 'miku/picture,teto/picture,-,miku/name' && teto.leek && teto.lockedMiku && teto.offAfterMiku, JSON.stringify(teto));
   // the very bottom of the settings: Neru asleep at her desk — found, a secret medal (not before she's scrolled to)
   const fine = await page.evaluate(async () => {
     const wait = ms => new Promise(res => setTimeout(res, ms)), got = [], egg = AshtonkMania.Medals.egg;
