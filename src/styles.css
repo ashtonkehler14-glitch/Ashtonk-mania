@@ -1707,6 +1707,10 @@ div.res-calib .i { color: var(--good); }
 /* (her name searched for: peeking up from the bottom edge of the screen) */
 .neru-cameo.nc-peek { position: fixed; z-index: 60; pointer-events: none; left: clamp(12px, calc(4 * var(--vw)), 64px); bottom: 0; height: calc(clamp(150px, calc(30 * var(--vh)), 250px) * var(--nc-s, 1)); }
 .neru-cameo.nc-peek.in .nc-body { animation: none; }
+/* (double-clicked: a twirl, once round) */
+.neru.twirl .neru-img { animation: neruTwirl 720ms cubic-bezier(.45, 0, .2, 1); }
+@keyframes neruTwirl { 0% { transform: perspective(700px) translateY(0) rotateY(0) scale(1, 1); } 18% { transform: perspective(700px) translateY(4px) rotateY(0) scale(1.03, .96); }
+  55% { transform: perspective(700px) translateY(-16px) rotateY(200deg) scale(.98, 1.02); } 85% { transform: perspective(700px) translateY(-2px) rotateY(350deg) scale(1, 1); } 100% { transform: perspective(700px) translateY(0) rotateY(360deg) scale(1, 1); } }
 /* (April Fools' Day: the other way round) */
 .neru.nm-fools .neru-body { scale: -1 1; }
 .nd-hearts .nd svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .8)) drop-shadow(0 1px 2px rgba(0, 0, 0, .3)); }
@@ -1718,7 +1722,7 @@ div.res-calib .i { color: var(--good); }
 @keyframes ndMoon { from { opacity: 0; transform: translateY(14px); } }
 .nd > i { transform-origin: 50% 0; } /* (a leaf swings from above, as from a stem) */
 .neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
-@media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img, .neru.wobble .neru-img { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img, .neru.wobble .neru-img, .neru.twirl .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
 /* ── Invite dialog */
 .inv { display: flex; flex-direction: column; gap: 8px; }

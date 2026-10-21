@@ -267,6 +267,25 @@ await shot('01-home-empty');
     check('Neru: a headpat — her happy face and hearts, stroking it still a pat — then a huff when let go (no hop); not held lower down',
       pat.during === 'happy' && pat.hearts && pat.stroked === 'happy|false' && pat.after === 'sassy|false' && !/^happy/.test(pat.body) && pat.body.endsWith('|0'), JSON.stringify(pat));
   }
+  // double-clicked: a twirl (once clicked: a hop); the hundredth click this visit, even mid-huff: her happy face and
+  // hearts — she gives up
+  {
+    const tw = await page.evaluate(async () => {
+      const M = NeruMascot, E = NeruEggs, wait = ms => new Promise(res => setTimeout(res, ms)), out = {};
+      const calm = async () => { M._actUntil = M._happyUntil = M._huffUntil = 0; M._clicks = []; M._lastClick = -1e9; M.el.classList.remove('hop', 'twirl', 'huff', 'shake'); await M.show(null); await wait(700); };
+      await calm(); M.el.click(); await wait(60);
+      out.once = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+      await calm(); M.el.click(); await wait(150); M.el.click(); await wait(60);
+      out.twice = `${M.el.classList.contains('hop')}|${M.el.classList.contains('twirl')}`;
+      await calm(); E._clicked = 98; M.el.click(); await wait(300); out.n99 = M.img.dataset.pose;
+      M._huffUntil = performance.now() + 5000; M.el.click(); await wait(400);
+      out.n100 = `${M.img.dataset.pose}|${M._huffUntil}|${document.querySelectorAll('.home .neru .neru-heart').length > 0 || document.documentElement.classList.contains('slow')}`;
+      await wait(3200); out.after = M.img.dataset.pose || 'usual';
+      return out;
+    });
+    check('Neru: double-clicked, a twirl; the hundredth click in a visit — even in a huff — gets her happy face and a shower of hearts',
+      tw.once === 'true|false' && tw.twice === 'false|true' && tw.n99 === 'happy' && tw.n100 === 'happy|0|true' && tw.after === 'usual', JSON.stringify(tw));
+  }
   // dizzy: the pointer circled round her head three times — a blank look, a wobble, stars going round her head; flung,
   // or shaken about, she lands dizzy too (let go gently, as before, she's only put out)
   {

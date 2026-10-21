@@ -7,7 +7,7 @@
  * And a few things to find just by playing (NeruEggs): bored when left alone — then on her phone, then hugging her
  * knees, and sulking when you come back — in a huff when clicked over and over, cheering through a song's chorus,
  * sunglasses on when you keep the pointer on her, picked up and dropped, a headpat (hearts — then a huff, as if she
- * hadn't liked it), dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
+ * hadn't liked it), a twirl when double-clicked, won over by a hundred clicks, dizzy when flung, shaken or circled round, dancing to a certain code, fishing when a pause goes on (click her and the fish on her line flops about), a glint off her sunglasses, a double take at her
  * own name (and peeking up when you search for it), the volume turned all the way up or down, songs skipped one after
  * another, and the small Neru on other screens in a huff too when clicked
  * over and over. Each screen's own picture of her stays as it is; a click there, now and then, gets a pose of her
@@ -66,6 +66,7 @@ const NeruMascot = {
       this.base = pics.base; this.happy = pics.happy;
       if (pics.happy) new Image().src = pics.happy;
       NeruEggs._vol = Settings.get('audio.master'); // (where the volume starts: only a change to all the way up or down counts)
+      NeruEggs._clicked = 0; // (clicks on her, this visit)
       NeruEggs.namesake();
       NeruEggs.watchCode();
       if (NeruEggs.foolsDay()) el.classList.add('nm-fools');
@@ -144,6 +145,8 @@ const NeruMascot = {
   hop() {
     if (!this.el) return;
     const now = performance.now();
+    // (the hundredth click on her this visit, huff or no huff: she gives up pretending she minds)
+    if (++NeruEggs._clicked === NeruEggs.HUNDRED) { NeruEggs.hundred(); return; }
     // (in a huff: a click only gets a shake of her head)
     if (now < (this._huffUntil || 0)) { this.el.classList.remove('shake'); void this.el.offsetWidth; this.el.classList.add('shake'); UISounds.play('click-short'); return; }
     // (dancing — to the code, or to the beat you're tapping — a tap only bounces her along)
@@ -155,7 +158,10 @@ const NeruMascot = {
       this._clicks.push(now);
       if (this._clicks.length >= 8 && this.has('sassy')) { NeruEggs.huff(); return; }
     }
-    this.el.classList.remove('hop'); void this.el.offsetWidth; this.el.classList.add('hop');
+    // (clicked twice, quickly: a twirl — once round — instead of a hop)
+    const twirl = now - (this._lastClick || -1e9) < 330 && Settings.get('ui.animSpeed');
+    this._lastClick = twirl ? -1e9 : now;
+    this.el.classList.remove('hop', 'twirl'); void this.el.offsetWidth; this.el.classList.add(twirl ? 'twirl' : 'hop');
     UISounds.click();
     NeruEggs.stopStare();
     if (this.happy && this.img) {
@@ -448,6 +454,19 @@ const NeruEggs = {
     UISounds.play('dialog-dangerous-tick');
     this.fume(el);
     M._back = setTimeout(() => { el.classList.remove('huff'); if (!M.busy()) M.show(M.rest()); }, 3400);
+  },
+
+  // ── a hundred clicks on her in one visit to the main menu: whatever her mood, she gives up — her happy face, a
+  // shower of hearts and sparkles
+  HUNDRED: 100,
+  hundred() {
+    const M = NeruMascot;
+    M._huffUntil = M._happyUntil = M._actUntil = 0; clearTimeout(M._back); this.stopStare();
+    if (M.el) M.el.classList.remove('huff', 'shake');
+    if (!this.act('happy', 3200, { sparkle: true })) return;
+    UISounds.play('check-on');
+    for (let i = 0; i < 10; i++) setTimeout(() => this.heart(), i * 110);
+    for (const t of [600, 1300, 2000]) setTimeout(() => { if (M.img && M.img.dataset.pose === 'happy') { M._bob = 1; M.sparkle(); } }, t);
   },
 
   /** The anger mark — the cross of four curved strokes over her head, pulsing — and a few puffs of steam: a huff,
