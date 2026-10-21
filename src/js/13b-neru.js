@@ -240,6 +240,8 @@ const NeruCameo = {
     medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired', herSong: 'dance',
     // (the results of one of her songs: delighted you passed it, sulking if you failed it)
     herSongPass: 'happy', herSongFail: 'sulk',
+    // (the same song again and again: worn out; 727 on the results: pointing it out)
+    again: 'tired', wysi: 'point',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -1321,6 +1323,17 @@ const NeruEggs = {
     const text = [rec.title, rec.artist, set && set.titleUnicode, set && set.artistUnicode, set && set.source].filter(Boolean).join(' ');
     return /(^|[^a-z])neru([^a-z]|$)|ネル/i.test(text);
   },
+  // ── the same song tried ten times in a row (a few minutes apart at most): she's worn out on its loading screen — again?
+  TRIES: 10,
+  /** Another go at `rec` (its loading screen): how many in a row now. */
+  tries(rec) {
+    const now = Date.now(), k = rec && (rec.hash || rec.id);
+    const t = this._tries && this._tries.k === k && now - this._tries.at < 300000 ? this._tries.n + 1 : 1;
+    this._tries = { k, n: t, at: now };
+    return t;
+  },
+  // ── 727 — a 727x combo, or a score of 727,xxx — the osu! "when you see it": on the results she points it out
+  wysi(sc) { return !!sc && (sc.maxCombo === 727 || Math.floor((sc.scoreStd ?? sc.score ?? 0) / 1000) === 727); },
   loaderPoke(mods = [], rec = null) { return rec && !mods.includes('AT') && this.outOfReach(rec.stars) ? NeruCameo.EGG.farAbove : null; },
   /** A star rating well past the hardest you've passed (by a star and a half, and a third again): only once you've
    *  passed a few, so a new player isn't met with it every time. */

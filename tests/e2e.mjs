@@ -931,6 +931,12 @@ await page.evaluate(() => { const s = AshtonkMania.SongSelect; s.searchInput.val
   });
   check('one of Neru\'s songs just added to the library: she peeks up, delighted (once)', ns.added === 'neru-happy.png' && ns.again === null, JSON.stringify(ns));
 }
+check('the same song tried again and again: the tenth go in a row is counted as such (another song starts over)', await page.evaluate(() => {
+  const a = { hash: 'a'.repeat(64) }, b = { hash: 'b'.repeat(64) };
+  let n = 0; for (let i = 0; i < 10; i++) n = NeruEggs.tries(a);
+  const other = NeruEggs.tries(b); NeruEggs._tries = null;
+  return n === 10 && other === 1 && NeruEggs.TRIES === 10 && AshtonkMania.NeruCameo.POSE.again === 'tired';
+}));
 check('one of Neru\'s songs — her name (or ネル) in its title, artist or source — and not just any with "neru" in it', await page.evaluate(() =>
   NeruEggs.herSong({ title: 'Zako', artist: 'Akita Neru' }) && NeruEggs.herSong({ title: 'ネルの歌', artist: 'x' }) && !NeruEggs.herSong({ title: 'Nerual Network', artist: 'x' }) && !NeruEggs.herSong({ title: 'Test', artist: 'Suite' })));
 check('sorting by difficulty: each difficulty its own panel, easiest first (lazer)', await page.evaluate(() => { const r = AshtonkMania.SongSelect.results; return r.length === 4 && r.every(x => x.std && x.maps.length === 1) && r.every((x, i) => !i || r[i - 1].maps[0].stars <= x.maps[0].stars) && document.querySelectorAll('.std-panel').length === 4; }));
@@ -1341,6 +1347,8 @@ await page.waitForTimeout(500);
     // (sparkles: not where the menus run lighter — a slow device — as everywhere)
     out.fc = { before: fcBefore, face: face(fc), sparks: fc.querySelectorAll('.neru-spark').length > 0 || document.documentElement.classList.contains('slow') };
     await wait(2300); out.fc.after = face(fc);
+    // 727 — when you see it: she points it out (a 727x combo, or a score of 727,xxx)
+    out.wysi = [await look(play('A', true, { maxCombo: 727 })), await look(play('B', true, { score: 727123, scoreStd: 727123 }))].map(x => x && x.face).join();
     // one of her songs: delighted at a pass (sunglasses still for an SS), sulking at a fail
     const hset = A.BeatmapManager.sets.find(x => x.id === m.setId), hwas = hset.artistUnicode;
     hset.artistUnicode = '亞北ネル';
@@ -1361,6 +1369,7 @@ await page.waitForTimeout(500);
     r.fc && r.fc.before === 'neru-wink.png' && r.fc.face === 'neru-dance.png' && r.fc.sparks && r.fc.after === 'neru-wink.png', JSON.stringify(r.fc));
   check('results: her mood follows the grade (SS perfect, S great, A/B okay, C/D bad) — a new best too — and a fail', r.moods === 'perfect,perfect,great,great,okay,okay,bad,bad|okay|failed', r.moods);
   check('results of one of her songs: Neru delighted at a pass (sunglasses still for an SS), sulking at a fail', r.hers === 'neru-happy.png,neru-sulk.png,neru-cool.png', r.hers);
+  check('results with 727 in them (combo or score): Neru points it out', r.wysi === 'neru-point.png,neru-point.png', r.wysi);
 }
 
 // the main menu: clicking Neru makes her hop with her excited face for a moment, then back — no speech bubble
@@ -2796,7 +2805,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await page.waitForFunction(() => document.querySelector('.medal-ov .nc-medal .nc-img'), null, { timeout: 5000 }).catch(() => {});
   const egg = await page.evaluate(() => ({ text: (document.querySelector('.medal-ov') || {}).textContent || '', got: !!AshtonkMania.Medals.unlocked()['neru-zako'], queued: AshtonkMania.Medals.queue.length, neru: ((document.querySelector('.medal-ov .nc-medal .nc-img') || {}).src || '').split('/').pop() }));
   for (let i = 0; i < 3 && await page.$('.medal-ov'); i++) { await page.click('.medal-ov'); await page.waitForTimeout(1700); }
-  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once) — and a wink from her', secret.hidden === 16 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0 && egg.neru === 'neru-wink.png', JSON.stringify({ secret, egg }));
+  check('medals: Neru\'s secrets show as "???" till found, and finding one unlocks its medal (once) — and a wink from her', secret.hidden === 17 && !secret.named && /Zako~/.test(egg.text) && egg.got && egg.queued === 0 && egg.neru === 'neru-wink.png', JSON.stringify({ secret, egg }));
 }
 
 // dangerous dialog buttons (red): a single press confirms, no holding

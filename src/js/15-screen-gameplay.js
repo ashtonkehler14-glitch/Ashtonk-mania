@@ -527,12 +527,13 @@ const GameplayScreen = {
       ...this.playerSettings(rec, !p.replay));
     const hers = !p.replay && !p.skinEditor && NeruEggs.herSong(rec);
     if (hers) NeruEggs.found('song');
+    const again = !p.replay && !p.skinEditor && NeruEggs.tries(rec) >= NeruEggs.TRIES;
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      // (one of her own songs: she dances — NeruEggs.herSong)
-      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
+      // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
+      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked

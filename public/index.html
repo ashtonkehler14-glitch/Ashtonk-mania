@@ -15281,6 +15281,8 @@ const NeruCameo = {
     medal: 'point', secret: 'wink', news: 'phone', waiting: 'bored', asleep: 'tired', herSong: 'dance',
     // (the results of one of her songs: delighted you passed it, sulking if you failed it)
     herSongPass: 'happy', herSongFail: 'sulk',
+    // (the same song again and again: worn out; 727 on the results: pointing it out)
+    again: 'tired', wysi: 'point',
     // (every one of her secrets found: cheering beside them on your profile)
     allFound: 'cheer',
     // (beside the first-run setup, sizing you up: Onboarding.NERU has her pose for each page)
@@ -16362,6 +16364,17 @@ const NeruEggs = {
     const text = [rec.title, rec.artist, set && set.titleUnicode, set && set.artistUnicode, set && set.source].filter(Boolean).join(' ');
     return /(^|[^a-z])neru([^a-z]|$)|ネル/i.test(text);
   },
+  // ── the same song tried ten times in a row (a few minutes apart at most): she's worn out on its loading screen — again?
+  TRIES: 10,
+  /** Another go at `rec` (its loading screen): how many in a row now. */
+  tries(rec) {
+    const now = Date.now(), k = rec && (rec.hash || rec.id);
+    const t = this._tries && this._tries.k === k && now - this._tries.at < 300000 ? this._tries.n + 1 : 1;
+    this._tries = { k, n: t, at: now };
+    return t;
+  },
+  // ── 727 — a 727x combo, or a score of 727,xxx — the osu! "when you see it": on the results she points it out
+  wysi(sc) { return !!sc && (sc.maxCombo === 727 || Math.floor((sc.scoreStd ?? sc.score ?? 0) / 1000) === 727); },
   loaderPoke(mods = [], rec = null) { return rec && !mods.includes('AT') && this.outOfReach(rec.stars) ? NeruCameo.EGG.farAbove : null; },
   /** A star rating well past the hardest you've passed (by a star and a half, and a third again): only once you've
    *  passed a few, so a new player isn't met with it every time. */
@@ -18427,12 +18440,13 @@ const GameplayScreen = {
       ...this.playerSettings(rec, !p.replay));
     const hers = !p.replay && !p.skinEditor && NeruEggs.herSong(rec);
     if (hers) NeruEggs.found('song');
+    const again = !p.replay && !p.skinEditor && NeruEggs.tries(rec) >= NeruEggs.TRIES;
     const el = h('div.gp-loader', card, settings,
       p.mp ? h('div.pl-hint', 'Get ready!') : null,
       // (Neru wishing you luck — or something like it — while it loads; not when watching a replay or someone playing,
       // nor for the skin editor's preview)
-      // (one of her own songs: she dances — NeruEggs.herSong)
-      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
+      // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
+      p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -20683,8 +20697,10 @@ const ResultsScreen = {
     // (Neru's reaction to the play you've just finished — not to a replay, someone else's play or a match)
     if (!this._swapping) {
       // (one of her own songs: delighted you passed it — sunglasses still for an SS — and sulking if you failed it)
-      const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map);
-      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
+      // (727 — when you see it: she points it out, NeruEggs.wysi)
+      const mood = NeruCameo.moodOf(s), hers = NeruEggs.herSong(map), wysi = p.fresh && !p.mp && !p.watched && NeruEggs.wysi(s);
+      if (wysi) NeruEggs.found('wysi');
+      this._neru = p.fresh && !p.mp && !p.watched ? NeruCameo.make(wysi ? 'wysi' : hers && mood === 'failed' ? 'herSongFail' : hers && mood !== 'perfect' ? 'herSongPass' : mood, 'nc-results', { delay: 1500, poke: NeruEggs.resultsPoke(s) }) : null;
       if (this._neru) el.append(this._neru);
     }
     this.fitToScreen(body, grid);
@@ -22126,9 +22142,7 @@ const SkinsScreen = {
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
   { id: '2026.10.21', title: 'Neru update', sections: [
-    { icon: 'sparkle', title: 'Neru update', items: ['Six new Neru poses, and more secrets to find', 'Neru on the main menu changes with the seasons', 'Secret Neru medals to collect', 'Her pictures are sharp again', 'Teto in your name, spelled any way? Neru has thoughts about that', 'Neru all around the game: medals, setup, song select, chat, matches, her own songs and more'] },
-    { icon: 'multi', title: 'Multiplayer', items: ['When a room can\'t be created, the lounge says why'] },
-    { icon: 'trophy', title: 'Online', items: ['Your plays count online straight away', 'Medals: only the hard ones are left (and Neru\'s secrets)'] },
+    { icon: 'sparkle', title: 'Neru update', items: ['Neru all around the game, with seasons and secrets to find', 'Only the hard medals are left (and Neru\'s secret ones)', 'Plays count online straight away', 'Rooms that can\'t be created say why'] },
   ] },
   { id: '2026.10.20c', title: 'Skins update', sections: [
     { icon: 'brush', title: 'Skins update', items: ['Preview any skin from 1K to 18K', 'A cleaner skin editor that shows hidden parts too', 'A few Neru secrets to find'] },
@@ -28930,7 +28944,8 @@ const MEDALS = [
     ['seasons', 'sync', 'Four Seasons', 'See four different times of year around Neru.'],
     ['teto', 'crosscircle', 'Wrong Twin-Tails', 'Put Teto in your name. Neru noticed.'],
     ['fine', 'book', 'The Fine Print', 'Scroll all the way down the settings.'],
-    ['song', 'music', 'Her Song', 'Play one of Neru\'s songs.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
+    ['song', 'music', 'Her Song', 'Play one of Neru\'s songs.'],
+    ['wysi', 'eye', 'When You See It', '727.']].map(([id, ic, name, desc]) => ({ id: `neru-${id}`, group: 'Neru', icon: ic, name, desc, egg: true })),
 ];
 
 const Medals = {
@@ -30011,7 +30026,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '33c634139999';
+const APP_BUILD = 'e91d0525e3d4';
 
 const App = {
   lastReport: null,
