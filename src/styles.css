@@ -1659,18 +1659,11 @@ div.res-calib .i { color: var(--good); }
 .neru-vein svg { display: block; width: 100%; height: 100%; }
 .neru-puff { position: absolute; z-index: 2; top: calc(var(--nm-top, 0%) + 6%); width: clamp(14px, calc(1.8 * var(--vw)), 26px); aspect-ratio: 1.3; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, #fff, rgba(255, 255, 255, .6) 60%, transparent); filter: blur(.5px); }
 .neru:focus-visible { outline: none; }
-/* (the Konami code: confetti over everything, never in the way) */
-.neru-confetti { position: fixed; inset: 0; z-index: 9500; overflow: hidden; pointer-events: none; }
-.neru-confetti i { position: absolute; top: 0; width: 8px; height: 13px; border-radius: 2px; box-shadow: 0 0 6px rgba(255, 255, 255, .25); }
-.neru-confetti i.dot { width: 9px; height: 9px; border-radius: 50%; }
-.neru-confetti i.star { width: 15px; height: 15px; border-radius: 0; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
-/* (her name in song select's search: she peeks in from the right edge) */
-.nc-peek { right: 0; bottom: max(150px, calc(20 * var(--vh))); z-index: 30; height: calc(min(calc(38 * var(--vh)), 360px) * var(--nc-s, 1)); translate: 18% 0; }
-.nc-peek .nc-body { transform-origin: 100% 100%; rotate: -7deg; }
-.neru-cameo.nc-peek.in .nc-body { animation: ncPeek 820ms cubic-bezier(.34, 1.4, .64, 1) both; }
-.neru-cameo.nc-peek.out .nc-body { animation: ncPeekOut 400ms cubic-bezier(.5, 0, .75, 0) both; }
-@keyframes ncPeek { 0% { transform: translateX(110%) rotate(12deg); } 60% { transform: translateX(-4%) rotate(-3deg); } 100% { transform: none; } }
-@keyframes ncPeekOut { to { transform: translateX(115%) rotate(10deg); } }
+/* (picked up: a grab cursor, and the sway and hover lift stop while she hangs) */
+.neru { touch-action: none; }
+.neru.held { cursor: grabbing; z-index: 50; }
+.neru.held .neru-img { animation: none; translate: 0 0; scale: 1; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, .45)); }
+.neru-dust { position: absolute; z-index: 2; left: 50%; bottom: -2px; width: 34px; height: 16px; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 255, 255, .55), transparent); }
 @media (prefers-reduced-motion: reduce) { .neru.huff .neru-img, .neru.shake .neru-img, .neru.startle .neru-img { animation: none; } }
 .slow .neru-cameo.hop .nc-img { animation: neruHop 620ms linear; }
 /* ── Invite dialog */
