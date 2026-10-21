@@ -413,7 +413,7 @@ await shot('01-home-empty');
     // (a long while with no key or pointer press, this: not one that leaves her alone — bored — meanwhile)
     E._seen = performance.now() + 600000;
     const at = (m, d, hr = 12, zone = 'Europe/London') => E.seasonOf(new Date(2026, m - 1, d, hr), zone) || '-';
-    out.north = [at(10, 21), at(10, 30), at(12, 25), at(2, 10), at(3, 25), at(5, 10), at(7, 4, 21), at(7, 4, 12), at(9, 1)].join();
+    out.north = [at(10, 21), at(10, 30), at(12, 25), at(2, 10), at(3, 25), at(5, 10), at(7, 4, 21), at(7, 4, 12), at(9, 1), at(3, 5), at(5, 10, 23)].join();
     out.days = [at(2, 14), at(2, 14, 12, 'Australia/Sydney'), at(2, 15), at(12, 24)].join() + '|' + [E.christmas(new Date(2026, 11, 24)), E.christmas(new Date(2026, 11, 26)), E.foolsDay(new Date(2027, 3, 1)), E.valentine(new Date(2027, 1, 14)), E.valentine(new Date(2027, 1, 13))].join();
     out.south = [at(10, 21, 12, 'Australia/Sydney'), at(4, 20, 12, 'Australia/Sydney'), at(7, 4, 12, 'America/Argentina/Buenos_Aires'), at(1, 10, 22, 'Pacific/Auckland'), at(10, 30, 12, 'Australia/Sydney')].join();
     // (the menu's own drift — today's — out of the way, and one of each in turn; as where the menus run at full speed)
@@ -474,8 +474,8 @@ await shot('01-home-empty');
   });
   check('…and on the days: hearts on Valentine\'s Day (wherever you are), twice the snow at Christmas, April Fools\' Day',
     season.days === 'hearts,hearts,snow,snow|true,false,true,true,false', season.days);
-  check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-night fireflies — the other way round in the south',
-    season.north === 'leaves,bats,snow,snow,petals,-,fireflies,-,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
+  check('Neru through the year: leaves, Halloween bats, snow, blossom, summer-day bubbles, summer-night fireflies, September dragonflies — the other way round in the south',
+    season.north === 'leaves,bats,snow,snow,petals,bubbles,fireflies,bubbles,dragonflies,snow,-' && season.south === 'petals,leaves,snow,fireflies,bats', JSON.stringify(season));
   check('…each drifts around her a few at a time, behind and in front, never in the way of a click, and not with the animations off',
     Object.values(season.kinds).every(k => k.n > 0 && k.layers === 2 && k.shape && k.moving) && season.through && season.offNone, JSON.stringify(season.kinds));
   check('…a year on from your first play, a cheer (not the day after, nor in the first year)', season.anniv === '2,0,0' && season.annivGreet === 'cheer', JSON.stringify(season));

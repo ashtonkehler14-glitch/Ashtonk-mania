@@ -14,7 +14,7 @@
  * own instead of her happy face: a dance after a full combo, a sulk after a poor play, a snicker after a fail, her
  * phone out while you pause, worried at a song far above
  * anything you've passed. And the time of year drifting around her — autumn leaves, snow, cherry blossom, fireflies on
- * a summer night, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
+ * a summer night, bubbles on a summer day, red dragonflies in September, bats at Halloween, hearts on Valentine's Day (and twice the snow at Christmas; on April Fools' Day
  * she's the other way round), stars twinkling at night (and a shooting star now and then), confetti a year on from your first play — a yawn after midnight, a cheer on New Year's Day and at a milestone play, a
  * cheer for five new songs or more, little z's when she's left alone at night, a sulk when you're back after a week away, a worried look after an hour's playing without a break, and her
  * sunglasses still on after an SS. */
@@ -763,19 +763,21 @@ const NeruEggs = {
   // ── the time of year, around her on the main menu: autumn leaves drifting down, snow in winter, cherry blossom in
   // spring, fireflies on a summer night, and bats across a harvest moon for Halloween — a few at a time, some behind her and some (bigger,
   // softer, nearer) in front; the other way round south of the equator (by the time zone)
-  /** Which, on day `d`: 'leaves', 'snow', 'petals', 'fireflies' (summer, evenings), 'bats' (the last days of
-   *  October), 'hearts' (Valentine's Day), or null. */
+  /** Which, on day `d`: 'snow' (till the spring equinox), 'petals', 'bubbles' (late spring and summer days),
+   *  'fireflies' (summer evenings), 'dragonflies' (September), 'leaves', 'bats' (the last days of October), 'hearts'
+   *  (Valentine's Day), or null (a May night, say). */
   seasonOf(d = this.today(), zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })()) {
     const m = d.getMonth() + 1, day = d.getDate(), hr = d.getHours();
     if (m === 10 && day >= 29) return 'bats';
     if (m === 2 && day === 14) return 'hearts';
     const south = /^(Australia|Antarctica|Pacific\/(Auckland|Chatham))|^America\/(Argentina|Sao_Paulo|Santiago|Montevideo|Asuncion|Punta_Arenas)|^Africa\/(Johannesburg|Maseru|Mbabane|Windhoek|Maputo|Harare)/.test(zone);
     const n = south ? (m + 5) % 12 + 1 : m; // (the month it'd be up north)
-    if (n === 12 || n <= 2) return 'snow';
-    if ((n === 3 && day >= 20) || n === 4) return 'petals';
+    if (n === 12 || n <= 2 || (n === 3 && day < 20)) return 'snow';
+    if (n === 3 || n === 4) return 'petals';
     if (n === 10 || n === 11) return 'leaves';
+    if (n === 9) return 'dragonflies';
     if (n >= 6 && n <= 8 && (hr >= 19 || hr < 5)) return 'fireflies';
-    return null;
+    return n >= 5 && n <= 8 && hr >= 7 && hr < 19 ? 'bubbles' : null;
   },
   /** How each kind drifts: how big (px), how long one takes to cross (ms), how often a new one comes (ms), how many at
    *  once, how far it sways (px) and over how long (ms), how fast it flutters (ms: none for 0), how far it tilts with
@@ -787,6 +789,8 @@ const NeruEggs = {
     fireflies: { size: [5, 7], ms: [6000, 9000], every: [800, 1500], most: 8, sway: [18, 36], swayMs: [2600, 4200], spin: [0, 0], colors: ['#e8ff8a', '#fff59a', '#c8ff7a'] },
     bats: { size: [42, 56], ms: [4800, 6800], every: [2600, 5200], most: 3, sway: [8, 14], swayMs: [700, 1000], spin: [0, 0], colors: ['#160d1f', '#1d1228', '#120a19'] },
     confetti: { size: [11, 16], ms: [6500, 9000], every: [220, 520], most: 22, sway: [10, 24], swayMs: [900, 1600], spin: [600, 1200], colors: ['#ff6fa8', '#ffd54a', '#8fd3ff', '#9be15d', '#c49bff', '#ff9f43'] },
+    bubbles: { size: [14, 30], ms: [7000, 10500], every: [900, 1800], most: 7, sway: [10, 22], swayMs: [1600, 2600], spin: [0, 0], colors: ['#bfe9ff', '#ffd1f0', '#d6ffe9', '#fff3c4'] },
+    dragonflies: { size: [30, 40], ms: [6500, 9500], every: [2200, 4200], most: 3, sway: [3, 6], swayMs: [500, 800], spin: [0, 0], colors: ['#d9452f', '#e2582c', '#c93a2a'] },
     hearts: { size: [18, 27], ms: [8000, 11000], every: [900, 1700], most: 8, sway: [14, 28], swayMs: [1800, 2800], spin: [0, 0], tilt: [8, 16], colors: ['#ff6fa8', '#ff8fc0', '#ff4d8d', '#ffb3d1'] },
   },
   /** Christmas Eve and Day: twice the snow. */
@@ -800,6 +804,7 @@ const NeruEggs = {
     if (kind === 'leaves' && c === '#f5c842') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 14.5C7.2 14.5 2.6 11 2 4.6 5 2.4 9.2 2.1 11.2 3.6L12 6.2l.8-2.6c2-1.5 6.2-1.2 9.2 1C21.4 11 16.8 14.5 12 14.5z"/><path fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round" d="M12 14v8.5"/><path fill="none" stroke="rgba(150,100,20,.4)" stroke-width=".8" stroke-linecap="round" d="M12 13.6 7 6.5M12 13.6 9.4 5M12 13.6l2.6-8.6M12 13.6 17 6.5"/></svg>`;
     if (kind === 'leaves') return `<svg viewBox="0 0 24 24"><path fill="${c}" d="M12 1.5c-3.6 3-6.8 6.6-6.8 11.2 0 4 2.9 7 6.1 8.1V23h1.4v-2.2c3.2-1.1 6.1-4.1 6.1-8.1 0-4.6-3.2-8.2-6.8-11.2z"/><path fill="none" stroke="rgba(90,40,20,.45)" stroke-width="1" stroke-linecap="round" d="M12 4v17M12 10l-3.2-2.6M12 10l3.2-2.6M12 14.5l-4-3M12 14.5l4-3"/></svg>`;
     if (kind === 'petals') return `<svg viewBox="0 0 20 20"><path fill="${c}" d="M10 19C4.6 15.6 2.6 10.6 4.2 6.2 5.2 3.4 7.4 1.6 8.8 1l1.2 2.4L11.2 1c1.4.6 3.6 2.4 4.6 5.2 1.6 4.4-.4 9.4-5.8 12.8z"/><path fill="none" stroke="rgba(230,110,150,.5)" stroke-width=".8" stroke-linecap="round" d="M10 17V7"/></svg>`;
+    if (kind === 'dragonflies') return `<svg viewBox="0 0 32 32"><g fill="rgba(235,245,255,.6)" stroke="rgba(255,255,255,.85)" stroke-width=".6"><ellipse cx="9" cy="11" rx="8" ry="2.6" transform="rotate(-8 9 11)"/><ellipse cx="23" cy="11" rx="8" ry="2.6" transform="rotate(8 23 11)"/><ellipse cx="9.5" cy="15.5" rx="7" ry="2.3" transform="rotate(10 9.5 15.5)"/><ellipse cx="22.5" cy="15.5" rx="7" ry="2.3" transform="rotate(-10 22.5 15.5)"/></g><rect x="15" y="9" width="2" height="21" rx="1" fill="${c}"/><circle cx="16" cy="7.5" r="2.4" fill="${c}"/></svg>`;
     if (kind === 'confetti') return `<svg viewBox="0 0 10 10"><rect y="2" width="10" height="6" rx="1" fill="${c}"/></svg>`;
     if (kind === 'hearts') return `<svg viewBox="0 0 24 22"><path fill="${c}" d="M12 21.4l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6L12 21.4z"/></svg>`;
     if (kind === 'bats') return `<svg viewBox="0 0 32 16"><path fill="${c}" d="M16 5.2c.7-1.6 1.4-2.6 1.4-2.6l.6 2.4c3.4-2.6 8.6-3.8 13-2.4-1.8 1-3 2.8-3.4 5.4-1.8-1.2-4-1.2-5.6.4-1-1.2-2.8-1.4-4-.2-.4 1.4-1.2 2.6-2 3.4-.8-.8-1.6-2-2-3.4-1.2-1.2-3-1-4 .2-1.6-1.6-3.8-1.6-5.6-.4C4 5.6 2.8 3.8 1 2.8c4.4-1.4 9.6-.2 13 2.4l.6-2.4s.7 1 1.4 2.6z"/></svg>`;
@@ -877,7 +882,7 @@ const NeruEggs = {
       // three layers: the fall (or flight) across, the sway from side to side, and the turn (or flap, or glow)
       const p = h('span.nd'), sway = h('i'), spin = h('i');
       spin.innerHTML = this.driftShape(kind, c);
-      if (!spin.firstChild) { spin.className = 'nd-dot'; spin.style.background = c; }
+      if (!spin.firstChild) { spin.className = 'nd-dot'; if (kind === 'bubbles') spin.style.setProperty('--c', c); else spin.style.background = c; }
       Object.assign(p.style, { width: `${size}px`, height: `${size * (kind === 'bats' ? 0.5 : 1)}px` });
       sway.append(spin); p.append(sway); layer.append(p); n++;
       let path;
@@ -887,6 +892,21 @@ const NeruEggs = {
         path = [{ transform: `translate(${ltr ? -size * 2 : W + size}px, ${y0}px)` }, { transform: `translate(${ltr ? W + size : -size * 2}px, ${y1}px)` }];
         if (!ltr) spin.style.scale = '-1 1';
         spin.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(.45) translateY(12%)' }], { duration: r([150, 210]), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      } else if (kind === 'bubbles') {
+        // (up from the floor, drifting, and — somewhere along the way — pop)
+        const x = W * r([0.02, 0.98]), top = H * r([0.05, 0.45]), x1 = x + r([-30, 30]);
+        path = [{ transform: `translate(${x}px, ${H + size}px) scale(.6)`, opacity: 0 }, { opacity: 0.9, offset: 0.1 }, { transform: `translate(${x1}px, ${top}px) scale(1)`, opacity: 0.9, offset: 0.93 },
+          { transform: `translate(${x1}px, ${top}px) scale(1.4)`, opacity: 0 }];
+      } else if (kind === 'dragonflies') {
+        // (darting from one spot to the next, hovering at each — facing the way it goes)
+        const pts = [];
+        for (let i = 0; i < 5; i++) pts.push([W * r([0.04, 0.96]), H * r([0.12, 0.7])]);
+        path = pts.map(([x, y], i) => {
+          const [nx, ny] = pts[Math.min(i + 1, pts.length - 1)], [px, py] = pts[Math.max(i - 1, 0)];
+          const a = Math.atan2((i < pts.length - 1 ? ny - y : y - py), (i < pts.length - 1 ? nx - x : x - px)) * 180 / Math.PI + 90;
+          return { transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${a.toFixed(1)}deg)`, opacity: i === 0 || i === pts.length - 1 ? 0 : 1, offset: i / (pts.length - 1), easing: 'cubic-bezier(.6, 0, .2, 1)' };
+        });
+        spin.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(.82)' }], { duration: 70, iterations: Infinity, direction: 'alternate' });
       } else if (kind === 'fireflies') {
         // (where it is, low around her, glowing up and fading as it wanders)
         const x = W * r([0.05, 0.95]), y = H * r([0.35, 0.95]);
