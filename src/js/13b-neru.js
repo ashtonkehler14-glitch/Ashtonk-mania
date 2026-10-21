@@ -897,6 +897,22 @@ const NeruEggs = {
     if (!had.includes(kind)) Settings.set('neru.seasons', had.concat(kind));
     if (new Set((Settings.get('neru.seasons') || []).filter(k => this.SEASONS.includes(k))).size >= 4) this.found('seasons');
   },
+  /** How far through its month the moon is on `d` (0 new, 0.5 full): from a new moon known to the minute (6 January
+   *  2000, 18:14 UTC), a synodic month at a time. */
+  moonPhase(d = this.today()) {
+    const days = (d.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5, m = 29.530588853;
+    return ((days / m) % 1 + 1) % 1;
+  },
+  /** The moon as it is on `d`: its lit part (waxing on the right, waning on the left), the rest only just there. */
+  moon(d = this.today()) {
+    const p = this.moonPhase(d), k = Math.cos(2 * Math.PI * p), r = 10, rx = (r * Math.abs(k)).toFixed(2), waxing = p < 0.5;
+    // (the lit limb, top to bottom on its side, then back up along the terminator — bulging into the light for a
+    // crescent, out of it for a gibbous moon)
+    const lit = `M10 0A10 10 0 0 ${waxing ? 1 : 0} 10 20A${rx} 10 0 0 ${waxing ? (k > 0 ? 0 : 1) : (k > 0 ? 1 : 0)} 10 0Z`;
+    const m = h('span.nd-moon', { dataset: { phase: p.toFixed(3) } });
+    m.innerHTML = `<svg viewBox="-1 -1 22 22"><circle cx="10" cy="10" r="10" fill="#c9cfe0" opacity=".1"/><path d="${lit}" fill="#f4f1e4"/></svg>`;
+    return m;
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5 || (this.tanabata(d) && hr >= 19); },
   /** Tanabata (7 July, the star festival): the stars out from the evening, and shooting stars one after another. */
@@ -910,6 +926,8 @@ const NeruEggs = {
     if (quiet()) return;
     const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
     el.prepend(sky);
+    // (and the moon as it is tonight — not at Halloween, which has its own)
+    if (this.seasonOf() !== 'bats') sky.append(this.moon());
     let n = 0;
     const box = this.measure(sky);
     const one = () => {

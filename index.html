@@ -1726,6 +1726,8 @@ div.res-calib .i { color: var(--good); }
 .nd-fireflies .nd, .nd-fireflies.nd-front .nd { filter: none; }
 /* (night: stars high up around her, far off — behind the time of year's drift) */
 .neru-sky { position: absolute; left: -30%; right: -45%; top: -6%; bottom: 40%; pointer-events: none; overflow: hidden; -webkit-mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); mask-image: linear-gradient(transparent 12%, #000 30%, #000 72%, transparent); }
+.nd-moon { position: absolute; right: 4%; top: 22%; width: 15%; aspect-ratio: 1; }
+.nd-moon svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 6px rgba(240, 236, 220, .55)) drop-shadow(0 0 18px rgba(200, 210, 255, .25)); }
 .nd-star { position: absolute; }
 .nd-shoot { position: absolute; left: 0; top: 0; width: 110px; height: 2px; margin-left: -110px; border-radius: 2px; transform-origin: 100% 50%; background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(220, 230, 255, .5) 60%, #fff); box-shadow: 0 0 6px rgba(255, 255, 255, .7); }
 .nd-star svg { display: block; width: 100%; height: 100%; fill: #fff6dc; filter: drop-shadow(0 0 3px rgba(255, 244, 210, .9)) drop-shadow(0 0 8px rgba(190, 200, 255, .45)); }
@@ -15870,6 +15872,22 @@ const NeruEggs = {
     if (!had.includes(kind)) Settings.set('neru.seasons', had.concat(kind));
     if (new Set((Settings.get('neru.seasons') || []).filter(k => this.SEASONS.includes(k))).size >= 4) this.found('seasons');
   },
+  /** How far through its month the moon is on `d` (0 new, 0.5 full): from a new moon known to the minute (6 January
+   *  2000, 18:14 UTC), a synodic month at a time. */
+  moonPhase(d = this.today()) {
+    const days = (d.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5, m = 29.530588853;
+    return ((days / m) % 1 + 1) % 1;
+  },
+  /** The moon as it is on `d`: its lit part (waxing on the right, waning on the left), the rest only just there. */
+  moon(d = this.today()) {
+    const p = this.moonPhase(d), k = Math.cos(2 * Math.PI * p), r = 10, rx = (r * Math.abs(k)).toFixed(2), waxing = p < 0.5;
+    // (the lit limb, top to bottom on its side, then back up along the terminator — bulging into the light for a
+    // crescent, out of it for a gibbous moon)
+    const lit = `M10 0A10 10 0 0 ${waxing ? 1 : 0} 10 20A${rx} 10 0 0 ${waxing ? (k > 0 ? 0 : 1) : (k > 0 ? 1 : 0)} 10 0Z`;
+    const m = h('span.nd-moon', { dataset: { phase: p.toFixed(3) } });
+    m.innerHTML = `<svg viewBox="-1 -1 22 22"><circle cx="10" cy="10" r="10" fill="#c9cfe0" opacity=".1"/><path d="${lit}" fill="#f4f1e4"/></svg>`;
+    return m;
+  },
   /** Night (10pm till 5, by the clock here): stars come out. */
   night(d = this.today()) { const hr = d.getHours(); return hr >= 22 || hr < 5 || (this.tanabata(d) && hr >= 19); },
   /** Tanabata (7 July, the star festival): the stars out from the evening, and shooting stars one after another. */
@@ -15883,6 +15901,8 @@ const NeruEggs = {
     if (quiet()) return;
     const sky = h('span.neru-sky', { 'aria-hidden': 'true' });
     el.prepend(sky);
+    // (and the moon as it is tonight — not at Halloween, which has its own)
+    if (this.seasonOf() !== 'bats') sky.append(this.moon());
     let n = 0;
     const box = this.measure(sky);
     const one = () => {
@@ -29663,7 +29683,7 @@ const Sync = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '6e9cacbd27c1';
+const APP_BUILD = '5242796f2198';
 
 const App = {
   lastReport: null,
